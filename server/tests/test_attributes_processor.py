@@ -26,8 +26,10 @@ def test_read_viame_attributes(
         rows.append(line)
         text = text + line
         print()
-    converted, attributes = load_csv_as_tracks_and_attributes(text.split('\n'))
+    converted, meta = load_csv_as_tracks_and_attributes(text.split('\n'))
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
-    assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)
+    assert json.dumps(meta['attributes'], sort_keys=True) == json.dumps(
+        expected_attributes, sort_keys=True
+    )

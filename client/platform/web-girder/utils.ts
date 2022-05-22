@@ -1,6 +1,6 @@
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,
+  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, manifestFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
@@ -34,12 +34,12 @@ function getRouteFromLocation(location: LocationType): string {
   return `/${location._modelType}/${location._id}`;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'zip'):
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'manifest'):
 Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calbiration', 'annotation', 'zip'].includes(datasetType)) {
+  if (!['calbiration', 'annotation', 'manifest'].includes(datasetType)) {
     input.multiple = true;
   }
   if (datasetType === 'image-sequence') {
@@ -51,8 +51,8 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
-  } else if (datasetType === 'zip') {
-    input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
+  } else if (datasetType === 'manifest') {
+    input.accept = manifestFileTypes.map((item) => `.${item}`).join(',');
   }
 
   return new Promise(((resolve, reject) => {

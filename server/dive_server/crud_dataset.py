@@ -153,7 +153,6 @@ class MetadataMutableUpdateArgs(models.MetadataMutable):
 
 def update_metadata(dsFolder: types.GirderModel, data: dict):
     """Update mutable metadata"""
-    crud.verify_dataset(dsFolder)
     validated: MetadataMutableUpdateArgs = crud.get_validated_model(
         MetadataMutableUpdateArgs, **data
     )

@@ -9,7 +9,7 @@ import os
 import re
 from typing import Any, Dict, Generator, List, Tuple, Union
 
-from dive_utils import constants, types
+from dive_utils import constants, models, types
 from dive_utils.models import Feature, Track, interpolate
 
 
@@ -324,7 +324,9 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes
+    return annotations, models.MetadataMutable(attributes=metadata_attributes).dict(
+        exclude_none=True
+    )
 
 
 def export_tracks_as_csv(

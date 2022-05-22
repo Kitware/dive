@@ -18,7 +18,7 @@ import pymongo
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
-from dive_utils.serializers import dive, kpf, kwcoco, viame
+from dive_utils.serializers import dive, fathomnet, kpf, kwcoco, viame
 
 from . import crud_dataset
 
@@ -275,7 +275,7 @@ GetDataReturnType = TypedDict(
     {
         'annotations': Optional[types.DIVEAnnotationSchema],
         'meta': Optional[dict],
-        'attributes': Optional[dict],
+        'images': Optional[List[types.ImportImage]],
         'type': crud.FileType,
     },
 )
@@ -305,9 +305,9 @@ def _get_data_by_type(
         as_type = crud.FileType.VIAME_CSV
     elif file['exts'][-1] == 'json':
         data_dict = json.loads(file_string)
-        if type(data_dict) is list:
-            raise RestException('No array-type json objects are supported')
-        if kwcoco.is_coco_json(data_dict):
+        if fathomnet.is_fathomnet(data_dict):
+            as_type = crud.FileType.FATHOMNET_JSON
+        elif kwcoco.is_coco_json(data_dict):
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
             data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
@@ -321,25 +321,28 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes = viame.load_csv_as_tracks_and_attributes(
+        converted, meta = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': meta, 'images': None, 'type': as_type}
     if as_type == crud.FileType.MEVA_KPF:
-        converted, attributes = kpf.convert(kpf.load(file_string))
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        converted, meta = kpf.convert(kpf.load(file_string))
+        return {'annotations': converted, 'meta': meta, 'images': None, 'type': as_type}
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
+    if as_type == crud.FileType.FATHOMNET_JSON:
+        converted, meta, images = fathomnet.convert(fathomnet.load(data_dict))
+        return {'annotations': converted, 'meta': meta, 'images': images, 'type': as_type}
     if as_type == crud.FileType.COCO_JSON:
-        converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        converted, meta = kwcoco.convert(data_dict)
+        return {'annotations': converted, 'meta': meta, 'images': None, 'type': as_type}
     if as_type == crud.FileType.DIVE_CONF:
-        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
+        return {'annotations': None, 'meta': data_dict, 'images': None, 'type': as_type}
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': None, 'type': as_type}
+        return {'annotations': migrated, 'meta': None, 'images': None, 'type': as_type}
     return None
 
 
@@ -368,7 +371,11 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         try:
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
-                image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
+                try:
+                    image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
+                except RestException:
+                    # We can't get valid images because there aren't any yet.
+                    pass
             results = _get_data_by_type(file, image_map=image_map)
         except Exception as e:
             Item().remove(item)
@@ -390,10 +397,24 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
                 overwrite=True,
                 description=f'Import {results["type"].name} from {file["name"]}',
             )
-        if results['attributes']:
-            crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
             crud_dataset.update_metadata(folder, results['meta'])
+        if results['images']:
+            job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+            imglen = len(results['images'])
+            newjob = tasks.import_images.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(folder['_id']),
+                    images=results['images'],
+                    girder_job_title=f"Import {imglen} images to {str(folder['_id'])}",
+                    girder_client_token=str(Token().createToken(user=user, days=2)['_id']),
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+            newjob.job[constants.JOBCONST_DATASET_ID] = str(item["folderId"])
+            newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
 
 
 def postprocess(

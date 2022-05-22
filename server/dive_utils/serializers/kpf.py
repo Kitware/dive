@@ -178,4 +178,4 @@ def convert(kpf_data: KPFData) -> Tuple[types.DIVEAnnotationSchema, dict]:
         'tracks': dict(sorted(tracks.items())),
         'groups': dict(sorted(groups.items())),
         'version': constants.AnnotationsCurrentVersion,
-    }, attribute_definitions
+    }, models.MetadataMutable(attributes=attribute_definitions).dict(exclude_none=True)

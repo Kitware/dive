@@ -680,8 +680,10 @@ def test_read_kwcoco_json(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    (converted, attributes) = kwcoco.load_coco_as_tracks_and_attributes(input)
+    (converted, meta) = kwcoco.convert(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
-    assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)
+    assert json.dumps(meta['attributes'], sort_keys=True) == json.dumps(
+        expected_attributes, sort_keys=True
+    )

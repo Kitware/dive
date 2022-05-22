@@ -104,8 +104,9 @@ const listFileTypes = [
   'txt',
 ];
 
-const zipFileTypes = [
+const manifestFileTypes = [
   'zip',
+  'json',
 ];
 
 const stereoPipelineMarker = 'measurement';
@@ -135,7 +136,7 @@ export {
   inputAnnotationTypes,
   inputAnnotationFileTypes,
   listFileTypes,
-  zipFileTypes,
+  manifestFileTypes,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   JsonMetaRegEx,

@@ -15,8 +15,10 @@ def test_read_viame_csv(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    (converted, attributes) = viame.load_csv_as_tracks_and_attributes(input)
+    (converted, meta) = viame.load_csv_as_tracks_and_attributes(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
-    assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)
+    assert json.dumps(meta['attributes'], sort_keys=True) == json.dumps(
+        expected_attributes, sort_keys=True
+    )

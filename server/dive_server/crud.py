@@ -13,7 +13,7 @@ from girder.models.model_base import AccessControlledModel, Model
 import pydantic
 from pydantic.main import BaseModel
 
-from dive_utils import asbool, constants, fromMeta, models, strNumericCompare
+from dive_utils import asbool, constants, fromMeta, strNumericCompare
 from dive_utils.types import GirderModel, GirderUserModel
 
 
@@ -23,6 +23,7 @@ class FileType(Enum):
     COCO_JSON = 3
     DIVE_CONF = 4
     MEVA_KPF = 5
+    FATHOMNET_JSON = 6
 
 
 def get_validated_model(model: BaseModel, **kwargs):
@@ -81,18 +82,6 @@ def get_or_create_source_folder(folder, user):
 
 def itemIsWebsafeVideo(item: Item) -> bool:
     return fromMeta(item, "codec") == "h264"
-
-
-def saveImportAttributes(folder, attributes, user):
-    attributes_dict = fromMeta(folder, 'attributes', {})
-    # we don't overwrite any existing meta attributes
-    for attribute in attributes.values():
-        validated: models.Attribute = models.Attribute(**attribute)
-        if attribute['key'] not in attributes_dict:
-            attributes_dict[str(validated.key)] = validated.dict(exclude_none=True)
-
-    folder['meta']['attributes'] = attributes_dict
-    Folder().save(folder)
 
 
 def verify_dataset(folder: GirderModel):

@@ -287,6 +287,7 @@ class DatasetResource(Resource):
         )
     )
     def patch_metadata(self, folder, data):
+        crud.verify_dataset(folder)
         return crud_dataset.update_metadata(folder, data)
 
     @access.user

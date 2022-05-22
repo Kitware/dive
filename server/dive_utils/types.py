@@ -71,6 +71,13 @@ class TrainingJob(TypedDict):
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
 
 
+class ImportImage(TypedDict):
+    """A job description for fetching images from a public server"""
+
+    url: str  # A public URL to fetch the image from
+    filename: str  # A filename for the image
+
+
 class TrainingConfigurationSummary(TypedDict):
     configs: List[str]
     default: Optional[str]

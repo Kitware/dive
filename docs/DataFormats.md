@@ -5,20 +5,27 @@ hide:
 
 # Data Formats
 
-DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.
+DIVE Desktop and Web support a number of annotation and configuration formats.  Not all formats are supported in all applications.
 
-* DIVE Annotation JSON (default annotation format)
-* DIVE Configuration JSON
-* VIAME CSV
-* KPF (KWIVER Packet Format)
-* COCO and KWCOCO (web only)
+| Format | Desktop Import | Desktop Export | Web Import | Web Export |
+|--------|----------------|----------------|------------|------------|
+| [DIVE Annotation JSON](#dive-annotation-json) | ✔️ | ✔️* |  ✔️ | ✔️
+| [DIVE Configuration JSON](#dive-configuration-json) | ✔️ | ✔️* | ✔️ | ✔️
+| [VIAME CSV](#viame-csv) | ✔️ | ✔️ | ✔️ | ✔️
+| [KPF: KWIVER Packet Format](#kwiver-packet-format-kpf) | ✔️ | ❌ | ✔️ | ❌
+| [COCO and KWCOCO](#coco-and-kwcoco) | ❌ | ❌ | ✔️ | ❌
+| [FathomNet JSON](#fathomnet-json) | ❌ | ❌ | ✔️ | ❌
+
+<p style="font-size: 10px; margin-top: -26px !important;">
+* the format doesn't have an in-GUI export option, but can be retrieved from the filesystem project folder.
+</p>
+
+!!! warning
+    If you'd like to use a web-only format on desktop, try using [the web version](Web-Version.md) to convert and export your data.
 
 ## DIVE Annotation JSON
 
-!!! info
-    The current DIVE schema version is v2.  Version 2 was introduced in DIVE version 1.9.0.  It is backward-compatible with v1.
-
-Files are typically named `result_{dataset-name}.json`.  Their schema is described as follows.
+The current DIVE schema version is v2.  Version 2 was introduced in DIVE version 1.9.0.  It is backward-compatible with v1.
 
 ``` typescript
 /** AnnotationSchema is the schema of the annotation DIVE JSON file */
@@ -169,7 +176,18 @@ DIVE supports [MEVA KPF](https://mevadata.org/)
 
 ## COCO and KWCOCO
 
-Only supported on web.
-
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
+
+## FathomNet JSON
+
+[FathomNet](http://fathomnet.org/fathomnet/) is an open-source image database. Read the [FathomNet Schema Specification](https://fathomnet-py.readthedocs.io/en/latest/models.html).
+
+### Download FathomNet JSON
+
+You can download JSON data from the online explorer and import it into VIAME Web.
+
+1. Visit the FathomNet Explorer
+1. Run a search.
+1. Click "Select All" in the results window
+1. Click ==Download== when it appears on the page.

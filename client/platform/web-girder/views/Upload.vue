@@ -42,7 +42,7 @@ export interface PendingUpload {
   meta: null | File;
   annotationFile: null | File;
   mediaList: File[];
-  type: DatasetType | 'zip';
+  type: DatasetType | 'manifest';
   fps: number;
   uploading: boolean;
 }
@@ -81,7 +81,7 @@ export default defineComponent({
         meta: null,
         annotationFile: null,
         mediaList: allFiles,
-        type: 'zip',
+        type: 'manifest',
         fps,
         uploading: false,
       });
@@ -189,7 +189,7 @@ export default defineComponent({
     /**
      * Initial opening of file dialog
      */
-    const openImport = async (dstype: DatasetType | 'zip') => {
+    const openImport = async (dstype: DatasetType | 'manifest') => {
       const ret = await openFromDisk(dstype);
       if (!ret.canceled && ret.fileList) {
         const processed = processImport(ret);
@@ -198,7 +198,7 @@ export default defineComponent({
           const name = processed.fullList.length === 1 ? processed.fullList[0].name : '';
           preUploadErrorMessage.value = null;
           try {
-            if (dstype !== 'zip') {
+            if (dstype !== 'manifest') {
               await addPendingUpload(
                 name, processed.fullList, processed.metaFile,
                 processed.annotationFile, processed.mediaList,
@@ -259,7 +259,7 @@ export default defineComponent({
           return `${filesNotUploaded(pendingUpload)} files`;
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos`;
-        } if ((pendingUpload.type === VideoType || pendingUpload.type === 'zip') && pendingUpload.uploading) {
+        } if ((pendingUpload.type === VideoType || pendingUpload.type === 'manifest') && pendingUpload.uploading) {
           // For videos we display the total progress when uploading because
           // single videos can be large
           return `${formatSize(totalProgress)} of ${formatSize(totalSize)}`;
@@ -274,13 +274,13 @@ export default defineComponent({
       return `Folder Name${plural}`;
     };
     const getFilenameInputStateDisabled = (pendingUpload: PendingUpload) => (
-      pendingUpload.uploading || (pendingUpload.createSubFolders && pendingUpload.type !== 'zip')
+      pendingUpload.uploading || (pendingUpload.createSubFolders && pendingUpload.type !== 'manifest')
     );
     const getFilenameInputStateHint = (pendingUpload: PendingUpload) => (
-      (pendingUpload.createSubFolders && pendingUpload.type !== 'zip') ? 'default folder names are used when "Create Subfolders" is selected' : ''
+      (pendingUpload.createSubFolders && pendingUpload.type !== 'manifest') ? 'default folder names are used when "Create Subfolders" is selected' : ''
     );
     const getFilenameInputValue = (pendingUpload: PendingUpload) => (
-      pendingUpload.createSubFolders && pendingUpload.type !== 'zip' ? 'default' : pendingUpload.name
+      pendingUpload.createSubFolders && pendingUpload.type !== 'manifest' ? 'default' : pendingUpload.name
     );
     const remove = (pendingUpload: PendingUpload) => {
       const index = pendingUploads.value.indexOf(pendingUpload);
@@ -457,7 +457,7 @@ export default defineComponent({
                 </v-btn>
               </v-col>
             </v-row>
-            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'">
+            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'manifest'">
               <v-col class="py-0 mx-2">
                 <v-row>
                   <v-file-input
@@ -516,18 +516,18 @@ export default defineComponent({
             }"
           >
             <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
+              :name="`${pendingUploads.length ? '+' : 'Add'} Image Sequence`"
               icon="mdi-folder-open"
               open-type="image-sequence"
               class="grow"
               :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
+              :class="[pendingUploads.length ? '' : 'my-3']"
               :button-attrs="buttonAttrs"
               @open="openImport($event)"
               @multi-cam="openMultiCamDialog"
             />
             <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+              :name="`${pendingUploads.length ? '+' : 'Add'} Video`"
               icon="mdi-file-video"
               class="grow"
               :small="!!pendingUploads.length"
@@ -538,25 +538,42 @@ export default defineComponent({
               @multi-cam="openMultiCamDialog"
             />
             <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
+              :name="`${pendingUploads.length ? '+' : 'Import'} Zip or Manifest File`"
               icon="mdi-zip-box"
               class="grow"
               :small="!!pendingUploads.length"
               :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
-              open-type="zip"
+              open-type="manifest"
               :button-attrs="buttonAttrs"
               @open="openImport($event)"
             />
           </div>
-          <div v-if="pendingUploads.length && pendingUploads.some((item) => item.type === 'zip')">
-            <h3 class="text-center">
+          <div class="d-flex flex-row">
+            Reference documentation:
+            <p class="text-center ml-4">
               <a
                 target="_blank"
-                href="https://kitware.github.io/dive/Web-Version/#zip-files"
+                href="https://kitware.github.io/dive/Web-Version/#uploading-data"
               >
-                Supported Zip Files
+                General Uploading
               </a>
-            </h3>
+            </p>
+            <p class="text-center ml-4">
+              <a
+                target="_blank"
+                href="https://kitware.github.io/dive/Web-Version/#uploading-zip-files"
+              >
+                Expected Zip Structure
+              </a>
+            </p>
+            <p class="text-center ml-4">
+              <a
+                target="_blank"
+                href="https://kitware.github.io/dive/DataFormats/"
+              >
+                Supported Data Formats
+              </a>
+            </p>
           </div>
           <v-btn
             v-if="pendingUploads.length"

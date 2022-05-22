@@ -8,7 +8,7 @@ from typing import BinaryIO, Dict, List, Optional, TextIO
 import click
 
 from dive_utils import models, strNumericCompare
-from dive_utils.serializers import kpf, kwcoco, viame
+from dive_utils.serializers import fathomnet, kpf, kwcoco, viame
 from scripts import cli
 
 
@@ -44,27 +44,43 @@ def convert_kpf(inputs: List[BinaryIO], output: TextIO, output_attrs: TextIO):
 @convert.command(name="coco2dive")
 @click.argument('input', type=click.File('rt'))
 @click.option('--output', type=click.File('wt'), default='annotations.dive.json')
-@click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
+@click.option('--output-attrs', type=click.File('wt'), default='meta.json')
 def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
     coco_json = json.load(input)
-    tracks, attributes = kwcoco.load_coco_as_tracks_and_attributes(coco_json)
+    tracks, meta = kwcoco.convert(coco_json)
     json.dump(tracks, output)
-    json.dump(attributes, output_attrs, indent=4)
+    json.dump(meta, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
-    click.secho(f'wrote attrib {output_attrs.name}', fg='green')
+    click.secho(f'wrote meta {output_attrs.name}', fg='green')
+
+
+@convert.command(name="fathom2dive")
+@click.argument('input', type=click.File('rt'))
+@click.option('--output', type=click.File('wt'), default='annotations.dive.json')
+@click.option('--output-attrs', type=click.File('wt'), default='meta.json')
+@click.option('--output-images', type=click.File('wt'), default='images.json')
+def convert_fathomnet(input: TextIO, output: TextIO, output_attrs: TextIO, output_images: TextIO):
+    data = json.load(input)
+    tracks, meta, images = fathomnet.convert(fathomnet.load(data))
+    json.dump(tracks, output)
+    json.dump(meta, output_attrs, indent=4)
+    json.dump(images, output_images, indent=4)
+    click.secho(f'wrote output {output.name}', fg='green')
+    click.secho(f'wrote meta {output_attrs.name}', fg='green')
+    click.secho(f'wrote images {output_images.name}', fg='green')
 
 
 @convert.command(name="viame2dive")
 @click.argument('input', type=click.File('rt'))
 @click.option('--output', type=click.File('wt'), default='annotations.dive.json')
-@click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
+@click.option('--output-attrs', type=click.File('wt'), default='meta.json')
 def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     rows = input.readlines()
-    converted, attributes = viame.load_csv_as_tracks_and_attributes(rows)
+    converted, meta = viame.load_csv_as_tracks_and_attributes(rows)
     json.dump(converted, output)
-    json.dump(attributes, output_attrs, indent=4)
+    json.dump(meta, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')
-    click.secho(f'wrote attrib {output_attrs.name}', fg='green')
+    click.secho(f'wrote meta {output_attrs.name}', fg='green')
 
 
 @convert.command(name="dive2viame")

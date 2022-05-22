@@ -21,7 +21,7 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob
+from dive_utils.types import AvailableJobSchema, GirderModel, ImportImage, PipelineJob, TrainingJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -532,6 +532,40 @@ def convert_images(self: Task, folderId):
             str(folderId),
             {"annotate": True},  # mark the parent folder as able to annotate.
         )
+
+
+@app.task(bind=True, acks_late=True, ignore_result=True)
+def import_images(self: Task, folderId: str, images: List[ImportImage]):
+    """
+    Download images from URL and upload back to server
+    """
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        for item in images:
+            manager.write(f'Fetching image {item["url"]}\n')
+            request.urlretrieve(
+                item['url'], filename=str(_working_directory_path / item['filename'])
+            )
+            if utils.check_canceled(self, context, force=False):
+                manager.updateStatus(JobStatus.CANCELED)
+                return
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        gc.upload(f'{_working_directory}/*', folderId)
+        gc.addMetadataToFolder(
+            folderId,
+            {
+                constants.TypeMarker: 'image-sequence',
+                constants.FPSMarker: 1,
+            },
+        )
+        gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(folderId)}")
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)

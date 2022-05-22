@@ -197,7 +197,7 @@ zipUser = {
             'name': 'flatMultiImport',
             'path': 'zipTestFiles/flatMultiImport.zip',
             'fps': -1,
-            'type': 'zip',
+            'type': 'manifest',
             'subDatasets': [
                 {
                     'name': 'testVideoZip',
@@ -216,7 +216,7 @@ zipUser = {
             'name': 'MultiDatasetImport',
             'path': 'zipTestFiles/MultiDatasetImport.zip',
             'fps': -1,
-            'type': 'zip',
+            'type': 'manifest',
             'subDatasets': [
                 {
                     'name': 'video1_train_mp4',
