@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import cherrypy
 from girder.constants import AccessType
@@ -284,7 +284,7 @@ def get_dataset_query(
             Folder().permissionClauses(user=user, level=level),
         ]
     }
-    optional_query_parts = []
+    optional_query_parts: List[Dict[str, Any]] = []
 
     if published:
         optional_query_parts.append(
