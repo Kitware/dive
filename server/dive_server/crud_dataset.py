@@ -299,7 +299,8 @@ def get_dataset_query(
                         '$nor': [{'creatorId': {'$eq': user['_id']}}, {'creatorId': {'$eq': None}}]
                     },
                     {
-                        # But where the current user still has access
+                        # But where the current user has been given explicit access
+                        # Implicit public datasets should not be considered "shared"
                         'access.users': {'$elemMatch': {'id': user['_id']}}
                     },
                 ]
