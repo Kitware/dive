@@ -8,7 +8,7 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
-from dive_utils import setContentDisposition
+from dive_utils import constants, setContentDisposition
 
 from . import crud, crud_annotation
 
@@ -165,6 +165,22 @@ class AnnotationResource(Resource):
         crud_annotation.rollback(folder, revision)
 
     @access.user
-    @autoDescribeRoute(Description("Get all labels visible to a particular user"))
-    def get_labels(self):
-        return crud_annotation.get_labels(self.getCurrentUser())
+    @autoDescribeRoute(
+        Description("Get all labels visible to a particular user")
+        .param(
+            constants.PublishedMarker,
+            'Return only labels from published data',
+            required=False,
+            default=True,
+            dataType='boolean',
+        )
+        .param(
+            constants.SharedMarker,
+            'Return only labels from data shared with me',
+            required=False,
+            default=True,
+            dataType='boolean',
+        )
+    )
+    def get_labels(self, published: bool, shared: bool):
+        return crud_annotation.get_labels(self.getCurrentUser(), published=published, shared=shared)
