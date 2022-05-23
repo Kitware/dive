@@ -87,4 +87,9 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
     }
     return [];
   }
+
+  clearAll(): void {
+    this.trackMap = new MultiMap();
+    super.clearAll();
+  }
 }

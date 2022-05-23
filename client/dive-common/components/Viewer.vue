@@ -405,6 +405,7 @@ export default defineComponent({
 
     const reloadAnnotations = async () => {
       trackStore.clearAll();
+      groupStore.clearAll();
       discardChanges();
       progress.loaded = false;
       await loadData();
