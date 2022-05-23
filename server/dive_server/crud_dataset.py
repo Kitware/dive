@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import cherrypy
 from girder.constants import AccessType
@@ -288,36 +288,38 @@ def get_dataset_query(
     shared: bool,
     level=AccessType.READ,
 ):
-    permissionsClause = Folder().permissionClauses(user=user, level=level)
-    dataset_clause = {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}}
-    query_parts = [{'$and': [dataset_clause, permissionsClause]}]
-    if published:
-        published_query = {f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}
-        query_parts.append({'$and': [published_query, dataset_clause]})
-    if shared:
-        shared_query = [
-            {
-                # Find datasets not owned by the current user
-                '$nor': [
-                    {'creatorId': {'$eq': user['_id']}},
-                    {'creatorId': {'$eq': None}},
-                ],
-            },
-            {
-                # But where the current user still has access
-                'access.users': {
-                    '$elemMatch': {
-                        'id': user['_id'],
-                    }
-                },
-            },
-            dataset_clause,
+    base_query = {
+        '$and': [
+            {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}},
+            Folder().permissionClauses(user=user, level=level),
         ]
-        query_parts.append({'$and': shared_query})
+    }
+    optional_query_parts: List[Dict[str, Any]] = []
 
-    if published and shared:
-        return {'$or': query_parts}
-    return {'$and': query_parts}
+    if published:
+        optional_query_parts.append(
+            {f'meta.{constants.PublishedMarker}': {'$in': TRUTHY_META_VALUES}}
+        )
+    if shared:
+        optional_query_parts.append(
+            {
+                '$and': [
+                    {
+                        # Find datasets not owned by the current user
+                        '$nor': [{'creatorId': {'$eq': user['_id']}}, {'creatorId': {'$eq': None}}]
+                    },
+                    {
+                        # But where the current user has been given explicit access
+                        # Implicit public datasets should not be considered "shared"
+                        'access.users': {'$elemMatch': {'id': user['_id']}}
+                    },
+                ]
+            }
+        )
+
+    if len(optional_query_parts):
+        return {'$and': [base_query, {'$or': optional_query_parts}]}
+    return base_query
 
 
 def validate_files(files: List[str]):
