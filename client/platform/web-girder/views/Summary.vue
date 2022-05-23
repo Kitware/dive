@@ -2,7 +2,7 @@
 import { defineComponent, ref } from '@vue/composition-api';
 import * as d3 from 'd3';
 import type { DataTableHeader } from 'vuetify';
-import { generateColors } from 'vue-media-annotator/use/useStyling';
+import { generateColors } from 'vue-media-annotator/StyleManager';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import { getLabels } from '../api';
