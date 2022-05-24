@@ -91,7 +91,7 @@ export default function register() {
 
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
-    const ret = await beginMultiCamImport(settings.get(), args);
+    const ret = await beginMultiCamImport(args);
     return ret;
   });
 

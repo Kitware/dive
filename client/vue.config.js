@@ -62,6 +62,16 @@ module.exports = {
         directories: {
           buildResources: 'platform/desktop/buildResources',
         },
+        extraResources: [
+          {
+            from: 'node_modules/ffmpeg-ffprobe-static/ffmpeg',
+            to: 'ffmpeg',
+          },
+          {
+            from: 'node_modules/ffmpeg-ffprobe-static/ffprobe',
+            to: 'ffprobe',
+          },
+        ],
         // extraMetadata will be merged with package.json in args to electron-builder
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188

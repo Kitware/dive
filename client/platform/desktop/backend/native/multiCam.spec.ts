@@ -8,43 +8,24 @@ import type {
   MultiCamImportKeywordArgs,
 } from 'dive-common/apispec';
 import type {
-  ConversionArgs,
-  DesktopJob,
-  DesktopJobUpdate,
-  DesktopJobUpdater,
   MultiCamDesktop,
 } from 'platform/desktop/constants';
 
+// import { checkMedia, convertMedia } from './mediaJobs';
 import beginMultiCamImport from './multiCamImport';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const updater = (update: DesktopJobUpdate) => undefined;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const checkMedia = async (file: string) => ({
-  websafe: file.includes('mp4'),
-  originalFpsString: '30/1',
-  originalFps: 30,
-  videoDimensions: { width: 1920, height: 1080 },
-});
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const convertMedia = async (args: ConversionArgs,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  updaterFunc: DesktopJobUpdater) => ({
-  key: 'jobKey',
-  title: 'title',
-  command: 'command',
-  args: {},
-  jobType: 'conversion',
-  datasetIds: ['datasetId'],
-  pid: 1234,
-  workingDir: 'workingdir',
-  exitCode: null,
-  startTime: new Date(),
-} as DesktopJob);
 // https://github.com/tschaub/mock-fs/issues/234
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 const multiCamSetup = fs.readJSONSync('../testutils/multicam.spec.json');
+
+jest.mock('./mediaJobs', () => ({
+  checkMedia: jest.fn((file: string) => Promise.resolve({
+    websafe: file.includes('mp4'),
+    originalFpsString: '30/1',
+    originalFps: 30,
+    videoDimensions: { width: 1920, height: 1080 },
+  })),
+}));
 
 mockfs(multiCamSetup.mockfs);
 

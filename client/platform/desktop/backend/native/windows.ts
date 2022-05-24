@@ -13,10 +13,7 @@ import {
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
   DesktopJobUpdater,
 } from 'platform/desktop/constants';
-
 import * as viame from './viame';
-import * as mediaJobs from './mediaJobs';
-import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
@@ -44,11 +41,6 @@ const ViameWindowsConstants = {
   kwiverExe: 'kwiver.exe',
   shell: true,
 };
-
-function sourceString(settings: Settings) {
-  const setupScriptAbs = npath.join(settings.viamePath, ViameWindowsConstants.setup);
-  return `"${setupScriptAbs}" >NUL`;
-}
 
 let programFiles = 'C:\\Program Files';
 // There exists no app.getPath('programfiles') so we need to

@@ -1,7 +1,7 @@
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
-import { ffmpegPath, ffprobePath } from 'ffmpeg-ffprobe-static';
+import os from 'os';
 
 import {
   Settings, DesktopJob,
@@ -11,8 +11,7 @@ import {
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-import * as common from './common';
-import { jobFileEchoMiddleware, spawnResult } from './utils';
+import { jobFileEchoMiddleware, spawnResult, createWorkingDirectory } from './utils';
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
@@ -32,6 +31,10 @@ const VideoArgs = [
    */
   '-vf "scale=round(iw*sar/2)*2:round(ih/2)*2,setsar=1"',
 ].join(' ');
+
+const platform = process.env.npm_config_platform || os.platform();
+const ffmpegPath = npath.join(process.resourcesPath, platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+const ffprobePath = npath.join(process.resourcesPath, platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
 
 interface FFProbeResults {
   streams?: [{
@@ -172,11 +175,13 @@ async function convertMedia(
   settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
+  onComplete?: (jobKey: string) => void,
   mediaIndex = 0,
   key = '',
-  baseWorkDir = ''): Promise<DesktopJob> {
+  baseWorkDir = '',
+): Promise<DesktopJob> {
   // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
-  const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
+  const jobWorkDir = baseWorkDir || await createWorkingDirectory(settings, [args.meta], 'conversion');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const commands = [];
 
@@ -240,7 +245,7 @@ async function convertMedia(
       }
 
       if (mediaIndex === args.mediaList.length - 1) {
-        common.completeConversion(settings, args.meta.id, jobKey);
+        if (onComplete) { onComplete(jobKey); }
         updater({
           ...jobBase,
           body: [''],
@@ -252,7 +257,7 @@ async function convertMedia(
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

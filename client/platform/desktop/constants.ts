@@ -8,6 +8,9 @@ import { Attribute } from 'vue-media-annotator/use/useAttributes';
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
+export const ProjectsFolderName = 'DIVE_Projects';
+export const JobsFolderName = 'DIVE_Jobs';
+export const PipelinesFolderName = 'DIVE_Pipelines';
 
 export interface Settings {
   // version a schema version

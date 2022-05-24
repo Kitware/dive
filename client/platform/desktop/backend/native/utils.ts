@@ -1,9 +1,12 @@
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import moment from 'moment';
 import path from 'path';
 
 import { observeChild } from 'platform/desktop/backend/native/processManager';
-import { DesktopJob, DesktopJobUpdater } from 'platform/desktop/constants';
+import {
+  DesktopJob, DesktopJobUpdater, JsonMeta, Settings, JobsFolderName,
+} from 'platform/desktop/constants';
 
 const processChunk = (chunk: Buffer) => chunk
   .toString('utf-8')
@@ -64,6 +67,28 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
   });
 }
 
+/**
+ * Create job run working directory
+ */
+async function createWorkingDirectory(
+  settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
+) {
+  if (jsonMetaList.length === 0) {
+    throw new Error('At least 1 jsonMeta item must be provided');
+  }
+  const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
+  // eslint won't recognize \. as valid escape
+  // eslint-disable-next-line no-useless-escape
+  const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
+  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const runFolderPath = path.join(jobFolderPath, runFolderName);
+  if (!fs.existsSync(jobFolderPath)) {
+    await fs.mkdir(jobFolderPath);
+  }
+  await fs.mkdir(runFolderPath);
+  return runFolderPath;
+}
+
 /* same as os.path.splitext */
 function splitExt(input: string): [string, string] {
   const ext = path.extname(input);
@@ -72,6 +97,7 @@ function splitExt(input: string): [string, string] {
 
 export {
   jobFileEchoMiddleware,
+  createWorkingDirectory,
   spawnResult,
   splitExt,
 };

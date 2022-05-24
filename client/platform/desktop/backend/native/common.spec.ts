@@ -15,6 +15,7 @@ import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/di
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import * as common from './common';
+import { createWorkingDirectory } from './utils';
 
 
 const pipelines = {
@@ -83,28 +84,30 @@ const settings: Settings = {
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const checkMedia = async (settingsVal: Settings, file: string) => ({
-  websafe: file.includes('mp4'),
-  originalFps: 30,
-  originalFpsString: '30/1',
-  videoDimensions: { width: 1920, height: 1080 },
-});
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const convertMedia = async (settingsVal: Settings, args: ConversionArgs,
+
+jest.mock('./mediaJobs', () => ({
+  checkMedia: jest.fn((file: string) => Promise.resolve({
+    websafe: file.includes('mp4'),
+    originalFpsString: '30/1',
+    originalFps: 30,
+    videoDimensions: { width: 1920, height: 1080 },
+  })),
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  updaterFunc: DesktopJobUpdater) => ({
-  key: 'jobKey',
-  title: 'title',
-  command: 'command',
-  args: {},
-  jobType: 'conversion',
-  datasetIds: ['datasetId'],
-  pid: 1234,
-  workingDir: 'workingdir',
-  exitCode: null,
-  startTime: new Date(),
-} as DesktopJob);
+  convertMedia: jest.fn((settingsVal: Settings, args: ConversionArgs,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    updaterFunc: DesktopJobUpdater) => ({
+    key: 'jobKey',
+    title: 'title',
+    command: 'command',
+    args: {},
+    jobType: 'conversion',
+    datasetIds: ['datasetId'],
+    pid: 1234,
+    workingDir: 'workingdir',
+    exitCode: null,
+    startTime: new Date(),
+  } as DesktopJob)),
+}));
 // https://github.com/tschaub/mock-fs/issues/234
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
@@ -440,8 +443,8 @@ describe('native.common', () => {
       .rejects.toThrow('Dataset: missingMulti is of type multiCam or stereo but contains no multiCam data');
   });
 
-  it('createKwiverRunWorkingDir creates pipeline run directories', async () => {
-    await expect(common.createKwiverRunWorkingDir(settings, [], 'whatever.pipe'))
+  it('createWorkingDirectory creates pipeline run directories', async () => {
+    await expect(createWorkingDirectory(settings, [], 'whatever.pipe'))
       .rejects.toThrow('At least 1 jsonMeta item');
     const jsonMeta: JsonMeta = {
       version: 1,
@@ -459,7 +462,7 @@ describe('native.common', () => {
       multiCam: null,
       subType: null,
     };
-    const result = await common.createKwiverRunWorkingDir(settings, [jsonMeta], 'mypipeline.pipe');
+    const result = await createWorkingDirectory(settings, [jsonMeta], 'mypipeline.pipe');
     const stat = fs.statSync(result);
     const contents = fs.readdirSync(result);
     expect(stat.isDirectory()).toBe(true);

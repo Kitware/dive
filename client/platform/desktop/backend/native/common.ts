@@ -33,7 +33,7 @@ import {
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs,
+  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName, PipelinesFolderName,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -43,10 +43,6 @@ import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 import { splitExt } from './utils';
-
-const ProjectsFolderName = 'DIVE_Projects';
-const JobsFolderName = 'DIVE_Jobs';
-const PipelinesFolderName = 'DIVE_Pipelines';
 
 const AuxFolderName = 'auxiliary';
 
@@ -446,27 +442,6 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   };
 }
 
-/**
- * Create job run working directory
- */
-async function createKwiverRunWorkingDir(
-  settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
-) {
-  if (jsonMetaList.length === 0) {
-    throw new Error('At least 1 jsonMeta item must be provided');
-  }
-  const jobFolderPath = npath.join(settings.dataPath, JobsFolderName);
-  // eslint won't recognize \. as valid escape
-  // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
-  const runFolderPath = npath.join(jobFolderPath, runFolderName);
-  if (!fs.existsSync(jobFolderPath)) {
-    await fs.mkdir(jobFolderPath);
-  }
-  await fs.mkdir(runFolderPath);
-  return runFolderPath;
-}
 
 /**
  * _saveSerialized save pre-serialized tracks to disk
@@ -937,6 +912,20 @@ async function _importTrackFile(
 }
 
 /**
+ * After media conversion we need to remove the transcodingKey to signify it is done
+ */
+async function completeConversion(
+  settings: Settings, datasetId: string, transcodingJobKey: string,
+) {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  if (existing.transcodingJobKey === transcodingJobKey) {
+    existing.transcodingJobKey = undefined;
+    saveMetadata(settings, datasetId, existing);
+  }
+}
+
+/**
  * Finalize a dataset import.
  */
 async function finalizeMediaImport(
@@ -1008,6 +997,7 @@ async function finalizeMediaImport(
         mediaList: srcDstList,
       },
       updater,
+      (jobKey) => completeConversion(settings, jsonMeta.id, jobKey),
     );
     jsonMeta.transcodingJobKey = jobBase.key;
   }
@@ -1046,20 +1036,6 @@ async function finalizeMediaImport(
   return finalJsonMeta;
 }
 
-/**
- * After media conversion we need to remove the transcodingKey to signify it is done
- */
-async function completeConversion(
-  settings: Settings, datasetId: string, transcodingJobKey: string,
-) {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  if (existing.transcodingJobKey === transcodingJobKey) {
-    existing.transcodingJobKey = undefined;
-    saveMetadata(settings, datasetId, existing);
-  }
-}
-
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1094,7 +1070,6 @@ export {
   dataFileImport,
   deleteDataset,
   checkDataset,
-  createKwiverRunWorkingDir,
   exportConfiguration,
   exportDataset,
   finalizeMediaImport,
@@ -1110,7 +1085,6 @@ export {
   ingestDataFiles,
   saveDetections,
   saveMetadata,
-  completeConversion,
   processTrainedPipeline,
   saveAttributes,
   findImagesInFolder,

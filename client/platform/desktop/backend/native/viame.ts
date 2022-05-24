@@ -12,7 +12,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import * as common from './common';
-import { jobFileEchoMiddleware } from './utils';
+import { jobFileEchoMiddleware, createWorkingDirectory } from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -52,7 +52,7 @@ async function runPipeline(
   }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
-  const jobWorkDir = await common.createKwiverRunWorkingDir(settings, [meta], pipeline.name);
+  const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
   const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
   let trackOutput = npath.join(jobWorkDir, 'track_output.csv');
@@ -224,7 +224,7 @@ async function train(
   const jsonMetaList = infoAndMeta.map(({ meta }) => meta);
 
   // Working dir for training
-  const jobWorkDir = await common.createKwiverRunWorkingDir(
+  const jobWorkDir = await createWorkingDirectory(
     settings, jsonMetaList, runTrainingArgs.pipelineName,
   );
 
