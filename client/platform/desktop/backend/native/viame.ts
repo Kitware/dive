@@ -22,18 +22,11 @@ import {
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
 
-interface FFmpegSettings {
-  initialization: string;
-  path: string;
-  videoArgs: string;
-}
-
 export interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
   shell: string | boolean; // shell arg for spawn
-  ffmpeg: FFmpegSettings; //ffmpeg settings
 }
 
 /**

@@ -26,13 +26,14 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 import kpf from 'platform/desktop/backend/serializers/kpf';
+import { checkMedia, convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
-  ConvertMedia, RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  CheckMediaResults, ExportConfigurationArgs,
+  RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
+  ExportConfigurationArgs,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -765,11 +766,7 @@ async function findTrackandMetaFileinFolder(path: string) {
 /**
  * Begin a dataset import.
  */
-async function beginMediaImport(
-  settings: Settings,
-  path: string,
-  checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
-): Promise<DesktopMediaImportResponse> {
+async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -832,7 +829,7 @@ async function beginMediaImport(
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
         throw new Error('User chose image file for video import option');
       } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-        const checkMediaResult = await checkMedia(settings, path);
+        const checkMediaResult = await checkMedia(path);
         if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
           mediaConvertList.push(path);
         }
@@ -946,7 +943,6 @@ async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
   updater: DesktopJobUpdater,
-  convertMedia: ConvertMedia,
 ) {
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;

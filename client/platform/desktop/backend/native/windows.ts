@@ -11,7 +11,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
   Settings, SettingsCurrentVersion,
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
-  ConversionArgs, DesktopJobUpdater, CheckMediaResults,
+  DesktopJobUpdater,
 } from 'platform/desktop/constants';
 
 import * as viame from './viame';
@@ -43,22 +43,6 @@ const ViameWindowsConstants = {
   trainingExe: 'viame_train_detector.exe',
   kwiverExe: 'kwiver.exe',
   shell: true,
-  ffmpeg: {
-    ready: false,
-    initialization: '', // command to initialize
-    path: '', // location of the ffmpeg executable
-    // Default video args
-    videoArgs: [
-      '-c:v libx264',
-      '-preset slow',
-      // https://github.com/Kitware/dive/issues/855
-      '-crf 22',
-      // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
-      '-c:a aac',
-      // https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
-      '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
-    ].join(' '),
-  },
 };
 
 function sourceString(settings: Settings) {
@@ -190,53 +174,6 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
-/**
- * one time per launch configuration for ffmpeg and ffprobe
- */
-async function ffmpegCommand(settings: Settings) {
-  if (ViameWindowsConstants.ffmpeg.ready) {
-    return;
-  }
-  const ffmpegPath = npath.join(settings.viamePath, '/bin/ffmpeg.exe');
-  const init = `${sourceString(settings)} &&`;
-  //First lets see if the VIAME install has libx264
-  const modifiedCommand = `"${ffmpegPath.replace(/\\/g, '\\')}"`;
-
-  const viameffmpeg = await spawnResult(`${init} ${modifiedCommand} -encoders`, true);
-  if (viameffmpeg.output) {
-    const ffmpegOutput = viameffmpeg.output;
-    if (ffmpegOutput.includes('libx264')) {
-      ViameWindowsConstants.ffmpeg.initialization = init;
-      ViameWindowsConstants.ffmpeg.path = ffmpegPath;
-      ViameWindowsConstants.ffmpeg.ready = true;
-      return;
-    }
-  }
-  throw new Error(`ffmpeg not installed, please download and install VIAME Toolkit from the main page: ${viameffmpeg.error}`);
-}
-
-/**
- * Checks the video file for the codec type and
- * returns true if it is x264, if not will return false for media conversion
- */
-async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
-  await ffmpegCommand(settings);
-  return mediaJobs.checkMedia({
-    ...ViameWindowsConstants,
-    setupScriptAbs: sourceString(settings),
-  }, file);
-}
-
-async function convertMedia(settings: Settings,
-  args: ConversionArgs,
-  updater: DesktopJobUpdater): Promise<DesktopJob> {
-  await ffmpegCommand(settings);
-  return mediaJobs.convertMedia(settings, args, updater, {
-    ...ViameWindowsConstants,
-    setupScriptAbs: sourceString(settings),
-  });
-}
-
 export default {
   DefaultSettings,
   validateViamePath,
@@ -244,6 +181,4 @@ export default {
   train,
   nvidiaSmi,
   initialize,
-  checkMedia,
-  convertMedia,
 };

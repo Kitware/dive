@@ -39,9 +39,15 @@ jobs:
       if: ${{ matrix.config.os != 'windows-latest' }}
 
     - run: yarn build:lib
-    - run: yarn build:electron
+      if: ${{ matrix.config.os == 'ubuntu-latest' }}
+
     - run: yarn build:cli
+      if: ${{ matrix.config.os == 'ubuntu-latest' }}
+
     - run: chmod +x bin/platform/desktop/backend/cli.js
+      if: ${{ matrix.config.os == 'ubuntu-latest' }}
+
+    - run: yarn build:electron
 
     # push the version changes to GitHub
     - name: Upload Release Asset

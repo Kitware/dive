@@ -13,13 +13,9 @@ import {
   NvidiaSmiReply,
   RunTraining,
   DesktopJobUpdater,
-  ConversionArgs,
-  CheckMediaResults,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
-import * as mediaJobs from './mediaJobs';
-import { spawnResult } from './utils';
 
 const DefaultSettings: Settings = {
   // The current settings schema config
@@ -46,37 +42,7 @@ const ViameLinuxConstants = {
   trainingExe: 'viame_train_detector',
   kwiverExe: 'kwiver',
   shell: '/bin/bash',
-  ffmpeg: {
-    // Ready indicates that the proper ffmpeg settings have been learned from the system.
-    ready: false,
-    initialization: '', // command to initialize
-    path: '', // location of the ffmpeg executable
-    // Default video args
-    videoArgs: [
-      '-c:v libx264',
-      '-preset slow',
-      // https://github.com/Kitware/dive/issues/855
-      '-crf 22',
-      // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
-      '-c:a aac',
-      /**
-       * TODO: Upgrade to ffmpeg 4, use `round` instead of `ceil`
-       * 3.4 is part of 18.04LTS, so we should support it
-       *
-       * References:
-       * https://github.com/Kitware/dive/pull/602 (Anamorphic Video Support)
-       * https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
-       */
-      '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
-    ].join(' '),
-  },
 };
-
-const ViameBundledFFMPEGVideoArgs = [
-  '-c:v h264',
-  '-c: a copy',
-  '-vf "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1"',
-].join(' ');
 
 function sourceString(settings: Settings) {
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
@@ -162,90 +128,9 @@ async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   });
 }
 
-/**
- * one time per launch configuration for ffmpeg and ffprobe
- * Linux version is more complicated for multiple VIAME versions and local ffmpeg
- */
-async function ffmpegCommand(settings: Settings) {
-  if (ViameLinuxConstants.ffmpeg.ready) {
-    return;
-  }
-  const ffmpegPathViame = `${settings.viamePath}/bin/ffmpeg`;
-  const init = `${sourceString(settings)} &&`;
-  const errorLog = [];
-  //First lets see if the VIAME install has libx264
-  const ffmpegViameExists = fs.existsSync(`${settings.viamePath}/bin/ffmpeg`);
-  if (ffmpegViameExists) {
-    const viameffmpeg = await spawnResult(`${init} "${ffmpegPathViame}" -encoders`, '/bin/bash');
-    if (viameffmpeg.output) {
-      if (viameffmpeg.output.includes('libx264')) {
-        ViameLinuxConstants.ffmpeg.initialization = init;
-        ViameLinuxConstants.ffmpeg.path = ffmpegPathViame;
-        ViameLinuxConstants.ffmpeg.ready = true;
-        return;
-      }
-    }
-    if (viameffmpeg.exitCode === -1) {
-      errorLog.push(viameffmpeg.error);
-    }
-  }
-  //Now we need to test for a local install with libx264
-  const localffmpeg = await spawnResult('ffmpeg -encoders', '/bin/bash');
-  if (localffmpeg.output) {
-    if (localffmpeg.output.includes('libx264')) {
-      ViameLinuxConstants.ffmpeg.initialization = '';
-      ViameLinuxConstants.ffmpeg.path = 'ffmpeg';
-      ViameLinuxConstants.ffmpeg.ready = true;
-      return;
-    }
-  }
-  if (localffmpeg.exitCode === -1) {
-    errorLog.push(localffmpeg.error);
-  }
-
-  // As long as VIAMEffmpeg exists we can attempt to use nvida encoding
-  if (ffmpegViameExists) {
-    ViameLinuxConstants.ffmpeg.initialization = init;
-    ViameLinuxConstants.ffmpeg.path = ffmpegPathViame;
-    ViameLinuxConstants.ffmpeg.videoArgs = ViameBundledFFMPEGVideoArgs;
-    ViameLinuxConstants.ffmpeg.ready = true;
-    return;
-  }
-  //We make it down here we have no way to convert the video file
-  if (errorLog.length) {
-    throw new Error(`ffmpeg errors: ${errorLog.join(' | ')}`);
-  }
-  throw new Error('ffmpeg not installed, please download and install VIAME Toolkit from the main page');
-}
-
-/**
- * Checs the video file for the codec type and
- * returns true if it is x264, if not will return false for media conversion
- */
-async function checkMedia(settings: Settings, file: string): Promise<CheckMediaResults> {
-  await ffmpegCommand(settings);
-  return mediaJobs.checkMedia({
-    ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings),
-  }, file);
-}
-
-async function convertMedia(settings: Settings,
-  args: ConversionArgs,
-  updater: DesktopJobUpdater): Promise<DesktopJob> {
-  await ffmpegCommand(settings);
-  return mediaJobs.convertMedia(settings, args, updater, {
-    ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings),
-  });
-}
-
-
 export default {
   DefaultSettings,
   nvidiaSmi,
-  checkMedia,
-  convertMedia,
   runPipeline,
   train,
   validateViamePath,

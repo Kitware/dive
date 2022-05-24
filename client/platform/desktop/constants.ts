@@ -201,29 +201,12 @@ export interface DesktopJobUpdate extends DesktopJob {
 
 export type DesktopJobUpdater = (msg: DesktopJobUpdate) => void;
 
-export interface FFProbeResults {
-  streams?: [{
-    avg_frame_rate?: string;
-    r_frame_rate?: string;
-    codec_type?: string;
-    codec_name?: string;
-    sample_aspect_ratio?: string;
-    width?: number;
-    height?: number;
-  }];
-}
-
 interface FFProbeFrame {
   best_effort_timestamp_time: number;
 }
 export interface FFProbeFrameResults{
   frames: FFProbeFrame[];
 }
-
-export type ConvertMedia =
-(settings: Settings,
-  args: ConversionArgs,
-  updater: DesktopJobUpdater) => Promise<DesktopJob>;
 
 export interface ExportDatasetArgs {
     id: string;
@@ -235,11 +218,4 @@ export interface ExportDatasetArgs {
 export interface ExportConfigurationArgs {
     id: string;
    path: string;
-}
-
-export interface CheckMediaResults {
-  websafe: boolean;
-  originalFpsString: string;
-  originalFps: number;
-  videoDimensions: {width: number; height: number};
 }
