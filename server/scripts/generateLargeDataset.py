@@ -64,7 +64,7 @@ def create_track_json(
     with click.progressbar(range(track_count)) as bar:
         for track in bar:
             track_obj = {
-                "trackId": track,
+                "id": track,
                 "begin": float("inf"),
                 "end": float("-inf"),
                 "confidencePairs": [

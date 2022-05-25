@@ -1,17 +1,18 @@
 <script lang="ts">
 import {
-  computed, defineComponent, reactive, Ref,
+  computed, defineComponent, PropType, reactive, Ref,
 } from '@vue/composition-api';
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import {
-  useCheckedTypes, useAllTypes, useTypeStyling, useHandler,
-  useUsedTypes, useFilteredTracks, useConfidenceFilters, useReadOnlyMode,
-} from '../provides';
+import { useReadOnlyMode } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
+import BaseFilterControls from '../BaseFilterControls';
+import Track from '../track';
+import Group from '../Group';
+import StyleManager from '../StyleManager';
 
 interface VirtualTypeItem {
   type: string;
@@ -25,7 +26,7 @@ interface VirtualTypeItem {
 const TypeListHeaderHeight = 80;
 
 export default defineComponent({
-  name: 'TypeList',
+  name: 'FilterList',
 
   props: {
     showEmptyTypes: {
@@ -39,6 +40,18 @@ export default defineComponent({
     width: {
       type: Number,
       default: 300,
+    },
+    filterControls: {
+      type: Object as PropType<BaseFilterControls<Track | Group>>,
+      required: true,
+    },
+    styleManager: {
+      type: Object as PropType<StyleManager>,
+      required: true,
+    },
+    group: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -62,20 +75,16 @@ export default defineComponent({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
-      settingsActive: false,
       sortingMethod: 0, // index into sortingMethods
       filterText: '',
     });
-    const checkedTypesRef = useCheckedTypes();
-    const allTypesRef = useAllTypes();
-    const usedTypesRef = useUsedTypes();
-    const typeStylingRef = useTypeStyling();
-    const filteredTracksRef = useFilteredTracks();
-    const confidenceFiltersRef = useConfidenceFilters();
-    const {
-      setCheckedTypes,
-      removeTypeTracks,
-    } = useHandler();
+    const trackFilters = props.filterControls;
+    const checkedTypesRef = trackFilters.checkedTypes;
+    const allTypesRef = trackFilters.allTypes;
+    const usedTypesRef = trackFilters.usedTypes;
+    const typeStylingRef = props.styleManager.typeStyling;
+    const filteredTracksRef = trackFilters.filteredAnnotations;
+    const confidenceFiltersRef = trackFilters.confidenceFilters;
 
     function clickEdit(type: string) {
       data.selectedType = type;
@@ -93,25 +102,35 @@ export default defineComponent({
 
     async function clickDelete() {
       const typeDisplay: string[] = [];
-      const text = ['This will remove the type from any visible track or delete the track if it is the only type.',
-        'Do you want to delete all tracks of following types:'];
+      let text: string[] = [];
+      if (props.group) {
+        text = [
+          'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:',
+        ];
+      } else {
+        text = [
+          'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:',
+        ];
+      }
+      text.push('-------');
       checkedTypesRef.value.forEach((item) => {
         typeDisplay.push(item);
         text.push(item.toString());
       });
 
       const result = await prompt({
-        title: 'Confirm',
+        title: 'Really delete types?',
         text,
         confirm: true,
       });
       if (result) {
-        removeTypeTracks([...checkedTypesRef.value]);
+        trackFilters.removeTypeAnnotations([...checkedTypesRef.value]);
       }
     }
 
     const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.track.getType(filteredTrack.context.confidencePairIndex);
+      const confidencePair = filteredTrack.annotation
+        .getType(filteredTrack.context.confidencePairIndex);
       const trackType = confidencePair[0];
       acc.set(trackType, (acc.get(trackType) || 0) + 1);
 
@@ -171,20 +190,20 @@ export default defineComponent({
           /* What is visible */
           visibleTypes.value,
         );
-        setCheckedTypes(allVisibleAndCheckedInvisible);
+        trackFilters.updateCheckedTypes(allVisibleAndCheckedInvisible);
       } else {
         /* Disable whatever is both checked and filtered */
         const invisible = difference(checkedTypesRef.value, visibleTypes.value);
-        setCheckedTypes(invisible);
+        trackFilters.updateCheckedTypes(invisible);
       }
     }
 
 
     function updateCheckedType(evt: boolean, type: string) {
       if (evt) {
-        setCheckedTypes(checkedTypesRef.value.concat([type]));
+        trackFilters.updateCheckedTypes(checkedTypesRef.value.concat([type]));
       } else {
-        setCheckedTypes(difference(checkedTypesRef.value, [type]));
+        trackFilters.updateCheckedTypes(difference(checkedTypesRef.value, [type]));
       }
     }
 
@@ -209,7 +228,7 @@ export default defineComponent({
       clickEdit,
       clickSortToggle,
       headCheckClicked,
-      setCheckedTypes,
+      setCheckedTypes: trackFilters.updateCheckedTypes,
       updateCheckedType,
     };
   },
@@ -247,32 +266,7 @@ export default defineComponent({
             tooltip-text="Sort types by count or alphabetically"
             @click="clickSortToggle"
           />
-          <v-menu
-            v-model="data.settingsActive"
-            :nudge-bottom="28"
-            :close-on-content-click="false"
-          >
-            <template #activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                class="mx-2"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon
-                  small
-                  :color="data.settingsActive ? 'accent' : 'default'"
-                >
-                  mdi-cog
-                </v-icon>
-              </v-btn>
-            </template>
-            <slot
-              v-if="data.settingsActive"
-              name="settings"
-            />
-          </v-menu>
+          <slot name="settings" />
           <v-tooltip
             open-delay="100"
             bottom
@@ -334,6 +328,9 @@ export default defineComponent({
     >
       <TypeEditor
         :selected-type="data.selectedType"
+        :filter-controls="filterControls"
+        :style-manager="styleManager"
+        :group="group"
         @close="data.showPicker = false"
       />
     </v-dialog>

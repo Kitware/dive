@@ -140,7 +140,7 @@ You can use externally trained models in DIVE by creating a folder containing th
 
 > I imported some data, but I don't see my annotations
 
-See [Importing images and video above](#importing-images-videos).
+See [Importing images and video above](#importing-datasets).  You most likely need to specify your annotation file in the import dialog.
 
 > I get an error that says "ffmpeg not installed, please download and install VIAME Toolkit from the main page"
 

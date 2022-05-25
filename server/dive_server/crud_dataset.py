@@ -243,9 +243,19 @@ def export_datasets_zipstream(
                     indent=2,
                 )
 
+            def makeDiveJson():
+                """Include DIVE JSON output annotation file"""
+                annotations = crud_annotation.get_annotations(dsFolder)
+                print(annotations)
+                yield json.dumps(annotations)
+
             for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):
                 yield data
-                gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
+
+            for data in z.addFile(makeDiveJson, Path(f'{zip_path}annotations.dive.json')):
+                yield data
+
+            gen, mediaFolder, mediaRegex = makeAnnotationAndMedia(dsFolder)
             if includeMedia:
                 # Add media
                 for item in Folder().childItems(
@@ -258,7 +268,7 @@ def export_datasets_zipstream(
                         break  # Media items should only have 1 valid file
 
             if includeDetections:
-                for data in z.addFile(gen, Path(f'{zip_path}output_tracks.csv')):
+                for data in z.addFile(gen, Path(f'{zip_path}annotations.viame.csv')):
                     yield data
         if len(failed_datasets) > 0:
 

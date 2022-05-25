@@ -1,5 +1,6 @@
 import { MultiTrackRecord } from 'dive-common/apispec';
-import { StringKeyObject, TrackData } from 'vue-media-annotator/track';
+import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
+import { TrackData } from 'vue-media-annotator/track';
 import { Attributes } from 'vue-media-annotator/use/useAttributes';
 
 
@@ -78,10 +79,10 @@ function processTrackAttributes(tracks: TrackData[]):
   }
 
   tracks.forEach((t) => {
-    if (t.trackId === undefined) {
+    if (t.id === undefined) {
       throw new Error('The Track JSON file contains no valid trackIds.');
     }
-    trackMap[t.trackId.toString()] = t;
+    trackMap[t.id.toString()] = t;
     processTrackforAttributes(t);
   });
 

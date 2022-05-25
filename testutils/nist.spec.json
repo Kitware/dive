@@ -3,7 +3,7 @@
         "0": {
             "begin": 0,
             "end": 4,
-            "trackId": 0,
+            "id": 0,
             "meta": {},
             "attributes": {
                 "alertFrame": 0,
@@ -41,7 +41,7 @@
         "1": {
             "begin": 0,
             "end": 4,
-            "trackId": 1,
+            "id": 1,
             "meta": {},
             "attributes": {
                 "activity": "test1Activty",
@@ -88,7 +88,7 @@
         "3": {
             "begin": 8,
             "end": 17,
-            "trackId": 3,
+            "id": 3,
             "meta": {},
             "attributes": {
                 "alertFrame": 8,
@@ -145,7 +145,7 @@
         "4": {
             "begin": 8,
             "end": 16,
-            "trackId": 4,
+            "id": 4,
             "meta": {},
             "attributes": {
                 "activity": "test2Activity",

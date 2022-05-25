@@ -22,6 +22,16 @@ The navigation bar is the row of controls at the very top of the window.
 
 The editing bar is the second row below navigation.
 
+### Editing Status Indicator
+
+![Editing Status Indicator](images/EditBar/StatusIndicator.png)
+
+On the far left, the editing mode status indicator shows you what mode you're in, what input is expected, and usually reminds you to press ++escape++ to cancel.
+
+### Edit Mode Toggles
+
+Editing mode toggles control the type of geometry being created or edited during annotation.  See the [Annotation Quickstart](Annotation-QuickStart.md) for an in-depth guide to annotation.
+
 ### Visibility Toggles
 
 The **:material-eye: visibility** section contains toggle buttons that control the different types of annotation data can be hidden or shown.
@@ -32,7 +42,3 @@ The **:material-eye: visibility** section contains toggle buttons that control t
 * ==:material-format-text:== toggles annotation type & confidence **text** visibility
 * ==:material-comment-text-outline:== toggles a **cursor hover tooltip**, helpful for reviewing very dense scenes with lots of overlap.
 * ==:material-navigation:== toggles **track trail** visibility.  The track trail is configurable to show up to 100 frames both ahead and behind each bounding box.  The trail line is made of bounding box midpoints.
-
-### Edit Mode Toggles
-
-Editing mode toggles control the type of geometry being created or edited during annotation.  See the [Annotation Quickstart](Annotation-QuickStart.md) for an in-depth guide to annotation.

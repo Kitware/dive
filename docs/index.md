@@ -16,7 +16,7 @@ This is the documentation site for DIVE, a [**free and open-source**](https://ww
 
 |         | Web | Desktop |
 |---------|-----|---------|
-| **Data Support** |
+| **Data** |
 Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
@@ -25,14 +25,20 @@ Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
 Dataset export for portability between web and desktop | ✔️ | ✔️
 Permissions and sharing support for team collaboration | ✔️ | ❌
-| **Annotation Support** |
+| **Annotation** |
 Bounding boxes | ✔️ | ✔️
 Polygons | ✔️ | ✔️
 Head/Tail lines | ✔️ | ✔️
 Linear interpolation | ✔️ | ✔️
 Track split | ✔️ | ✔️
 Multi-way track merge | ✔️ | ✔️
-| **VIAME Integration Support** |
+Complex Interactions and activity groups | ✔️ | ✔️
+Freeform or multi-select attributes | ✔️ | ✔️
+| **Data Review** |
+Image enhancement (thresholding) | ✔️ | ✔️
+Advanced per-type annotation confidence threshoding | ✔️ | ✔️
+Review save history and load previous states | ✔️ | ❌
+| **VIAME Integration** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
 VIAME multi-camera pipelines  | ❌ | ✔️
@@ -52,6 +58,8 @@ Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 **Track** - A collection of detections spanned over multiple frames in a video or image sequence.  Tracks include a start and end time and can have gap periods in which no detections exist.
 
+**Group** - A collection of one or more tracks, which can be given a definite frame range, type annotation, confidence, and attributes.
+ 
 **Types** - Every track (or detection, if tracks aren't applicable) has one or more types that should be used to annotate the primary characteristic you are interested in classifying.  Types are typically used to train a single or multi-class classifier.  A track (or detection) may have multiple types with confidence values associated.
 
 **Frame** - A single image or point in time for a video or image sequence.

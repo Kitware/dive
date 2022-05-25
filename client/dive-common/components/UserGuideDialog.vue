@@ -1,14 +1,9 @@
 
-<script>
-export default {
-  props: {
-    state: {
-      type: String,
-      require: true,
-      default: 'default',
-    },
-  },
-  data() {
+<script lang="ts">
+import { defineComponent } from '@vue/composition-api';
+
+export default defineComponent({
+  setup() {
     return {
       categories: [
         {
@@ -59,7 +54,9 @@ export default {
             {
               name: 'Merge Mode', icon: 'mdi-keyboard', actions: ['M'], description: 'Enter Merge Mode, commit with Shift+M',
             },
-
+            {
+              name: 'Create Group', icon: 'mdi-keyboard', actions: ['G'], description: 'Create group from selected track.',
+            },
           ],
         },
         {
@@ -93,8 +90,9 @@ export default {
       ],
     };
   },
-};
+});
 </script>
+
 <template>
   <div class="d-flex justify-space-around flex-wrap pa-4">
     <v-card
@@ -139,8 +137,8 @@ export default {
     </v-card>
   </div>
 </template>
-<style lang="scss" scoped>
 
+<style lang="scss" scoped>
 #helpdialog{
   font-family: monospace;
   font-size: 12px;

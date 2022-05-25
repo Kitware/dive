@@ -1,13 +1,14 @@
 # DIVE Frontend
 
-This directory contains the code for both
+This directory contains the code for:
 
-* The specific DIVE client deployed to [viame.kitware.com](https://viame.kitware.com)
-* The web annotation library published to npm as [`vue-media-annotator`](https://www.npmjs.com/package/vue-media-annotator)
+* The DIVE web client deployed to [viame.kitware.com](https://viame.kitware.com)
+* The DIVE desktop electron app.
+* The annotation js library published to npm as [`vue-media-annotator`](https://www.npmjs.com/package/vue-media-annotator)
 
 ## Development
 
-Requires Node <= 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
+Requires Node 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
 
 ``` bash
 # install dependencies
@@ -41,7 +42,7 @@ yarn test
 # Build
 yarn build:cli
 
-# Watch
+# Watch (requires above build at least once)
 yarn dev:cli
 
 # Run in development mode
@@ -65,12 +66,17 @@ Configuration abnormalities:
 * [acorn unexpected token webpack issue (unused, just useful)](https://github.com/webpack/webpack/issues/10227)
 * [Why our yarn serve is weird](https://github.com/vuejs/vue-cli/issues/3065)
 * [Typescript Absolute -> Relative Paths](https://github.com/microsoft/TypeScript/issues/15479)
+* [electron-builder on MacOS arm64](https://github.com/electron-userland/electron-builder/issues/6726)
 
 ## Publishing
 
 Create a new release tagged `X.X.X` through github.
 
 ## Architecture
+
+### src/*.ts
+
+Use ES6 classes to implement stateful modules that form the core of the application.  We previously used composition functions, but these became unweildy as more state needed to be pushed through the `src/provides.ts` interface.  Classes like `TrackStore.ts` can encapsulate related states and functions, and we can make use of traditional inheritance design patterns like base classes.
 
 ### src/components/annotators
 
@@ -92,25 +98,9 @@ This application has many layers that interact, requiring a manager `src/compone
 
 Controllers are like layers, but without geojs functionality.  They usually provide some UI wigetry to manipulate the annotator state (such as playblack position or playpause state).
 
-### src/use
-
-These are Vue 3 composition functions that an annotation application can use.  They mostly provide the data structures that the above layers and consumers need.  For example:
-
-* `src/use/useTrackStore.ts` provides an efficient data structure for holding track instances.  It provides reactivity when individual tracks are updated, added, and removed, and can provide fast lookup by trackid and frame.
-* `src/use/useTrackFilters.ts` takes a trackstore's return values as params and provides filtering by type and trackid.
-* `src/use/useTrackSelectionControls.ts` takes trackstore return values and provides state and mutations for selection
-* `src/use/useEventChart.ts` takes trackstore, filter, and selection as params and returns an object used by the `EventChart.vue` component to display a contextual timeline of all tracks in the store.
-
-The major benefits of the `src/use` style are:
-
-* testability.  These composition functions are easy to harness with unit tests.
-* modularity.  Private behavior is hidden, and further refactors and features have less opportunity to break neighboring code
-* sanity.  All this logic and state is technically contained in a single component.
-* typescript adoption.  Typescript will be easier to incrementally adopt.
-
 ### src/provides
 
-Provides a common, typed interface for components and composition functions to access singleton state like `trackMap`, `selectedTrackId`, and many others.
+Provides a common, typed interface for components and composition functions to access singleton state like `trackStore`, `selectedTrackId`, and many others.
 
 This pattern has similar trade-offs to Vuex; It makes component re-use with different state more difficult.  The provide/inject style using typed functions provides similar type safety and DRY advantages while allowing downstream library consumers to wrap and customize state, such as with chained computed properties.
 

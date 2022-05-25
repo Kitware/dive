@@ -12,7 +12,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -29,7 +29,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -55,7 +55,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "1": {
                 "begin": 1,
                 "end": 3,
-                "trackId": 0,
+                "id": 0,
                 "features": [
                     {
                         "frame": 1,
@@ -85,7 +85,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             "1": {
                 "begin": 1,
                 "end": 3,
-                "trackId": 0,
+                "id": 0,
                 "features": [
                     {
                         "frame": 1,
@@ -165,7 +165,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {
                     "trackATTR": "TestTrack ATTR With Space",
                 },
@@ -197,7 +197,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -214,7 +214,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -236,7 +236,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
     (
         {
             "0": {
-                "trackId": 0,
+                "id": 0,
                 "attributes": {},
                 "confidencePairs": [["typestring", 1.0]],
                 "features": [
@@ -253,7 +253,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
                 "end": 1,
             },
             "1": {
-                "trackId": 1,
+                "id": 1,
                 "attributes": {},
                 "confidencePairs": [["type2", 1.0]],
                 "features": [
@@ -356,8 +356,8 @@ def test_image_filenames():
     image_map = {'1': 0, '2': 1, '3': 2}
     for test in image_filename_tests:
         if test['pass']:
-            results = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
-            assert len(results[0]) > 0
+            converted, _ = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            assert len(converted['tracks'].values()) > 0
         else:
             with pytest.raises(ValueError, match=re.escape(test['error'])):
                 viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)

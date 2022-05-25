@@ -51,6 +51,13 @@ users = {
                 'trackCount': 2,
                 'sharedWith': 'bobby',
             },
+            {
+                'name': 'GroupDataTest',
+                'path': 'TestData/GroupDataTest',
+                'fps': 1,
+                'type': 'image-sequence',
+                'trackCount': 6,
+            },
         ],
     },
     'bobby': {

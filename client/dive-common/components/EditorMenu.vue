@@ -38,7 +38,11 @@ export default Vue.extend({
       type: Array as PropType<Recipe[]>,
       required: true,
     },
-    mergeMode: {
+    multiSelectActive: {
+      type: Boolean,
+      default: false,
+    },
+    groupEditActive: {
       type: Boolean,
       default: false,
     },
@@ -142,9 +146,12 @@ export default Vue.extend({
     mousetrap(): Mousetrap[] {
       return flatten(this.editButtons.map((b) => b.mousetrap || []));
     },
-    editingHeader(): {text: string; icon: string; color: string} {
-      if (this.mergeMode) {
-        return { text: 'Merge Mode', icon: 'mdi-call-merge', color: 'error' };
+    editingHeader() {
+      if (this.groupEditActive) {
+        return { text: 'Group Edit Mode', icon: 'mdi-group', color: 'primary' };
+      }
+      if (this.multiSelectActive) {
+        return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
       }
       if (this.editingDetails !== 'disabled') {
         return {
@@ -210,9 +217,12 @@ export default Vue.extend({
           <div
             style="line-height: 1.22em; font-size: 10px;"
           >
-            <span v-if="mergeMode">
-              Merge in progress.  Editing is disabled.
-              Select additional tracks to merge.
+            <span v-if="groupEditActive">
+              Editing group.  Add or remove tracks.  Esc. to exit.
+            </span>
+            <span v-else-if="multiSelectActive">
+              Multi-select in progress.  Editing is disabled.
+              Select additional tracks to merge or group.
             </span>
             <span v-else-if="editingDetails !== 'disabled'">
               {{ modeToolTips[editingDetails][editingMode] }}

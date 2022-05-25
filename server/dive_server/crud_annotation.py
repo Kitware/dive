@@ -2,8 +2,10 @@ from typing import Callable, Generator, Iterable, List, Optional, Tuple
 
 from girder.constants import AccessType
 from girder.models.folder import Folder
+from pydantic import Field
 from pydantic.main import BaseModel
 import pymongo
+from pymongo.cursor import Cursor
 
 from dive_server import crud, crud_dataset
 from dive_utils import constants, fromMeta, models, types
@@ -13,77 +15,94 @@ DATASET = 'dataset'
 REVISION_DELETED = 'rev_deleted'
 REVISION_CREATED = 'rev_created'
 REVISION = 'revision'
-TRACKID = 'trackId'
+IDENTIFIER = 'id'
 
-DEFAULT_ANNOTATION_SORT = [[TRACKID, 1]]
+DEFAULT_ANNOTATION_SORT = [[IDENTIFIER, 1]]
 DEFAULT_REVISION_SORT = [[REVISION, pymongo.DESCENDING]]
 
 
-class AnnotationItem(crud.PydanticModel):
-    PROJECT_FIELDS = {
-        **{'_id': 0},
-        **{key: 1 for key in models.Track.schema()['properties'].keys()},
-    }
+class BaseItem(crud.PydanticModel):
+    def list(
+        self,
+        dsFolder: types.GirderModel,
+        limit=0,
+        offset=0,
+        sort=DEFAULT_ANNOTATION_SORT,
+        revision: Optional[int] = None,
+    ) -> Cursor:
+        head: int = RevisionLogItem().latest(dsFolder) if revision is None else revision
+        query = {
+            DATASET: dsFolder['_id'],
+            REVISION_CREATED: {'$lte': head},
+            '$or': [{REVISION_DELETED: {'$gt': head}}, {REVISION_DELETED: {'$exists': False}}],
+        }
+        return self.find(
+            offset=offset, limit=limit, sort=sort, query=query, fields=self.PROJECT_FIELDS
+        )
 
     def initialize(self):
         self._indices = [
             # Index for finding tracks in a dataset
-            [[(DATASET, 1), (TRACKID, 1)], {}],
+            [[(DATASET, 1), (IDENTIFIER, 1)], {}],
             # Index for ensuring uniqueness and dataset consistency
-            [[(DATASET, 1), (TRACKID, 1), (REVISION_CREATED, 1)], {'unique': True}],
+            [[(DATASET, 1), (IDENTIFIER, 1), (REVISION_CREATED, 1)], {'unique': True}],
         ]
-        super().initialize("annotationItem", models.AnnotationItemSchema)
+        super().initialize(self.NAME, self.MODEL)
+
+
+class TrackItem(BaseItem):
+    PROJECT_FIELDS = {
+        **{'_id': 0},
+        **{key: 1 for key in models.Track.schema()['properties'].keys()},
+    }
+    NAME = 'trackItem'
+    MODEL = models.TrackItemSchema
+
+
+class GroupItem(BaseItem):
+    PROJECT_FIELDS = {
+        **{'_id': 0},
+        **{key: 1 for key in models.Group.schema()['properties'].keys()},
+    }
+    NAME = 'groupItem'
+    MODEL = models.GroupItemSchema
 
 
 class RevisionLogItem(crud.PydanticModel):
     PROJECT_FIELDS = {'_id': 0}
 
     def initialize(self):
-        self._indices = [[[(DATASET, 1), (REVISION, 1)], {'unique': True}]]
+        self._indices = [
+            [[(DATASET, 1), (REVISION, 1)], {'unique': True}],
+            [[('created', 1)], {}],
+        ]
         super().initialize("revisionLogItem", models.RevisionLog)
 
+    def latest(self, dsFolder: types.GirderModel) -> int:
+        query = {DATASET: dsFolder['_id']}
+        result = self.findOne(query, sort=[[REVISION, pymongo.DESCENDING]]) or {}
+        return result.get(REVISION, 0)  # Revision 0 is always the empty revision
 
-def get_last_revision(dsFolder: types.GirderModel):
-    query = {DATASET: dsFolder['_id']}
-    result = RevisionLogItem().findOne(query, sort=[[REVISION, pymongo.DESCENDING]]) or {}
-    return result.get(REVISION, 0)  # Revision 0 is always the empty revision
-
-
-def get_annotations(
-    dsFolder: types.GirderModel,
-    limit=0,
-    offset=0,
-    sort=DEFAULT_ANNOTATION_SORT,
-    revision: Optional[int] = None,
-):
-    head = get_last_revision(dsFolder) if revision is None else revision
-    query = {
-        DATASET: dsFolder['_id'],
-        REVISION_CREATED: {'$lte': head},
-        '$or': [{REVISION_DELETED: {'$gt': head}}, {REVISION_DELETED: {'$exists': False}}],
-    }
-    cursor = AnnotationItem().find(
-        offset=offset, limit=limit, sort=sort, query=query, fields=AnnotationItem.PROJECT_FIELDS
-    )
-    total = AnnotationItem().find(query=query).count()
-    return cursor, total
-
-
-def get_revisions(
-    dsFolder: types.GirderModel,
-    limit=0,
-    offset=0,
-    sort=DEFAULT_REVISION_SORT,
-    before: Optional[int] = None,
-):
-    query: dict = {DATASET: dsFolder['_id']}
-    if before is not None:
-        query[REVISION] = {'$lte': before}
-    cursor = RevisionLogItem().find(
-        offset=offset, limit=limit, sort=sort, query=query, fields=RevisionLogItem.PROJECT_FIELDS
-    )
-    total = RevisionLogItem().find(query=query).count()
-    return cursor, total
+    def list(
+        self,
+        dsFolder: types.GirderModel,
+        limit=0,
+        offset=0,
+        sort=DEFAULT_REVISION_SORT,
+        before: Optional[int] = None,
+    ) -> Tuple[Cursor, int]:
+        query: dict = {DATASET: dsFolder['_id']}
+        if before is not None:
+            query[REVISION] = {'$lte': before}
+        cursor = self.find(
+            offset=offset,
+            limit=limit,
+            sort=sort,
+            query=query,
+            fields=RevisionLogItem.PROJECT_FIELDS,
+        )
+        total = self.find(query=query).count()
+        return cursor, total
 
 
 def rollback(dsFolder: types.GirderModel, revision: int):
@@ -93,18 +112,12 @@ def rollback(dsFolder: types.GirderModel, revision: int):
     # And erase deletions for anything deleted after revision
     dsId = dsFolder['_id']
     RevisionLogItem().removeWithQuery({DATASET: dsId, REVISION: {'$gt': revision}})
-    AnnotationItem().removeWithQuery({DATASET: dsId, REVISION_CREATED: {'$gt': revision}})
-    AnnotationItem().update(
-        {DATASET: dsId, REVISION_DELETED: {'$gt': revision}}, {'$unset': {REVISION_DELETED: ""}}
-    )
-
-
-def get_annotations_as_dict(dsFolder: types.GirderModel):
-    cursor, _ = get_annotations(dsFolder)
-    output = {}
-    for annotation in cursor:
-        output[annotation['trackId']] = annotation
-    return output
+    listQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    updateQuery = {'$unset': {REVISION_DELETED: ""}}
+    TrackItem().removeWithQuery(listQuery)
+    TrackItem().update(listQuery, updateQuery)
+    GroupItem().removeWithQuery(listQuery)
+    GroupItem().update(listQuery, updateQuery)
 
 
 def get_annotation_csv_generator(
@@ -127,7 +140,7 @@ def get_annotation_csv_generator(
     thresholds = fromMeta(folder, "confidenceFilters", {})
 
     def downloadGenerator():
-        datalist, _ = get_annotations(folder, revision=revision)
+        datalist = TrackItem().list(folder, revision=revision)
         for data in viame.export_tracks_as_csv(
             datalist,
             excludeBelowThreshold,
@@ -143,9 +156,19 @@ def get_annotation_csv_generator(
     return filename, downloadGenerator
 
 
+class TrackUpdateArgs(BaseModel):
+    delete: List[int] = Field(default_factory=list)
+    upsert: List[models.Track] = Field(default_factory=list)
+
+
+class GroupUpdateArgs(BaseModel):
+    delete: List[int] = Field(default_factory=list)
+    upsert: List[models.Group] = Field(default_factory=list)
+
+
 class AnnotationUpdateArgs(BaseModel):
-    delete: List[int] = []
-    upsert: List[models.Track] = []
+    tracks: TrackUpdateArgs = Field(default_factory=TrackUpdateArgs)
+    groups: GroupUpdateArgs = Field(default_factory=GroupUpdateArgs)
 
     class Config:
         extra = 'ignore'
@@ -153,9 +176,11 @@ class AnnotationUpdateArgs(BaseModel):
 
 def save_annotations(
     dsFolder: types.GirderModel,
-    upsert_list: Iterable[dict],
-    delete_list: Iterable[int],
     user: types.GirderUserModel,
+    upsert_tracks: Optional[Iterable[dict]] = None,
+    delete_tracks: Optional[Iterable[int]] = None,
+    upsert_groups: Optional[Iterable[dict]] = None,
+    delete_groups: Optional[Iterable[int]] = None,
     description="save",
     overwrite=False,
 ):
@@ -163,51 +188,70 @@ def save_annotations(
     Annotations are lazy-deleted by marking their staleness property as true.
     """
     datasetId = dsFolder['_id']
-    expire_operations = []  # Mark existing records as deleted
-    expire_result = {}
-    insert_operations = []  # Insert new records
-    insert_result = {}
-    new_revision = get_last_revision(dsFolder) + 1
+    new_revision = RevisionLogItem().latest(dsFolder) + 1
     delete_annotation_update = {'$set': {REVISION_DELETED: new_revision}}
 
-    if overwrite:
-        query = {DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-        expire_result = (
-            AnnotationItem()
-            .collection.bulk_write([pymongo.UpdateMany(query, delete_annotation_update)])
-            .bulk_api_result
-        )
+    if upsert_tracks is None:
+        upsert_tracks = []
+    if upsert_groups is None:
+        upsert_groups = []
+    if delete_tracks is None:
+        delete_tracks = []
+    if delete_groups is None:
+        delete_groups = []
 
-    for track_id in delete_list:
-        filter = {TRACKID: track_id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-        # UpdateMany for safety, UpdateOne would also work
-        expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
+    def update_collection(
+        collection: crud.PydanticModel,
+        upsert_list: Iterable[dict],
+        delete_list: Iterable[int],
+    ):
+        expire_operations = []  # Mark existing records as deleted
+        expire_result = {}
+        insert_operations = []  # Insert new records
+        insert_result = {}
 
-    for newdict in upsert_list:
-        newdict.update({DATASET: datasetId, REVISION_CREATED: new_revision})
-        newdict.pop(REVISION_DELETED, None)
-        filter = {
-            TRACKID: newdict['trackId'],
-            DATASET: datasetId,
-            REVISION_DELETED: {'$exists': False},
-        }
-        if not overwrite:
+        if overwrite:
+            query = {DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
+            expire_result = collection.collection.bulk_write(
+                [pymongo.UpdateMany(query, delete_annotation_update)]
+            ).bulk_api_result
+
+        for id in delete_list:
+            filter = {IDENTIFIER: id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
             # UpdateMany for safety, UpdateOne would also work
             expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
-        insert_operations.append(pymongo.InsertOne(newdict))
 
-    # Ordered=false allows fast parallel writes
-    if len(expire_operations):
-        expire_result = (
-            AnnotationItem().collection.bulk_write(expire_operations, ordered=False).bulk_api_result
-        )
-    if len(insert_operations):
-        insert_result = (
-            AnnotationItem().collection.bulk_write(insert_operations, ordered=False).bulk_api_result
-        )
+        for newdict in upsert_list:
+            newdict.update({DATASET: datasetId, REVISION_CREATED: new_revision})
+            newdict.pop(REVISION_DELETED, None)
+            filter = {
+                IDENTIFIER: newdict[IDENTIFIER],
+                DATASET: datasetId,
+                REVISION_DELETED: {'$exists': False},
+            }
+            if not overwrite:
+                # UpdateMany for safety, UpdateOne would also work
+                expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
+            insert_operations.append(pymongo.InsertOne(newdict))
 
-    additions = insert_result.get('nInserted', 0)
-    deletions = expire_result.get('nModified', 0)
+        # Ordered=false allows fast parallel writes
+        if len(expire_operations):
+            expire_result = collection.collection.bulk_write(
+                expire_operations, ordered=False
+            ).bulk_api_result
+        if len(insert_operations):
+            insert_result = collection.collection.bulk_write(
+                insert_operations, ordered=False
+            ).bulk_api_result
+
+        additions = insert_result.get('nInserted', 0)
+        deletions = expire_result.get('nModified', 0)
+        return additions, deletions
+
+    track_additions, track_deletions = update_collection(TrackItem(), upsert_tracks, delete_tracks)
+    group_additions, group_deletions = update_collection(GroupItem(), upsert_groups, delete_groups)
+    additions = track_additions + group_additions
+    deletions = track_deletions + group_deletions
 
     if additions or deletions:
         # Write the revision to the log
@@ -231,8 +275,33 @@ def clone_annotations(
     user: types.GirderUserModel,
     revision: Optional[int] = None,
 ):
-    source_iter, _ = get_annotations(source, revision=revision)
-    save_annotations(dest, source_iter, [], user, description="initialize clone")
+    track_iter = TrackItem().list(source, revision=revision)
+    group_iter = GroupItem().list(source, revision=revision)
+    save_annotations(
+        dest,
+        user,
+        upsert_tracks=track_iter,
+        upsert_groups=group_iter,
+        description="initialize clone",
+    )
+
+
+def get_annotations(dataset: types.GirderModel, revision: Optional[int] = None):
+    """Get the DIVE json annotation file as a dict"""
+    tracks = TrackItem().list(dataset, revision=revision)
+    groups = GroupItem().list(dataset, revision=revision)
+    annotations: types.DIVEAnnotationSchema = {
+        'tracks': {},
+        'groups': {},
+        'version': constants.AnnotationsCurrentVersion,
+    }
+    for t in tracks:
+        serialized = models.Track(**t).dict(exclude_none=True)
+        annotations['tracks'][serialized['id']] = serialized
+    for g in groups:
+        serialized = models.Group(**g).dict(exclude_none=True)
+        annotations['groups'][serialized['id']] = serialized
+    return annotations
 
 
 def get_labels(user: types.GirderUserModel, published=False, shared=False):
@@ -250,7 +319,7 @@ def get_labels(user: types.GirderUserModel, published=False, shared=False):
         {
             # Left join to get annotationItems for all datasets
             '$lookup': {
-                'from': 'annotationItem',
+                'from': 'trackItem',
                 # Map the foreign key _id to dataset_id in the query
                 'let': {'dataset_id': '$_id'},
                 # Create a new field 'label' for each annotation

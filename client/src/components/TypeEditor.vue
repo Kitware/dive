@@ -1,11 +1,15 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, toRef, watch,
+  defineComponent, PropType, reactive, toRef, watch,
 } from '@vue/composition-api';
+
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import {
-  useHandler, useTypeStyling, useUsedTypes, useReadOnlyMode,
-} from '../provides';
+
+import BaseFilterControls from '../BaseFilterControls';
+import type Group from '../Group';
+import type StyleManager from '../StyleManager';
+import type Track from '../track';
+import { useReadOnlyMode } from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',
@@ -15,18 +19,26 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    filterControls: {
+      type: Object as PropType<BaseFilterControls<Track | Group>>,
+      required: true,
+    },
+    styleManager: {
+      type: Object as PropType<StyleManager>,
+      required: true,
+    },
+    group: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
-    const typeStylingRef = useTypeStyling();
-    const usedTypesRef = useUsedTypes();
+    const typeStylingRef = props.styleManager.typeStyling;
+    const trackFilters = props.filterControls;
+    const usedTypesRef = trackFilters.usedTypes;
     const readOnlyMode = useReadOnlyMode();
     const { prompt } = usePrompt();
-    const {
-      updateTypeName,
-      updateTypeStyle,
-      deleteType,
-    } = useHandler();
 
     const data = reactive({
       selectedColor: '',
@@ -43,12 +55,12 @@ export default defineComponent({
 
     function acceptChanges() {
       if (data.editingType !== data.selectedType) {
-        updateTypeName({
+        trackFilters.updateTypeName({
           currentType: data.selectedType,
           newType: data.editingType,
         });
       }
-      updateTypeStyle({
+      props.styleManager.updateTypeStyle({
         type: data.editingType,
         value: {
           color: data.editingColor,
@@ -70,7 +82,7 @@ export default defineComponent({
         confirm: true,
       });
       if (result) {
-        deleteType(type);
+        trackFilters.deleteType(type);
         emit('close');
       }
     }
@@ -140,7 +152,7 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
-          <v-row>
+          <v-row v-if="!group">
             <v-col>
               <v-checkbox
                 v-model="data.editingShowLabel"
@@ -213,6 +225,7 @@ export default defineComponent({
       </v-card-text>
       <v-card-actions class="">
         <v-tooltip
+          v-if="!group"
           open-delay="100"
           bottom
           :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"

@@ -7,11 +7,10 @@ import {
 } from '@vue/composition-api';
 import {
   useSelectedTrackId,
-  useTrackMap,
+  useTrackStore,
   useTime,
   useReadOnlyMode,
 } from 'vue-media-annotator/provides';
-import { getTrack } from 'vue-media-annotator/use/useTrackStore';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
@@ -40,12 +39,12 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
+    const trackStore = useTrackStore();
     const activeSettings = ref(true);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return getTrack(trackMap, selectedTrackIdRef.value);
+        return trackStore.get(selectedTrackIdRef.value);
       }
       return null;
     });
@@ -85,7 +84,7 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value !== null) {
-        const track = getTrack(trackMap, selectedTrackIdRef.value);
+        const track = trackStore.get(selectedTrackIdRef.value);
         if (track !== undefined) {
           if (props.mode === 'Track') {
             track.setAttribute(name, value);
@@ -126,9 +125,8 @@ export default defineComponent({
 </script>
 
 <template>
-  <panel-subsection>
+  <panel-subsection v-if="selectedAttributes">
     <template
-      v-if="selectedAttributes"
       slot="header"
     >
       <v-row

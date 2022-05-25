@@ -2,7 +2,7 @@
 import {
   defineComponent, PropType, Ref,
 } from '@vue/composition-api';
-import { StateStyles } from '../../use/useStyling';
+import { StateStyles } from '../../StyleManager';
 import { ToolTipWidgetData } from './UILayerTypes';
 /*
   This Component will be mounted indepedently of the main Vue App

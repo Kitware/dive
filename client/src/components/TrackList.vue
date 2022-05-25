@@ -1,34 +1,23 @@
 <script lang="ts">
-import Vue from 'vue';
 import {
-  defineComponent, reactive, computed, ref, Ref, watch,
+  defineComponent, reactive, computed, Ref,
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { TrackWithContext } from '../use/useTrackFilters';
 
-import { TrackId } from '../track';
 import {
-  useAllTypes,
-  useCheckedTrackIds,
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackMap,
-  useFilteredTracks,
-  useTypeStyling,
+  useTrackStore,
+  useTrackFilters,
   useTime,
   useReadOnlyMode,
+  useTrackStyleManager,
+  useMultiSelectList,
 } from '../provides';
+import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import TrackItem from './TrackItem.vue';
-
-interface VirtualListItem {
-  filteredTrack: TrackWithContext;
-  selectedTrackId: number | null;
-  checkedTrackIds: readonly number[];
-  editingTrack: boolean;
-  allTypes: readonly string[];
-}
 
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
@@ -64,14 +53,16 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const allTypesRef = useAllTypes();
-    const checkedTrackIdsRef = useCheckedTrackIds();
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
+    const checkedTrackIdsRef = trackFilters.checkedIDs;
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackMap = useTrackMap();
-    const filteredTracksRef = useFilteredTracks();
-    const typeStylingRef = useTypeStyling();
+    const trackStore = useTrackStore();
+    const filteredTracksRef = trackFilters.filteredAnnotations;
+    const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
+    const multiSelectList = useMultiSelectList();
     const {
       trackSelectNext, trackSplit, removeTrack, trackAdd,
     } = useHandler();
@@ -80,10 +71,10 @@ export default defineComponent({
       itemHeight: 70, // in pixelx
       settingsActive: false,
     });
-    const virtualList = ref(null as null | Vue);
 
-    const virtualListItems: Ref<readonly VirtualListItem[]> = computed(() => {
+    const virtualListItems = computed(() => {
       const selectedTrackId = selectedTrackIdRef.value;
+      const multiSelect = multiSelectList.value;
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
       const allTypes = allTypesRef.value;
@@ -91,6 +82,7 @@ export default defineComponent({
         filteredTrack: filtered,
         selectedTrackId,
         checkedTrackIds,
+        multiSelect,
         editingTrack: !!editingMode,
         allTypes,
       }));
@@ -104,65 +96,32 @@ export default defineComponent({
       return '';
     });
 
-    function scrollToTrack(trackId: TrackId | null): void {
-      if (trackId !== null && virtualList.value !== null) {
-        const track = trackMap.get(trackId);
-        if (track) {
-          const offset = filteredTracksRef.value.findIndex(
-            (filtered) => filtered.track.trackId === trackId,
-          );
-          if (offset === -1) {
-            virtualList.value.$el.scrollTop = 0;
-          } else {
-            // try to show the selected track as the third track in the list
-            virtualList.value.$el.scrollTop = (offset * data.itemHeight) - (2 * data.itemHeight);
-          }
-        }
-      }
-    }
+    const virtualScroll = useVirtualScrollTo({
+      itemHeight: data.itemHeight,
+      store: trackStore,
+      filteredListRef: filteredTracksRef,
+      selectedIdRef: selectedTrackIdRef,
+      multiSelectList,
+      selectNext: trackSelectNext,
+    });
 
-    function scrollToSelectedTrack(): void {
-      Vue.nextTick(() => scrollToTrack(selectedTrackIdRef.value));
-    }
-
-    // If we mount with selected we scroll to it automatically
-    scrollToSelectedTrack();
-
-    function scrollPreventDefault(
-      element: HTMLElement,
-      keyEvent: KeyboardEvent,
-      direction: 'up' | 'down',
-    ): void {
-      if (virtualList.value !== null && element === virtualList.value.$el) {
-        if (direction === 'up') {
-          trackSelectNext(-1);
-        } else if (direction === 'down') {
-          trackSelectNext(1);
-        }
-        keyEvent.preventDefault();
-      }
-    }
-
-    function getItemProps(item: VirtualListItem) {
-      const confidencePair = item.filteredTrack.track.getType(
+    function getItemProps(item: typeof virtualListItems.value[number]) {
+      const confidencePair = item.filteredTrack.annotation.getType(
         item.filteredTrack.context.confidencePairIndex,
       );
       const trackType = confidencePair[0];
-      const selected = item.selectedTrackId === item.filteredTrack.track.trackId;
+      const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
       return {
         trackType,
-        track: item.filteredTrack.track,
-        inputValue: item.checkedTrackIds.indexOf(item.filteredTrack.track.trackId) >= 0,
+        track: item.filteredTrack.annotation,
+        inputValue: item.checkedTrackIds.includes(item.filteredTrack.annotation.id),
         selected,
+        secondarySelected: item.multiSelect.includes(item.filteredTrack.annotation.id),
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
         types: item.allTypes,
       };
     }
-
-    watch(selectedTrackIdRef, scrollToTrack);
-    watch(filteredTracksRef, scrollToSelectedTrack);
-
 
     async function multiDelete() {
       const tracksDisplayed: number[] = [];
@@ -170,11 +129,11 @@ export default defineComponent({
       let count = 0;
       const limit = 20;
       virtualListItems.value.forEach((item) => {
-        if (item.checkedTrackIds.includes(item.filteredTrack.track.trackId)) {
+        if (item.checkedTrackIds.includes(item.filteredTrack.annotation.id)) {
           if (count < limit) {
-            text.push(item.filteredTrack.track.trackId.toString());
+            text.push(item.filteredTrack.annotation.trackId.toString());
           }
-          tracksDisplayed.push(item.filteredTrack.track.trackId);
+          tracksDisplayed.push(item.filteredTrack.annotation.id);
           count += 1;
         }
       });
@@ -198,14 +157,14 @@ export default defineComponent({
         {
           bind: 'up',
           handler: (el: HTMLElement, event: KeyboardEvent) => {
-            scrollPreventDefault(el, event, 'up');
+            virtualScroll.scrollPreventDefault(el, event, 'up');
           },
           disabled,
         },
         {
           bind: 'down',
           handler: (el: HTMLElement, event: KeyboardEvent) => {
-            scrollPreventDefault(el, event, 'down');
+            virtualScroll.scrollPreventDefault(el, event, 'down');
           },
           disabled,
         },
@@ -240,7 +199,7 @@ export default defineComponent({
       trackAdd,
       virtualHeight,
       virtualListItems,
-      virtualList,
+      virtualList: virtualScroll.virtualList,
       multiDelete,
     };
   },

@@ -1,6 +1,6 @@
 import { computed, Ref } from '@vue/composition-api';
-import { TrackWithContext } from './useTrackFilters';
-import { TypeStyling } from './useStyling';
+import type { TrackWithContext } from '../BaseFilterControls';
+import type { TypeStyling } from '../StyleManager';
 
 interface UseLineChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
@@ -43,7 +43,7 @@ export default function useLineChart({
      * Then iterate each histogram and generate its accumulation at each point.
      */
     enabledTracks.value.forEach((filtered) => {
-      const { track } = filtered;
+      const { annotation: track } = filtered;
       const totalArr = histograms.get('total') as number[];
       const ibegin = track.begin;
       const iend = track.end > track.begin ? track.end : track.begin + 1;
