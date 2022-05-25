@@ -70,6 +70,11 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
 
+function clearRecents() {
+  datasets.value = {};
+  window.localStorage.setItem(RecentsKey, JSON.stringify([]));
+}
+
 async function autoDiscover() {
   clearRecents();
   /* Make sure settings are ready on backend */
@@ -124,11 +129,6 @@ function removeRecents(datasetId: string) {
   }
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
-}
-
-function clearRecents() {
-  datasets.value = {};
-  window.localStorage.setItem(RecentsKey, JSON.stringify([]));
 }
 
 export {
