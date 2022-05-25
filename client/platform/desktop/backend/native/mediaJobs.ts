@@ -1,7 +1,7 @@
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
-import os from 'os';
+
 
 import {
   Settings, DesktopJob,
@@ -11,30 +11,31 @@ import {
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-import { jobFileEchoMiddleware, spawnResult, createWorkingDirectory } from './utils';
+import {
+  jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
+} from './utils';
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
 
 const DiveJobManifestName = 'dive_job_manifest.json';
 const VideoArgs = [
-  '-c:v libx264',
-  '-preset slow',
+  '-c:v', 'libx264',
+  '-preset', 'slow',
   // https://github.com/Kitware/dive/issues/855
-  '-crf 22',
+  '-crf', '22',
   // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
-  '-c:a aac',
+  '-c:a', 'aac',
   /**
    * References:
    * https://github.com/Kitware/dive/pull/602 (Anamorphic Video Support)
    * https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
    */
-  '-vf "scale=round(iw*sar/2)*2:round(ih/2)*2,setsar=1"',
-].join(' ');
+  '-vf', 'scale=round(iw*sar/2)*2:round(ih/2)*2,setsar=1',
+];
 
-const platform = process.env.npm_config_platform || os.platform();
-const ffmpegPath = npath.join(process.resourcesPath, platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-const ffprobePath = npath.join(process.resourcesPath, platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+const ffprobePath = getBinaryPath('ffmpeg-ffprobe-static/ffprobe');
 
 interface FFProbeResults {
   streams?: [{
@@ -93,21 +94,14 @@ async function checkFrameMisalignment(file: string): Promise<boolean> {
 async function realignVideoAndAudio(file: string, workDir: string): Promise<string> {
   const alignedFile = npath.join(workDir, 'temprealign.mp4');
   const args = [
-    '-i',
-    file,
-    '-ss',
-    '0',
-    '-c:v',
-    'libx264',
-    '-preset',
-    'slow',
-    '-crf',
-    '18',
-    '-c:a',
-    'copy',
+    '-i', file,
+    '-ss', '0',
+    '-c:v', 'libx264',
+    '-preset', 'slow',
+    '-crf', '18',
+    '-c:a', 'copy',
     alignedFile,
-    '-v',
-    'quiet',
+    '-v', 'quiet',
   ];
   const result = await spawnResult(ffmpegPath, false, args);
   if (result.error || result.output === null) {

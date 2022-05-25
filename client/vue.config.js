@@ -62,14 +62,14 @@ module.exports = {
         directories: {
           buildResources: 'platform/desktop/buildResources',
         },
-        extraResources: [
+        extraFiles: [
           {
             from: 'node_modules/ffmpeg-ffprobe-static/ffmpeg',
-            to: 'ffmpeg',
+            to: 'resources/ffmpeg-ffprobe-static/ffmpeg',
           },
           {
             from: 'node_modules/ffmpeg-ffprobe-static/ffprobe',
-            to: 'ffprobe',
+            to: 'resources/ffmpeg-ffprobe-static/ffprobe',
           },
         ],
         // extraMetadata will be merged with package.json in args to electron-builder

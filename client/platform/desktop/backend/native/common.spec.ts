@@ -5,10 +5,8 @@ import fs from 'fs-extra';
 import { Console } from 'console';
 
 import {
-  AnnotationsCurrentVersion,
-  ConversionArgs,
-  DesktopJob,
-  DesktopJobUpdate, DesktopJobUpdater, JsonMeta, RunTraining, Settings,
+  AnnotationsCurrentVersion, DesktopJob,
+  DesktopJobUpdate, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -92,10 +90,7 @@ jest.mock('./mediaJobs', () => ({
     originalFps: 30,
     videoDimensions: { width: 1920, height: 1080 },
   })),
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  convertMedia: jest.fn((settingsVal: Settings, args: ConversionArgs,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    updaterFunc: DesktopJobUpdater) => ({
+  convertMedia: jest.fn(() => ({
     key: 'jobKey',
     title: 'title',
     command: 'command',

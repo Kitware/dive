@@ -15,8 +15,10 @@ const children: ChildProcess[] = [];
 function observeChild<T extends ChildProcess>(child: T) {
   if (child.exitCode === null) {
     children.push(child);
-    child.on('exit', () => {
+    child.on('exit', (code) => {
       children.splice(children.indexOf(child), 1);
+      // eslint-disable-next-line no-console
+      console.info(`Process exited with code ${code}: ${child.spawnfile}`);
     });
   }
   return child;

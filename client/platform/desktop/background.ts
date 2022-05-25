@@ -3,7 +3,6 @@ import {
 } from 'electron';
 import { initialize as initializeRemote } from '@electron/remote/main';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
-import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
@@ -12,8 +11,6 @@ import ipcListen from './backend/ipcService';
 app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
-
-const isDevelopment = process.env.NODE_ENV !== 'production';
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -64,14 +61,14 @@ async function createWindow() {
   ipcListen();
   initializeRemote();
 
-  if (process.env.IS_ELECTRON) {
+  if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
-    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
+    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app', partitionSession.protocol);
     // Load the index.html when not in development
-    win.loadURL(`file://${__dirname}/index.html`);
+    win.loadURL('app://./index.html');
   }
 
   win.on('closed', () => {
@@ -107,14 +104,6 @@ app.on('before-quit', () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
-  if (isDevelopment && !process.env.IS_TEST) {
-    // Install Vue Devtools
-    try {
-      await installExtension(VUEJS_DEVTOOLS);
-    } catch (e) {
-      console.error('Vue Devtools failed to install:', e.toString());
-    }
-  }
   createWindow();
 });
 

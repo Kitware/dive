@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import moment from 'moment';
 import path from 'path';
+import os from 'os';
 
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
@@ -12,6 +13,19 @@ const processChunk = (chunk: Buffer) => chunk
   .toString('utf-8')
   .split('\n')
   .filter((a) => a);
+
+function isDev() {
+  return process.env.NODE_ENV !== 'production';
+}
+
+function getBinaryPath(name: string) {
+  const platform = process.env.npm_config_platform || os.platform();
+  const filename = platform === 'win32' ? `${name}.exe` : name;
+  if (isDev()) {
+    return path.join(__dirname, '..', 'node_modules', filename);
+  }
+  return path.join(process.resourcesPath, filename);
+}
 
 /**
  * Middleware to echo to stdout and write to file
@@ -96,6 +110,8 @@ function splitExt(input: string): [string, string] {
 }
 
 export {
+  isDev,
+  getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,
   spawnResult,
