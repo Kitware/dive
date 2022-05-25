@@ -56,9 +56,8 @@ interface CheckMediaResults {
 }
 
 async function checkFrameMisalignment(file: string): Promise<boolean> {
-  const command = [
-    `"${ffprobePath}"`,
-    `"${file}"`,
+  const args = [
+    file,
     '-hide_banner',
     '-read_intervals',
     '%+5',
@@ -69,7 +68,7 @@ async function checkFrameMisalignment(file: string): Promise<boolean> {
     '-v',
     'quiet',
   ];
-  const result = await spawnResult(command.join(' '), false);
+  const result = await spawnResult(ffprobePath, false, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
@@ -93,10 +92,9 @@ async function checkFrameMisalignment(file: string): Promise<boolean> {
 
 async function realignVideoAndAudio(file: string, workDir: string): Promise<string> {
   const alignedFile = npath.join(workDir, 'temprealign.mp4');
-  const command = [
-    `"${ffmpegPath}"`,
+  const args = [
     '-i',
-    `"${file}"`,
+    file,
     '-ss',
     '0',
     '-c:v',
@@ -107,11 +105,11 @@ async function realignVideoAndAudio(file: string, workDir: string): Promise<stri
     '18',
     '-c:a',
     'copy',
-    `"${alignedFile}"`,
+    alignedFile,
     '-v',
     'quiet',
   ];
-  const result = await spawnResult(command.join(' '), false);
+  const result = await spawnResult(ffmpegPath, false, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffmepg';
   }
@@ -126,17 +124,16 @@ async function checkAndFixFrameAlignment(file: string, workDir: string): Promise
 }
 
 async function checkMedia(file: string): Promise<CheckMediaResults> {
-  const command = [
-    `"${ffprobePath}"`,
+  const args = [
     '-print_format',
     'json',
     '-v',
     'quiet',
     '-show_format',
     '-show_streams',
-    `"${file}"`,
+    file,
   ];
-  const result = await spawnResult(command.join(' '), false);
+  const result = await spawnResult(ffprobePath, false, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
@@ -183,24 +180,19 @@ async function convertMedia(
   // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
   const jobWorkDir = baseWorkDir || await createWorkingDirectory(settings, [args.meta], 'conversion');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
-  const commands = [];
+  const ffmpegArgs: string[] = [];
 
   let multiType = '';
   if (args.meta.type === 'multi' && mediaIndex < args.mediaList.length) {
     multiType = getTranscodedMultiCamType(args.mediaList[mediaIndex][1], args.meta);
   }
-  commands.push(
-    `"${ffmpegPath}"`,
-    `-i "${args.mediaList[mediaIndex][0]}"`,
-  );
+  ffmpegArgs.push('-i', args.mediaList[mediaIndex][0]);
   if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
-    commands.push(VideoArgs);
+    ffmpegArgs.push(...VideoArgs);
   }
-  commands.push(
-    `"${args.mediaList[mediaIndex][1]}"`,
-  );
+  ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
-  const job = observeChild(spawn(commands.join(' '), { shell: false }));
+  const job = observeChild(spawn(ffmpegPath, ffmpegArgs, { shell: false }));
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
@@ -208,7 +200,7 @@ async function convertMedia(
   const jobBase: DesktopJob = {
     key: jobKey,
     pid: job.pid,
-    command: commands.join(' '),
+    command: [ffmpegPath, ...ffmpegArgs].join(' '),
     args,
     title: `converting ${args.meta.name}`,
     jobType: 'conversion',
