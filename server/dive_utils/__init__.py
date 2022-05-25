@@ -61,7 +61,7 @@ def strNumericCompare(input1: str, input2: str) -> int:
             return -1
         if type(b) == int:
             return 1
-        return 1 if a > b else -1
+        return 1 if str(a) > str(b) else -1
     return 0
 
 
