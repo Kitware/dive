@@ -71,7 +71,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
 }
 
 async function autoDiscover() {
-  datasets.value = {};
+  clearRecents();
   /* Make sure settings are ready on backend */
   await initializedSettings;
   /* Nothing came from localStorage, try to populate from autodiscovery */

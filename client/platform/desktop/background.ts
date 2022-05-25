@@ -16,6 +16,14 @@ app.commandLine.appendSwitch('ignore-gpu-blacklist');
 // be closed automatically when the JavaScript object is garbage collected.
 let win: BrowserWindow | null;
 
+// This application uses localStorage with persistent sessions.
+// In order to use this mechanism, only one application instance
+// can exist at a time.  Acquire a lock or quit and focus the running window.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+}
+
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } },
@@ -63,12 +71,12 @@ async function createWindow() {
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
-    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL);
+    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
     createProtocol('app', partitionSession.protocol);
     // Load the index.html when not in development
-    win.loadURL('app://./index.html');
+    win.loadURL(`file://${__dirname}/index.html`);
   }
 
   win.on('closed', () => {
@@ -105,6 +113,13 @@ app.on('before-quit', () => {
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
   createWindow();
+});
+
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
 });
 
 if (process.platform === 'win32') {
