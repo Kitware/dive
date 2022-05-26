@@ -50,10 +50,10 @@ function jobFileEchoMiddleware(
   };
 }
 
-function spawnResult(command: string, shell: boolean | string, args: string[] = []):
+function spawnResult(command: string, args: string[] = []):
 Promise<{ output: null | string; exitCode: number | null; error: string}> {
   return new Promise((resolve) => {
-    const proc = observeChild(spawn(command, args, { shell }));
+    const proc = observeChild(spawn(command, args));
     let output = '';
     let error = '';
     proc.stdout.on('data', (chunk) => {

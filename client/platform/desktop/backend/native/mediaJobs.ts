@@ -69,7 +69,7 @@ async function checkFrameMisalignment(file: string): Promise<boolean> {
     '-v',
     'quiet',
   ];
-  const result = await spawnResult(ffprobePath, false, args);
+  const result = await spawnResult(ffprobePath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
@@ -103,7 +103,7 @@ async function realignVideoAndAudio(file: string, workDir: string): Promise<stri
     alignedFile,
     '-v', 'quiet',
   ];
-  const result = await spawnResult(ffmpegPath, false, args);
+  const result = await spawnResult(ffmpegPath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffmepg';
   }
@@ -127,7 +127,7 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
     '-show_streams',
     file,
   ];
-  const result = await spawnResult(ffprobePath, false, args);
+  const result = await spawnResult(ffprobePath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
