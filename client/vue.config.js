@@ -64,12 +64,9 @@ module.exports = {
         },
         extraFiles: [
           {
-            from: 'node_modules/ffmpeg-ffprobe-static/ffmpeg',
-            to: 'resources/ffmpeg-ffprobe-static/ffmpeg',
-          },
-          {
-            from: 'node_modules/ffmpeg-ffprobe-static/ffprobe',
-            to: 'resources/ffmpeg-ffprobe-static/ffprobe',
+            from: 'node_modules/ffmpeg-ffprobe-static',
+            to: 'resources/ffmpeg-ffprobe-static',
+            filter: ['ff*'],
           },
         ],
         // extraMetadata will be merged with package.json in args to electron-builder
