@@ -2,33 +2,63 @@ import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
+
 import {
-  Settings, DesktopJob, FFProbeResults,
+  Settings, DesktopJob,
   ConversionArgs,
   DesktopJobUpdater,
-  CheckMediaResults,
   FFProbeFrameResults,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-import { ViameConstants } from 'platform/desktop/backend/native/viame';
-import * as common from './common';
-import { jobFileEchoMiddleware, spawnResult } from './utils';
+import {
+  jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
+} from './utils';
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
 
 const DiveJobManifestName = 'dive_job_manifest.json';
+const VideoArgs = [
+  '-c:v', 'libx264',
+  '-preset', 'slow',
+  // https://github.com/Kitware/dive/issues/855
+  '-crf', '22',
+  // https://askubuntu.com/questions/1315697/could-not-find-tag-for-codec-pcm-s16le-in-stream-1-codec-not-currently-support
+  '-c:a', 'aac',
+  /**
+   * References:
+   * https://github.com/Kitware/dive/pull/602 (Anamorphic Video Support)
+   * https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
+   */
+  '-vf', 'scale=round(iw*sar/2)*2:round(ih/2)*2,setsar=1',
+];
 
-async function checkFrameMisalignment(
-  viameConstants: ViameConstants,
-  file: string,
-): Promise<boolean> {
-  const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
-  const command = [
-    viameConstants.ffmpeg.initialization,
-    `"${ffprobePath}"`,
-    `"${file}"`,
+const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+const ffprobePath = getBinaryPath('ffmpeg-ffprobe-static/ffprobe');
+
+interface FFProbeResults {
+  streams?: [{
+    avg_frame_rate?: string;
+    r_frame_rate?: string;
+    codec_type?: string;
+    codec_name?: string;
+    sample_aspect_ratio?: string;
+    width?: number;
+    height?: number;
+  }];
+}
+
+interface CheckMediaResults {
+  websafe: boolean;
+  originalFpsString: string;
+  originalFps: number;
+  videoDimensions: { width: number; height: number };
+}
+
+async function checkFrameMisalignment(file: string): Promise<boolean> {
+  const args = [
+    file,
     '-hide_banner',
     '-read_intervals',
     '%+5',
@@ -39,7 +69,7 @@ async function checkFrameMisalignment(
     '-v',
     'quiet',
   ];
-  const result = await spawnResult(command.join(' '), viameConstants.shell);
+  const result = await spawnResult(ffprobePath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
@@ -61,67 +91,43 @@ async function checkFrameMisalignment(
   return false;
 }
 
-async function realignVideoAndAudio(
-  viameConstants: ViameConstants,
-  file: string,
-  workDir: string,
-): Promise<string> {
-  const ffmpegPath = viameConstants.ffmpeg.path;
+async function realignVideoAndAudio(file: string, workDir: string): Promise<string> {
   const alignedFile = npath.join(workDir, 'temprealign.mp4');
-  const command = [
-    viameConstants.ffmpeg.initialization,
-    `"${ffmpegPath}"`,
-    '-i',
-    `"${file}"`,
-    '-ss',
-    '0',
-    '-c:v',
-    'libx264',
-    '-preset',
-    'slow',
-    '-crf',
-    '18',
-    '-c:a',
-    'copy',
-    `"${alignedFile}"`,
-    '-v',
-    'quiet',
+  const args = [
+    '-i', file,
+    '-ss', '0',
+    '-c:v', 'libx264',
+    '-preset', 'slow',
+    '-crf', '18',
+    '-c:a', 'copy',
+    alignedFile,
+    '-v', 'quiet',
   ];
-  const result = await spawnResult(command.join(' '), viameConstants.shell);
+  const result = await spawnResult(ffmpegPath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffmepg';
   }
   return alignedFile;
 }
 
-async function checkAndFixFrameAlignment(
-  viameConstants: ViameConstants,
-  file: string,
-  workDir: string,
-): Promise<string> {
-  if (!await checkFrameMisalignment(viameConstants, file)) {
+async function checkAndFixFrameAlignment(file: string, workDir: string): Promise<string> {
+  if (!await checkFrameMisalignment(file)) {
     return file;
   }
-  return realignVideoAndAudio(viameConstants, file, workDir);
+  return realignVideoAndAudio(file, workDir);
 }
 
-async function checkMedia(
-  viameConstants: ViameConstants,
-  file: string,
-): Promise<CheckMediaResults> {
-  const ffprobePath = `${viameConstants.ffmpeg.path.replace('ffmpeg', 'ffprobe')}`;
-  const command = [
-    viameConstants.ffmpeg.initialization,
-    `"${ffprobePath}"`,
+async function checkMedia(file: string): Promise<CheckMediaResults> {
+  const args = [
     '-print_format',
     'json',
     '-v',
     'quiet',
     '-show_format',
     '-show_streams',
-    `"${file}"`,
+    file,
   ];
-  const result = await spawnResult(command.join(' '), viameConstants.shell);
+  const result = await spawnResult(ffprobePath, args);
   if (result.error || result.output === null) {
     throw result.error || 'Error using ffprobe';
   }
@@ -144,7 +150,7 @@ async function checkMedia(
       width: videoStream[0].width || 0,
       height: videoStream[0].height || 0,
     };
-    const misAligned = await checkFrameMisalignment(viameConstants, file);
+    const misAligned = await checkFrameMisalignment(file);
 
     return {
       websafe: !!websafe.length && !misAligned,
@@ -156,37 +162,31 @@ async function checkMedia(
   throw Error(`FFProbe did not return a valid value for ${file}`);
 }
 
-async function convertMedia(settings: Settings,
+async function convertMedia(
+  settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
-  viameConstants: ViameConstants,
+  onComplete?: (jobKey: string) => void,
   mediaIndex = 0,
   key = '',
-  baseWorkDir = ''): Promise<DesktopJob> {
+  baseWorkDir = '',
+): Promise<DesktopJob> {
   // Image conversion needs to utilize the baseWorkDir, init or vids create their own directory
-  const jobWorkDir = baseWorkDir || await common.createKwiverRunWorkingDir(settings, [args.meta], 'conversion');
+  const jobWorkDir = baseWorkDir || await createWorkingDirectory(settings, [args.meta], 'conversion');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
-  const commands = [];
+  const ffmpegArgs: string[] = [];
 
   let multiType = '';
   if (args.meta.type === 'multi' && mediaIndex < args.mediaList.length) {
     multiType = getTranscodedMultiCamType(args.mediaList[mediaIndex][1], args.meta);
   }
-  commands.push(
-    viameConstants.ffmpeg.initialization,
-    `"${viameConstants.ffmpeg.path}"`,
-    `-i "${args.mediaList[mediaIndex][0]}"`,
-  );
+  ffmpegArgs.push('-i', args.mediaList[mediaIndex][0]);
   if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
-    commands.push(
-      viameConstants.ffmpeg.videoArgs,
-    );
+    ffmpegArgs.push(...VideoArgs);
   }
-  commands.push(
-    `"${args.mediaList[mediaIndex][1]}"`,
-  );
+  ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
-  const job = observeChild(spawn(commands.join(' '), { shell: viameConstants.shell }));
+  const job = observeChild(spawn(ffmpegPath, ffmpegArgs, { shell: false }));
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
@@ -194,7 +194,7 @@ async function convertMedia(settings: Settings,
   const jobBase: DesktopJob = {
     key: jobKey,
     pid: job.pid,
-    command: commands.join(' '),
+    command: [ffmpegPath, ...ffmpegArgs].join(' '),
     args,
     title: `converting ${args.meta.name}`,
     jobType: 'conversion',
@@ -221,7 +221,6 @@ async function convertMedia(settings: Settings,
     } else {
       if (args.meta.type === 'video' || multiType === 'video') {
         const updatedFile = await checkAndFixFrameAlignment(
-          viameConstants,
           args.mediaList[mediaIndex][1],
           jobWorkDir,
         );
@@ -232,7 +231,7 @@ async function convertMedia(settings: Settings,
       }
 
       if (mediaIndex === args.mediaList.length - 1) {
-        common.completeConversion(settings, args.meta.id, jobKey);
+        if (onComplete) { onComplete(jobKey); }
         updater({
           ...jobBase,
           body: [''],
@@ -244,7 +243,7 @@ async function convertMedia(settings: Settings,
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, viameConstants, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

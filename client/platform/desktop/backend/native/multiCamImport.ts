@@ -11,11 +11,11 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
 } from 'dive-common/constants';
 import {
-  JsonMeta, Settings, JsonMetaCurrentVersion,
-  CheckMediaResults,
+  JsonMeta, JsonMetaCurrentVersion,
   DesktopMediaImportResponse,
   Camera,
 } from 'platform/desktop/constants';
+import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { findImagesInFolder } from './common';
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
@@ -41,11 +41,7 @@ async function asyncForEach<T>(array: T[], callback: (item: T, index: number, ar
 /**
  * Begin a dataset import.
  */
-async function beginMultiCamImport(
-  settings: Settings,
-  args: MultiCamImportArgs,
-  checkMedia: (settings: Settings, path: string) => Promise<CheckMediaResults>,
-): Promise<DesktopMediaImportResponse> {
+async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMediaImportResponse> {
   const datasetType: DatasetType = MultiType;
   const cameras: Record<string, Camera> = {};
   const multiCamTrackFiles: Record<string, string> = {};
@@ -134,7 +130,7 @@ async function beginMultiCamImport(
             if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
               throw new Error('User chose image file for video import option');
             } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
-              const checkMediaResult = await checkMedia(settings, video);
+              const checkMediaResult = await checkMedia(video);
               if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }

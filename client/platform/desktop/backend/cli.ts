@@ -23,6 +23,7 @@ import { RectBounds } from 'vue-media-annotator/utils';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
+import { checkMedia } from './native/mediaJobs';
 import { parseFile, serialize } from './serializers/viame';
 import { exportNist, loadNistFile } from './serializers/nist';
 import KPF from './serializers/kpf';
@@ -212,9 +213,8 @@ if (argv._.includes('viame2json')) {
   };
   run();
 } else if (argv._.includes('nist2json')) {
-  const settings = getSettings();
   const run = async () => {
-    const mediaInfo = await settings.platform.checkMedia(settings, argv.video as string);
+    const mediaInfo = await checkMedia(argv.video as string);
     const bounds: RectBounds = [
       0, 0, mediaInfo.videoDimensions.width, mediaInfo.videoDimensions.height,
     ];
@@ -224,9 +224,8 @@ if (argv._.includes('viame2json')) {
 } else if (argv._.includes('json2nist')) {
   convertJSONtoNist(argv.file as string, argv.meta as string);
 } else if (argv._.includes('checkmedia')) {
-  const settings = getSettings();
   const run = async () => {
-    const out = await settings.platform.checkMedia(settings, argv.file as string);
+    const out = await checkMedia(argv.file as string);
     // eslint-disable-next-line no-console
     console.log(out);
   };

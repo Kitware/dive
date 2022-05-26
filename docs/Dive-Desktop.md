@@ -56,6 +56,8 @@ DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on 
 * `codec` = `h264`
 * `sample_aspect_ratio (SAR)` = `1:1`
 
+Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with the DIVE Desktop executable.
+
 ## Running Training
 
 1. Click on ==:material-brain: Training== to open the training tab.
@@ -65,7 +67,7 @@ DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on 
 
 ## Desktop Settings
 
-DIVE Desktop requires a local installation of the VIAME toolkit to run pipelines, train, and do transcoding.
+DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipelines and training.
 
 * **VIAME Install Path** is set automatically if you use the `launch_dive_interface.[bat|sh]` script from a VIAME install.  Otherwise, you may need to change this yourself.
     * Use ==Choose :material-folder:== to choose the base installation path, then click ==:material-content-save: Save==.
@@ -141,10 +143,6 @@ You can use externally trained models in DIVE by creating a folder containing th
 > I imported some data, but I don't see my annotations
 
 See [Importing images and video above](#importing-datasets).  You most likely need to specify your annotation file in the import dialog.
-
-> I get an error that says "ffmpeg not installed, please download and install VIAME Toolkit from the main page"
-
-DIVE Desktop relies on an installation of `ffmpeg` for transcoding videos and some images.  This tool comes with the VIAME installation.  Verify your VIAME Install Base Path is correct.
 
 > Some VIAME canned pipelines are missing, or there are no training configuration files.
 

@@ -3,7 +3,6 @@ import {
 } from 'electron';
 import { initialize as initializeRemote } from '@electron/remote/main';
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
-import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
@@ -13,11 +12,17 @@ app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
 
-const isDevelopment = process.env.NODE_ENV !== 'production';
-
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win: BrowserWindow | null;
+
+// This application uses localStorage with persistent sessions.
+// In order to use this mechanism, only one application instance
+// can exist at a time.  Acquire a lock or quit and focus the running window.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+}
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -64,7 +69,7 @@ async function createWindow() {
   ipcListen();
   initializeRemote();
 
-  if (process.env.IS_ELECTRON) {
+  if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
     await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
@@ -107,15 +112,14 @@ app.on('before-quit', () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
-  if (isDevelopment && !process.env.IS_TEST) {
-    // Install Vue Devtools
-    try {
-      await installExtension(VUEJS_DEVTOOLS);
-    } catch (e) {
-      console.error('Vue Devtools failed to install:', e.toString());
-    }
-  }
   createWindow();
+});
+
+app.on('second-instance', () => {
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
 });
 
 if (process.platform === 'win32') {

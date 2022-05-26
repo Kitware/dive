@@ -8,6 +8,9 @@ import { Attribute } from 'vue-media-annotator/use/useAttributes';
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
+export const ProjectsFolderName = 'DIVE_Projects';
+export const JobsFolderName = 'DIVE_Jobs';
+export const PipelinesFolderName = 'DIVE_Pipelines';
 
 export interface Settings {
   // version a schema version
@@ -201,29 +204,12 @@ export interface DesktopJobUpdate extends DesktopJob {
 
 export type DesktopJobUpdater = (msg: DesktopJobUpdate) => void;
 
-export interface FFProbeResults {
-  streams?: [{
-    avg_frame_rate?: string;
-    r_frame_rate?: string;
-    codec_type?: string;
-    codec_name?: string;
-    sample_aspect_ratio?: string;
-    width?: number;
-    height?: number;
-  }];
-}
-
 interface FFProbeFrame {
   best_effort_timestamp_time: number;
 }
 export interface FFProbeFrameResults{
   frames: FFProbeFrame[];
 }
-
-export type ConvertMedia =
-(settings: Settings,
-  args: ConversionArgs,
-  updater: DesktopJobUpdater) => Promise<DesktopJob>;
 
 export interface ExportDatasetArgs {
     id: string;
@@ -235,11 +221,4 @@ export interface ExportDatasetArgs {
 export interface ExportConfigurationArgs {
     id: string;
    path: string;
-}
-
-export interface CheckMediaResults {
-  websafe: boolean;
-  originalFpsString: string;
-  originalFps: number;
-  videoDimensions: {width: number; height: number};
 }

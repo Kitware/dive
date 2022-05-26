@@ -71,9 +71,7 @@ export default function register() {
   });
 
   ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
-    const ret = await common.beginMediaImport(
-      settings.get(), path, currentPlatform.checkMedia,
-    );
+    const ret = await common.beginMediaImport(path);
     return ret;
   });
 
@@ -93,9 +91,7 @@ export default function register() {
 
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
-    const ret = await beginMultiCamImport(
-      settings.get(), args, currentPlatform.checkMedia,
-    );
+    const ret = await beginMultiCamImport(args);
     return ret;
   });
 
@@ -108,9 +104,7 @@ export default function register() {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    const ret = await common.finalizeMediaImport(
-      settings.get(), args, updater, currentPlatform.convertMedia,
-    );
+    const ret = await common.finalizeMediaImport(settings.get(), args, updater);
     return ret;
   });
 
