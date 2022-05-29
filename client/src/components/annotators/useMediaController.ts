@@ -258,9 +258,15 @@ export function useMediaController() {
         // 4x zoom max
         max: 4,
       });
-      geoViewerRef.value.clampBoundsX(true);
-      geoViewerRef.value.clampBoundsY(true);
-      geoViewerRef.value.clampZoom(true);
+      if (Object.keys(geoViewers).length === 1) {
+        geoViewerRef.value.clampBoundsX(true);
+        geoViewerRef.value.clampBoundsY(true);
+        geoViewerRef.value.clampZoom(true);
+      } else {
+        geoViewerRef.value.clampBoundsX(false);
+        geoViewerRef.value.clampBoundsY(false);
+        geoViewerRef.value.clampZoom(false);
+      }
       resetZoom();
     }
 
