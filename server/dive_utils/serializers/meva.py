@@ -43,7 +43,7 @@ def load_kpf_as_tracks(readers: List[Iterable[ByteString]]):
     error_report: Dict[str, str] = {}
     try:
         for reader in readers:
-            rows = b"".join(list(reader)).decode("utf-8")
+            rows = ''.join([str(elem) for elem in reader])
             yml = kpf.load_yaml(rows)
             for row in yml:
                 if kpf.TYPES in row:
