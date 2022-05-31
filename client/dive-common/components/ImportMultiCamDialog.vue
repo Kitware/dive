@@ -424,8 +424,7 @@ export default defineComponent({
           outlined
           dense
         >
-          Visualization currently doesn't support multi views so please choose
-          a list of images or video to display by default when viewing
+          Please choose the camera which will be selected by default when the loading the dataset.
         </v-alert>
         <div>
           <div>
