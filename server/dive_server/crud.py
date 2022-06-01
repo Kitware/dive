@@ -100,7 +100,7 @@ def verify_dataset(folder: GirderModel):
     if not asbool(fromMeta(folder, constants.DatasetMarker, False)):
         raise RestException('Source folder is not a valid DIVE dataset', code=404)
     dstype = fromMeta(folder, 'type')
-    if dstype not in [constants.ImageSequenceType, constants.VideoType]:
+    if dstype not in [constants.ImageSequenceType, constants.VideoType, constants.LargeImageType]:
         raise ValueError(f'Source folder is marked as dataset but has invalid type {dstype}')
     if dstype == constants.VideoType:
         fps = fromMeta(folder, 'fps')
@@ -162,3 +162,23 @@ def valid_image_names_dict(images: List[GirderModel]):
         imageName, _ = os.path.splitext(image['name'])
         imageNameMap[imageName] = i
     return imageNameMap
+
+def valid_large_images(
+    folder: GirderModel,
+    user: GirderUserModel,
+) -> List[GirderModel]:
+    """
+    Any time images are used where frame alignment matters, this function must be used
+    """
+    images = Folder().childItems(
+        getCloneRoot(user, folder),
+        filters={"lowerName": {"$regex": constants.largeImageRegEx}},
+    )
+
+    def unwrapItem(item1, item2):
+        return strNumericCompare(item1['name'], item2['name'])
+
+    return sorted(
+        images,
+        key=functools.cmp_to_key(unwrapItem),
+    )

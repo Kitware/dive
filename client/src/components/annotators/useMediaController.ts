@@ -59,11 +59,11 @@ export default function useMediaController() {
   }
 
   function resetZoom() {
-    const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-      data.originalBounds, 0,
-    );
-    geoViewerRef.value.zoom(zoomAndCenter.zoom);
-    geoViewerRef.value.center(zoomAndCenter.center);
+    // const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+    //   data.originalBounds, 0,
+    // );
+    // geoViewerRef.value.zoom(zoomAndCenter.zoom);
+    // geoViewerRef.value.center(zoomAndCenter.center);
   }
 
   function toggleLockedCamera() {
@@ -143,12 +143,18 @@ export default function useMediaController() {
       geoViewerRef.value.center(coords);
     }
 
-    function initializeViewer(width: number, height: number) {
-      const params = geo.util.pixelCoordinateParams(
+    function initializeViewer(width: number, height: number, isMap = false) {
+      let params = geo.util.pixelCoordinateParams(
         containerRef.value, width, height, width, height,
       );
+      if (isMap) {
+        params = { map: { node: containerRef.value } };
+      }
       geoViewerRef.value = geo.map(params.map);
-      resetMapDimensions(width, height);
+      console.log(width, height);
+      if (!isMap) {
+        resetMapDimensions(width, height);
+      }
       const interactorOpts = geoViewerRef.value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};

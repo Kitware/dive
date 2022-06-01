@@ -7,7 +7,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 
-type DatasetType = 'image-sequence' | 'video' | 'multi';
+type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
 type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines

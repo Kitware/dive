@@ -24,6 +24,7 @@ import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
   ImageAnnotator,
   VideoAnnotator,
+  LargeImageAnnotator,
   LayerManager,
 } from 'vue-media-annotator/components';
 import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -54,6 +55,7 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
+    LargeImageAnnotator,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
@@ -660,7 +662,8 @@ export default defineComponent({
       </sidebar>
       <v-col style="position: relative">
         <component
-          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+          :is="datasetType === 'image-sequence' ? 'image-annotator' :
+            datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
           v-if="(imageData.length || videoUrl) && progress.loaded"
           ref="playbackComponent"
           v-mousetrap="[

@@ -17,6 +17,10 @@ from dive_utils import TRUTHY_META_VALUES, constants, fromMeta, models, types
 def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
     return f"/api/v1/dive_dataset/{str(dataset['_id'])}/media/{str(item['_id'])}/download"
 
+def get_large_image_metadata_url(file: types.GirderModel, modelType='item') -> str:
+    return f"api/v1/{modelType}/{str(file['_id'])}/tiles/internal_metadata"
+
+
 
 def createSoftClone(
     owner: types.GirderUserModel,
@@ -135,6 +139,16 @@ def get_media(
             )
             for image in crud.valid_images(dsFolder, user)
         ]
+    elif source_type == constants.LargeImageType:
+        imageData = [
+            models.MediaResource(
+                id=str(image["_id"]),
+                url=get_large_image_metadata_url(image, modelType='item'),
+                filename=image['name'],
+            )
+            for image in crud.valid_large_images(dsFolder, user)
+        ]
+
     else:
         raise ValueError(f'Unrecognized source type: {source_type}')
 
@@ -334,11 +348,15 @@ def validate_files(files: List[str]):
     videos = [f for f in files if constants.videoRegex.search(f)]
     csvs = [f for f in files if constants.csvRegex.search(f)]
     images = [f for f in files if constants.imageRegex.search(f)]
+    large_images = [f for f in files if constants.largeImageRegEx.search(f)]
     ymls = [f for f in files if constants.ymlRegex.search(f)]
     jsons = [f for f in files if constants.jsonRegex.search(f)]
-    if len(videos) and len(images):
+    if len(videos) and (len(images) or len(large_images)):
         ok = False
         message = "Do not upload images and videos in the same batch."
+    elif len(large_images) and len(images):
+        ok = False
+        message = "Do not upload images and tile images in the same batch."
     elif len(csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
@@ -353,13 +371,14 @@ def validate_files(files: List[str]):
     elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
         ok = False
         message = "Annotation upload is not supported when multiple videos are uploaded"
-    elif (not len(videos)) and (not len(images)):
+    elif (not len(videos)) and (not len(images)) and (not len(large_images)):
         ok = False
         message = "No supported media-type files found"
     elif len(videos):
-        mediatype = 'video'
-    elif len(images):
-        mediatype = 'image-sequence'
+        mediatype = constants.VideoType
+        mediatype = constants.ImageSequenceType
+    elif len(large_images):
+        mediatype = constants.LargeImageType
 
     return {
         "ok": ok,

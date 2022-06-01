@@ -60,6 +60,15 @@ typing-extensions = "^4.2.0"
 GPUtil = "^1.4.0"
 requests = ">=2.27.1"
 urllib3 = "<1.27"
+girder-large-image = "^1.14.4"
+large-image = "^1.14.4"
+large-image-source-pil = "^1.14.4"
+simplejpeg = "^1.6.4"
+large-image-tasks = "^1.14.4"
+large-image-converter = "^1.14.4"
+gdal = {url = "https://girder.github.io/large_image_wheels/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
+bitarray = "^2.5.1"
+large-image-source-gdal = "^1.14.4"
 
 [tool.poetry.dev-dependencies]
 numpy = "^1.21.4"

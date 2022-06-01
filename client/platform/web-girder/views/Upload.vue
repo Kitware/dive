@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes,
 } from 'dive-common/constants';
 
 import {
@@ -224,6 +224,8 @@ export default defineComponent({
         return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
       } if (type === 'video') {
         return websafeVideoTypes.concat(otherVideoTypes);
+      } if (type === 'large-image') {
+        return largeImageTypes;
       }
       return websafeImageTypes.concat(otherImageTypes);
     };
@@ -467,14 +469,16 @@ export default defineComponent({
                     counter
                     :disabled="pendingUpload.uploading"
                     :prepend-icon="
-                      pendingUpload.type === 'image-sequence'
+                      ['image-sequence', 'large-image'].includes(pendingUpload.type)
                         ? 'mdi-image-multiple'
                         : 'mdi-file-video'
                     "
                     :label="
                       pendingUpload.type === 'image-sequence'
                         ? 'Image files'
-                        : 'Video file'
+                        : pendingUpload.type === 'video'
+                          ? 'Video file'
+                          : 'Tiled Image files'
                     "
                     :rules="[val => (val || '').length > 0 || 'Media Files are required']"
                     :accept="filterFileUpload(pendingUpload.type)"
@@ -537,6 +541,18 @@ export default defineComponent({
               @open="openImport($event)"
               @multi-cam="openMultiCamDialog"
             />
+            <import-button
+              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
+              icon="mdi-folder-open"
+              open-type="large-image"
+              class="grow"
+              :small="!!pendingUploads.length"
+              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
+              :button-attrs="buttonAttrs"
+              @open="openImport($event)"
+              @multi-cam="openMultiCamDialog"
+            />
+
             <import-button
               :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
               icon="mdi-zip-box"

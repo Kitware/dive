@@ -18,6 +18,8 @@ from dive_utils.constants import (
     DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
+    LargeImageType,
+    largeImageRegEx,
     TypeMarker,
     VideoType,
     imageRegex,
@@ -76,6 +78,8 @@ def process_assetstore_import(event, meta: dict):
                 Item().remove(oldItem)
         Item().move(item, dest)
         dataset_type = VideoType
+    elif largeImageRegEx.search(importPath):
+        dataset_type = LargeImageType
 
     if dataset_type is not None:
         # Update metadata of parent folder

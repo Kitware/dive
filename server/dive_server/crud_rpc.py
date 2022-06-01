@@ -481,6 +481,10 @@ def postprocess(
         safeImageItems = Folder().childItems(
             dsFolder, filters={"lowerName": {"$regex": constants.safeImageRegex}}
         )
+        largeImageItems = Folder().childItems(
+            dsFolder, filters={"lowerName": {"$regex": constants.largeImageRegEx}}
+        )
+
 
         if imageItems.count() > safeImageItems.count():
             newjob = tasks.convert_images.apply_async(
@@ -497,6 +501,8 @@ def postprocess(
             Job().save(newjob.job)
 
         elif imageItems.count() > 0:
+            dsFolder["meta"][constants.DatasetMarker] = True
+        elif largeImageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
 
         Folder().save(dsFolder)

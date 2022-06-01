@@ -5,13 +5,14 @@ BRAND_DATA_CONFIG = 'brand_data_config'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
+LargeImageType = "large-image"
 DefaultVideoFPS = 10
 JsonMetaCurrentVersion = 1
 SettingsCurrentVersion = 1
 AnnotationsCurrentVersion = 2
 
 webValidImageFormats = {"png", "jpg", "jpeg"}
-validImageFormats = {*webValidImageFormats, "tif", "tiff", "sgi", "bmp", "pgm"}
+validImageFormats = {*webValidImageFormats, "sgi", "bmp", "pgm"}
 validVideoFormats = {
     "mp4",
     "webm",
@@ -24,9 +25,25 @@ validVideoFormats = {
     "ogg",
     "flv",
 }
+validLargeImageFormats = {
+    "nitf",
+    "tif",
+    "tiff",
+    "ntf",
+    "vrt",
+    "r0",
+    "r1",
+    "r2",
+    "r3",
+    "r4",
+    "r5",
+    "r6",
+}
+
 
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
+largeImageRegEx = re.compile("(\." + "|\.".join(validLargeImageFormats) + ')$', re.IGNORECASE)
 safeImageRegex = re.compile(r"(\." + r"|\.".join(webValidImageFormats) + ')$', re.IGNORECASE)
 csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
@@ -64,6 +81,14 @@ VideoMimeTypes = {
     "video/ogg",
     # flv
     "video/x-flv",
+}
+
+LargeImageMimeTypes = {
+    "image/geotiff",
+    "image/tiff",
+    "image/x-tiff",
+    "image/nitf",
+    "image/ntf",
 }
 
 # Metadata markers

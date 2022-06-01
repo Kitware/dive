@@ -77,7 +77,7 @@ export default defineComponent({
       <v-card outlined>
         <v-list dense>
           <v-list-item
-            v-if="openType === 'image-sequence'"
+            v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
             @click="$emit('open', openType)"
           >
@@ -101,7 +101,7 @@ export default defineComponent({
             </v-list-item-content>
           </v-list-item>
           <v-list-item
-            v-if="openType === 'image-sequence'"
+            v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
             @click="$emit('open', 'text')"
           >
