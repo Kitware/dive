@@ -344,6 +344,7 @@ numpy = ["numpy (>1.0.0)"]
 [package.source]
 type = "url"
 url = "https://girder.github.io/large_image_wheels/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "girder"
 version = "3.1.14"
@@ -457,6 +458,19 @@ requests = ">=2.20.0"
 setuptools_scm = "*"
 six = "*"
 urllib3 = ">=1.24.2"
+
+[[package]]
+name = "glymur"
+version = "0.9.9"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+lxml = "*"
+numpy = "*"
+packaging = "*"
 
 [[package]]
 name = "gputil"
@@ -645,7 +659,7 @@ zookeeper = ["kazoo (>=1.3.1)"]
 
 [[package]]
 name = "large-image"
-version = "1.14.4"
+version = "1.14.5"
 description = "Python modules to work with large, multiresolution images."
 category = "main"
 optional = false
@@ -659,27 +673,27 @@ Pillow = "*"
 psutil = ">=4.2.0"
 
 [package.extras]
-all = ["large-image-source-bioformats (>=1.14.4)", "large-image-source-ometiff (>=1.14.4)", "large-image-source-tiff (>=1.14.4)", "large-image-source-vips (>=1.14.4)", "large-image-source-dummy (>=1.14.4)", "large-image-source-deepzoom (>=1.14.4)", "simplejpeg", "large-image-source-openjpeg (>=1.14.4)", "large-image-source-mapnik (>=1.14.4)", "pyvips", "large-image-source-openslide (>=1.14.4)", "large-image-source-test (>=1.14.4)", "large-image-source-gdal (>=1.14.4)", "matplotlib", "large-image-converter (>=1.14.4)", "large-image-source-pil (>=1.14.4)", "large-image-source-multi (>=1.14.4)", "large-image-source-nd2 (>=1.14.4)", "pylibmc (>=1.5.1)"]
-bioformats = ["large-image-source-bioformats (>=1.14.4)"]
+all = ["large-image-source-test (>=1.14.5)", "pyvips", "large-image-source-bioformats (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "simplejpeg", "large-image-converter (>=1.14.5)", "matplotlib", "pylibmc (>=1.5.1)"]
+bioformats = ["large-image-source-bioformats (>=1.14.5)"]
 colormaps = ["matplotlib"]
-converter = ["large-image-converter (>=1.14.4)"]
-deepzoom = ["large-image-source-deepzoom (>=1.14.4)"]
-dummy = ["large-image-source-dummy (>=1.14.4)"]
-gdal = ["large-image-source-gdal (>=1.14.4)"]
-mapnik = ["large-image-source-mapnik (>=1.14.4)"]
+converter = ["large-image-converter (>=1.14.5)"]
+deepzoom = ["large-image-source-deepzoom (>=1.14.5)"]
+dummy = ["large-image-source-dummy (>=1.14.5)"]
+gdal = ["large-image-source-gdal (>=1.14.5)"]
+mapnik = ["large-image-source-mapnik (>=1.14.5)"]
 memcached = ["pylibmc (>=1.5.1)"]
-multi = ["large-image-source-multi (>=1.14.4)"]
-nd2 = ["large-image-source-nd2 (>=1.14.4)"]
-ometiff = ["large-image-source-ometiff (>=1.14.4)"]
-openjpeg = ["large-image-source-openjpeg (>=1.14.4)"]
-openslide = ["large-image-source-openslide (>=1.14.4)"]
+multi = ["large-image-source-multi (>=1.14.5)"]
+nd2 = ["large-image-source-nd2 (>=1.14.5)"]
+ometiff = ["large-image-source-ometiff (>=1.14.5)"]
+openjpeg = ["large-image-source-openjpeg (>=1.14.5)"]
+openslide = ["large-image-source-openslide (>=1.14.5)"]
 performance = ["simplejpeg"]
-pil = ["large-image-source-pil (>=1.14.4)"]
-sources = ["large-image-source-test (>=1.14.4)", "large-image-source-bioformats (>=1.14.4)", "large-image-source-gdal (>=1.14.4)", "large-image-source-openjpeg (>=1.14.4)", "large-image-source-ometiff (>=1.14.4)", "large-image-source-tiff (>=1.14.4)", "large-image-source-mapnik (>=1.14.4)", "large-image-source-vips (>=1.14.4)", "large-image-source-pil (>=1.14.4)", "large-image-source-dummy (>=1.14.4)", "large-image-source-multi (>=1.14.4)", "large-image-source-openslide (>=1.14.4)", "large-image-source-deepzoom (>=1.14.4)", "large-image-source-nd2 (>=1.14.4)"]
-test = ["large-image-source-test (>=1.14.4)"]
-tiff = ["large-image-source-tiff (>=1.14.4)"]
+pil = ["large-image-source-pil (>=1.14.5)"]
+sources = ["large-image-source-nd2 (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-multi (>=1.14.5)"]
+test = ["large-image-source-test (>=1.14.5)"]
+tiff = ["large-image-source-tiff (>=1.14.5)"]
 tiledoutput = ["pyvips"]
-vips = ["large-image-source-vips (>=1.14.4)"]
+vips = ["large-image-source-vips (>=1.14.5)"]
 
 [[package]]
 name = "large-image-converter"
@@ -704,7 +718,7 @@ stats = ["packaging", "scikit-image"]
 
 [[package]]
 name = "large-image-source-gdal"
-version = "1.14.4"
+version = "1.14.5"
 description = "A GDAL tilesource for large_image."
 category = "main"
 optional = false
@@ -712,12 +726,58 @@ python-versions = ">=3.6"
 
 [package.dependencies]
 gdal = "*"
-large-image = ">=1.14.4"
+large-image = ">=1.14.5"
 packaging = "*"
 pyproj = ">=2.2.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.4)"]
+girder = ["girder-large-image (>=1.14.5)"]
+
+[[package]]
+name = "large-image-source-mapnik"
+version = "1.14.5"
+description = "A Mapnik tilesource for large_image."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+large-image = ">=1.14.5"
+large-image-source-gdal = ">=1.14.5"
+mapnik = "*"
+
+[package.extras]
+girder = ["girder-large-image (>=1.14.5)"]
+
+[[package]]
+name = "large-image-source-ometiff"
+version = "1.14.5"
+description = "An OMETiff tilesource for large_image."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+large-image = ">=1.14.5"
+large-image-source-tiff = ">=1.14.5"
+
+[package.extras]
+girder = ["girder-large-image (>=1.14.5)"]
+
+[[package]]
+name = "large-image-source-openjpeg"
+version = "1.14.5"
+description = "An Openjpeg tilesource for large_image."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+glymur = {version = ">=0.8.18", markers = "python_version >= \"3.7\""}
+large-image = ">=1.14.5"
+
+[package.extras]
+girder = ["girder-large-image (>=1.14.5)"]
 
 [[package]]
 name = "large-image-source-pil"
@@ -735,19 +795,19 @@ girder = ["girder-large-image (>=1.14.4)"]
 
 [[package]]
 name = "large-image-source-tiff"
-version = "1.14.4"
+version = "1.14.5"
 description = "A TIFF tilesource for large_image."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-large-image = ">=1.14.4"
+large-image = ">=1.14.5"
 pylibtiff = "*"
 tifftools = ">=1.2.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.4)"]
+girder = ["girder-large-image (>=1.14.5)"]
 
 [[package]]
 name = "large-image-tasks"
@@ -765,6 +825,35 @@ girder = ["large-image-converter (>=1.14.4)", "girder-worker[girder] (>=0.6.0)"]
 worker = ["large-image-converter[sources] (>=1.14.4)", "girder-worker[worker] (>=0.6.0)"]
 
 [[package]]
+name = "libtiff"
+version = "0.5.0"
+description = "PyLibTiff: a Python tiff library."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+numpy = "*"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
+[[package]]
+name = "lxml"
+version = "4.9.0"
+description = "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API."
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, != 3.4.*"
+
+[package.extras]
+cssselect = ["cssselect (>=0.7)"]
+html5 = ["html5lib"]
+htmlsoup = ["beautifulsoup4"]
+source = ["Cython (>=0.29.7)"]
+
+[[package]]
 name = "mako"
 version = "1.2.0"
 description = "A super-fast templating language that borrows the best ideas from the existing templating languages."
@@ -779,6 +868,18 @@ MarkupSafe = ">=0.9.2"
 babel = ["babel"]
 lingua = ["lingua"]
 testing = ["pytest"]
+
+[[package]]
+name = "mapnik"
+version = "4.0.0"
+description = "Python bindings for Mapnik"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "markupsafe"
@@ -926,15 +1027,18 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 
 [[package]]
 name = "psutil"
-version = "5.9.1"
+version = "5.7.3"
 description = "Cross-platform lib for process and system monitoring in Python."
 category = "main"
 optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.extras]
-test = ["ipaddress", "mock", "enum34", "pywin32", "wmi"]
+test = ["ipaddress", "mock", "unittest2", "enum34", "pywin32", "wmi"]
 
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl#sha256=89be0d75f520f52737f26a4425fff253d33fb0bb65a2f2396587c8a036aa03ea"
 [[package]]
 name = "py"
 version = "1.11.0"
@@ -967,12 +1071,31 @@ dotenv = ["python-dotenv (>=0.10.4)"]
 email = ["email-validator (>=1.0.3)"]
 
 [[package]]
+name = "pylibmc"
+version = "1.7.0"
+description = "Quick and small memcached client for Python"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/pylibmc-1.7.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=c1ab945bfc62abc0ae61d3fe03296634751b73cd030b663868c97809cc08d049"
+
+[[package]]
 name = "pylibtiff"
-version = "0.4.4"
+version = "0.5.0"
 description = "PyLibTiff: a Python tiff library."
 category = "main"
 optional = false
-python-versions = ">=2.7"
+python-versions = "*"
+
+[package.dependencies]
+numpy = "*"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=31d5ea015c4ae74e9a234a7aa847f16e24636224007b0d0a75f8f9763f95f49d"
 
 [[package]]
 name = "pymongo"
@@ -1020,7 +1143,7 @@ diagrams = ["railroad-diagrams", "jinja2"]
 
 [[package]]
 name = "pyproj"
-version = "3.3.1"
+version = "3.3.1.1"
 description = "Python interface to PROJ (cartographic projections and coordinate transformations library)"
 category = "main"
 optional = false
@@ -1028,6 +1151,10 @@ python-versions = ">=3.8"
 
 [package.dependencies]
 certifi = "*"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=54511e5418f2eea829b4ed017523dd777c4a4a4ca6e61ae06e4819bf249abf09"
 
 [[package]]
 name = "pyrabbit2"
@@ -1060,6 +1187,21 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 six = ">=1.5"
 
 [[package]]
+name = "python-javabridge"
+version = "4.0.3"
+description = "Python wrapper for the Java Native Interface"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+numpy = "*"
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=e6e9ec84e0715f0a5bbb0b7cb50f47c00dec8fb1f638d2f84df4f61a8e64b6e8"
+
+[[package]]
 name = "pytz"
 version = "2022.1"
 description = "World timezone definitions, modern and historical"
@@ -1081,7 +1223,11 @@ pkgconfig = "*"
 
 [package.extras]
 doc = ["sphinx", "sphinx-rtd-theme"]
-test = ["cffi (>=1.0.0)", "pyperf", "pytest", "pytest-flake8", "pytest-runner"]
+test = ["cffi (>=1.0.0)", "pytest-runner", "pytest", "pytest-flake8", "pyperf"]
+
+[package.source]
+type = "url"
+url = "https://girder.github.io/large_image_wheels/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=7692c754ec393d7a3c2aedfd2cd7995161894bccadd638c0f1ef9c4ce2ae8a9e"
 
 [[package]]
 name = "pywin32"
@@ -1336,7 +1482,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "1bd19181a7f166849065dab7df5a0d5742645b22a79cfb9d590e29c9ebcd6792"
+content-hash = "1404ca2cddf0cf0803bb9503b9ba3b6cd0252881cca8fa9a8bc8238acecea176"
 
 [metadata.files]
 amqp = [
@@ -1602,6 +1748,10 @@ girder-worker = [
 girder-worker-utils = [
     {file = "girder-worker-utils-0.8.7.tar.gz", hash = "sha256:2f9f33e2627dcba4a2e0a97e5d593c09996c902d8e7b3b51f36a4cdcb5154e71"},
 ]
+glymur = [
+    {file = "Glymur-0.9.9-py3-none-any.whl", hash = "sha256:6a3df886b87c94c6f33b44c69b814afdfbc09fd849da5ba9dfd89e6b2f293de3"},
+    {file = "Glymur-0.9.9.tar.gz", hash = "sha256:25b8a6ac07892c98b4613f959295ada9ca5e76b27bfa25069ab0a8a5bb4048f4"},
+]
 gputil = [
     {file = "GPUtil-1.4.0.tar.gz", hash = "sha256:099e52c65e512cdfa8c8763fca67f5a5c2afb63469602d5dcb4d296b3661efb9"},
 ]
@@ -1654,33 +1804,112 @@ kombu = [
     {file = "kombu-4.6.11.tar.gz", hash = "sha256:ca1b45faac8c0b18493d02a8571792f3c40291cf2bcf1f55afed3d8f3aa7ba74"},
 ]
 large-image = [
-    {file = "large-image-1.14.4.tar.gz", hash = "sha256:be6d8ade4750374e9fa265a1458732f0a319b326146197bbbacff153c1655399"},
-    {file = "large_image-1.14.4-py3-none-any.whl", hash = "sha256:9f548f4423403e3ccdb6f0e6979342ec645349f870f731e5ba5a95640b1c4328"},
+    {file = "large-image-1.14.5.tar.gz", hash = "sha256:c0788e199886d2ee180cdd6f1ea247d7b12ae43fd6fad73686873326497bd90b"},
+    {file = "large_image-1.14.5-py3-none-any.whl", hash = "sha256:0dbac27c53c126b2bcfe540a9ba329e89f35d82c3b342b108da89a6209778174"},
 ]
 large-image-converter = [
     {file = "large-image-converter-1.14.4.tar.gz", hash = "sha256:cc62b9480369796167338f8942d3633130ee5d16c3e1503edddd2680caf31af4"},
     {file = "large_image_converter-1.14.4-py3-none-any.whl", hash = "sha256:f26af4f03661ef521eaf6b0d5836fe2f4d85b5654c6c8272680de8a1c1cbd6bd"},
 ]
 large-image-source-gdal = [
-    {file = "large-image-source-gdal-1.14.4.tar.gz", hash = "sha256:a346408f3424ab80ba6bc5bf039ab0443c6a041ce65ee5b3317a14970e4c6036"},
-    {file = "large_image_source_gdal-1.14.4-py3-none-any.whl", hash = "sha256:f5e872a81fedfa442d1a5d3581982b070d9ab425a627f6e3bac251950aeaa980"},
+    {file = "large-image-source-gdal-1.14.5.tar.gz", hash = "sha256:c5fe687dec452519b5430a30bc2f64f576cf4182e29495826d57a8ebab9bd4bc"},
+    {file = "large_image_source_gdal-1.14.5-py3-none-any.whl", hash = "sha256:9a232abbcc4f36bc18f438de886109d343b8ed4176c610b6ade40d8c03478e53"},
+]
+large-image-source-mapnik = [
+    {file = "large-image-source-mapnik-1.14.5.tar.gz", hash = "sha256:c47d1d1a6892d89f2aed55ed90dd0205c947e56a4c2d6be5b2e25ed42acd321a"},
+    {file = "large_image_source_mapnik-1.14.5-py3-none-any.whl", hash = "sha256:2f148387e8edf12980d338c5eb5dbdabdbb22f290eb1d816bd95366bdbbe645d"},
+]
+large-image-source-ometiff = [
+    {file = "large-image-source-ometiff-1.14.5.tar.gz", hash = "sha256:bde1b9c222ef3f3878666f3ce9cbce306a3e8c28493ae4b8533bbec85c2768b9"},
+    {file = "large_image_source_ometiff-1.14.5-py3-none-any.whl", hash = "sha256:835d0b35cf2cd3ae845c14d600e06b17e2c32beb5bc415fa67791a2e508773be"},
+]
+large-image-source-openjpeg = [
+    {file = "large-image-source-openjpeg-1.14.5.tar.gz", hash = "sha256:6c5fcbff75aebe4c183efe71a7daa1f4226df9fdefd4fe849f7a4b80634d4ade"},
+    {file = "large_image_source_openjpeg-1.14.5-py3-none-any.whl", hash = "sha256:91315fbc0c7d752349e53519aea6bd4fd877f12545a41e5f1f2ddb6242dd6e0a"},
 ]
 large-image-source-pil = [
     {file = "large-image-source-pil-1.14.4.tar.gz", hash = "sha256:6fc63c6b4451d5aeb7c9c901fae5df7a6112b5c6b684ac618907b49a52924731"},
     {file = "large_image_source_pil-1.14.4-py3-none-any.whl", hash = "sha256:a52413e9f0e0a82a89a3f1c5ae69bd195dd9f6f6644aba3063dec892d52ff51a"},
 ]
 large-image-source-tiff = [
-    {file = "large-image-source-tiff-1.14.4.tar.gz", hash = "sha256:e98a4d2e14635ee542f99bca78fbe2c3654bd2068377e026c60222ee962caae1"},
-    {file = "large_image_source_tiff-1.14.4-py3-none-any.whl", hash = "sha256:b1a6ed5cff9c51e2c742b0db380b6837b3dd0af0b3b0e21f50753c1c6ad9a6dc"},
+    {file = "large-image-source-tiff-1.14.5.tar.gz", hash = "sha256:6084a15aebbc8a89facaf60ae39ec1ca0478ef7079a6554985e1541f816083d3"},
+    {file = "large_image_source_tiff-1.14.5-py3-none-any.whl", hash = "sha256:bf8d345b0370349462eb3f228c2c9d8a342d7fbe4d2e73e258e560988efc8540"},
 ]
 large-image-tasks = [
     {file = "large-image-tasks-1.14.4.tar.gz", hash = "sha256:141377d4b9aefea76c9aa6d087b54c84a7f5dc6fae231538dcd4d0cc8cfe1bd6"},
     {file = "large_image_tasks-1.14.4-py3-none-any.whl", hash = "sha256:cd634d7fe48583634f92365fce2e89d1c37035b06991a49e58b532f1196bb5a8"},
 ]
+libtiff = []
+lxml = [
+    {file = "lxml-4.9.0-cp27-cp27m-macosx_10_15_x86_64.whl", hash = "sha256:b5031d151d6147eac53366d6ec87da84cd4d8c5e80b1d9948a667a7164116e39"},
+    {file = "lxml-4.9.0-cp27-cp27m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:5d52e1173f52020392f593f87a6af2d4055dd800574a5cb0af4ea3878801d307"},
+    {file = "lxml-4.9.0-cp27-cp27m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:3af00ee88376022589ceeb8170eb67dacf5f7cd625ea59fa0977d719777d4ae8"},
+    {file = "lxml-4.9.0-cp27-cp27m-win32.whl", hash = "sha256:1057356b808d149bc14eb8f37bb89129f237df488661c1e0fc0376ca90e1d2c3"},
+    {file = "lxml-4.9.0-cp27-cp27m-win_amd64.whl", hash = "sha256:f6d23a01921b741774f35e924d418a43cf03eca1444f3fdfd7978d35a5aaab8b"},
+    {file = "lxml-4.9.0-cp27-cp27mu-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:56e19fb6e4b8bd07fb20028d03d3bc67bcc0621347fbde64f248e44839771756"},
+    {file = "lxml-4.9.0-cp27-cp27mu-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:4cd69bca464e892ea4ed544ba6a7850aaff6f8d792f8055a10638db60acbac18"},
+    {file = "lxml-4.9.0-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:94b181dd2777890139e49a5336bf3a9a3378ce66132c665fe8db4e8b7683cde2"},
+    {file = "lxml-4.9.0-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:607224ffae9a0cf0a2f6e14f5f6bce43e83a6fbdaa647891729c103bdd6a5593"},
+    {file = "lxml-4.9.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_24_aarch64.whl", hash = "sha256:11d62c97ceff9bab94b6b29c010ea5fb6831743459bb759c917f49ba75601cd0"},
+    {file = "lxml-4.9.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:70a198030d26f5e569367f0f04509b63256faa76a22886280eea69a4f535dd40"},
+    {file = "lxml-4.9.0-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:3cf816aed8125cfc9e6e5c6c31ff94278320d591bd7970c4a0233bee0d1c8790"},
+    {file = "lxml-4.9.0-cp310-cp310-win32.whl", hash = "sha256:65b3b5f12c6fb5611e79157214f3cd533083f9b058bf2fc8a1c5cc5ee40fdc5a"},
+    {file = "lxml-4.9.0-cp310-cp310-win_amd64.whl", hash = "sha256:0aa4cce579512c33373ca4c5e23c21e40c1aa1a33533a75e51b654834fd0e4f2"},
+    {file = "lxml-4.9.0-cp35-cp35m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:63419db39df8dc5564f6f103102c4665f7e4d9cb64030e98cf7a74eae5d5760d"},
+    {file = "lxml-4.9.0-cp35-cp35m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:d8e5021e770b0a3084c30dda5901d5fce6d4474feaf0ced8f8e5a82702502fbb"},
+    {file = "lxml-4.9.0-cp35-cp35m-win32.whl", hash = "sha256:f17b9df97c5ecdfb56c5e85b3c9df9831246df698f8581c6e111ac664c7c656e"},
+    {file = "lxml-4.9.0-cp35-cp35m-win_amd64.whl", hash = "sha256:75da29a0752c8f2395df0115ac1681cefbdd4418676015be8178b733704cbff2"},
+    {file = "lxml-4.9.0-cp36-cp36m-macosx_10_15_x86_64.whl", hash = "sha256:e4d020ecf3740b7312bacab2cb966bb720fd4d3490562d373b4ad91dd1857c0d"},
+    {file = "lxml-4.9.0-cp36-cp36m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:b71c52d69b91af7d18c13aef1b0cc3baee36b78607c711eb14a52bf3aa7c815e"},
+    {file = "lxml-4.9.0-cp36-cp36m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:28cf04a1a38e961d4a764d2940af9b941b66263ed5584392ef875ee9c1e360a3"},
+    {file = "lxml-4.9.0-cp36-cp36m-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:915ecf7d486df17cc65aeefdb680d5ad4390cc8c857cf8db3fe241ed234f856a"},
+    {file = "lxml-4.9.0-cp36-cp36m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:e564d5a771b4015f34166a05ea2165b7e283635c41b1347696117f780084b46d"},
+    {file = "lxml-4.9.0-cp36-cp36m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:c2a57755e366e0ac7ebdb3e9207f159c3bf1afed02392ab18453ce81f5ee92ee"},
+    {file = "lxml-4.9.0-cp36-cp36m-musllinux_1_1_x86_64.whl", hash = "sha256:00f3a6f88fd5f4357844dd91a1abac5f466c6799f1b7f1da2df6665253845b11"},
+    {file = "lxml-4.9.0-cp36-cp36m-win32.whl", hash = "sha256:9093a359a86650a3dbd6532c3e4d21a6f58ba2cb60d0e72db0848115d24c10ba"},
+    {file = "lxml-4.9.0-cp36-cp36m-win_amd64.whl", hash = "sha256:d1690c4d37674a5f0cdafbc5ed7e360800afcf06928c2a024c779c046891bf09"},
+    {file = "lxml-4.9.0-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:6af7f51a6010748fc1bb71917318d953c9673e4ae3f6d285aaf93ef5b2eb11c1"},
+    {file = "lxml-4.9.0-cp37-cp37m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:eabdbe04ee0a7e760fa6cd9e799d2b020d098c580ba99107d52e1e5e538b1ecb"},
+    {file = "lxml-4.9.0-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_24_aarch64.whl", hash = "sha256:b1e22f3ee4d75ca261b6bffbf64f6f178cb194b1be3191065a09f8d98828daa9"},
+    {file = "lxml-4.9.0-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:53b0410b220766321759f7f9066da67b1d0d4a7f6636a477984cbb1d98483955"},
+    {file = "lxml-4.9.0-cp37-cp37m-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:d76da27f5e3e9bc40eba6ed7a9e985f57547e98cf20521d91215707f2fb57e0f"},
+    {file = "lxml-4.9.0-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:686565ac77ff94a8965c11829af253d9e2ce3bf0d9225b1d2eb5c4d4666d0dca"},
+    {file = "lxml-4.9.0-cp37-cp37m-musllinux_1_1_x86_64.whl", hash = "sha256:b62d1431b4c40cda43cc986f19b8c86b1d2ae8918cfc00f4776fdf070b65c0c4"},
+    {file = "lxml-4.9.0-cp37-cp37m-win32.whl", hash = "sha256:4becd16750ca5c2a1b1588269322b2cebd10c07738f336c922b658dbab96a61c"},
+    {file = "lxml-4.9.0-cp37-cp37m-win_amd64.whl", hash = "sha256:e35a298691b9e10e5a5631f8f0ba605b30ebe19208dc8f58b670462f53753641"},
+    {file = "lxml-4.9.0-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:aa7447bf7c1a15ef24e2b86a277b585dd3f055e8890ac7f97374d170187daa97"},
+    {file = "lxml-4.9.0-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:612ef8f2795a89ba3a1d4c8c1af84d8453fd53ee611aa5ad460fdd2cab426fc2"},
+    {file = "lxml-4.9.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_24_aarch64.whl", hash = "sha256:1bfb791a8fcdbf55d1d41b8be940393687bec0e9b12733f0796668086d1a23ff"},
+    {file = "lxml-4.9.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:024684e0c5cfa121c22140d3a0898a3a9b2ea0f0fd2c229b6658af4bdf1155e5"},
+    {file = "lxml-4.9.0-cp38-cp38-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:81c29c8741fa07ecec8ec7417c3d8d1e2f18cf5a10a280f4e1c3f8c3590228b2"},
+    {file = "lxml-4.9.0-cp38-cp38-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:6467626fa74f96f4d80fc6ec2555799e97fff8f36e0bfc7f67769f83e59cff40"},
+    {file = "lxml-4.9.0-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:9cae837b988f44925d14d048fa6a8c54f197c8b1223fd9ee9c27084f84606143"},
+    {file = "lxml-4.9.0-cp38-cp38-win32.whl", hash = "sha256:5a49ad78543925e1a4196e20c9c54492afa4f1502c2a563f73097e2044c75190"},
+    {file = "lxml-4.9.0-cp38-cp38-win_amd64.whl", hash = "sha256:bb7c1b029e54e26e01b1d1d912fc21abb65650d16ea9a191d026def4ed0859ed"},
+    {file = "lxml-4.9.0-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:d0d03b9636f1326772e6854459728676354d4c7731dae9902b180e2065ba3da6"},
+    {file = "lxml-4.9.0-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:9af19eb789d674b59a9bee5005779757aab857c40bf9cc313cb01eafac55ce55"},
+    {file = "lxml-4.9.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.manylinux_2_24_aarch64.whl", hash = "sha256:dd00d28d1ab5fa7627f5abc957f29a6338a7395b724571a8cbff8fbed83aaa82"},
+    {file = "lxml-4.9.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:754a1dd04bff8a509a31146bd8f3a5dc8191a8694d582dd5fb71ff09f0722c22"},
+    {file = "lxml-4.9.0-cp39-cp39-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:b7679344f2270840dc5babc9ccbedbc04f7473c1f66d4676bb01680c0db85bcc"},
+    {file = "lxml-4.9.0-cp39-cp39-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:d882c2f3345261e898b9f604be76b61c901fbfa4ac32e3f51d5dc1edc89da3cb"},
+    {file = "lxml-4.9.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:4e97c8fc761ad63909198acc892f34c20f37f3baa2c50a62d5ec5d7f1efc68a1"},
+    {file = "lxml-4.9.0-cp39-cp39-win32.whl", hash = "sha256:cf9ec915857d260511399ab87e1e70fa13d6b2972258f8e620a3959468edfc32"},
+    {file = "lxml-4.9.0-cp39-cp39-win_amd64.whl", hash = "sha256:1254a79f8a67a3908de725caf59eae62d86738f6387b0a34b32e02abd6ae73db"},
+    {file = "lxml-4.9.0-pp37-pypy37_pp73-macosx_10_15_x86_64.whl", hash = "sha256:03370ec37fe562238d385e2c53089076dee53aabf8325cab964fdb04a9130fa0"},
+    {file = "lxml-4.9.0-pp37-pypy37_pp73-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:f386def57742aacc3d864169dfce644a8c396f95aa35b41b69df53f558d56dd0"},
+    {file = "lxml-4.9.0-pp37-pypy37_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:ea3f2e9eb41f973f73619e88bf7bd950b16b4c2ce73d15f24a11800ce1eaf276"},
+    {file = "lxml-4.9.0-pp38-pypy38_pp73-macosx_10_15_x86_64.whl", hash = "sha256:2d10659e6e5c53298e6d718fd126e793285bff904bb71d7239a17218f6a197b7"},
+    {file = "lxml-4.9.0-pp38-pypy38_pp73-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:fcdf70191f0d1761d190a436db06a46f05af60e1410e1507935f0332280c9268"},
+    {file = "lxml-4.9.0-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:2b9c2341d96926b0d0e132e5c49ef85eb53fa92ae1c3a70f9072f3db0d32bc07"},
+    {file = "lxml-4.9.0-pp39-pypy39_pp73-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_24_i686.whl", hash = "sha256:615886ee84b6f42f1bdf1852a9669b5fe3b96b6ff27f1a7a330b67ad9911200a"},
+    {file = "lxml-4.9.0-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:94f2e45b054dd759bed137b6e14ae8625495f7d90ddd23cf62c7a68f72b62656"},
+    {file = "lxml-4.9.0.tar.gz", hash = "sha256:520461c36727268a989790aef08884347cd41f2d8ae855489ccf40b50321d8d7"},
+]
 mako = [
     {file = "Mako-1.2.0-py3-none-any.whl", hash = "sha256:23aab11fdbbb0f1051b93793a58323ff937e98e34aece1c4219675122e57e4ba"},
     {file = "Mako-1.2.0.tar.gz", hash = "sha256:9a7c7e922b87db3686210cf49d5d767033a41d4010b284e747682c92bddd8b39"},
 ]
+mapnik = []
 markupsafe = [
     {file = "MarkupSafe-2.1.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:86b1f75c4e7c2ac2ccdaec2b9022845dbb81880ca318bb7a0a01fbf7813e3812"},
     {file = "MarkupSafe-2.1.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:f121a1420d4e173a5d96e47e9a0c0dcff965afdf1626d28de1460815f7c4ee7a"},
@@ -1832,40 +2061,7 @@ portend = [
     {file = "portend-3.1.0-py3-none-any.whl", hash = "sha256:9e735cee3a5c1961f09e3f3ba6dc498198c2d70b473d98d0d1504b8d1e7a3d61"},
     {file = "portend-3.1.0.tar.gz", hash = "sha256:239e3116045ea823f6df87d6168107ad75ccc0590e37242af0cc1e98c5d224e4"},
 ]
-psutil = [
-    {file = "psutil-5.9.1-cp27-cp27m-manylinux2010_i686.whl", hash = "sha256:799759d809c31aab5fe4579e50addf84565e71c1dc9f1c31258f159ff70d3f87"},
-    {file = "psutil-5.9.1-cp27-cp27m-manylinux2010_x86_64.whl", hash = "sha256:9272167b5f5fbfe16945be3db475b3ce8d792386907e673a209da686176552af"},
-    {file = "psutil-5.9.1-cp27-cp27m-win32.whl", hash = "sha256:0904727e0b0a038830b019551cf3204dd48ef5c6868adc776e06e93d615fc5fc"},
-    {file = "psutil-5.9.1-cp27-cp27m-win_amd64.whl", hash = "sha256:e7e10454cb1ab62cc6ce776e1c135a64045a11ec4c6d254d3f7689c16eb3efd2"},
-    {file = "psutil-5.9.1-cp27-cp27mu-manylinux2010_i686.whl", hash = "sha256:56960b9e8edcca1456f8c86a196f0c3d8e3e361320071c93378d41445ffd28b0"},
-    {file = "psutil-5.9.1-cp27-cp27mu-manylinux2010_x86_64.whl", hash = "sha256:44d1826150d49ffd62035785a9e2c56afcea66e55b43b8b630d7706276e87f22"},
-    {file = "psutil-5.9.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c7be9d7f5b0d206f0bbc3794b8e16fb7dbc53ec9e40bbe8787c6f2d38efcf6c9"},
-    {file = "psutil-5.9.1-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:abd9246e4cdd5b554a2ddd97c157e292ac11ef3e7af25ac56b08b455c829dca8"},
-    {file = "psutil-5.9.1-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:29a442e25fab1f4d05e2655bb1b8ab6887981838d22effa2396d584b740194de"},
-    {file = "psutil-5.9.1-cp310-cp310-win32.whl", hash = "sha256:20b27771b077dcaa0de1de3ad52d22538fe101f9946d6dc7869e6f694f079329"},
-    {file = "psutil-5.9.1-cp310-cp310-win_amd64.whl", hash = "sha256:58678bbadae12e0db55186dc58f2888839228ac9f41cc7848853539b70490021"},
-    {file = "psutil-5.9.1-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:3a76ad658641172d9c6e593de6fe248ddde825b5866464c3b2ee26c35da9d237"},
-    {file = "psutil-5.9.1-cp36-cp36m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:a6a11e48cb93a5fa606306493f439b4aa7c56cb03fc9ace7f6bfa21aaf07c453"},
-    {file = "psutil-5.9.1-cp36-cp36m-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:068935df39055bf27a29824b95c801c7a5130f118b806eee663cad28dca97685"},
-    {file = "psutil-5.9.1-cp36-cp36m-win32.whl", hash = "sha256:0f15a19a05f39a09327345bc279c1ba4a8cfb0172cc0d3c7f7d16c813b2e7d36"},
-    {file = "psutil-5.9.1-cp36-cp36m-win_amd64.whl", hash = "sha256:db417f0865f90bdc07fa30e1aadc69b6f4cad7f86324b02aa842034efe8d8c4d"},
-    {file = "psutil-5.9.1-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:91c7ff2a40c373d0cc9121d54bc5f31c4fa09c346528e6a08d1845bce5771ffc"},
-    {file = "psutil-5.9.1-cp37-cp37m-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:fea896b54f3a4ae6f790ac1d017101252c93f6fe075d0e7571543510f11d2676"},
-    {file = "psutil-5.9.1-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3054e923204b8e9c23a55b23b6df73a8089ae1d075cb0bf711d3e9da1724ded4"},
-    {file = "psutil-5.9.1-cp37-cp37m-win32.whl", hash = "sha256:d2d006286fbcb60f0b391741f520862e9b69f4019b4d738a2a45728c7e952f1b"},
-    {file = "psutil-5.9.1-cp37-cp37m-win_amd64.whl", hash = "sha256:b14ee12da9338f5e5b3a3ef7ca58b3cba30f5b66f7662159762932e6d0b8f680"},
-    {file = "psutil-5.9.1-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:19f36c16012ba9cfc742604df189f2f28d2720e23ff7d1e81602dbe066be9fd1"},
-    {file = "psutil-5.9.1-cp38-cp38-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:944c4b4b82dc4a1b805329c980f270f170fdc9945464223f2ec8e57563139cf4"},
-    {file = "psutil-5.9.1-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4b6750a73a9c4a4e689490ccb862d53c7b976a2a35c4e1846d049dcc3f17d83b"},
-    {file = "psutil-5.9.1-cp38-cp38-win32.whl", hash = "sha256:a8746bfe4e8f659528c5c7e9af5090c5a7d252f32b2e859c584ef7d8efb1e689"},
-    {file = "psutil-5.9.1-cp38-cp38-win_amd64.whl", hash = "sha256:79c9108d9aa7fa6fba6e668b61b82facc067a6b81517cab34d07a84aa89f3df0"},
-    {file = "psutil-5.9.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:28976df6c64ddd6320d281128817f32c29b539a52bdae5e192537bc338a9ec81"},
-    {file = "psutil-5.9.1-cp39-cp39-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:b88f75005586131276634027f4219d06e0561292be8bd6bc7f2f00bdabd63c4e"},
-    {file = "psutil-5.9.1-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:645bd4f7bb5b8633803e0b6746ff1628724668681a434482546887d22c7a9537"},
-    {file = "psutil-5.9.1-cp39-cp39-win32.whl", hash = "sha256:32c52611756096ae91f5d1499fe6c53b86f4a9ada147ee42db4991ba1520e574"},
-    {file = "psutil-5.9.1-cp39-cp39-win_amd64.whl", hash = "sha256:f65f9a46d984b8cd9b3750c2bdb419b2996895b005aefa6cbaba9a143b1ce2c5"},
-    {file = "psutil-5.9.1.tar.gz", hash = "sha256:57f1819b5d9e95cdfb0c881a8a5b7d542ed0b7c522d575706a80bedc848c8954"},
-]
+psutil = []
 py = [
     {file = "py-1.11.0-py2.py3-none-any.whl", hash = "sha256:607c53218732647dff4acdfcd50cb62615cedf612e72d1724fb1a0cc6405b378"},
     {file = "py-1.11.0.tar.gz", hash = "sha256:51c75c4126074b472f746a24399ad32f6053d1b34b68d2fa41e558e6f4a98719"},
@@ -1911,9 +2107,8 @@ pydantic = [
     {file = "pydantic-1.9.0-py3-none-any.whl", hash = "sha256:085ca1de245782e9b46cefcf99deecc67d418737a1fd3f6a4f511344b613a5b3"},
     {file = "pydantic-1.9.0.tar.gz", hash = "sha256:742645059757a56ecd886faf4ed2441b9c0cd406079c2b4bee51bcc3fbcd510a"},
 ]
-pylibtiff = [
-    {file = "pylibtiff-0.4.4.tar.gz", hash = "sha256:0b72ef22a5c301c268d7f5729822038d3a04daeef7464c5e3fd6aea3f4dfe64f"},
-]
+pylibmc = []
+pylibtiff = []
 pymongo = [
     {file = "pymongo-3.12.3-cp27-cp27m-macosx_10_14_intel.whl", hash = "sha256:c164eda0be9048f83c24b9b2656900041e069ddf72de81c17d874d0c32f6079f"},
     {file = "pymongo-3.12.3-cp27-cp27m-manylinux1_i686.whl", hash = "sha256:a055d29f1302892a9389a382bed10a3f77708bcf3e49bfb76f7712fa5f391cc6"},
@@ -2031,31 +2226,7 @@ pyparsing = [
     {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},
     {file = "pyparsing-3.0.9.tar.gz", hash = "sha256:2b020ecf7d21b687f219b71ecad3631f644a47f01403fa1d1036b0c6416d70fb"},
 ]
-pyproj = [
-    {file = "pyproj-3.3.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:473961faef7a9fd723c5d432f65220ea6ab3854e606bf84b4d409a75a4261c78"},
-    {file = "pyproj-3.3.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2fef9c1e339f25c57f6ae0558b5ab1bbdf7994529a30d8d7504fc6302ea51c03"},
-    {file = "pyproj-3.3.1-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:140fa649fedd04f680a39f8ad339799a55cb1c49f6a84e1b32b97e49646647aa"},
-    {file = "pyproj-3.3.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b59c08aea13ee428cf8a919212d55c036cc94784805ed77c8f31a4d1f541058c"},
-    {file = "pyproj-3.3.1-cp310-cp310-win32.whl", hash = "sha256:1adc9ccd1bf04998493b6a2e87e60656c75ab790653b36cfe351e9ef214828ed"},
-    {file = "pyproj-3.3.1-cp310-cp310-win_amd64.whl", hash = "sha256:42eea10afc750fccd1c5c4ba56de29ab791ab4d83c1f7db72705566282ac5396"},
-    {file = "pyproj-3.3.1-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:531ea36519fa7b581466d4b6ab32f66ae4dadd9499d726352f71ee5e19c3d1c5"},
-    {file = "pyproj-3.3.1-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:67025e37598a6bbed2c9c6c9e4c911f6dd39315d3e1148ead935a5c4d64309d5"},
-    {file = "pyproj-3.3.1-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:aed1a3c0cd4182425f91b48d5db39f459bc2fe0d88017ead6425a1bc85faee33"},
-    {file = "pyproj-3.3.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3cc4771403db54494e1e55bca8e6d33cde322f8cf0ed39f1557ff109c66d2cd1"},
-    {file = "pyproj-3.3.1-cp38-cp38-win32.whl", hash = "sha256:c99f7b5757a28040a2dd4a28c9805fdf13eef79a796f4a566ab5cb362d10630d"},
-    {file = "pyproj-3.3.1-cp38-cp38-win_amd64.whl", hash = "sha256:5dac03d4338a4c8bd0f69144c527474f517b4cbd7d2d8c532cd8937799723248"},
-    {file = "pyproj-3.3.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:56b0f9ee2c5b2520b18db30a393a7b86130cf527ddbb8c96e7f3c837474a9d79"},
-    {file = "pyproj-3.3.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5f92d8f6514516124abb714dce912b20867831162cfff9fae2678ef07b6fcf0f"},
-    {file = "pyproj-3.3.1-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1ef1bfbe2dcc558c7a98e2f1836abdcd630390f3160724a6f4f5c818b2be0ad5"},
-    {file = "pyproj-3.3.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ca5f32b56210429b367ca4f9a57ffe67975c487af82e179a24370879a3daf68"},
-    {file = "pyproj-3.3.1-cp39-cp39-win32.whl", hash = "sha256:aba199704c824fb84ab64927e7bc9ef71e603e483130ec0f7e09e97259b8f61f"},
-    {file = "pyproj-3.3.1-cp39-cp39-win_amd64.whl", hash = "sha256:120d45ed73144c65e9677dc73ba8a531c495d179dd9f9f0471ac5acc02d7ac4b"},
-    {file = "pyproj-3.3.1-pp38-pypy38_pp73-macosx_10_9_x86_64.whl", hash = "sha256:52efb681647dfac185cc655a709bc0caaf910031a0390f816f5fc8ce150cbedc"},
-    {file = "pyproj-3.3.1-pp38-pypy38_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:5ab0d6e38fda7c13726afacaf62e9f9dd858089d67910471758afd9cb24e0ecd"},
-    {file = "pyproj-3.3.1-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:45487942c19c5a8b09c91964ea3201f4e094518e34743cae373889a36e3d9260"},
-    {file = "pyproj-3.3.1-pp38-pypy38_pp73-win_amd64.whl", hash = "sha256:797ad5655d484feac14b0fbb4a4efeaac0cf780a223046e2465494c767fd1c3b"},
-    {file = "pyproj-3.3.1.tar.gz", hash = "sha256:b3d8e14d91cc95fb3dbc03a9d0588ac58326803eefa5bbb0978d109de3304fbe"},
-]
+pyproj = []
 pyrabbit2 = [
     {file = "pyrabbit2-1.0.7-py3-none-any.whl", hash = "sha256:9c5ac7751781705083f893c6aec0909b2ee0ad28e373e4fdbde6231172d64504"},
     {file = "pyrabbit2-1.0.7.tar.gz", hash = "sha256:d27160cb35c096f0072df57307233d01b117a451236e136604a8e51be6f106c0"},
@@ -2087,13 +2258,12 @@ python-dateutil = [
     {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
     {file = "python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"},
 ]
+python-javabridge = []
 pytz = [
     {file = "pytz-2022.1-py2.py3-none-any.whl", hash = "sha256:e68985985296d9a66a881eb3193b0906246245294a881e7c8afe623866ac6a5c"},
     {file = "pytz-2022.1.tar.gz", hash = "sha256:1e760e2fe6a8163bc0b3d9a19c4f84342afa0a2affebfaa84b01b978a02ecaa7"},
 ]
-pyvips = [
-    {file = "pyvips-2.2.0.tar.gz", hash = "sha256:eb8cb0b57c533a404b2b00ea4dac95b7081e48880f98dc2146ec1216630c0753"},
-]
+pyvips = []
 pywin32 = [
     {file = "pywin32-227-cp27-cp27m-win32.whl", hash = "sha256:371fcc39416d736401f0274dd64c2302728c9e034808e37381b5e1b22be4a6b0"},
     {file = "pywin32-227-cp27-cp27m-win_amd64.whl", hash = "sha256:4cdad3e84191194ea6d0dd1b1b9bdda574ff563177d2adf2b4efec2a244fa116"},

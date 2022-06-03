@@ -1,11 +1,15 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 
 async function getTilesMetadata(itemId: string) {
-  const { data } = await girderRest.get(`item/${itemId}/tiles/internal_metadata?projections=EPSGH%3A3857`);
+  const { data } = await girderRest.get(`item/${itemId}/tiles/`);
   return data;
 }
-async function getTiles(itemId: string) {
-  const { data } = await girderRest.get(`item/${itemId}/tiles?projection=EPSG%3A3857`);
+async function getTiles(itemId: string, projection = '') {
+  let url = `item/${itemId}/tiles`;
+  if (projection !== '') {
+    url = `${url}?projection=${encodeURIComponent(projection)}`;
+  }
+  const { data } = await girderRest.get(url);
   // const { data } = await girderRest.get(`item/${itemId}/tiles?projection=EPSG%3A3857`);
   return data;
 }
@@ -20,8 +24,14 @@ function getTileURL(
   return url;
 }
 
+async function getTileFrames(itemId: string, options: any) {
+  const { data } = await girderRest.get(`/item/${itemId}/tiles/tile_frames/quad_info`, options);
+  return data;
+}
+
 export {
   getTilesMetadata,
   getTiles,
   getTileURL,
+  getTileFrames,
 };

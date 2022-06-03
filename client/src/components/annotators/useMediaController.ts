@@ -59,18 +59,18 @@ export default function useMediaController() {
   }
 
   function resetZoom() {
-    // const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-    //   data.originalBounds, 0,
-    // );
-    // geoViewerRef.value.zoom(zoomAndCenter.zoom);
-    // geoViewerRef.value.center(zoomAndCenter.center);
+    const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
+      data.originalBounds, 0,
+    );
+    geoViewerRef.value.zoom(zoomAndCenter.zoom);
+    geoViewerRef.value.center(zoomAndCenter.center);
   }
 
   function toggleLockedCamera() {
     data.lockedCamera = !data.lockedCamera;
   }
 
-  function resetMapDimensions(width: number, height: number, margin = 0.3) {
+  function resetMapDimensions(width: number, height: number, isMap = false, margin = 0.3) {
     geoViewerRef.value.bounds({
       left: 0,
       top: 0,
@@ -88,15 +88,18 @@ export default function useMediaController() {
       right: right * (1 + margin),
       bottom: bottom * (1 + margin),
     });
-    geoViewerRef.value.zoomRange({
+    if (!isMap) {
+      geoViewerRef.value.zoomRange({
       // do not set a min limit so that bounds clamping determines min
-      min: -Infinity,
-      // 4x zoom max
-      max: 4,
-    });
-    geoViewerRef.value.clampBoundsX(true);
-    geoViewerRef.value.clampBoundsY(true);
-    geoViewerRef.value.clampZoom(true);
+        min: -Infinity,
+        // 4x zoom max
+        max: 4,
+      });
+
+      geoViewerRef.value.clampBoundsX(true);
+      geoViewerRef.value.clampBoundsY(true);
+      geoViewerRef.value.clampZoom(true);
+    }
     resetZoom();
   }
 
@@ -143,17 +146,17 @@ export default function useMediaController() {
       geoViewerRef.value.center(coords);
     }
 
-    function initializeViewer(width: number, height: number, isMap = false) {
+    function initializeViewer(width: number, height: number, tileWidth: number,
+      tileHeight: number, isMap = false, geoSpatial = false) {
       let params = geo.util.pixelCoordinateParams(
-        containerRef.value, width, height, width, height,
+        containerRef.value, width, height, tileWidth, tileHeight,
       );
-      if (isMap) {
+      if (isMap && geoSpatial) {
         params = { map: { node: containerRef.value } };
       }
       geoViewerRef.value = geo.map(params.map);
-      console.log(width, height);
-      if (!isMap) {
-        resetMapDimensions(width, height);
+      if (!isMap || !geoSpatial) {
+        //resetMapDimensions(width, height, isMap);
       }
       const interactorOpts = geoViewerRef.value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;

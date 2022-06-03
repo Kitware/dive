@@ -485,7 +485,6 @@ def postprocess(
             dsFolder, filters={"lowerName": {"$regex": constants.largeImageRegEx}}
         )
 
-
         if imageItems.count() > safeImageItems.count():
             newjob = tasks.convert_images.apply_async(
                 queue=_get_queue_name(user),

@@ -2,7 +2,8 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
-import { getTileURL, getTiles } from 'platform/web-girder/api/largeImage.service';
+import { getTileURL, getTiles, getTilesMetadata } from 'platform/web-girder/api/largeImage.service';
+import setFrameQuad from 'dive-common/use/setFrameQuad';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import useMediaController from './useMediaController';
@@ -91,9 +92,12 @@ export default defineComponent({
       imgInternal.image.src = '';
       local.pendingImgs.delete(imgInternal);
     }
-    function _getTileURL(itemId: string) {
+    function _getTileURL(itemId: string, projection?: string) {
       const returnFunc = (level: number, x: number, y: number, params: any) => {
-        const updatedParams = { ...params, encoding: 'PNG', projection: 'EPSG:3857' };
+        const updatedParams = { ...params, encoding: 'PNG' };
+        if (projection) {
+          updatedParams.projection = projection;
+        }
         return getTileURL(itemId, level, x, y, updatedParams);
       };
       return returnFunc;
@@ -118,8 +122,13 @@ export default defineComponent({
         return;
       }
       props.updateTime(data);
-      commonMedia.geoViewerRef.value.onIdle(() => {
-        local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
+      commonMedia.geoViewerRef.value.onIdle(async () => {
+        //local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
+
+        console.log(`Setting props to now frame ${newFrame}`);
+        //await setFrameQuad(props.imageData[newFrame].id, local.metadata, local.currentLayer);
+        //local.currentLayer.setFrameQuad(0);
+
         // commonMedia.geoViewerRef.value.onIdle(() => {
         //   if (local && local.imgs !== undefined && props.imageData[newFrame]) {
         //     local.currentLayer.moveDown();
@@ -191,8 +200,11 @@ export default defineComponent({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nextLayer: '' as any,
       };
-      const resp = await getTiles(props.imageData[data.frame].id);
-      console.log(resp);
+      const baseData = await getTiles(props.imageData[data.frame].id);
+      const geoSpatial = !(!baseData.geospatial || !baseData.bounds);
+      const projection = geoSpatial ? 'EPSG:3857' : undefined;
+      console.log(`geoSpatial: ${geoSpatial} projection: ${projection}`);
+      const resp = await getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -200,34 +212,60 @@ export default defineComponent({
       local.params = {
         keepLower: false,
         attribution: null,
-        url: _getTileURL(props.imageData[data.frame].id),
+        url: _getTileURL(props.imageData[data.frame].id, projection),
         useCredentials: true,
         maxLevel: resp.levels + 3,
         autoshareRenderer: false,
       };
+
       if (props.imageData.length) {
-        initializeViewer(local.metadata.sourceSizeX, local.metadata.sourceSizeY,
-          true);
+        console.log(`geoSpatial: ${geoSpatial} projection: ${projection}`);
+        if (geoSpatial) {
+          initializeViewer(local.metadata.sourceSizeX, local.metadata.sourceSizeY,
+            local.metadata.tileWidth, local.metadata.tileHeight,
+            true, geoSpatial);
+        } else {
+          initializeViewer(local.width, local.height,
+            local.metadata.tileWidth, local.metadata.tileHeight, true, geoSpatial);
+          local.params = geo.util.pixelCoordinateParams(
+            commonMedia.containerRef.value, local.width, local.height,
+            local.metadata.tileWidth, local.metadata.tileHeight,
+          );
+          local.params.layer.useCredentials = true;
+          local.params.layer.autoshareRenderer = false;
+          local.params.layer.url = _getTileURL(props.imageData[data.frame].id);
+        }
 
-
-        commonMedia.geoViewerRef.value.bounds({
-          left: local.metadata.bounds.xmin,
-          right: local.metadata.bounds.xmax,
-          top: local.metadata.bounds.ymax,
-          bottom: local.metadata.bounds.ymin,
-        }, 'EPSG:3857');
-        commonMedia.geoViewerRef.value.createLayer('osm');
+        if (geoSpatial) {
+          commonMedia.geoViewerRef.value.bounds({
+            left: local.metadata.bounds.xmin,
+            right: local.metadata.bounds.xmax,
+            top: local.metadata.bounds.ymax,
+            bottom: local.metadata.bounds.ymin,
+          }, 'EPSG:3857');
+          commonMedia.geoViewerRef.value.createLayer('osm');
+          commonMedia.geoViewerRef.value.zoomRange({
+            min: commonMedia.geoViewerRef.value.origMin,
+            max: commonMedia.geoViewerRef.value.zoomRange().max + 3,
+          });
+        }
         if (local.metadata.tileWidth > 8192 || local.metadata.tileWidth > 8192) {
           local.params.renderer = 'canvas';
         }
 
+        const localParams = geoSpatial ? local.params : local.params.layer;
+        local.currentLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
+        if (!geoSpatial) {
+          if (local.metadata.frames && local.metadata.frames.length > 1) {
+            await setFrameQuad(props.imageData[data.frame].id, local.metadata, local.currentLayer);
+            local.currentLayer.setFrameQuad(0);
+          }
+        }
+        local.currentLayer.url(
+          _getTileURL(props.imageData[data.frame].id,
+            projection),
+        );
 
-        commonMedia.geoViewerRef.value.zoomRange({
-          min: commonMedia.geoViewerRef.value.origMin,
-          max: commonMedia.geoViewerRef.value.zoomRange().max + 10,
-        });
-
-        local.currentLayer = commonMedia.geoViewerRef.value.createLayer('osm', local.params);
 
         // Set quadFeature and conditionally apply brightness filter
         setBrightnessFilter(props.brightness !== undefined);
@@ -236,7 +274,6 @@ export default defineComponent({
         //   local.nextLayer.url(_getTileURL(props.imageData[data.frame].id));
         //   local.nextLayer.moveDown();
         // }
-        local.currentLayer.url(_getTileURL(props.imageData[data.frame].id));
 
         data.ready = true;
         //seek(0);

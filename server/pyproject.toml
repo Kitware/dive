@@ -69,6 +69,18 @@ large-image-converter = "^1.14.4"
 gdal = {url = "https://girder.github.io/large_image_wheels/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
 bitarray = "^2.5.1"
 large-image-source-gdal = "^1.14.4"
+large-image-source-tiff = "^1.14.5"
+large-image-source-ometiff = "^1.14.5"
+large-image-source-openjpeg = "^1.14.5"
+mapnik = {url = "https://girder.github.io/large_image_wheels/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
+libtiff = {url = "https://girder.github.io/large_image_wheels/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
+large-image-source-mapnik = "^1.14.5"
+pyvips = {url = "https://girder.github.io/large_image_wheels/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=7692c754ec393d7a3c2aedfd2cd7995161894bccadd638c0f1ef9c4ce2ae8a9e"}
+python-javabridge = {url = "https://girder.github.io/large_image_wheels/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=e6e9ec84e0715f0a5bbb0b7cb50f47c00dec8fb1f638d2f84df4f61a8e64b6e8"}
+pyproj = {url = "https://girder.github.io/large_image_wheels/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=54511e5418f2eea829b4ed017523dd777c4a4a4ca6e61ae06e4819bf249abf09"}
+pylibtiff = {url = "https://girder.github.io/large_image_wheels/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=31d5ea015c4ae74e9a234a7aa847f16e24636224007b0d0a75f8f9763f95f49d"}
+pylibmc = {url = "https://girder.github.io/large_image_wheels/pylibmc-1.7.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=c1ab945bfc62abc0ae61d3fe03296634751b73cd030b663868c97809cc08d049"}
+psutil = {url = "https://girder.github.io/large_image_wheels/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl#sha256=89be0d75f520f52737f26a4425fff253d33fb0bb65a2f2396587c8a036aa03ea"}
 
 [tool.poetry.dev-dependencies]
 numpy = "^1.21.4"

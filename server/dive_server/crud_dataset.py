@@ -376,6 +376,7 @@ def validate_files(files: List[str]):
         message = "No supported media-type files found"
     elif len(videos):
         mediatype = constants.VideoType
+    elif len(images):
         mediatype = constants.ImageSequenceType
     elif len(large_images):
         mediatype = constants.LargeImageType
