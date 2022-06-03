@@ -62,6 +62,7 @@ export default defineComponent({
     const loadingImage = ref(true);
     const commonMedia = useMediaController();
     const { data } = commonMedia;
+    let projection: string | undefined;
 
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -92,11 +93,11 @@ export default defineComponent({
       imgInternal.image.src = '';
       local.pendingImgs.delete(imgInternal);
     }
-    function _getTileURL(itemId: string, projection?: string) {
+    function _getTileURL(itemId: string, proj?: string) {
       const returnFunc = (level: number, x: number, y: number, params: any) => {
         const updatedParams = { ...params, encoding: 'PNG' };
-        if (projection) {
-          updatedParams.projection = projection;
+        if (proj) {
+          updatedParams.projection = proj;
         }
         return getTileURL(itemId, level, x, y, updatedParams);
       };
@@ -123,7 +124,7 @@ export default defineComponent({
       }
       props.updateTime(data);
       commonMedia.geoViewerRef.value.onIdle(async () => {
-        //local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
+        local.currentLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
 
         console.log(`Setting props to now frame ${newFrame}`);
         //await setFrameQuad(props.imageData[newFrame].id, local.metadata, local.currentLayer);
@@ -202,7 +203,7 @@ export default defineComponent({
       };
       const baseData = await getTiles(props.imageData[data.frame].id);
       const geoSpatial = !(!baseData.geospatial || !baseData.bounds);
-      const projection = geoSpatial ? 'EPSG:3857' : undefined;
+      projection = geoSpatial ? 'EPSG:3857' : undefined;
       console.log(`geoSpatial: ${geoSpatial} projection: ${projection}`);
       const resp = await getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
