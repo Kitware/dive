@@ -412,11 +412,10 @@ export default defineComponent({
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
           changeCamera(defaultCamera.value);
+          baseMulticamDatasetId.value = datasetId.value;
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
-          return;
         }
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
@@ -457,7 +456,7 @@ export default defineComponent({
           const groupStore = cameraStore.camMap.get(camera)?.groupStore;
           if (trackStore && groupStore) {
             for (let j = 0; j < tracks.length; j += 1) {
-              if (i % 4000 === 0) {
+              if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
                 progress.progress = j;
                 // eslint-disable-next-line no-await-in-loop
@@ -466,7 +465,7 @@ export default defineComponent({
               trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
             }
             for (let j = 0; j < groups.length; j += 1) {
-              if (i % 4000 === 0) {
+              if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
                 progress.progress = tracks.length + j;
                 // eslint-disable-next-line no-await-in-loop
@@ -474,9 +473,9 @@ export default defineComponent({
               }
               groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
             }
-            progress.loaded = true;
           }
         }
+        progress.loaded = true;
         cameraStore.camMap.forEach((_cam, key) => {
           if (!multiCamList.value.includes(key)) {
             cameraStore.removeCamera(key);

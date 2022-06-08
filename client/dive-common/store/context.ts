@@ -31,6 +31,10 @@ const componentMap: Record<string, ComponentMapItem> = {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
+  // MultiCamTools: {
+  //   description: 'Multicam Tools',
+  //   component: MultiCamTools,
+  // },
   GroupSidebar: {
     description: 'Group Manager',
     component: GroupSidebar,

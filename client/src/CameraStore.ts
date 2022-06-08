@@ -1,4 +1,4 @@
-import { Ref, computed } from '@vue/composition-api';
+import { Ref, computed, ref } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
 import { cloneDeep } from 'lodash';
 import type Track from './track';
@@ -22,18 +22,26 @@ export default class CameraStore {
 
     defaultGroup: [string, number];
 
+    canary: Ref<number>;
+
+
     constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
       this.markChangesPending = markChangesPending;
       this.intervalTree = new IntervalTree();
       this.camMap = new Map<string, { trackStore: TrackStore; groupStore: GroupStore}>();
       const cameraName = 'singleCam';
       this.defaultGroup = ['no-group', 1.0];
+      this.canary = ref(0);
       this.camMap.set(cameraName,
         {
           trackStore: new TrackStore({ markChangesPending, cameraName }),
           groupStore: new GroupStore({ markChangesPending, cameraName }),
         });
+
+      // As you add cameras you need to triger the canary to it will
+      // properly update the computed function
       this.sortedTracks = computed(() => {
+        this.depend();
         let list: Track[] = [];
         this.camMap.forEach((camera) => {
           list = list.concat(camera.trackStore.sorted.value);
@@ -41,12 +49,17 @@ export default class CameraStore {
         return list;
       });
       this.sortedGroups = computed(() => {
+        this.depend();
         let list: Group[] = [];
         this.camMap.forEach((camera) => {
           list = list.concat(camera.groupStore.sorted.value);
         });
         return list;
       });
+    }
+
+    private depend() {
+      return this.canary.value;
     }
 
     getTrack(trackId: Readonly<AnnotationId>, cameraName = 'singleCam'): Track {
@@ -127,12 +140,14 @@ export default class CameraStore {
             groupStore: new GroupStore({ markChangesPending: this.markChangesPending, cameraName }),
           });
       }
+      this.canary.value += 1;
     }
 
     removeCamera(cameraName: string) {
       if (this.camMap.get(cameraName) !== undefined) {
         this.camMap.delete(cameraName);
       }
+      this.canary.value += 1;
     }
 
     lookupGroups(trackId: AnnotationId) {

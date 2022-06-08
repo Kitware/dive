@@ -87,6 +87,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     return this.canary.value;
   }
 
+
   get(annotationId: AnnotationId) {
     const value = this.annotationMap.get(annotationId);
     if (value === undefined) {
