@@ -2,6 +2,7 @@
 import { computed, defineComponent, PropType } from '@vue/composition-api';
 import { useSelectedCamera } from '../../provides';
 import { injectAggregateController } from '../annotators/useMediaController';
+
 export default defineComponent({
   name: 'FileNameTimeDisplay',
   props: {

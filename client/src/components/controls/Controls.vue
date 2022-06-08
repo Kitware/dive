@@ -5,6 +5,7 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { injectAggregateController } from '../annotators/useMediaController';
+
 export default defineComponent({
   name: 'Control',
   setup() {

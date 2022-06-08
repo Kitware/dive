@@ -217,7 +217,6 @@ export default class Track extends BaseAnnotation {
     if (disableNotifier) {
       this.notifierEnabled = true;
     }
-
   }
 
   toggleKeyframe(frame: number) {

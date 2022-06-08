@@ -1,4 +1,4 @@
-import { ref, Ref, computed } from '@vue/composition-api';
+import { Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
 import { cloneDeep } from 'lodash';
 import type Track from './track';

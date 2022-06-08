@@ -116,7 +116,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     this.canary.value += 1;
     if (isTrack(item)) {
-      this.markChangesPending({ action: 'upsert', track: item, cameraName: this.cameraName});
+      this.markChangesPending({ action: 'upsert', track: item, cameraName: this.cameraName });
     } else {
       this.markChangesPending({ action: 'upsert', group: item, cameraName: this.cameraName });
     }

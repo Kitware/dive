@@ -3,7 +3,6 @@ import { cloneDeep } from 'lodash';
 import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
-import type GroupStore from './GroupStore';
 import type Track from './track';
 
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {

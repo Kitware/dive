@@ -15,7 +15,6 @@ import {
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
-import CameraStore from 'vue-media-annotator/CameraStore';
 
 
 export default defineComponent({

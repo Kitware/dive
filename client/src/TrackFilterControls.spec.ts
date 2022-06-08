@@ -26,26 +26,6 @@ const features: Feature[] = [
   },
 ];
 
-function makeTrackStore() {
-  const t0 = new Track(0, {
-    confidencePairs: [['foo', 0.5], ['bar', 0.4]],
-    features,
-  });
-  const t1 = new Track(2, {
-    confidencePairs: [['foo', 0.9], ['baz', 0.2]],
-    features,
-  });
-  const t2 = new Track(200, {
-    confidencePairs: [['bar', 1], ['baz', 0.8]],
-    features,
-  });
-  const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
-  ts.insert(t0);
-  ts.insert(t1);
-  ts.insert(t2);
-  return ts;
-}
-
 function makeCameraStore() {
   const cameraStore = new CameraStore({ markChangesPending });
   const t0 = new Track(0, {
