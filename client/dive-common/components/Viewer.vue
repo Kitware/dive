@@ -164,16 +164,23 @@ export default defineComponent({
     } = useAttributes({ markChangesPending });
 
     const cameraStore = new CameraStore({ markChangesPending });
-
+    // This context for removal
+    const removeGroups = (id: AnnotationId) => {
+      cameraStore.removeGroups(id);
+    };
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
       markChangesPending,
-      remove: cameraStore.removeGroups,
+      remove: removeGroups,
     });
 
+    // This context for removal
+    const removeTracks = (id: AnnotationId) => {
+      cameraStore.removeTracks(id);
+    };
     const trackFilters = new TrackFilterControls({
       sorted: cameraStore.sortedTracks,
-      remove: cameraStore.removeTracks,
+      remove: removeTracks,
       markChangesPending,
       lookupGroups: cameraStore.lookupGroups,
       groupFilterControls: groupFilters,

@@ -7,6 +7,7 @@ import GroupFilterControls from './GroupFilterControls';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
 import CameraStore from './CameraStore';
+import { AnnotationId } from './BaseAnnotation';
 
 Vue.use(CompositionApi);
 
@@ -59,7 +60,7 @@ function makeCameraStore() {
     confidencePairs: [['bar', 1], ['baz', 0.8]],
     features,
   });
-  const trackStore = cameraStore.camMap.get('signleCam')?.trackStore;
+  const trackStore = cameraStore.camMap.get('singleCam')?.trackStore;
   if (trackStore) {
     trackStore.insert(t0);
     trackStore.insert(t1);
@@ -69,9 +70,12 @@ function makeCameraStore() {
 }
 
 function makeGroupFilterControls(store: CameraStore) {
+  const remove = (id: AnnotationId) => {
+    store.removeGroups(id);
+  };
   return new GroupFilterControls({
     sorted: store.sortedGroups,
-    remove: store.removeGroups,
+    remove,
     markChangesPending,
   });
 }
@@ -79,9 +83,12 @@ function makeGroupFilterControls(store: CameraStore) {
 function makeTrackFilterControls() {
   const cameraStore = makeCameraStore();
   const groupFilterControls = makeGroupFilterControls(cameraStore);
+  const remove = (id: AnnotationId) => {
+    cameraStore.removeTracks(id);
+  };
   return new TrackFilterControls({
     sorted: cameraStore.sortedTracks,
-    remove: cameraStore.removeTracks,
+    remove,
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
