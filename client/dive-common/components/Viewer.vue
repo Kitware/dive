@@ -190,6 +190,8 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
+      linkingTrack,
+      linkingCamera,
       multiSelectList,
       multiSelectActive,
       selectedFeatureHandle,
@@ -294,6 +296,62 @@ export default defineComponent({
       }
     }
 
+    // Remove a track from within a camera multi-track into it's own track
+    function unlinkCameraTrack(trackId: AnnotationId, camera: string) {
+      const track = cameraStore.getTrack(trackId, camera);
+      handler.trackSelect(null, false);
+      const newTrack = Track.fromJSON({
+        id: cameraStore.getNewTrackId(),
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: track.confidencePairs,
+        attributes: track.attributes,
+      });
+      handler.removeTrack([trackId], true, camera);
+      const trackStore = cameraStore.camMap.get(camera)?.trackStore;
+      if (trackStore) {
+        trackStore.insert(newTrack, { imported: false });
+      }
+      handler.trackSelect(newTrack.trackId);
+    }
+    /**
+     * Takes a BaseTrack and a merge Track and will attempt to merge the existing track
+     * into the camera and baseTrack.
+     * Requires that baseTrack doesn't have a track for the camera already
+     * Also requires that the mergeTrack isn't a track across multiple cameras.
+     */
+    function linkCameraTrack(baseTrack: AnnotationId, linkTrack: AnnotationId, camera: string) {
+      cameraStore.camMap.forEach((subCamera, key) => {
+        const { trackStore } = subCamera;
+        if (trackStore && trackStore.get(linkTrack) && key !== camera) {
+          throw Error(`Attempting to link Track: ${linkTrack} to camera: ${camera} where there the track exists in another camera: ${key}`);
+        }
+      });
+      const track = cameraStore.getTrack(linkTrack, camera);
+      const selectedTrack = cameraStore.getAnyTrack(baseTrack);
+      handler.removeTrack([linkTrack], true, camera);
+      const newTrack = Track.fromJSON({
+        id: baseTrack,
+        meta: track.meta,
+        begin: track.begin,
+        end: track.end,
+        features: track.features,
+        confidencePairs: selectedTrack.confidencePairs,
+        attributes: track.attributes,
+      });
+      const trackStore = cameraStore.camMap.get(camera)?.trackStore;
+      if (trackStore) {
+        trackStore.insert(newTrack, { imported: false });
+      }
+    }
+    watch(linkingTrack, () => {
+      if (linkingTrack.value !== null && selectedTrackId.value !== null) {
+        linkCameraTrack(selectedTrackId.value, linkingTrack.value, linkingCamera.value);
+        handler.stopLinking();
+      }
+    });
     async function save() {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
@@ -350,7 +408,7 @@ export default defineComponent({
       return result;
     }
 
-    const setSelectedCamera = async (camera: string, editMode = false) => {
+    const selectCamera = async (camera: string, editMode = false) => {
       // if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
       //   await prompt({
       //     title: 'In Linking Mode',
@@ -397,7 +455,7 @@ export default defineComponent({
       if (event?.button === 0) {
         editingTrack.value = false;
       }
-      setSelectedCamera(camera, event?.button === 2);
+      selectCamera(camera, event?.button === 2);
       ctx.emit('change-camera', camera);
     };
     /** Trigger data load */
@@ -534,6 +592,9 @@ export default defineComponent({
       deleteAttribute,
       reloadAnnotations,
       setSVGFilters,
+      selectCamera,
+      linkCameraTrack,
+      unlinkCameraTrack,
     };
 
     provideAnnotator(

@@ -4,8 +4,6 @@ import CompositionApi from '@vue/composition-api';
 import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
-import TrackStore from './TrackStore';
-import GroupStore from './GroupStore';
 import CameraStore from './CameraStore';
 import { AnnotationId } from './BaseAnnotation';
 

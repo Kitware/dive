@@ -111,13 +111,16 @@ export interface Handler {
     preventInterrupt?: () => void,
   ): void;
   /* Remove a whole track */
-  removeTrack(AnnotationIds: AnnotationId[], forcePromptDisable?: boolean): void;
+  removeTrack(AnnotationIds: AnnotationId[],
+    forcePromptDisable?: boolean, cameraName?: string): void;
   /* remove a whole group */
   removeGroup(AnnotationIds: AnnotationId[]): void;
   /* Remove a single point from selected track's geometry by selected index */
   removePoint(): void;
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
+  /* selectCamera */
+  selectCamera(camera: string, editMode: boolean): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
   /* set an Attribute in the metaData */
@@ -138,6 +141,13 @@ export interface Handler {
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
+  /* unlink Camera Track */
+  unlinkCameraTrack(trackId: AnnotationId, camera: string): void;
+  /* link Camera Track */
+  linkCameraTrack(baseTrackId: AnnotationId, linkTrackId: AnnotationId, camera: string): void;
+  startLinking(camera: string): void;
+  stopLinking(): void;
+
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -162,6 +172,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     removeGroup(...args) { handle('removeGroup', args); },
     removePoint(...args) { handle('removePoint', args); },
     removeAnnotation(...args) { handle('removeAnnotation', args); },
+    selectCamera(...args) { handle('selectCamera', args); },
     selectFeatureHandle(...args) { handle('selectFeatureHandle', args); },
     setAttribute(...args) { handle('setAttribute', args); },
     deleteAttribute(...args) { handle('deleteAttribute', args); },
@@ -172,6 +183,11 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
+    unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
+    linkCameraTrack(...args) { handle('linkCameraTrack', args); },
+    startLinking(...args) { handle('startLinking', args); },
+    stopLinking(...args) { handle('stopLinking', args); },
+
   };
 }
 

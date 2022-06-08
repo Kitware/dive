@@ -163,11 +163,15 @@ export default class CameraStore {
       return groups;
     }
 
-    remove(trackId: AnnotationId) {
+    remove(trackId: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
         if (camera.trackStore.get(trackId)) {
-          camera.trackStore.remove(trackId);
-          camera.groupStore.trackRemove(trackId);
+          if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
+            camera.trackStore.remove(trackId);
+          }
+          if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
+            camera.groupStore.trackRemove(trackId);
+          }
         }
       });
     }
@@ -190,18 +194,22 @@ export default class CameraStore {
       });
     }
 
-    removeTracks(id: AnnotationId) {
+    removeTracks(id: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
         if (camera.trackStore.get(id)) {
-          camera.trackStore.remove(id);
+          if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
+            camera.trackStore.remove(id);
+          }
         }
       });
     }
 
-    removeGroups(id: AnnotationId) {
+    removeGroups(id: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
         if (camera.groupStore.get(id)) {
-          camera.groupStore.remove(id);
+          if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
+            camera.groupStore.remove(id);
+          }
         }
       });
     }

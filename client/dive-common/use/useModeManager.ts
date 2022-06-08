@@ -80,6 +80,11 @@ export default function useModeManager({
   const trackSettings = toRef(clientSettings, 'trackSettings');
   const groupSettings = toRef(clientSettings, 'groupSettings');
   const selectedCamera = ref('singleCam');
+
+  const linkingState = ref(false);
+  const linkingTrack: Ref<AnnotationId| null> = ref(null);
+  const linkingCamera = ref('');
+
   // Meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
@@ -194,6 +199,23 @@ export default function useModeManager({
     }
   }
 
+  async function _setLinkingTrack(trackId: TrackId) {
+    //Confirm that there is no track for other cameras.
+    const trackList = cameraStore.getTrackAll(trackId);
+    if (trackList.length > 1) {
+      prompt({
+        title: 'Linking Error',
+        text: [`TrackId: ${trackId} has tracks on other cameras besides the selected camera ${linkingCamera.value}`,
+          `You need to select a track that only exists on camera: ${linkingCamera.value} `,
+          'You can split of the track you were trying to select by clicking OK and hitting Escape to exit Linking Mode and using the split tool',
+        ],
+        positiveButton: 'OK',
+      });
+    } else {
+      linkingTrack.value = trackId;
+    }
+  }
+
   function _selectKey(key: string | undefined) {
     if (typeof key === 'string') {
       selectedKey.value = key;
@@ -240,6 +262,12 @@ export default function useModeManager({
         editingGroupId.value = null;
         multiSelectList.value = [];
       }
+    } else if (linkingState.value) {
+      // Only use the first non-null track with is clicked on to link
+      if (trackId !== null) {
+        _setLinkingTrack(trackId);
+      }
+      return;
     }
     /* Do not allow editing when merge is in progress */
     selectTrack(trackId, edit && !multiSelectActive.value);
@@ -277,6 +305,9 @@ export default function useModeManager({
         }
       }
     }
+    linkingState.value = false;
+    linkingCamera.value = '';
+    linkingTrack.value = null;
     multiSelectList.value = [];
     handleGroupEdit(null);
     handleSelectTrack(null, false);
@@ -531,7 +562,7 @@ export default function useModeManager({
     }
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false) {
+  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false, cameraName = '') {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
     const previousOrNext = maybeNextTrackId !== null
@@ -562,7 +593,7 @@ export default function useModeManager({
       }
     }
     trackIds.forEach((trackId) => {
-      cameraStore.remove(trackId);
+      cameraStore.remove(trackId, cameraName);
     });
     handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
@@ -643,6 +674,24 @@ export default function useModeManager({
     }
   }
 
+  function handleStartLinking(camera: string) {
+    if (!linkingState.value && selectedTrackId.value !== null) {
+      linkingState.value = true;
+      if (cameraStore.camMap.has(camera)) {
+        linkingCamera.value = camera;
+      } else {
+        throw Error(`Camera: ${camera} does not exist in the system for linking`);
+      }
+    } else if (selectedTrackId.value === null) {
+      throw Error('Cannot start Linking without a track selected');
+    }
+  }
+
+  function handleStopLinking() {
+    linkingState.value = false;
+    linkingTrack.value = null;
+    linkingCamera.value = '';
+  }
   /**
    * Group: Add the currently selected track to a new group and
    * enter group editing mode.
@@ -690,6 +739,9 @@ export default function useModeManager({
     editingMode,
     editingTrack,
     editingDetails,
+    linkingTrack,
+    linkingState,
+    linkingCamera,
     multiSelectList,
     multiSelectActive,
     visibleModes,
@@ -717,6 +769,8 @@ export default function useModeManager({
       selectFeatureHandle: handleSelectFeatureHandle,
       setAnnotationState: handleSetAnnotationState,
       unstageFromMerge: handleUnstageFromMerge,
+      startLinking: handleStartLinking,
+      stopLinking: handleStopLinking,
     },
   };
 }
