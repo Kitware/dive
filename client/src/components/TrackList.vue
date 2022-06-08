@@ -9,12 +9,12 @@ import {
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackStore,
   useTrackFilters,
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
   useMultiSelectList,
+  useCameraStore,
 } from '../provides';
 import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import TrackItem from './TrackItem.vue';
@@ -58,7 +58,7 @@ export default defineComponent({
     const checkedTrackIdsRef = trackFilters.checkedIDs;
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackStore = useTrackStore();
+    const cameraStore = useCameraStore();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
@@ -98,7 +98,7 @@ export default defineComponent({
 
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,
-      store: trackStore,
+      getAnnotation: cameraStore.getAnyTrack,
       filteredListRef: filteredTracksRef,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,

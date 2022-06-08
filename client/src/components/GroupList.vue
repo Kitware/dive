@@ -2,6 +2,7 @@
 import {
   defineComponent, reactive, computed,
 } from '@vue/composition-api';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 
 import {
   useReadOnlyMode,
@@ -9,7 +10,8 @@ import {
   useEditingGroupId,
   useGroupFilterControls,
   useSelectedTrackId,
-  useGroupStore,
+  useCameraStore,
+  useSelectedCamera,
 } from '../provides';
 import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import GroupItem from './GroupItem.vue';
@@ -32,7 +34,8 @@ export default defineComponent({
 
   setup(props) {
     const readOnlyMode = useReadOnlyMode();
-    const store = useGroupStore();
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
     const typeStylingRef = useGroupStyleManager().typeStyling;
     const selectedId = useEditingGroupId();
     const selectedTrack = useSelectedTrackId();
@@ -40,14 +43,25 @@ export default defineComponent({
     const data = reactive({
       itemHeight: 58, // in pixels
     });
+    const groupStoreRef = computed(() => cameraStore.camMap.get(selectedCamera.value)?.groupStore);
+    const getAnnotation = (id: AnnotationId) => {
+      if (!groupStoreRef.value) {
+        throw Error(`Could not find groupStore for Camea: ${selectedCamera.value}`);
+      }
+      const group = groupStoreRef.value.get(id);
+      if (!group) {
+        throw Error(`Group ID: ${id} did not exist for Camea: ${selectedCamera.value}`);
+      }
+      return group;
+    };
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,
-      store,
+      getAnnotation,
       filteredListRef: groupFilters.filteredAnnotations,
       selectedIdRef: selectedId,
       multiSelectList: computed(() => {
         if (selectedTrack.value !== null) {
-          return Array.from(store.trackMap.get(selectedTrack.value)?.values() ?? []);
+          return Array.from(groupStoreRef.value?.trackMap.get(selectedTrack.value)?.values() ?? []);
         }
         return [];
       }),

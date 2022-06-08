@@ -1,12 +1,13 @@
 import { computed, Ref } from '@vue/composition-api';
 import { cloneDeep } from 'lodash';
+import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
 import type GroupStore from './GroupStore';
 import type Track from './track';
 
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {
-  groupStore: GroupStore;
+  lookupGroups: (annotationId: AnnotationId) => Group[];
   groupFilterControls: BaseFilterControls<Group>;
 }
 
@@ -26,9 +27,9 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
         .map((v) => v.annotation.id));
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Track>[] = [];
-      params.store.sorted.value.forEach((annotation) => {
+      params.sorted.value.forEach((annotation) => {
         let enabledInGroupFilters = true;
-        const groups = params.groupStore.lookupGroups(annotation.id);
+        const groups = params.lookupGroups(annotation.id);
         if (groups.length) {
           /**
            * This track is a member of a group,

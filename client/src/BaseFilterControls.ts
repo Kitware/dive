@@ -22,7 +22,7 @@ export interface AnnotationWithContext<T extends Track | Group> {
 }
 
 export interface FilterControlsParams<T extends Track | Group> {
-  store: BaseAnnotationStore<T>;
+  sorted: Ref<T[]>;
   markChangesPending: () => void;
 }
 

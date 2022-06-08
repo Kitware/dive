@@ -11,15 +11,15 @@ import {
   useEditingMode,
   useHandler,
   useTrackFilters,
-  useTrackStore,
   useAttributes,
   useMultiSelectList,
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
   useEditingGroupId,
-  useGroupStore,
   useGroupFilterControls,
+  useCameraStore,
+  useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
@@ -65,8 +65,8 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const allTypesRef = useTrackFilters().allTypes;
-    const trackStore = useTrackStore();
-    const groupStore = useGroupStore();
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
@@ -81,20 +81,25 @@ export default defineComponent({
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
     const editingGroupIdRef = useEditingGroupId();
+    const groupStoreRef = computed(() => cameraStore.camMap.get(selectedCamera.value)?.groupStore);
     const editingGroup = computed(() => {
       const editingGroupId = editingGroupIdRef.value;
       if (editingGroupId !== null) {
-        return groupStore.get(editingGroupId);
+        if (groupStoreRef.value) {
+          return groupStoreRef.value.get(editingGroupId);
+        }
       }
       return null;
     });
 
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
-        return multiSelectList.value.map((trackId) => trackStore.get(trackId));
+        return multiSelectList.value.map(
+          (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
+        );
       }
       if (selectedTrackIdRef.value !== null) {
-        return [trackStore.get(selectedTrackIdRef.value)];
+        return [cameraStore.getTrack(selectedTrackIdRef.value, selectedCamera.value)];
       }
       return [];
     });
@@ -210,7 +215,6 @@ export default defineComponent({
       editingGroupIdRef,
       editingGroup,
       readOnlyMode,
-      groupStore,
       /* Attributes */
       attributes,
       /* Editing */

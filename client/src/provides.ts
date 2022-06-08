@@ -15,6 +15,7 @@ import type { Time } from './use/useTimeObserver';
 import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
+import CameraStore from './CameraStore';
 
 
 /**
@@ -46,6 +47,9 @@ type ProgressType = Readonly<{ loaded: boolean }>;
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
 
+const SelectedCameraSymbol = Symbol('selectedCamera');
+type SelectedCameraType = Readonly<Ref<string>>;
+
 const SelectedKeySymbol = Symbol('selectedKey');
 type SelectedKeyType = Readonly<Ref<string>>;
 
@@ -66,9 +70,7 @@ const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
 /** Class-based symbols */
-
-const GroupStoreSymbol = Symbol('groupStore');
-const TrackStoreSymbol = Symbol('trackStore');
+const CameraStoreSymbol = Symbol('cameraStore');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -185,21 +187,21 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
 export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
+  cameraStore: CameraStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
-  groupStore: GroupStore;
   groupStyleManager: StyleManager;
   multiSelectList: MultiSelectType;
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
+  selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
   editingGroupId: SelectedTrackIdType;
   time: TimeType;
   trackFilters: TrackFilterControls;
-  trackStore: TrackStore;
   trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
@@ -214,24 +216,29 @@ const markChangesPending = () => { };
  * intend to override some small number of values.
  */
 function dummyState(): State {
-  const trackStore = new TrackStore({ markChangesPending });
-  const groupStore = new GroupStore({ markChangesPending });
-  const groupFilterControls = new GroupFilterControls({ store: groupStore, markChangesPending });
+  const cameraStore = new CameraStore({ markChangesPending });
+  const groupFilterControls = new GroupFilterControls(
+    { sorted: cameraStore.sortedGroups, markChangesPending },
+  );
   const trackFilterControls = new TrackFilterControls({
-    store: trackStore, markChangesPending, groupFilterControls, groupStore,
+    sorted: cameraStore.sortedTracks,
+    markChangesPending,
+    groupFilterControls,
+    lookupGroups: cameraStore.lookupGroups,
   });
   return {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
     attributes: ref([]),
+    cameraStore,
     datasetId: ref(''),
     editingMode: ref(false),
-    groupStore,
     multiSelectList: ref([]),
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
+    selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
     editingGroupId: ref(null),
@@ -242,7 +249,6 @@ function dummyState(): State {
       originalFps: ref(null),
     },
     trackFilters: trackFilterControls,
-    trackStore,
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
@@ -261,18 +267,18 @@ function dummyState(): State {
 function provideAnnotator(state: State, handler: Handler) {
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
+  provide(CameraStoreSymbol, state.cameraStore);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
-  provide(GroupStoreSymbol, state.groupStore);
   provide(GroupStyleManagerSymbol, state.groupStyleManager);
   provide(MultiSelectSymbol, state.multiSelectList);
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
   provide(TrackFilterControlsSymbol, state.trackFilters);
-  provide(TrackStoreSymbol, state.trackStore);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
+  provide(SelectedCameraSymbol, state.selectedCamera);
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
   provide(EditingGroupIdSymbol, state.editingGroupId);
@@ -303,6 +309,9 @@ function useAttributes() {
   return use<AttributesType>(AttributesSymbol);
 }
 
+function useCameraStore() {
+  return use<CameraStore>(CameraStoreSymbol);
+}
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
 }
@@ -315,9 +324,6 @@ function useGroupFilterControls() {
   return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
-function useGroupStore() {
-  return use<GroupStore>(GroupStoreSymbol);
-}
 
 function useGroupStyleManager() {
   return use<StyleManager>(GroupStyleManagerSymbol);
@@ -347,6 +353,11 @@ function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
 
+function useSelectedCamera() {
+  return use<SelectedCameraType>(SelectedCameraSymbol);
+}
+
+
 function useSelectedKey() {
   return use<SelectedKeyType>(SelectedKeySymbol);
 }
@@ -367,9 +378,6 @@ function useTrackFilters() {
   return use<TrackFilterControls>(TrackFilterControlsSymbol);
 }
 
-function useTrackStore() {
-  return use<TrackStore>(TrackStoreSymbol);
-}
 
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);
@@ -388,19 +396,19 @@ export {
   use,
   useAnnotatorPreferences,
   useAttributes,
+  useCameraStore,
   useDatasetId,
   useEditingMode,
   useHandler,
   useGroupFilterControls,
-  useGroupStore,
   useGroupStyleManager,
   useMultiSelectList,
   usePendingSaveCount,
   useProgress,
   useRevisionId,
   useTrackFilters,
-  useTrackStore,
   useTrackStyleManager,
+  useSelectedCamera,
   useSelectedKey,
   useSelectedTrackId,
   useEditingGroupId,

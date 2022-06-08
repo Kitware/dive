@@ -188,7 +188,10 @@ export default class Track extends BaseAnnotation {
    * Merge other into track at frame, preferring features from
    * self if there are conflicts
    */
-  merge(others: Track[]) {
+  merge(others: Track[], disableNotifier = false) {
+    if (disableNotifier) {
+      this.notifierEnabled = false;
+    }
     others.forEach((other) => {
       other.confidencePairs.forEach((pair) => {
         const match = this.confidencePairs.find(([name]) => name === pair[0]);
@@ -211,6 +214,10 @@ export default class Track extends BaseAnnotation {
         });
       }
     });
+    if (disableNotifier) {
+      this.notifierEnabled = true;
+    }
+
   }
 
   toggleKeyframe(frame: number) {

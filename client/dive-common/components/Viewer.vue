@@ -16,7 +16,7 @@ import {
 } from 'vue-media-annotator/use';
 import {
   Track, Group,
-  TrackStore, GroupStore,
+  TrackStore, GroupStore, CameraStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import { provideAnnotator } from 'vue-media-annotator/provides';
@@ -44,6 +44,11 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
+
+export interface ImageDataItem {
+  url: string;
+  filename: string;
+}
 
 
 export default defineComponent({
@@ -80,8 +85,7 @@ export default defineComponent({
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref([]);
-    const defaultCamera = ref('');
-    const currentCamera = ref('');
+    const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
     const mediaController = computed(() => {
@@ -96,11 +100,11 @@ export default defineComponent({
     });
     const controlsContainerRef = ref();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
-    const imageData = ref([] as FrameImage[]);
+    const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
-    const videoUrl = ref(undefined as undefined | string);
+    const videoUrl: Ref<Record<string, string>> = ref({});
     const { loadDetections, loadMetadata, saveMetadata } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -135,6 +139,7 @@ export default defineComponent({
       markChangesPending,
       discardChanges,
       pendingSaveCount,
+      addCamera: addSaveCamera,
     } = useSave(datasetId, readonlyState);
 
     const {
@@ -160,17 +165,16 @@ export default defineComponent({
       deleteAttribute,
     } = useAttributes({ markChangesPending });
 
-    const trackStore = new TrackStore({ markChangesPending });
-    const groupStore = new GroupStore({ markChangesPending });
+    const cameraStore = new CameraStore({ markChangesPending });
 
     const groupFilters = new GroupFilterControls({
-      store: groupStore, markChangesPending,
+      sorted: cameraStore.sortedGroups, markChangesPending,
     });
 
     const trackFilters = new TrackFilterControls({
-      store: trackStore,
+      sorted: cameraStore.sortedTracks,
       markChangesPending,
-      groupStore,
+      lookupGroups: cameraStore.lookupGroups,
       groupFilterControls: groupFilters,
     });
 
@@ -188,13 +192,13 @@ export default defineComponent({
       editingDetails,
       visibleModes,
       selectedKey,
+      selectedCamera,
       editingTrack,
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
       groupFilterControls: groupFilters,
-      trackStore,
-      groupStore,
+      cameraStore,
       mediaController,
       readonlyState,
     });
@@ -232,15 +236,17 @@ export default defineComponent({
 
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
       if (typeof trackId === 'number') {
-        const track = trackStore.get(trackId);
-        const groups = groupStore.lookupGroups(trackId);
+        const track = cameraStore.getTrack(trackId, selectedCamera.value);
+        const groups = cameraStore.lookupGroups(trackId);
         let newtracks: [Track, Track];
         try {
-          newtracks = track.split(frame, trackStore.getNewId(), trackStore.getNewId() + 1);
+          newtracks = track.split(
+            frame, cameraStore.getNewTrackId(), cameraStore.getNewTrackId() + 1,
+          );
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
-            text: err,
+            text: err as string,
             positiveButton: 'OK',
           });
           return;
@@ -255,20 +261,26 @@ export default defineComponent({
         }
         const wasEditing = editingTrack.value;
         handler.trackSelect(null);
-        trackStore.remove(trackId);
-        trackStore.insert(newtracks[0]);
-        trackStore.insert(newtracks[1]);
+        const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+        if (trackStore) {
+          trackStore.remove(trackId);
+          trackStore.insert(newtracks[0]);
+          trackStore.insert(newtracks[1]);
+        }
         if (groups.length) {
           // If the track belonged to groups, add the new tracks
           // to the same groups the old tracks belonged to.
-          groupStore.trackRemove(trackId);
-          groups.forEach((group) => {
-            group.removeMembers([trackId]);
-            group.addMembers({
-              [newtracks[0].id]: { ranges: [[newtracks[0].begin, newtracks[0].end]] },
-              [newtracks[1].id]: { ranges: [[newtracks[1].begin, newtracks[1].end]] },
+          const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+          if (groupStore) {
+            groupStore.trackRemove(trackId);
+            groups.forEach((group) => {
+              group.removeMembers([trackId]);
+              group.addMembers({
+                [newtracks[0].id]: { ranges: [[newtracks[0].begin, newtracks[0].end]] },
+                [newtracks[1].id]: { ranges: [[newtracks[1].begin, newtracks[1].end]] },
+              });
             });
-          });
+          }
         }
         handler.trackSelect(newtracks[1].id, wasEditing);
       }
@@ -330,22 +342,71 @@ export default defineComponent({
       return result;
     }
 
+    const setSelectedCamera = async (camera: string, editMode = false) => {
+      // if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
+      //   await prompt({
+      //     title: 'In Linking Mode',
+      //     text: 'Currently in Linking Mode, please hit OK and Escape to exit Linking mode or choose another Track in the highlighted Camera to Link',
+      //     positiveButton: 'OK',
+      //   });
+      //   return;
+      // }
+      // EditTrack is set false by the LayerMap before executing this
+      if (selectedTrackId.value !== null) {
+        // If we had a track selected and it still exists with
+        // a feature length of 0 we need to remove it
+        const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+        if (track && track.features.length === 0) {
+          handler.trackAbort();
+        }
+      }
+      selectedCamera.value = camera;
+      /**
+       * Enters edit mode if not track exists for the camera and forcing edit mode
+       * or if a track exists and are alrady in edit mode we don't set it again
+       * Remember trackEdit(number) is a toggle for editing mode
+       */
+      if (selectedTrackId.value !== null && (editMode || editingTrack.value)) {
+        const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+        if (track === undefined || !editingTrack.value) {
+        //Stay in edit mode for the current track
+          handler.trackEdit(selectedTrackId.value);
+        }
+      }
+      ctx.emit('change-camera', camera);
+    };
+    // Handles changing camera using the dropdown or mouse clicks
+    // When using mouse clicks and right button it will remain in edit mode for the selected track
+    const changeCamera = (camera: string, event?: MouseEvent) => {
+      if (selectedCamera.value === camera) {
+        return;
+      }
+      if (event) {
+        event.preventDefault();
+      }
+      // Left click should kick out of editing mode automatically
+      if (event?.button === 0) {
+        editingTrack.value = false;
+      }
+      setSelectedCamera(camera, event?.button === 2);
+      ctx.emit('change-camera', camera);
+    };
     /** Trigger data load */
     const loadData = async () => {
       try {
         const meta = await loadMetadata(datasetId.value);
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
+        baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           const { cameras } = meta.multiCamMedia;
           multiCamList.value = Object.keys(cameras);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
-          currentCamera.value = defaultCamera.value;
-          baseMulticamDatasetId.value = datasetId.value;
-          if (!currentCamera.value) {
+          changeCamera(defaultCamera.value);
+          if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          ctx.emit('update:id', `${props.id}/${currentCamera.value}`);
+          ctx.emit('update:id', `${props.id}/${selectedCamera.value}`);
           return;
         }
         /* Otherwise, complete loading of the dataset */
@@ -366,31 +427,52 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
-        imageData.value = cloneDeep(meta.imageData) as FrameImage[];
-        videoUrl.value = meta.videoUrl;
-        datasetType.value = meta.type as DatasetType;
-
-        const { tracks, groups } = await loadDetections(datasetId.value, props.revision);
-        progress.total = tracks.length + groups.length;
-        for (let i = 0; i < tracks.length; i += 1) {
-          if (i % 4000 === 0) {
-          /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
+        for (let i = 0; i < multiCamList.value.length; i += 1) {
+          const camera = multiCamList.value[i];
+          let cameraId = baseMulticamDatasetId.value;
+          if (multiCamList.value.length > 1) {
+            cameraId = `${baseMulticamDatasetId.value}/${camera}`;
           }
-          trackStore.insert(Track.fromJSON(tracks[i]), { imported: true });
-        }
-        for (let i = 0; i < groups.length; i += 1) {
-          if (i % 4000 === 0) {
-          /* Every N tracks, yeild some cycles for other scheduled tasks */
-            progress.progress = tracks.length + i;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => window.setTimeout(resolve, 500));
+          // eslint-disable-next-line no-await-in-loop
+          const subCameraMeta = await loadMetadata(cameraId);
+          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          if (subCameraMeta.videoUrl) {
+            videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
-          groupStore.insert(Group.fromJSON(groups[i]), { imported: true });
+          cameraStore.addCamera(camera);
+          addSaveCamera(camera);
+          // eslint-disable-next-line no-await-in-loop
+          const { tracks, groups } = await loadDetections(cameraId, props.revision);
+          progress.total = tracks.length + groups.length;
+          const trackStore = cameraStore.camMap.get(camera)?.trackStore;
+          const groupStore = cameraStore.camMap.get(camera)?.groupStore;
+          if (trackStore && groupStore) {
+            for (let j = 0; j < tracks.length; j += 1) {
+              if (i % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+                progress.progress = j;
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((resolve) => window.setTimeout(resolve, 500));
+              }
+              trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+            }
+            for (let j = 0; j < groups.length; j += 1) {
+              if (i % 4000 === 0) {
+              /* Every N tracks, yeild some cycles for other scheduled tasks */
+                progress.progress = tracks.length + j;
+                // eslint-disable-next-line no-await-in-loop
+                await new Promise((resolve) => window.setTimeout(resolve, 500));
+              }
+              groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
+            }
+            progress.loaded = true;
+          }
         }
-        progress.loaded = true;
+        cameraStore.camMap.forEach((_cam, key) => {
+          if (!multiCamList.value.includes(key)) {
+            cameraStore.removeCamera(key);
+          }
+        });
       } catch (err) {
         progress.loaded = false;
         console.error(err);
@@ -404,8 +486,7 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
-      trackStore.clearAll();
-      groupStore.clearAll();
+      cameraStore.clearAll();
       discardChanges();
       progress.loaded = false;
       await loadData();
@@ -413,14 +494,6 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
-
-    const changeCamera = async (camera: string) => {
-      if (!camera || !baseMulticamDatasetId.value) {
-        throw new Error('Attempted to change camera to invalid value or baseMultiCamDatasetId was missing');
-      }
-      const newId = `${baseMulticamDatasetId.value}/${camera}`;
-      ctx.emit('update:id', newId);
-    };
 
     const globalHandler = {
       ...handler,
@@ -436,21 +509,21 @@ export default defineComponent({
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
+        cameraStore,
         datasetId,
         editingMode,
         groupFilters,
-        groupStore,
         groupStyleManager,
         multiSelectList,
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
+        selectedCamera,
         selectedKey,
         selectedTrackId,
         editingGroupId,
         time,
         trackFilters,
-        trackStore,
         trackStyleManager,
         visibleModes,
         readOnlyMode: readonlyState,

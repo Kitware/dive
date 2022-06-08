@@ -10,14 +10,14 @@ import type { AnnotationWithContext } from '../BaseFilterControls';
 
 export default function useVirtualScrollTo({
   itemHeight,
-  store,
+  getAnnotation,
   filteredListRef,
   selectedIdRef,
   multiSelectList,
   selectNext,
 }: {
   itemHeight: Readonly<number>;
-  store: TrackStore | GroupStore;
+  getAnnotation: (id: AnnotationId) => Track | Group;
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
@@ -27,7 +27,7 @@ export default function useVirtualScrollTo({
 
   function scrollTo(id: AnnotationId | null): void {
     if (id !== null && virtualList.value !== null) {
-      const annotation = store.annotationMap.get(id);
+      const annotation = getAnnotation(id);
       if (annotation) {
         const offset = filteredListRef.value.findIndex(
           (filtered) => filtered.annotation.id === id,

@@ -22,7 +22,6 @@ import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import { ToolTipWidgetData } from '../layers/UILayers/UILayerTypes';
 import {
   useHandler,
-  useTrackStore,
   useSelectedTrackId,
   useTrackFilters,
   useTrackStyleManager,
@@ -32,7 +31,8 @@ import {
   useMultiSelectList,
   useAnnotatorPreferences,
   useGroupStyleManager,
-  useGroupStore,
+  useCameraStore,
+  useSelectedCamera,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -50,11 +50,21 @@ export default defineComponent({
       type: String as PropType<'group' | 'track'>,
       default: 'track',
     },
+    camera: {
+      type: String,
+      default: 'singleCam',
+    },
+
   },
   setup(props) {
     const handler = useHandler();
-    const trackStore = useTrackStore();
-    const groupStore = useGroupStore();
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
+    const trackStore = cameraStore.camMap.get(props.camera)?.trackStore;
+    const groupStore = cameraStore.camMap.get(props.camera)?.groupStore;
+    if (!trackStore || !groupStore) {
+      throw Error(`TrackStore: ${trackStore} or GroupStore: ${groupStore} are undefined for camera ${props.camera}`);
+    }
     const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const selectedTrackIdRef = useSelectedTrackId();
     const multiSeletListRef = useMultiSelectList();
@@ -137,7 +147,7 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
-      const currentFrameIds: AnnotationId[] = trackStore.intervalTree
+      const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str: string) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
@@ -148,19 +158,28 @@ export default defineComponent({
       }
       const frameData = [] as FrameDataTrack[];
       const editingTracks = [] as FrameDataTrack[];
+      if (currentFrameIds === undefined) {
+        return;
+      }
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
-          const track = trackStore.get(trackId);
+          const track = trackStore?.get(trackId);
+          if (track === undefined) {
+            // Track may be located in another Camera
+            // TODO: Find a better way to represent tracks outside of cameras
+            return;
+          }
+
           const enabledIndex = enabledTracks.findIndex(
             (trackWithContext) => trackWithContext.annotation.id === trackId,
           );
           if (enabledIndex !== -1) {
             const [features] = track.getFeature(frame);
-            const groups = groupStore.lookupGroups(track.id);
+            const groups = cameraStore.lookupGroups(track.id);
             const trackStyleType = track.getType(
               enabledTracks[enabledIndex].context.confidencePairIndex,
             );
-            const groupStyleType = groups?.[0]?.getType() ?? groupStore.defaultGroup;
+            const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (multiSelectList.includes(track.trackId))),
@@ -172,7 +191,7 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack) {
+              if (editingTrack && props.camera === selectedCamera.value) {
                 editingTracks.push(trackFrame);
               }
               if (annotator.lockedCamera.value) {
@@ -226,20 +245,24 @@ export default defineComponent({
       }
 
       if (selectedTrackId !== null) {
-        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)) {
-          const editTrack = trackStore.get(selectedTrackId);
+        if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)
+        && props.camera === selectedCamera.value) {
+          const editTrack = trackStore?.get(selectedTrackId);
           // const enabledIndex = enabledTracks.findIndex(
           //   (trackWithContext) => trackWithContext.annotation.id === editTrack.id,
           // );
+          if (editTrack === undefined) {
+            throw new Error(`trackMap missing trackid ${selectedTrackId}`);
+          }
           const [real, lower, upper] = editTrack.getFeature(frame);
           const features = real || lower || upper;
           const trackFrame = {
             selected: true,
             editing: true,
             track: editTrack,
-            groups: groupStore.lookupGroups(editTrack.id),
+            groups: cameraStore.lookupGroups(editTrack.id),
             features: (features && features.interpolate) ? features : null,
-            styleType: groupStore.defaultGroup, // Won't be used
+            styleType: cameraStore.defaultGroup, // Won't be used
           };
           editingTracks.push(trackFrame);
         }
@@ -286,6 +309,7 @@ export default defineComponent({
         visibleModesRef,
         typeStylingRef,
         toRef(props, 'colorBy'),
+        selectedCamera,
       ],
       () => {
         updateLayers(
@@ -320,6 +344,10 @@ export default defineComponent({
     );
 
     const Clicked = (trackId: number, editing: boolean) => {
+      // If the camera isn't selected yet we ignore the click
+      if (selectedCamera.value !== props.camera) {
+        return;
+      }
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();

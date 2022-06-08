@@ -8,10 +8,12 @@ export type MarkChangesPending = ({
   action,
   track,
   group,
+  cameraName,
 }: {
   action: 'upsert' | 'delete';
     track?: Track;
     group?: Group;
+    cameraName: string;
 }) => void;
 
 export interface InsertArgs {
@@ -55,10 +57,14 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
 
   sorted: Ref<OneOf<T, [Group, Track]>[]>;
 
+  cameraName: string;
+
   private canary: Ref<number>;
 
-  constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
+  constructor({ markChangesPending, cameraName }:
+    { markChangesPending: MarkChangesPending; cameraName: string }) {
     this.markChangesPending = markChangesPending;
+    this.cameraName = cameraName;
     this.annotationMap = new Map();
     this.annotationIds = ref([]);
     this.intervalTree = new IntervalTree();
@@ -110,9 +116,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     this.canary.value += 1;
     if (isTrack(item)) {
-      this.markChangesPending({ action: 'upsert', track: item });
+      this.markChangesPending({ action: 'upsert', track: item, cameraName: this.cameraName});
     } else {
-      this.markChangesPending({ action: 'upsert', group: item });
+      this.markChangesPending({ action: 'upsert', group: item, cameraName: this.cameraName });
     }
   }
 
@@ -131,9 +137,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     if (!args?.imported) {
       if (isTrack(value)) {
-        this.markChangesPending({ action: 'upsert', track: value });
+        this.markChangesPending({ action: 'upsert', track: value, cameraName: this.cameraName });
       } else {
-        this.markChangesPending({ action: 'upsert', group: value });
+        this.markChangesPending({ action: 'upsert', group: value, cameraName: this.cameraName });
       }
     }
   }
@@ -153,9 +159,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     this.annotationIds.value.splice(listIndex, 1);
     if (!disableNotifications) {
       if (isTrack(value)) {
-        this.markChangesPending({ action: 'delete', track: value });
+        this.markChangesPending({ action: 'delete', track: value, cameraName: this.cameraName });
       } else {
-        this.markChangesPending({ action: 'delete', group: value });
+        this.markChangesPending({ action: 'delete', group: value, cameraName: this.cameraName });
       }
     }
   }

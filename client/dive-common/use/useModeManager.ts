@@ -17,6 +17,7 @@ import GroupStore from 'vue-media-annotator/GroupStore';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
+import CameraStore from 'vue-media-annotator/CameraStore';
 
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -58,16 +59,14 @@ interface SetAnnotationStateArgs {
  * Mostly allows us to inject additional logic into transitions.
  */
 export default function useModeManager({
-  trackStore,
-  groupStore,
+  cameraStore,
   trackFilterControls,
   groupFilterControls,
   mediaController,
   readonlyState,
   recipes,
 }: {
-    trackStore: TrackStore;
-    groupStore: GroupStore;
+    cameraStore: CameraStore;
     trackFilterControls: TrackFilterControls;
     groupFilterControls: GroupFilterControls;
   mediaController: Ref<MediaController>;
@@ -82,6 +81,7 @@ export default function useModeManager({
   });
   const trackSettings = toRef(clientSettings, 'trackSettings');
   const groupSettings = toRef(clientSettings, 'groupSettings');
+  const selectedCamera = ref('singleCam');
   // Meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
   const selectedFeatureHandle = ref(-1);
@@ -143,18 +143,23 @@ export default function useModeManager({
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = mediaController.value;
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
-      if (track) {
-        const [feature] = track.getFeature(frame.value);
-        if (feature) {
-          if (!feature?.bounds?.length) {
-            return 'Creating';
-          } if (annotationModes.editing === 'rectangle') {
-            return 'Editing';
+      try {
+        const track = cameraStore.getPossibleTrack(selectedTrackId.value);
+        if (track) {
+          const [feature] = track.getFeature(frame.value);
+          if (feature) {
+            if (!feature?.bounds?.length) {
+              return 'Creating';
+            } if (annotationModes.editing === 'rectangle') {
+              return 'Editing';
+            }
+            return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
           }
-          return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
+          return 'Creating';
         }
-        return 'Creating';
+      } catch {
+      // No Track for this camera
+        return 'disabled';
       }
     }
     return 'disabled';
@@ -226,10 +231,13 @@ export default function useModeManager({
        * If editing group, then the newly selected track should be added to the group
        */
       if (editingGroupId.value !== null && !edit) {
-        const track = trackStore.get(trackId);
-        groupStore.get(editingGroupId.value).addMembers({
-          [trackId]: { ranges: [[track.begin, track.end]] },
-        });
+        const track = cameraStore.getAnyTrack(trackId);
+        const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+        if (groupStore) {
+          groupStore.get(editingGroupId.value).addMembers({
+            [trackId]: { ranges: [[track.begin, track.end]] },
+          });
+        }
       } else if (edit) {
         editingGroupId.value = null;
         multiSelectList.value = [];
@@ -246,22 +254,28 @@ export default function useModeManager({
     editingGroupId.value = groupId;
     if (groupId !== null) {
       /** When moving into a group edit mode, multi-select all track members */
-      const group = groupStore.get(groupId);
-      multiSelectList.value = group.memberIds;
-      selectedTrackId.value = null;
-      seekNearest(trackStore.get(multiSelectList.value[0]));
+      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      if (groupStore) {
+        const group = groupStore.get(groupId);
+        multiSelectList.value = group.memberIds;
+        selectedTrackId.value = null;
+        seekNearest(cameraStore.getAnyTrack(multiSelectList.value[0]));
+      }
     }
   }
 
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
+      const track = cameraStore.getTrack(selectedTrackId.value, selectedCamera.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
         // If no features exist we remove the empty track
         if (!features.filter((item) => item !== null).length) {
-          trackStore.remove(selectedTrackId.value);
+          const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+          if (trackStore) {
+            trackStore.remove(selectedTrackId.value);
+          }
         }
       }
     }
@@ -270,18 +284,30 @@ export default function useModeManager({
     handleSelectTrack(null, false);
   }
 
-  function handleAddTrackOrDetection(): TrackId {
+  function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
     handleEscapeMode();
     const { frame } = mediaController.value;
-    const newTrackId = trackStore.add(
-      frame.value, trackSettings.value.newTrackSettings.type,
-      selectedTrackId.value || undefined,
-    ).trackId;
-    selectTrack(newTrackId, true);
-    creating = true;
-    return newTrackId;
+    let trackType = trackSettings.value.newTrackSettings.type;
+    if (overrideTrackId !== undefined) {
+      const track = cameraStore.getAnyTrack(overrideTrackId);
+      // eslint-disable-next-line prefer-destructuring
+      trackType = track.confidencePairs[0][0];
+    }
+    const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+    if (trackStore) {
+      const newTrackId = trackStore.add(
+        frame.value, trackType,
+        selectedTrackId.value || undefined,
+        overrideTrackId ?? undefined,
+      ).trackId;
+      selectTrack(newTrackId, true);
+      creating = true;
+      return newTrackId;
+    }
+    throw Error(`Could not find trackStore for Camera: ${selectedCamera.value}`);
   }
+
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
     // Default settings which are updated by the TrackSettings component
@@ -308,7 +334,7 @@ export default function useModeManager({
 
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
     if (selectedTrackId.value !== null) {
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         // Determines if we are creating a new Detection
         const { interpolate } = track.canInterpolate(frameNum);
@@ -354,7 +380,7 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
@@ -449,7 +475,7 @@ export default function useModeManager({
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         recipes.forEach((r) => {
           if (r.active.value) {
@@ -471,7 +497,7 @@ export default function useModeManager({
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
     if (selectedTrackId.value !== null) {
-      const track = trackStore.annotationMap.get(selectedTrackId.value);
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         const { frame } = mediaController.value;
         recipes.forEach((r) => {
@@ -495,8 +521,11 @@ export default function useModeManager({
     }
     /** Remove members from group if group editing */
     if (editingGroupId.value !== null) {
-      const group = groupStore.annotationMap.get(editingGroupId.value);
-      if (group) group.removeMembers(trackIds);
+      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      if (groupStore) {
+        const group = groupStore.annotationMap.get(editingGroupId.value);
+        if (group) group.removeMembers(trackIds);
+      }
     }
     /** Exit group editing mode if last track is removed */
     if (multiSelectList.value.length === 0) {
@@ -514,7 +543,7 @@ export default function useModeManager({
     if (!forcePromptDisable && trackSettings.value.deletionSettings.promptUser) {
       const trackStrings = trackIds.map((track) => track.toString());
       const groups = flattenDeep(
-        trackIds.map((trackId) => groupStore.lookupGroups(trackId)),
+        trackIds.map((trackId) => cameraStore.lookupGroups(trackId)),
       );
       const text = (['Would you like to delete the following tracks:']).concat(trackStrings);
       if (groups.length > 0) {
@@ -535,8 +564,7 @@ export default function useModeManager({
       }
     }
     trackIds.forEach((trackId) => {
-      trackStore.remove(trackId);
-      groupStore.trackRemove(trackId);
+      cameraStore.remove(trackId);
     });
     handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
@@ -544,14 +572,16 @@ export default function useModeManager({
 
   /** Toggle editing mode for track */
   function handleTrackEdit(trackId: TrackId) {
-    const track = trackStore.get(trackId);
-    seekNearest(track);
-    const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
-    handleSelectTrack(trackId, editing);
+    const track = cameraStore.getPossibleTrack(trackId, selectedCamera.value);
+    if (track) {
+      seekNearest(track);
+      const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+      handleSelectTrack(trackId, editing);
+    }
   }
 
   function handleTrackClick(trackId: TrackId) {
-    const track = trackStore.get(trackId);
+    const track = cameraStore.getTracksMerged(trackId);
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value);
   }
@@ -561,7 +591,7 @@ export default function useModeManager({
     /** Only allow selectNext when not in group editing mode. */
     if (newTrack !== null && editingGroupId.value === null) {
       handleSelectTrack(newTrack, false);
-      seekNearest(trackStore.get(newTrack));
+      seekNearest(cameraStore.getAnyTrack(newTrack));
     }
   }
 
@@ -604,9 +634,11 @@ export default function useModeManager({
    */
   function handleCommitMerge() {
     if (multiSelectList.value.length >= 2) {
-      const track = trackStore.get(multiSelectList.value[0]);
+      const track = cameraStore.getTrack(multiSelectList.value[0], selectedCamera.value);
       const otherTrackIds = multiSelectList.value.slice(1);
-      track.merge(otherTrackIds.map((trackId) => trackStore.get(trackId)));
+      track.merge(otherTrackIds.map(
+        (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
+      ));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
       handleSelectTrack(track.trackId, false);
@@ -619,9 +651,12 @@ export default function useModeManager({
    */
   function handleAddGroup() {
     if (selectedTrackId.value !== null) {
-      const members = [trackStore.get(selectedTrackId.value)];
-      const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
-      handleGroupEdit(newGrp.id);
+      const members = [cameraStore.getTrack(selectedTrackId.value, selectedCamera.value)];
+      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      if (groupStore) {
+        const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
+        handleGroupEdit(newGrp.id);
+      }
     }
   }
 
@@ -630,7 +665,10 @@ export default function useModeManager({
    */
   function handleRemoveGroup(ids: AnnotationId[]) {
     ids.forEach((groupId) => {
-      groupStore.remove(groupId);
+      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      if (groupStore) {
+        groupStore.remove(groupId);
+      }
     });
     /* Figure out next track ID */
     const maybeNextGroupId = selectNextGroup(1);
@@ -659,6 +697,7 @@ export default function useModeManager({
     visibleModes,
     selectedFeatureHandle,
     selectedKey,
+    selectedCamera,
     selectNextTrack,
     handler: {
       commitMerge: handleCommitMerge,
