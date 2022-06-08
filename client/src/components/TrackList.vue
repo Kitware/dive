@@ -4,6 +4,7 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 
 import {
   useEditingMode,
@@ -96,9 +97,11 @@ export default defineComponent({
       return '';
     });
 
+    const getAnnotation = (id: AnnotationId) => cameraStore.getAnyTrack(id);
+
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,
-      getAnnotation: cameraStore.getAnyTrack,
+      getAnnotation,
       filteredListRef: filteredTracksRef,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,

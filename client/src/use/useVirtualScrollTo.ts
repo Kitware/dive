@@ -3,8 +3,6 @@ import Vue from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
-import type GroupStore from '../GroupStore';
-import type TrackStore from '../TrackStore';
 import type { AnnotationId } from '../BaseAnnotation';
 import type { AnnotationWithContext } from '../BaseFilterControls';
 

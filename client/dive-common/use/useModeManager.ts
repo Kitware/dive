@@ -5,14 +5,12 @@ import { uniq, flatMapDeep, flattenDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
+import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
 import Recipe from 'vue-media-annotator/recipe';
-import TrackStore from 'vue-media-annotator/TrackStore';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import BaseAnnotation from 'vue-media-annotator/BaseAnnotation';
-import GroupStore from 'vue-media-annotator/GroupStore';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
@@ -62,14 +60,14 @@ export default function useModeManager({
   cameraStore,
   trackFilterControls,
   groupFilterControls,
-  mediaController,
+  aggregateController,
   readonlyState,
   recipes,
 }: {
     cameraStore: CameraStore;
     trackFilterControls: TrackFilterControls;
     groupFilterControls: GroupFilterControls;
-  mediaController: Ref<MediaController>;
+    aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
 }) {
@@ -142,7 +140,7 @@ export default function useModeManager({
   const editingDetails = computed(() => {
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
-      const { frame } = mediaController.value;
+      const { frame } = aggregateController.value;
       try {
         const track = cameraStore.getPossibleTrack(selectedTrackId.value);
         if (track) {
@@ -188,11 +186,11 @@ export default function useModeManager({
 
   function seekNearest(track: Track) {
     // Seek to the nearest point in the track.
-    const { frame } = mediaController.value;
+    const { frame } = aggregateController.value;
     if (frame.value < track.begin) {
-      mediaController.value.seek(track.begin);
+      aggregateController.value.seek(track.begin);
     } else if (frame.value > track.end) {
-      mediaController.value.seek(track.end);
+      aggregateController.value.seek(track.end);
     }
   }
 
@@ -287,7 +285,7 @@ export default function useModeManager({
   function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
     handleEscapeMode();
-    const { frame } = mediaController.value;
+    const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
       const track = cameraStore.getAnyTrack(overrideTrackId);
@@ -317,7 +315,7 @@ export default function useModeManager({
         if (trackSettings.value.newTrackSettings.mode === 'Track'
         && trackSettings.value.newTrackSettings.modeSettings.Track.autoAdvanceFrame
         ) {
-          mediaController.value.nextFrame();
+          aggregateController.value.nextFrame();
           newCreatingValue = true;
         } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
@@ -479,7 +477,7 @@ export default function useModeManager({
       if (track) {
         recipes.forEach((r) => {
           if (r.active.value) {
-            const { frame } = mediaController.value;
+            const { frame } = aggregateController.value;
             r.deletePoint(
               frame.value,
               track,
@@ -499,7 +497,7 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
-        const { frame } = mediaController.value;
+        const { frame } = aggregateController.value;
         recipes.forEach((r) => {
           if (r.active.value) {
             r.delete(frame.value, track, selectedKey.value, annotationModes.editing);

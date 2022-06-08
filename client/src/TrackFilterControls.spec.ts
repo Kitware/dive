@@ -6,6 +6,7 @@ import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import TrackStore from './TrackStore';
 import GroupStore from './GroupStore';
+import CameraStore from './CameraStore';
 
 Vue.use(CompositionApi);
 
@@ -37,27 +38,53 @@ function makeTrackStore() {
     confidencePairs: [['bar', 1], ['baz', 0.8]],
     features,
   });
-  const ts = new TrackStore({ markChangesPending: () => null });
+  const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
   ts.insert(t0);
   ts.insert(t1);
   ts.insert(t2);
   return ts;
 }
 
-function makeGroupStore() {
-  return new GroupStore({ markChangesPending });
+function makeCameraStore() {
+  const cameraStore = new CameraStore({ markChangesPending });
+  const t0 = new Track(0, {
+    confidencePairs: [['foo', 0.5], ['bar', 0.4]],
+    features,
+  });
+  const t1 = new Track(2, {
+    confidencePairs: [['foo', 0.9], ['baz', 0.2]],
+    features,
+  });
+  const t2 = new Track(200, {
+    confidencePairs: [['bar', 1], ['baz', 0.8]],
+    features,
+  });
+  const trackStore = cameraStore.camMap.get('signleCam')?.trackStore;
+  if (trackStore) {
+    trackStore.insert(t0);
+    trackStore.insert(t1);
+    trackStore.insert(t2);
+  }
+  return cameraStore;
 }
 
-function makeGroupFilterControls(store: GroupStore) {
-  return new GroupFilterControls({ store, markChangesPending });
+function makeGroupFilterControls(store: CameraStore) {
+  return new GroupFilterControls({
+    sorted: store.sortedGroups,
+    remove: store.removeGroups,
+    markChangesPending,
+  });
 }
 
 function makeTrackFilterControls() {
-  const store = makeTrackStore();
-  const groupStore = makeGroupStore();
-  const groupFilterControls = makeGroupFilterControls(groupStore);
+  const cameraStore = makeCameraStore();
+  const groupFilterControls = makeGroupFilterControls(cameraStore);
   return new TrackFilterControls({
-    store, markChangesPending, groupFilterControls, groupStore,
+    sorted: cameraStore.sortedTracks,
+    remove: cameraStore.removeTracks,
+    markChangesPending,
+    groupFilterControls,
+    lookupGroups: cameraStore.lookupGroups,
   });
 }
 
@@ -79,7 +106,7 @@ describe('useAnnotationFilters', () => {
     const tf = makeTrackFilterControls();
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });
     tf.deleteType('bar'); // delete type only deletes the defaultType, doesn't touch tracks.
-    expect(tf.store.sorted.value).toHaveLength(3);
+    expect(tf.sorted.value).toHaveLength(3);
     expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
     expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
   });

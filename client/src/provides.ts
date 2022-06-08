@@ -5,8 +5,6 @@ import {
 import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
 import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
-import TrackStore from './TrackStore';
-import GroupStore from './GroupStore';
 import type { AnnotationId } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
@@ -218,10 +216,15 @@ const markChangesPending = () => { };
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
   const groupFilterControls = new GroupFilterControls(
-    { sorted: cameraStore.sortedGroups, markChangesPending },
+    {
+      sorted: cameraStore.sortedGroups,
+      remove: cameraStore.removeGroups,
+      markChangesPending,
+    },
   );
   const trackFilterControls = new TrackFilterControls({
     sorted: cameraStore.sortedTracks,
+    remove: cameraStore.removeTracks,
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,

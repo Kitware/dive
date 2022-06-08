@@ -34,16 +34,16 @@ export default class CameraStore {
           groupStore: new GroupStore({ markChangesPending, cameraName }),
         });
       this.sortedTracks = computed(() => {
-        const list: Track[] = [];
+        let list: Track[] = [];
         this.camMap.forEach((camera) => {
-          list.concat(camera.trackStore.sorted.value);
+          list = list.concat(camera.trackStore.sorted.value);
         });
         return list;
       });
       this.sortedGroups = computed(() => {
-        const list: Group[] = [];
+        let list: Group[] = [];
         this.camMap.forEach((camera) => {
-          list.concat(camera.groupStore.sorted.value);
+          list = list.concat(camera.groupStore.sorted.value);
         });
         return list;
       });
@@ -136,13 +136,15 @@ export default class CameraStore {
     }
 
     lookupGroups(trackId: AnnotationId) {
-      const groups: Group[] = [];
-      this.camMap.forEach((camera) => {
-        const groupIds = camera.groupStore.trackMap.get(trackId);
-        if (groupIds) {
-          groups.concat(Array.from(groupIds).map((v) => camera.groupStore.get(v)));
-        }
-      });
+      let groups: Group[] = [];
+      if (this.camMap) {
+        this.camMap.forEach((camera) => {
+          const groupIds = camera.groupStore.trackMap.get(trackId);
+          if (groupIds) {
+            groups = groups.concat(Array.from(groupIds).map((v) => camera.groupStore.get(v)));
+          }
+        });
+      }
       return groups;
     }
 
@@ -170,6 +172,22 @@ export default class CameraStore {
       this.camMap.forEach((camera) => {
         camera.trackStore.clearAll();
         camera.groupStore.clearAll();
+      });
+    }
+
+    removeTracks(id: AnnotationId) {
+      this.camMap.forEach((camera) => {
+        if (camera.trackStore.get(id)) {
+          camera.trackStore.remove(id);
+        }
+      });
+    }
+
+    removeGroups(id: AnnotationId) {
+      this.camMap.forEach((camera) => {
+        if (camera.groupStore.get(id)) {
+          camera.groupStore.remove(id);
+        }
       });
     }
 }

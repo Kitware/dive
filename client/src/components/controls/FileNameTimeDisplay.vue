@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
-import { injectMediaController } from '../annotators/useMediaController';
-
+import { useSelectedCamera } from '../../provides';
+import { injectAggregateController } from '../annotators/useMediaController';
 export default defineComponent({
   name: 'FileNameTimeDisplay',
   props: {
@@ -11,15 +11,24 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const {
-      currentTime, duration, filename, frame,
-    } = injectMediaController();
+    const mediaController = injectAggregateController();
+    const { currentTime, frame } = mediaController.value;
+    const selectedCamera = useSelectedCamera();
+    const selectedCameraController = computed(() => {
+      try {
+        return mediaController.value.getController(selectedCamera.value);
+      } catch {
+        return undefined;
+      }
+    });
+    const filename = computed(() => (selectedCameraController.value?.filename.value));
+    const duration = computed(() => (selectedCameraController.value?.duration.value));
     const display = computed(() => {
       let value = 'unsupported display';
       if (props.displayType === 'filename') {
-        value = filename.value;
+        value = filename.value || 'uninitialized';
       } if (props.displayType === 'time') {
-        value = `${new Date(currentTime.value * 1000).toISOString().substr(11, 8)} / ${new Date(duration.value * 1000).toISOString().substr(11, 8)}`;
+        value = `${new Date(currentTime.value * 1000).toISOString().substr(11, 8)} / ${new Date((duration.value || 0) * 1000).toISOString().substr(11, 8)}`;
       }
       return value;
     });
@@ -27,6 +36,7 @@ export default defineComponent({
       display,
       frame,
       currentTime,
+      selectedCamera,
     };
   },
 });

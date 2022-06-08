@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject,
+  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject, nextTick, onBeforeUnmount,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -16,7 +16,7 @@ import {
 } from 'vue-media-annotator/use';
 import {
   Track, Group,
-  TrackStore, GroupStore, CameraStore,
+  CameraStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import { provideAnnotator } from 'vue-media-annotator/provides';
@@ -25,8 +25,8 @@ import {
   ImageAnnotator,
   VideoAnnotator,
   LayerManager,
+  useMediaController,
 } from 'vue-media-annotator/components';
-import { MediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
 
@@ -84,21 +84,15 @@ export default defineComponent({
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
-    const multiCamList: Ref<string[]> = ref([]);
+    const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
-    const mediaController = computed(() => {
-      if (playbackComponent.value) {
-        // TODO: Bug in composition-api types incorrectly organizes the static members of a Vue
-        // instance when using typeof ImageAnnotator, so we can't use the "real" type here
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
-        return playbackComponent.value.mediaController as MediaController;
-      }
-      return {} as MediaController;
-    });
-    const controlsContainerRef = ref();
+    const {
+      aggregateController,
+      onResize,
+      clear: mediaControllerClear,
+    } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
@@ -116,6 +110,10 @@ export default defineComponent({
       // Total tracks
       total: 0,
     });
+    const controlsRef = ref();
+    const controlsHeight = ref(0);
+    const controlsCollapsed = ref(false);
+
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -128,7 +126,7 @@ export default defineComponent({
      * Annotation window style source based on value of timeline visualization
      */
     const colorBy = computed(() => {
-      if (controlsContainerRef.value?.currentView === 'Groups') {
+      if (controlsRef.value?.currentView === 'Groups') {
         return 'group';
       }
       return 'track';
@@ -168,11 +166,14 @@ export default defineComponent({
     const cameraStore = new CameraStore({ markChangesPending });
 
     const groupFilters = new GroupFilterControls({
-      sorted: cameraStore.sortedGroups, markChangesPending,
+      sorted: cameraStore.sortedGroups,
+      markChangesPending,
+      remove: cameraStore.removeGroups,
     });
 
     const trackFilters = new TrackFilterControls({
       sorted: cameraStore.sortedTracks,
+      remove: cameraStore.removeTracks,
       markChangesPending,
       lookupGroups: cameraStore.lookupGroups,
       groupFilterControls: groupFilters,
@@ -199,7 +200,7 @@ export default defineComponent({
       trackFilterControls: trackFilters,
       groupFilterControls: groupFilters,
       cameraStore,
-      mediaController,
+      aggregateController,
       readonlyState,
     });
 
@@ -346,7 +347,8 @@ export default defineComponent({
       // if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
       //   await prompt({
       //     title: 'In Linking Mode',
-      //     text: 'Currently in Linking Mode, please hit OK and Escape to exit Linking mode or choose another Track in the highlighted Camera to Link',
+      //     text: 'Currently in Linking Mode, please hit OK and Escape to exit
+      //     Linking mode or choose another Track in the highlighted Camera to Link',
       //     positiveButton: 'OK',
       //   });
       //   return;
@@ -486,6 +488,7 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
+      mediaControllerClear();
       cameraStore.clearAll();
       discardChanges();
       progress.loaded = false;
@@ -494,6 +497,28 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
+
+    function handleResize() {
+      if (controlsRef.value) {
+        controlsHeight.value = controlsRef.value.$el.clientHeight;
+        onResize();
+      }
+    }
+    const observer = new ResizeObserver(handleResize);
+    /* On a reload this will watch the controls element and add on observer
+     * so that once done loading the or if the controlsRef is collapsed it will resize all cameras
+    */
+    watch(controlsRef, (previous) => {
+      if (previous) observer.unobserve(previous.$el);
+      if (controlsRef.value) observer.observe(controlsRef.value.$el);
+    });
+    watch(controlsCollapsed, async () => {
+      await nextTick();
+      handleResize();
+    });
+    onBeforeUnmount(() => {
+      if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
+    });
 
     const globalHandler = {
       ...handler,
@@ -534,8 +559,12 @@ export default defineComponent({
 
     return {
       /* props */
+      aggregateController,
       confidenceFilters: trackFilters.confidenceFilters,
-      controlsContainerRef,
+      cameraStore,
+      controlsRef,
+      controlsHeight,
+      controlsCollapsed,
       colorBy,
       clientSettings,
       datasetName,
@@ -548,7 +577,6 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
-      mediaController,
       multiSelectActive,
       pendingSaveCount,
       progress,
@@ -577,6 +605,7 @@ export default defineComponent({
       // multicam
       multiCamList,
       defaultCamera,
+      selectedCamera,
       changeCamera,
       // For Navigation Guarding
       navigateAwayGuard,
@@ -644,8 +673,8 @@ export default defineComponent({
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length"
-          :value="defaultCamera"
+          v-if="multiCamList.length > 1"
+          :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
           class="shrink"
@@ -659,6 +688,30 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
+        <v-badge
+          v-if="multiCamList.length > 1"
+          overlap
+          bottom
+          right
+          color="clear"
+          class="pl-1"
+        >
+          <template v-slot:badge>
+            <v-icon>
+              mdi-cog
+            </v-icon>
+          </template>
+          <v-btn
+            icon
+            small
+            title="MultiCamera Settings"
+            @click="context.toggle('MultiCamTools')"
+          >
+            <v-icon>
+              mdi-camera
+            </v-icon>
+          </v-btn>
+        </v-badge>
         <v-divider
           vertical
           class="mx-2"
@@ -713,7 +766,7 @@ export default defineComponent({
       <sidebar
         :enable-slot="context.state.active !== 'TypeThreshold'"
         @import-types="trackFilters.importTypes($event)"
-        @track-seek="mediaController.seek($event)"
+        @track-seek="aggregateController.seek($event)"
       >
         <template v-if="context.state.active !== 'TypeThreshold'">
           <v-divider />
@@ -731,31 +784,51 @@ export default defineComponent({
           </ConfidenceFilter>
         </template>
       </sidebar>
-      <v-col style="position: relative">
-        <component
-          :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
-          v-if="(imageData.length || videoUrl) && progress.loaded"
-          ref="playbackComponent"
+      <v-col
+        style="position: relative;"
+        class="d-flex flex-column grow"
+        dense
+      >
+        <div
+          v-if="progress.loaded"
           v-mousetrap="[
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
-            { bind: 'r', handler: () => mediaController.resetZoom() },
+            { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
-          v-bind="{ imageData, videoUrl, updateTime, frameRate,
-                    originalFps, brightness, intercept,
-          }"
-          class="playback-component"
+          class="d-flex flex-column grow"
         >
-          <template slot="control">
-            <controls-container
-              ref="controlsContainerRef"
-              v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
-              @select-track="handler.trackSelect"
-              @select-group="handler.groupEdit"
-            />
-          </template>
-          <layer-manager v-bind="{ colorBy }" />
-        </component>
+          <div class="d-flex grow">
+            <div
+              v-for="camera in multiCamList"
+              :key="camera"
+              class="d-flex flex-column grow"
+              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              @mousedown.left="changeCamera(camera, $event)"
+              @mouseup.right="changeCamera(camera, $event)"
+            >
+              <component
+                :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                ref="subPlaybackComponent"
+                class="fill-height"
+                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
+                v-bind="{
+                  imageData: imageData[camera], videoUrl: videoUrl[camera],
+                  updateTime, frameRate, originalFps, camera, brightness, intercept }"
+              >
+                <LayerManager :camera="camera" />
+              </component>
+            </div>
+          </div>
+          <ControlsContainer
+            ref="controlsRef"
+            class="shrink"
+            :collapsed.sync="controlsCollapsed"
+            v-bind="{ lineChartData, eventChartData, datasetType }"
+            @select-track="handler.trackSelect"
+          />
+        </div>
         <div
           v-else
           class="d-flex justify-center align-center fill-height"
