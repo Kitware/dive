@@ -84,6 +84,7 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value !== null) {
+        // Tracks across all cameras get the same attributes set if they are linked
         const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
         if (tracks.length) {
           if (props.mode === 'Track') {
