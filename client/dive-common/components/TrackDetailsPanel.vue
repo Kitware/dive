@@ -100,7 +100,7 @@ export default defineComponent({
         );
       }
       if (selectedTrackIdRef.value !== null) {
-        return [cameraStore.getTrack(selectedTrackIdRef.value, selectedCamera.value)];
+        return [cameraStore.getAnyTrack(selectedTrackIdRef.value)];
       }
       return [];
     });

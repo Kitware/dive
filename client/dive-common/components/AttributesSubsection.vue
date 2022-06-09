@@ -10,7 +10,6 @@ import {
   useCameraStore,
   useTime,
   useReadOnlyMode,
-  useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
@@ -41,12 +40,11 @@ export default defineComponent({
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
-    const selectedCamera = useSelectedCamera();
     const activeSettings = ref(true);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return cameraStore.getTrack(selectedTrackIdRef.value, selectedCamera.value);
+        return cameraStore.getAnyTrack(selectedTrackIdRef.value);
       }
       return null;
     });
