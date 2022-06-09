@@ -163,6 +163,7 @@ def valid_image_names_dict(images: List[GirderModel]):
         imageNameMap[imageName] = i
     return imageNameMap
 
+
 def valid_large_images(
     folder: GirderModel,
     user: GirderUserModel,

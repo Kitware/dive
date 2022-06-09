@@ -19,10 +19,10 @@ from dive_utils.constants import (
     FPSMarker,
     ImageSequenceType,
     LargeImageType,
-    largeImageRegEx,
     TypeMarker,
     VideoType,
     imageRegex,
+    largeImageRegEx,
     videoRegex,
 )
 
