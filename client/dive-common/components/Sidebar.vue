@@ -8,6 +8,7 @@ import {
 
 import { FilterList, TrackList } from 'vue-media-annotator/components';
 import {
+  useCameraStore,
   useHandler, useReadOnlyMode, useTrackFilters, useTrackStyleManager,
 } from 'vue-media-annotator/provides';
 
@@ -42,6 +43,8 @@ export default defineComponent({
   setup() {
     const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
+    const cameraStore = useCameraStore();
+    const multiCam = cameraStore.camMap.size > 1;
     const { toggleMerge, commitMerge, groupAdd } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
@@ -71,7 +74,7 @@ export default defineComponent({
       const trap = [
         { bind: 'a', handler: swapTabs },
       ];
-      if (!readOnlyMode.value) {
+      if (!readOnlyMode.value && !multiCam) {
         trap.push(
           { bind: 'm', handler: doToggleMerge },
           { bind: 'g', handler: () => { groupAdd(); data.currentTab = 'attributes'; } },

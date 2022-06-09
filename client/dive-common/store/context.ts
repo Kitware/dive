@@ -31,10 +31,6 @@ const componentMap: Record<string, ComponentMapItem> = {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  // MultiCamTools: {
-  //   description: 'Multicam Tools',
-  //   component: MultiCamTools,
-  // },
   GroupSidebar: {
     description: 'Group Manager',
     component: GroupSidebar,
@@ -43,6 +39,12 @@ const componentMap: Record<string, ComponentMapItem> = {
 
 function register(item: ComponentMapItem) {
   componentMap[item.component.name] = item;
+}
+
+function unregister(item: ComponentMapItem) {
+  if (componentMap[item.component.name]) {
+    delete componentMap[item.component.name];
+  }
 }
 
 function getComponents() {
@@ -76,6 +78,7 @@ function toggle(active: string | null | undefined) {
 export default {
   toggle,
   register,
+  unregister,
   getComponents,
   componentMap,
   state,

@@ -44,6 +44,8 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
+import MultiCamToolsVue from './MultiCamTools.vue';
+import GroupSidebarVue from './GroupSidebar.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -325,7 +327,7 @@ export default defineComponent({
     function linkCameraTrack(baseTrack: AnnotationId, linkTrack: AnnotationId, camera: string) {
       cameraStore.camMap.forEach((subCamera, key) => {
         const { trackStore } = subCamera;
-        if (trackStore && trackStore.get(linkTrack) && key !== camera) {
+        if (trackStore && trackStore.getPossible(linkTrack) && key !== camera) {
           throw Error(`Attempting to link Track: ${linkTrack} to camera: ${camera} where there the track exists in another camera: ${key}`);
         }
       });
@@ -345,6 +347,7 @@ export default defineComponent({
       if (trackStore) {
         trackStore.insert(newTrack, { imported: false });
       }
+      handler.trackSelect(newTrack.id);
     }
     watch(linkingTrack, () => {
       if (linkingTrack.value !== null && selectedTrackId.value !== null) {
@@ -501,6 +504,8 @@ export default defineComponent({
           }
           // eslint-disable-next-line no-await-in-loop
           const subCameraMeta = await loadMetadata(cameraId);
+          datasetType.value = subCameraMeta.type as DatasetType;
+
           imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
@@ -539,6 +544,17 @@ export default defineComponent({
             cameraStore.removeCamera(key);
           }
         });
+        // If multiCam add Tools and remove group Tools
+        if (cameraStore.camMap.size > 1) {
+          context.register({
+            component: MultiCamToolsVue,
+            description: 'Multi Camera Tools',
+          });
+          context.unregister({
+            description: 'Group Manager',
+            component: GroupSidebarVue,
+          });
+        }
       } catch (err) {
         progress.loaded = false;
         console.error(err);
@@ -755,30 +771,6 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
           </template>
         </v-select>
-        <v-badge
-          v-if="multiCamList.length > 1"
-          overlap
-          bottom
-          right
-          color="clear"
-          class="pl-1"
-        >
-          <template v-slot:badge>
-            <v-icon>
-              mdi-cog
-            </v-icon>
-          </template>
-          <v-btn
-            icon
-            small
-            title="MultiCamera Settings"
-            @click="context.toggle('MultiCamTools')"
-          >
-            <v-icon>
-              mdi-camera
-            </v-icon>
-          </v-btn>
-        </v-badge>
         <v-divider
           vertical
           class="mx-2"

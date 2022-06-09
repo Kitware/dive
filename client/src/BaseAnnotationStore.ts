@@ -87,13 +87,21 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     return this.canary.value;
   }
 
-
   get(annotationId: AnnotationId) {
     const value = this.annotationMap.get(annotationId);
     if (value === undefined) {
       throw new Error(`Annotation ID ${annotationId} not found in annotationMap.`);
     }
     return value;
+  }
+
+
+  /**
+   * Some instances require returning the undefined value for checking purposes
+   * That requires setting the error value to false
+   */
+  getPossible(annotationId: AnnotationId) {
+    return this.annotationMap.get(annotationId);
   }
 
   getNewId() {

@@ -293,7 +293,7 @@ export default function useModeManager({
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const track = cameraStore.getTrack(selectedTrackId.value, selectedCamera.value);
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track && track.begin === track.end) {
         const features = track.getFeature(track.begin);
         // If no features exist we remove the empty track

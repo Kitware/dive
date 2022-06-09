@@ -85,7 +85,7 @@ export default class CameraStore {
     getAnyTrack(trackId: Readonly<AnnotationId>) {
       let track: Track | undefined;
       this.camMap.forEach((camera) => {
-        const tempTrack = camera.trackStore.get(trackId);
+        const tempTrack = camera.trackStore.getPossible(trackId);
         if (tempTrack) {
           track = tempTrack;
         }
@@ -100,7 +100,7 @@ export default class CameraStore {
         Track[] {
       const trackList: Track[] = [];
       this.camMap.forEach((camera) => {
-        const tempTrack = camera.trackStore.get(trackId);
+        const tempTrack = camera.trackStore.getPossible(trackId);
         if (tempTrack) {
           trackList.push(tempTrack);
         }
@@ -117,7 +117,7 @@ export default class CameraStore {
       }
       let track: Track | undefined;
       this.camMap.forEach((camera) => {
-        const tempTrack = camera.trackStore.get(trackId);
+        const tempTrack = camera.trackStore.getPossible(trackId);
         if (!track && tempTrack) {
           track = cloneDeep(tempTrack);
         } else if (track && tempTrack) {
@@ -165,7 +165,7 @@ export default class CameraStore {
 
     remove(trackId: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
-        if (camera.trackStore.get(trackId)) {
+        if (camera.trackStore.getPossible(trackId)) {
           if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
             camera.trackStore.remove(trackId);
           }
@@ -177,9 +177,9 @@ export default class CameraStore {
     }
 
     getNewTrackId() {
-      const trackIds: number[] = [];
+      let trackIds: number[] = [];
       this.camMap.forEach((camera) => {
-        trackIds.concat(camera.trackStore.annotationIds.value);
+        trackIds = trackIds.concat(camera.trackStore.annotationIds.value);
       });
       if (!trackIds.length) {
         return 0;
@@ -196,7 +196,7 @@ export default class CameraStore {
 
     removeTracks(id: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
-        if (camera.trackStore.get(id)) {
+        if (camera.trackStore.getPossible(id)) {
           if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
             camera.trackStore.remove(id);
           }
@@ -206,7 +206,7 @@ export default class CameraStore {
 
     removeGroups(id: AnnotationId, cameraName = '') {
       this.camMap.forEach((camera) => {
-        if (camera.groupStore.get(id)) {
+        if (camera.groupStore.getPossible(id)) {
           if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
             camera.groupStore.remove(id);
           }

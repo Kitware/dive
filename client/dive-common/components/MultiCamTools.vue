@@ -39,7 +39,7 @@ export default defineComponent({
       if (selectedTrackId.value !== null && selectedCamera.value
       && enabledTracksRef.value.length > 0) {
         cameraStore.camMap.forEach((camera, key) => {
-          const trackExists = camera.trackStore.get(selectedTrackId.value as AnnotationId);
+          const trackExists = camera.trackStore.getPossible(selectedTrackId.value as AnnotationId);
           const completeTrackExists = (!!trackExists && trackExists.features.length > 0);
           trackKeyPair[key] = {
             trackExists: completeTrackExists,

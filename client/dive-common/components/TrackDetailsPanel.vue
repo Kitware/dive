@@ -66,6 +66,7 @@ export default defineComponent({
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const allTypesRef = useTrackFilters().allTypes;
     const cameraStore = useCameraStore();
+    const multiCam = ref(cameraStore.camMap.size > 1);
     const selectedCamera = useSelectedCamera();
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
@@ -215,6 +216,7 @@ export default defineComponent({
       editingGroupIdRef,
       editingGroup,
       readOnlyMode,
+      multiCam,
       /* Attributes */
       attributes,
       /* Editing */
@@ -272,7 +274,9 @@ export default defineComponent({
           <li>Setting attributes on tracks and keyframes</li>
           <li>Merging several tracks together</li>
           <li>Viewing and managing class types and conficence values</li>
-          <li>Creating and editing track groups</li>
+          <li v-if="!multiCam">
+            Creating and editing track groups
+          </li>
         </ul>
       </p>
       <p>Select a track or group to populate this editor.</p>
@@ -285,7 +289,7 @@ export default defineComponent({
     </div>
     <template v-else>
       <div
-        v-if="editingGroup"
+        v-if="editingGroup && !multiCam"
         class="px-2"
       >
         <div class="d-flex">
@@ -378,14 +382,14 @@ export default defineComponent({
               @seek="$emit('track-seek', $event)"
             />
             <tooltip-btn
-              v-if="multiSelectInProgress"
+              v-if="multiSelectInProgress && !multiCam"
               icon="mdi-close"
               :tooltip-text="editingGroup ? 'Remove from group' : 'Remove from merge candidates'"
               :disabled="(editingGroup && selectedTrackList.length === 1) || readOnlyMode"
               @click="unstageFromMerge([track.trackId])"
             />
           </div>
-          <template v-if="editingGroup">
+          <template v-if="editingGroup && !multiCam">
             <RangeEditor
               v-for="(range, idx) in editingGroup.members[track.id].ranges"
               :key="`rangeEditor-${editingGroup.id}-${track.revision}-${idx}`"
@@ -414,7 +418,7 @@ export default defineComponent({
       </div>
       <div class="d-flex flex-column">
         <v-btn
-          v-if="!multiSelectInProgress"
+          v-if="!multiSelectInProgress && !multiCam"
           color="primary lighten-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode"
@@ -432,7 +436,7 @@ export default defineComponent({
           Begin Track Merge (m)
         </v-btn>
         <v-btn
-          v-if="!multiSelectInProgress"
+          v-if="!multiSelectInProgress && !multiCam"
           color="primary darken-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode"
