@@ -884,7 +884,7 @@ export default defineComponent({
             ref="controlsRef"
             class="shrink"
             :collapsed.sync="controlsCollapsed"
-            v-bind="{ lineChartData, eventChartData, datasetType }"
+            v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
             @select-track="handler.trackSelect"
           />
         </div>

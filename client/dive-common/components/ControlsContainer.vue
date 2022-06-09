@@ -11,6 +11,7 @@ import {
   LineChart,
   Timeline,
 } from 'vue-media-annotator/components';
+import { useCameraStore } from '../../src/provides';
 
 export default defineComponent({
   components: {
@@ -29,6 +30,10 @@ export default defineComponent({
       type: Object as PropType<unknown>,
       required: true,
     },
+    groupChartData: {
+      type: Object as PropType<unknown>,
+      required: true,
+    },
     datasetType: {
       type: String as PropType<DatasetType>,
       required: true,
@@ -41,11 +46,13 @@ export default defineComponent({
   setup(_, { emit }) {
     const currentView = ref('Detections');
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
+    const cameraStore = useCameraStore();
+    const multiCam = ref(cameraStore.camMap.size > 1);
     /**
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
      */
-    function toggleView(type: 'Detections' | 'Events') {
+    function toggleView(type: 'Detections' | 'Events' | 'Groups') {
       currentView.value = type;
       emit('update:collapsed', false);
     }
@@ -56,6 +63,7 @@ export default defineComponent({
       currentView,
       toggleView,
       maxFrame,
+      multiCam,
       frame,
       seek,
       volume,
@@ -75,7 +83,7 @@ export default defineComponent({
   >
     <Controls>
       <template slot="timelineControls">
-        <div style="min-width: 210px">
+        <div style="min-width: 270px">
           <v-tooltip
             open-delay="200"
             bottom
@@ -112,6 +120,18 @@ export default defineComponent({
             @click="toggleView('Events')"
           >
             Events
+          </v-btn>
+           <v-btn
+            v-if="!multiCam"
+            class="ml-2"
+            :class="{'timeline-button':currentView!=='Groups' || collapsed}"
+            depressed
+            :outlined="currentView==='Groups' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Groups')"
+          >
+            Groups
           </v-btn>
         </div>
       </template>
@@ -257,6 +277,16 @@ export default defineComponent({
           :client-width="clientWidth"
           :margin="margin"
           @select-track="$emit('select-track', $event)"
+        />
+        <event-chart
+          v-if="currentView==='Groups'"
+          :start-frame="startFrame"
+          :end-frame="endFrame"
+          :max-frame="childMaxFrame"
+          :data="groupChartData"
+          :client-width="clientWidth"
+          :margin="margin"
+          @select-track="$emit('select-group', $event)"
         />
       </template>
     </Timeline>
