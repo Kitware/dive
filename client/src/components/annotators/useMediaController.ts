@@ -146,8 +146,21 @@ export default function useMediaController() {
       geoViewerRef.value.center(coords);
     }
 
-    function initializeViewer(width: number, height: number, tileWidth: number,
-      tileHeight: number, isMap = false, geoSpatial = false) {
+    function initializeViewer(
+      width: number, height: number,
+      tileWidth: number | undefined = undefined,
+      tileHeight: number | undefined = undefined,
+      isMap = false,
+      geoSpatial = false,
+    ) {
+      if (tileHeight === undefined) {
+        // eslint-disable-next-line no-param-reassign
+        tileHeight = height;
+      }
+      if (tileWidth === undefined) {
+        // eslint-disable-next-line no-param-reassign
+        tileWidth = width;
+      }
       let params = geo.util.pixelCoordinateParams(
         containerRef.value, width, height, tileWidth, tileHeight,
       );
@@ -156,7 +169,7 @@ export default function useMediaController() {
       }
       geoViewerRef.value = geo.map(params.map);
       if (!isMap || !geoSpatial) {
-        //resetMapDimensions(width, height, isMap);
+        resetMapDimensions(width, height, isMap);
       }
       const interactorOpts = geoViewerRef.value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;

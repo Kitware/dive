@@ -27,6 +27,7 @@ interface FrameOptions {
 }
 
 interface Status {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tileinfo: any; //metadata associated with a tile
   options: FrameOptions;
   images: HTMLImageElement[];
@@ -80,6 +81,7 @@ interface Quad {
 }
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function setFrameQuad(itemId: string, tileinfo: any, layer: any, options = defaultOptions) {
   if (!tileinfo || !tileinfo.sizeX || !tileinfo.sizeY || !options) {
     return;
@@ -103,7 +105,6 @@ async function setFrameQuad(itemId: string, tileinfo: any, layer: any, options =
   };
   const qiOptions = { ...options };
   const data = await getTileFrames(itemId, qiOptions);
-  console.log(data);
   status.quads = data.quads;
   status.frames = data.frames;
   status.framesToIdx = data.framesToIdx;
@@ -161,6 +162,7 @@ async function setFrameQuad(itemId: string, tileinfo: any, layer: any, options =
     } catch (err) {}
   }
 
+  // eslint-disable-next-line func-names
   layer.setFrameQuad = function (frame: number) {
     if (status.framesToIdx[frame] !== undefined && status.loaded) {
       layer.baseQuad = { ...status.quads[status.framesToIdx[frame]] };

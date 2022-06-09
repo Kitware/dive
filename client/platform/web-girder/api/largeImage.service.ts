@@ -14,6 +14,7 @@ async function getTiles(itemId: string, projection = '') {
   return data;
 }
 function getTileURL(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   itemId: string, x: number, y: number, level: number, query: Record<string, any>,
 ) {
   let url = `${girderRest.apiRoot}/item/${itemId}/tiles/zxy/${level}/${x}/${y}`;
@@ -24,6 +25,7 @@ function getTileURL(
   return url;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getTileFrames(itemId: string, options: any) {
   const { data } = await girderRest.get(`/item/${itemId}/tiles/tile_frames/quad_info`, options);
   return data;

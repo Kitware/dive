@@ -2,7 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
-import { getTileURL, getTiles, getTilesMetadata } from 'platform/web-girder/api/largeImage.service';
+import { getTileURL, getTiles } from 'platform/web-girder/api/largeImage.service';
 import setFrameQuad from 'dive-common/use/setFrameQuad';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
@@ -61,6 +61,7 @@ export default defineComponent({
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const commonMedia = useMediaController();
+    let geoSpatial = false;
     const { data } = commonMedia;
     let projection: string | undefined;
 
@@ -94,6 +95,7 @@ export default defineComponent({
       local.pendingImgs.delete(imgInternal);
     }
     function _getTileURL(itemId: string, proj?: string) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const returnFunc = (level: number, x: number, y: number, params: any) => {
         const updatedParams = { ...params, encoding: 'PNG' };
         if (proj) {
@@ -123,29 +125,24 @@ export default defineComponent({
         return;
       }
       props.updateTime(data);
-      commonMedia.geoViewerRef.value.onIdle(async () => {
-        local.currentLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
-
-        console.log(`Setting props to now frame ${newFrame}`);
-        //await setFrameQuad(props.imageData[newFrame].id, local.metadata, local.currentLayer);
-        //local.currentLayer.setFrameQuad(0);
-
-        // commonMedia.geoViewerRef.value.onIdle(() => {
-        //   if (local && local.imgs !== undefined && props.imageData[newFrame]) {
-        //     local.currentLayer.moveDown();
-        //     const ltemp = local.currentLayer;
-        //     local.currentLayer = local.nextLayer;
-        //     local.nextLayer = ltemp;
-        //     if (local.imgs[newFrame + 1]) {
-        //       local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id));
-        //       local.nextLayer.prefetch(
-        //         Math.round(commonMedia.geoViewerRef.value.zoom()),
-        //         commonMedia.geoViewerRef.value.bounds(),
-        //       );
-        //     }
-        //   }
-        // });
-      });
+      if (local.nextLayer) {
+        commonMedia.geoViewerRef.value.onIdle(async () => {
+          local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
+          commonMedia.geoViewerRef.value.onIdle(() => {
+            local.currentLayer.moveDown();
+            const ltemp = local.currentLayer;
+            local.currentLayer = local.nextLayer;
+            local.nextLayer = ltemp;
+            if (props.imageData[newFrame + 1]) {
+              local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
+              local.nextLayer.prefetch(
+                Math.round(commonMedia.geoViewerRef.value.zoom()),
+                commonMedia.geoViewerRef.value.bounds(),
+              );
+            }
+          });
+        });
+      }
     }
     function pause() {
       data.playing = false;
@@ -199,12 +196,12 @@ export default defineComponent({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         currentLayer: '' as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        nextLayer: '' as any,
+        nextLayer: false as any,
       };
       const baseData = await getTiles(props.imageData[data.frame].id);
-      const geoSpatial = !(!baseData.geospatial || !baseData.bounds);
+      // If you set the below to True for geospatial it will create a map and place it on the map.
+      geoSpatial = !(!baseData.geospatial || !baseData.bounds) && false;
       projection = geoSpatial ? 'EPSG:3857' : undefined;
-      console.log(`geoSpatial: ${geoSpatial} projection: ${projection}`);
       const resp = await getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
       local.width = resp.sizeX;
@@ -220,7 +217,6 @@ export default defineComponent({
       };
 
       if (props.imageData.length) {
-        console.log(`geoSpatial: ${geoSpatial} projection: ${projection}`);
         if (geoSpatial) {
           initializeViewer(local.metadata.sourceSizeX, local.metadata.sourceSizeY,
             local.metadata.tileWidth, local.metadata.tileHeight,
@@ -262,6 +258,14 @@ export default defineComponent({
             local.currentLayer.setFrameQuad(0);
           }
         }
+        if (!local.nextLayer && props.imageData.length > 1) {
+          localParams.url = _getTileURL(props.imageData[data.frame + 1].id, projection);
+          local.nextLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
+          local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
+          local.nextLayer.moveDown();
+        }
+
+
         local.currentLayer.url(
           _getTileURL(props.imageData[data.frame].id,
             projection),
