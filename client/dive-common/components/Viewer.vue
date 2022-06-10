@@ -273,7 +273,7 @@ export default defineComponent({
         }
         const wasEditing = editingTrack.value;
         handler.trackSelect(null);
-        const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+        const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
         if (trackStore) {
           trackStore.remove(trackId);
           trackStore.insert(newtracks[0]);
@@ -282,7 +282,7 @@ export default defineComponent({
         if (groups.length) {
           // If the track belonged to groups, add the new tracks
           // to the same groups the old tracks belonged to.
-          const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+          const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
           if (groupStore) {
             groupStore.trackRemove(trackId);
             groups.forEach((group) => {
@@ -312,7 +312,7 @@ export default defineComponent({
         attributes: track.attributes,
       });
       handler.removeTrack([trackId], true, camera);
-      const trackStore = cameraStore.camMap.get(camera)?.trackStore;
+      const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
       if (trackStore) {
         trackStore.insert(newTrack, { imported: false });
       }
@@ -325,7 +325,7 @@ export default defineComponent({
      * Also requires that the mergeTrack isn't a track across multiple cameras.
      */
     function linkCameraTrack(baseTrack: AnnotationId, linkTrack: AnnotationId, camera: string) {
-      cameraStore.camMap.forEach((subCamera, key) => {
+      cameraStore.camMap.value.forEach((subCamera, key) => {
         const { trackStore } = subCamera;
         if (trackStore && trackStore.getPossible(linkTrack) && key !== camera) {
           throw Error(`Attempting to link Track: ${linkTrack} to camera: ${camera} where there the track exists in another camera: ${key}`);
@@ -343,7 +343,7 @@ export default defineComponent({
         confidencePairs: selectedTrack.confidencePairs,
         attributes: track.attributes,
       });
-      const trackStore = cameraStore.camMap.get(camera)?.trackStore;
+      const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
       if (trackStore) {
         trackStore.insert(newTrack, { imported: false });
       }
@@ -515,8 +515,8 @@ export default defineComponent({
           // eslint-disable-next-line no-await-in-loop
           const { tracks, groups } = await loadDetections(cameraId, props.revision);
           progress.total = tracks.length + groups.length;
-          const trackStore = cameraStore.camMap.get(camera)?.trackStore;
-          const groupStore = cameraStore.camMap.get(camera)?.groupStore;
+          const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
+          const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
           if (trackStore && groupStore) {
             for (let j = 0; j < tracks.length; j += 1) {
               if (j % 4000 === 0) {
@@ -539,13 +539,13 @@ export default defineComponent({
           }
         }
         progress.loaded = true;
-        cameraStore.camMap.forEach((_cam, key) => {
+        cameraStore.camMap.value.forEach((_cam, key) => {
           if (!multiCamList.value.includes(key)) {
             cameraStore.removeCamera(key);
           }
         });
         // If multiCam add Tools and remove group Tools
-        if (cameraStore.camMap.size > 1) {
+        if (cameraStore.camMap.value.size > 1) {
           context.unregister({
             description: 'Group Manager',
             component: GroupSidebarVue,

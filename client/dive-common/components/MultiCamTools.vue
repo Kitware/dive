@@ -24,7 +24,7 @@ export default defineComponent({
     const { frame } = useTime();
     const selectedTrackId = useSelectedTrackId();
     const cameraStore = useCameraStore();
-    const cameras = computed(() => [...cameraStore.camMap.keys()]);
+    const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     const canary = ref(false);
     function _depend(): boolean {
       return canary.value;
@@ -38,7 +38,7 @@ export default defineComponent({
       */
       if (selectedTrackId.value !== null && selectedCamera.value
       && enabledTracksRef.value.length > 0) {
-        cameraStore.camMap.forEach((camera, key) => {
+        cameraStore.camMap.value.forEach((camera, key) => {
           const trackExists = camera.trackStore.getPossible(selectedTrackId.value as AnnotationId);
           const completeTrackExists = (!!trackExists && trackExists.features.length > 0);
           trackKeyPair[key] = {

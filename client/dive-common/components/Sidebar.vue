@@ -44,7 +44,7 @@ export default defineComponent({
     const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
-    const multiCam = cameraStore.camMap.size > 1;
+    const multiCam = cameraStore.camMap.value.size > 1;
     const { toggleMerge, commitMerge, groupAdd } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');

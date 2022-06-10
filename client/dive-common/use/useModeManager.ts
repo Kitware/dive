@@ -252,7 +252,7 @@ export default function useModeManager({
        */
       if (editingGroupId.value !== null && !edit) {
         const track = cameraStore.getAnyTrack(trackId);
-        const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+        const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
         if (groupStore) {
           groupStore.get(editingGroupId.value).addMembers({
             [trackId]: { ranges: [[track.begin, track.end]] },
@@ -280,7 +280,7 @@ export default function useModeManager({
     editingGroupId.value = groupId;
     if (groupId !== null) {
       /** When moving into a group edit mode, multi-select all track members */
-      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
       if (groupStore) {
         const group = groupStore.get(groupId);
         multiSelectList.value = group.memberIds;
@@ -298,7 +298,7 @@ export default function useModeManager({
         const features = track.getFeature(track.begin);
         // If no features exist we remove the empty track
         if (!features.filter((item) => item !== null).length) {
-          const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+          const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
           if (trackStore) {
             trackStore.remove(selectedTrackId.value);
           }
@@ -323,7 +323,7 @@ export default function useModeManager({
       // eslint-disable-next-line prefer-destructuring
       trackType = track.confidencePairs[0][0];
     }
-    const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
+    const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     if (trackStore) {
       const newTrackId = trackStore.add(
         frame.value, trackType,
@@ -550,7 +550,7 @@ export default function useModeManager({
     }
     /** Remove members from group if group editing */
     if (editingGroupId.value !== null) {
-      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
       if (groupStore) {
         const group = groupStore.annotationMap.get(editingGroupId.value);
         if (group) group.removeMembers(trackIds);
@@ -686,7 +686,7 @@ export default function useModeManager({
   function handleStartLinking(camera: string) {
     if (!linkingState.value && selectedTrackId.value !== null) {
       linkingState.value = true;
-      if (cameraStore.camMap.has(camera)) {
+      if (cameraStore.camMap.value.has(camera)) {
         linkingCamera.value = camera;
       } else {
         throw Error(`Camera: ${camera} does not exist in the system for linking`);
@@ -708,7 +708,7 @@ export default function useModeManager({
   function handleAddGroup() {
     if (selectedTrackId.value !== null) {
       const members = [cameraStore.getTrack(selectedTrackId.value, selectedCamera.value)];
-      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
       if (groupStore) {
         const newGrp = groupStore.add(members, groupSettings.value.newGroupSettings.type);
         handleGroupEdit(newGrp.id);
@@ -721,7 +721,7 @@ export default function useModeManager({
    */
   function handleRemoveGroup(ids: AnnotationId[]) {
     ids.forEach((groupId) => {
-      const groupStore = cameraStore.camMap.get(selectedCamera.value)?.groupStore;
+      const groupStore = cameraStore.camMap.value.get(selectedCamera.value)?.groupStore;
       if (groupStore) {
         groupStore.remove(groupId);
       }

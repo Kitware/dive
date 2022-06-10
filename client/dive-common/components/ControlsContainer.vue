@@ -47,7 +47,7 @@ export default defineComponent({
     const currentView = ref('Detections');
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
     const cameraStore = useCameraStore();
-    const multiCam = ref(cameraStore.camMap.size > 1);
+    const multiCam = ref(cameraStore.camMap.value.size > 1);
     /**
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
