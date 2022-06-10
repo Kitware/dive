@@ -121,7 +121,7 @@ export default defineComponent({
           >
             Events
           </v-btn>
-           <v-btn
+          <v-btn
             v-if="!multiCam"
             class="ml-2"
             :class="{'timeline-button':currentView!=='Groups' || collapsed}"

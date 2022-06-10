@@ -412,15 +412,15 @@ export default defineComponent({
     }
 
     const selectCamera = async (camera: string, editMode = false) => {
-      // if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
-      //   await prompt({
-      //     title: 'In Linking Mode',
-      //     text: 'Currently in Linking Mode, please hit OK and Escape to exit
-      //     Linking mode or choose another Track in the highlighted Camera to Link',
-      //     positiveButton: 'OK',
-      //   });
-      //   return;
-      // }
+      if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
+        await prompt({
+          title: 'In Linking Mode',
+          text: ['Currently in Linking Mode, please hit OK and Escape to exit',
+            'Linking mode or choose another Track in the highlighted Camera to Link'],
+          positiveButton: 'OK',
+        });
+        return;
+      }
       // EditTrack is set false by the LayerMap before executing this
       if (selectedTrackId.value !== null) {
         // If we had a track selected and it still exists with
@@ -432,7 +432,7 @@ export default defineComponent({
       }
       selectedCamera.value = camera;
       /**
-       * Enters edit mode if not track exists for the camera and forcing edit mode
+       * Enters edit mode if no track exists for the camera and forcing edit mode
        * or if a track exists and are alrady in edit mode we don't set it again
        * Remember trackEdit(number) is a toggle for editing mode
        */

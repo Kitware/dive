@@ -247,10 +247,7 @@ export default defineComponent({
       if (selectedTrackId !== null) {
         if ((editingTrack) && !currentFrameIds.includes(selectedTrackId)
         && props.camera === selectedCamera.value) {
-          const editTrack = trackStore?.get(selectedTrackId);
-          // const enabledIndex = enabledTracks.findIndex(
-          //   (trackWithContext) => trackWithContext.annotation.id === editTrack.id,
-          // );
+          const editTrack = trackStore?.getPossible(selectedTrackId);
           if (editTrack === undefined) {
             throw new Error(`trackMap missing trackid ${selectedTrackId}`);
           }
