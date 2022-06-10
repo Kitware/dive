@@ -4,6 +4,7 @@ import Vue, { VueConstructor } from 'vue';
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
+import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);
 
@@ -34,6 +35,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   GroupSidebar: {
     description: 'Group Manager',
     component: GroupSidebar,
+  },
+  MultiCamTools: {
+    description: 'Multi Camera Tools',
+    component: MultiCamTools,
   },
 };
 

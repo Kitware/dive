@@ -44,8 +44,8 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
-import MultiCamToolsVue from './MultiCamTools.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
+import MultiCamToolsVue from './MultiCamTools.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -546,13 +546,14 @@ export default defineComponent({
         });
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.size > 1) {
-          context.register({
-            component: MultiCamToolsVue,
-            description: 'Multi Camera Tools',
-          });
           context.unregister({
             description: 'Group Manager',
             component: GroupSidebarVue,
+          });
+        } else {
+          context.unregister({
+            component: MultiCamToolsVue,
+            description: 'Multi Camera Tools',
           });
         }
       } catch (err) {
