@@ -30,7 +30,12 @@ function runTraining(
   });
 }
 
+function convertLargeImage(folderId: string) {
+  return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
+}
+
 export {
+  convertLargeImage,
   postProcess,
   runPipeline,
   runTraining,

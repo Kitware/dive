@@ -7,9 +7,10 @@ import {
   Pipe,
   useApi,
   SubType,
+  DatasetType,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import { stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
+import { stereoPipelineMarker, multiCamPipelineMarkers, LargeImageType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
@@ -29,6 +30,11 @@ export default defineComponent({
     menuOptions: {
       type: Object,
       default: () => ({}),
+    },
+    /* Disable pipelines for large-image type */
+    typeList: {
+      type: Array as PropType<DatasetType[]>,
+      default: () => ([]),
     },
     /* Which pipelines to show based on dataset subtypes */
     subTypeList: {
@@ -60,6 +66,8 @@ export default defineComponent({
       reset: dismissLaunchDialog,
       state: jobState,
     } = useRequest();
+
+    const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
 
     const successMessage = computed(() => (
       `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
@@ -142,6 +150,7 @@ export default defineComponent({
       jobState,
       pipelines,
       pipelinesNotRunnable,
+      includesLargeImage,
       successMessage,
       dismissLaunchDialog,
       pipeTypeDisplay,
@@ -228,6 +237,12 @@ export default defineComponent({
           <v-card-title> Read only Mode</v-card-title>
           <v-card-text>
             This Dataset is in ReadOnly Mode.  You cannot run pipelines on this dataset.
+          </v-card-text>
+        </v-card>
+        <v-card v-else-if="includesLargeImage">
+          <v-card-title> Large Image</v-card-title>
+          <v-card-text>
+            Pipelines are not supported yet for Large Images.
           </v-card-text>
         </v-card>
         <v-card

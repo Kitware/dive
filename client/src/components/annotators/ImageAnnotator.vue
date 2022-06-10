@@ -53,7 +53,7 @@ export default defineComponent({
     },
   },
 
-  setup(props) {
+  setup(props, ctx) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const commonMedia = useMediaController();
@@ -106,6 +106,10 @@ export default defineComponent({
     function drawImage(img: HTMLImageElement) {
       if (!data.ready) {
         return;
+      }
+      if (img.naturalHeight > 8192 || img.naturalWidth > 8192) {
+        // Warn about large images and conversion if possible
+        ctx.emit('large-image-warning', true);
       }
       if (
         img.naturalWidth > 0

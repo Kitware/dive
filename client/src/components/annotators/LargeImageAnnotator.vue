@@ -3,7 +3,6 @@ import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
 import { getTileURL, getTiles } from 'platform/web-girder/api/largeImage.service';
-import setFrameQuad from 'dive-common/use/setFrameQuad';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import useMediaController from './useMediaController';
@@ -61,6 +60,7 @@ export default defineComponent({
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const commonMedia = useMediaController();
+    // eslint-disable-next-line prefer-const
     let geoSpatial = false;
     const { data } = commonMedia;
     let projection: string | undefined;
@@ -125,14 +125,17 @@ export default defineComponent({
         return;
       }
       props.updateTime(data);
+      // For faster swapping between loaded large images we swap two layers.
       if (local.nextLayer) {
         commonMedia.geoViewerRef.value.onIdle(async () => {
           local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
           commonMedia.geoViewerRef.value.onIdle(() => {
+            // Move the current layer down and set the next layer to the current layer.
             local.currentLayer.moveDown();
             const ltemp = local.currentLayer;
             local.currentLayer = local.nextLayer;
             local.nextLayer = ltemp;
+            // If there is another frame we begin loading it with the current position/zoom level
             if (props.imageData[newFrame + 1]) {
               local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
               local.nextLayer.prefetch(
@@ -198,9 +201,9 @@ export default defineComponent({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nextLayer: false as any,
       };
-      const baseData = await getTiles(props.imageData[data.frame].id);
-      // If you set the below to True for geospatial it will create a map and place it on the map.
-      geoSpatial = !(!baseData.geospatial || !baseData.bounds) && false;
+      // If you uncomment below it will load the geoSpatial coordinates and a OSM layer map
+      //const baseData = await getTiles(props.imageData[data.frame].id);
+      //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
       const resp = await getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
@@ -224,6 +227,7 @@ export default defineComponent({
         } else {
           initializeViewer(local.width, local.height,
             local.metadata.tileWidth, local.metadata.tileHeight, true, geoSpatial);
+          // Need to set up the params using pixelCoorindateParams here instead of in useMediaViewer
           local.params = geo.util.pixelCoordinateParams(
             commonMedia.containerRef.value, local.width, local.height,
             local.metadata.tileWidth, local.metadata.tileHeight,
@@ -246,18 +250,15 @@ export default defineComponent({
             max: commonMedia.geoViewerRef.value.zoomRange().max + 3,
           });
         }
+        // Set to canvas mode if the tiles are larger than the largest texture
         if (local.metadata.tileWidth > 8192 || local.metadata.tileWidth > 8192) {
           local.params.renderer = 'canvas';
         }
 
+        // Params are differnt between geoSpatial and non
         const localParams = geoSpatial ? local.params : local.params.layer;
         local.currentLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
-        if (!geoSpatial) {
-          if (local.metadata.frames && local.metadata.frames.length > 1) {
-            await setFrameQuad(props.imageData[data.frame].id, local.metadata, local.currentLayer);
-            local.currentLayer.setFrameQuad(0);
-          }
-        }
+        // Set the next layer to pre load
         if (!local.nextLayer && props.imageData.length > 1) {
           localParams.url = _getTileURL(props.imageData[data.frame + 1].id, projection);
           local.nextLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
@@ -265,23 +266,14 @@ export default defineComponent({
           local.nextLayer.moveDown();
         }
 
-
         local.currentLayer.url(
           _getTileURL(props.imageData[data.frame].id,
             projection),
         );
-
-
         // Set quadFeature and conditionally apply brightness filter
         setBrightnessFilter(props.brightness !== undefined);
-        // if (!local.nextLayer) {
-        //   local.nextLayer = commonMedia.geoViewerRef.value.createLayer('osm', local.params);
-        //   local.nextLayer.url(_getTileURL(props.imageData[data.frame].id));
-        //   local.nextLayer.moveDown();
-        // }
 
         data.ready = true;
-        //seek(0);
         loadingVideo.value = false;
         loadingImage.value = false;
       }

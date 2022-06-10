@@ -173,7 +173,7 @@ def valid_large_images(
     """
     images = Folder().childItems(
         getCloneRoot(user, folder),
-        filters={"lowerName": {"$regex": constants.largeImageRegEx}},
+        filters={"lowerName": {"$regex": constants.allLargeImageRegEx}},
     )
 
     def unwrapItem(item1, item2):

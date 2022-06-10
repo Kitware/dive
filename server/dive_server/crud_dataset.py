@@ -114,7 +114,7 @@ def get_media(
     imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
-
+    print(f'Source Type: {source_type}')
     if source_type == constants.VideoType:
         # Find a video tagged with an h264 codec left by the transcoder
         videoItem = Item().findOne(

@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -11,6 +11,8 @@ import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useApi } from 'dive-common/apispec';
+import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -73,6 +75,7 @@ export default defineComponent({
   },
 
   setup(props, ctx) {
+    const { loadMetadata } = useApi();
     const { prompt } = usePrompt();
     const viewerRef = ref();
     const store = useStore();
@@ -84,6 +87,14 @@ export default defineComponent({
     });
     const { getters } = store;
     const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+
+    const typeList: Ref<string[]> = ref([]);
+
+    const findType = async () => {
+      const meta = await loadMetadata(props.id);
+      typeList.value = [meta.type];
+    };
+    findType();
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (getters['Jobs/datasetRunningState'](props.id)) {
@@ -140,6 +151,23 @@ export default defineComponent({
       });
     }
 
+    async function largeImageWarning() {
+      const result = await prompt({
+        title: 'Large Image Warning',
+        text: ['The current Image Sequence dataset has a large resolution',
+          'This may prevent the image from being shown on certain hardware/browsers',
+          'This can be automatically converted to a tiled Large Image for proper viewing',
+        ],
+        confirm: true,
+        positiveButton: 'Convert',
+        negativeButton: 'Cancel',
+
+      });
+      if (result) {
+        convertLargeImage(props.id);
+      }
+    }
+
     return {
       buttonOptions,
       brandData,
@@ -151,6 +179,8 @@ export default defineComponent({
       currentJob,
       runningPipelines,
       routeRevision,
+      largeImageWarning,
+      typeList,
     };
   },
 });
@@ -163,6 +193,7 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    @large-image-warning="largeImageWarning()"
   >
     <template #title>
       <ViewerAlert />
@@ -182,7 +213,7 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        v-bind="{ buttonOptions, menuOptions }"
+        v-bind="{ buttonOptions, menuOptions, typeList }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"

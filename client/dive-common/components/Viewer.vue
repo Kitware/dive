@@ -675,6 +675,7 @@ export default defineComponent({
                     originalFps, brightness, intercept,
           }"
           class="playback-component"
+          @large-image-warning="$emit('large-image-warning', true)"
         >
           <template slot="control">
             <controls-container
