@@ -143,7 +143,7 @@ export default defineComponent({
             small
             :color="mediaController.lockedCamera.value ? 'primary': 'default'"
             title="center camera on selected track"
-            @click="mediaController.toggleLockedCamera()"
+            @click="mediaController.toggleLockedCamera"
           >
             <v-icon>
               {{ mediaController.lockedCamera.value ? 'mdi-lock-check' : 'mdi-lock-open' }}

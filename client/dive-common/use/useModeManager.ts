@@ -315,6 +315,10 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
+    if (overrideTrackId === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      overrideTrackId = cameraStore.getNewTrackId();
+    }
     handleEscapeMode();
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
@@ -328,7 +332,7 @@ export default function useModeManager({
       const newTrackId = trackStore.add(
         frame.value, trackType,
         selectedTrackId.value || undefined,
-        overrideTrackId ?? undefined,
+        overrideTrackId,
       ).trackId;
       selectTrack(newTrackId, true);
       creating = true;
@@ -351,7 +355,7 @@ export default function useModeManager({
         } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
             trackSettings.value.newTrackSettings.modeSettings.Detection.continuous) {
-            handleAddTrackOrDetection();
+            handleAddTrackOrDetection(cameraStore.getNewTrackId());
             newCreatingValue = true; // don't disable creating mode
           }
         }

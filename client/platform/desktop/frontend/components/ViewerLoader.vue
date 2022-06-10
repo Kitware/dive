@@ -55,7 +55,7 @@ export default defineComponent({
           const result = await prompt({
             title: 'Pipeline Finished',
             text: [`Pipeline: ${currentJob.job.title}`,
-              'finished running sucesffully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
+              'finished running successfully on the current dataset.  Click reload to load the annotations.  The current annotations will be replaced with the pipeline output.',
             ],
             confirm: true,
             positiveButton: 'Reload',

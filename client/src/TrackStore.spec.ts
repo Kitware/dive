@@ -8,8 +8,8 @@ Vue.use(CompositionApi);
 describe('TrackStore', () => {
   it('can add and remove tracks', () => {
     const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
-    const t0 = ts.add(20, 'foo');
-    const t1 = ts.add(10, 'foo');
+    const t0 = ts.add(20, 'foo', undefined, ts.getNewId());
+    const t1 = ts.add(10, 'foo', undefined, ts.getNewId());
     expect(Array.from(ts.annotationMap.keys()).length).toBe(2);
     expect(ts.sorted.value[0].trackId).toBe(1);
     expect(ts.intervalTree.search([10, 10]).length).toBe(1);
@@ -30,8 +30,8 @@ describe('TrackStore', () => {
 
   it('can insert and delete single-frame detections', () => {
     const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
-    ts.add(0, 'foo');
-    const t1 = ts.add(0, 'bar');
+    ts.add(0, 'foo', undefined, ts.getNewId());
+    const t1 = ts.add(0, 'bar', undefined, ts.getNewId());
     expect(Array.from(ts.annotationMap.keys()).length).toBe(2);
 
     ts.remove(t1.trackId);
@@ -43,7 +43,7 @@ describe('TrackStore', () => {
     let didCall = false;
     const markChangesPending = () => { didCall = true; };
     const ts = new TrackStore({ markChangesPending, cameraName: 'singleCam' });
-    ts.add(0, 'foo');
+    ts.add(0, 'foo', undefined, ts.getNewId());
     expect(didCall).toEqual(true);
   });
 
@@ -51,13 +51,13 @@ describe('TrackStore', () => {
     const markChangesPending = () => null;
     const ts = new TrackStore({ markChangesPending, cameraName: 'singleCam' });
     expect(() => ts.get(0)).toThrow('Annotation ID 0 not found in annotationMap.');
-    ts.add(1000, 'foo');
+    ts.add(1000, 'foo', undefined, ts.getNewId());
     expect(ts.get(0)).toBeTruthy();
   });
 
   it('updates a reactive list when member tracks change', async () => {
     const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
-    const track = ts.add(0, 'foo');
+    const track = ts.add(0, 'foo', undefined, ts.getNewId());
 
     let called = false;
 

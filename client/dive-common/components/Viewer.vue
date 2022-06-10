@@ -140,6 +140,7 @@ export default defineComponent({
       discardChanges,
       pendingSaveCount,
       addCamera: addSaveCamera,
+      removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
 
     const {
@@ -542,6 +543,7 @@ export default defineComponent({
         cameraStore.camMap.forEach((_cam, key) => {
           if (!multiCamList.value.includes(key)) {
             cameraStore.removeCamera(key);
+            removeSaveCamera(key);
           }
         });
         // If multiCam add Tools and remove group Tools

@@ -177,11 +177,18 @@ export default function useSave(
     };
   }
 
+  function removeCamera(cameraName: string) {
+    if (pendingChangeMaps[cameraName]) {
+      delete pendingChangeMaps[cameraName];
+    }
+  }
+
   return {
     save,
     markChangesPending,
     discardChanges,
     pendingSaveCount: readonly(pendingSaveCount),
     addCamera,
+    removeCamera,
   };
 }

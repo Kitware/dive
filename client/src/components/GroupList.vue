@@ -46,11 +46,11 @@ export default defineComponent({
     const groupStoreRef = computed(() => cameraStore.camMap.get(selectedCamera.value)?.groupStore);
     const getAnnotation = (id: AnnotationId) => {
       if (!groupStoreRef.value) {
-        throw Error(`Could not find groupStore for Camea: ${selectedCamera.value}`);
+        throw Error(`Could not find groupStore for Camera: ${selectedCamera.value}`);
       }
       const group = groupStoreRef.value.get(id);
       if (!group) {
-        throw Error(`Group ID: ${id} did not exist for Camea: ${selectedCamera.value}`);
+        throw Error(`Group ID: ${id} did not exist for Camera: ${selectedCamera.value}`);
       }
       return group;
     };
