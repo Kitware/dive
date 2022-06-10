@@ -315,10 +315,6 @@ export default function useModeManager({
 
   function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
     // Handles adding a new track with the NewTrack Settings
-    if (overrideTrackId === undefined) {
-      // eslint-disable-next-line no-param-reassign
-      overrideTrackId = cameraStore.getNewTrackId();
-    }
     handleEscapeMode();
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
@@ -326,6 +322,9 @@ export default function useModeManager({
       const track = cameraStore.getAnyTrack(overrideTrackId);
       // eslint-disable-next-line prefer-destructuring
       trackType = track.confidencePairs[0][0];
+    } else {
+      // eslint-disable-next-line no-param-reassign
+      overrideTrackId = cameraStore.getNewTrackId();
     }
     const trackStore = cameraStore.camMap.get(selectedCamera.value)?.trackStore;
     if (trackStore) {

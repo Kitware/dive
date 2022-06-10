@@ -26,6 +26,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
         .map((v) => v.annotation.id));
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Track>[] = [];
+      const resultsIds: Set<AnnotationId> = new Set();
       params.sorted.value.forEach((annotation) => {
         let enabledInGroupFilters = true;
         const groups = params.lookupGroups(annotation.id);
@@ -48,8 +49,9 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
          * the threshold and part of the checked type set */
         if (
           (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0)
-          && enabledInGroupFilters
+          && enabledInGroupFilters && !resultsIds.has(annotation.id)
         ) {
+          resultsIds.add(annotation.id);
           resultsArr.push({
             annotation,
             context: {
