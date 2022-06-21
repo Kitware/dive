@@ -87,7 +87,13 @@ export default defineComponent({
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const runningPipelines = computed(() => {
       const results: string[] = [];
-      if (runningJobs.value.find((item) => item.job.datasetIds.includes(props.id))) {
+      // Check if any running job contains the root props.id
+      // for multicam this is why we use the reduce to check each id
+      if (runningJobs.value.find(
+        (item) => item.job.datasetIds.reduce(
+          (prev: boolean, current) => (current.includes(props.id) && prev), true,
+        ),
+      )) {
         results.push(props.id);
       }
       return results;

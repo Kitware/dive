@@ -147,7 +147,7 @@ export default function useModeManager({
     if (editingMode.value && selectedTrackId.value !== null) {
       const { frame } = aggregateController.value;
       try {
-        const track = cameraStore.getPossibleTrack(selectedTrackId.value);
+        const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
         if (track) {
           const [feature] = track.getFeature(frame.value);
           if (feature) {

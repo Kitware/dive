@@ -40,12 +40,13 @@ export default defineComponent({
       && enabledTracksRef.value.length > 0) {
         cameraStore.camMap.value.forEach((camera, key) => {
           const trackExists = camera.trackStore.getPossible(selectedTrackId.value as AnnotationId);
-          const completeTrackExists = (!!trackExists && trackExists.features.length > 0);
+          const completeTrackExists = (trackExists !== undefined
+          && trackExists.features.length > 0);
           trackKeyPair[key] = {
             trackExists: completeTrackExists,
-            annotationExists: completeTrackExists && !!camera.trackStore.get(
+            annotationExists: completeTrackExists && camera.trackStore.get(
                 selectedTrackId.value as AnnotationId,
-            )?.getFeature(frame.value),
+            )?.getFeature(frame.value)[0] !== null,
           };
         });
       }
@@ -176,7 +177,7 @@ export default defineComponent({
             <tooltip-btn
               v-else-if="!tracks[camera].trackExists"
               icon="mdi-link-variant-plus"
-              :tooltip-text="`Add Track to this camera: ${camera}`"
+              :tooltip-text="`Link Track to this camera: ${camera}`"
               @click="startLinking(camera)"
             />
           </v-row>

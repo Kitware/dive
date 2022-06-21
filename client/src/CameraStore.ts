@@ -1,7 +1,7 @@
 import {
   Ref, computed, shallowRef, triggerRef,
 } from '@vue/composition-api';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import type Track from './track';
 import type Group from './Group';
 import { AnnotationId } from './BaseAnnotation';
@@ -9,6 +9,12 @@ import { MarkChangesPending } from './BaseAnnotationStore';
 import GroupStore from './GroupStore';
 import TrackStore from './TrackStore';
 
+/**
+ * CameraStore is a warapper for holding and collating tracks from multiple cameras.
+ * If a singleCamera is in operation it uses the root 'singleCam' with a single store.
+ * There are helper functions for getting tracks if they exist in any camera, specific
+ * cameras as well as merging tracks together to perform operations on all of them.
+ */
 export default class CameraStore {
     camMap: Ref<Map<string, { trackStore: TrackStore; groupStore: GroupStore }>>;
 
@@ -30,11 +36,16 @@ export default class CameraStore {
       }]]));
 
       this.sortedTracks = computed(() => {
-        let list: Track[] = [];
+        let idList: AnnotationId[] = [];
         this.camMap.value.forEach((camera) => {
-          list = list.concat(camera.trackStore.sorted.value);
+          idList = idList.concat(camera.trackStore.sorted.value.map((item) => item.id));
         });
-        return list;
+        /**
+         * The tracks need to be merged because this is used for Event/Detection viewing
+         * This allows the full range begin/end for the track across multiple cameras to
+         * be displayed.
+         */
+        return uniq(idList).map((id) => this.getTracksMerged(id));
       });
       this.sortedGroups = computed(() => {
         let list: Group[] = [];
