@@ -66,7 +66,7 @@ export default defineComponent({
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const allTypesRef = useTrackFilters().allTypes;
     const cameraStore = useCameraStore();
-    const multiCam = ref(cameraStore.camMap.size > 1);
+    const multiCam = ref(cameraStore.camMap.value.size > 1);
     const selectedCamera = useSelectedCamera();
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
@@ -82,7 +82,9 @@ export default defineComponent({
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
     const editingGroupIdRef = useEditingGroupId();
-    const groupStoreRef = computed(() => cameraStore.camMap.get(selectedCamera.value)?.groupStore);
+    const groupStoreRef = computed(
+      () => cameraStore.camMap.value.get(selectedCamera.value)?.groupStore,
+    );
     const editingGroup = computed(() => {
       const editingGroupId = editingGroupIdRef.value;
       if (editingGroupId !== null) {

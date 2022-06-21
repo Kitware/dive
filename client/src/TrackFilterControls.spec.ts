@@ -38,7 +38,7 @@ function makeCameraStore() {
     confidencePairs: [['bar', 1], ['baz', 0.8]],
     features,
   });
-  const trackStore = cameraStore.camMap.get('singleCam')?.trackStore;
+  const trackStore = cameraStore.camMap.value.get('singleCam')?.trackStore;
   if (trackStore) {
     trackStore.insert(t0);
     trackStore.insert(t1);

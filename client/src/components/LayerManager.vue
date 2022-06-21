@@ -60,8 +60,8 @@ export default defineComponent({
     const handler = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
-    const trackStore = cameraStore.camMap.get(props.camera)?.trackStore;
-    const groupStore = cameraStore.camMap.get(props.camera)?.groupStore;
+    const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
+    const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
     if (!trackStore || !groupStore) {
       throw Error(`TrackStore: ${trackStore} or GroupStore: ${groupStore} are undefined for camera ${props.camera}`);
     }

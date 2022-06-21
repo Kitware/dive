@@ -43,7 +43,9 @@ export default defineComponent({
     const data = reactive({
       itemHeight: 58, // in pixels
     });
-    const groupStoreRef = computed(() => cameraStore.camMap.get(selectedCamera.value)?.groupStore);
+    const groupStoreRef = computed(
+      () => cameraStore.camMap.value.get(selectedCamera.value)?.groupStore,
+    );
     const getAnnotation = (id: AnnotationId) => {
       if (!groupStoreRef.value) {
         throw Error(`Could not find groupStore for Camera: ${selectedCamera.value}`);
