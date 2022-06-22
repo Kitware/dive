@@ -76,6 +76,20 @@ export default class CameraStore {
       }
     }
 
+    getAnyPossibleTrack(trackId: Readonly<AnnotationId>) {
+      let track: Track | undefined;
+      this.camMap.value.forEach((camera) => {
+        const tempTrack = camera.trackStore.getPossible(trackId);
+        if (tempTrack) {
+          track = tempTrack;
+        }
+      });
+      if (track) {
+        return track;
+      }
+      return undefined;
+    }
+
     getAnyTrack(trackId: Readonly<AnnotationId>) {
       let track: Track | undefined;
       this.camMap.value.forEach((camera) => {
@@ -206,6 +220,30 @@ export default class CameraStore {
             camera.groupStore.remove(id);
           }
         }
+      });
+    }
+
+    // Update all cameras to have the same track type
+    setTrackType(id: AnnotationId, type: string) {
+      this.camMap.value.forEach((camera) => {
+        const track = camera.trackStore.getPossible(id);
+        if (track !== undefined) {
+          track.setType(type);
+        }
+      });
+    }
+
+    changeTrackTypes({ currentType, newType }: { currentType: string; newType: string }) {
+      this.camMap.value.forEach((camera) => {
+        camera.trackStore.sorted.value.forEach((annotation) => {
+          for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
+            const [name, confidenceVal] = annotation.confidencePairs[i];
+            if (name === currentType) {
+              annotation.setType(newType, confidenceVal, currentType);
+              break;
+            }
+          }
+        });
       });
     }
 }

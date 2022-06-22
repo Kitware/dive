@@ -15,7 +15,7 @@ export default function useVirtualScrollTo({
   selectNext,
 }: {
   itemHeight: Readonly<number>;
-  getAnnotation: (id: AnnotationId) => Track | Group;
+  getAnnotation: (id: AnnotationId) => Track | Group | undefined;
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;

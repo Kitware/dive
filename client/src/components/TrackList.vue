@@ -97,7 +97,7 @@ export default defineComponent({
       return '';
     });
 
-    const getAnnotation = (id: AnnotationId) => cameraStore.getAnyTrack(id);
+    const getAnnotation = (id: AnnotationId) => cameraStore.getAnyPossibleTrack(id);
 
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,

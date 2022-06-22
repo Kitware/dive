@@ -131,14 +131,15 @@ export default defineComponent({
           :key="camera"
         >
           <v-row>
-            <h2>{{ camera }}</h2>
+            <h2 :class="{selected:camera === selectedCamera}">
+              {{ camera }}
+            </h2>
           </v-row>
           <v-divider />
           <v-row class="pl-2">
             <h3> Detection: </h3>
             <tooltip-btn
-              color="error"
-              icon="mdi-delete"
+              icon="mdi-star"
               :disabled="!tracks[camera].annotationExists"
               :tooltip-text="`Delete detection for camera: ${camera}`"
               @click="deleteAnnotation(camera, selectedTrackId)"
@@ -205,4 +206,9 @@ export default defineComponent({
 </template>
 
 <style scoped>
+.selected {
+  border: 2px dashed cyan;
+  padding-left: 4px;
+  padding-right: 4px;
+}
 </style>
