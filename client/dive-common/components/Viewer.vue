@@ -465,6 +465,8 @@ export default defineComponent({
     /** Trigger data load */
     const loadData = async () => {
       try {
+        // Close and reset sideBar
+        context.resetActive();
         const meta = await loadMetadata(datasetId.value);
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
@@ -552,10 +554,18 @@ export default defineComponent({
             description: 'Group Manager',
             component: GroupSidebarVue,
           });
+          context.register({
+            component: MultiCamToolsVue,
+            description: 'Multi Camera Tools',
+          });
         } else {
           context.unregister({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
+          });
+          context.register({
+            description: 'Group Manager',
+            component: GroupSidebarVue,
           });
         }
       } catch (err) {

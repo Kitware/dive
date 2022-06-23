@@ -24,19 +24,19 @@ const state: ContextState = reactive({
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
-  TypeThreshold: {
+  [TypeThreshold.name]: {
     description: 'Threshold Controls',
     component: TypeThreshold,
   },
-  ImageEnhancements: {
+  [ImageEnhancements.name]: {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  GroupSidebar: {
+  [GroupSidebar.name]: {
     description: 'Group Manager',
     component: GroupSidebar,
   },
-  MultiCamTools: {
+  [MultiCamTools.name]: {
     description: 'Multi Camera Tools',
     component: MultiCamTools,
   },
@@ -50,6 +50,11 @@ function unregister(item: ComponentMapItem) {
   if (componentMap[item.component.name]) {
     delete componentMap[item.component.name];
   }
+}
+
+function resetActive() {
+  state.last = 'TypeThreshold';
+  state.active = null;
 }
 
 function getComponents() {
@@ -85,6 +90,7 @@ export default {
   register,
   unregister,
   getComponents,
+  resetActive,
   componentMap,
   state,
 };
