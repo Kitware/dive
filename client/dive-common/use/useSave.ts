@@ -56,6 +56,7 @@ export default function useSave(
       throw new Error('attempted to save in read only mode');
     }
     const promiseList: Promise<unknown>[] = [];
+    let globalMetadataUpdated = false;
     Object.entries(pendingChangeMaps).forEach(([camera, pendingChangeMap]) => {
       const saveId = camera === 'singleCam' ? datasetId.value : `${datasetId.value}/${camera}`;
       if (
@@ -79,10 +80,15 @@ export default function useSave(
         }));
       }
       if (datasetMeta && pendingChangeMap.meta > 0) {
-        promiseList.push(saveMetadata(datasetId.value, datasetMeta).then(() => {
+        // Save once for each camera into their own metadata file
+        promiseList.push(saveMetadata(saveId, datasetMeta).then(() => {
           // eslint-disable-next-line no-param-reassign
           pendingChangeMap.meta = 0;
         }));
+        // Only update global if there are multiple cameras
+        if (saveId !== datasetId.value) {
+          globalMetadataUpdated = true;
+        }
       }
       if (pendingChangeMap.attributeUpsert.size || pendingChangeMap.attributeDelete.size) {
         promiseList.push(saveAttributes(datasetId.value, {
@@ -94,6 +100,10 @@ export default function useSave(
         }));
       }
     });
+    // Final save into the multi-cam metadata if multiple cameras exists
+    if (globalMetadataUpdated && datasetMeta && pendingChangeMaps) {
+      promiseList.push(saveMetadata(datasetId.value, datasetMeta));
+    }
     await Promise.all(promiseList);
     pendingSaveCount.value = 0;
   }
