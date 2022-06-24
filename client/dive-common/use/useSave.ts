@@ -113,13 +113,19 @@ export default function useSave(
       cameraName?: string;
     } = { action: 'meta' },
   ) {
-    if (pendingChangeMaps[cameraName]) {
+    // For meta changes we need to indicate to all cameras that there is change.
+    // Meta changes are global across all cameras
+    if (action === 'meta') {
+      Object.values(pendingChangeMaps).forEach((pendingChangeMap) => {
+        // eslint-disable-next-line no-param-reassign
+        pendingChangeMap.meta += 1;
+      });
+      pendingSaveCount.value += 1;
+    } else if (pendingChangeMaps[cameraName]) {
       const pendingChangeMap = pendingChangeMaps[cameraName];
 
       if (!readonlyMode.value) {
-        if (action === 'meta') {
-          pendingChangeMap.meta += 1;
-        } else if (track !== undefined) {
+        if (track !== undefined) {
           _updatePendingChangeMap(
             track.trackId,
             track,
