@@ -22,7 +22,7 @@ Track creation for a single camera works much in the same way it does for single
 
 ## MultiCamera Tools
 
-Next to the dropdown for the camera selection is a camera settings icon.  Clicking on that will open the multicamera tools.  These tools provide a quick view of the selected track across all cameras.
+Next to the dropdown for the camera selection is a camera settings icon.  Clicking on that will open the context menu.  Within this menu is a dropdown for selecting MultiCamTools.  These tools provide a quick view of the selected track across all cameras.
 When a track is selected it will easily show the existing detections and tracks across multiple cameras.
 
 ![MultiCam Tools](images/MultiCam/MultiCamTools.png){ width=260px align=right }

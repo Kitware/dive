@@ -2,10 +2,8 @@
 import {
   defineComponent, onBeforeUnmount, PropType, toRef, watch,
 } from '@vue/composition-api';
-
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
-import useMediaController from './useMediaController';
-
+import { injectCameraInitializer } from './useMediaController';
 /**
  * For MPEG codecs, the PTS (Presentation Timestamp)
  * should be forced ahead 1 tick. currentTime has a finite
@@ -27,7 +25,6 @@ import useMediaController from './useMediaController';
  * MPEG specification.
  */
 const OnePTSTick = 1 / (90 * 1000);
-
 /**
  * The Kwiver seek function performs seek based on
  * downsampled frame number such that the converse of the
@@ -62,16 +59,13 @@ function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
   const nextTrueFrameBoundary = (
     roundOrFloor(requestedTrueVideoFrame) / originalFps
   );
-
   /**
    * Return one tick over the appropriate boundary
    */
   return nextTrueFrameBoundary + OnePTSTick;
 }
-
 export default defineComponent({
   name: 'VideoAnnotator',
-
   props: {
     videoUrl: {
       type: String,
@@ -98,16 +92,30 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String as PropType<string>,
+      default: 'singleCam',
+    },
     intercept: {
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
   },
-
   setup(props) {
-    const commonMedia = useMediaController();
-    const { data } = commonMedia;
-
+    const cameraInitializer = injectCameraInitializer();
+    const {
+      state: data,
+      geoViewer,
+      cursorHandler,
+      imageCursor,
+      container,
+      initializeViewer,
+      mediaController,
+    } = cameraInitializer(props.camera, {
+      // allow hoisting for these functions.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      seek, pause, play, setVolume, setSpeed,
+    });
     function makeVideo() {
       const video = document.createElement('video');
       video.preload = 'auto';
@@ -116,13 +124,11 @@ export default defineComponent({
       return video;
     }
     const video = makeVideo();
-
     onBeforeUnmount(() => {
       if (video) {
         video.pause();
       }
     });
-
     async function seek(frame: number) {
       /** Only perform seek for whole frame numbers */
       const requestedFrame = Math.round(frame);
@@ -139,13 +145,11 @@ export default defineComponent({
       data.flick = Math.round(data.currentTime * Flick);
       props.updateTime(data);
     }
-
     function pause() {
       video.pause();
       seek(data.frame); // snap to frame boundary
       data.playing = false;
     }
-
     function syncWithVideo() {
       if (data.playing) {
         const newFrame = video.currentTime * props.frameRate;
@@ -158,11 +162,10 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
-        commonMedia.geoViewerRef.value.scheduleAnimationFrame(syncWithVideo);
+        geoViewer.value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
     }
-
     async function play() {
       try {
         await video.play();
@@ -172,29 +175,17 @@ export default defineComponent({
         console.error(ex);
       }
     }
-
     function logError(event: ErrorEvent) {
       console.error('Media failed to initialize', event);
     }
-
     function setVolume(level: number) {
       video.volume = level;
       data.volume = video.volume;
     }
-
     function setSpeed(level: number) {
       video.playbackRate = level;
       data.speed = video.playbackRate;
     }
-
-    const {
-      cursorHandler,
-      initializeViewer,
-      mediaController,
-    } = commonMedia.initialize({
-      seek, play, pause, setVolume, setSpeed,
-    });
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let quadFeatureLayer = undefined as any;
     const setBrightnessFilter = (on: boolean) => {
@@ -202,7 +193,6 @@ export default defineComponent({
         quadFeatureLayer.node().css('filter', on ? 'url(#brightness)' : '');
       }
     };
-
     /**
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
@@ -212,7 +202,6 @@ export default defineComponent({
       const width = video.videoWidth;
       const height = video.videoHeight;
       const maybeMaxFrame = Math.floor(props.frameRate * video.duration);
-
       if (props.originalFps !== null) {
         /**
          * Don't allow the user to seek past the final frame as defined by kwiver.
@@ -227,11 +216,10 @@ export default defineComponent({
         data.maxFrame = maybeMaxFrame;
       }
       initializeViewer(width, height);
-      quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+      quadFeatureLayer = geoViewer.value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,
       });
-
       setBrightnessFilter(props.brightness !== undefined);
       quadFeatureLayer
         .createFeature('quad')
@@ -252,7 +240,6 @@ export default defineComponent({
       data.currentTime = video.currentTime;
       data.duration = video.duration;
     }
-
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
     watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
@@ -260,21 +247,16 @@ export default defineComponent({
         setBrightnessFilter(brightness !== undefined);
       }
     });
-
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
     }
-
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
     video.addEventListener('error', logError);
-
-
     return {
       data,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
-      onResize: commonMedia.onResize,
+      imageCursorRef: imageCursor,
+      containerRef: container,
       cursorHandler,
       mediaController,
     };
@@ -284,7 +266,6 @@ export default defineComponent({
 
 <template>
   <div
-    v-resize="onResize"
     class="video-annotator"
     :style="{ cursor: data.cursor }"
   >

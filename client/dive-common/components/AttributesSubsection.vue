@@ -7,7 +7,7 @@ import {
 } from '@vue/composition-api';
 import {
   useSelectedTrackId,
-  useTrackStore,
+  useCameraStore,
   useTime,
   useReadOnlyMode,
 } from 'vue-media-annotator/provides';
@@ -39,12 +39,12 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackStore = useTrackStore();
+    const cameraStore = useCameraStore();
     const activeSettings = ref(true);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
-        return trackStore.get(selectedTrackIdRef.value);
+        return cameraStore.getAnyTrack(selectedTrackIdRef.value);
       }
       return null;
     });
@@ -84,12 +84,13 @@ export default defineComponent({
 
     function updateAttribute({ name, value }: { name: string; value: unknown }) {
       if (selectedTrackIdRef.value !== null) {
-        const track = trackStore.get(selectedTrackIdRef.value);
-        if (track !== undefined) {
+        // Tracks across all cameras get the same attributes set if they are linked
+        const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
+        if (tracks.length) {
           if (props.mode === 'Track') {
-            track.setAttribute(name, value);
+            tracks.forEach((track) => track.setAttribute(name, value));
           } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            track.setFeatureAttribute(frameRef.value, name, value);
+            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, value));
           }
         }
       }

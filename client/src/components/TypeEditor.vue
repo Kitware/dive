@@ -5,11 +5,12 @@ import {
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
+import TrackFilterControls from '../TrackFilterControls';
 import BaseFilterControls from '../BaseFilterControls';
 import type Group from '../Group';
 import type StyleManager from '../StyleManager';
 import type Track from '../track';
-import { useReadOnlyMode } from '../provides';
+import { useCameraStore, useReadOnlyMode } from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',
@@ -38,6 +39,7 @@ export default defineComponent({
     const trackFilters = props.filterControls;
     const usedTypesRef = trackFilters.usedTypes;
     const readOnlyMode = useReadOnlyMode();
+    const cameraStore = useCameraStore();
     const { prompt } = usePrompt();
 
     const data = reactive({
@@ -55,10 +57,14 @@ export default defineComponent({
 
     function acceptChanges() {
       if (data.editingType !== data.selectedType) {
-        trackFilters.updateTypeName({
+        const updatedTypeObj = {
           currentType: data.selectedType,
           newType: data.editingType,
-        });
+        };
+        trackFilters.updateTypeName(updatedTypeObj);
+        if (trackFilters instanceof TrackFilterControls) {
+          cameraStore.changeTrackTypes(updatedTypeObj);
+        }
       }
       props.styleManager.updateTypeStyle({
         type: data.editingType,

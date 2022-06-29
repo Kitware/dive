@@ -4,6 +4,7 @@ import Vue, { VueConstructor } from 'vue';
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
+import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);
 
@@ -23,22 +24,37 @@ const state: ContextState = reactive({
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
-  TypeThreshold: {
+  [TypeThreshold.name]: {
     description: 'Threshold Controls',
     component: TypeThreshold,
   },
-  ImageEnhancements: {
+  [ImageEnhancements.name]: {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  GroupSidebar: {
+  [GroupSidebar.name]: {
     description: 'Group Manager',
     component: GroupSidebar,
+  },
+  [MultiCamTools.name]: {
+    description: 'Multi Camera Tools',
+    component: MultiCamTools,
   },
 };
 
 function register(item: ComponentMapItem) {
   componentMap[item.component.name] = item;
+}
+
+function unregister(item: ComponentMapItem) {
+  if (componentMap[item.component.name]) {
+    delete componentMap[item.component.name];
+  }
+}
+
+function resetActive() {
+  state.last = 'TypeThreshold';
+  state.active = null;
 }
 
 function getComponents() {
@@ -72,7 +88,9 @@ function toggle(active: string | null | undefined) {
 export default {
   toggle,
   register,
+  unregister,
   getComponents,
+  resetActive,
   componentMap,
   state,
 };

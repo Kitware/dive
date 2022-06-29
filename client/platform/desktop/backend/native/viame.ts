@@ -65,7 +65,8 @@ async function runPipeline(
   }
   let groundTruthFileName;
   if (requiresInput) {
-    groundTruthFileName = `groundtruth_${meta.id}.csv`;
+    // MultiCam ids have '/' in it to designate camera, replace to make a valid location
+    groundTruthFileName = `groundtruth_${meta.id.replace('/', '_')}.csv`;
     const groundTruthFileStream = fs.createWriteStream(
       npath.join(jobWorkDir, groundTruthFileName),
     );

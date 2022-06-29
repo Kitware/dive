@@ -1,11 +1,12 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType,
+  defineComponent, computed, PropType, ref,
 } from '@vue/composition-api';
+import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
 import TypePicker from './TypePicker.vue';
 import {
-  useHandler, useTime, useReadOnlyMode, useTrackFilters,
+  useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore,
 } from '../provides';
 import Track from '../track';
 
@@ -64,7 +65,8 @@ export default defineComponent({
     const trackFilters = useTrackFilters();
     const allTypesRef = trackFilters.allTypes;
     const readOnlyMode = useReadOnlyMode();
-
+    const cameraStore = useCameraStore();
+    const multiCam = ref(cameraStore.camMap.value.size > 1);
     /**
      * Use of revision is safe because it will only create a
      * dependency when track is selected.  DO NOT use this computed
@@ -139,6 +141,16 @@ export default defineComponent({
       }
     }
 
+    function setTrackType(type: string) {
+      cameraStore.setTrackType(props.track.id, type);
+    }
+
+    function openMultiCamTools() {
+      if (context.state.active !== 'MultiCamTools') {
+        context.toggle('MultiCamTools');
+      }
+    }
+
     return {
       /* data */
       feature,
@@ -149,12 +161,15 @@ export default defineComponent({
       keyframeDisabled,
       trackFilters,
       readOnlyMode,
+      multiCam,
       /* methods */
       gotoNext,
       gotoPrevious,
       handler,
+      openMultiCamTools,
       toggleInterpolation,
       toggleKeyframe,
+      setTrackType,
     };
   },
 });
@@ -206,7 +221,7 @@ export default defineComponent({
       <TypePicker
         :value="trackType"
         v-bind="{ lockTypes, readOnlyMode, allTypes, selected }"
-        @input="track.setType($event)"
+        @input="setTrackType($event)"
       />
     </v-row>
     <v-row
@@ -231,33 +246,41 @@ export default defineComponent({
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="handler.removeTrack([track.trackId])"
         />
+        <span v-if="!multiCam">
+          <tooltip-btn
+            v-if="isTrack"
+            :disabled="!track.canSplit(frame) || merging || readOnlyMode"
+            icon="mdi-call-split"
+            tooltip-text="Split Track"
+            @click="handler.trackSplit(track.trackId, frame)"
+          />
 
-        <tooltip-btn
-          v-if="isTrack"
-          :disabled="!track.canSplit(frame) || merging || readOnlyMode"
-          icon="mdi-call-split"
-          tooltip-text="Split Track"
-          @click="handler.trackSplit(track.trackId, frame)"
-        />
+          <tooltip-btn
+            v-if="isTrack && !readOnlyMode"
+            :icon="(feature.isKeyframe)
+              ? 'mdi-star'
+              : 'mdi-star-outline'"
+            :disabled="keyframeDisabled"
+            tooltip-text="Toggle keyframe"
+            @click="toggleKeyframe"
+          />
 
-        <tooltip-btn
-          v-if="isTrack && !readOnlyMode"
-          :icon="(feature.isKeyframe)
-            ? 'mdi-star'
-            : 'mdi-star-outline'"
-          :disabled="keyframeDisabled"
-          tooltip-text="Toggle keyframe"
-          @click="toggleKeyframe"
-        />
-
-        <tooltip-btn
-          v-if="isTrack && !readOnlyMode"
-          :icon="(feature.shouldInterpolate)
-            ? 'mdi-vector-selection'
-            : 'mdi-selection-off'"
-          tooltip-text="Toggle interpolation"
-          @click="toggleInterpolation"
-        />
+          <tooltip-btn
+            v-if="isTrack && !readOnlyMode"
+            :icon="(feature.shouldInterpolate)
+              ? 'mdi-vector-selection'
+              : 'mdi-selection-off'"
+            tooltip-text="Toggle interpolation"
+            @click="toggleInterpolation"
+          />
+        </span>
+        <span v-else>
+          <tooltip-btn
+            icon="mdi-camera"
+            tooltip-text="Open MultiCamera Tools"
+            @click="openMultiCamTools"
+          />
+        </span>
       </template>
       <v-spacer v-if="isTrack" />
       <template v-if="isTrack">
