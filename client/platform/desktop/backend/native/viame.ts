@@ -262,7 +262,7 @@ async function train(
       } else {
         videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
       }
-      inputFile.write(`${videopath}`);
+      inputFile.write(`${videopath}\n`);
     } else if (meta.type === 'image-sequence') {
       inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
     }
