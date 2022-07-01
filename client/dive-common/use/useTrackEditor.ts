@@ -7,8 +7,9 @@ import { AggregateMediaController } from 'vue-media-annotator/components/annotat
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 import { clientSettings } from 'dive-common/store/settings';
-import Track from 'vue-media-annotator/track';
-import { RectBounds } from 'vue-media-annotator/utils';
+import Track, { TrackId } from 'vue-media-annotator/track';
+import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
+import { flatMapDeep, uniq } from 'lodash';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 interface SetAnnotationStateArgs {
@@ -18,21 +19,30 @@ interface SetAnnotationStateArgs {
     recipeName?: string;
 }
 
+/**
+ * Track Editor holds the track editing state and transitions between multiple state of editing
+ * There are multiple track types and this handles editing and shuffling between them
+ */
 export default function useTrackEditor({
   selectedTrackId,
+  editingTrack,
   cameraStore,
   aggregateController,
   selectedCamera,
+  addTrackOrDetection,
+  selectTrack,
   recipes,
 }: {
     selectedTrackId: Ref<AnnotationId | null>;
+    editingTrack: Ref<boolean>;
     cameraStore: CameraStore;
     aggregateController: Ref<AggregateMediaController>;
     selectedCamera: Ref<string>;
+    addTrackOrDetection: (overrideTrackId?: AnnotationId) => TrackId;
+    selectTrack: (trackId: TrackId | null, edit?: boolean) => void;
     recipes: Recipe[];
 }) {
   let creating = false;
-  const editingTrack = ref(false);
   const editingCanary = ref(false);
   // Meaning of this value varies based on the editing mode.  When in
   // polygon edit mode, this corresponds to a polygon point.  Ditto in line mode.
@@ -44,14 +54,22 @@ export default function useTrackEditor({
     visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
+
   const trackSettings = toRef(clientSettings, 'trackSettings');
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
+
+  const visibleModes = computed(() => (
+    uniq(annotationModes.visible.concat(editingMode.value || []))
+  ));
+
   function _depend(): boolean {
     return editingCanary.value;
   }
+
   function _nudgeEditingCanary() {
     editingCanary.value = !editingCanary.value;
   }
+
   // What is occuring in editing mode
   const editingDetails = computed(() => {
     _depend();
@@ -126,7 +144,7 @@ export default function useTrackEditor({
         } else if (trackSettings.value.newTrackSettings.mode === 'Detection') {
           if (
             trackSettings.value.newTrackSettings.modeSettings.Detection.continuous) {
-            handleAddTrackOrDetection(cameraStore.getNewTrackId());
+            addTrackOrDetection(cameraStore.getNewTrackId());
             newCreatingValue = true; // don't disable creating mode
           }
         }
@@ -323,7 +341,7 @@ export default function useTrackEditor({
     if (editing) {
       annotationModes.editing = editing;
       _selectKey(key);
-      handleSelectTrack(selectedTrackId.value, true);
+      selectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {
           r.deactivate();
@@ -340,11 +358,11 @@ export default function useTrackEditor({
 
   return {
     editingMode,
-    editingTrack,
     editingDetails,
     selectedFeatureHandle,
     selectedKey,
-    handler: {
+    visibleModes,
+    editHandler: {
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       removePoint: handleRemovePoint,
@@ -354,4 +372,3 @@ export default function useTrackEditor({
     },
   };
 }
-
