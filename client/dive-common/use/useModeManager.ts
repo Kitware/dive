@@ -18,8 +18,6 @@ import CameraStore from 'vue-media-annotator/CameraStore';
 import useTrackEditor from './useTrackEditor';
 
 
-type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
-
 /* default to index + 1
  * call with -1 to select previous, or pass any other delta
  */
@@ -474,25 +472,29 @@ export default function useModeManager({
     selectedCamera,
     selectNextTrack,
     handler: {
+      //Merging
       commitMerge: handleCommitMerge,
+      toggleMerge: handleToggleMerge,
+      unstageFromMerge: handleUnstageFromMerge,
+      //Group Editing
       groupAdd: handleAddGroup,
       groupEdit: handleGroupEdit,
-      toggleMerge: handleToggleMerge,
+      removeGroup: handleRemoveGroup,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
       trackEdit: handleTrackEdit,
+      removeTrack: handleRemoveTrack,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
       trackSelectNext: handleSelectNext,
+      // Editing Tracks
       updateRectBounds: editHandler.updateRectBounds,
       updateGeoJSON: editHandler.updateGeoJSON,
-      removeTrack: handleRemoveTrack,
       removePoint: editHandler.removePoint,
       removeAnnotation: editHandler.removeAnnotation,
-      removeGroup: handleRemoveGroup,
       selectFeatureHandle: editHandler.selectFeatureHandle,
       setAnnotationState: editHandler.setAnnotationState,
-      unstageFromMerge: handleUnstageFromMerge,
+      // MultiCamera Linking
       startLinking: handleStartLinking,
       stopLinking: handleStopLinking,
     },
