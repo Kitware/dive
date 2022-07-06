@@ -5,7 +5,7 @@ from girder.api.rest import boundHandler
 from girder.constants import AccessType
 from girder.models.user import User
 from girder_jobs.models import job
-from girder_worker.utils import JobStatus as GWJobStatus
+from girder_worker.utils import JobStatus
 
 from dive_utils import constants
 
@@ -44,13 +44,14 @@ def countJobs(self):
             user='all',
             currentUser=self.getCurrentUser(),
             statuses=[
-                GWJobStatus.QUEUED,
-                GWJobStatus.RUNNING,
-                GWJobStatus.CANCELING,
-                GWJobStatus.CONVERTING_INPUT,
-                GWJobStatus.CONVERTING_OUTPUT,
-                GWJobStatus.FETCHING_INPUT,
-                GWJobStatus.PUSHING_OUTPUT,
+                JobStatus.INACTIVE,
+                JobStatus.QUEUED,
+                JobStatus.RUNNING,
+                JobStatus.CANCELING,
+                JobStatus.CONVERTING_INPUT,
+                JobStatus.CONVERTING_OUTPUT,
+                JobStatus.FETCHING_INPUT,
+                JobStatus.PUSHING_OUTPUT,
             ],
         )
         .count()
