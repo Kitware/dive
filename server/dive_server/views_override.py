@@ -4,6 +4,8 @@ from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import boundHandler
 from girder.constants import AccessType
 from girder.models.user import User
+from girder_jobs.models import job
+from girder_worker.utils import JobStatus
 
 from dive_utils import constants
 
@@ -29,4 +31,32 @@ def use_private_queue(self, user: dict, privateQueueEnabled: bool):
         constants.UserPrivateQueueEnabledMarker: user.get(
             constants.UserPrivateQueueEnabledMarker, False
         ),
+    }
+
+
+@access.user
+@boundHandler
+@autoDescribeRoute(Description('Get number of outstanding jobs'))
+def countJobs(self):
+    outstanding = (
+        job.Job()
+        .list(
+            user='all',
+            currentUser=self.getCurrentUser(),
+            statuses=[
+                JobStatus.INACTIVE,
+                JobStatus.QUEUED,
+                JobStatus.RUNNING,
+                JobStatus.CANCELING,
+                JobStatus.CONVERTING_INPUT,
+                JobStatus.CONVERTING_OUTPUT,
+                JobStatus.FETCHING_INPUT,
+                JobStatus.PUSHING_OUTPUT,
+            ],
+        )
+        .count()
+    )
+
+    return {
+        'outstanding': outstanding,
     }
