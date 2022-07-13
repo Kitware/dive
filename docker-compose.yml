@@ -85,7 +85,8 @@ services:
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
       - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
     labels:
-      # - "com.centurylinklabs.watchtower.enable=true" REMOVING WEEKLY UPDATE
+      # REMOVING WEEKLY UPDATE
+      # - "com.centurylinklabs.watchtower.enable=true"
       - "traefik.enable=true"
       - "traefik.http.services.girder-svc.loadbalancer.server.port=8080"
       - "traefik.http.routers.girder-rtr.entrypoints=web"
