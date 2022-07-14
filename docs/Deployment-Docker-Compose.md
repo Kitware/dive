@@ -108,7 +108,7 @@ After initial deployment, DIVE Server will require an addon upgrade in order to 
 * `force` should be used to force re-download of all URLs in the payload even if their zipfiles have been cached.
 * An upgrade run is always required if the "common" pipelines in the base image change.  These are updated for every run, and do not require `force`.
 * See the job log to verify the exact actions taken by an upgrade job.
-* Optional patches are updated occasionally and you can find the [latest urls here](https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh).
+* Optional patches are updated occasionally and you can find the [latest urls here](https://github.com/VIAME/VIAME/blob/main/cmake/download_viame_addons.csv).
 
 ![Upgrade Pipelines Swagger](images/UpgradePipelinesSwagger.png)
 
