@@ -6,10 +6,10 @@ import CameraStore from 'vue-media-annotator/CameraStore';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
-import { clientSettings } from 'dive-common/store/settings';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { flatMapDeep, uniq } from 'lodash';
+import { TrackSettings } from 'dive-common/store/settings';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 interface SetAnnotationStateArgs {
@@ -32,6 +32,7 @@ export default function useTrackEditor({
   addTrackOrDetection,
   selectTrack,
   recipes,
+  trackSettings,
 }: {
     selectedTrackId: Ref<AnnotationId | null>;
     editingTrack: Ref<boolean>;
@@ -41,6 +42,7 @@ export default function useTrackEditor({
     addTrackOrDetection: (overrideTrackId?: AnnotationId) => TrackId;
     selectTrack: (trackId: TrackId | null, edit?: boolean) => void;
     recipes: Recipe[];
+    trackSettings: Ref<TrackSettings>;
 }) {
   let creating = false;
   const editingCanary = ref(false);
@@ -55,7 +57,6 @@ export default function useTrackEditor({
     editing: 'rectangle' as EditAnnotationTypes,
   });
 
-  const trackSettings = toRef(clientSettings, 'trackSettings');
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
 
   const visibleModes = computed(() => (
@@ -168,6 +169,7 @@ export default function useTrackEditor({
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         });
+        creating = editingDetails.value === 'Creating';
         newTrackSettingsAfterLogic(track);
       }
     }
@@ -283,6 +285,7 @@ export default function useTrackEditor({
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
           if (eventType === 'editing' || update.done.every((v) => v !== false)) {
+            creating = editingDetails.value === 'Creating';
             newTrackSettingsAfterLogic(track);
           }
         }

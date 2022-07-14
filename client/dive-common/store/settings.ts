@@ -3,12 +3,8 @@ import { cloneDeep, merge } from 'lodash';
 import Vue from 'vue';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
-interface AnnotationSettings {
-  typeSettings: {
-    showEmptyTypes: boolean;
-    lockTypes: boolean;
-  };
-  trackSettings: {
+
+export interface TrackSettings {
     newTrackSettings: {
       mode: 'Track' | 'Detection';
       type: string;
@@ -25,7 +21,13 @@ interface AnnotationSettings {
     deletionSettings: {
       promptUser: boolean;
     };
+  }
+interface AnnotationSettings {
+  typeSettings: {
+    showEmptyTypes: boolean;
+    lockTypes: boolean;
   };
+  trackSettings: TrackSettings;
   groupSettings: {
     newGroupSettings: {
       type: string;
@@ -35,6 +37,7 @@ interface AnnotationSettings {
   annotationFPS: number;
   annotatorPreferences: AnnotatorPreferences;
 }
+
 
 const defaultSettings: AnnotationSettings = {
   trackSettings: {
