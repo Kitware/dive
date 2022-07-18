@@ -319,9 +319,11 @@ export default function useModeManager({
     const { frame } = aggregateController.value;
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
-      const track = cameraStore.getAnyTrack(overrideTrackId);
-      // eslint-disable-next-line prefer-destructuring
-      trackType = track.confidencePairs[0][0];
+      const track = cameraStore.getAnyPossibleTrack(overrideTrackId);
+      if (track !== undefined) {
+        // eslint-disable-next-line prefer-destructuring
+        trackType = track.confidencePairs[0][0];
+      }
     } else {
       // eslint-disable-next-line no-param-reassign
       overrideTrackId = cameraStore.getNewTrackId();
