@@ -33,14 +33,14 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
 
 # https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.csv
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
-'https://viame.kitware.com/api/v1/item/627b145487bad2e19a4c4697/download', # HabCam
-'https://viame.kitware.com/api/v1/item/627b32b1994809b024f207a7/download', # SEFSC
-'https://viame.kitware.com/api/v1/item/627b3289ea630db5587b577d/download', # SWFSC-PengHead
-'https://viame.kitware.com/api/v1/item/627b326fea630db5587b577b/download', # Motion
-'https://viame.kitware.com/api/v1/item/627b326cc4da86e2cd3abb5b/download', # EM Tuna
-'https://viame.kitware.com/api/v1/item/627b3282c4da86e2cd3abb5d/download', # MOUSS
-'https://viame.kitware.com/api/v1/item/615bc7aa7e5c13a5bb9af7a7/download', # Aerial Penguin
-'https://viame.kitware.com/api/v1/item/629807c192adc2f0ecfa5b54/download', # Sea Lion
+    'https://viame.kitware.com/api/v1/item/627b145487bad2e19a4c4697/download',  # HabCam
+    'https://viame.kitware.com/api/v1/item/627b32b1994809b024f207a7/download',  # SEFSC
+    'https://viame.kitware.com/api/v1/item/627b3289ea630db5587b577d/download',  # SWFSC-PengHead
+    'https://viame.kitware.com/api/v1/item/627b326fea630db5587b577b/download',  # Motion
+    'https://viame.kitware.com/api/v1/item/627b326cc4da86e2cd3abb5b/download',  # EM Tuna
+    'https://viame.kitware.com/api/v1/item/627b3282c4da86e2cd3abb5d/download',  # MOUSS
+    'https://viame.kitware.com/api/v1/item/615bc7aa7e5c13a5bb9af7a7/download',  # Aerial Penguin
+    'https://viame.kitware.com/api/v1/item/629807c192adc2f0ecfa5b54/download',  # Sea Lion
 ]
 
 
