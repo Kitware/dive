@@ -104,3 +104,6 @@ JOBCONST_CREATOR = 'creator'
 
 # User queue constants
 UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'
+
+
+AddonsListURL = 'https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv'

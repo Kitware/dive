@@ -1,5 +1,7 @@
 from typing import List
 
+import requests
+import csv
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -36,6 +38,7 @@ class ConfigurationResource(Resource):
         super(ConfigurationResource, self).__init__()
         self.resourceName = resourceName
 
+        self.route("GET", ("addons",), self.get_addons)
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
@@ -84,6 +87,22 @@ class ConfigurationResource(Resource):
     )
     def update_static_pipeline_configs(self, configs: types.AvailableJobSchema):
         Setting().set(constants.SETTINGS_CONST_JOBS_CONFIGS, configs)
+
+    # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
+    @access.admin
+    @autoDescribeRoute(
+    Description("Upgrade addon pipelines"))
+    def get_addons(self):
+        with requests.Session() as s:
+            download = s.get(constants.AddonsListURL)
+
+            decoded_content = download.content.decode('utf-8')
+
+            cr = csv.reader(decoded_content.splitlines(), delimiter=',')
+            my_list = list(cr)
+            return my_list
+        return {}
+            
 
     @access.admin
     @autoDescribeRoute(

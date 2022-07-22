@@ -10,6 +10,9 @@ export interface BrandData {
   alertMessage?: string;
 }
 
+export type AddOns = [string, string, string][];
+
+
 function getBrandData() {
   return girderRest.get<BrandData>('dive_configuration/brand_data');
 }
@@ -22,8 +25,12 @@ function getTrainingConfigurations() {
   return girderRest.get<TrainingConfigs>('dive_configuration/training_configs');
 }
 
+function getAddons() {
+  return girderRest.get<AddOns>('dive_configuration/addons');
+}
 export {
   getBrandData,
   getPipelineList,
   getTrainingConfigurations,
+  getAddons,
 };

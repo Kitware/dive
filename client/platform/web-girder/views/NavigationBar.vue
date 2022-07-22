@@ -22,6 +22,13 @@ export default {
   computed: {
     ...mapGetters('Location', ['locationRoute']),
     ...mapState('Brand', ['brandData']),
+    isAdmin() {
+      console.log(this.girderRest);
+      if (this.girderRest) {
+        return this.girderRest?.user?.admin || false;
+      }
+      return false;
+    },
   },
   async created() {
     this.girderRest.$on('logout', this.onLogout);
@@ -58,6 +65,12 @@ export default {
           <v-icon>mdi-database</v-icon>
         </v-tab>
         <JobsTab />
+        <v-tab
+          v-if="isAdmin"
+          :to="`/admin`"
+        >
+          Admin <v-icon>mdi-badge-account</v-icon>
+        </v-tab>
       </v-tabs>
       <v-spacer />
       <GirderSearch
