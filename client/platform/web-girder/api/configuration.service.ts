@@ -8,6 +8,7 @@ export interface BrandData {
   name?: string;
   loginMessage?: string;
   alertMessage?: string;
+  trainingMessage?: string;
 }
 
 export type AddOns = [string, string, string][];
@@ -15,6 +16,10 @@ export type AddOns = [string, string, string][];
 
 function getBrandData() {
   return girderRest.get<BrandData>('dive_configuration/brand_data');
+}
+
+function putBrandData(brandData: BrandData) {
+  return girderRest.put('dive_configuration/brand_data', brandData);
 }
 
 function getPipelineList() {
@@ -28,9 +33,16 @@ function getTrainingConfigurations() {
 function getAddons() {
   return girderRest.get<AddOns>('dive_configuration/addons');
 }
+
+function postAddons(urls: string[], forceDownload: boolean) {
+  return girderRest.post(`dive_configuration/upgrade_pipelines?force=${forceDownload}`, urls);
+}
+
 export {
   getBrandData,
+  putBrandData,
   getPipelineList,
   getTrainingConfigurations,
   getAddons,
+  postAddons,
 };

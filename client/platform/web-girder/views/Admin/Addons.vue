@@ -3,7 +3,7 @@ import {
   computed,
   defineComponent, ref, Ref,
 } from '@vue/composition-api';
-import { getAddons } from 'platform/web-girder/api/configuration.service';
+import { getAddons, postAddons } from 'platform/web-girder/api/configuration.service';
 
 
 export default defineComponent({
@@ -33,8 +33,11 @@ export default defineComponent({
           return found[1];
         }
         return null;
-      }).filter((item) => item !== null);
-      console.log(downloadArray);
+      });
+      const list = downloadArray.filter((item) => item !== null) as string[];
+      if (list.length) {
+        postAddons(list, forceDownload.value);
+      }
     };
     return {
       selected,

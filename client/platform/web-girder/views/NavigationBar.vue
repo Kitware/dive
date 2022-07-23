@@ -23,7 +23,6 @@ export default {
     ...mapGetters('Location', ['locationRoute']),
     ...mapState('Brand', ['brandData']),
     isAdmin() {
-      console.log(this.girderRest);
       if (this.girderRest) {
         return this.girderRest?.user?.admin || false;
       }

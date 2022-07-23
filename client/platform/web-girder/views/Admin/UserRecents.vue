@@ -5,6 +5,7 @@ import {
 } from '@vue/composition-api';
 import { getRecentUsers } from 'platform/web-girder/api/admin.service';
 import type { GirderModel } from '@girder/components/src';
+import moment from 'moment';
 
 
 export default defineComponent({
@@ -32,7 +33,7 @@ export default defineComponent({
         first: item.firstName,
         last: item.lastName,
         email: item.email,
-        created: item.created,
+        created: moment(item.created).format('dddd, MMMM D, YYYY @ h:mm a'),
         dir: item._id,
       }),
     ));
@@ -70,14 +71,14 @@ export default defineComponent({
               <template #activator="{on, attrs}">
                 <v-btn
                   v-bind="attrs"
-                  large
+                  small
                   depressed
                   :to="`/user/${item.dir }`"
                   color="info"
                   class="ma-1"
                   v-on="on"
                 >
-                  <v-icon large>
+                  <v-icon small>
                     mdi-account
                   </v-icon>
                 </v-btn>

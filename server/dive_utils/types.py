@@ -58,6 +58,8 @@ class PipelineJob(TypedDict):
     input_type: str  # video, image-sequence, etc.
     input_revision: Optional[int]  # A revision ID is included if the pipeline needs input
     output_folder: str  # Where to upload results
+    user_id: str  # user id who started the job
+    user_login: str  # login of user who started the kjob
 
 
 class TrainingJob(TypedDict):
@@ -69,6 +71,8 @@ class TrainingJob(TypedDict):
     config: str  # Name of the training configuration file to use.
     annotated_frames_only: bool  # Train on only the annotated frames
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
+    user_id: str  # user id who started the job
+    user_login: str  # login of user who started the kjob
 
 
 class TrainingConfigurationSummary(TypedDict):
