@@ -1,13 +1,13 @@
+import csv
 from typing import List
 
-import requests
-import csv
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.utility import setting_utilities
+import requests
 
 from dive_server import crud, crud_rpc
 from dive_tasks import tasks
@@ -90,8 +90,7 @@ class ConfigurationResource(Resource):
 
     # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
     @access.admin
-    @autoDescribeRoute(
-    Description("Upgrade addon pipelines"))
+    @autoDescribeRoute(Description("Upgrade addon pipelines"))
     def get_addons(self):
         with requests.Session() as s:
             download = s.get(constants.AddonsListURL)
@@ -102,7 +101,6 @@ class ConfigurationResource(Resource):
             my_list = list(cr)
             return my_list
         return {}
-            
 
     @access.admin
     @autoDescribeRoute(
