@@ -276,6 +276,24 @@ export default defineComponent({
             </div>
           </template>
           <template v-slot:item.actions="{ item }">
+            <v-tooltip bottom>
+              <template #activator="{on, attrs}">
+                <v-btn
+                  v-bind="attrs"
+                  x-small
+                  depressed
+                  :href="`/girder/#job/${item.actions}`"
+                  color="info"
+                  class="mx-2"
+                  v-on="on"
+                >
+                  <v-icon small>
+                    mdi-text-box-outline
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>View job logs and manage job</span>
+            </v-tooltip>
             <v-tooltip
               v-if="item.status < 3 "
               bottom
@@ -286,7 +304,7 @@ export default defineComponent({
                   x-small
                   depressed
                   color="warning"
-                  class="my-2"
+                  class="my-2 mr-1"
                   v-on="on"
                   @click="modifyJob('Cancel', item.actions, item.title)"
                 >

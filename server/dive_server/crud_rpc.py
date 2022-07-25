@@ -447,6 +447,8 @@ def postprocess(
                 kwargs=dict(
                     folderId=str(item["folderId"]),
                     itemId=str(item["_id"]),
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
                     girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
@@ -469,6 +471,8 @@ def postprocess(
                 kwargs=dict(
                     folderId=str(item["folderId"]),
                     itemId=str(item["_id"]),
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
                     girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
@@ -491,6 +495,8 @@ def postprocess(
                 queue=_get_queue_name(user),
                 kwargs=dict(
                     folderId=dsFolder["_id"],
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
                     girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
                     girder_job_type="private" if job_is_private else "convert",
