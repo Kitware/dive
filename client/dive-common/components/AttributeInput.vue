@@ -137,6 +137,7 @@ export default defineComponent({
       :label="datatype"
       :value="value"
       :disabled="disabled"
+      :step="value <= 1 ? .01 : 1"
       class="input-box"
       type="number"
       @change="change"

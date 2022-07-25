@@ -14,12 +14,14 @@ import {
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 
 export default defineComponent({
   components: {
     AttributeInput,
     PanelSubsection,
+    TooltipBtn,
   },
   props: {
     attributes: {
@@ -41,6 +43,9 @@ export default defineComponent({
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
     const activeSettings = ref(true);
+    const sortingMethods = ['a-z', '1-0'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
+    const sortingMode = ref(0);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
@@ -66,9 +71,39 @@ export default defineComponent({
       return null;
     });
 
-    const filteredFullAttributes = computed(() => Object.values(props.attributes).filter(
-      (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
-    ));
+    const filteredFullAttributes = computed(() => {
+      const filteredAttributes = Object.values(props.attributes).filter(
+        (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
+      );
+      // Sort the fitleredAttributes
+      return filteredAttributes.sort((a, b) => {
+        if (sortingMode.value === 0) {
+          return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
+        }
+        //Numerical Sort
+        if (selectedAttributes.value !== null
+        && selectedAttributes.value.attributes !== undefined) {
+          const aVal = selectedAttributes.value.attributes[a.name];
+          const bVal = selectedAttributes.value.attributes[b.name];
+          if (aVal === undefined && bVal === undefined) {
+            return 0;
+          } if (aVal === undefined && bVal !== undefined) {
+            return 1;
+          } if (aVal !== undefined && bVal === undefined) {
+            return -1;
+          }
+          if (a.datatype === 'number' && b.datatype === 'number') {
+            return (bVal as number) - (aVal as number);
+          } if (a.datatype === 'number' && b.datatype !== 'number') {
+            return -1;
+          }
+          if (a.datatype !== 'number' && b.datatype === 'number') {
+            return 1;
+          }
+        }
+        return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
+      });
+    });
 
     const activeAttributesCount = computed(
       () => props.attributes.filter(
@@ -106,6 +141,10 @@ export default defineComponent({
     function addAttribute() {
       emit('add-attribute', props.mode);
     }
+    function clickSortToggle() {
+      sortingMode.value = (sortingMode.value + 1) % sortingMethods.length;
+    }
+
 
     return {
       frameRef,
@@ -120,6 +159,10 @@ export default defineComponent({
       editAttribute,
       addAttribute,
       setEditIndividual,
+      //Sorting
+      sortingMethodIcons,
+      sortingMode,
+      clickSortToggle,
     };
   },
 });
@@ -134,7 +177,7 @@ export default defineComponent({
         class="align-center"
         no-gutters
       >
-        <b>{{ mode }} Attributes:</b>
+        <b>{{ mode }} Attr:</b>
         <v-spacer />
         <v-tooltip
           open-delay="200"
@@ -178,6 +221,11 @@ export default defineComponent({
           </template>
           <span>Show/Hide un-used</span>
         </v-tooltip>
+        <tooltip-btn
+          :icon="sortingMethodIcons[sortingMode]"
+          tooltip-text="Sort types by value or alphabetically"
+          @click="clickSortToggle"
+        />
       </v-row>
       <v-row
         v-if="mode === 'Detection'"
@@ -199,8 +247,8 @@ export default defineComponent({
         class="pa-0"
       >
         <span
-          v-for="(attribute, i) of filteredFullAttributes"
-          :key="i"
+          v-for="(attribute) of filteredFullAttributes"
+          :key="attribute.name"
         >
           <v-row
             v-if="

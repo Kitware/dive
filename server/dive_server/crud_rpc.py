@@ -339,7 +339,8 @@ def _get_data_by_type(
         return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': None, 'type': as_type}
+        annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
+        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}
     return None
 
 
