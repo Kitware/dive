@@ -12,7 +12,27 @@ export interface Attribute {
 }
 
 export type Attributes = Record<string, Attribute>;
+type ValueOf<T> = T[keyof T];
 
+export interface AttributeNumberFilter {
+  type: 'ranges' | 'top'; // range filters for number values, top will show highest X values
+  ranges?: [number, number][]; // Pairs of number indicating start/stop ranges
+  invert?: true; //inverts the ranges displayed
+}
+
+export interface AttributeStringFilter {
+  type: '=' | '!=' | 'contains' | 'starts';
+  value: string[]; //Compares with array of items
+}
+
+export interface AttributeBoolFilter {
+  value: boolean;
+  type: 'is' | 'not';
+}
+export interface AttributeFilter {
+  dataType: Attribute['datatype'];
+  filterData: AttributeNumberFilter | AttributeStringFilter | AttributeBoolFilter;
+}
 /**
  * Modified markChangesPending for attributes specifically
  */
@@ -30,6 +50,10 @@ interface UseAttributesParams {
 
 export default function UseAttributes({ markChangesPending }: UseAttributesParams) {
   const attributes: Ref<Record<string, Attribute>> = ref({});
+  const atrributeFilters: Ref<{
+    track: AttributeFilter[];
+    detection: AttributeFilter[];
+  }> = ref({ track: [], detection: [] });
 
 
   function loadAttributes(metadataAttributes: Record<string, Attribute>) {
@@ -64,10 +88,41 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     }
   }
 
+  function addAttributeFilter(index: number, type: Attribute['belongs'], filter: AttributeFilter) {
+    const filterList = atrributeFilters.value[type];
+    if (index < filterList.length) {
+      filterList.splice(index, 0, filter);
+    } else {
+      throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
+    }
+  }
+
+  function deleteAttributeFilter(index: number, type: Attribute['belongs']) {
+    const filterList = atrributeFilters.value[type];
+    if (index < filterList.length) {
+      filterList.splice(index, 1);
+    } else {
+      throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
+    }
+  }
+  function modifyAttributeFilter(index: number, type: Attribute['belongs'], filter: AttributeFilter) {
+    const filterList = atrributeFilters.value[type];
+    if (index < filterList.length) {
+      filterList.splice(index, 1, filter);
+    } else {
+      throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
+    }
+  }
+
   return {
     loadAttributes,
     attributesList,
     setAttribute,
     deleteAttribute,
+    addAttributeFilter,
+    deleteAttributeFilter,
+    modifyAttributeFilter,
+    atrributeFilters,
+
   };
 }

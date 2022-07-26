@@ -12,12 +12,7 @@ export default defineComponent({
 <template>
   <span class="d-flex flex-column overflow-hidden">
     <div class="border-highlight">
-      <v-row
-        class="align-center"
-        no-gutters
-      >
-        <slot name="header" />
-      </v-row>
+      <slot name="header" />
     </div>
     <v-row
       dense
@@ -37,7 +32,7 @@ export default defineComponent({
   font-weight: bold;
   font-size: 0.9em;
   padding: 4px 10px;
-  min-height: 40px;
+  min-height: 50px;
   background-color: #272727;
 }
 .scroll-section {

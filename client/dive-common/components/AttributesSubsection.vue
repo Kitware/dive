@@ -11,7 +11,7 @@ import {
   useTime,
   useReadOnlyMode,
 } from 'vue-media-annotator/provides';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import type { Attribute } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
@@ -177,8 +177,16 @@ export default defineComponent({
         class="align-center"
         no-gutters
       >
-        <b>{{ mode }} Attr:</b>
-        <v-spacer />
+        <v-col dense>
+          <b>{{ mode }}</b>
+          <div
+            v-if="mode === 'Detection'"
+            no-gutters
+            class="text-caption"
+          >
+            {{ `Frame: ${frameRef}` }}
+          </div>
+        </v-col>
         <v-tooltip
           open-delay="200"
           bottom
@@ -226,13 +234,6 @@ export default defineComponent({
           tooltip-text="Sort types by value or alphabetically"
           @click="clickSortToggle"
         />
-      </v-row>
-      <v-row
-        v-if="mode === 'Detection'"
-        no-gutters
-        class="text-caption"
-      >
-        {{ `Frame: ${frameRef}` }}
       </v-row>
     </template>
 
