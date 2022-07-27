@@ -11,7 +11,7 @@ export interface BrandData {
   trainingMessage?: string;
 }
 
-export type AddOns = [string, string, string][];
+export type AddOns = [string, string, string, boolean][];
 
 
 function getBrandData() {

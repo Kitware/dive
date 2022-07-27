@@ -2,6 +2,7 @@ import re
 
 SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 BRAND_DATA_CONFIG = 'brand_data_config'
+INSTALLED_ADDONS_CONFIGS = 'installed_addons'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"

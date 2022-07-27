@@ -9,19 +9,20 @@ import { getAddons, postAddons } from 'platform/web-girder/api/configuration.ser
 export default defineComponent({
   name: 'AddOns',
   setup() {
-    const table: Ref<[string, string, string][]> = ref([]);
+    const table: Ref<[string, string, string, boolean][]> = ref([]);
     const forceDownload = ref(false);
-    const selected: Ref<{Name: string; Description: string}[]> = ref([]);
+    const selected: Ref<{Name: string; Description: string; Installed: boolean}[]> = ref([]);
     const headers: Ref<{text: string; value: string}[]> = ref([
       { text: 'Name', value: 'Name' },
       { text: 'Description', value: 'Description' },
+      { text: 'Installed', value: 'Installed' },
     ]);
     // First we need to download the CSV from github
     const getData = async () => {
       table.value = (await getAddons()).data;
     };
     const data = computed(() => table.value.map(
-      (item) => ({ Name: item[0], Description: item[2] }),
+      (item) => ({ Name: item[0], Description: item[2], Installed: item[3] }),
     ));
     getData();
 
@@ -74,7 +75,16 @@ export default defineComponent({
           hide-default-footer
           show-select
           class="elevation-1"
-        />
+        >
+          <template v-slot:item.Installed="{ item }">
+            <v-icon
+              large
+              :color="item.Installed ? 'success' : 'error'"
+            >
+              {{ item.Installed ? 'mdi-check' : 'mdi-cancel' }}
+            </v-icon>
+          </template>
+        </v-data-table>
       </v-card-text>
       <v-card-actions>
         <v-spacer />

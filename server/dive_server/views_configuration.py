@@ -1,9 +1,13 @@
 import csv
-from typing import List
+import os
+from pathlib import Path
+from typing import Dict, List
+from urllib.parse import urlparse
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
+from girder.exceptions import RestException
 from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.utility import setting_utilities
@@ -31,6 +35,15 @@ def validateBrandData(doc):
         crud.get_validated_model(models.BrandData, **val)
 
 
+@setting_utilities.validator({constants.INSTALLED_ADDONS_CONFIGS})
+def validateInstalledAddons(doc):
+    """Handle plugin-specific system settings. Right now we don't do any validation."""
+    val = doc['value']
+    if val is not None:
+        # TODO: replace with real schema validation
+        assert 'downloaded' in val, 'downloaded key not found in doc'
+
+
 class ConfigurationResource(Resource):
     """Configuration resource handles get/set of global configuration"""
 
@@ -45,6 +58,7 @@ class ConfigurationResource(Resource):
 
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
+        self.route("PUT", ("installed_addons",), self.update_installed_addons)
 
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
 
@@ -88,19 +102,40 @@ class ConfigurationResource(Resource):
     def update_static_pipeline_configs(self, configs: types.AvailableJobSchema):
         Setting().set(constants.SETTINGS_CONST_JOBS_CONFIGS, configs)
 
+    @access.admin
+    @autoDescribeRoute(
+        Description("Update the installed Addons for the system").jsonParam(
+            "addons",
+            "Update the downloaded addons for the system",
+            required=True,
+            requireObject=True,
+            paramType='body',
+        )
+    )
+    def update_installed_addons(self, addons: Dict):
+        Setting().set(constants.INSTALLED_ADDONS_CONFIGS, addons)
+
     # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
     @access.admin
     @autoDescribeRoute(Description("Upgrade addon pipelines"))
     def get_addons(self):
         with requests.Session() as s:
+            addons_config: List = Setting().get(constants.INSTALLED_ADDONS_CONFIGS) or {
+                'downloaded': []
+            }
+            installed_addons = addons_config['downloaded']
             download = s.get(constants.AddonsListURL)
+            add_on_dir = os.environ.get('ADDON_ROOT_DIR', '/tmp/addons')
 
             decoded_content = download.content.decode('utf-8')
 
             cr = csv.reader(decoded_content.splitlines(), delimiter=',')
             my_list = list(cr)
+            for item in my_list:
+                addon = item[1]
+                download_name = urlparse(addon).path.replace(os.path.sep, '_')
+                item.append(f'{download_name}.zip' in installed_addons)
             return my_list
-        return {}
 
     @access.admin
     @autoDescribeRoute(
