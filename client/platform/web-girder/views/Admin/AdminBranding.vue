@@ -45,13 +45,6 @@ export default defineComponent({
         </v-row>
         <v-row>
           <v-text-field
-            v-model="brandData.logo"
-            label="Override Logo"
-            type="text"
-          />
-        </v-row>
-        <v-row>
-          <v-text-field
             v-model="brandData.loginMessage"
             type="text"
             label="Login Message"
