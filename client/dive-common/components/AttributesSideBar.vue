@@ -2,16 +2,16 @@
 import { defineComponent } from '@vue/composition-api';
 
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
-import {
-  useGroupFilterControls, useGroupStyleManager, useReadOnlyMode,
-} from 'vue-media-annotator/provides';
+import { useReadOnlyMode } from 'vue-media-annotator/provides';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import AttributeFilters from 'vue-media-annotator/components/AttributeFilters.vue';
 
 export default defineComponent({
   name: 'AttributesSideBar',
 
   components: {
     StackedVirtualSidebarContainer,
+    AttributeFilters,
   },
 
   props: {
@@ -40,17 +40,7 @@ export default defineComponent({
     :enable-slot="false"
   >
     <template #default="{ topHeight, bottomHeight }">
-      <FilterList
-        :show-empty-types="true"
-        :height="topHeight - 46"
-        :width="width"
-        :style-manager="styleManager"
-        :filter-controls="groupFilterControls"
-        group
-        class="flex-shrink-1 flex-grow-1"
-      />
-      <v-divider />
-      <GroupList
+      <attribute-filters
         class="flex-grow-0 flex-shrink-0"
         :height="bottomHeight"
         :hotkeys-disabled="visible() || readOnlyMode"

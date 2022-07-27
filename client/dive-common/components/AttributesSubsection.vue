@@ -10,12 +10,12 @@ import {
   useCameraStore,
   useTime,
   useReadOnlyMode,
+  useAttributesFilters,
 } from 'vue-media-annotator/provides';
-import type { Attribute } from 'vue-media-annotator/use/useAttributes';
+import type { Attribute, AttributeFilter, AttributeNumberFilter } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
-
 
 export default defineComponent({
   components: {
@@ -41,6 +41,7 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
+    const { attributeFilters } = useAttributesFilters();
     const cameraStore = useCameraStore();
     const activeSettings = ref(true);
     const sortingMethods = ['a-z', '1-0'];
@@ -75,8 +76,8 @@ export default defineComponent({
       const filteredAttributes = Object.values(props.attributes).filter(
         (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
       );
-      // Sort the fitleredAttributes
-      return filteredAttributes.sort((a, b) => {
+      // Sort the fitleredAttributes based on mode
+      const sortedAttributes = filteredAttributes.sort((a, b) => {
         if (sortingMode.value === 0) {
           return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
         }
@@ -103,6 +104,39 @@ export default defineComponent({
         }
         return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
       });
+      let sortedFilteredAttributes = sortedAttributes;
+      // Additional Filtering based on active Attribute Filters
+      let additionFilters: AttributeFilter[] = [];
+      if (props.mode === 'Track') {
+        additionFilters = attributeFilters.value.track;
+      } else {
+        additionFilters = attributeFilters.value.detection;
+      }
+      additionFilters.forEach((filter) => {
+        if (filter.filterData.active) {
+          sortedFilteredAttributes = sortedFilteredAttributes.filter((item, index) => {
+            if (selectedAttributes.value !== null
+        && selectedAttributes.value.attributes !== undefined) {
+              if (filter.dataType === 'number' && item.datatype === 'number') {
+                const numberFilter = filter.filterData as AttributeNumberFilter;
+                if (numberFilter.type === 'range') {
+                  if (numberFilter.comp === '>') {
+                    return (selectedAttributes.value.attributes[item.name] as number
+                  > numberFilter.value);
+                  }
+                }
+                if (numberFilter.type === 'top') {
+                  return index < numberFilter.value;
+                }
+              }
+              return true;
+            }
+            return true;
+          });
+        }
+        return sortedFilteredAttributes;
+      });
+      return sortedFilteredAttributes;
     });
 
     const activeAttributesCount = computed(

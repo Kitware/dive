@@ -8,7 +8,7 @@ import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import type { AnnotationId } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
-import type { Attribute } from './use/useAttributes';
+import type { Attribute, AttributeFilter } from './use/useAttributes';
 import type { Time } from './use/useTimeObserver';
 import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
@@ -26,6 +26,14 @@ type AnnotatorPreferences = Readonly<Ref<AnnotatorPrefsIface>>;
 
 const AttributesSymbol = Symbol('attributes');
 type AttributesType = Readonly<Ref<Attribute[]>>;
+
+const AttributesFilterSymbol = Symbol('attributesFilter');
+export interface AttributesFilterType {
+  attributeFilters: Ref< {track: AttributeFilter[]; detection: AttributeFilter[]}>;
+  addAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
+  modifyAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
+  deleteAttributeFilter: (index: number, type: Attribute['belongs']) => void;
+}
 
 const DatasetIdSymbol = Symbol('datasetID');
 type DatasetIdType = Readonly<Ref<string>>;
@@ -281,9 +289,10 @@ function dummyState(): State {
  * are currently not supported.
  *
  * @param {State} state
- * @param {Hander} handler
+ * @param {Handler} handler
+ * @param {}
  */
-function provideAnnotator(state: State, handler: Handler) {
+function provideAnnotator(state: State, handler: Handler, attributesFilters: AttributesFilterType) {
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
@@ -306,6 +315,7 @@ function provideAnnotator(state: State, handler: Handler) {
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(HandlerSymbol, handler);
+  provide(AttributesFilterSymbol, attributesFilters);
 }
 
 function _handleMissing(s: symbol): Error {
@@ -326,6 +336,10 @@ function useAnnotatorPreferences() {
 
 function useAttributes() {
   return use<AttributesType>(AttributesSymbol);
+}
+
+function useAttributesFilters() {
+  return use<AttributesFilterType>(AttributesFilterSymbol);
 }
 
 function useCameraStore() {
@@ -435,4 +449,5 @@ export {
   useVisibleModes,
   useReadOnlyMode,
   useImageEnhancements,
+  useAttributesFilters,
 };

@@ -164,6 +164,10 @@ export default defineComponent({
       loadAttributes,
       setAttribute,
       deleteAttribute,
+      attributeFilters,
+      deleteAttributeFilter,
+      addAttributeFilter,
+      modifyAttributeFilter,
     } = useAttributes({ markChangesPending });
 
     const cameraStore = new CameraStore({ markChangesPending });
@@ -626,6 +630,13 @@ export default defineComponent({
       unlinkCameraTrack,
     };
 
+    const useAttributeFilters = {
+      attributeFilters,
+      addAttributeFilter,
+      deleteAttributeFilter,
+      modifyAttributeFilter,
+    };
+
     provideAnnotator(
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
@@ -651,6 +662,7 @@ export default defineComponent({
         imageEnhancements,
       },
       globalHandler,
+      useAttributeFilters,
     );
 
     return {

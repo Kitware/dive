@@ -15,19 +15,27 @@ export type Attributes = Record<string, Attribute>;
 type ValueOf<T> = T[keyof T];
 
 export interface AttributeNumberFilter {
-  type: 'ranges' | 'top'; // range filters for number values, top will show highest X values
-  ranges?: [number, number][]; // Pairs of number indicating start/stop ranges
-  invert?: true; //inverts the ranges displayed
+  type: 'range' | 'top'; // range filters for number values, top will show highest X values
+  comp?: '>' | '<' | '>=' | '<=';
+  value: number; //current value
+  active: boolean; // if this filter is active
+  // Settings for Number Fitler
+  range?: [number, number]; // Pairs of number indicating start/stop ranges
+  appliedTo: ['all'] | string[];
 }
 
 export interface AttributeStringFilter {
-  type: '=' | '!=' | 'contains' | 'starts';
+  comp: '=' | '!=' | 'contains' | 'starts';
   value: string[]; //Compares with array of items
+  appliedTo: ['all'] | string[];
+  active: boolean; // if this filter is active
 }
 
 export interface AttributeBoolFilter {
   value: boolean;
   type: 'is' | 'not';
+  appliedTo: ['all'] | string[];
+  active: boolean; // if this filter is active
 }
 export interface AttributeFilter {
   dataType: Attribute['datatype'];
@@ -50,7 +58,7 @@ interface UseAttributesParams {
 
 export default function UseAttributes({ markChangesPending }: UseAttributesParams) {
   const attributes: Ref<Record<string, Attribute>> = ref({});
-  const atrributeFilters: Ref<{
+  const attributeFilters: Ref<{
     track: AttributeFilter[];
     detection: AttributeFilter[];
   }> = ref({ track: [], detection: [] });
@@ -89,16 +97,13 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
   }
 
   function addAttributeFilter(index: number, type: Attribute['belongs'], filter: AttributeFilter) {
-    const filterList = atrributeFilters.value[type];
-    if (index < filterList.length) {
-      filterList.splice(index, 0, filter);
-    } else {
-      throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
-    }
+    const filterList = attributeFilters.value[type];
+    filterList.push(filter);
+    VueSet(attributeFilters.value, type, filterList);
   }
 
   function deleteAttributeFilter(index: number, type: Attribute['belongs']) {
-    const filterList = atrributeFilters.value[type];
+    const filterList = attributeFilters.value[type];
     if (index < filterList.length) {
       filterList.splice(index, 1);
     } else {
@@ -106,9 +111,10 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     }
   }
   function modifyAttributeFilter(index: number, type: Attribute['belongs'], filter: AttributeFilter) {
-    const filterList = atrributeFilters.value[type];
+    const filterList = attributeFilters.value[type];
     if (index < filterList.length) {
-      filterList.splice(index, 1, filter);
+      filterList[index] = filter;
+      VueSet(attributeFilters.value, type, filterList);
     } else {
       throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
     }
@@ -122,7 +128,7 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     addAttributeFilter,
     deleteAttributeFilter,
     modifyAttributeFilter,
-    atrributeFilters,
+    attributeFilters,
 
   };
 }

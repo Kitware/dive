@@ -5,8 +5,9 @@ import {
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { AttributeFilter } from 'vue-media-annotator/use/useAttributes';
-import { useReadOnlyMode } from '../provides';
+import type { AttributeFilter, AttributeNumberFilter, AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
+import AttributeNumberFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeNumberFilter.vue';
+import { useAttributesFilters, useReadOnlyMode } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import StyleManager from '../StyleManager';
 
@@ -33,32 +34,103 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
-    attributeFilters: {
-      type: Object as PropType<{track: AttributeFilter[]; detection: AttributeFilter[]}>,
-      required: true,
-    },
-    styleManager: {
-      type: Object as PropType<StyleManager>,
-      required: true,
-    },
   },
 
-  components: { TooltipBtn },
+  components: { TooltipBtn, AttributeNumberFilter: AttributeNumberFilterVue },
 
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-    const currentTab = ref('Track Filters');
+    const currentTab: Ref<'track' | 'detection'> = ref('track');
+    const tabMap = ref(['track', 'detection']);
+    const {
+      attributeFilters, addAttributeFilter, deleteAttributeFilter, modifyAttributeFilter,
+    } = useAttributesFilters();
 
     // Ordering of these lists should match
 
     const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
 
+    const getComponentType = (type: AttributeFilter['dataType']) => {
+      if (type === 'number') {
+        return 'attribute-number-filter';
+      } if (type === 'boolean') {
+        return 'attribute-bool-filter';
+      } if (type === 'text') {
+        return 'attribute-string-filter';
+      }
+      return '';
+    };
+
+    const deleteFilter = async (index: number, tab: 'track' | 'detection') => {
+      // Delete the filter
+      const result = await prompt({
+        title: 'Delete Filter?',
+        text: 'Are you sure you want to delete this fitler?',
+        confirm: true,
+      });
+      if (result) {
+        //Delete the filter
+        deleteAttributeFilter(index, tab);
+      }
+    };
+    const addFilter = (tab: 'track' | 'detection') => {
+      // add Filter
+      const newFilter: AttributeFilter = {
+        dataType: 'number',
+        filterData: {
+          type: 'range',
+          range: [0, 1.0],
+          value: 0.10,
+          comp: '>',
+          active: false,
+          appliedTo: ['all'],
+        },
+      };
+      addAttributeFilter(0, tab, newFilter);
+    };
+    const modifyFilter = (index: number, tab: 'track' | 'detection', filter: AttributeFilter['filterData']) => {
+      const list = attributeFilters.value[tab];
+      if (index < list.length) {
+        const item: AttributeFilter = list[index];
+        item.filterData = filter;
+        modifyAttributeFilter(index, tab, item);
+      }
+    };
+    const updateValue = (index: number, tab: 'track' | 'detection', value: number | string[]) => {
+      const list = attributeFilters.value[tab];
+      if (index < list.length) {
+        const item: AttributeFilter = list[index];
+        if (typeof (value) === 'number') {
+          (item.filterData as AttributeNumberFilter).value = value;
+        } else if (Array.isArray(value)) {
+          (item.filterData as AttributeStringFilter).value = value;
+        }
+        modifyAttributeFilter(index, tab, item);
+      }
+    };
+    const updateActive = (index: number, tab: 'track' | 'detection', active: boolean) => {
+      const list = attributeFilters.value[tab];
+      if (index < list.length) {
+        const item: AttributeFilter = list[index];
+        item.filterData.active = active;
+        modifyAttributeFilter(index, tab, item);
+      }
+    };
+
     return {
       currentTab,
       virtualHeight,
       readOnlyMode,
+      attributeFilters,
+      tabMap,
       /* methods */
+      getComponentType,
+      deleteFilter,
+      addFilter,
+      modifyFilter,
+      updateValue,
+      updateActive,
     };
   },
 });
@@ -66,25 +138,39 @@ export default defineComponent({
 
 <template>
   <div>
-    <v-card>
-      <v-card-title>
-        <v-tabs v-model="currentTab">
-          <v-tab> Track Filters </v-tab>
-          <v-tab> Detection Filters</v-tab>
-        </v-tabs>
+    <v-card class="pa-0">
+      <v-card-title class="pa-0">
+        <v-select
+          v-model="currentTab"
+          :items="tabMap"
+          label="Type"
+        />
       </v-card-title>
-      <v-tabs-items v-model="currentTab">
-        <v-tab-item>
-          <v-card-text>
-            <v-list>
-              <v-list-item
-                v-for="(filter, index) in attributeFilters"
-                :key="`track_${index}`"
-              />
-            </v-list>
-          </v-card-text>
-        </v-tab-item>
-      </v-tabs-items>
+      <v-card-text>
+        <div
+          v-for="(filter, index) in attributeFilters[currentTab]"
+          :key="`track_${index}`"
+          no-gutters
+        >
+          <component
+            :is="getComponentType(filter.dataType)"
+            :attribute-filter="filter.filterData"
+            @delete="deleteFilter(index, currentTab)"
+            @update-value="updateValue(index, currentTab, $event)"
+            @update-active="updateActive(index, currentTab, $event)"
+            @save-changes="modifyFilter(index, currentTab, $event)"
+          />
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn
+          color="success"
+          tooltip-text="Add Filter"
+          @click="addFilter(currentTab)"
+        >
+          Add Filter
+        </v-btn>
+      </v-card-actions>
     </v-card>
   </div>
 </template>
