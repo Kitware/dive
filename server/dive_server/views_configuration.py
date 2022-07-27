@@ -1,13 +1,11 @@
 import csv
 import os
-from pathlib import Path
 from typing import Dict, List
 from urllib.parse import urlparse
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
-from girder.exceptions import RestException
 from girder.models.setting import Setting
 from girder.models.token import Token
 from girder.utility import setting_utilities
@@ -125,10 +123,7 @@ class ConfigurationResource(Resource):
             }
             installed_addons = addons_config['downloaded']
             download = s.get(constants.AddonsListURL)
-            add_on_dir = os.environ.get('ADDON_ROOT_DIR', '/tmp/addons')
-
             decoded_content = download.content.decode('utf-8')
-
             cr = csv.reader(decoded_content.splitlines(), delimiter=',')
             my_list = list(cr)
             for item in my_list:
