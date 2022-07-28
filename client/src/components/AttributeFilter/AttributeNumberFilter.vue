@@ -1,15 +1,14 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
 import type { AttributeNumberFilter } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep } from 'lodash';
+import { useAttributes } from 'vue-media-annotator/provides';
 import TooltipBtn from '../TooltipButton.vue';
 
-
-/* Magic numbers involved in height calculation */
-const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'AttributeNumberFilter',
@@ -25,6 +24,7 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const settingsDialog = ref(false);
+    const attributesList = useAttributes();
     const copiedFilter: Ref<null | AttributeNumberFilter> = ref(null);
     // Ordering of these lists should match
     const setValue = (val: number) => {
@@ -41,6 +41,15 @@ export default defineComponent({
       settingsDialog.value = true;
     };
     const saveChanges = () => {
+      // Adjust value if out of range
+      if (copiedFilter.value && copiedFilter.value.range) {
+        const val = copiedFilter.value.value;
+        const lowRange = copiedFilter.value.range[0];
+        const highRange = copiedFilter.value.range[1];
+        if (val < lowRange || val > highRange) {
+          copiedFilter.value.value = lowRange;
+        }
+      }
       emit('save-changes', copiedFilter.value);
       settingsDialog.value = false;
     };
@@ -56,15 +65,29 @@ export default defineComponent({
       }
     };
 
+    const filterNames = computed(() => {
+      const data = ['all'];
+      return data.concat(attributesList.value.filter(
+        (item) => item.datatype === 'number',
+      ).map((item) => item.name));
+    });
+    const removeChip = (item: string) => {
+      if (copiedFilter.value) {
+        copiedFilter.value.appliedTo.splice(copiedFilter.value.appliedTo.indexOf(item), 1);
+      }
+    };
+
     return {
       settingsDialog,
       copiedFilter,
+      filterNames,
       /* methods */
       showSettings,
       saveChanges,
       setValue,
       setActive,
       typeChange,
+      removeChip,
     };
   },
 });
@@ -96,7 +119,7 @@ export default defineComponent({
         class="align-center"
       >
         <v-checkbox
-          :value="attributeFilter.active"
+          :input-value="attributeFilter.active"
           label="enabled"
           @change="setActive"
         />
@@ -112,9 +135,9 @@ export default defineComponent({
           :value="attributeFilter.value"
           :min="attributeFilter.range[0]"
           :max="attributeFilter.range[1]"
-          :step="attributeFilter.range[1]/10.0"
+          :step="attributeFilter.range[1]/100.0"
           :label="attributeFilter.value.toString()"
-          @change="setValue"
+          @input="setValue"
         />
       </v-row>
     </div>
@@ -137,7 +160,7 @@ export default defineComponent({
           :max="attributeFilter.range[1]"
           :step="1"
           :label="attributeFilter.value.toString()"
-          @change="setValue"
+          @input="setValue"
         />
       </v-row>
     </div>
@@ -156,6 +179,28 @@ export default defineComponent({
               label="Type"
               @change="typeChange"
             />
+          </v-row>
+          <v-row>
+            <v-combobox
+              v-model="copiedFilter.appliedTo"
+              :items="filterNames"
+              chips
+              labels="Apply To"
+              multiple
+              solor
+            >
+              <template v-slot:selection="{ attrs, item, select, selected }">
+                <v-chip
+                  v-bind="attrs"
+                  :input-value="selected"
+                  close
+                  @click="select"
+                  @click:close="removeChip(item)"
+                >
+                  <strong>{{ item }}</strong>&nbsp;
+                </v-chip>
+              </template>
+            </v-combobox>
           </v-row>
           <div v-if="copiedFilter.type === 'range'">
             <v-row>

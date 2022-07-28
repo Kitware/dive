@@ -5,7 +5,7 @@ import {
 import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
 import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
-import type { AnnotationId } from './BaseAnnotation';
+import type { AnnotationId, StringKeyObject } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
 import type { Attribute, AttributeFilter } from './use/useAttributes';
@@ -33,6 +33,7 @@ export interface AttributesFilterType {
   addAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
   modifyAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
   deleteAttributeFilter: (index: number, type: Attribute['belongs']) => void;
+  sortAndFilterAttributes: (attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, sortingMode: number, filters: AttributeFilter[]) => Attribute[];
 }
 
 const DatasetIdSymbol = Symbol('datasetID');

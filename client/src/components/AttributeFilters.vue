@@ -7,6 +7,7 @@ import { difference, union } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { AttributeFilter, AttributeNumberFilter, AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
 import AttributeNumberFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeNumberFilter.vue';
+import AttributeStringFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeStringFilter.vue';
 import { useAttributesFilters, useReadOnlyMode } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import StyleManager from '../StyleManager';
@@ -36,7 +37,11 @@ export default defineComponent({
     },
   },
 
-  components: { TooltipBtn, AttributeNumberFilter: AttributeNumberFilterVue },
+  components: {
+    TooltipBtn,
+    AttributeNumberFilter: AttributeNumberFilterVue,
+    AttributeStringFilter: AttributeStringFilterVue,
+  },
 
   setup(props) {
     const { prompt } = usePrompt();
@@ -87,6 +92,15 @@ export default defineComponent({
           appliedTo: ['all'],
         },
       };
+      // const newFilter: AttributeFilter = {
+      //   dataType: 'text',
+      //   filterData: {
+      //     value: ['test'],
+      //     comp: 'contains',
+      //     active: false,
+      //     appliedTo: ['all'],
+      //   },
+      // };
       addAttributeFilter(0, tab, newFilter);
     };
     const modifyFilter = (index: number, tab: 'track' | 'detection', filter: AttributeFilter['filterData']) => {

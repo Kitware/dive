@@ -16,6 +16,7 @@ import type { Attribute, AttributeFilter, AttributeNumberFilter } from 'vue-medi
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import context from 'dive-common/store/context';
 
 export default defineComponent({
   components: {
@@ -41,7 +42,7 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
-    const { attributeFilters } = useAttributesFilters();
+    const { attributeFilters, sortAndFilterAttributes } = useAttributesFilters();
     const cameraStore = useCameraStore();
     const activeSettings = ref(true);
     const sortingMethods = ['a-z', '1-0'];
@@ -73,70 +74,21 @@ export default defineComponent({
     });
 
     const filteredFullAttributes = computed(() => {
-      const filteredAttributes = Object.values(props.attributes).filter(
-        (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
-      );
-      // Sort the fitleredAttributes based on mode
-      const sortedAttributes = filteredAttributes.sort((a, b) => {
-        if (sortingMode.value === 0) {
-          return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
-        }
-        //Numerical Sort
-        if (selectedAttributes.value !== null
-        && selectedAttributes.value.attributes !== undefined) {
-          const aVal = selectedAttributes.value.attributes[a.name];
-          const bVal = selectedAttributes.value.attributes[b.name];
-          if (aVal === undefined && bVal === undefined) {
-            return 0;
-          } if (aVal === undefined && bVal !== undefined) {
-            return 1;
-          } if (aVal !== undefined && bVal === undefined) {
-            return -1;
-          }
-          if (a.datatype === 'number' && b.datatype === 'number') {
-            return (bVal as number) - (aVal as number);
-          } if (a.datatype === 'number' && b.datatype !== 'number') {
-            return -1;
-          }
-          if (a.datatype !== 'number' && b.datatype === 'number') {
-            return 1;
-          }
-        }
-        return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
-      });
-      let sortedFilteredAttributes = sortedAttributes;
-      // Additional Filtering based on active Attribute Filters
       let additionFilters: AttributeFilter[] = [];
+      let mode: 'track' | 'detection' = 'track';
       if (props.mode === 'Track') {
         additionFilters = attributeFilters.value.track;
       } else {
         additionFilters = attributeFilters.value.detection;
+        mode = 'detection';
       }
-      additionFilters.forEach((filter) => {
-        if (filter.filterData.active) {
-          sortedFilteredAttributes = sortedFilteredAttributes.filter((item, index) => {
-            if (selectedAttributes.value !== null
-        && selectedAttributes.value.attributes !== undefined) {
-              if (filter.dataType === 'number' && item.datatype === 'number') {
-                const numberFilter = filter.filterData as AttributeNumberFilter;
-                if (numberFilter.type === 'range') {
-                  if (numberFilter.comp === '>') {
-                    return (selectedAttributes.value.attributes[item.name] as number
-                  > numberFilter.value);
-                  }
-                }
-                if (numberFilter.type === 'top') {
-                  return index < numberFilter.value;
-                }
-              }
-              return true;
-            }
-            return true;
-          });
-        }
-        return sortedFilteredAttributes;
-      });
-      return sortedFilteredAttributes;
+      let attributeVals = {};
+      if (selectedAttributes.value && selectedAttributes.value.attributes) {
+        attributeVals = selectedAttributes.value.attributes;
+      }
+      return sortAndFilterAttributes(
+        props.attributes, mode, attributeVals, sortingMode.value, additionFilters,
+      );
     });
 
     const activeAttributesCount = computed(
@@ -179,6 +131,20 @@ export default defineComponent({
       sortingMode.value = (sortingMode.value + 1) % sortingMethods.length;
     }
 
+    const filtersActive = computed(() => {
+      let additionFilters: AttributeFilter[] = [];
+      if (props.mode === 'Track') {
+        additionFilters = attributeFilters.value.track;
+      } else {
+        additionFilters = attributeFilters.value.detection;
+      }
+      return !!additionFilters.find((filter) => filter.filterData.active === true);
+    });
+
+    function toggleFilters() {
+      context.toggle('AttributesSideBar');
+    }
+
 
     return {
       frameRef,
@@ -197,6 +163,8 @@ export default defineComponent({
       sortingMethodIcons,
       sortingMode,
       clickSortToggle,
+      toggleFilters,
+      filtersActive,
     };
   },
 });
@@ -267,6 +235,13 @@ export default defineComponent({
           :icon="sortingMethodIcons[sortingMode]"
           tooltip-text="Sort types by value or alphabetically"
           @click="clickSortToggle"
+        />
+        <tooltip-btn
+          icon="mdi-filter"
+          :color="filtersActive ? 'primary' : 'default'"
+          :tooltip-text="filtersActive
+            ? 'Filters are active, click to view': 'No filters are active, click to edit'"
+          @click="toggleFilters"
         />
       </v-row>
     </template>

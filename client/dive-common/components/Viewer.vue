@@ -168,6 +168,7 @@ export default defineComponent({
       deleteAttributeFilter,
       addAttributeFilter,
       modifyAttributeFilter,
+      sortAndFilterAttributes,
     } = useAttributes({ markChangesPending });
 
     const cameraStore = new CameraStore({ markChangesPending });
@@ -635,6 +636,7 @@ export default defineComponent({
       addAttributeFilter,
       deleteAttributeFilter,
       modifyAttributeFilter,
+      sortAndFilterAttributes,
     };
 
     provideAnnotator(

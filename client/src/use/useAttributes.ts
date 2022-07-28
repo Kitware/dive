@@ -2,6 +2,7 @@
 import {
   ref, Ref, computed, set as VueSet, del as VueDel,
 } from '@vue/composition-api';
+import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 export interface Attribute {
   belongs: 'track' | 'detection';
@@ -21,20 +22,20 @@ export interface AttributeNumberFilter {
   active: boolean; // if this filter is active
   // Settings for Number Fitler
   range?: [number, number]; // Pairs of number indicating start/stop ranges
-  appliedTo: ['all'] | string[];
+  appliedTo: string[];
 }
 
 export interface AttributeStringFilter {
   comp: '=' | '!=' | 'contains' | 'starts';
   value: string[]; //Compares with array of items
-  appliedTo: ['all'] | string[];
+  appliedTo: string[];
   active: boolean; // if this filter is active
 }
 
 export interface AttributeBoolFilter {
   value: boolean;
   type: 'is' | 'not';
-  appliedTo: ['all'] | string[];
+  appliedTo: string[];
   active: boolean; // if this filter is active
 }
 export interface AttributeFilter {
@@ -120,6 +121,119 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     }
   }
 
+  function sortAttributes(attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, sortingMode: number) {
+    const filteredAttributes = Object.values(attributeList).filter(
+      (attribute: Attribute) => attribute.belongs === mode,
+    );
+    return filteredAttributes.sort((a, b) => {
+      if (sortingMode === 0) {
+        return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
+      }
+      const aVal = attribVals[a.name];
+      const bVal = attribVals[b.name];
+      if (aVal === undefined && bVal === undefined) {
+        return 0;
+      } if (aVal === undefined && bVal !== undefined) {
+        return 1;
+      } if (aVal !== undefined && bVal === undefined) {
+        return -1;
+      }
+      if (a.datatype === 'number' && b.datatype === 'number') {
+        return (bVal as number) - (aVal as number);
+      } if (a.datatype === 'number' && b.datatype !== 'number') {
+        return -1;
+      }
+      if (a.datatype !== 'number' && b.datatype === 'number') {
+        return 1;
+      }
+      return (a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
+    });
+  }
+
+  function applyStringFilter(
+    filter: AttributeStringFilter,
+    item: Attribute,
+    val: string,
+  ) {
+    if (filter.comp === '=') {
+      return filter.value.includes(val);
+    } if (filter.comp === '!=') {
+      return !filter.value.includes(val);
+    } if (filter.comp === 'contains') {
+      return filter.value.reduce((prev, str) => prev || str.includes(val), false);
+    } if (filter.comp === 'starts') {
+      return filter.value.reduce((prev, str) => prev || str.startsWith(val), false);
+    }
+    return true;
+  }
+  function applyNumberFilter(
+    filter: AttributeNumberFilter,
+    item: Attribute,
+    val: number,
+    index: number,
+  ) {
+    if (filter.type === 'range') {
+      if (filter.comp === '>') {
+        return (val > filter.value);
+      } if (filter.comp === '<') {
+        return (val < filter.value);
+      } if (filter.comp === '<=') {
+        return (val <= filter.value);
+      } if (filter.comp === '>=') {
+        return (val >= filter.value);
+      }
+      return true;
+    }
+    if (filter.type === 'top') {
+      return index < filter.value;
+    }
+    return true;
+  }
+
+  function filterAttributes(attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, filters: AttributeFilter[]) {
+    let sortedFilteredAttributes = attributeList;
+    filters.forEach((filter) => {
+      if (filter.filterData.active) {
+        sortedFilteredAttributes = sortedFilteredAttributes.filter((item, index) => {
+          // Filter on appliedTo list of attributes or 'all'
+          if (filter.filterData.appliedTo.includes(item.name) || filter.filterData.appliedTo[0] === 'all') {
+            if (filter.dataType === 'number' && item.datatype === 'number') {
+              const numberFilter = filter.filterData as AttributeNumberFilter;
+              return applyNumberFilter(numberFilter, item, attribVals[item.name] as number, index);
+            }
+            if (filter.dataType === 'text' && item.datatype === 'text') {
+              const stringFilter = filter.filterData as AttributeStringFilter;
+              return applyStringFilter(stringFilter, item, attribVals[item.name] as string);
+            }
+            return true;
+          }
+          return true;
+        });
+      }
+      return sortedFilteredAttributes;
+    });
+    return sortedFilteredAttributes;
+  }
+
+  /**
+   * Used for display purposes of the Attributes in the sideBar. If you are rendering
+   * Attributes for track  and want the filters applied it may be better to filter
+   * only on existing values in AttribVals instead of the entire object This takes
+   * the Attributes built in Sorts them by Name or Numeric value and then filters them
+   * based on the filters that have are active.
+   * @param attributeList list of tempalated attributes
+   * @param mode - detection or tack
+   * @param attribVals - the attribute values for the track/detection
+   * @param sortingMode - 0 = alphabetical, 1 = numeric
+   * @param filters - list of filters to applie
+   * @returns - sorted list of attributes
+   */
+  function sortAndFilterAttributes(attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, sortingMode: number, filters: AttributeFilter[]) {
+    const sortedAttributes = sortAttributes(attributeList, mode, attribVals, sortingMode);
+    const filteredAttributes = filterAttributes(sortedAttributes, mode, attribVals, filters);
+    return filteredAttributes;
+  }
+
   return {
     loadAttributes,
     attributesList,
@@ -129,6 +243,6 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     deleteAttributeFilter,
     modifyAttributeFilter,
     attributeFilters,
-
+    sortAndFilterAttributes,
   };
 }
