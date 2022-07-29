@@ -2,7 +2,9 @@
 import {
   ref, Ref, computed, set as VueSet, del as VueDel,
 } from '@vue/composition-api';
+import { features } from 'process';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
+import { Track } from '..';
 
 export interface Attribute {
   belongs: 'track' | 'detection';
@@ -17,11 +19,11 @@ type ValueOf<T> = T[keyof T];
 
 export interface AttributeNumberFilter {
   type: 'range' | 'top'; // range filters for number values, top will show highest X values
-  comp?: '>' | '<' | '>=' | '<=';
+  comp: '>' | '<' | '>=' | '<=';
   value: number; //current value
   active: boolean; // if this filter is active
   // Settings for Number Fitler
-  range?: [number, number]; // Pairs of number indicating start/stop ranges
+  range: [number, number]; // Pairs of number indicating start/stop ranges
   appliedTo: string[];
 }
 
@@ -253,6 +255,32 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     const sortedAttributes = sortAttributes(attributeList, mode, attribVals, sortingMode);
     const filteredAttributes = filterAttributes(sortedAttributes, mode, attribVals, filters);
     return filteredAttributes;
+  }
+
+  function generateTimelineData(
+    attributeList: Attribute[],
+    track: Track,
+    filter: AttributeKeyFilter,
+  ) {
+    // So we need to generate a list of all of the attributres for the length of the track
+    const valueMap: Record<string, {frame: number; value: Attribute['datatype'] }[]> = { };
+    track.features.forEach((feature) => {
+      const { frame } = feature;
+      if (feature.attributes) {
+        Object.keys(feature.attributes).forEach((key) => {
+          if (feature.attributes && filter.appliedTo.includes(key)) {
+            const val = feature.attributes[key] as Attribute['datatype'];
+            if (valueMap[key] === undefined) {
+              valueMap[key] = [];
+            }
+            valueMap[key].push({
+              frame,
+              value: val,
+            });
+          }
+        });
+      }
+    });
   }
 
   return {

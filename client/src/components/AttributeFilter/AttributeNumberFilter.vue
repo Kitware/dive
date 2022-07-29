@@ -128,6 +128,7 @@ export default defineComponent({
         <span> value </span>
       </v-row>
       <v-row
+        v-if="attributeFilter.range"
         no-gutters
         align-content="center"
       >
@@ -135,7 +136,7 @@ export default defineComponent({
           :value="attributeFilter.value"
           :min="attributeFilter.range[0]"
           :max="attributeFilter.range[1]"
-          :step="attributeFilter.range[1]/100.0"
+          :step="attributeFilter.range[1] > 1 ? 1 : .01"
           :label="attributeFilter.value.toString()"
           @input="setValue"
         />
@@ -219,9 +220,6 @@ export default defineComponent({
                 type="number"
                 label="Lower"
                 :max="copiedFilter.range[1]"
-                :rules="[
-                  (v) => v <= copiedFilter.range[1] || 'End must be < Upper Range',
-                ]"
               />
               <v-text-field
                 v-model.number="copiedFilter.range[1]"
@@ -231,9 +229,6 @@ export default defineComponent({
                 type="number"
                 label="Upper"
                 :min="copiedFilter.range[0]"
-                :rules="[
-                  (v) => v >= copiedFilter.range[0] || 'End must be > Lower Range',
-                ]"
               />
             </v-row>
           </div>
@@ -247,9 +242,6 @@ export default defineComponent({
               type="number"
               label="Top X items"
               :min="1"
-              :rules="[
-                (v) => v >= 0|| 'value must be greater than 0',
-              ]"
             />
           </div>
         </v-card-text>

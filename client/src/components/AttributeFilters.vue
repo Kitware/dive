@@ -51,13 +51,13 @@ export default defineComponent({
     const currentTab: Ref<'track' | 'detection'> = ref('track');
     const tabMap = ref(['track', 'detection']);
     const filterTypes = ref([
-      { type: 'Number', description: 'Filter Number values by their range or display Top X number values' },
-      { type: 'Text', description: 'Filter Text values by their value.  Starting with, containing or equaling a list of values' },
-      { type: 'Key', description: 'Filter based on Key Names to only show a subset of attributes' },
-      { type: 'Bool', description: 'Filter Boolean values.  Simple compairison of is (True) or not (False)' },
+      { type: 'number', description: 'Filter Number values by their range or display Top X number values' },
+      { type: 'text', description: 'Filter Text values by their value.  Starting with, containing or equaling a list of values' },
+      { type: 'key', description: 'Filter based on Key Names to only show a subset of attributes' },
+      { type: 'bool', description: 'Filter Boolean values.  Simple compairison of is (True) or not (False)' },
     ]);
     const addFilterDialog = ref(false);
-    const selectedAddFilterType = ref('Number');
+    const selectedAddFilterType: Ref<Attribute['datatype'] | 'key'> = ref('number');
     const {
       attributeFilters, addAttributeFilter, deleteAttributeFilter, modifyAttributeFilter,
     } = useAttributesFilters();
@@ -254,7 +254,7 @@ export default defineComponent({
             </v-btn>
             <v-btn
               color="success"
-              @click="addFilter(selectedAddFilterType.toLowerCase())"
+              @click="addFilter(selectedAddFilterType)"
             >
               Create
             </v-btn>
