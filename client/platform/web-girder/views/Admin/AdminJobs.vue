@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed,
-  defineComponent, onMounted, ref, Ref,
+  defineComponent, onMounted, ref, Ref, watch,
 } from '@vue/composition-api';
 import {
   cancelJob, deleteJob, getJobTypesStatus, getRecentJobs,
@@ -12,6 +12,7 @@ import { all, getByValue, Status } from '@girder/components/src/components/Job/s
 import moment from 'moment';
 import { isObject } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useStore } from 'platform/web-girder/store/types';
 
 const JobStatus = all();
 const JobStatusMap = {
@@ -31,12 +32,15 @@ export default defineComponent({
   setup() {
     const limit = ref(50);
     const offset = ref(0);
+    const store = useStore();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
     const jobTypes: Ref<string[]> = ref([]);
     const jobStatusList: Ref<string[]> = ref(['Cancelled', 'Error', 'Inactive', 'Running', 'Cancelling', 'Success']);
     const filterStatus: Ref<string[]> = ref(['Running', 'Error', 'Inactive']);
     const filterTypes: Ref<string[]> = ref([]);
+    const trainingInputList: Ref<[string, number][]> = ref([]);
+    const trainingListDialog = ref(false);
     const headers: Ref<{text: string; value: string}[]> = ref([
       { text: 'Title', value: 'title' },
       { text: 'Type', value: 'type' },
@@ -53,7 +57,6 @@ export default defineComponent({
       jobTypes.value = typesAndStatus.data.types;
       filterTypes.value = typesAndStatus.data.types;
     };
-    // First we need to download the CSV from github
     const getData = async () => {
       const statusNums = filterStatus.value.map(
         (status) => JobStatusMap[status].value,
@@ -95,6 +98,12 @@ export default defineComponent({
       await getData();
     });
 
+    watch(() => store.getters['Jobs/runningJobIds'], async (prev: boolean, current: boolean) => {
+      if (prev !== current) {
+        await getData();
+      }
+    });
+
     const formatStatus = (status: number, updated: string) => {
       const statusDef = getByValue(status);
       return {
@@ -104,8 +113,8 @@ export default defineComponent({
         statusIcon: statusDef.icon,
         updateString: moment(updated).format('dddd, MMMM D, YYYY @ h:mm a'),
         progressNumber: 100,
-        indeterminate: statusDef.indeterminate,
-        class: statusDef.indeterminate ? ['mdi-spin'] : undefined,
+        indeterminate: statusDef.indeterminate || statusDef.value === 2,
+        class: statusDef.indeterminate || statusDef.value === 2 ? ['mdi-spin'] : undefined,
       };
     };
     const getJobStatusColor = (status: string) => JobStatusMap[status]?.color || 'default';
@@ -137,6 +146,12 @@ export default defineComponent({
       await getData();
     };
 
+    const viewTrainingList = (inputList: [string, number][]) => {
+      trainingInputList.value = inputList;
+      console.log(inputList);
+      trainingListDialog.value = true;
+    };
+
     return {
       table,
       headers,
@@ -151,6 +166,10 @@ export default defineComponent({
       removeStatusChip,
       getJobStatusColor,
       modifyJob,
+      // View Training Datasets
+      viewTrainingList,
+      trainingInputList,
+      trainingListDialog,
     };
   },
 
@@ -160,7 +179,7 @@ export default defineComponent({
 <template>
   <v-container>
     <v-card>
-      <v-card-title> Recent Jobs </v-card-title><!--  -->
+      <v-card-title> Recent Jobs </v-card-title>
       <v-card-text>
         <v-row>
           <v-combobox
@@ -274,6 +293,30 @@ export default defineComponent({
                 </v-tooltip>
               </div>
             </div>
+            <div v-if="item.type === 'training'">
+              <div v-if="item.params.dataset_input_list">
+                <v-tooltip
+                  bottom
+                >
+                  <template #activator="{on, attrs}">
+                    <v-btn
+                      v-bind="attrs"
+                      x-small
+                      depressed
+                      color="info"
+                      class="ml-0"
+                      v-on="on"
+                      @click="viewTrainingList(item.params.dataset_input_list)"
+                    >
+                      <v-icon small>
+                        mdi-eye
+                      </v-icon>
+                    </v-btn>
+                  </template>
+                  <span>View Training List</span>
+                </v-tooltip>
+              </div>
+            </div>
           </template>
           <template v-slot:item.actions="{ item }">
             <v-tooltip bottom>
@@ -284,7 +327,7 @@ export default defineComponent({
                   depressed
                   :href="`/girder/#job/${item.actions}`"
                   color="info"
-                  class="mx-2"
+                  class="mx-2 my-2"
                   v-on="on"
                 >
                   <v-icon small>
@@ -304,7 +347,7 @@ export default defineComponent({
                   x-small
                   depressed
                   color="warning"
-                  class="my-2 mr-1"
+                  class="mx-2 my-2"
                   v-on="on"
                   @click="modifyJob('Cancel', item.actions, item.title)"
                 >
@@ -324,7 +367,7 @@ export default defineComponent({
                   x-small
                   depressed
                   color="error"
-                  class="my-2"
+                  class="mx-2 my-2"
                   v-on="on"
                   @click="modifyJob('Delete', item.actions, item.title)"
                 >
@@ -339,5 +382,56 @@ export default defineComponent({
         </v-data-table>
       </v-card-text>
     </v-card>
+    <v-dialog
+      v-model="trainingListDialog"
+      width="250"
+    >
+      <v-card>
+        <v-card-title> Training Datasets </v-card-title>
+        <v-card-text>
+          <v-row
+            v-for="(item, index) in trainingInputList"
+            :key="item[0]"
+            class="my-2 mx-auto"
+          >
+            <v-col>
+              <span> Training Dataset # {{ index }} </span>
+            </v-col>
+            <v-col>
+              <v-tooltip
+                bottom
+              >
+                <template #activator="{on, attrs}">
+                  <v-btn
+                    v-bind="attrs"
+                    depressed
+                    small
+                    :to="{ name: 'viewer', params: { id: item[0] } }"
+                    color="info"
+                    class="mx-3"
+                    v-on="on"
+                  >
+                    <v-icon small>
+                      mdi-eye
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <span>Launch dataset viewer</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="default"
+            depressed
+            @click="trainingListDialog = false"
+          >
+            Dismiss
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>

@@ -23,7 +23,6 @@ export default defineComponent({
       { text: 'Type', value: 'type' },
       { text: 'Dataset', value: 'dataset' },
     ]);
-    // First we need to download the CSV from github
     const getData = async () => {
       table.value = (await getRecentDatasets(limit.value, offset.value)).data;
     };

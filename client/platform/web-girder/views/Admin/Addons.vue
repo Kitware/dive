@@ -8,7 +8,7 @@ import { getAddons, postAddons } from 'platform/web-girder/api/configuration.ser
 
 export default defineComponent({
   name: 'AddOns',
-  setup() {
+  setup(props, { emit }) {
     const table: Ref<[string, string, string, boolean][]> = ref([]);
     const forceDownload = ref(false);
     const selected: Ref<{Name: string; Description: string; Installed: boolean}[]> = ref([]);
@@ -17,7 +17,7 @@ export default defineComponent({
       { text: 'Description', value: 'Description' },
       { text: 'Installed', value: 'Installed' },
     ]);
-    // First we need to download the CSV from github
+    // First we get the Addons from the /dive_configuration/addons endpoint
     const getData = async () => {
       table.value = (await getAddons()).data;
     };
@@ -38,6 +38,7 @@ export default defineComponent({
       const list = downloadArray.filter((item) => item !== null) as string[];
       if (list.length) {
         postAddons(list, forceDownload.value);
+        emit('addon-job-run');
       }
     };
     return {
@@ -59,11 +60,9 @@ export default defineComponent({
       <v-card-title> AddOns </v-card-title>
       <v-card-text>
         <p>
-          Below is a list of the available addons for VIAME.
-          Their current checked state is not an indication if
-          they are installed or not, just if you want to download and install the addons.
-          If you don't use the "Force Download" switch it won't attempt
-          to download addons which are already installed
+          Below is a list of the available configuration addons for working with VIAME.
+          Select the addons you want to download and install. If an addon is already installed
+          and you want to install again you must use the 'Force Download' switch
         </p>
         <v-data-table
           v-model="selected"

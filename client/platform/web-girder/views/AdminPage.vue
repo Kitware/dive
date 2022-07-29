@@ -49,7 +49,7 @@ export default {
           <AdminJobs />
         </v-tab-item>
         <v-tab-item>
-          <AddOns />
+          <AddOns @addon-job-run="currentTab = 2" />
         </v-tab-item>
         <v-tab-item>
           <AdminBranding />

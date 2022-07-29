@@ -23,7 +23,6 @@ export default defineComponent({
       { text: 'Created', value: 'created' },
       { text: 'Dir', value: 'dir' },
     ]);
-    // First we need to download the CSV from github
     const getData = async () => {
       table.value = (await getRecentUsers(limit.value, offset.value)).data;
     };

@@ -38,8 +38,8 @@ def validateInstalledAddons(doc):
     """Handle plugin-specific system settings. Right now we don't do any validation."""
     val = doc['value']
     if val is not None:
-        # TODO: replace with real schema validation
         assert 'downloaded' in val, 'downloaded key not found in doc'
+        assert isinstance(val['downloaded'], list), 'downloaded key is not a list'
 
 
 class ConfigurationResource(Resource):

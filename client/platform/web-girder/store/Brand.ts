@@ -35,8 +35,8 @@ const brandModule: Module<BrandState, RootState> = {
         at 2AM EST/EDT on Thursdays. Downtime is typically
         less than 10 minutes.`,
       alertMessage: '',
-      trainingMessage: `This server is updated on Thursday at 2AM EST.
-      If your training job is running at that time it may be restarted or killed.`,
+      trainingMessage: `Training Jobs depending on the configuration and the size/number of datasets can
+       take a long time to complete.`,
     },
   },
   mutations: {
