@@ -4,17 +4,17 @@ import {
   defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
-import type { AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
+import type { AttributeKeyFilter } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep } from 'lodash';
 import { useAttributes } from 'vue-media-annotator/provides';
 import TooltipBtn from '../TooltipButton.vue';
 
 export default defineComponent({
-  name: 'AttributeStringFilter',
+  name: 'AttributeKeyFilter',
 
   props: {
     attributeFilter: {
-      type: Object as PropType<AttributeStringFilter>,
+      type: Object as PropType<AttributeKeyFilter>,
       required: true,
     },
   },
@@ -24,7 +24,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const settingsDialog = ref(false);
     const attributesList = useAttributes();
-    const copiedFilter: Ref<null | AttributeStringFilter> = ref(null);
+    const copiedFilter: Ref<null | AttributeKeyFilter> = ref(null);
     // Ordering of these lists should match
     const setValue = (val: string) => {
       //update the filter value
@@ -46,9 +46,7 @@ export default defineComponent({
 
     const filterNames = computed(() => {
       const data = ['all'];
-      return data.concat(attributesList.value.filter(
-        (item) => item.datatype === 'number',
-      ).map((item) => item.name));
+      return data.concat(attributesList.value.map((item) => item.name));
     });
     const removeChip = (item: string) => {
       if (copiedFilter.value) {
@@ -74,7 +72,7 @@ export default defineComponent({
 <template>
   <div>
     <v-row no-gutters>
-      <h4>String: {{ attributeFilter.comp }}</h4>
+      <h4>Key Filter</h4>
       <v-spacer />
       <tooltip-btn
         icon="mdi-cog"
@@ -102,8 +100,6 @@ export default defineComponent({
           @change="setActive"
         />
         <span class="pl-1"> {{ attributeFilter.appliedTo.join(',') }} </span>
-        <b class="px-2"> {{ attributeFilter.comp }} </b>
-        <span> {{ attributeFilter.value.join(',') }} </span>
       </v-row>
     </div>
     <v-divider />
@@ -112,7 +108,7 @@ export default defineComponent({
       width="600"
     >
       <v-card v-if="settingsDialog && copiedFilter !== null">
-        <v-card-title> Number Filter Settings </v-card-title>
+        <v-card-title> Key Filter Settings </v-card-title>
         <v-card-text>
           <v-row>
             <v-combobox
@@ -136,25 +132,6 @@ export default defineComponent({
               </template>
             </v-combobox>
           </v-row>
-          <div>
-            <v-row>
-              <v-select
-                v-model="copiedFilter.comp"
-                :items="['=', '!=', 'contains', 'starts']"
-                label="Comparison"
-              />
-            </v-row>
-            <v-row>
-              <v-combobox
-                v-model="copiedFilter.value"
-                chips
-                labels="Apply To"
-                multiple
-                solor
-                deletable-chips
-              />
-            </v-row>
-          </div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />

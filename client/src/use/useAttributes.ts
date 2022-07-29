@@ -32,6 +32,12 @@ export interface AttributeStringFilter {
   active: boolean; // if this filter is active
 }
 
+export interface AttributeKeyFilter {
+  appliedTo: string[];
+  active: boolean; // if this filter is active
+  value: true;
+  type: 'key';
+}
 export interface AttributeBoolFilter {
   value: boolean;
   type: 'is' | 'not';
@@ -39,8 +45,12 @@ export interface AttributeBoolFilter {
   active: boolean; // if this filter is active
 }
 export interface AttributeFilter {
-  dataType: Attribute['datatype'];
-  filterData: AttributeNumberFilter | AttributeStringFilter | AttributeBoolFilter;
+  dataType: Attribute['datatype'] | 'key';
+  filterData:
+  AttributeNumberFilter
+  | AttributeStringFilter
+  | AttributeBoolFilter
+  | AttributeKeyFilter;
 }
 /**
  * Modified markChangesPending for attributes specifically
@@ -190,13 +200,21 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     return true;
   }
 
+  function applyKeyFilter(filter: AttributeKeyFilter,
+    item: Attribute) {
+    if (filter.appliedTo.includes(item.name) || filter.appliedTo.includes('all')) {
+      return true;
+    }
+    return false;
+  }
+
   function filterAttributes(attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, filters: AttributeFilter[]) {
     let sortedFilteredAttributes = attributeList;
     filters.forEach((filter) => {
       if (filter.filterData.active) {
         sortedFilteredAttributes = sortedFilteredAttributes.filter((item, index) => {
           // Filter on appliedTo list of attributes or 'all'
-          if (filter.filterData.appliedTo.includes(item.name) || filter.filterData.appliedTo[0] === 'all') {
+          if (filter.dataType !== 'key' && (filter.filterData.appliedTo.includes(item.name) || filter.filterData.appliedTo[0] === 'all')) {
             if (filter.dataType === 'number' && item.datatype === 'number') {
               const numberFilter = filter.filterData as AttributeNumberFilter;
               return applyNumberFilter(numberFilter, item, attribVals[item.name] as number, index);
@@ -206,6 +224,9 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
               return applyStringFilter(stringFilter, item, attribVals[item.name] as string);
             }
             return true;
+          } if (filter.dataType === 'key') {
+            const keyFilter = filter.filterData as AttributeKeyFilter;
+            return applyKeyFilter(keyFilter, item);
           }
           return true;
         });

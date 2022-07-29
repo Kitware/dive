@@ -1,16 +1,17 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, ref, Ref,
+  computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
-import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { AttributeFilter, AttributeNumberFilter, AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
+import type {
+  Attribute, AttributeFilter, AttributeNumberFilter, AttributeStringFilter,
+} from 'vue-media-annotator/use/useAttributes';
 import AttributeNumberFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeNumberFilter.vue';
 import AttributeStringFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeStringFilter.vue';
+import AttributeKeyFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeKeyFilter.vue';
 import { useAttributesFilters, useReadOnlyMode } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
-import StyleManager from '../StyleManager';
 
 interface VirtualTypeItem {
   type: string;
@@ -41,6 +42,7 @@ export default defineComponent({
     TooltipBtn,
     AttributeNumberFilter: AttributeNumberFilterVue,
     AttributeStringFilter: AttributeStringFilterVue,
+    AttributeKeyFilter: AttributeKeyFilterVue,
   },
 
   setup(props) {
@@ -48,6 +50,14 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const currentTab: Ref<'track' | 'detection'> = ref('track');
     const tabMap = ref(['track', 'detection']);
+    const filterTypes = ref([
+      { type: 'Number', description: 'Filter Number values by their range or display Top X number values' },
+      { type: 'Text', description: 'Filter Text values by their value.  Starting with, containing or equaling a list of values' },
+      { type: 'Key', description: 'Filter based on Key Names to only show a subset of attributes' },
+      { type: 'Bool', description: 'Filter Boolean values.  Simple compairison of is (True) or not (False)' },
+    ]);
+    const addFilterDialog = ref(false);
+    const selectedAddFilterType = ref('Number');
     const {
       attributeFilters, addAttributeFilter, deleteAttributeFilter, modifyAttributeFilter,
     } = useAttributesFilters();
@@ -56,13 +66,15 @@ export default defineComponent({
 
     const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
 
-    const getComponentType = (type: AttributeFilter['dataType']) => {
+    const getComponentType = (type: AttributeFilter['dataType'] | 'key') => {
       if (type === 'number') {
         return 'attribute-number-filter';
       } if (type === 'boolean') {
         return 'attribute-bool-filter';
       } if (type === 'text') {
         return 'attribute-string-filter';
+      } if (type === 'key') {
+        return 'attribute-key-filter';
       }
       return '';
     };
@@ -79,9 +91,9 @@ export default defineComponent({
         deleteAttributeFilter(index, tab);
       }
     };
-    const addFilter = (tab: 'track' | 'detection') => {
+    const addFilter = (filterType: Attribute['datatype'] | 'key') => {
       // add Filter
-      const newFilter: AttributeFilter = {
+      let newFilter: AttributeFilter = {
         dataType: 'number',
         filterData: {
           type: 'range',
@@ -92,16 +104,30 @@ export default defineComponent({
           appliedTo: ['all'],
         },
       };
-      // const newFilter: AttributeFilter = {
-      //   dataType: 'text',
-      //   filterData: {
-      //     value: ['test'],
-      //     comp: 'contains',
-      //     active: false,
-      //     appliedTo: ['all'],
-      //   },
-      // };
-      addAttributeFilter(0, tab, newFilter);
+      if (filterType === 'text') {
+        newFilter = {
+          dataType: 'text',
+          filterData: {
+            value: ['test'],
+            comp: 'contains',
+            active: false,
+            appliedTo: ['all'],
+          },
+        };
+      }
+      if (filterType === 'key') {
+        newFilter = {
+          dataType: 'key',
+          filterData: {
+            type: 'key',
+            value: true,
+            active: false,
+            appliedTo: ['all'],
+          },
+        };
+      }
+      addAttributeFilter(0, currentTab.value, newFilter);
+      addFilterDialog.value = false;
     };
     const modifyFilter = (index: number, tab: 'track' | 'detection', filter: AttributeFilter['filterData']) => {
       const list = attributeFilters.value[tab];
@@ -138,6 +164,9 @@ export default defineComponent({
       readOnlyMode,
       attributeFilters,
       tabMap,
+      filterTypes,
+      addFilterDialog,
+      selectedAddFilterType,
       /* methods */
       getComponentType,
       deleteFilter,
@@ -157,7 +186,8 @@ export default defineComponent({
         <v-select
           v-model="currentTab"
           :items="tabMap"
-          label="Type"
+          label="Filter Type"
+          class="px-2"
         />
       </v-card-title>
       <v-card-text>
@@ -180,12 +210,58 @@ export default defineComponent({
         <v-btn
           color="success"
           tooltip-text="Add Filter"
-          @click="addFilter(currentTab)"
+          @click="addFilterDialog = true"
         >
           Add Filter
         </v-btn>
       </v-card-actions>
     </v-card>
+    <v-dialog
+      v-model="addFilterDialog"
+      width="500"
+    >
+      <v-card>
+        <v-card-title> Add Filter </v-card-title>
+        <v-card-text>
+          <p> Select the Attribute filter type to add </p>
+          <v-container
+            class="px-0"
+            fluid
+          >
+            <v-radio-group v-model="selectedAddFilterType">
+              <div
+                v-for="item in filterTypes"
+                :key="item.type"
+                class="pt-3"
+              >
+                <v-radio
+                  :label="`${item.type}`"
+                  :value="item.type"
+                />
+                <span> {{ item.description }} </span>
+              </div>
+            </v-radio-group>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer>
+            <v-btn
+              color="error"
+              class="mx-3"
+              @click="addFilterDialog = false;"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              color="success"
+              @click="addFilter(selectedAddFilterType.toLowerCase())"
+            >
+              Create
+            </v-btn>
+          </v-spacer>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 

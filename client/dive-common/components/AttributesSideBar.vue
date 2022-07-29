@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
 import { useReadOnlyMode } from 'vue-media-annotator/provides';
@@ -24,9 +24,14 @@ export default defineComponent({
   setup() {
     const readOnlyMode = useReadOnlyMode();
     const { visible } = usePrompt();
+    const currentMode = ref('Filtering');
+    const modes = ref(['Filtering', 'Timeline', 'Visualization', 'Actions']);
+
 
     return {
       readOnlyMode,
+      currentMode,
+      modes,
       visible,
     };
   },
@@ -40,6 +45,13 @@ export default defineComponent({
     :enable-slot="false"
   >
     <template #default="{ topHeight, bottomHeight }">
+      <v-select
+        v-model="currentMode"
+        :items="modes"
+        label="Attributes Section"
+        class="px-2"
+      />
+      <v-divider />
       <attribute-filters
         class="flex-grow-0 flex-shrink-0"
         :height="bottomHeight"

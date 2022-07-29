@@ -12,7 +12,7 @@ import {
   useReadOnlyMode,
   useAttributesFilters,
 } from 'vue-media-annotator/provides';
-import type { Attribute, AttributeFilter, AttributeNumberFilter } from 'vue-media-annotator/use/useAttributes';
+import type { Attribute, AttributeFilter } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';

@@ -275,34 +275,4 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
-@import 'src/components/styles/common.scss';
-
-.border-highlight {
-   border-bottom: 1px solid gray;
- }
-
-.type-checkbox {
-  max-width: 80%;
-  overflow-wrap: anywhere;
-}
-
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
-  }
-}
-.outlined {
-  background-color: gray;
-  color: #222;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 0 5px;
-  font-size: 12px;
-}
 </style>
