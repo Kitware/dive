@@ -8,7 +8,12 @@ import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import type { AnnotationId, StringKeyObject } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
-import type { Attribute, AttributeFilter } from './use/useAttributes';
+import type {
+  Attribute,
+  AttributeFilter,
+  AttributeKeyFilter,
+  TimelineAttribute,
+} from './use/useAttributes';
 import type { Time } from './use/useTimeObserver';
 import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
@@ -29,11 +34,16 @@ type AttributesType = Readonly<Ref<Attribute[]>>;
 
 const AttributesFilterSymbol = Symbol('attributesFilter');
 export interface AttributesFilterType {
-  attributeFilters: Ref< {track: AttributeFilter[]; detection: AttributeFilter[]}>;
+  attributeFilters: Readonly<Ref< {track: AttributeFilter[]; detection: AttributeFilter[]}>>;
   addAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
   modifyAttributeFilter: (index: number, type: Attribute['belongs'], filter: AttributeFilter) => void;
   deleteAttributeFilter: (index: number, type: Attribute['belongs']) => void;
   sortAndFilterAttributes: (attributeList: Attribute[], mode: Attribute['belongs'], attribVals: StringKeyObject, sortingMode: number, filters: AttributeFilter[]) => Attribute[];
+  setTimelineEnabled: (val: boolean) => void;
+  setTimelineFilter: (filter: AttributeKeyFilter) => void;
+  attributeTimelineData: Readonly<Ref<TimelineAttribute[]>>;
+  timelineFilter: Readonly<Ref<AttributeKeyFilter>>;
+  timelineEnabled: Readonly<Ref<boolean>>;
 }
 
 const DatasetIdSymbol = Symbol('datasetID');

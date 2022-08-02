@@ -17,6 +17,10 @@ export default defineComponent({
       type: Object as PropType<AttributeKeyFilter>,
       required: true,
     },
+    timeline: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   components: { TooltipBtn },
@@ -54,6 +58,11 @@ export default defineComponent({
       }
     };
 
+    const getColor = (item: string) => {
+      const found = attributesList.value.find((atr) => atr.key === item || atr.key === `detection_${item}`);
+      return found?.color || 'white';
+    };
+
     return {
       settingsDialog,
       copiedFilter,
@@ -64,6 +73,7 @@ export default defineComponent({
       setValue,
       setActive,
       removeChip,
+      getColor,
     };
   },
 });
@@ -81,6 +91,7 @@ export default defineComponent({
         @click="showSettings()"
       />
       <tooltip-btn
+        v-if="!timeline"
         icon="mdi-delete"
         color="error"
         size="x-small"
@@ -89,7 +100,7 @@ export default defineComponent({
       />
     </v-row>
     <v-divider />
-    <div>
+    <div v-if="!timeline">
       <v-row
         no-gutters
         class="align-center"
@@ -97,11 +108,25 @@ export default defineComponent({
         <v-checkbox
           :value="attributeFilter.active"
           label="enabled"
+          :disabled="timeline"
           @change="setActive"
         />
         <span class="pl-1"> {{ attributeFilter.appliedTo.join(',') }} </span>
       </v-row>
     </div>
+    <dive v-else-if="timeline">
+      <v-row
+        v-for="item in attributeFilter.appliedTo"
+        :key="item"
+      >
+        <div
+          class="type-color-box"
+          :style="{
+            backgroundColor: getColor(item),
+          }"
+        /><span>{{ item }}</span>
+      </v-row>
+    </dive>
     <v-divider />
     <v-dialog
       v-model="settingsDialog"
@@ -155,4 +180,12 @@ export default defineComponent({
 </template>
 
 <style scoped lang='scss'>
+  .type-color-box {
+    margin: 7px;
+    margin-top: 4px;
+    min-width: 15px;
+    max-width: 15px;
+    min-height: 15px;
+    max-height: 15px;
+  }
 </style>

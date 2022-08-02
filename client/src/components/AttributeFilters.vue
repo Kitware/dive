@@ -13,14 +13,6 @@ import AttributeKeyFilterVue from 'vue-media-annotator/components/AttributeFilte
 import { useAttributesFilters, useReadOnlyMode } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 
-interface VirtualTypeItem {
-  type: string;
-  confidenceFilterNum: number;
-  displayText: string;
-  color: string;
-  checked: boolean;
-}
-
 /* Magic numbers involved in height calculation */
 const TypeListHeaderHeight = 80;
 

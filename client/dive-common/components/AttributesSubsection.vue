@@ -269,7 +269,14 @@ export default defineComponent({
             dense
             align="center"
           >
-            <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
+            <v-col class="attribute-name"> <div
+              class="type-color-box"
+              :style="{
+                backgroundColor: attribute.color,
+              }"
+            /><span>{{ attribute.name }}:
+            </span>
+            </v-col>
             <v-col class="px-1">
               <AttributeInput
                 v-if="activeSettings"
@@ -348,4 +355,13 @@ export default defineComponent({
   max-width: 50%;
   min-width: 50%;
 }
+.type-color-box {
+  display: inline-block;
+  margin-right: 5px;
+  min-width: 8px;
+  max-width: 8px;
+  min-height: 8px;
+  max-height: 8px;
+}
+
 </style>

@@ -2,9 +2,10 @@
 import {
   ref, Ref, computed, set as VueSet, del as VueDel,
 } from '@vue/composition-api';
-import { features } from 'process';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
-import { Track } from '..';
+import { StyleManager, Track } from '..';
+import CameraStore from '../CameraStore';
+import { LineChartData } from './useLineChart';
 
 export interface Attribute {
   belongs: 'track' | 'detection';
@@ -12,6 +13,7 @@ export interface Attribute {
   values?: string[];
   name: string;
   key: string;
+  color?: string;
 }
 
 export type Attributes = Record<string, Attribute>;
@@ -37,7 +39,7 @@ export interface AttributeStringFilter {
 export interface AttributeKeyFilter {
   appliedTo: string[];
   active: boolean; // if this filter is active
-  value: true;
+  value: boolean;
   type: 'key';
 }
 export interface AttributeBoolFilter {
@@ -54,6 +56,16 @@ export interface AttributeFilter {
   | AttributeBoolFilter
   | AttributeKeyFilter;
 }
+
+export interface TimelineAttribute {
+  data: LineChartData;
+  minFrame: number;
+  maxFrame: number;
+  minValue?: number;
+  maxValue?: number;
+  avgValue?: number;
+  type: Attribute['datatype'];
+}
 /**
  * Modified markChangesPending for attributes specifically
  */
@@ -67,18 +79,40 @@ interface UseAttributesParams {
       attribute: Attribute;
     }
   ) => void;
+  selectedTrackId: Ref<number | null>;
+  trackStyleManager: StyleManager;
+  cameraStore: CameraStore;
 }
 
-export default function UseAttributes({ markChangesPending }: UseAttributesParams) {
+export default function UseAttributes(
+  {
+    markChangesPending,
+    trackStyleManager,
+    selectedTrackId,
+    cameraStore,
+  }: UseAttributesParams,
+) {
   const attributes: Ref<Record<string, Attribute>> = ref({});
   const attributeFilters: Ref<{
     track: AttributeFilter[];
     detection: AttributeFilter[];
   }> = ref({ track: [], detection: [] });
-
+  const timelineFilter: Ref<AttributeKeyFilter> = ref({
+    appliedTo: [],
+    active: true, // if this filter is active
+    value: true,
+    type: 'key' as 'key',
+  });
+  const timelineEnabled: Ref<boolean> = ref(false);
 
   function loadAttributes(metadataAttributes: Record<string, Attribute>) {
     attributes.value = metadataAttributes;
+    Object.values(attributes.value).forEach((attribute) => {
+      if (attribute.color === undefined) {
+        // eslint-disable-next-line no-param-reassign
+        attribute.color = trackStyleManager.typeStyling.value.color(attribute.name);
+      }
+    });
   }
 
   const attributesList = computed(() => Object.values(attributes.value));
@@ -257,30 +291,85 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     return filteredAttributes;
   }
 
-  function generateTimelineData(
-    attributeList: Attribute[],
+  function generateDetectionTimelineData(
     track: Track,
     filter: AttributeKeyFilter,
   ) {
     // So we need to generate a list of all of the attributres for the length of the track
-    const valueMap: Record<string, {frame: number; value: Attribute['datatype'] }[]> = { };
+    const valueMap: Record<string, TimelineAttribute> = { };
     track.features.forEach((feature) => {
       const { frame } = feature;
       if (feature.attributes) {
         Object.keys(feature.attributes).forEach((key) => {
-          if (feature.attributes && filter.appliedTo.includes(key)) {
-            const val = feature.attributes[key] as Attribute['datatype'];
-            if (valueMap[key] === undefined) {
-              valueMap[key] = [];
+          if (feature.attributes && (filter.appliedTo.includes(key) || filter.appliedTo.includes('all'))) {
+            const val = feature.attributes[key] as string | number | boolean | undefined;
+            if (val === undefined) {
+              return;
             }
-            valueMap[key].push({
-              frame,
-              value: val,
-            });
+            if (valueMap[key] === undefined) {
+              let dataType: Attribute['datatype'] = 'text';
+              const data: LineChartData = {
+                values: [],
+                name: key,
+                color: attributes.value[`detection_${key}`].color || 'white',
+              };
+
+              if (typeof (val) === 'number') {
+                dataType = 'number';
+              } else if (typeof (val) === 'boolean') {
+                dataType = 'boolean';
+              }
+
+              valueMap[key] = {
+                data,
+                maxFrame: -Infinity,
+                minFrame: Infinity,
+                type: dataType,
+
+              };
+            }
+            if (valueMap[key].type === 'number') {
+              valueMap[key].data.values.push([
+                frame,
+              val as number,
+              ]);
+            }
+            if (valueMap[key].type === 'number') {
+              if (valueMap[key].minValue === undefined || valueMap[key].maxValue === undefined) {
+                valueMap[key].minValue = Infinity;
+                valueMap[key].maxValue = -Infinity;
+              }
+              valueMap[key].minValue = Math.min(valueMap[key].minValue as number, val as number);
+              valueMap[key].maxValue = Math.max(valueMap[key].maxValue as number, val as number);
+            }
+            valueMap[key].minFrame = Math.min(valueMap[key].minFrame, frame);
+            valueMap[key].maxFrame = Math.max(valueMap[key].maxFrame, frame);
           }
         });
       }
     });
+    return valueMap;
+  }
+
+  const attributeTimelineData = computed(() => {
+    if (selectedTrackId.value !== null && timelineEnabled.value && timelineFilter.value !== null) {
+      const selectedTrack = cameraStore.getAnyPossibleTrack(selectedTrackId.value);
+      if (selectedTrack) {
+        const timelineData = generateDetectionTimelineData(selectedTrack, timelineFilter.value);
+        // Need to convert any Number types to Line Chart data;
+        const numberVals = Object.values(timelineData).filter((item) => item.type === 'number');
+        return numberVals;
+      }
+    }
+    return [];
+  });
+
+  function setTimelineEnabled(val: boolean) {
+    timelineEnabled.value = val;
+  }
+
+  function setTimelineFilter(val: AttributeKeyFilter) {
+    timelineFilter.value = val;
   }
 
   return {
@@ -293,5 +382,10 @@ export default function UseAttributes({ markChangesPending }: UseAttributesParam
     modifyAttributeFilter,
     attributeFilters,
     sortAndFilterAttributes,
+    setTimelineEnabled,
+    setTimelineFilter,
+    attributeTimelineData,
+    timelineFilter,
+    timelineEnabled,
   };
 }

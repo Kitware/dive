@@ -5,6 +5,7 @@ import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtua
 import { useReadOnlyMode } from 'vue-media-annotator/provides';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import AttributeFilters from 'vue-media-annotator/components/AttributeFilters.vue';
+import AttributeTimeline from 'vue-media-annotator/components/AttributeTimeline.vue';
 
 export default defineComponent({
   name: 'AttributesSideBar',
@@ -12,6 +13,7 @@ export default defineComponent({
   components: {
     StackedVirtualSidebarContainer,
     AttributeFilters,
+    AttributeTimeline,
   },
 
   props: {
@@ -53,9 +55,15 @@ export default defineComponent({
       />
       <v-divider />
       <attribute-filters
+        v-if="currentMode === 'Filtering'"
         class="flex-grow-0 flex-shrink-0"
         :height="bottomHeight"
         :hotkeys-disabled="visible() || readOnlyMode"
+      />
+      <attribute-timeline
+        v-if="currentMode === 'Timeline'"
+        class="flex-grow-0 flex-shrink-0"
+        :height="bottomHeight"
       />
     </template>
   </StackedVirtualSidebarContainer>

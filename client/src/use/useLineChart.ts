@@ -8,7 +8,7 @@ interface UseLineChartParams {
   allTypes: Readonly<Ref<readonly string[]>>;
 }
 
-interface LineChartData {
+export interface LineChartData {
   values: [number, number][];
   color: string;
   name: string;

@@ -12,7 +12,7 @@ interface EventChartParams<T extends BaseAnnotation> {
   typeStyling: Ref<TypeStyling>;
 }
 
-interface EventChartData {
+export interface EventChartData {
   id: AnnotationId;
   name: string;
   type: string;
