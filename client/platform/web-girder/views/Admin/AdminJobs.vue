@@ -148,7 +148,6 @@ export default defineComponent({
 
     const viewTrainingList = (inputList: [string, number][]) => {
       trainingInputList.value = inputList;
-      console.log(inputList);
       trainingListDialog.value = true;
     };
 
@@ -327,7 +326,7 @@ export default defineComponent({
                   depressed
                   :href="`/girder/#job/${item.actions}`"
                   color="info"
-                  class="mx-2 my-2"
+                  class="ma-2"
                   v-on="on"
                 >
                   <v-icon small>
@@ -347,7 +346,7 @@ export default defineComponent({
                   x-small
                   depressed
                   color="warning"
-                  class="mx-2 my-2"
+                  class="ma-2"
                   v-on="on"
                   @click="modifyJob('Cancel', item.actions, item.title)"
                 >
@@ -367,7 +366,7 @@ export default defineComponent({
                   x-small
                   depressed
                   color="error"
-                  class="mx-2 my-2"
+                  class="ma-2"
                   v-on="on"
                   @click="modifyJob('Delete', item.actions, item.title)"
                 >
@@ -385,6 +384,7 @@ export default defineComponent({
     <v-dialog
       v-model="trainingListDialog"
       width="250"
+      color="blue-grey darken-4"
     >
       <v-card>
         <v-card-title> Training Datasets </v-card-title>
