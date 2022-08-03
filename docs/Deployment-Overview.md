@@ -22,6 +22,11 @@ Our team can provide guidance on annotation and training because we have direct 
 Having user data in our environment helps us understand user needs and improve the product | Feedback is always appreciated.
 Limited shared compute resources (2 GPUs) available to process jobs. Can be mitigated by hybrid compute options | As much compute as you pay for
 
+## NOAA Google Cloud Computing resources
+For deploying an instance in NOAA Fisheries GCP environment please use the following repository for reference:
+
+[VIAME-Web NOAA GCP](https://github.com/us-amlr/viame-web-noaa-gcp)
+
 ## Using our public server
 
 The easiest option to get started using VIAME is to [try our public server](Web-Version.md).
