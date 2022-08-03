@@ -81,7 +81,7 @@ Creating pub/sub notifications is **optional**, but will keep your mount point u
 
 1. [Create a bucket notification configuration](https://cloud.google.com/storage/docs/reporting-changes#enabling)
 1. [Create a topic subscription](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
-1. [Set a push delivery method for the subsciption](https://cloud.google.com/pubsub/docs/admin#pubsub_create_pull_subscription-console)
+1. [Set a push delivery method for the subscription](https://cloud.google.com/pubsub/docs/push)
     1. The URL for delivery should be `https://viame.kitware.com/api/v1/bucket_notifications/gcs`
 
 Our server will process events from this subscription to keep your data current.
