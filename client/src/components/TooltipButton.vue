@@ -29,6 +29,14 @@ export default Vue.extend({
       type: String,
       default: 'small',
     },
+    outlined: {
+      type: Boolean,
+      default: false,
+    },
+    tile: {
+      type: Boolean,
+      default: false,
+    },
   },
 });
 </script>
@@ -46,6 +54,8 @@ export default Vue.extend({
         icon
         :disabled="disabled"
         :color="color"
+        :outlined="outlined"
+        :tile="tile"
         class="ma-0"
         v-on="on"
         @click="$emit('click')"

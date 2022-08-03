@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, computed,
+  defineComponent, ref, PropType, computed, watch,
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
@@ -53,7 +53,7 @@ export default defineComponent({
       () => !!cameraStore.camMap.value.get(selectedCamera.value)?.groupStore.sorted.value.length,
     );
     const { timelineEnabled, attributeTimelineData } = useAttributesFilters();
-
+    // Format the Attribute data if it is available
     const attributeData = computed(() => {
       if (timelineEnabled.value) {
         let startFrame = Infinity;
@@ -75,10 +75,15 @@ export default defineComponent({
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
      */
-    function toggleView(type: 'Detections' | 'Events' | 'Groups') {
+    function toggleView(type: 'Detections' | 'Events' | 'Groups' | 'Attributes') {
       currentView.value = type;
       emit('update:collapsed', false);
     }
+    watch(timelineEnabled, () => {
+      if (!timelineEnabled.value && currentView.value === 'Attributes') {
+        toggleView('Events');
+      }
+    });
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectAggregateController().value;
@@ -335,6 +340,7 @@ export default defineComponent({
           :client-width="clientWidth"
           :client-height="clientHeight"
           :margin="margin"
+          :atrributes-chart="true"
         />
       </template>
     </Timeline>

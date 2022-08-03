@@ -174,10 +174,19 @@ export default defineComponent({
         <v-card-title> Number Filter Settings </v-card-title>
         <v-card-text>
           <v-row no-gutters>
+            <ul>
+              <li>
+                "range" - to set a slider range that can be
+                filtered based on the comparison value
+              </li>
+              <li> "top" - filter to show the top X numerical values </li>
+            </ul>
+
             <v-select
               v-model="copiedFilter.type"
               :items="['range', 'top']"
               label="Type"
+              outlined
               @change="typeChange"
             />
           </v-row>
@@ -188,7 +197,9 @@ export default defineComponent({
               chips
               labels="Apply To"
               multiple
-              solor
+              hint="Select Attributes this filter applies to"
+              persistent-hint
+              outlined
             >
               <template v-slot:selection="{ attrs, item, select, selected }">
                 <v-chip
@@ -204,31 +215,40 @@ export default defineComponent({
             </v-combobox>
           </v-row>
           <div v-if="copiedFilter.type === 'range'">
-            <v-row>
+            <v-row class="pb-3">
               <v-select
                 v-model="copiedFilter.comp"
                 :items="['>', '<', '>=', '<=']"
                 label="Comparison"
+                :hint="`Show values that are ${copiedFilter.comp} the filter value`"
+                persistent-hint
+                outlined
               />
             </v-row>
-            <v-row>
+            <v-row class="pt-2">
               <v-text-field
                 v-model.number="copiedFilter.range[0]"
                 hide-details
                 dense
+                outlined
                 :step="copiedFilter.range[0]> 1 ? 1 : 0.01"
                 type="number"
                 label="Lower"
                 :max="copiedFilter.range[1]"
+                hint="Lower limit for slider"
+                persistent-hint
               />
               <v-text-field
                 v-model.number="copiedFilter.range[1]"
                 hide-details
                 dense
+                outlined
                 :step="copiedFilter.range[1]> 1 ? 1 : 0.01"
                 type="number"
                 label="Upper"
                 :min="copiedFilter.range[0]"
+                hint="Upper limit for slider"
+                persistent-hint
               />
             </v-row>
           </div>
@@ -237,6 +257,7 @@ export default defineComponent({
               v-model.number="copiedFilter.value"
               hide-details
               single-line
+              outlined
               dense
               :step="1"
               type="number"

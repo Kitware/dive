@@ -114,7 +114,7 @@ export default defineComponent({
         <span class="pl-1"> {{ attributeFilter.appliedTo.join(',') }} </span>
       </v-row>
     </div>
-    <dive v-else-if="timeline">
+    <div v-else-if="timeline">
       <v-row
         v-for="item in attributeFilter.appliedTo"
         :key="item"
@@ -126,7 +126,7 @@ export default defineComponent({
           }"
         /><span>{{ item }}</span>
       </v-row>
-    </dive>
+    </div>
     <v-divider />
     <v-dialog
       v-model="settingsDialog"
@@ -143,6 +143,9 @@ export default defineComponent({
               labels="Apply To"
               multiple
               solor
+              clearable
+              hint="Select Attributes this filter displays"
+              persistent-hint
             >
               <template v-slot:selection="{ attrs, item, select, selected }">
                 <v-chip

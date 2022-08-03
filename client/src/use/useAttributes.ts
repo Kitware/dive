@@ -98,7 +98,7 @@ export default function UseAttributes(
     detection: AttributeFilter[];
   }> = ref({ track: [], detection: [] });
   const timelineFilter: Ref<AttributeKeyFilter> = ref({
-    appliedTo: [],
+    appliedTo: ['all'],
     active: true, // if this filter is active
     value: true,
     type: 'key' as 'key',

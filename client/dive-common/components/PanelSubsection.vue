@@ -10,7 +10,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <span class="d-flex flex-column overflow-hidden">
+  <span class="d-flex flex-column overflow-hidden panel-subsection">
     <div class="border-highlight">
       <slot name="header" />
     </div>
@@ -25,6 +25,9 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.panel-subsection {
+  min-height: 100px;
+}
 .border-highlight {
   border-top: 1px solid gray;
   border-bottom: 1px solid gray;

@@ -174,11 +174,19 @@ export default defineComponent({
 <template>
   <div>
     <v-card class="pa-0">
+      <p>
+        Add filters to decrease the number of attributes visible.
+        Filter by attribute numeric value, top numeric values attribute name,
+        attribute string value, or attribute boolean values.
+        Filters are applied in the order they are created.
+      </p>
       <v-card-title class="pa-0">
         <v-select
           v-model="currentTab"
           :items="tabMap"
           label="Filter Type"
+          hint="Filter Track or Detection Attributes"
+          persistent-hint
           class="px-2"
         />
       </v-card-title>

@@ -121,7 +121,10 @@ export default defineComponent({
               chips
               labels="Apply To"
               multiple
-              solor
+              outlined
+              hint="Select Attributes this filter applies to"
+              persistent-hint
+              clearable
             >
               <template v-slot:selection="{ attrs, item, select, selected }">
                 <v-chip
@@ -142,16 +145,20 @@ export default defineComponent({
                 v-model="copiedFilter.comp"
                 :items="['=', '!=', 'contains', 'starts']"
                 label="Comparison"
+                outlined
               />
             </v-row>
             <v-row>
               <v-combobox
                 v-model="copiedFilter.value"
                 chips
-                labels="Apply To"
+                labels="Values"
                 multiple
                 solor
                 deletable-chips
+                hint="List of  the filter will match"
+                persistent-hint
+                clearable
               />
             </v-row>
           </div>

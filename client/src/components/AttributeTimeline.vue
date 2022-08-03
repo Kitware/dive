@@ -45,18 +45,24 @@ export default defineComponent({
 
 <template>
   <v-card>
-    <p>
-      Activate selected track attribute timeline view.
-      This will display the selected attributes numberical values in the timeline.
-    </p>
+    <ul>
+      <li>
+        Display the selected attributes numberical values in the timeline
+        for the currently selected track.
+      </li>
+      <li>Click on the "Key Filter" Cog wheel to change which attributes to graph.</li>
+      <li>
+        The attributes graph button will be displayed near the "Detections" and
+        "Events" button on the timeline.
+      </li>
+    </ul>
     <v-card-text>
       <v-row>
-        <v-checkbox
+        <v-switch
           :value="timelineEnabled"
-          label="enabled"
+          label="Draw Timeline"
           @change="setTimelineEnabled"
         />
-        <span class="pl-1"> Enable Timeline </span>
       </v-row>
       <v-row>
         <attribute-key-filter
