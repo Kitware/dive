@@ -125,6 +125,10 @@ export default function UseAttributes(
       markChangesPending({ action: 'delete', attribute: oldAttribute });
       // Create a new attribute to replace it
     }
+    if (oldAttribute === undefined) {
+      // eslint-disable-next-line no-param-reassign
+      data.color = trackStyleManager.typeStyling.value.color(data.name);
+    }
     if (updateAllTracks && oldAttribute) {
       // TODO: Lengthy track/detection attribute updating function
     }

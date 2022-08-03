@@ -40,7 +40,10 @@
 1. For attributes there are two sections
     1. **Track Attributes** - All track level attributes
     1. **Detection Attributes** - attributes associated with the track on a per frame basis
-
+1. Attributes can be sorted by their name (alphabetically) or by their numeric value.  Clicking on the ==:material-sort-alphabetical-ascending:== or the ==:material-sort-numeric-ascending:== button will swap between the two.
+1. Attribute Filtering
+    1. The Attribute filtering icon ==:material-filter:== will change color when filtering is being applied.
+    1. Clicking on the filter icon will bring up the **[Attributes Details Panel](UI-AttributeDetails.md)**
 <div style="clear: both;"/>
 
 !!! info

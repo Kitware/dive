@@ -14,3 +14,4 @@ This documentation section provides a reference guide to the annotation interfac
     * **Threshold Controls** - Advance thresholding of annotation confidence values per-type.
     * **Image Enhancement** - Adjust the image threshold range.
     * **[Group Manager](UI-Group-Manager.md)** - Controls for creating, managing, and filtering multi-annotation groups.
+    * **[Attributes Details Panel](UI-AttributeDetails.md)** - Attributes panel used to filter or generate graphs of attributes.
