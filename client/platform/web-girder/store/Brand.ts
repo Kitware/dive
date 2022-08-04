@@ -35,6 +35,8 @@ const brandModule: Module<BrandState, RootState> = {
         at 2AM EST/EDT on Thursdays. Downtime is typically
         less than 10 minutes.`,
       alertMessage: '',
+      trainingMessage: `Training Jobs depending on the configuration and the size/number of datasets can
+       take a long time to complete.`,
     },
   },
   mutations: {
