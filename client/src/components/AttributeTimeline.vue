@@ -59,7 +59,7 @@ export default defineComponent({
     <v-card-text>
       <v-row>
         <v-switch
-          :value="timelineEnabled"
+          :input-value="timelineEnabled"
           label="Draw Timeline"
           @change="setTimelineEnabled"
         />

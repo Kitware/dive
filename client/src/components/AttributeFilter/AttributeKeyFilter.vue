@@ -106,7 +106,7 @@ export default defineComponent({
         class="align-center"
       >
         <v-checkbox
-          :value="attributeFilter.active"
+          :input-value="attributeFilter.active"
           label="enabled"
           :disabled="timeline"
           @change="setActive"
