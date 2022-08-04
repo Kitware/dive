@@ -40,19 +40,21 @@ def use_private_queue(self, user: dict, privateQueueEnabled: bool):
 def countJobs(self):
     outstanding = (
         job.Job()
-        .list(
-            user='all',
-            currentUser=self.getCurrentUser(),
-            statuses=[
-                JobStatus.INACTIVE,
-                JobStatus.QUEUED,
-                JobStatus.RUNNING,
-                JobStatus.CANCELING,
-                JobStatus.CONVERTING_INPUT,
-                JobStatus.CONVERTING_OUTPUT,
-                JobStatus.FETCHING_INPUT,
-                JobStatus.PUSHING_OUTPUT,
-            ],
+        .find(
+            {
+                "status": {
+                    "$in": [
+                        JobStatus.INACTIVE,
+                        JobStatus.QUEUED,
+                        JobStatus.RUNNING,
+                        JobStatus.CANCELING,
+                        JobStatus.CONVERTING_INPUT,
+                        JobStatus.CONVERTING_OUTPUT,
+                        JobStatus.FETCHING_INPUT,
+                        JobStatus.PUSHING_OUTPUT,
+                    ]
+                }
+            }
         )
         .count()
     )
