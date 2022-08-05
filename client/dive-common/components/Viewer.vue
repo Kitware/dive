@@ -46,7 +46,8 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
-import TrackViewer from 'vue-media-annotator/components/TrackViewer.vue';
+import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 
@@ -68,6 +69,7 @@ export default defineComponent({
     UserGuideButton,
     EditorMenu,
     TrackViewer,
+    TrackViewerSettings,
   },
 
   // TODO: remove this in vue 3
@@ -88,7 +90,12 @@ export default defineComponent({
   setup(props, ctx) {
     const { prompt } = usePrompt();
     const loadError = ref('');
+
     const tracks3d = ref(false);
+    const trackViewerSettings = reactive({
+      onlyShowSelectedTrack: false,
+    });
+
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
@@ -859,6 +866,7 @@ export default defineComponent({
       onGeometryAdded,
       datasetId,
       tracks3d,
+      trackViewerSettings,
     };
   },
 });
@@ -943,6 +951,11 @@ export default defineComponent({
         >
           Toggle 3d
         </v-btn>
+
+        <track-viewer-settings
+          v-if="tracks3d"
+          :only-show-selected-track.sync="trackViewerSettings.onlyShowSelectedTrack"
+        />
         <v-divider
           vertical
           class="mx-2"
@@ -1033,6 +1046,7 @@ export default defineComponent({
           <track-viewer
             v-if="tracks3d"
             :controls-height="controlsHeight"
+            :only-show-selected-track="trackViewerSettings.onlyShowSelectedTrack"
           />
           <div
             v-else
