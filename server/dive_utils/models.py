@@ -216,6 +216,7 @@ class BrandData(BaseModel):
     name: Optional[str]
     loginMessage: Optional[str]
     alertMessage: Optional[str]
+    trainingMessage: Optional[str]
 
     class Config:
         extra = 'forbid'

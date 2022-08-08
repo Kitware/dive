@@ -162,6 +162,17 @@ def upgrade_pipelines(
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
     gc.put('dive_configuration/static_pipeline_configs', json=summary)
+    # get a list of files in the zip directory for the installed configuration listing
+    downloaded = []
+
+    # Iterate directory
+    for path in os.listdir(conf.addon_zip_path):
+        # check if current path is a file
+        if os.path.isfile(os.path.join(conf.addon_zip_path, path)):
+            downloaded.append(path)
+    print('Downloaded Files')
+    print(downloaded)
+    gc.put('dive_configuration/installed_addons', json={'downloaded': downloaded})
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
