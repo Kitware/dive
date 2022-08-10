@@ -15,7 +15,7 @@ The settings for individual filters can be accessed by clicking on the ==:materi
 
 ### Numeric Filters
 
-Numeric filters will only operate on the filters that have numeric values.
+only operates on the attributes that have numeric values.
 
 - Range Filtering
     - Provides a slider with a custom range that can be used to filter the attribute values
@@ -27,7 +27,7 @@ Numeric filters will only operate on the filters that have numeric values.
 
 ### String Filters
 
-Text filters will filter attributes that have a text value or a list of values
+only operates on the attributes that have text values
 
 - There are 4 options for text filtering: is, not, contains, starts
     - is - simple equality comparison to confirm that the value is equal to the test value.
@@ -37,11 +37,9 @@ Text filters will filter attributes that have a text value or a list of values
 
 ### Key Filters
 
-Filter which will only show the selected Attribute Key names regardless of their current value.
+Filter which will only show the selected Attribute names regardless of their current value.
 
-### Boolean Filters
-
-Filter that can do a simple true/false comparison with the current value of boolean attributes.
+The special name 'all' will show all of the attributes.
 
 ## Timeline Visualization ==:material-chart-line-variant:==
 

@@ -1,8 +1,7 @@
 <script>
-import Vue, { PropType } from 'vue';
+import Vue from 'vue';
 import { throttle } from 'lodash';
 import * as d3 from 'd3';
-import { lte } from 'semver';
 
 export default Vue.extend({
   name: 'LineChart',
@@ -163,7 +162,7 @@ export default Vue.extend({
           }, 50);
         })
         // eslint-disable-next-line prefer-arrow-callback
-        .on('mouseout', function mouseExitHandler(d) {
+        .on('mouseout', function mouseExitHandler() {
           clearTimeout(tooltipTimeoutHandle);
           tooltip.style('display', 'none');
           if (highlightedLine !== null) {

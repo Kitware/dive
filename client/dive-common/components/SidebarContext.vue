@@ -53,7 +53,9 @@ export default defineComponent({
         </v-btn>
       </div>
       <div class="sidebar-content">
-        <slot v-bind="{ name: context.state.active }" />
+        <slot
+          v-bind="{ name: context.state.active, subCategory: context.state.subCategory }"
+        />
       </div>
     </v-card>
   </div>

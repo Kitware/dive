@@ -1,10 +1,11 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
 } from '@vue/composition-api';
 
 import AttributeKeyFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeKeyFilter.vue';
-import { useAttributesFilters } from '../provides';
+import { useAttributesFilters, useAttributes } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 
 
@@ -33,11 +34,18 @@ export default defineComponent({
     const {
       setTimelineEnabled, setTimelineFilter, timelineFilter, timelineEnabled,
     } = useAttributesFilters();
+    const attributesList = useAttributes();
+    const filterNames = computed(() => {
+      const data = ['all'];
+      return data.concat(attributesList.value.map((item) => item.name));
+    });
+
     return {
       setTimelineEnabled,
       setTimelineFilter,
       timelineEnabled,
       timelineFilter,
+      filterNames,
     };
   },
 });
@@ -67,6 +75,7 @@ export default defineComponent({
       <v-row>
         <attribute-key-filter
           :attribute-filter="timelineFilter"
+          :filter-names="filterNames"
           timeline
           @save-changes="setTimelineFilter($event)"
         />

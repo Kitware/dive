@@ -12,6 +12,7 @@ Vue.use(Install);
 interface ContextState {
   last: string;
   active: string | null;
+  subCategory: string | null;
 }
 
 interface ComponentMapItem {
@@ -22,6 +23,7 @@ interface ComponentMapItem {
 const state: ContextState = reactive({
   last: 'TypeThreshold',
   active: null,
+  subCategory: null,
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
@@ -90,8 +92,27 @@ function toggle(active: string | null | undefined) {
   window.dispatchEvent(new Event('resize'));
 }
 
+function openClose(active: string, action: boolean, subCategory?: string) {
+  if (action) {
+    if (state.active) {
+      state.last = state.active;
+    }
+    state.active = active;
+  } else {
+    if (state.active) {
+      state.last = state.active;
+      state.subCategory = null;
+    }
+    state.active = null;
+  }
+  if (subCategory) {
+    state.subCategory = subCategory;
+  }
+}
+
 export default {
   toggle,
+  openClose,
   register,
   unregister,
   getComponents,

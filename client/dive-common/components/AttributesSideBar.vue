@@ -1,5 +1,7 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import {
+  defineComponent, ref, watch, PropType,
+} from '@vue/composition-api';
 
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
 import { useReadOnlyMode } from 'vue-media-annotator/provides';
@@ -23,15 +25,22 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
+    subCategory: {
+      type: String as PropType<'Timeline' | 'Filtering'>,
+      required: false,
+    },
   },
 
-  setup() {
+  setup(props) {
     const readOnlyMode = useReadOnlyMode();
     const { visible } = usePrompt();
-    const currentMode = ref('Filtering');
+    const currentMode = ref(props.subCategory);
     const modes = ref(['Filtering', 'Timeline']);
-
-
+    watch(() => props.subCategory, () => {
+      if (props.subCategory !== undefined) {
+        currentMode.value = props.subCategory;
+      }
+    });
     return {
       readOnlyMode,
       currentMode,
@@ -48,9 +57,9 @@ export default defineComponent({
     :width="width"
     :enable-slot="false"
   >
-    <template #default="{ topHeight, bottomHeight }">
+    <template #default="{ bottomHeight }">
       <v-container>
-        <h3> Attribute Details </h3>
+        <h3> {{ currentMode }} </h3>
         <v-row class="px-3">
           <div class="mx-1">
             <tooltip-btn

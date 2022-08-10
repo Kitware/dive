@@ -1,13 +1,12 @@
 <script lang="ts">
 import {
-  computed,
   defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
 import type { AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep } from 'lodash';
-import { useAttributes } from 'vue-media-annotator/provides';
 import TooltipBtn from '../TooltipButton.vue';
+import AttributeStringFilterSettings from './AttributeStringFilterSettings.vue';
 
 export default defineComponent({
   name: 'AttributeStringFilter',
@@ -17,13 +16,17 @@ export default defineComponent({
       type: Object as PropType<AttributeStringFilter>,
       required: true,
     },
+    filterNames: {
+      type: Array as PropType<string[]>,
+      required: true,
+    },
+
   },
 
-  components: { TooltipBtn },
+  components: { TooltipBtn, AttributeStringFilterSettings },
 
   setup(props, { emit }) {
     const settingsDialog = ref(false);
-    const attributesList = useAttributes();
     const copiedFilter: Ref<null | AttributeStringFilter> = ref(null);
     // Ordering of these lists should match
     const setValue = (val: string) => {
@@ -44,12 +47,6 @@ export default defineComponent({
       settingsDialog.value = false;
     };
 
-    const filterNames = computed(() => {
-      const data = ['all'];
-      return data.concat(attributesList.value.filter(
-        (item) => item.datatype === 'number',
-      ).map((item) => item.name));
-    });
     const removeChip = (item: string) => {
       if (copiedFilter.value) {
         copiedFilter.value.appliedTo.splice(copiedFilter.value.appliedTo.indexOf(item), 1);
@@ -59,7 +56,6 @@ export default defineComponent({
     return {
       settingsDialog,
       copiedFilter,
-      filterNames,
       /* methods */
       showSettings,
       saveChanges,
@@ -111,75 +107,31 @@ export default defineComponent({
       v-model="settingsDialog"
       width="600"
     >
-      <v-card v-if="settingsDialog && copiedFilter !== null">
+      <attribute-string-filter-settings
+        v-if="settingsDialog && copiedFilter !== null"
+        v-model="copiedFilter"
+        :filter-names="filterNames"
+      >
         <v-card-title> Number Filter Settings </v-card-title>
-        <v-card-text>
-          <v-row>
-            <v-combobox
-              v-model="copiedFilter.appliedTo"
-              :items="filterNames"
-              chips
-              labels="Apply To"
-              multiple
-              outlined
-              hint="Select Attributes this filter applies to"
-              persistent-hint
-              clearable
+        <template>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              text
+              @click="settingsDialog = false"
             >
-              <template v-slot:selection="{ attrs, item, select, selected }">
-                <v-chip
-                  v-bind="attrs"
-                  :input-value="selected"
-                  close
-                  @click="select"
-                  @click:close="removeChip(item)"
-                >
-                  <strong>{{ item }}</strong>&nbsp;
-                </v-chip>
-              </template>
-            </v-combobox>
-          </v-row>
-          <div>
-            <v-row>
-              <v-select
-                v-model="copiedFilter.comp"
-                :items="['=', '!=', 'contains', 'starts']"
-                label="Comparison"
-                outlined
-              />
-            </v-row>
-            <v-row>
-              <v-combobox
-                v-model="copiedFilter.value"
-                chips
-                labels="Values"
-                multiple
-                solor
-                deletable-chips
-                hint="List of  the filter will match"
-                persistent-hint
-                clearable
-              />
-            </v-row>
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            text
-            @click="settingsDialog = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
-            @click="saveChanges"
-          >
-            Save
-          </v-btn>
-        </v-card-actions>
-      </v-card>
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              @click="saveChanges"
+            >
+              Save
+            </v-btn>
+          </v-card-actions>
+        </template>
+      </attribute-string-filter-settings>
     </v-dialog>
   </div>
 </template>
