@@ -6,7 +6,7 @@ The Attribute Details Panel is a side panel that provides additional tools for F
 
 ## Attribute Filtering ==:material-filter:==
 
-Attribute filtering will filter the values for selected type to reduce the number of them displayed.  The filters can be applied to 
+Filters the values of the selected type to reduce the number of results displayed.  The filters can be applied to 
 "Track" or "Detection" attributes and are applied in order.
 
 Attribute filters have an "Applies To" list which is a list of the Attribute key names that the filter will apply to.
