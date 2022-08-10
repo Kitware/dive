@@ -1,13 +1,12 @@
 <script lang="ts">
 import {
-  computed,
   defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
 import type { AttributeNumberFilter } from 'vue-media-annotator/use/useAttributes';
 import { cloneDeep } from 'lodash';
-import { useAttributes } from 'vue-media-annotator/provides';
 import TooltipBtn from '../TooltipButton.vue';
+import AttributeNumberFilterSettings from './AttributeNumberFilterSettings.vue';
 
 
 export default defineComponent({
@@ -18,13 +17,17 @@ export default defineComponent({
       type: Object as PropType<AttributeNumberFilter>,
       required: true,
     },
+    filterNames: {
+      type: Array as PropType<string[]>,
+      required: true,
+    },
+
   },
 
-  components: { TooltipBtn },
+  components: { TooltipBtn, AttributeNumberFilterSettings },
 
   setup(props, { emit }) {
     const settingsDialog = ref(false);
-    const attributesList = useAttributes();
     const copiedFilter: Ref<null | AttributeNumberFilter> = ref(null);
     // Ordering of these lists should match
     const setValue = (val: number) => {
@@ -54,40 +57,14 @@ export default defineComponent({
       settingsDialog.value = false;
     };
 
-    const typeChange = () => {
-      if (copiedFilter.value) {
-        if (copiedFilter.value.type === 'top') {
-          if (copiedFilter.value.value < 1) {
-            copiedFilter.value.value = 10;
-          }
-          copiedFilter.value.range = [1, 50];
-        }
-      }
-    };
-
-    const filterNames = computed(() => {
-      const data = ['all'];
-      return data.concat(attributesList.value.filter(
-        (item) => item.datatype === 'number',
-      ).map((item) => item.name));
-    });
-    const removeChip = (item: string) => {
-      if (copiedFilter.value) {
-        copiedFilter.value.appliedTo.splice(copiedFilter.value.appliedTo.indexOf(item), 1);
-      }
-    };
-
     return {
       settingsDialog,
       copiedFilter,
-      filterNames,
       /* methods */
       showSettings,
       saveChanges,
       setValue,
       setActive,
-      typeChange,
-      removeChip,
     };
   },
 });
@@ -170,119 +147,30 @@ export default defineComponent({
       v-model="settingsDialog"
       width="600"
     >
-      <v-card v-if="settingsDialog && copiedFilter !== null">
-        <v-card-title> Number Filter Settings </v-card-title>
-        <v-card-text>
-          <v-row no-gutters>
-            <ul>
-              <li>
-                "range" - to set a slider range that can be
-                filtered based on the comparison value
-              </li>
-              <li> "top" - filter to show the top X numerical values </li>
-            </ul>
-
-            <v-select
-              v-model="copiedFilter.type"
-              :items="['range', 'top']"
-              label="Type"
-              outlined
-              @change="typeChange"
-            />
-          </v-row>
-          <v-row>
-            <v-combobox
-              v-model="copiedFilter.appliedTo"
-              :items="filterNames"
-              chips
-              labels="Apply To"
-              multiple
-              hint="Select Attributes this filter applies to"
-              persistent-hint
-              outlined
+      <attribute-number-filter-settings
+        v-if="settingsDialog && copiedFilter !== null"
+        v-model="copiedFilter"
+        :filter-names="filterNames"
+      >
+        <template>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              text
+              @click="settingsDialog = false"
             >
-              <template v-slot:selection="{ attrs, item, select, selected }">
-                <v-chip
-                  v-bind="attrs"
-                  :input-value="selected"
-                  close
-                  @click="select"
-                  @click:close="removeChip(item)"
-                >
-                  <strong>{{ item }}</strong>&nbsp;
-                </v-chip>
-              </template>
-            </v-combobox>
-          </v-row>
-          <div v-if="copiedFilter.type === 'range'">
-            <v-row class="pb-3">
-              <v-select
-                v-model="copiedFilter.comp"
-                :items="['>', '<', '>=', '<=']"
-                label="Comparison"
-                :hint="`Show values that are ${copiedFilter.comp} the filter value`"
-                persistent-hint
-                outlined
-              />
-            </v-row>
-            <v-row class="pt-2">
-              <v-text-field
-                v-model.number="copiedFilter.range[0]"
-                hide-details
-                dense
-                outlined
-                :step="copiedFilter.range[0]> 1 ? 1 : 0.01"
-                type="number"
-                label="Lower"
-                :max="copiedFilter.range[1]"
-                hint="Lower limit for slider"
-                persistent-hint
-              />
-              <v-text-field
-                v-model.number="copiedFilter.range[1]"
-                hide-details
-                dense
-                outlined
-                :step="copiedFilter.range[1]> 1 ? 1 : 0.01"
-                type="number"
-                label="Upper"
-                :min="copiedFilter.range[0]"
-                hint="Upper limit for slider"
-                persistent-hint
-              />
-            </v-row>
-          </div>
-          <div v-else-if="copiedFilter.type === 'top'">
-            <v-text-field
-              v-model.number="copiedFilter.value"
-              hide-details
-              single-line
-              outlined
-              dense
-              :step="1"
-              type="number"
-              label="Top X items"
-              :min="1"
-            />
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            text
-            @click="settingsDialog = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
-            @click="saveChanges"
-          >
-            Save
-          </v-btn>
-        </v-card-actions>
-      </v-card>
+              Cancel
+            </v-btn>
+            <v-btn
+              color="primary"
+              @click="saveChanges"
+            >
+              Save
+            </v-btn>
+          </v-card-actions>
+        </template>
+      </attribute-number-filter-settings>
     </v-dialog>
   </div>
 </template>

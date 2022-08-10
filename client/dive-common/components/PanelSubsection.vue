@@ -35,7 +35,6 @@ export default defineComponent({
   font-weight: bold;
   font-size: 0.9em;
   padding: 4px 10px;
-  min-height: 50px;
   background-color: #272727;
 }
 .scroll-section {

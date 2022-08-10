@@ -42,7 +42,7 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
-    const { attributeFilters, sortAndFilterAttributes } = useAttributesFilters();
+    const { attributeFilters, sortAndFilterAttributes, timelineEnabled } = useAttributesFilters();
     const cameraStore = useCameraStore();
     const activeSettings = ref(true);
     const sortingMethods = ['a-z', '1-0'];
@@ -141,8 +141,11 @@ export default defineComponent({
       return !!additionFilters.find((filter) => filter.filterData.active === true);
     });
 
-    function toggleFilters() {
-      context.toggle('AttributesSideBar');
+    function openFilter() {
+      context.openClose('AttributesSideBar', true, 'Filtering');
+    }
+    function openTimeline() {
+      context.openClose('AttributesSideBar', true, 'Timeline');
     }
 
 
@@ -159,11 +162,13 @@ export default defineComponent({
       editAttribute,
       addAttribute,
       setEditIndividual,
-      //Sorting
+      //Sorting & Filters
       sortingMethodIcons,
       sortingMode,
       clickSortToggle,
-      toggleFilters,
+      openFilter,
+      openTimeline,
+      timelineEnabled,
       filtersActive,
     };
   },
@@ -205,7 +210,7 @@ export default defineComponent({
               <v-icon small>
                 mdi-plus
               </v-icon>
-              Attribute
+              Add
             </v-btn>
           </template>
           <span>Add a new {{ mode }} Attribute</span>
@@ -241,7 +246,18 @@ export default defineComponent({
           :color="filtersActive ? 'primary' : 'default'"
           :tooltip-text="filtersActive
             ? 'Filters are active, click to view': 'No filters are active, click to edit'"
-          @click="toggleFilters"
+          @click="openFilter"
+        />
+        <tooltip-btn
+          v-if="mode === 'Detection'"
+          icon="mdi-chart-line-variant"
+          :color="timelineEnabled ? 'primary' : 'default'"
+          tooltip-text="Timeline Settings for Attributes"
+          @click="openTimeline"
+        />
+        <div
+          v-else
+          class="blank-spacer"
         />
       </v-row>
     </template>
@@ -362,6 +378,12 @@ export default defineComponent({
   max-width: 8px;
   min-height: 8px;
   max-height: 8px;
+}
+.blank-spacer {
+  min-width: 28px;
+  min-height: 28px;
+  max-width: 28px;
+  max-height: 28px;
 }
 
 </style>

@@ -389,7 +389,7 @@ def train_pipeline(self: Task, params: TrainingJob):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def convert_video(self: Task, folderId: str, itemId: str):
+def convert_video(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
     context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = patch_manager(self.job_manager)
@@ -499,7 +499,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
 
 
 @app.task(bind=True, acks_late=True)
-def convert_images(self: Task, folderId):
+def convert_images(self: Task, folderId, user_id: str, user_login: str):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
 
@@ -546,7 +546,7 @@ def convert_images(self: Task, folderId):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def extract_zip(self: Task, folderId: str, itemId: str):
+def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
     """
     Discovery logic:
     * Find all folders that have at least one child file (potential datasets)
