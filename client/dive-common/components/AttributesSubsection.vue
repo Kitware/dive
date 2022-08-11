@@ -305,6 +305,7 @@ export default defineComponent({
                     ? selectedAttributes.attributes[attribute.name]
                     : undefined
                 "
+                :type-settings="attribute.editor || null"
                 @change="
                   updateAttribute($event)"
               />
@@ -327,6 +328,7 @@ export default defineComponent({
                         ? selectedAttributes.attributes[attribute.name]
                         : undefined
                     "
+                    :type-settings="attribute.editor || null"
                     focus
                     @change="updateAttribute($event)"
                   />

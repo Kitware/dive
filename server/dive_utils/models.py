@@ -129,12 +129,24 @@ class RevisionLog(BaseModel):
     description: Optional[str]
 
 
+class NumericAttributeOptions(BaseModel):
+    type: Literal['combo', 'slider']
+    range: Optional[List[float]]
+    steps: Optional[float]
+
+
+class StringAttributeOptions(BaseModel):
+    type: Literal['locked', 'freeform']
+
+
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']
     datatype: Literal['text', 'number', 'boolean']
     values: Optional[List[str]]
     name: str
     key: str
+    color: Optional[str]
+    editor: Optional[Union[NumericAttributeOptions, StringAttributeOptions]]
 
 
 class CustomStyle(BaseModel):

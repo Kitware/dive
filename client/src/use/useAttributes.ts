@@ -7,6 +7,14 @@ import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
 import { LineChartData } from './useLineChart';
 
+export interface NumericAttributeEditorOptions {
+  type: 'combo'| 'slider';
+  range?: number[];
+  steps?: number;
+}
+export interface StringAttributeEditorOptions {
+  type: 'locked'| 'freeform';
+}
 export interface Attribute {
   belongs: 'track' | 'detection';
   datatype: 'text' | 'number' | 'boolean';
@@ -14,6 +22,7 @@ export interface Attribute {
   name: string;
   key: string;
   color?: string;
+  editor?: NumericAttributeEditorOptions | StringAttributeEditorOptions;
 }
 
 export type Attributes = Record<string, Attribute>;
