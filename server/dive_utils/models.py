@@ -128,6 +128,15 @@ class RevisionLog(BaseModel):
     created: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str]
 
+class NumericAttributeOptions(BaseModel):
+    type: Literal['combo', 'slider']
+    range: Optional[List[float]]
+    steps: Optional[float]
+
+
+class StringAttributeOptions(BaseModel):
+    type: Literal['locked', 'freeform']
+
 
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']
@@ -135,6 +144,8 @@ class Attribute(BaseModel):
     values: Optional[List[str]]
     name: str
     key: str
+    color: Optional[str]
+    editor: Optional[Union[NumericAttributeOptions, StringAttributeOptions]]
 
 
 class CustomStyle(BaseModel):
