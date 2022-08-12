@@ -385,7 +385,6 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
 
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
-
         if results['annotations']:
             crud_annotation.save_annotations(
                 folder,
@@ -398,7 +397,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
-            crud_dataset.update_metadata(folder, results['meta'])
+            crud_dataset.update_metadata(folder, results['meta'], False)
 
 
 def postprocess(

@@ -136,8 +136,6 @@ export default defineComponent({
       }
       addFilterFilter.value = newFilter;
       addFilterPosition.value = 2;
-      //addAttributeFilter(0, currentTab.value, newFilter);
-      //addFilterDialog.value = false;
     };
 
     const finalizeFilter = () => {

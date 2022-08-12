@@ -185,7 +185,7 @@ export default defineComponent({
         no-gutters
       >
         <v-col dense>
-          <b>{{ mode }}</b>
+          <b class="attribute-header">{{ mode }} Attributes</b>
           <div
             v-if="mode === 'Detection'"
             no-gutters
@@ -201,8 +201,8 @@ export default defineComponent({
         >
           <template #activator="{ on }">
             <v-btn
-              outlined
-              x-small
+              small
+              icon
               :disabled="readOnlyMode"
               v-on="on"
               @click="addAttribute"
@@ -210,7 +210,6 @@ export default defineComponent({
               <v-icon small>
                 mdi-plus
               </v-icon>
-              Add
             </v-btn>
           </template>
           <span>Add a new {{ mode }} Attribute</span>
@@ -360,6 +359,9 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.attribute-header {
+  font-size: 12px;
+}
 .attribute-item-value {
   max-width: 80%;
   margin: 0px;
