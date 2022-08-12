@@ -128,6 +128,7 @@ class RevisionLog(BaseModel):
     created: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str]
 
+
 class NumericAttributeOptions(BaseModel):
     type: Literal['combo', 'slider']
     range: Optional[List[float]]
