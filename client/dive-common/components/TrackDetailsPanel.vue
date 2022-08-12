@@ -267,7 +267,7 @@ export default defineComponent({
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
-      class="ml-4 body-2 text-caption"
+      class="ml-4 body-2 text-caption "
     >
       <p>No track or group selected.</p>
       <p>
@@ -360,7 +360,10 @@ export default defineComponent({
           {{ type }}
         </option>
       </datalist>
-      <div :class="{ 'multi-select-list': true, 'unlimited': editingGroup !== null }">
+      <div
+        :class="{ 'multi-select-list': true, 'unlimited': editingGroup !== null }"
+        class="track-details"
+      >
         <v-card
           v-for="track in selectedTrackList"
           :key="track.trackId"
@@ -541,7 +544,9 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import 'vue-media-annotator/components/styles/common.scss';
-
+.track-details {
+  min-height: 85px;
+}
 .multi-select-list {
   overflow-y: auto;
   max-height: 50vh;

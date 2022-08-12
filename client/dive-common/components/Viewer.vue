@@ -159,13 +159,6 @@ export default defineComponent({
     const trackStyleManager = new StyleManager({ markChangesPending, vuetify });
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
-    const {
-      attributesList: attributes,
-      loadAttributes,
-      setAttribute,
-      deleteAttribute,
-    } = useAttributes({ markChangesPending });
-
     const cameraStore = new CameraStore({ markChangesPending });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
@@ -215,6 +208,30 @@ export default defineComponent({
       aggregateController,
       readonlyState,
     });
+
+    const {
+      attributesList: attributes,
+      loadAttributes,
+      setAttribute,
+      deleteAttribute,
+      attributeFilters,
+      deleteAttributeFilter,
+      addAttributeFilter,
+      modifyAttributeFilter,
+      sortAndFilterAttributes,
+      setTimelineEnabled,
+      setTimelineFilter,
+      attributeTimelineData,
+      timelineFilter,
+      timelineEnabled,
+
+    } = useAttributes({
+      markChangesPending,
+      trackStyleManager,
+      selectedTrackId,
+      cameraStore,
+    });
+
 
     const allSelectedIds = computed(() => {
       const selected = selectedTrackId.value;
@@ -626,6 +643,20 @@ export default defineComponent({
       unlinkCameraTrack,
     };
 
+    const useAttributeFilters = {
+      attributeFilters,
+      addAttributeFilter,
+      deleteAttributeFilter,
+      modifyAttributeFilter,
+      sortAndFilterAttributes,
+      setTimelineEnabled,
+      setTimelineFilter,
+      attributeTimelineData,
+      timelineFilter,
+      timelineEnabled,
+
+    };
+
     provideAnnotator(
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
@@ -651,6 +682,7 @@ export default defineComponent({
         imageEnhancements,
       },
       globalHandler,
+      useAttributeFilters,
     );
 
     return {

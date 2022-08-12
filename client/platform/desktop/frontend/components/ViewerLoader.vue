@@ -163,8 +163,11 @@ export default defineComponent({
     </template>
     <template #right-sidebar>
       <SidebarContext>
-        <template #default="{ name }">
-          <component :is="name" />
+        <template #default="{ name, subCategory }">
+          <component
+            :is="name"
+            :sub-category="subCategory"
+          />
         </template>
       </SidebarContext>
     </template>

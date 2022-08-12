@@ -10,14 +10,9 @@ export default defineComponent({
 </script>
 
 <template>
-  <span class="d-flex flex-column overflow-hidden">
+  <span class="d-flex flex-column overflow-hidden panel-subsection">
     <div class="border-highlight">
-      <v-row
-        class="align-center"
-        no-gutters
-      >
-        <slot name="header" />
-      </v-row>
+      <slot name="header" />
     </div>
     <v-row
       dense
@@ -30,6 +25,9 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.panel-subsection {
+  min-height: 100px;
+}
 .border-highlight {
   border-top: 1px solid gray;
   border-bottom: 1px solid gray;
@@ -37,12 +35,11 @@ export default defineComponent({
   font-weight: bold;
   font-size: 0.9em;
   padding: 4px 10px;
-  min-height: 40px;
   background-color: #272727;
 }
 .scroll-section {
   overflow-y: auto;
   overflow-x: hidden;
-  min-height: 50px;
+  min-height: 40px;
 }
 </style>

@@ -4,6 +4,7 @@ import Vue, { VueConstructor } from 'vue';
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
+import AttributesSideBar from 'dive-common/components/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);
@@ -11,6 +12,7 @@ Vue.use(Install);
 interface ContextState {
   last: string;
   active: string | null;
+  subCategory: string | null;
 }
 
 interface ComponentMapItem {
@@ -21,6 +23,7 @@ interface ComponentMapItem {
 const state: ContextState = reactive({
   last: 'TypeThreshold',
   active: null,
+  subCategory: null,
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
@@ -39,6 +42,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   [MultiCamTools.name]: {
     description: 'Multi Camera Tools',
     component: MultiCamTools,
+  },
+  [AttributesSideBar.name]: {
+    description: 'Attribute Details',
+    component: AttributesSideBar,
   },
 };
 
@@ -85,8 +92,27 @@ function toggle(active: string | null | undefined) {
   window.dispatchEvent(new Event('resize'));
 }
 
+function openClose(active: string, action: boolean, subCategory?: string) {
+  if (action) {
+    if (state.active) {
+      state.last = state.active;
+    }
+    state.active = active;
+  } else {
+    if (state.active) {
+      state.last = state.active;
+      state.subCategory = null;
+    }
+    state.active = null;
+  }
+  if (subCategory) {
+    state.subCategory = subCategory;
+  }
+}
+
 export default {
   toggle,
+  openClose,
   register,
   unregister,
   getComponents,

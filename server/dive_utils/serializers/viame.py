@@ -235,6 +235,35 @@ def calculate_attribute_types(
             metadata_attributes[attributeKey]['datatype'] = attribute_type
 
 
+def load_json_as_track_and_attributes(
+    json_data: types.DIVEAnnotationSchema,
+) -> Tuple[types.DIVEAnnotationSchema, dict]:
+    """
+    Load VIAME Track JSON and Computes Attributes
+    """
+    # Go through tracks and gather all attributes
+    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    test_vals: Dict[str, Dict[str, int]] = {}
+    tracks = json_data['tracks']
+    # Get Attribute Maps to values
+    for (key, track) in tracks.items():
+        track_attributes = {}
+        detection_attributes = {}
+        for (attrkey, attribute) in track['attributes'].items():
+            track_attributes[attrkey] = _deduceType(attribute)
+        for feature in track['features']:
+            if 'attributes' in feature.keys():
+                for (attrkey, attribute) in feature['attributes'].items():
+                    detection_attributes[attrkey] = _deduceType(attribute)
+        for (key, val) in track_attributes.items():
+            create_attributes(metadata_attributes, test_vals, 'track', key, val)
+        for (key, val) in detection_attributes.items():
+            create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+
+    calculate_attribute_types(metadata_attributes, test_vals)
+    return json_data, metadata_attributes
+
+
 def load_csv_as_tracks_and_attributes(
     rows: List[str], imageMap: Dict[str, int] = None
 ) -> Tuple[types.DIVEAnnotationSchema, dict]:

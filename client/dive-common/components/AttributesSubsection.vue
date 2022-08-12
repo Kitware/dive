@@ -10,16 +10,19 @@ import {
   useCameraStore,
   useTime,
   useReadOnlyMode,
+  useAttributesFilters,
 } from 'vue-media-annotator/provides';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import type { Attribute, AttributeFilter } from 'vue-media-annotator/use/useAttributes';
 import AttributeInput from 'dive-common/components/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
-
+import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import context from 'dive-common/store/context';
 
 export default defineComponent({
   components: {
     AttributeInput,
     PanelSubsection,
+    TooltipBtn,
   },
   props: {
     attributes: {
@@ -39,8 +42,12 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const { frame: frameRef } = useTime();
     const selectedTrackIdRef = useSelectedTrackId();
+    const { attributeFilters, sortAndFilterAttributes, timelineEnabled } = useAttributesFilters();
     const cameraStore = useCameraStore();
     const activeSettings = ref(true);
+    const sortingMethods = ['a-z', '1-0'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
+    const sortingMode = ref(0);
 
     const selectedTrack = computed(() => {
       if (selectedTrackIdRef.value !== null) {
@@ -66,9 +73,23 @@ export default defineComponent({
       return null;
     });
 
-    const filteredFullAttributes = computed(() => Object.values(props.attributes).filter(
-      (attribute: Attribute) => attribute.belongs === props.mode.toLowerCase(),
-    ));
+    const filteredFullAttributes = computed(() => {
+      let additionFilters: AttributeFilter[] = [];
+      let mode: 'track' | 'detection' = 'track';
+      if (props.mode === 'Track') {
+        additionFilters = attributeFilters.value.track;
+      } else {
+        additionFilters = attributeFilters.value.detection;
+        mode = 'detection';
+      }
+      let attributeVals = {};
+      if (selectedAttributes.value && selectedAttributes.value.attributes) {
+        attributeVals = selectedAttributes.value.attributes;
+      }
+      return sortAndFilterAttributes(
+        props.attributes, mode, attributeVals, sortingMode.value, additionFilters,
+      );
+    });
 
     const activeAttributesCount = computed(
       () => props.attributes.filter(
@@ -106,6 +127,27 @@ export default defineComponent({
     function addAttribute() {
       emit('add-attribute', props.mode);
     }
+    function clickSortToggle() {
+      sortingMode.value = (sortingMode.value + 1) % sortingMethods.length;
+    }
+
+    const filtersActive = computed(() => {
+      let additionFilters: AttributeFilter[] = [];
+      if (props.mode === 'Track') {
+        additionFilters = attributeFilters.value.track;
+      } else {
+        additionFilters = attributeFilters.value.detection;
+      }
+      return !!additionFilters.find((filter) => filter.filterData.active === true);
+    });
+
+    function openFilter() {
+      context.openClose('AttributesSideBar', true, 'Filtering');
+    }
+    function openTimeline() {
+      context.openClose('AttributesSideBar', true, 'Timeline');
+    }
+
 
     return {
       frameRef,
@@ -120,6 +162,14 @@ export default defineComponent({
       editAttribute,
       addAttribute,
       setEditIndividual,
+      //Sorting & Filters
+      sortingMethodIcons,
+      sortingMode,
+      clickSortToggle,
+      openFilter,
+      openTimeline,
+      timelineEnabled,
+      filtersActive,
     };
   },
 });
@@ -134,8 +184,16 @@ export default defineComponent({
         class="align-center"
         no-gutters
       >
-        <b>{{ mode }} Attributes:</b>
-        <v-spacer />
+        <v-col dense>
+          <b class="attribute-header">{{ mode }} Attributes</b>
+          <div
+            v-if="mode === 'Detection'"
+            no-gutters
+            class="text-caption"
+          >
+            {{ `Frame: ${frameRef}` }}
+          </div>
+        </v-col>
         <v-tooltip
           open-delay="200"
           bottom
@@ -143,8 +201,8 @@ export default defineComponent({
         >
           <template #activator="{ on }">
             <v-btn
-              outlined
-              x-small
+              small
+              icon
               :disabled="readOnlyMode"
               v-on="on"
               @click="addAttribute"
@@ -152,7 +210,6 @@ export default defineComponent({
               <v-icon small>
                 mdi-plus
               </v-icon>
-              Attribute
             </v-btn>
           </template>
           <span>Add a new {{ mode }} Attribute</span>
@@ -178,13 +235,29 @@ export default defineComponent({
           </template>
           <span>Show/Hide un-used</span>
         </v-tooltip>
-      </v-row>
-      <v-row
-        v-if="mode === 'Detection'"
-        no-gutters
-        class="text-caption"
-      >
-        {{ `Frame: ${frameRef}` }}
+        <tooltip-btn
+          :icon="sortingMethodIcons[sortingMode]"
+          tooltip-text="Sort types by value or alphabetically"
+          @click="clickSortToggle"
+        />
+        <tooltip-btn
+          icon="mdi-filter"
+          :color="filtersActive ? 'primary' : 'default'"
+          :tooltip-text="filtersActive
+            ? 'Filters are active, click to view': 'No filters are active, click to edit'"
+          @click="openFilter"
+        />
+        <tooltip-btn
+          v-if="mode === 'Detection'"
+          icon="mdi-chart-line-variant"
+          :color="timelineEnabled ? 'primary' : 'default'"
+          tooltip-text="Timeline Settings for Attributes"
+          @click="openTimeline"
+        />
+        <div
+          v-else
+          class="blank-spacer"
+        />
       </v-row>
     </template>
 
@@ -199,8 +272,8 @@ export default defineComponent({
         class="pa-0"
       >
         <span
-          v-for="(attribute, i) of filteredFullAttributes"
-          :key="i"
+          v-for="(attribute) of filteredFullAttributes"
+          :key="attribute.name"
         >
           <v-row
             v-if="
@@ -211,7 +284,14 @@ export default defineComponent({
             dense
             align="center"
           >
-            <v-col class="attribute-name"> {{ attribute.name }}: </v-col>
+            <v-col class="attribute-name"> <div
+              class="type-color-box"
+              :style="{
+                backgroundColor: attribute.color,
+              }"
+            /><span>{{ attribute.name }}:
+            </span>
+            </v-col>
             <v-col class="px-1">
               <AttributeInput
                 v-if="activeSettings"
@@ -277,6 +357,9 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.attribute-header {
+  font-size: 12px;
+}
 .attribute-item-value {
   max-width: 80%;
   margin: 0px;
@@ -290,4 +373,19 @@ export default defineComponent({
   max-width: 50%;
   min-width: 50%;
 }
+.type-color-box {
+  display: inline-block;
+  margin-right: 5px;
+  min-width: 8px;
+  max-width: 8px;
+  min-height: 8px;
+  max-height: 8px;
+}
+.blank-spacer {
+  min-width: 28px;
+  min-height: 28px;
+  max-width: 28px;
+  max-height: 28px;
+}
+
 </style>
