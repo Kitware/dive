@@ -173,7 +173,7 @@ export default defineComponent({
           />
           <div v-if="datatype=== 'number'">
             <v-radio-group
-              :value="editor.type"
+              :value="editor.type || 'combo'"
               row
               label="Display Type:"
               @change="numericChange"
