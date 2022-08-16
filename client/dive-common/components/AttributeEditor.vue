@@ -24,6 +24,7 @@ export default defineComponent({
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
     const color: Ref<string | undefined> = ref(props.selectedAttribute.color);
+    const areSettingsValid = ref(false);
     const editor: Ref<
       undefined | StringAttributeEditorOptions | NumericAttributeEditorOptions
     > = ref(props.selectedAttribute.editor);
@@ -124,6 +125,7 @@ export default defineComponent({
       values,
       addNew,
       editor,
+      areSettingsValid,
       //computed
       textValues,
       //functions
@@ -154,7 +156,10 @@ export default defineComponent({
             }}
           </div>
         </v-alert>
-        <v-form ref="form">
+        <v-form
+          ref="form"
+          v-model="areSettingsValid"
+        >
           <v-text-field
             v-model="name"
             label="Name"
@@ -196,9 +201,12 @@ export default defineComponent({
                 outlined
                 :step="editor.range[0]> 1 ? 1 : 0.01"
                 type="number"
-                label="Lower"
+                label="Min"
+                :rules="[
+                  v => !isNaN(parseFloat(v))|| 'Number is required',
+                  v => v < editor.range[1] || 'Min needs to be smaller than the Max']"
                 :max="editor.range[1]"
-                hint="Lower limit for slider"
+                hint="Min limit for slider"
                 persistent-hint
               />
               <v-text-field
@@ -207,9 +215,12 @@ export default defineComponent({
                 outlined
                 :step="editor.range[1]> 1 ? 1 : 0.01"
                 type="number"
-                label="Upper"
+                label="Max"
+                :rules="[
+                  v => !isNaN(parseFloat(v)) || 'Number is required',
+                  v => v > editor.range[0] || 'Max needs to be larger than the Min']"
                 :min="editor.range[0]"
-                hint="Upper limit for slider"
+                hint="Max limit for slider"
                 persistent-hint
               />
             </v-row>
@@ -220,7 +231,11 @@ export default defineComponent({
                 outlined
                 :step="editor.steps> 1 ? 1 : 0.01"
                 type="number"
-                label="Slider Resolution"
+                :rules="[
+                  v => !isNaN(parseFloat(v)) || 'Number is required',
+                  v => v < (editor.range[1] - editor.range[0])
+                    || 'Steps should be smaller than the range']"
+                label="Slider Step Interval"
                 min="0"
                 hint="Each movement will move X amount"
                 persistent-hint
@@ -271,7 +286,7 @@ export default defineComponent({
             </v-btn>
             <v-btn
               color="primary"
-              :disabled="!name || name.includes(' ')"
+              :disabled="!areSettingsValid || (!name || name.includes(' '))"
               @click.prevent="submit"
             >
               Save
