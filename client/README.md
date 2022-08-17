@@ -74,16 +74,82 @@ Create a new release tagged `X.X.X` through github.
 
 ## Architecture
 
+## Division
+
+The client is broken into 4 main folders which separate different parts of the system.
+* **Vue Media Annotator**
+  * Location: ./src
+  * Description: The basic annotator which uses a JSON data in conjunction with medai URLs (image or video) to draw and edit annotations within a web component.
+  * Items specific to the Web or Desktop Instance aren't included in this directory.
+* **DIVE Interface**
+  * Location: `/dive-common`
+  * Description: Interface surrounding the media annotator.  Organization of the lists of tracks/groups.  Provides UI to import/export data and run pipelines/training on the data.
+* **Web Version**
+  * Location: `/platform/web-girder`
+  * Description: Web/Girder specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.
+* **Desktop Version**
+  * Location: `/platform/desktop`
+  * Backend
+    * Location: `/platform/desktop/backend/server.ts`
+    * Description:  Contains the information to replicate the functionality of the girder server for electron.  
+      * **Native**
+        * Location: `/platform/desktop/backend/native/`
+        * Description:  Replicates functionality for managing data import/export and for running pipelines/training and other tasks.
+      * **Serializers**
+        * Location: `/platform/desktop/backend/serializers`
+        * Description: Handles conversion between different annotation formats for the electron version.
+
+## Unified API Specification
+
+To resuse as much code as possible between the Desktop and Web versions there is a unified API which provides the capability to export/import/save/delete annotations and metadata as well as run training and configuration pipelines.  This API allows both versions to share the `/dive-common` and `/src` folders while handling these calls differently.
+
+## Annotation Viewer Organization
+
+### ViewerLoader.vue
+* Location: `./platform/desktop/frontend/components/ViewerLoader.vue` or `./platform/web-girder/views/ViewerLoader.vue
+* This file will instantiate the main Viewer.vue component for the annotation viewer.  It provides the basic properties to the Viewer.
+  * Props:
+    * **id:** Dataset ID to be loaded.  This is used to make requests to girder/electron express server  to load the annotations from the datasetId.
+    * **revision:** Web only, provides the current revision of the data so the user can access previous revisions
+    * **read-only-mode:** sets read only mode when it is set in the settings for Desktop or if a pipeline is currently running on the dataset.
+## Viewer.vue
+* Location: `./dive-common/components/Viewer.vue`
+* The main unified root of the annotation viewer.  This is the entry point for the app where all data is collated and passed down to the different components for rendering and displaying.
+* **use{X} Initializations**
+  * There are several functions called use{X} where X is the name of the category of functionality that is provided.
+  * These functions provide reactivity and editing capabilities to the data that is loaded in the system
+  * Many of these functions and reactive properties are passed into `provideAnnotator` for use in other components
+  * Example: `useSave`
+    * `useSave` has arguments which include the current datasetId and the readonlyState.
+    * Returned Values:
+      * save - function to save data to the server/electron
+      * markChangesPending - function to indicate that there are new changes that needs to be saved
+      * pendingSaveCount - a reactive number providing the number of changes from the last save
+      * addCamera/removeCamera - a function to add/remove cameras for multicam data.
+* **loadData** function
+  * This is where the annotations and metadata are loaded into the system
+  * MultiCamera
+    * In the case of multi-camera data (only available on desktop) the cameraStore will create a camera for each.  Each cameraStore will have a trackStore and groupStore where the annotations will be stored.
+  * Media Data is also loaded in this function.  Either that is a single video URL or a list of images.
+* **provideAnnotator** Function
+  * The providerAnnotator function will take the resulting reactive data and functions to interact with the reactive data and give a way in which lower components can inject this information to interact with it.
+  * I.E. The annotor can import { useselectedTrackId } from ‘vue-media-annotator/provides’ to use a reactive property of the selected trackId.
+  * For performance reasons all reactive properties are read-only and rely on functions to modify.
+
+
+## Anotations and Media Viewer (/src/*)
 ### src/*.ts
 
 Use ES6 classes to implement stateful modules that form the core of the application.  We previously used composition functions, but these became unweildy as more state needed to be pushed through the `src/provides.ts` interface.  Classes like `TrackStore.ts` can encapsulate related states and functions, and we can make use of traditional inheritance design patterns like base classes.
 
 ### src/components/annotators
 
-These components form the base of an annotator instance.  They construct the geojs instance and maintain state.  State is shared with layers through a special provide/inject mechanism.  The annotator API is documented in `src/components/annotators/README.md`
+These components form the base of an annotator instance.  The root display for Media (Images or Video) are located in this folder.  They construct the geojs instance and maintain state.  State is shared with layers through a special provide/inject mechanism.  The annotator API is documented in `src/components/annotators/README.md`
 
 * This provide/inject mechanism uses a distinct Vue instance as a convenience to share reactive state and provide a means for injectors to signal back through `$emit`.
 * The somewhat uncommon `provide()` function is used because the special instance is tied to its parent's lifecycle and cannot be hoisted.
+
+**useMediaController:** allows for synchronizing the state among multiple cameras in multi-cam mode as well as allowing the other components to view/set the current frame or playback.
 
 ### src/layers
 
@@ -94,9 +160,24 @@ These layers are provided to an annotator as slots and can inject their parent a
 
 This application has many layers that interact, requiring a manager `src/components/LayerManager.vue`.
 
+**EditAnnotationLayer.ts**
+
+Editing and Creation of all annotation types is handled in `EditAnnotationLayer.ts`.  The EditAnnotationLayer bubbles up edits to the LayerManager which through `provides` will pass the editing to `useModeManager`.  `useModeManager` will make decisions about how to update the state of DIVE as well as updating the annotation data in the `trackStore`
+
+Annotation Editing Flow:
+* EditAnnotationLayer
+* LayerManager
+* provides (handler)
+* useModeManager
+
+### LayerManager.vue
+
+Layer manager uses the `/src/provides.ts` to view the current frame and tracks that should be visible for the frame and draw them on the screen.  The function `updateLayers` is connected to a watcher which watches for changes in frame, selectedTrack, the visiblity of tracks provided, and Annotator preferences (visibility of certain annotation types or track tail length).
+
 ### src/components/controls
 
 Controllers are like layers, but without geojs functionality.  They usually provide some UI wigetry to manipulate the annotator state (such as playblack position or playpause state).
+The timeline representation fo tracks for graphing is located in the constrols as well.
 
 ### src/provides
 
@@ -114,6 +195,24 @@ const selectedTrackIdRef = useSelectedTrackId();
 ```
 
 This style guarantees matching types are passed through provide and inject without having to replicate the type definition through possibly many layers of `props:{}` type definitions, and automatically wraps with `readonly` to prevent short-circut updates.
+
+### /src/use
+
+The use{x} files in this folder pertain directly to media or annotation information.  These objects will be used in `provides.ts` so that other components can access and manipulate the data.
+
+`useEventChart` and `useLineChart` take the visible tracks and format the data for drawing in swimlane or line graph formats
+
+`useAttributes` provide a reactive list of templates to show the attributes to the user.  Attribute Filters and generation of Attribute Graphs are also done through.  Attributes that don't have a template defined in the metadata will not be shown to the user.  On import the backend (both web and desktop) will attempt to auto generate these attribute templates based on the values provided.,
+
+## DIVE Interface (/dive-common)
+
+The DIVE interfaces handles the loading in Viewer.vue of data and manages the layout of components provided in `/src` and the state managment of the system through `useModeManager`
+### useModeManager (/dive-common/use/useModeManager.ts)
+useModeManager.ts is used to manage the current state and state transitions within the DIVE application.
+Transitioning between selected, editing, deletion, modification.  Most interactions that operate on the annotation data are coordinated through userModeManager.
+Many of the functions and reactive properties are sent to `./src/provides.ts` to allow components to view and manipulate the current state.
+Recipes (`./dive-common/recipes/`) allow for custom workflows when creating annotations.
+
 
 ## Tests
 
