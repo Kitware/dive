@@ -21,7 +21,7 @@ from .views_override import countJobs, use_private_queue
 from .views_rpc import RpcResource
 
 
-class GirderPlugin(plugin.GirderPlugin):
+class DIVEPlugin(plugin.GirderPlugin):
     def load(self, info):
         ModelImporter.registerModel('trackItem', TrackItem, plugin='dive_server')
         ModelImporter.registerModel('groupItem', GroupItem, plugin='dive_server')
