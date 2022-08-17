@@ -71,7 +71,7 @@ diveutils = "scripts.entrypoint_dev:cli"
 dive = "scripts.entrypoint_main:cli"
 
 [tool.poetry.plugins."girder.plugin"]
-dive_server = "dive_server:DIVEPlugin"
+dive_server = "dive_server:GirderPlugin"
 bucket_notifications = "bucket_notifications:GirderPlugin"
 rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 
