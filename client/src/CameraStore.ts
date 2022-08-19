@@ -271,4 +271,15 @@ export default class CameraStore {
       });
       return resultingTypes;
     }
+
+    getGroupMemebers(id: AnnotationId) {
+      let members = {};
+      this.camMap.value.forEach((camera) => {
+        const group = camera.groupStore.get(id);
+        if (group !== undefined) {
+          members = group.members;
+        }
+      });
+      return members;
+    }
 }
