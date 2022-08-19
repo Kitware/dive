@@ -87,7 +87,7 @@ The client is broken into 4 main folders which separate different parts of the s
 * **Web Application**
   * Location: `/platform/web-girder`
   * Description: Web/Girder specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.
-* **Desktop Version**
+* **Desktop Application**
   * Location: `/platform/desktop`
   * Backend
     * Location: `/platform/desktop/backend/server.ts`
