@@ -84,7 +84,7 @@ The client is broken into 4 main folders which separate different parts of the s
 * **DIVE Interface**
   * Location: `/dive-common`
   * Description: Interface surrounding the media annotator.  Organization of the lists of tracks/groups.  Provides UI to import/export data and run pipelines/training on the data.
-* **Web Version**
+* **Web Application**
   * Location: `/platform/web-girder`
   * Description: Web/Girder specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.
 * **Desktop Version**
