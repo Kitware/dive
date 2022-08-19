@@ -79,7 +79,7 @@ Create a new release tagged `X.X.X` through github.
 The client is broken into 4 main folders which separate different parts of the system.
 * **Vue Media Annotator**
   * Location: ./src
-  * Description: The basic annotator which uses a JSON data in conjunction with medai URLs (image or video) to draw and edit annotations within a web component.
+  * Description: The basic annotator which uses a JSON data in conjunction with media URLs (image or video) to draw and edit annotations within a web component.
   * Items specific to the Web or Desktop Instance aren't included in this directory.
 * **DIVE Interface**
   * Location: `/dive-common`
