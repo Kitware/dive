@@ -2,7 +2,7 @@ import { ref, Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
 import type Track from './track';
 import type Group from './Group';
-import type { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
+import type { AnnotationId, ConfidencePair, NotifierFuncParams } from './BaseAnnotation';
 
 export type MarkChangesPending = ({
   action,
@@ -19,6 +19,15 @@ export type MarkChangesPending = ({
 export interface InsertArgs {
   imported?: boolean;
   afterId?: AnnotationId;
+}
+
+//A subset of Track so copies of full track aren't passed around
+export interface SortedAnnotation {
+  id: AnnotationId;
+  begin: number;
+  end: number;
+  confidencePairs: ConfidencePair[];
+  getType: (index?: number) => string;
 }
 
 function isTrack(value: Track | Group): value is Track {
@@ -55,11 +64,13 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
    */
   annotationIds: Ref<AnnotationId[]>;
 
-  sorted: Ref<OneOf<T, [Group, Track]>[]>;
+  sorted: Ref<SortedAnnotation[]>;
 
   cameraName: string;
 
   private canary: Ref<number>;
+
+  enableSorting: Ref<boolean>; //Sorting is false to start with
 
   constructor({ markChangesPending, cameraName }:
     { markChangesPending: MarkChangesPending; cameraName: string }) {
@@ -69,10 +80,24 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     this.annotationIds = ref([]);
     this.intervalTree = new IntervalTree();
     this.canary = ref(0);
+    this.enableSorting = ref(false);
     this.sorted = computed(() => {
       this.depend();
+      // Prevent sorting when loading data
+      if (!this.enableSorting.value) {
+        return [];
+      }
       return this.annotationIds.value
-        .map((trackId) => this.get(trackId))
+        .map((trackId) => {
+          const track = this.get(trackId);
+          return {
+            begin: track.begin,
+            end: track.end,
+            id: track.id,
+            confidencePairs: track.confidencePairs,
+            getType: (index?: number) => ((track.confidencePairs[index || 0][0]) || 'unknown'),
+          };
+        })
         .sort((a, b) => a.begin - b.begin);
     });
   }
@@ -85,6 +110,10 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
    */
   private depend() {
     return this.canary.value;
+  }
+
+  setEnableSorting() {
+    this.enableSorting.value = true;
   }
 
   get(annotationId: AnnotationId) {
