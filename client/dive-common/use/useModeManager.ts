@@ -10,12 +10,12 @@ import { AggregateMediaController } from 'vue-media-annotator/components/annotat
 import Recipe from 'vue-media-annotator/recipe';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
-import BaseAnnotation from 'vue-media-annotator/BaseAnnotation';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
+import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
 
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -23,7 +23,7 @@ type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSO
 /* default to index + 1
  * call with -1 to select previous, or pass any other delta
  */
-function selectNext<T extends BaseAnnotation>(
+function selectNext<T extends SortedAnnotation>(
   filtered: Readonly<T>[], selected: Readonly<AnnotationId | null>, delta = 1,
 ): AnnotationId | null {
   if (filtered.length > 0) {
@@ -334,7 +334,7 @@ export default function useModeManager({
         frame.value, trackType,
         selectedTrackId.value || undefined,
         overrideTrackId,
-      ).trackId;
+      ).id;
       selectTrack(newTrackId, true);
       creating = true;
       return newTrackId;
@@ -684,7 +684,7 @@ export default function useModeManager({
       ));
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
-      handleSelectTrack(track.trackId, false);
+      handleSelectTrack(track.id, false);
     }
   }
 
