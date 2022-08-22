@@ -79,19 +79,20 @@ Create a new release tagged `X.X.X` through github.
 The client is broken into 4 main folders which separate different parts of the system.
 * **Vue Media Annotator**
   * Location: ./src
-  * Description: The basic annotator which uses a JSON data in conjunction with media URLs (image or video) to draw and edit annotations within a web component.
+  * Description: The basic annotator which uses a JSON data structure in conjunction with media URLs (image or video) to draw and edit annotations within a web component.
   * Items specific to the Web or Desktop Instance aren't included in this directory.
 * **DIVE Interface**
   * Location: `/dive-common`
-  * Description: Interface surrounding the media annotator.  Organization of the lists of tracks/groups.  Provides UI to import/export data and run pipelines/training on the data.
+  * Description: Interface surrounding the media annotator and Vue utility plugins for keyboard commands and prompting users.  Organization of the lists of tracks/groups.  Provides UI to import/export data and run pipelines/training on the data.
 * **Web Application**
   * Location: `/platform/web-girder`
-  * Description: Web/Girder specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.
+  * Description: Web/Girder client specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.  All backend code for the Girder Application is written in Python and is in the ../server directory (outside of the ./client directory).
 * **Desktop Application**
   * Location: `/platform/desktop`
+  * Description:  The desktop application uses Electron and interfaces directly with files on the user desktops.  To replicate the functionality of the Girder Application and expressJS server is used with similar endpoints as Girder.  There are additional NodeJS functins to manage serving files and running pipelines/training on datasets.
   * Backend
     * Location: `/platform/desktop/backend/server.ts`
-    * Description:  Contains the information to replicate the functionality of the girder server for electron.  
+    * Description:  Contains the ExpressJS server to replicate the functionality of the girder server for electron.  
       * **Native**
         * Location: `/platform/desktop/backend/native/`
         * Description:  Replicates functionality for managing data import/export and for running pipelines/training and other tasks.
@@ -132,8 +133,8 @@ To resuse as much code as possible between the Desktop and Web versions there is
     * In the case of multi-camera data (only available on desktop) the cameraStore will create a camera for each.  Each cameraStore will have a trackStore and groupStore where the annotations will be stored.
   * Media Data is also loaded in this function.  Either that is a single video URL or a list of images.
 * **provideAnnotator** Function
-  * The providerAnnotator function will take the resulting reactive data and functions to interact with the reactive data and give a way in which lower components can inject this information to interact with it.
-  * I.E. The annotor can import { useselectedTrackId } from ‘vue-media-annotator/provides’ to use a reactive property of the selected trackId.
+  * The provideAnnotator function will take the resulting reactive data and functions to interact with the reactive data and give a way in which lower components can inject this information to interact with it.
+  * I.E. The annotator can `import { useselectedTrackId } from ‘vue-media-annotator/provides’` to use a reactive property of the selected trackId.
   * For performance reasons all reactive properties are read-only and rely on functions to modify.
 
 
@@ -177,7 +178,7 @@ Layer manager uses the `/src/provides.ts` to view the current frame and tracks t
 ### src/components/controls
 
 Controllers are like layers, but without geojs functionality.  They usually provide some UI wigetry to manipulate the annotator state (such as playblack position or playpause state).
-The timeline representation fo tracks for graphing is located in the constrols as well.
+The timeline representation of tracks for graphing is located in the constrols as well.
 
 ### src/provides
 
@@ -202,13 +203,14 @@ The use{x} files in this folder pertain directly to media or annotation informat
 
 `useEventChart` and `useLineChart` take the visible tracks and format the data for drawing in swimlane or line graph formats
 
-`useAttributes` provide a reactive list of templates to show the attributes to the user.  Attribute Filters and generation of Attribute Graphs are also done through.  Attributes that don't have a template defined in the metadata will not be shown to the user.  On import the backend (both web and desktop) will attempt to auto generate these attribute templates based on the values provided.,
+`useAttributes` provide a reactive list of templates to show the attributes to the user.  Attribute Filters and generation of Attribute Graphs are also configured and retrieved through `useAttributes`.  Attributes that don't have a template defined in the metadata will not be shown to the user.  On import the backend (both web and desktop) will attempt to auto generate these attribute templates based on the values provided.
 
 ## DIVE Interface (/dive-common)
 
 The DIVE interfaces handles the loading of data in Viewer.vue and manages the layout of components provided in `/src` and the state managment of the system through `useModeManager`
 
 ### useModeManager (/dive-common/use/useModeManager.ts)
+
 useModeManager.ts is used to manage the current state and state transitions within the DIVE application (e.g.,
 transitioning between selected, editing, deletion, modification, etc.).  Most interactions that operate on the annotation data are coordinated through useModeManager.
 Many of the functions and reactive properties are sent to `./src/provides.ts` to allow components to view and manipulate the current state.
