@@ -89,7 +89,7 @@ The client is broken into 4 main folders which separate different parts of the s
   * Description: Web/Girder client specific code such as API interfaces and girder-web-components for viewing folders and data from a Girder backend.  All backend code for the Girder Application is written in Python and is in the ../server directory (outside of the ./client directory).
 * **Desktop Application**
   * Location: `/platform/desktop`
-  * Description:  The desktop application uses Electron and interfaces directly with files on the user desktops.  To replicate the functionality of the Girder Application and expressJS server is used with similar endpoints as Girder.  There are additional NodeJS functins to manage serving files and running pipelines/training on datasets.
+  * Description:  The desktop application uses Electron and interfaces directly with files on the user's desktop.  To replicate the functionality of the Girder application, an ExpressJS server is used with similar endpoints as Girder.  There are additional NodeJS functions to manage serving files and running pipelines/training on datasets.
   * Backend
     * Location: `/platform/desktop/backend/server.ts`
     * Description:  Contains the ExpressJS server to replicate the functionality of the girder server for electron.  
