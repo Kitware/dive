@@ -574,10 +574,10 @@ async function _ingestFilePath(
     } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
+      metadataConfig = true;
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
-      metadataConfig = true;
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
