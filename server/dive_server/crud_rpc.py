@@ -169,7 +169,7 @@ def run_pipeline(
         "input_type": fromMeta(folder, "type", required=True),
         "output_folder": folder_id_str,
         "input_revision": input_revision,
-        'user_id': user.get('_id', 'unknown'),
+        'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
     }
     newjob = tasks.run_pipeline.apply_async(
