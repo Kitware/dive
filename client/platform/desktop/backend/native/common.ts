@@ -562,6 +562,7 @@ async function _ingestFilePath(
   // Attempt to process the file
   let annotations = dive.makeEmptyAnnotationFile();
   const meta: DatasetMetaMutable & { fps?: number } = {};
+  let metadataConfig = false;
   if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
     if (nistSerializers.confirmNistFormat(jsonObject)) {
@@ -573,6 +574,7 @@ async function _ingestFilePath(
     } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
+      metadataConfig = true;
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
@@ -590,7 +592,10 @@ async function _ingestFilePath(
     const processed = processTrackAttributes(Object.values(annotations.tracks));
     meta.attributes = processed.attributes;
   }
-  await _saveSerialized(settings, datasetId, annotations, true);
+  if (!metadataConfig) { // Only save Annotations when not a metadata Config file
+    await _saveSerialized(settings, datasetId, annotations, true);
+  }
+
   return meta;
 }
 
