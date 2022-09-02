@@ -29,7 +29,7 @@ RUN poetry install --no-root
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-RUN poetry install --no-dev
+RUN poetry install --only main
 
 # ====================
 # == FFMPEG FETCHER ==
