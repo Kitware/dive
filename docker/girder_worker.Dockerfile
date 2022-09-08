@@ -10,7 +10,12 @@ WORKDIR /opt/dive/src
 RUN apt-get update
 RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
 # Recommended poetry install https://python-poetry.org/docs/master/#installation
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.1.2 POETRY_HOME=/opt/dive/local python -
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.0 POETRY_HOME=/opt/dive/poetry python -
+ENV PATH="/opt/dive/poetry/bin:$PATH"
+# Create a virtual environment for the installation
+RUN python -m venv --copies /opt/dive/local/venv
+# Poetry needs this set to recognize it as ane existing environment
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
 ENV PATH="/opt/dive/local/venv/bin:$PATH"
 # Copy only the lock and project files to optimize cache
 COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
@@ -24,7 +29,7 @@ RUN poetry install --no-root
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-RUN poetry install --no-dev
+RUN poetry install --only main
 
 # ====================
 # == FFMPEG FETCHER ==
@@ -69,7 +74,7 @@ COPY --chown=dive:dive --from=server-builder /opt/dive/local/venv/ /opt/dive/loc
 # Copy the source code of the editable module
 COPY --chown=dive:dive --from=server-builder /opt/dive/src /opt/dive/src
 # Copy ffmpeg
-copy --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/venv/bin/
+COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/venv/bin/
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 
