@@ -131,7 +131,7 @@ export default defineComponent({
     const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
       const confidencePair = filteredTrack.annotation
         .getType(filteredTrack.context.confidencePairIndex);
-      const trackType = confidencePair[0];
+      const trackType = confidencePair;
       acc.set(trackType, (acc.get(trackType) || 0) + 1);
 
       return acc;
@@ -223,6 +223,7 @@ export default defineComponent({
       virtualHeight,
       virtualTypes,
       readOnlyMode,
+      filteredTracksRef,
       /* methods */
       clickDelete,
       clickEdit,
