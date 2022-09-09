@@ -127,7 +127,7 @@ class AnnotationResource(Resource):
             return gen
         elif format == 'dive_json':
             setContentDisposition(f'{folder["name"]}.dive.json', mime='application/json')
-            return crud_annotation.get_annotations(folder, revision=revisionId)
+            return dict(crud_annotation.get_annotations(folder, revision=revisionId))
         else:
             raise RestException(f'Format {format} is not a valid option.')
 

@@ -95,6 +95,14 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .param(
+            "skipTranscoding",
+            "Whether to skip processing that might dispatch worker jobs",
+            paramType="formData",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs):
-        return crud_rpc.postprocess(self.getCurrentUser(), folder, skipJobs)
+    def postprocess(self, folder, skipJobs, skipTranscoding):
+        return crud_rpc.postprocess(self.getCurrentUser(), folder, skipJobs, skipTranscoding)
