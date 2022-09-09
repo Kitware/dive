@@ -105,12 +105,13 @@ export default Vue.extend({
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
+      const skipTranscoding = !!pendingUpload.skipTranscoding;
 
       let folder = this.location;
       if (!createSubFolders) {
         folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
-          await this.uploadFiles(pendingUpload.name, folder, files, uploaded);
+          await this.uploadFiles(pendingUpload.name, folder, files, uploaded, skipTranscoding);
           this.remove(pendingUpload);
         }
       } else {
@@ -124,7 +125,7 @@ export default Vue.extend({
           folder = await (this.createUploadFolder(subname, fps, subtype));
           if (folder) {
             // eslint-disable-next-line no-await-in-loop
-            await this.uploadFiles(subname, folder, subfile, uploaded);
+            await this.uploadFiles(subname, folder, subfile, uploaded, skipTranscoding);
           }
         }
         this.remove(pendingUpload);
@@ -144,7 +145,7 @@ export default Vue.extend({
         throw error;
       }
     },
-    async uploadFiles(name, folder, files, uploaded) {
+    async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
       // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
@@ -152,7 +153,7 @@ export default Vue.extend({
           results: data.results,
         });
         try {
-          await postProcess(folder._id);
+          await postProcess(folder._id, false, skipTranscoding);
         } catch (err) {
           this.$emit('error', { err, name });
         }

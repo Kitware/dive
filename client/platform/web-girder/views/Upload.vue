@@ -45,6 +45,7 @@ export interface PendingUpload {
   type: DatasetType | 'zip';
   fps: number;
   uploading: boolean;
+  skipTranscoding?: boolean;
 }
 
 interface GirderUpload {
@@ -504,6 +505,14 @@ export default defineComponent({
                   />
                 </v-row>
               </v-col>
+            </v-row>
+            <v-row v-if="pendingUpload.type === 'video'">
+              <v-checkbox
+                v-model="pendingUpload.skipTranscoding"
+                label="Skip Transcoding"
+                hint="Only use this option if the video is encoded using h264"
+                :persistent-hint="true"
+              />
             </v-row>
             <span v-if="uploading">
               {{ computeUploadProgress(pendingUpload) }} remaining
