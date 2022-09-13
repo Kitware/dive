@@ -510,9 +510,24 @@ export default defineComponent({
               <v-checkbox
                 v-model="pendingUpload.skipTranscoding"
                 label="Skip Transcoding"
-                hint="Only use this option if the video is encoded using h264"
-                :persistent-hint="true"
               />
+              <v-tooltip
+                open-delay="200"
+                right
+                max-width="200"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>Attempt to skip transcoding of video file if it is an
+                  '.mp4' and encoding using the h264 codec.
+                  If skipping fails it will fallback to transcoding.</span>
+              </v-tooltip>
             </v-row>
             <span v-if="uploading">
               {{ computeUploadProgress(pendingUpload) }} remaining

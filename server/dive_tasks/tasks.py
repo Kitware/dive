@@ -446,11 +446,6 @@ def convert_video(
 
         # lets determine if we don't need to transcode this file
         if skip_transcoding and videostream[0]['codec_name'] == 'h264':
-            if videostream[0]['sample_aspect_ratio'] != '1:1':
-                raise Exception(
-                    f'Skip Transcoding fails, \
-                        the pixels are not square: {videostream[0]["sample_aspect_ratio"]}'
-                )
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.addMetadataToItem(
@@ -474,6 +469,10 @@ def convert_video(
                 },
             )
             return
+        elif skip_transcoding:
+            print('Transcoding can not be skipped:')
+            print(f'Codec Name: {videostream[0]["codec_name"]}')
+            print('If Codec name is not h264 so file will be transcoded')
 
         command = [
             "ffmpeg",
