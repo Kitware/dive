@@ -298,7 +298,7 @@ export default defineComponent({
           <span class="trackNumber">{{ editingGroup.id }}</span>
           <v-spacer />
           <TypePicker
-            :value="editingGroup.getType()[0]"
+            :value="editingGroup.getType()"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
