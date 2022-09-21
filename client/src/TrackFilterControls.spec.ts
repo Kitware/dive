@@ -43,11 +43,17 @@ function makeCameraStore() {
     trackStore.insert(t0);
     trackStore.insert(t1);
     trackStore.insert(t2);
+    trackStore.setEnableSorting();
   }
   return cameraStore;
 }
 
 function makeGroupFilterControls(store: CameraStore) {
+  const setTrackType = (id: AnnotationId, newType: string,
+    confidenceVal?: number, currentType?: string) => {
+    store.setTrackType(id, newType, confidenceVal, currentType);
+  };
+  const removeTypes = (id: AnnotationId, types: string[]) => store.removeTypes(id, types);
   const remove = (id: AnnotationId) => {
     store.removeGroups(id);
   };
@@ -55,21 +61,32 @@ function makeGroupFilterControls(store: CameraStore) {
     sorted: store.sortedGroups,
     remove,
     markChangesPending,
+    setType: setTrackType,
+    removeTypes,
   });
 }
 
 function makeTrackFilterControls() {
   const cameraStore = makeCameraStore();
   const groupFilterControls = makeGroupFilterControls(cameraStore);
+  const setTrackType = (id: AnnotationId, newType: string,
+    confidenceVal?: number, currentType?: string) => {
+    cameraStore.setTrackType(id, newType, confidenceVal, currentType);
+  };
+  const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+
   const remove = (id: AnnotationId) => {
     cameraStore.removeTracks(id);
   };
+
   return new TrackFilterControls({
     sorted: cameraStore.sortedTracks,
     remove,
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
+    setType: setTrackType,
+    removeTypes,
   });
 }
 
@@ -79,7 +96,7 @@ describe('useAnnotationFilters', () => {
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });
     tf.updateTypeName({ currentType: 'foo', newType: 'baz' });
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
-    expect(tf.filteredAnnotations.value.filter(({ annotation }) => annotation.getType()[0] === 'baz').length).toBe(2);
+    expect(tf.filteredAnnotations.value.filter(({ annotation }) => annotation.getType() === 'baz').length).toBe(2);
     tf.updateTypeName({ currentType: 'baz', newType: 'newtype' });
     await Vue.nextTick(); // must wait a tick for confidence to settle when newtype is added.
     expect(tf.allTypes.value).toEqual(['newtype', 'bar']);

@@ -164,10 +164,18 @@ export default defineComponent({
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
     };
+    const setTrackType = (id: AnnotationId, newType: string,
+      confidenceVal?: number, currentType?: string) => {
+      cameraStore.setTrackType(id, newType, confidenceVal, currentType);
+    };
+    const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+    const getTracksMerged = (id: AnnotationId) => cameraStore.getTracksMerged(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
       markChangesPending,
       remove: removeGroups,
+      setType: setTrackType,
+      removeTypes,
     });
 
     // This context for removal
@@ -180,6 +188,8 @@ export default defineComponent({
       markChangesPending,
       lookupGroups: cameraStore.lookupGroups,
       groupFilterControls: groupFilters,
+      setType: setTrackType,
+      removeTypes,
     });
 
     clientSettingsSetup(trackFilters.allTypes);
@@ -251,6 +261,7 @@ export default defineComponent({
       enabledTracks: trackFilters.enabledAnnotations,
       selectedTrackIds: allSelectedIds,
       typeStyling: trackStyleManager.typeStyling,
+      getTracksMerged,
     });
 
     const { eventChartData: groupChartData } = useEventChart({
@@ -262,6 +273,7 @@ export default defineComponent({
         }
         return [];
       }),
+      getTracksMerged,
     });
 
     async function trackSplit(trackId: AnnotationId | null, frame: number) {
@@ -538,6 +550,11 @@ export default defineComponent({
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
           if (trackStore && groupStore) {
+            // We can start sorting if our total tracks are less than 20000
+            // If greater we do one sort at the end instead to speed loading.
+            if (tracks.length < 20000) {
+              trackStore.setEnableSorting();
+            }
             for (let j = 0; j < tracks.length; j += 1) {
               if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
@@ -558,13 +575,19 @@ export default defineComponent({
             }
           }
         }
-        progress.loaded = true;
-        cameraStore.camMap.value.forEach((_cam, key) => {
+        cameraStore.camMap.value.forEach((cam, key) => {
+          const { trackStore } = cam;
+          // Enable Sorting after loading is complete if it isn't enabled already
+          if (trackStore) {
+            trackStore.setEnableSorting();
+          }
+
           if (!multiCamList.value.includes(key)) {
             cameraStore.removeCamera(key);
             removeSaveCamera(key);
           }
         });
+        progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
           context.unregister({

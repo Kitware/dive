@@ -4,8 +4,8 @@ import {
 import { cloneDeep, uniq } from 'lodash';
 import type Track from './track';
 import type Group from './Group';
-import { AnnotationId } from './BaseAnnotation';
-import { MarkChangesPending } from './BaseAnnotationStore';
+import { AnnotationId, ConfidencePair } from './BaseAnnotation';
+import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
 import GroupStore from './GroupStore';
 import TrackStore from './TrackStore';
 
@@ -20,9 +20,9 @@ export default class CameraStore {
 
     markChangesPending: MarkChangesPending;
 
-    sortedTracks: Ref<Track[]>;
+    sortedTracks: Ref<SortedAnnotation[]>;
 
-    sortedGroups: Ref<Group[]>;
+    sortedGroups: Ref<SortedAnnotation[]>;
 
     defaultGroup: [string, number];
 
@@ -45,10 +45,10 @@ export default class CameraStore {
          * This allows the full range begin/end for the track across multiple cameras to
          * be displayed.
          */
-        return uniq(idList).map((id) => this.getTracksMerged(id));
+        return uniq(idList).map((id) => this.getTracksMergedForSorted(id));
       });
       this.sortedGroups = computed(() => {
-        let list: Group[] = [];
+        let list: SortedAnnotation[] = [];
         this.camMap.value.forEach((camera) => {
           list = list.concat(camera.groupStore.sorted.value);
         });
@@ -140,6 +140,17 @@ export default class CameraStore {
       return track;
     }
 
+    getTracksMergedForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation {
+      const track = this.getTracksMerged(trackId);
+      return {
+        id: track.id,
+        confidencePairs: track.confidencePairs,
+        begin: track.begin,
+        end: track.end,
+        getType: (index?: number) => (track.confidencePairs[index || 0][0] || 'unknown'),
+      };
+    }
+
     addCamera(cameraName: string) {
       if (this.camMap.value.get(cameraName) === undefined) {
         this.camMap.value.set(cameraName, {
@@ -224,11 +235,11 @@ export default class CameraStore {
     }
 
     // Update all cameras to have the same track type
-    setTrackType(id: AnnotationId, type: string) {
+    setTrackType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
       this.camMap.value.forEach((camera) => {
         const track = camera.trackStore.getPossible(id);
         if (track !== undefined) {
-          track.setType(type);
+          track.setType(newType, confidenceVal, currentType);
         }
       });
     }
@@ -239,11 +250,36 @@ export default class CameraStore {
           for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
             const [name, confidenceVal] = annotation.confidencePairs[i];
             if (name === currentType) {
-              annotation.setType(newType, confidenceVal, currentType);
+              const track = camera.trackStore.get(annotation.id);
+              if (track) {
+                track.setType(newType, confidenceVal, currentType);
+              }
               break;
             }
           }
         });
       });
+    }
+
+    removeTypes(id: AnnotationId, types: string[]) {
+      let resultingTypes: ConfidencePair[] = [];
+      this.camMap.value.forEach((camera) => {
+        const track = camera.trackStore.getPossible(id);
+        if (track !== undefined) {
+          resultingTypes = track.removeTypes(types);
+        }
+      });
+      return resultingTypes;
+    }
+
+    getGroupMemebers(id: AnnotationId) {
+      let members = {};
+      this.camMap.value.forEach((camera) => {
+        const group = camera.groupStore.get(id);
+        if (group !== undefined) {
+          members = group.members;
+        }
+      });
+      return members;
     }
 }

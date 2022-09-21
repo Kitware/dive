@@ -250,11 +250,18 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
+  const setTrackType = (id: AnnotationId, newType: string,
+    confidenceVal?: number, currentType?: string) => {
+    cameraStore.setTrackType(id, newType, confidenceVal, currentType);
+  };
+  const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
   const groupFilterControls = new GroupFilterControls(
     {
       sorted: cameraStore.sortedGroups,
       remove: cameraStore.removeGroups,
       markChangesPending,
+      setType: setTrackType,
+      removeTypes,
     },
   );
   const trackFilterControls = new TrackFilterControls({
@@ -263,6 +270,9 @@ function dummyState(): State {
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
+    setType: setTrackType,
+    removeTypes,
+
   });
   return {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),

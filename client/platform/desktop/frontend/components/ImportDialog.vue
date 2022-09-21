@@ -20,6 +20,10 @@ export default defineComponent({
       type: Object as PropType<DesktopMediaImportResponse>,
       required: true,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const argCopy = ref(cloneDeep(props.importData));
@@ -316,7 +320,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!ready"
+          :disabled="!ready || disabled"
           @click="$emit('finalize-import', argCopy)"
         >
           Finish Import

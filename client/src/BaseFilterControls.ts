@@ -1,7 +1,8 @@
 import {
   ref, computed, Ref, watch,
 } from '@vue/composition-api';
-import type { AnnotationId } from './BaseAnnotation';
+import type { AnnotationId, ConfidencePair } from './BaseAnnotation';
+import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
 import type Track from './track';
 import { updateSubset } from './utils';
@@ -13,7 +14,7 @@ export const DefaultConfidence = 0.1;
  * or function.
  */
 export interface AnnotationWithContext<T extends Track | Group> {
-  annotation: Readonly<OneOf<T, [Track, Group]>>;
+  annotation: Readonly<SortedAnnotation>;
   context: {
     // confidencePair index within annotation that makes this annotation a positive filter result
     confidencePairIndex: number;
@@ -21,9 +22,12 @@ export interface AnnotationWithContext<T extends Track | Group> {
 }
 
 export interface FilterControlsParams<T extends Track | Group> {
-  sorted: Ref<T[]>;
+  sorted: Ref<SortedAnnotation[]>;
   markChangesPending: () => void;
   remove: (id: AnnotationId) => void;
+  setType: (id: AnnotationId, newType: string,
+    confidenceVal?: number, currentType?: string) => void;
+  removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
 }
 
 export type TrackWithContext = AnnotationWithContext<Track>;
@@ -59,9 +63,14 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   private markChangesPending: () => void;
 
   /* Hold a reference to the annotationStore */
-  sorted: Readonly<Ref<T[]>>;
+  sorted: Readonly<Ref<SortedAnnotation[]>>;
 
   remove: (id: AnnotationId) => void;
+
+  setType: (id: AnnotationId, newType: string,
+    confidenceVal?: number, currentType?: string) => void;
+
+  removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
 
   constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.sorted.value.map((t) => t.id));
@@ -73,6 +82,10 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.sorted = params.sorted;
 
     this.remove = params.remove;
+
+    this.setType = params.setType;
+
+    this.removeTypes = params.removeTypes;
 
     this.markChangesPending = params.markChangesPending;
 
@@ -165,7 +178,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
         const [name, confidenceVal] = annotation.confidencePairs[i];
         if (name === currentType) {
-          annotation.setType(newType, confidenceVal, currentType);
+          this.setType(annotation.id, newType, confidenceVal, currentType);
           break;
         }
       }
@@ -184,7 +197,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       const filteredType = filtered.annotation.getType(filtered.context.confidencePairIndex);
       if (filteredType && types.includes(filteredType[0])) {
         //Remove the type from the annotation if multiple types exist
-        const newConfidencePairs = filtered.annotation.removeTypes(types);
+        const newConfidencePairs = this.removeTypes(filtered.annotation.id, types);
         if (newConfidencePairs.length === 0) {
           this.remove(filtered.annotation.id);
         }

@@ -10,6 +10,7 @@ interface EventChartParams<T extends BaseAnnotation> {
   enabledTracks: Readonly<Ref<AnnotationWithContext<OneOf<T, [Group, Track]>>[]>>;
   selectedTrackIds: Ref<AnnotationId[]>;
   typeStyling: Ref<TypeStyling>;
+  getTracksMerged: (id: AnnotationId) => Track;
 }
 
 export interface EventChartData {
@@ -23,7 +24,7 @@ export interface EventChartData {
 }
 
 export default function useEventChart<T extends BaseAnnotation>({
-  enabledTracks, selectedTrackIds, typeStyling,
+  enabledTracks, selectedTrackIds, typeStyling, getTracksMerged,
 }: EventChartParams<T>) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
@@ -34,9 +35,12 @@ export default function useEventChart<T extends BaseAnnotation>({
       const { annotation: track } = filtered;
       const { confidencePairs } = track;
       let markers: [number, boolean][] = [];
-      if ('featureIndex' in track) {
-        markers = track.featureIndex.map((i) => (
-          [i, track.features[i].interpolate || false]));
+      if (selectedTrackIds.value.includes(filtered.annotation.id)) {
+        const mergedTrack = getTracksMerged(filtered.annotation.id);
+        if ('featureIndex' in mergedTrack) {
+          markers = mergedTrack.featureIndex.map((i) => (
+            [i, mergedTrack.features[i].interpolate || false]));
+        }
       }
       if (confidencePairs.length) {
         const trackType = track.getType(filtered.context.confidencePairIndex)[0];

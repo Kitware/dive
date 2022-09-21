@@ -8,16 +8,17 @@ Vue.use(CompositionApi);
 describe('TrackStore', () => {
   it('can add and remove tracks', () => {
     const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
+    ts.setEnableSorting();
     const t0 = ts.add(20, 'foo', undefined, ts.getNewId());
     const t1 = ts.add(10, 'foo', undefined, ts.getNewId());
     expect(Array.from(ts.annotationMap.keys()).length).toBe(2);
-    expect(ts.sorted.value[0].trackId).toBe(1);
+    expect(ts.sorted.value[0].id).toBe(1);
     expect(ts.intervalTree.search([10, 10]).length).toBe(1);
     expect(ts.intervalTree.search([10, 20]).length).toBe(2);
 
     ts.remove(t1.id);
     expect(Array.from(ts.annotationMap.keys()).length).toBe(1);
-    expect(ts.sorted.value[0].trackId).toBe(0);
+    expect(ts.sorted.value[0].id).toBe(0);
     expect(ts.intervalTree.search([10, 10]).length).toBe(0);
     expect(ts.intervalTree.search([10, 20]).length).toBe(1);
 
@@ -57,6 +58,7 @@ describe('TrackStore', () => {
 
   it('updates a reactive list when member tracks change', async () => {
     const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
+    ts.setEnableSorting();
     const track = ts.add(0, 'foo', undefined, ts.getNewId());
 
     let called = false;
