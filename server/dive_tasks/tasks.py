@@ -470,9 +470,9 @@ def convert_video(
             )
             return
         elif skip_transcoding:
-            print('Transcoding can not be skipped:')
+            print('Transcoding cannot be skipped:')
             print(f'Codec Name: {videostream[0]["codec_name"]}')
-            print('If Codec name is not h264 so file will be transcoded')
+            print('Codec name is not h264 so file will be transcoded')
 
         command = [
             "ffmpeg",
