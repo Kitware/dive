@@ -525,7 +525,7 @@ export default defineComponent({
                   </v-icon>
                 </template>
                 <span>Attempt to skip transcoding of video file if it is an
-                  '.mp4' and encoding using the h264 codec.
+                  '.mp4' and encoded using the h264 codec.
                   If skipping fails it will fallback to transcoding.</span>
               </v-tooltip>
             </v-row>
