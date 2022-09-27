@@ -401,7 +401,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
 
 
 def postprocess(
-    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool
+    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool, skipTranscoding=False
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -473,6 +473,7 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
+                    skip_transcoding=skipTranscoding,
                     girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",

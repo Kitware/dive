@@ -389,7 +389,9 @@ def train_pipeline(self: Task, params: TrainingJob):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def convert_video(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
+def convert_video(
+    self: Task, folderId: str, itemId: str, user_id: str, user_login: str, skip_transcoding=False
+):
     context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = patch_manager(self.job_manager)
@@ -441,6 +443,36 @@ def convert_video(self: Task, folderId: str, itemId: str, user_id: str, user_log
             newAnnotationFps = min(requestedFps, originalFps)
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
+
+        # lets determine if we don't need to transcode this file
+        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+            # Now we can update the meta data and push the values
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            gc.addMetadataToItem(
+                itemId,
+                {
+                    "source_video": False,  # even though it is, this for requesting
+                    "transcoder": "ffmpeg",
+                    constants.OriginalFPSMarker: originalFps,
+                    constants.OriginalFPSStringMarker: avgFpsString,
+                    "codec": "h264",
+                },
+            )
+            gc.addMetadataToFolder(
+                folderId,
+                {
+                    constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
+                    constants.OriginalFPSMarker: originalFps,
+                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.FPSMarker: newAnnotationFps,
+                    "ffprobe_info": videostream[0],
+                },
+            )
+            return
+        elif skip_transcoding:
+            print('Transcoding cannot be skipped:')
+            print(f'Codec Name: {videostream[0]["codec_name"]}')
+            print('Codec name is not h264 so file will be transcoded')
 
         command = [
             "ffmpeg",

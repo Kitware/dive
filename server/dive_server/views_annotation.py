@@ -1,9 +1,10 @@
+import json
 from typing import List, Optional
 
 import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource
+from girder.api.rest import Resource, setRawResponse
 from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -127,7 +128,9 @@ class AnnotationResource(Resource):
             return gen
         elif format == 'dive_json':
             setContentDisposition(f'{folder["name"]}.dive.json', mime='application/json')
-            return crud_annotation.get_annotations(folder, revision=revisionId)
+            setRawResponse()
+            annotations = crud_annotation.get_annotations(folder, revision=revisionId)
+            return json.dumps(annotations).encode('utf-8')
         else:
             raise RestException(f'Format {format} is not a valid option.')
 
