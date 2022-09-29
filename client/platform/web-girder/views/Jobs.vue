@@ -129,7 +129,7 @@ export default defineComponent({
           <p class="white--text">
             You can run your own personal, dedicated job runner anywhere you have
             compute resources. This could be a lab workstation or a cloud environment like
-            Google Cloud. You'll need a local installtion of VIAME.
+            Google Cloud. You'll need a local installation of VIAME.
           </p>
           <v-switch
             :input-value="privateQueueEnabled"
