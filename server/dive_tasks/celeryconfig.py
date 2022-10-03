@@ -25,7 +25,7 @@ if dive_username and dive_password:
     Troubleshooting: Try running `docker pull kitware/viame-worker` to get the latest image
     Documentation: https://kitware.github.io/dive/Deployment-Docker-Compose/
     Issues: https://github.com/Kitware/dive/issues
-    Support: please email viame-web@kitare.com
+    Support: please email viame-web@kitware.com
     """
     )
     # Fetch Celery broker credentials from server
