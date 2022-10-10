@@ -254,7 +254,6 @@ export default defineComponent({
         </v-card>
         <v-card
           v-else-if="pipelines"
-          outlined
         >
           <v-card-title> VIAME Pipelines </v-card-title>
 
@@ -266,10 +265,12 @@ export default defineComponent({
             >docs</a>
             for more information about these options.
           </v-card-text>
-          <v-row class="px-3">
+          <v-row
+            v-for="pipeType in Object.keys(pipelines)"
+            :key="pipeType"
+            class="px-3"
+          >
             <v-col
-              v-for="pipeType in Object.keys(pipelines)"
-              :key="pipeType"
               cols="12"
             >
               <v-menu

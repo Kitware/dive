@@ -59,7 +59,7 @@ export default defineComponent({
   >
     <template #default="{ bottomHeight }">
       <v-container>
-        <h3> {{ currentMode }} </h3>
+        <v-row><h3> {{ currentMode }} </h3></v-row>
         <v-row class="px-3">
           <div class="mx-1">
             <tooltip-btn
