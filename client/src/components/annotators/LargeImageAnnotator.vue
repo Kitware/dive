@@ -108,6 +108,7 @@ export default defineComponent({
       currentLayer: '' as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nextLayer: '' as any,
+      nextLayerFrame: 0,
     };
     function forceUnload(imgInternal: ImageDataItemInternal) {
       // Removal from list indicates we are no longer attempting to load this image
@@ -147,27 +148,46 @@ export default defineComponent({
       if (data.frame !== 0 && local.lastFrame === data.frame) {
         return;
       }
+      loadingImage.value = true;
       props.updateTime(data);
       // For faster swapping between loaded large images we swap two layers.
       if (local.nextLayer) {
-        geoViewer.value.onIdle(async () => {
-          local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
-          geoViewer.value.onIdle(() => {
+        if (local.nextLayerFrame === newFrame) {
+          local.currentLayer.moveDown();
+          const ltemp = local.currentLayer;
+          local.currentLayer = local.nextLayer;
+          loadingImage.value = false;
+          local.nextLayer = ltemp;
+          if (props.imageData[newFrame + 1]) {
+            local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
+            local.nextLayer.prefetch(
+              Math.round(geoViewer.value.zoom()),
+              geoViewer.value.bounds(),
+            );
+            local.nextLayerFrame = newFrame + 1;
+          }
+        } else {
+          geoViewer.value.onIdle(async () => {
+            local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
+            geoViewer.value.onIdle(() => {
             // Move the current layer down and set the next layer to the current layer.
-            local.currentLayer.moveDown();
-            const ltemp = local.currentLayer;
-            local.currentLayer = local.nextLayer;
-            local.nextLayer = ltemp;
-            // If there is another frame we begin loading it with the current position/zoom level
-            if (props.imageData[newFrame + 1]) {
-              local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
-              local.nextLayer.prefetch(
-                Math.round(geoViewer.value.zoom()),
-                geoViewer.value.bounds(),
-              );
-            }
+              local.currentLayer.moveDown();
+              const ltemp = local.currentLayer;
+              local.currentLayer = local.nextLayer;
+              local.nextLayer = ltemp;
+              loadingImage.value = false;
+              // If there is another frame we begin loading it with the current position/zoom level
+              if (props.imageData[newFrame + 1]) {
+                local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
+                local.nextLayer.prefetch(
+                  Math.round(geoViewer.value.zoom()),
+                  geoViewer.value.bounds(),
+                );
+                local.nextLayerFrame = newFrame + 1;
+              }
+            });
           });
-        });
+        }
       }
     }
     function pause() {
@@ -211,10 +231,12 @@ export default defineComponent({
         currentLayer: '' as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nextLayer: false as any,
+        nextLayerFrame: 0,
       };
       // If you uncomment below it will load the geoSpatial coordinates and a OSM layer map
-      //const baseData = await getTiles(props.imageData[data.frame].id);
-      //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
+      // This doesn't account for annotations being in image space vs geospatial.
+      // const baseData = await props.getTiles(props.imageData[data.frame].id);
+      // geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
       const resp = await props.getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
@@ -253,7 +275,7 @@ export default defineComponent({
             right: local.metadata.bounds.xmax,
             top: local.metadata.bounds.ymax,
             bottom: local.metadata.bounds.ymin,
-          }, 'EPSG:3857');
+          }, projection);
           geoViewer.value.createLayer('osm');
           geoViewer.value.zoomRange({
             min: geoViewer.value.origMin,

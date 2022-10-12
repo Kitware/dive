@@ -89,7 +89,7 @@ export default Vue.extend({
       const height = this.clientHeight;
       const x = d3
         .scaleLinear()
-        .domain([this.startFrame, this.endFrame])
+        .domain([this.startFrame, this.endFrame || 1])
         .range([this.margin, width]);
       this.x = x;
       const max = d3.max(this.data, (datum) => d3.max(datum.values, (d) => d[1]));
@@ -172,7 +172,7 @@ export default Vue.extend({
       this.path = path;
     },
     update() {
-      this.x.domain([this.startFrame, this.endFrame]);
+      this.x.domain([this.startFrame, this.endFrame || 1]);
       this.line.x((d) => this.x(d[0]));
       this.path.attr('d', (d) => this.line(d.values));
     },

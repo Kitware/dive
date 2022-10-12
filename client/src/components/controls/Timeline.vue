@@ -20,7 +20,7 @@ export default {
   },
   data() {
     return {
-      init: !!this.maxFrame,
+      init: !!this.maxFrame || 1,
       mounted: false,
       startFrame: 0,
       endFrame: this.maxFrame,
@@ -33,8 +33,8 @@ export default {
   computed: {
     minimapFillStyle() {
       return {
-        left: `${(this.startFrame / this.maxFrame) * 100}%`,
-        width: `${((this.endFrame - this.startFrame) / this.maxFrame) * 100}%`,
+        left: `${(this.startFrame / (this.maxFrame || 1)) * 100}%`,
+        width: `${(((this.endFrame || 1) - this.startFrame) / (this.maxFrame || 1)) * 100}%`,
       };
     },
     handLeftPosition() {
@@ -45,9 +45,14 @@ export default {
       ) {
         return null;
       }
+      if (this.endFrame === 0) {
+        return Math.round(
+          this.margin + (this.clientWidth - this.margin) * 0.5,
+        );
+      }
       return Math.round(
         this.margin + (this.clientWidth - this.margin)
-          * ((this.frame - this.startFrame) / (this.endFrame - this.startFrame)),
+          * ((this.frame - this.startFrame) / ((this.endFrame || 1) - this.startFrame)),
       );
     },
   },
