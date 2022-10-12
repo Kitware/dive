@@ -5,7 +5,7 @@ import {
 import { getTileURL, getTiles } from 'platform/web-girder/api/largeImage.service';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
-import useMediaController from './useMediaController';
+import { injectCameraInitializer } from './useMediaController';
 
 export interface LargeImageDataItem {
   url: string;
@@ -59,11 +59,22 @@ export default defineComponent({
   setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
-    const commonMedia = useMediaController();
+    const cameraInitializer = injectCameraInitializer();
     // eslint-disable-next-line prefer-const
     let geoSpatial = false;
-    const { data } = commonMedia;
-    let projection: string | undefined;
+    const {
+      state: data,
+      geoViewer,
+      cursorHandler,
+      imageCursor,
+      container,
+      initializeViewer,
+      mediaController,
+    } = cameraInitializer(props.camera, {
+      // allow hoisting for these functions to pass a reference before defining them.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
+    }); let projection: string | undefined;
 
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -127,9 +138,9 @@ export default defineComponent({
       props.updateTime(data);
       // For faster swapping between loaded large images we swap two layers.
       if (local.nextLayer) {
-        commonMedia.geoViewerRef.value.onIdle(async () => {
+        geoViewer.value.onIdle(async () => {
           local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
-          commonMedia.geoViewerRef.value.onIdle(() => {
+          geoViewer.value.onIdle(() => {
             // Move the current layer down and set the next layer to the current layer.
             local.currentLayer.moveDown();
             const ltemp = local.currentLayer;
@@ -139,8 +150,8 @@ export default defineComponent({
             if (props.imageData[newFrame + 1]) {
               local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
               local.nextLayer.prefetch(
-                Math.round(commonMedia.geoViewerRef.value.zoom()),
-                commonMedia.geoViewerRef.value.bounds(),
+                Math.round(geoViewer.value.zoom()),
+                geoViewer.value.bounds(),
               );
             }
           });
@@ -161,18 +172,6 @@ export default defineComponent({
     function unimplemented() {
       throw new Error('Method unimplemented!');
     }
-
-    const {
-      cursorHandler,
-      initializeViewer,
-      mediaController,
-    } = commonMedia.initialize({
-      seek,
-      play,
-      pause,
-      setVolume: unimplemented,
-      setSpeed: unimplemented,
-    });
 
     const setBrightnessFilter = (on: boolean) => {
       if (local.currentLayer !== undefined) {
@@ -229,7 +228,7 @@ export default defineComponent({
             local.metadata.tileWidth, local.metadata.tileHeight, true, geoSpatial);
           // Need to set up the params using pixelCoorindateParams here instead of in useMediaViewer
           local.params = geo.util.pixelCoordinateParams(
-            commonMedia.containerRef.value, local.width, local.height,
+            container.value, local.width, local.height,
             local.metadata.tileWidth, local.metadata.tileHeight,
           );
           local.params.layer.useCredentials = true;
@@ -238,16 +237,16 @@ export default defineComponent({
         }
 
         if (geoSpatial) {
-          commonMedia.geoViewerRef.value.bounds({
+          geoViewer.value.bounds({
             left: local.metadata.bounds.xmin,
             right: local.metadata.bounds.xmax,
             top: local.metadata.bounds.ymax,
             bottom: local.metadata.bounds.ymin,
           }, 'EPSG:3857');
-          commonMedia.geoViewerRef.value.createLayer('osm');
-          commonMedia.geoViewerRef.value.zoomRange({
-            min: commonMedia.geoViewerRef.value.origMin,
-            max: commonMedia.geoViewerRef.value.zoomRange().max + 3,
+          geoViewer.value.createLayer('osm');
+          geoViewer.value.zoomRange({
+            min: geoViewer.value.origMin,
+            max: geoViewer.value.zoomRange().max + 3,
           });
         }
         // Set to canvas mode if the tiles are larger than the largest texture
@@ -257,11 +256,11 @@ export default defineComponent({
 
         // Params are differnt between geoSpatial and non
         const localParams = geoSpatial ? local.params : local.params.layer;
-        local.currentLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
+        local.currentLayer = geoViewer.value.createLayer('osm', localParams);
         // Set the next layer to pre load
         if (!local.nextLayer && props.imageData.length > 1) {
           localParams.url = _getTileURL(props.imageData[data.frame + 1].id, projection);
-          local.nextLayer = commonMedia.geoViewerRef.value.createLayer('osm', localParams);
+          local.nextLayer = geoViewer.value.createLayer('osm', localParams);
           local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
           local.nextLayer.moveDown();
         }
@@ -294,9 +293,8 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
-      onResize: commonMedia.onResize,
+      imageCursorRef: imageCursor,
+      containerRef: container,
       cursorHandler,
       mediaController,
     };
@@ -360,11 +358,6 @@ export default defineComponent({
         </v-progress-circular>
       </div>
     </div>
-    <slot
-      ref="control"
-      name="control"
-      @resize="onResize"
-    />
     <slot v-if="data.ready" />
   </div>
 </template>
