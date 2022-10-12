@@ -31,16 +31,16 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     },
 }
 
-# https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.sh
+# https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.csv
 UPGRADE_JOB_DEFAULT_URLS: List[str] = [
-    'https://viame.kitware.com/api/v1/item/627b145487bad2e19a4c4697/download',  # Habcam
+    'https://viame.kitware.com/api/v1/item/627b145487bad2e19a4c4697/download',  # HabCam
     'https://viame.kitware.com/api/v1/item/627b32b1994809b024f207a7/download',  # SEFSC
-    'https://viame.kitware.com/api/v1/item/627b3289ea630db5587b577d/download',  # PengHead
+    'https://viame.kitware.com/api/v1/item/627b3289ea630db5587b577d/download',  # SWFSC-PengHead
     'https://viame.kitware.com/api/v1/item/627b326fea630db5587b577b/download',  # Motion
     'https://viame.kitware.com/api/v1/item/627b326cc4da86e2cd3abb5b/download',  # EM Tuna
-    'https://viame.kitware.com/api/v1/item/627b3282c4da86e2cd3abb5d/download',  # MOUSS Deep 7
+    'https://viame.kitware.com/api/v1/item/627b3282c4da86e2cd3abb5d/download',  # MOUSS
     'https://viame.kitware.com/api/v1/item/615bc7aa7e5c13a5bb9af7a7/download',  # Aerial Penguin
-    'https://viame.kitware.com/api/v1/item/627b0b877b5df7aa226545ef/download',  # Sea Lion
+    'https://viame.kitware.com/api/v1/item/629807c192adc2f0ecfa5b54/download',  # Sea Lion
 ]
 
 
@@ -162,6 +162,17 @@ def upgrade_pipelines(
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
     gc.put('dive_configuration/static_pipeline_configs', json=summary)
+    # get a list of files in the zip directory for the installed configuration listing
+    downloaded = []
+
+    # Iterate directory
+    for path in os.listdir(conf.addon_zip_path):
+        # check if current path is a file
+        if os.path.isfile(os.path.join(conf.addon_zip_path, path)):
+            downloaded.append(path)
+    print('Downloaded Files')
+    print(downloaded)
+    gc.put('dive_configuration/installed_addons', json={'downloaded': downloaded})
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -378,7 +389,9 @@ def train_pipeline(self: Task, params: TrainingJob):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def convert_video(self: Task, folderId: str, itemId: str):
+def convert_video(
+    self: Task, folderId: str, itemId: str, user_id: str, user_login: str, skip_transcoding=False
+):
     context: dict = {}
     gc: GirderClient = self.girder_client
     manager: JobManager = patch_manager(self.job_manager)
@@ -430,6 +443,36 @@ def convert_video(self: Task, folderId: str, itemId: str):
             newAnnotationFps = min(requestedFps, originalFps)
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
+
+        # lets determine if we don't need to transcode this file
+        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+            # Now we can update the meta data and push the values
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            gc.addMetadataToItem(
+                itemId,
+                {
+                    "source_video": False,  # even though it is, this for requesting
+                    "transcoder": "ffmpeg",
+                    constants.OriginalFPSMarker: originalFps,
+                    constants.OriginalFPSStringMarker: avgFpsString,
+                    "codec": "h264",
+                },
+            )
+            gc.addMetadataToFolder(
+                folderId,
+                {
+                    constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
+                    constants.OriginalFPSMarker: originalFps,
+                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.FPSMarker: newAnnotationFps,
+                    "ffprobe_info": videostream[0],
+                },
+            )
+            return
+        elif skip_transcoding:
+            print('Transcoding cannot be skipped:')
+            print(f'Codec Name: {videostream[0]["codec_name"]}')
+            print('Codec name is not h264 so file will be transcoded')
 
         command = [
             "ffmpeg",
@@ -488,7 +531,7 @@ def convert_video(self: Task, folderId: str, itemId: str):
 
 
 @app.task(bind=True, acks_late=True)
-def convert_images(self: Task, folderId):
+def convert_images(self: Task, folderId, user_id: str, user_login: str):
     """
     Ensures that all images in a folder are in a web friendly format (png or jpeg).
 
@@ -563,7 +606,7 @@ def convert_large_images(self: Task, folderId):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def extract_zip(self: Task, folderId: str, itemId: str):
+def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
     """
     Discovery logic:
     * Find all folders that have at least one child file (potential datasets)

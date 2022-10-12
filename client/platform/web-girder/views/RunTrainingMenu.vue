@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, watch,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch, toRef,
 } from '@vue/composition-api';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
@@ -30,7 +30,8 @@ export default defineComponent({
     },
   },
 
-  setup(props) {
+  setup(props, { root }) {
+    const brandData = toRef(root.$store.state.Brand, 'brandData');
     const { getTrainingConfigurations, runTraining } = useApi();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
@@ -100,6 +101,7 @@ export default defineComponent({
     };
 
     return {
+      brandData,
       trainingConfigurations,
       selectedTrainingConfig,
       annotatedFramesOnly,
@@ -174,12 +176,12 @@ export default defineComponent({
               for more information about these options.
             </p>
             <v-alert
+              v-if="brandData.trainingMessage"
               dense
               color="warning"
               outlined
             >
-              This server is updated on Thursday at 2AM EST.
-              If your training job is running at that time it may be restarted or killed.
+              {{ brandData.trainingMessage }}
             </v-alert>
 
             <v-text-field

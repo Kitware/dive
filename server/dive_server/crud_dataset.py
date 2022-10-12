@@ -165,9 +165,10 @@ class MetadataMutableUpdateArgs(models.MetadataMutable):
         extra = 'forbid'
 
 
-def update_metadata(dsFolder: types.GirderModel, data: dict):
+def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     """Update mutable metadata"""
-    crud.verify_dataset(dsFolder)
+    if verify:
+        crud.verify_dataset(dsFolder)
     validated: MetadataMutableUpdateArgs = crud.get_validated_model(
         MetadataMutableUpdateArgs, **data
     )

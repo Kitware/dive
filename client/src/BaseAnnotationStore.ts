@@ -2,21 +2,32 @@ import { ref, Ref, computed } from '@vue/composition-api';
 import IntervalTree from '@flatten-js/interval-tree';
 import type Track from './track';
 import type Group from './Group';
-import type { AnnotationId, NotifierFuncParams } from './BaseAnnotation';
+import type { AnnotationId, ConfidencePair, NotifierFuncParams } from './BaseAnnotation';
 
 export type MarkChangesPending = ({
   action,
   track,
   group,
+  cameraName,
 }: {
   action: 'upsert' | 'delete';
     track?: Track;
     group?: Group;
+    cameraName: string;
 }) => void;
 
 export interface InsertArgs {
   imported?: boolean;
   afterId?: AnnotationId;
+}
+
+//A subset of Track so copies of full track aren't passed around
+export interface SortedAnnotation {
+  id: AnnotationId;
+  begin: number;
+  end: number;
+  confidencePairs: ConfidencePair[];
+  getType: (index?: number) => string;
 }
 
 function isTrack(value: Track | Group): value is Track {
@@ -53,20 +64,40 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
    */
   annotationIds: Ref<AnnotationId[]>;
 
-  sorted: Ref<OneOf<T, [Group, Track]>[]>;
+  sorted: Ref<SortedAnnotation[]>;
+
+  cameraName: string;
 
   private canary: Ref<number>;
 
-  constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
+  enableSorting: Ref<boolean>; //Sorting is false to start with
+
+  constructor({ markChangesPending, cameraName }:
+    { markChangesPending: MarkChangesPending; cameraName: string }) {
     this.markChangesPending = markChangesPending;
+    this.cameraName = cameraName;
     this.annotationMap = new Map();
     this.annotationIds = ref([]);
     this.intervalTree = new IntervalTree();
     this.canary = ref(0);
+    this.enableSorting = ref(false);
     this.sorted = computed(() => {
       this.depend();
+      // Prevent sorting when loading data
+      if (!this.enableSorting.value) {
+        return [];
+      }
       return this.annotationIds.value
-        .map((trackId) => this.get(trackId))
+        .map((trackId) => {
+          const track = this.get(trackId);
+          return {
+            begin: track.begin,
+            end: track.end,
+            id: track.id,
+            confidencePairs: track.confidencePairs,
+            getType: (index?: number) => ((track.confidencePairs[index || 0][0]) || 'unknown'),
+          };
+        })
         .sort((a, b) => a.begin - b.begin);
     });
   }
@@ -81,12 +112,25 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     return this.canary.value;
   }
 
+  setEnableSorting() {
+    this.enableSorting.value = true;
+  }
+
   get(annotationId: AnnotationId) {
     const value = this.annotationMap.get(annotationId);
     if (value === undefined) {
       throw new Error(`Annotation ID ${annotationId} not found in annotationMap.`);
     }
     return value;
+  }
+
+
+  /**
+   * Some instances require returning the undefined value for checking purposes
+   * That requires setting the error value to false
+   */
+  getPossible(annotationId: AnnotationId) {
+    return this.annotationMap.get(annotationId);
   }
 
   getNewId() {
@@ -110,9 +154,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     this.canary.value += 1;
     if (isTrack(item)) {
-      this.markChangesPending({ action: 'upsert', track: item });
+      this.markChangesPending({ action: 'upsert', track: item, cameraName: this.cameraName });
     } else {
-      this.markChangesPending({ action: 'upsert', group: item });
+      this.markChangesPending({ action: 'upsert', group: item, cameraName: this.cameraName });
     }
   }
 
@@ -131,9 +175,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     if (!args?.imported) {
       if (isTrack(value)) {
-        this.markChangesPending({ action: 'upsert', track: value });
+        this.markChangesPending({ action: 'upsert', track: value, cameraName: this.cameraName });
       } else {
-        this.markChangesPending({ action: 'upsert', group: value });
+        this.markChangesPending({ action: 'upsert', group: value, cameraName: this.cameraName });
       }
     }
   }
@@ -153,9 +197,9 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     this.annotationIds.value.splice(listIndex, 1);
     if (!disableNotifications) {
       if (isTrack(value)) {
-        this.markChangesPending({ action: 'delete', track: value });
+        this.markChangesPending({ action: 'delete', track: value, cameraName: this.cameraName });
       } else {
-        this.markChangesPending({ action: 'delete', group: value });
+        this.markChangesPending({ action: 'delete', group: value, cameraName: this.cameraName });
       }
     }
   }

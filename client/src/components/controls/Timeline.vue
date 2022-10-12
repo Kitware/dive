@@ -140,7 +140,7 @@ export default {
       let endFrame = this.endFrame + extend * (1 - ratio);
       startFrame = Math.max(0, startFrame);
       endFrame = Math.min(this.maxFrame, endFrame);
-      if (startFrame >= endFrame - 200) {
+      if (startFrame >= endFrame - 10) {
         return;
       }
       this.startFrame = startFrame;

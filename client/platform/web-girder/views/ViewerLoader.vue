@@ -239,9 +239,10 @@ export default defineComponent({
     </template>
     <template #right-sidebar>
       <SidebarContext>
-        <template #default="{ name }">
+        <template #default="{ name, subCategory }">
           <component
             :is="name"
+            :sub-category="subCategory"
             @update:revision="routeRevision"
           />
         </template>

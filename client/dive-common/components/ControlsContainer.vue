@@ -1,17 +1,17 @@
 <script lang="ts">
 import {
-  defineComponent, ref, PropType,
+  defineComponent, ref, PropType, computed, watch,
 } from '@vue/composition-api';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
-import { injectMediaController } from 'vue-media-annotator/components/annotators/useMediaController';
 import {
   Controls,
   EventChart,
+  injectAggregateController,
   LineChart,
   Timeline,
 } from 'vue-media-annotator/components';
-
+import { useAttributesFilters, useCameraStore, useSelectedCamera } from '../../src/provides';
 
 export default defineComponent({
   components: {
@@ -21,7 +21,6 @@ export default defineComponent({
     LineChart,
     Timeline,
   },
-
   props: {
     lineChartData: {
       type: Array as PropType<unknown[]>,
@@ -39,31 +38,60 @@ export default defineComponent({
       type: String as PropType<DatasetType>,
       required: true,
     },
+    collapsed: {
+      type: Boolean,
+      default: false,
+    },
   },
-
-  setup() {
+  setup(_, { emit }) {
     const currentView = ref('Detections');
-    const collapsed = ref(false);
-
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
-
+    const cameraStore = useCameraStore();
+    const multiCam = ref(cameraStore.camMap.value.size > 1);
+    const selectedCamera = useSelectedCamera();
+    const hasGroups = computed(
+      () => !!cameraStore.camMap.value.get(selectedCamera.value)?.groupStore.sorted.value.length,
+    );
+    const { timelineEnabled, attributeTimelineData } = useAttributesFilters();
+    // Format the Attribute data if it is available
+    const attributeData = computed(() => {
+      if (timelineEnabled.value) {
+        let startFrame = Infinity;
+        let endFrame = -Infinity;
+        attributeTimelineData.value.forEach((item) => {
+          startFrame = Math.min(startFrame, item.minFrame);
+          endFrame = Math.max(endFrame, item.maxFrame);
+        });
+        const timelineData = attributeTimelineData.value.map((item) => item.data);
+        return {
+          startFrame,
+          endFrame,
+          data: timelineData,
+        };
+      }
+      return null;
+    });
     /**
      * Toggles on and off the individual timeline views
      * Resizing is handled by the Annator itself.
      */
-    function toggleView(type: 'Detections' | 'Events' | 'Groups') {
+    function toggleView(type: 'Detections' | 'Events' | 'Groups' | 'Attributes') {
       currentView.value = type;
-      collapsed.value = false;
+      emit('update:collapsed', false);
     }
+    watch(timelineEnabled, () => {
+      if (!timelineEnabled.value && currentView.value === 'Attributes') {
+        toggleView('Events');
+      }
+    });
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = injectMediaController();
-
+    } = injectAggregateController().value;
     return {
       currentView,
       toggleView,
-      collapsed,
       maxFrame,
+      multiCam,
       frame,
       seek,
       volume,
@@ -71,13 +99,19 @@ export default defineComponent({
       speed,
       setSpeed,
       ticks,
+      hasGroups,
+      attributeData,
+      timelineEnabled,
     };
   },
 });
 </script>
 
 <template>
-  <div>
+  <v-col
+    dense
+    style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
+  >
     <Controls>
       <template slot="timelineControls">
         <div style="min-width: 270px">
@@ -89,7 +123,7 @@ export default defineComponent({
               <v-icon
                 small
                 v-on="on"
-                @click="collapsed=!collapsed"
+                @click="$emit('update:collapsed', !collapsed)"
               >
                 {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
               </v-icon>
@@ -97,7 +131,7 @@ export default defineComponent({
             <span>Collapse/Expand Timeline</span>
           </v-tooltip>
           <v-btn
-            class="ml-2"
+            class="ml-1"
             :class="{'timeline-button':currentView!=='Detections' || collapsed}"
             depressed
             :outlined="currentView==='Detections' && !collapsed"
@@ -108,7 +142,7 @@ export default defineComponent({
             Detections
           </v-btn>
           <v-btn
-            class="ml-2"
+            class="ml-1"
             :class="{'timeline-button':currentView!=='Events' || collapsed}"
             depressed
             :outlined="currentView==='Events' && !collapsed"
@@ -119,7 +153,8 @@ export default defineComponent({
             Events
           </v-btn>
           <v-btn
-            class="ml-2"
+            v-if="!multiCam && hasGroups"
+            class="ml-1"
             :class="{'timeline-button':currentView!=='Groups' || collapsed}"
             depressed
             :outlined="currentView==='Groups' && !collapsed"
@@ -128,6 +163,18 @@ export default defineComponent({
             @click="toggleView('Groups')"
           >
             Groups
+          </v-btn>
+          <v-btn
+            v-if="!multiCam && timelineEnabled"
+            class="ml-1"
+            :class="{'timeline-button':currentView!=='Attributes' || collapsed}"
+            depressed
+            :outlined="currentView==='Attributes' && !collapsed"
+            x-small
+            tab-index="-1"
+            @click="toggleView('Attributes')"
+          >
+            Attributes
           </v-btn>
         </div>
       </template>
@@ -284,9 +331,20 @@ export default defineComponent({
           :margin="margin"
           @select-track="$emit('select-group', $event)"
         />
+        <line-chart
+          v-if="currentView==='Attributes'"
+          :start-frame="startFrame"
+          :end-frame="endFrame"
+          :max-frame="endFrame"
+          :data="attributeData.data"
+          :client-width="clientWidth"
+          :client-height="clientHeight"
+          :margin="margin"
+          :atrributes-chart="true"
+        />
       </template>
     </Timeline>
-  </div>
+  </v-col>
 </template>
 
 <style lang="scss" scoped>

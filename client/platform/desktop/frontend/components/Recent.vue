@@ -47,6 +47,7 @@ export default defineComponent({
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
+    const importing = ref(false);
     const { prompt } = usePrompt();
     const {
       error, loading: checkingMedia, request, reset: resetError,
@@ -61,6 +62,7 @@ export default defineComponent({
 
     /** Accept args from the dialog, as it may have modified some parts */
     async function finalizeImport(args: DesktopMediaImportResponse) {
+      importing.value = true;
       await request(async () => {
         const jsonMeta = await api.finalizeImport(args);
         pendingImportPayload.value = null; // close dialog
@@ -75,6 +77,7 @@ export default defineComponent({
           setRecents(recentsMeta);
         }
       });
+      importing.value = false;
     }
 
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
@@ -195,6 +198,7 @@ export default defineComponent({
       pendingImportPayload,
       searchText,
       error,
+      importing,
       importMultiCamDialog,
       headers,
       upgradedVersion,
@@ -220,6 +224,7 @@ export default defineComponent({
       <ImportDialog
         v-if="pendingImportPayload !== null"
         :import-data="pendingImportPayload"
+        :disabled="importing"
         @finalize-import="finalizeImport($event)"
         @abort="pendingImportPayload = null"
       />

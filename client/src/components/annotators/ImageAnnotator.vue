@@ -3,28 +3,24 @@ import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
 import { SetTimeFunc } from '../../use/useTimeObserver';
-import useMediaController from './useMediaController';
+import { injectCameraInitializer } from './useMediaController';
 
 export interface ImageDataItem {
   url: string;
   filename: string;
 }
-
 interface ImageDataItemInternal extends ImageDataItem {
   image: HTMLImageElement;
   cached: boolean; // true if onloadPromise has resolved
   frame: number; // frame number this image belongs to
   onloadPromise: Promise<boolean>;
 }
-
 function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
   // eslint-disable-next-line no-param-reassign
   img.src = imageDataItem.url;
 }
-
 export default defineComponent({
   name: 'ImageAnnotator',
-
   props: {
     imageData: {
       type: Array as PropType<ImageDataItem[]>,
@@ -47,17 +43,32 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    camera: {
+      type: String as PropType<string>,
+      default: 'singleCam',
+    },
     intercept: {
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
   },
-
   setup(props, ctx) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
-    const commonMedia = useMediaController();
-    const { data } = commonMedia;
+    const cameraInitializer = injectCameraInitializer();
+    const {
+      state: data,
+      geoViewer,
+      cursorHandler,
+      imageCursor,
+      container,
+      initializeViewer,
+      mediaController,
+    } = cameraInitializer(props.camera, {
+      // allow hoisting for these functions to pass a reference before defining them.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
+    });
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
@@ -72,7 +83,6 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       quadFeature: undefined as any,
     };
-
     function forceUnload(imgInternal: ImageDataItemInternal) {
       // Removal from list indicates we are no longer attempting to load this image
       local.imgs[imgInternal.frame] = undefined;
@@ -81,14 +91,11 @@ export default defineComponent({
       imgInternal.image.src = '';
       local.pendingImgs.delete(imgInternal);
     }
-
-
     /**
      * When the component is unmounted, cancel all outstanding
      * requests for image load.
      */
     onUnmounted(() => Array.from(local.pendingImgs).forEach(forceUnload));
-
     /**
      * expectFrame when you know local.imgs[i] should not be undefined
      */
@@ -99,7 +106,6 @@ export default defineComponent({
       }
       return imgInternal;
     }
-
     /**
      * Draw image to the GeoJS map, and update the map dimensions if they have changed.
      */
@@ -122,7 +128,7 @@ export default defineComponent({
          */
         local.width = img.naturalWidth;
         local.height = img.naturalHeight;
-        commonMedia.resetMapDimensions(local.width, local.height);
+        mediaController.resetMapDimensions(local.width, local.height);
       }
       local.quadFeature
         .data([
@@ -134,7 +140,6 @@ export default defineComponent({
         ])
         .draw();
     }
-
     /**
      * Adds a single frame to the pendingImgs array for loading and assigns it to the main
      * imgs list. Once the image is loaded it is removed from the pendingImgs
@@ -166,7 +171,6 @@ export default defineComponent({
       }
       return expectFrame(i);
     }
-
     /**
      * Caches a new range of frames to load in a forward->back pattern from the current frame
      * This allows for easily seeking backwards after seeking initially
@@ -182,7 +186,6 @@ export default defineComponent({
         }
       }
     }
-
     /**
      * Begins loading a set of images around the current frame.  If the image is not playing
      * it will give priority tothe currently loaded frame
@@ -216,7 +219,6 @@ export default defineComponent({
         cacheNewRange(min, max);
       }
     }
-
     async function seek(f: number) {
       if (!data.ready) {
         return;
@@ -231,9 +233,7 @@ export default defineComponent({
       if (data.frame !== 0 && local.lastFrame === data.frame) {
         return;
       }
-
       props.updateTime(data);
-
       cacheImages();
       const imgInternal = expectFrame(newFrame);
       drawImage(imgInternal.image);
@@ -250,12 +250,10 @@ export default defineComponent({
         loadingImage.value = false;
       }
     }
-
     function pause() {
       data.playing = false;
       loadingVideo.value = false;
     }
-
     /**
      * Checks to see if there are enough cached images to play for X seconds.
      * @param frame start frame to look for.
@@ -268,7 +266,6 @@ export default defineComponent({
         .filter((img) => img?.cached === false)
         .map((img) => img?.onloadPromise);
     }
-
     /**
      * Handles playback of the image sequence
      * Image playback is based on framerate but will pause and wait for images to load
@@ -299,7 +296,6 @@ export default defineComponent({
       }
       return undefined;
     }
-
     async function play() {
       try {
         data.playing = true;
@@ -308,38 +304,22 @@ export default defineComponent({
         console.error(ex);
       }
     }
-
     function unimplemented() {
       throw new Error('Method unimplemented!');
     }
-
-    const {
-      cursorHandler,
-      initializeViewer,
-      mediaController,
-    } = commonMedia.initialize({
-      seek,
-      play,
-      pause,
-      setVolume: unimplemented,
-      setSpeed: unimplemented,
-    });
-
     const setBrightnessFilter = (on: boolean) => {
       if (local.quadFeature !== undefined) {
         local.quadFeature.layer().node().css('filter', on ? 'url(#brightness)' : '');
       }
     };
-
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-        const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+        const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
         });
-
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         setBrightnessFilter(props.brightness !== undefined);
@@ -347,10 +327,8 @@ export default defineComponent({
         seek(0);
       });
     }
-
     function init() {
       data.maxFrame = props.imageData.length - 1;
-
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
         playCache: 1, // seconds required to be fully cached before playback
@@ -368,11 +346,10 @@ export default defineComponent({
         const imgInternal = cacheFrame(0);
         imgInternal.onloadPromise.then(() => {
           initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-          const quadFeatureLayer = commonMedia.geoViewerRef.value.createLayer('feature', {
+          const quadFeatureLayer = geoViewer.value.createLayer('feature', {
             features: ['quad'],
             autoshareRenderer: false,
           });
-
           // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
           setBrightnessFilter(props.brightness !== undefined);
@@ -381,12 +358,10 @@ export default defineComponent({
         });
       }
     }
-
     // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
       init();
     });
-
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
     watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
@@ -394,17 +369,13 @@ export default defineComponent({
         setBrightnessFilter(brightness !== undefined);
       }
     });
-
-
     return {
       data,
       loadingVideo,
       loadingImage,
-      imageCursorRef: commonMedia.imageCursorRef,
-      containerRef: commonMedia.containerRef,
-      onResize: commonMedia.onResize,
+      imageCursorRef: imageCursor,
+      containerRef: container,
       cursorHandler,
-      mediaController,
     };
   },
 });
@@ -466,11 +437,6 @@ export default defineComponent({
         </v-progress-circular>
       </div>
     </div>
-    <slot
-      ref="control"
-      name="control"
-      @resize="onResize"
-    />
     <slot v-if="data.ready" />
   </div>
 </template>

@@ -23,7 +23,7 @@ export default class GroupFilterControls extends BaseFilterControls<Group> {
       const checkedSet = new Set(this.checkedTypes.value);
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Group>[] = [];
-      params.store.sorted.value.forEach((annotation) => {
+      params.sorted.value.forEach((annotation) => {
         const confidencePairIndex = annotation.confidencePairs
           .findIndex(([confkey, confval]) => {
             const confidenceThresh = Math.max(

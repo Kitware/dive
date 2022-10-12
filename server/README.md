@@ -77,6 +77,9 @@ poetry run tox -e format
 
 # run mkdocs and serve the documentation page
 poetry run tox -e docs
+
+# creates docs in the /site folder for eventual deployment
+poetry run tox -e builddocs
 ```
 
 ## Integration Testing

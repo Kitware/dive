@@ -82,7 +82,7 @@ pylibtiff = {url = "https://girder.github.io/large_image_wheels/pylibtiff-0.5.0-
 pylibmc = {url = "https://girder.github.io/large_image_wheels/pylibmc-1.7.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=c1ab945bfc62abc0ae61d3fe03296634751b73cd030b663868c97809cc08d049"}
 psutil = {url = "https://girder.github.io/large_image_wheels/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl#sha256=89be0d75f520f52737f26a4425fff253d33fb0bb65a2f2396587c8a036aa03ea"}
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 numpy = "^1.21.4"
 opencv-python = "^4.5.5"
 tox = "^3.25.0"

@@ -10,8 +10,9 @@ export default class GroupStore extends BaseAnnotationStore<Group> {
 
   defaultGroup: [string, number];
 
-  constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
-    super({ markChangesPending });
+  constructor({ markChangesPending, cameraName }:
+    { markChangesPending: MarkChangesPending; cameraName: string }) {
+    super({ markChangesPending, cameraName });
     this.trackMap = new MultiMap();
     this.defaultGroup = ['no-group', 1.0];
   }

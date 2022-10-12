@@ -57,6 +57,9 @@ export default abstract class BaseAnnotation {
   /** A callback to notify about changes to the track. */
   notifier?: NotifierFunc<this>;
 
+  /** Enables/Disables the notifier specifically for multicam merge */
+  notifierEnabled: boolean;
+
   constructor(id: AnnotationId, {
     meta = {},
     begin = Infinity,
@@ -71,6 +74,7 @@ export default abstract class BaseAnnotation {
     this.begin = begin;
     this.end = end;
     this.confidencePairs = confidencePairs;
+    this.notifierEnabled = true;
   }
 
   get length() {
@@ -102,7 +106,7 @@ export default abstract class BaseAnnotation {
 
   protected notify(name: string, oldValue: unknown = undefined) {
     /* Prevent broadcast until the first feature is initialized */
-    if (this.isInitialized()) {
+    if (this.isInitialized() && this.notifierEnabled) {
       this.revision.value += 1;
       if (this.notifier) {
         this.notifier({

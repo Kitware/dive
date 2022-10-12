@@ -169,6 +169,8 @@ def run_pipeline(
         "input_type": fromMeta(folder, "type", required=True),
         "output_folder": folder_id_str,
         "input_revision": input_revision,
+        'user_id': str(user.get('_id', 'unknown')),
+        'user_login': user.get('login', 'unknown'),
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -252,6 +254,8 @@ def run_training(
         'config': config,
         'annotated_frames_only': annotatedFramesOnly,
         'label_txt': bodyParams.labelText,
+        'user_id': user.get('_id', 'unknown'),
+        'user_login': user.get('login', 'unknown'),
     }
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     newjob = tasks.train_pipeline.apply_async(
@@ -259,7 +263,7 @@ def run_training(
         kwargs=dict(
             params=params,
             girder_client_token=str(token["_id"]),
-            girder_job_title=(f"Running training on {len(bodyParams.folderIds)} datasets"),
+            girder_job_title=(f"Training to create {pipelineName} pipeline"),
             girder_job_type="private" if job_is_private else "training",
         ),
     )
@@ -339,7 +343,8 @@ def _get_data_by_type(
         return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': None, 'type': as_type}
+        annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
+        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}
     return None
 
 
@@ -380,7 +385,6 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
 
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
-
         if results['annotations']:
             crud_annotation.save_annotations(
                 folder,
@@ -393,11 +397,11 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
-            crud_dataset.update_metadata(folder, results['meta'])
+            crud_dataset.update_metadata(folder, results['meta'], False)
 
 
 def postprocess(
-    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool
+    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool, skipTranscoding=False
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -443,6 +447,8 @@ def postprocess(
                 kwargs=dict(
                     folderId=str(item["folderId"]),
                     itemId=str(item["_id"]),
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
                     girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
@@ -465,6 +471,9 @@ def postprocess(
                 kwargs=dict(
                     folderId=str(item["folderId"]),
                     itemId=str(item["_id"]),
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
+                    skip_transcoding=skipTranscoding,
                     girder_job_title=f"Converting {item['_id']} to a web friendly format",
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
@@ -490,6 +499,8 @@ def postprocess(
                 queue=_get_queue_name(user),
                 kwargs=dict(
                     folderId=dsFolder["_id"],
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
                     girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
                     girder_job_type="private" if job_is_private else "convert",

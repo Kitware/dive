@@ -6,6 +6,7 @@ import {
   onMounted,
   watch,
 } from '@vue/composition-api';
+import { NumericAttributeEditorOptions, StringAttributeEditorOptions } from 'vue-media-annotator/use/useAttributes';
 
 export default defineComponent({
   props: {
@@ -32,6 +33,10 @@ export default defineComponent({
     disabled: {
       type: Boolean,
       default: false,
+    },
+    typeSettings: {
+      type: Object as PropType<null | NumericAttributeEditorOptions | StringAttributeEditorOptions>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -90,6 +95,11 @@ export default defineComponent({
       }
       target.blur();
     }
+    function sliderChange(num: number) {
+      const { name } = props;
+      emit('change', { name, value: num });
+    }
+
     return {
       inputBoxRef,
       tempVal,
@@ -98,6 +108,7 @@ export default defineComponent({
       onFocus,
       onInputKeyEvent,
       change,
+      sliderChange,
     };
   },
 });
@@ -132,16 +143,34 @@ export default defineComponent({
       @keydown="onInputKeyEvent"
     >
     <input
-      v-else-if="datatype === 'number'"
+      v-else-if="datatype === 'number' && (!typeSettings || typeSettings.type ==='combo')"
       ref="inputBoxRef"
       :label="datatype"
       :value="value"
       :disabled="disabled"
+      :step="value <= 1 ? .01 : 1"
       class="input-box"
       type="number"
       @change="change"
       @keydown="onInputKeyEvent"
     >
+    <div
+      v-else-if="datatype === 'number' && (typeSettings && typeSettings.type ==='slider')"
+    >
+      <div class="slider-label">
+        {{ value }}
+      </div>
+      <v-slider
+        :value="value"
+        :step="typeSettings.steps ? typeSettings.steps
+          : (typeSettings.range[1] - typeSettings.range[0])/2.0"
+        :min="typeSettings.range[0]"
+        :max="typeSettings.range[1]"
+        dense
+        class="attribute-slider"
+        @input="sliderChange"
+      />
+    </div>
     <select
       v-else-if="datatype === 'boolean'"
       ref="inputBoxRef"
@@ -175,5 +204,17 @@ export default defineComponent({
     width: 110px;
     background-color: #1e1e1e;
     appearance: menulist;
+  }
+    .attribute-slider {
+    font-size: 12px !important;
+    padding: 0;
+    margin: 0;
+    max-height:35px;
+    overflow:hidden;
+  }
+  .slider-label {
+    margin: auto;
+    text-align: center;
+    width: 100%;
   }
 </style>

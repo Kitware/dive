@@ -2,7 +2,7 @@
 import {
   computed, defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute, NumericAttributeEditorOptions, StringAttributeEditorOptions } from 'vue-media-annotator/use/useAttributes';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 
@@ -23,6 +23,11 @@ export default defineComponent({
     const name: Ref<string> = ref(props.selectedAttribute.name);
     const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
     const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
+    const color: Ref<string | undefined> = ref(props.selectedAttribute.color);
+    const areSettingsValid = ref(false);
+    const editor: Ref<
+      undefined | StringAttributeEditorOptions | NumericAttributeEditorOptions
+    > = ref(props.selectedAttribute.editor);
     let values: string[] = props.selectedAttribute.values ? props.selectedAttribute.values : [];
     let addNew = !props.selectedAttribute.key.length;
 
@@ -66,6 +71,8 @@ export default defineComponent({
         datatype: datatype.value,
         values: datatype.value === 'text' && values ? values : [],
         key: `${belongs.value}_${name.value}`,
+        editor: editor.value,
+        color: color.value,
       };
 
       if (addNew) {
@@ -86,18 +93,47 @@ export default defineComponent({
       }
       emit('delete', props.selectedAttribute);
     }
+    const typeChange = (type: 'number' | 'text' | 'boolean') => {
+      if (type === 'number') {
+        editor.value = {
+          type: 'combo',
+        };
+      } else if (type === 'text') {
+        editor.value = {
+          type: 'freeform',
+        };
+      }
+      datatype.value = type;
+    };
+    const numericChange = (type: 'combo' | 'slider') => {
+      if (type === 'combo') {
+        editor.value = {
+          type: 'combo',
+        };
+      } else if (type === 'slider') {
+        editor.value = {
+          type: 'slider',
+          range: [0, 1],
+          steps: 0.1,
+        };
+      }
+    };
     return {
       name,
       belongs,
       datatype,
       values,
       addNew,
+      editor,
+      areSettingsValid,
       //computed
       textValues,
       //functions
       add,
       submit,
       deleteAttribute,
+      typeChange,
+      numericChange,
     };
   },
 });
@@ -120,7 +156,10 @@ export default defineComponent({
             }}
           </div>
         </v-alert>
-        <v-form ref="form">
+        <v-form
+          ref="form"
+          v-model="areSettingsValid"
+        >
           <v-text-field
             v-model="name"
             label="Name"
@@ -128,14 +167,81 @@ export default defineComponent({
             required
           />
           <v-select
-            v-model="datatype"
+            :value="datatype"
             :items="[
               { text: 'Boolean', value: 'boolean' },
               { text: 'Number', value: 'number' },
               { text: 'Text', value: 'text' }
             ]"
             label="Datatype"
+            @change="typeChange"
           />
+          <div v-if="datatype=== 'number'">
+            <v-radio-group
+              :value="(editor && editor.type) || 'combo'"
+              row
+              label="Display Type:"
+              @change="numericChange"
+            >
+              <v-radio
+                label="Input Box"
+                value="combo"
+              />
+              <v-radio
+                label="Slider"
+                value="slider"
+              />
+            </v-radio-group>
+          </div>
+          <div v-if="datatype === 'number' && editor && editor.type === 'slider'">
+            <v-row class="pt-2">
+              <v-text-field
+                v-model.number="editor.range[0]"
+                dense
+                outlined
+                :step="editor.range[0]> 1 ? 1 : 0.01"
+                type="number"
+                label="Min"
+                :rules="[
+                  v => !isNaN(parseFloat(v))|| 'Number is required',
+                  v => v < editor.range[1] || 'Min needs to be smaller than the Max']"
+                :max="editor.range[1]"
+                hint="Min limit for slider"
+                persistent-hint
+              />
+              <v-text-field
+                v-model.number="editor.range[1]"
+                dense
+                outlined
+                :step="editor.range[1]> 1 ? 1 : 0.01"
+                type="number"
+                label="Max"
+                :rules="[
+                  v => !isNaN(parseFloat(v)) || 'Number is required',
+                  v => v > editor.range[0] || 'Max needs to be larger than the Min']"
+                :min="editor.range[0]"
+                hint="Max limit for slider"
+                persistent-hint
+              />
+            </v-row>
+            <v-row class="pt-2">
+              <v-text-field
+                v-model.number="editor.steps"
+                dense
+                outlined
+                :step="editor.steps> 1 ? 1 : 0.01"
+                type="number"
+                :rules="[
+                  v => !isNaN(parseFloat(v)) || 'Number is required',
+                  v => v < (editor.range[1] - editor.range[0])
+                    || 'Steps should be smaller than the range']"
+                label="Slider Step Interval"
+                min="0"
+                hint="Each movement will move X amount"
+                persistent-hint
+              />
+            </v-row>
+          </div>
           <v-textarea
             v-if="datatype === 'text'"
             v-model="textValues"
@@ -180,7 +286,7 @@ export default defineComponent({
             </v-btn>
             <v-btn
               color="primary"
-              :disabled="!name || name.includes(' ')"
+              :disabled="!areSettingsValid || (!name || name.includes(' '))"
               @click.prevent="submit"
             >
               Save

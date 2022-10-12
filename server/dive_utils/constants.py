@@ -2,6 +2,7 @@ import re
 
 SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 BRAND_DATA_CONFIG = 'brand_data_config'
+INSTALLED_ADDONS_CONFIGS = 'installed_addons'
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -131,3 +132,6 @@ JOBCONST_CREATOR = 'creator'
 
 # User queue constants
 UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'
+
+
+AddonsListURL = 'https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv'

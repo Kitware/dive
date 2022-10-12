@@ -1,8 +1,11 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import {
+  defineComponent, ref, toRef, watch,
+} from '@vue/composition-api';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
+import { useStore } from '../store/types';
 
 export default defineComponent({
   name: 'Jobs',
@@ -11,6 +14,14 @@ export default defineComponent({
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
     const restClient = useGirderRest();
+    const store = useStore();
+    const outstandingJobs = ref(0);
+
+    watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
+      restClient.get('job/queued').then(({ data }) => {
+        outstandingJobs.value = data.outstanding;
+      });
+    });
 
     async function setPrivateQueueEnabled(value: boolean) {
       loading.value = true;
@@ -24,10 +35,14 @@ export default defineComponent({
         privateQueueEnabled.value = user.user_private_queue_enabled;
         loading.value = false;
       });
+    restClient.get('job/queued').then(({ data }) => {
+      outstandingJobs.value = data.outstanding;
+    });
 
     return {
       privateQueueEnabled,
       loading,
+      outstandingJobs,
       /* methods */
       setPrivateQueueEnabled,
     };
@@ -37,6 +52,13 @@ export default defineComponent({
 
 <template>
   <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+    <v-alert
+      v-if="outstandingJobs"
+      type="warning"
+    >
+      There are {{ outstandingJobs }} jobs currently in the job queue (including yours).
+      Jobs will be processed in the order in which they are received.
+    </v-alert>
     <GirderJobList>
       <template #jobwidget="{ item }">
         <v-tooltip
@@ -107,7 +129,7 @@ export default defineComponent({
           <p class="white--text">
             You can run your own personal, dedicated job runner anywhere you have
             compute resources. This could be a lab workstation or a cloud environment like
-            Google Cloud. You'll need a local installtion of VIAME.
+            Google Cloud. You'll need a local installation of VIAME.
           </p>
           <v-switch
             :input-value="privateQueueEnabled"

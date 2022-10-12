@@ -6,6 +6,7 @@ import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
+import AdminPage from './views/AdminPage.vue';
 import ViewerLoader from './views/ViewerLoader.vue';
 import DataShared from './views/DataShared.vue';
 import DataBrowser from './views/DataBrowser.vue';
@@ -16,6 +17,14 @@ Vue.use(Router);
 function beforeEnter(to: Route, from: Route, next: Function) {
   if (!girderRest.user) {
     next('/login');
+  } else {
+    next();
+  }
+}
+
+function adminGuard(to: Route, from: Route, next: Function) {
+  if (!girderRest.user.admin) {
+    next('/');
   } else {
     next();
   }
@@ -46,6 +55,13 @@ const router = new Router({
       path: '/',
       component: RouterPage,
       children: [
+        {
+          path: '/admin',
+          name: 'admin',
+          component: AdminPage,
+          props: true,
+          beforeEnter: adminGuard,
+        },
         {
           path: 'jobs',
           name: 'jobs',

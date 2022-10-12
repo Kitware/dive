@@ -18,10 +18,10 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [package.extras]
-dev = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "mypy", "pytest-mypy-plugins", "zope.interface", "furo", "sphinx", "sphinx-notfound-page", "pre-commit", "cloudpickle"]
-docs = ["furo", "sphinx", "zope.interface", "sphinx-notfound-page"]
-tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "mypy", "pytest-mypy-plugins", "zope.interface", "cloudpickle"]
-tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "mypy", "pytest-mypy-plugins", "cloudpickle"]
+dev = ["cloudpickle", "coverage[toml] (>=5.0.2)", "furo", "hypothesis", "mypy", "pre-commit", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "six", "sphinx", "sphinx-notfound-page", "zope.interface"]
+docs = ["furo", "sphinx", "sphinx-notfound-page", "zope.interface"]
+tests = ["cloudpickle", "coverage[toml] (>=5.0.2)", "hypothesis", "mypy", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "six", "zope.interface"]
+tests_no_zope = ["cloudpickle", "coverage[toml] (>=5.0.2)", "hypothesis", "mypy", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "six"]
 
 [[package]]
 name = "bcrypt"
@@ -111,12 +111,12 @@ vine = "1.3.0"
 [package.extras]
 arangodb = ["pyArango (>=1.3.2)"]
 auth = ["cryptography"]
-azureblockblob = ["azure-storage (==0.36.0)", "azure-common (==1.1.5)", "azure-storage-common (==1.1.0)"]
+azureblockblob = ["azure-common (==1.1.5)", "azure-storage (==0.36.0)", "azure-storage-common (==1.1.0)"]
 brotli = ["brotli (>=1.0.0)", "brotlipy (>=0.7.0)"]
 cassandra = ["cassandra-driver (<3.21.0)"]
 consul = ["python-consul"]
 cosmosdbsql = ["pydocumentdb (==2.3.2)"]
-couchbase = ["couchbase-cffi (<3.0.0)", "couchbase (<3.0.0)"]
+couchbase = ["couchbase (<3.0.0)", "couchbase-cffi (<3.0.0)"]
 couchdb = ["pycouchdb"]
 django = ["Django (>=1.11)"]
 dynamodb = ["boto3 (>=1.9.178)"]
@@ -186,7 +186,7 @@ more-itertools = {version = ">=2.6", markers = "python_version >= \"3.6\""}
 six = ">=1.11.0"
 
 [package.extras]
-docs = ["sphinx (>=1.8.2)", "jaraco.packaging (>=3.2)", "sphinx-tabs (>=1.1.0)", "furo", "python-dateutil", "sphinxcontrib-apidoc (>=0.3.0)"]
+docs = ["furo", "jaraco.packaging (>=3.2)", "python-dateutil", "sphinx (>=1.8.2)", "sphinx-tabs (>=1.1.0)", "sphinxcontrib-apidoc (>=0.3.0)"]
 
 [[package]]
 name = "cherrypy"
@@ -205,12 +205,12 @@ pywin32 = {version = ">=227", markers = "sys_platform == \"win32\" and implement
 "zc.lockfile" = "*"
 
 [package.extras]
-docs = ["sphinx", "docutils", "alabaster", "sphinxcontrib-apidoc (>=0.3.0)", "rst.linker (>=1.11)", "jaraco.packaging (>=3.2)", "setuptools"]
+docs = ["alabaster", "docutils", "jaraco.packaging (>=3.2)", "rst.linker (>=1.11)", "setuptools", "sphinx", "sphinxcontrib-apidoc (>=0.3.0)"]
 json = ["simplejson"]
 memcached_session = ["python-memcached (>=1.58)"]
 routes_dispatcher = ["routes (>=2.3.1)"]
-ssl = ["pyopenssl"]
-testing = ["coverage", "codecov", "objgraph", "pytest (>=5.3.5)", "pytest-cov", "pytest-forked", "pytest-sugar", "path.py", "requests-toolbelt", "pytest-services (>=2)", "setuptools"]
+ssl = ["pyOpenSSL"]
+testing = ["codecov", "coverage", "objgraph", "path.py", "pytest (>=5.3.5)", "pytest-cov", "pytest-forked", "pytest-services (>=2)", "pytest-sugar", "requests-toolbelt", "setuptools"]
 xcgi = ["flup"]
 
 [[package]]
@@ -236,7 +236,7 @@ python-versions = "*"
 click = ">=4.0"
 
 [package.extras]
-dev = ["pytest (>=3.6)", "pytest-cov", "wheel", "coveralls"]
+dev = ["coveralls", "pytest (>=3.6)", "pytest-cov", "wheel"]
 
 [[package]]
 name = "colorama"
@@ -258,12 +258,12 @@ python-versions = ">=3.6"
 cffi = ">=1.12"
 
 [package.extras]
-docs = ["sphinx (>=1.6.5,!=1.8.0,!=3.1.0,!=3.1.1)", "sphinx-rtd-theme"]
-docstest = ["pyenchant (>=1.6.11)", "twine (>=1.12.0)", "sphinxcontrib-spelling (>=4.0.1)"]
+docs = ["sphinx (>=1.6.5,!=1.8.0,!=3.1.0,!=3.1.1)", "sphinx_rtd_theme"]
+docstest = ["pyenchant (>=1.6.11)", "sphinxcontrib-spelling (>=4.0.1)", "twine (>=1.12.0)"]
 pep8test = ["black", "flake8", "flake8-import-order", "pep8-naming"]
 sdist = ["setuptools_rust (>=0.11.4)"]
 ssh = ["bcrypt (>=3.1.5)"]
-test = ["pytest (>=6.2.0)", "pytest-benchmark", "pytest-cov", "pytest-subtests", "pytest-xdist", "pretend", "iso8601", "pytz", "hypothesis (>=1.11.4,!=3.79.2)"]
+test = ["hypothesis (>=1.11.4,!=3.79.2)", "iso8601", "pretend", "pytest (>=6.2.0)", "pytest-benchmark", "pytest-cov", "pytest-subtests", "pytest-xdist", "pytz"]
 
 [[package]]
 name = "decorator"
@@ -304,7 +304,7 @@ websocket-client = ">=0.32.0"
 
 [package.extras]
 ssh = ["paramiko (>=2.4.2)"]
-tls = ["pyOpenSSL (>=17.5.0)", "cryptography (>=3.4.7)", "idna (>=2.0.0)"]
+tls = ["cryptography (>=3.4.7)", "idna (>=2.0.0)", "pyOpenSSL (>=17.5.0)"]
 
 [[package]]
 name = "dogpile.cache"
@@ -343,8 +343,7 @@ numpy = ["numpy (>1.0.0)"]
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "girder"
 version = "3.1.14"
@@ -415,7 +414,7 @@ girder-jobs = ">=3.0.3"
 large-image = ">=1.14.4"
 
 [package.extras]
-tasks = ["large-image-tasks[girder] (>=1.14.4)", "girder-worker[girder] (>=0.6.0)"]
+tasks = ["girder-worker[girder] (>=0.6.0)", "large-image-tasks[girder] (>=1.14.4)"]
 
 [[package]]
 name = "girder-worker"
@@ -471,6 +470,7 @@ python-versions = ">=3.7"
 lxml = "*"
 numpy = "*"
 packaging = "*"
+setuptools = "*"
 
 [[package]]
 name = "gputil"
@@ -500,8 +500,8 @@ python-versions = ">=3.7"
 zipp = {version = ">=3.1.0", markers = "python_version < \"3.10\""}
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
+docs = ["jaraco.packaging (>=9)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
 [[package]]
 name = "jaraco.classes"
@@ -515,8 +515,8 @@ python-versions = ">=3.6"
 more-itertools = "*"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "pytest-enabler", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=3.5,!=3.7.3)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=1.2.3)", "pytest-cov", "pytest-enabler", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "jaraco.collections"
@@ -531,8 +531,8 @@ python-versions = ">=3.7"
 "jaraco.text" = "*"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "jaraco.context"
@@ -543,8 +543,8 @@ optional = false
 python-versions = ">=3.6"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "jaraco.functools"
@@ -558,8 +558,8 @@ python-versions = ">=3.7"
 more-itertools = "*"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "jaraco.classes", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["jaraco.classes", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "jaraco.text"
@@ -575,8 +575,8 @@ importlib-resources = {version = "*", markers = "python_version < \"3.9\""}
 "jaraco.functools" = "*"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "jinja2"
@@ -609,8 +609,8 @@ optional = false
 python-versions = ">=2.7"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-black-multipy", "pytest-cov", "ecdsa", "feedparser", "numpy", "pandas", "pymongo", "scikit-learn", "sqlalchemy", "pytest-flake8 (<1.1.0)", "enum34", "jsonlib", "pytest-flake8 (>=1.1.1)"]
+docs = ["jaraco.packaging (>=3.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["ecdsa", "enum34", "feedparser", "jsonlib", "numpy", "pandas", "pymongo", "pytest (>=3.5,!=3.7.3)", "pytest-black-multipy", "pytest-checkdocs (>=1.2.3)", "pytest-cov", "pytest-flake8 (<1.1.0)", "pytest-flake8 (>=1.1.1)", "scikit-learn", "sqlalchemy"]
 "testing.libs" = ["simplejson", "ujson", "yajl"]
 
 [[package]]
@@ -673,7 +673,7 @@ Pillow = "*"
 psutil = ">=4.2.0"
 
 [package.extras]
-all = ["large-image-source-test (>=1.14.5)", "pyvips", "large-image-source-bioformats (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "simplejpeg", "large-image-converter (>=1.14.5)", "matplotlib", "pylibmc (>=1.5.1)"]
+all = ["large-image-converter (>=1.14.5)", "large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "matplotlib", "pylibmc (>=1.5.1)", "pyvips", "simplejpeg"]
 bioformats = ["large-image-source-bioformats (>=1.14.5)"]
 colormaps = ["matplotlib"]
 converter = ["large-image-converter (>=1.14.5)"]
@@ -689,7 +689,7 @@ openjpeg = ["large-image-source-openjpeg (>=1.14.5)"]
 openslide = ["large-image-source-openslide (>=1.14.5)"]
 performance = ["simplejpeg"]
 pil = ["large-image-source-pil (>=1.14.5)"]
-sources = ["large-image-source-nd2 (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-multi (>=1.14.5)"]
+sources = ["large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)"]
 test = ["large-image-source-test (>=1.14.5)"]
 tiff = ["large-image-source-tiff (>=1.14.5)"]
 tiledoutput = ["pyvips"]
@@ -821,8 +821,8 @@ python-versions = ">=3.6"
 girder-worker-utils = ">=0.8.5"
 
 [package.extras]
-girder = ["large-image-converter (>=1.14.4)", "girder-worker[girder] (>=0.6.0)"]
-worker = ["large-image-converter[sources] (>=1.14.4)", "girder-worker[worker] (>=0.6.0)"]
+girder = ["girder-worker[girder] (>=0.6.0)", "large-image-converter (>=1.14.4)"]
+worker = ["girder-worker[worker] (>=0.6.0)", "large-image-converter[sources] (>=1.14.4)"]
 
 [[package]]
 name = "libtiff"
@@ -837,8 +837,7 @@ numpy = "*"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "lxml"
 version = "4.9.0"
@@ -850,12 +849,12 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, != 3.4.*"
 [package.extras]
 cssselect = ["cssselect (>=0.7)"]
 html5 = ["html5lib"]
-htmlsoup = ["beautifulsoup4"]
+htmlsoup = ["BeautifulSoup4"]
 source = ["Cython (>=0.29.7)"]
 
 [[package]]
-name = "mako"
-version = "1.2.0"
+name = "Mako"
+version = "1.2.2"
 description = "A super-fast templating language that borrows the best ideas from the existing templating languages."
 category = "main"
 optional = false
@@ -865,7 +864,7 @@ python-versions = ">=3.7"
 MarkupSafe = ">=0.9.2"
 
 [package.extras]
-babel = ["babel"]
+babel = ["Babel"]
 lingua = ["lingua"]
 testing = ["pytest"]
 
@@ -879,8 +878,7 @@ python-versions = "*"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "markupsafe"
 version = "2.1.1"
@@ -955,7 +953,7 @@ cryptography = {version = "*", optional = true, markers = "extra == \"totp\""}
 [package.extras]
 argon2 = ["argon2-cffi (>=18.2.0)"]
 bcrypt = ["bcrypt (>=3.1.0)"]
-build_docs = ["sphinx (>=1.6)", "sphinxcontrib-fulltoc (>=1.2.0)", "cloud-sptheme (>=1.10.1)"]
+build_docs = ["cloud-sptheme (>=1.10.1)", "sphinx (>=1.6)", "sphinxcontrib-fulltoc (>=1.2.0)"]
 totp = ["cryptography"]
 
 [[package]]
@@ -995,8 +993,8 @@ optional = false
 python-versions = ">=3.7"
 
 [package.extras]
-docs = ["furo (>=2021.7.5b38)", "proselint (>=0.10.2)", "sphinx-autodoc-typehints (>=1.12)", "sphinx (>=4)"]
-test = ["appdirs (==1.4.4)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)", "pytest (>=6)"]
+docs = ["furo (>=2021.7.5b38)", "proselint (>=0.10.2)", "sphinx (>=4)", "sphinx-autodoc-typehints (>=1.12)"]
+test = ["appdirs (==1.4.4)", "pytest (>=6)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)"]
 
 [[package]]
 name = "pluggy"
@@ -1022,8 +1020,8 @@ python-versions = ">=3.7"
 tempora = ">=1.8"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy"]
 
 [[package]]
 name = "psutil"
@@ -1034,11 +1032,11 @@ optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.extras]
-test = ["ipaddress", "mock", "unittest2", "enum34", "pywin32", "wmi"]
+test = ["enum34", "ipaddress", "mock", "pywin32", "unittest2", "wmi"]
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl#sha256=89be0d75f520f52737f26a4425fff253d33fb0bb65a2f2396587c8a036aa03ea"
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl"
 [[package]]
 name = "py"
 version = "1.11.0"
@@ -1072,7 +1070,7 @@ email = ["email-validator (>=1.0.3)"]
 
 [[package]]
 name = "pylibmc"
-version = "1.7.0"
+version = "1.6.3"
 description = "Quick and small memcached client for Python"
 category = "main"
 optional = false
@@ -1080,8 +1078,7 @@ python-versions = ">=3.6"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/pylibmc-1.7.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=c1ab945bfc62abc0ae61d3fe03296634751b73cd030b663868c97809cc08d049"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibmc-1.6.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "pylibtiff"
 version = "0.5.0"
@@ -1095,8 +1092,7 @@ numpy = "*"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=31d5ea015c4ae74e9a234a7aa847f16e24636224007b0d0a75f8f9763f95f49d"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "pymongo"
 version = "3.12.3"
@@ -1109,7 +1105,7 @@ python-versions = "*"
 aws = ["pymongo-auth-aws (<2.0.0)"]
 encryption = ["pymongocrypt (>=1.1.0,<2.0.0)"]
 gssapi = ["pykerberos"]
-ocsp = ["pyopenssl (>=17.2.0)", "requests (<3.0.0)", "service-identity (>=18.1.0)", "certifi"]
+ocsp = ["certifi", "pyopenssl (>=17.2.0)", "requests (<3.0.0)", "service-identity (>=18.1.0)"]
 snappy = ["python-snappy"]
 srv = ["dnspython (>=1.16.0,<1.17.0)"]
 tls = ["ipaddress"]
@@ -1139,7 +1135,7 @@ optional = false
 python-versions = ">=3.6.8"
 
 [package.extras]
-diagrams = ["railroad-diagrams", "jinja2"]
+diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
 name = "pyproj"
@@ -1154,8 +1150,7 @@ certifi = "*"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=54511e5418f2eea829b4ed017523dd777c4a4a4ca6e61ae06e4819bf249abf09"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "pyrabbit2"
 version = "1.0.7"
@@ -1199,8 +1194,7 @@ numpy = "*"
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=e6e9ec84e0715f0a5bbb0b7cb50f47c00dec8fb1f638d2f84df4f61a8e64b6e8"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "pytz"
 version = "2022.1"
@@ -1223,12 +1217,11 @@ pkgconfig = "*"
 
 [package.extras]
 doc = ["sphinx", "sphinx-rtd-theme"]
-test = ["cffi (>=1.0.0)", "pytest-runner", "pytest", "pytest-flake8", "pyperf"]
+test = ["cffi (>=1.0.0)", "pyperf", "pytest", "pytest-flake8", "pytest-runner"]
 
 [package.source]
 type = "url"
-url = "https://girder.github.io/large_image_wheels/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=7692c754ec393d7a3c2aedfd2cd7995161894bccadd638c0f1ef9c4ce2ae8a9e"
-
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 [[package]]
 name = "pywin32"
 version = "227"
@@ -1289,6 +1282,19 @@ botocore = ">=1.12.36,<2.0a.0"
 crt = ["botocore[crt] (>=1.20.29,<2.0a.0)"]
 
 [[package]]
+name = "setuptools"
+version = "65.3.0"
+description = "Easily download, build, install, upgrade, and uninstall Python packages"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx", "sphinx-favicon", "sphinx-hoverxref (<2)", "sphinx-inline-tabs", "sphinx-notfound-page (==0.8.3)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
+testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8 (<5)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "mock", "pip (>=19.1)", "pip-run (>=8.8)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
+testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
+
+[[package]]
 name = "setuptools-scm"
 version = "6.4.2"
 description = "the blessed package to manage your versions by scm tags"
@@ -1298,6 +1304,7 @@ python-versions = ">=3.6"
 
 [package.dependencies]
 packaging = ">=20.0"
+setuptools = "*"
 tomli = ">=1.0.0"
 
 [package.extras]
@@ -1347,8 +1354,8 @@ python-versions = ">=3.7"
 pytz = "*"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "backports.unittest-mock", "freezegun", "pytest-freezegun", "types-freezegun", "types-pytz", "pytest-black (>=0.3.7)", "pytest-mypy"]
+docs = ["jaraco.packaging (>=8.2)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["backports.unittest-mock", "freezegun", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-freezegun", "pytest-mypy", "types-freezegun", "types-pytz"]
 
 [[package]]
 name = "tifftools"
@@ -1394,7 +1401,7 @@ virtualenv = ">=16.0.0,<20.0.0 || >20.0.0,<20.0.1 || >20.0.1,<20.0.2 || >20.0.2,
 
 [package.extras]
 docs = ["pygments-github-lexers (>=0.0.5)", "sphinx (>=2.0.0)", "sphinxcontrib-autoprogram (>=0.1.5)", "towncrier (>=18.5.0)"]
-testing = ["flaky (>=3.4.0)", "freezegun (>=0.3.11)", "pytest (>=4.0.0)", "pytest-cov (>=2.5.1)", "pytest-mock (>=1.10.0)", "pytest-randomly (>=1.0.0)", "psutil (>=5.6.1)", "pathlib2 (>=2.3.3)"]
+testing = ["flaky (>=3.4.0)", "freezegun (>=0.3.11)", "pathlib2 (>=2.3.3)", "psutil (>=5.6.1)", "pytest (>=4.0.0)", "pytest-cov (>=2.5.1)", "pytest-mock (>=1.10.0)", "pytest-randomly (>=1.0.0)"]
 
 [[package]]
 name = "typing-extensions"
@@ -1413,8 +1420,8 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, <4"
 
 [package.extras]
-brotli = ["brotlicffi (>=0.8.0)", "brotli (>=1.0.9)", "brotlipy (>=0.6.0)"]
-secure = ["pyOpenSSL (>=0.14)", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "certifi", "ipaddress"]
+brotli = ["brotli (>=1.0.9)", "brotlicffi (>=0.8.0)", "brotlipy (>=0.6.0)"]
+secure = ["certifi", "cryptography (>=1.3.4)", "idna (>=2.0.0)", "ipaddress", "pyOpenSSL (>=0.14)"]
 socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
@@ -1441,7 +1448,7 @@ six = ">=1.9.0,<2"
 
 [package.extras]
 docs = ["proselint (>=0.10.2)", "sphinx (>=3)", "sphinx-argparse (>=0.2.5)", "sphinx-rtd-theme (>=0.4.3)", "towncrier (>=21.3)"]
-testing = ["coverage (>=4)", "coverage-enable-subprocess (>=1)", "flaky (>=3)", "pytest (>=4)", "pytest-env (>=0.6.2)", "pytest-freezegun (>=0.4.1)", "pytest-mock (>=2)", "pytest-randomly (>=1)", "pytest-timeout (>=1)", "packaging (>=20.0)"]
+testing = ["coverage (>=4)", "coverage-enable-subprocess (>=1)", "flaky (>=3)", "packaging (>=20.0)", "pytest (>=4)", "pytest-env (>=0.6.2)", "pytest-freezegun (>=0.4.1)", "pytest-mock (>=2)", "pytest-randomly (>=1)", "pytest-timeout (>=1)"]
 
 [[package]]
 name = "websocket-client"
@@ -1464,6 +1471,9 @@ category = "main"
 optional = false
 python-versions = "*"
 
+[package.dependencies]
+setuptools = "*"
+
 [package.extras]
 test = ["zope.testing"]
 
@@ -1476,13 +1486,13 @@ optional = false
 python-versions = ">=3.7"
 
 [package.extras]
-docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
+docs = ["jaraco.packaging (>=9)", "rst.linker (>=1.9)", "sphinx"]
+testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.0.1)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "1404ca2cddf0cf0803bb9503b9ba3b6cd0252881cca8fa9a8bc8238acecea176"
+content-hash = "c30aa7166b0d73a865b63bdb74ae5034a57360b1ddf1236f527536de4b2cd573"
 
 [metadata.files]
 amqp = [
@@ -1905,9 +1915,9 @@ lxml = [
     {file = "lxml-4.9.0-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_24_x86_64.whl", hash = "sha256:94f2e45b054dd759bed137b6e14ae8625495f7d90ddd23cf62c7a68f72b62656"},
     {file = "lxml-4.9.0.tar.gz", hash = "sha256:520461c36727268a989790aef08884347cd41f2d8ae855489ccf40b50321d8d7"},
 ]
-mako = [
-    {file = "Mako-1.2.0-py3-none-any.whl", hash = "sha256:23aab11fdbbb0f1051b93793a58323ff937e98e34aece1c4219675122e57e4ba"},
-    {file = "Mako-1.2.0.tar.gz", hash = "sha256:9a7c7e922b87db3686210cf49d5d767033a41d4010b284e747682c92bddd8b39"},
+Mako = [
+    {file = "Mako-1.2.2-py3-none-any.whl", hash = "sha256:8efcb8004681b5f71d09c983ad5a9e6f5c40601a6ec469148753292abc0da534"},
+    {file = "Mako-1.2.2.tar.gz", hash = "sha256:3724869b363ba630a272a5f89f68c070352137b8fd1757650017b7e06fda163f"},
 ]
 mapnik = []
 markupsafe = [
@@ -2324,6 +2334,10 @@ requests-toolbelt = [
 s3transfer = [
     {file = "s3transfer-0.6.0-py3-none-any.whl", hash = "sha256:06176b74f3a15f61f1b4f25a1fc29a4429040b7647133a463da8fa5bd28d5ecd"},
     {file = "s3transfer-0.6.0.tar.gz", hash = "sha256:2ed07d3866f523cc561bf4a00fc5535827981b117dd7876f036b0c1aca42c947"},
+]
+setuptools = [
+    {file = "setuptools-65.3.0-py3-none-any.whl", hash = "sha256:2e24e0bec025f035a2e72cdd1961119f557d78ad331bb00ff82efb2ab8da8e82"},
+    {file = "setuptools-65.3.0.tar.gz", hash = "sha256:7732871f4f7fa58fb6bdcaeadb0161b2bd046c85905dbaa066bdcbcc81953b57"},
 ]
 setuptools-scm = [
     {file = "setuptools_scm-6.4.2-py3-none-any.whl", hash = "sha256:acea13255093849de7ccb11af9e1fb8bde7067783450cee9ef7a93139bddf6d4"},

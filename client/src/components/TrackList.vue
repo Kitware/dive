@@ -4,17 +4,18 @@ import {
 } from '@vue/composition-api';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 
 import {
   useEditingMode,
   useHandler,
   useSelectedTrackId,
-  useTrackStore,
   useTrackFilters,
   useTime,
   useReadOnlyMode,
   useTrackStyleManager,
   useMultiSelectList,
+  useCameraStore,
 } from '../provides';
 import useVirtualScrollTo from '../use/useVirtualScrollTo';
 import TrackItem from './TrackItem.vue';
@@ -58,7 +59,7 @@ export default defineComponent({
     const checkedTrackIdsRef = trackFilters.checkedIDs;
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
-    const trackStore = useTrackStore();
+    const cameraStore = useCameraStore();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef } = useTime();
@@ -96,9 +97,11 @@ export default defineComponent({
       return '';
     });
 
+    const getAnnotation = (id: AnnotationId) => cameraStore.getAnyPossibleTrack(id);
+
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,
-      store: trackStore,
+      getAnnotation,
       filteredListRef: filteredTracksRef,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,
@@ -109,11 +112,12 @@ export default defineComponent({
       const confidencePair = item.filteredTrack.annotation.getType(
         item.filteredTrack.context.confidencePairIndex,
       );
-      const trackType = confidencePair[0];
+      const trackType = confidencePair;
       const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
+      const track = cameraStore.getTracksMerged(item.filteredTrack.annotation.id);
       return {
         trackType,
-        track: item.filteredTrack.annotation,
+        track,
         inputValue: item.checkedTrackIds.includes(item.filteredTrack.annotation.id),
         selected,
         secondarySelected: item.multiSelect.includes(item.filteredTrack.annotation.id),
@@ -131,7 +135,7 @@ export default defineComponent({
       virtualListItems.value.forEach((item) => {
         if (item.checkedTrackIds.includes(item.filteredTrack.annotation.id)) {
           if (count < limit) {
-            text.push(item.filteredTrack.annotation.trackId.toString());
+            text.push(item.filteredTrack.annotation.id.toString());
           }
           tracksDisplayed.push(item.filteredTrack.annotation.id);
           count += 1;
@@ -275,7 +279,7 @@ export default defineComponent({
                 class="mr-2"
                 :color="newTrackColor"
                 v-on="on"
-                @click="trackAdd"
+                @click="trackAdd()"
               >
                 <v-icon small>
                   mdi-plus
