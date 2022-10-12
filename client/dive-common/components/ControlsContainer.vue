@@ -180,7 +180,7 @@ export default defineComponent({
       </template>
       <template #middle>
         <file-name-time-display
-          v-if="datasetType === 'image-sequence'"
+          v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
           class="text-middle px-3"
           display-type="filename"
         />

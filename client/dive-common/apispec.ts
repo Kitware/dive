@@ -1,5 +1,5 @@
 import { provide } from '@vue/composition-api';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { AnnotationId, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { GroupData } from 'vue-media-annotator/Group';
 
 import { use } from 'vue-media-annotator/provides';
@@ -153,6 +153,10 @@ interface Api {
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
+  getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
+   string;
 }
 const ApiSymbol = Symbol('api');
 

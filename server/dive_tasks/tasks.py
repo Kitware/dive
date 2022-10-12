@@ -578,7 +578,7 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
 
 
 @app.task(bind=True, acks_late=True)
-def convert_large_images(self: Task, folderId):
+def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     """
     Converts all images in the folder to large images
 

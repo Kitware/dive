@@ -103,7 +103,9 @@ export default defineComponent({
     const datasetName = ref('');
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
-    const { loadDetections, loadMetadata, saveMetadata } = useApi();
+    const {
+      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
+    } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
       // with stale data from props, for example if a persistent store
@@ -750,6 +752,9 @@ export default defineComponent({
       readonlyState,
       brightness,
       intercept,
+      /* large image methods */
+      getTiles,
+      getTileURL,
       /* methods */
       handler: globalHandler,
       save,
@@ -925,11 +930,15 @@ export default defineComponent({
             { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
           ]"
+          class="d-flex flex-column grow"
         >
           <div class="d-flex grow">
             <div
               v-for="camera in multiCamList"
               :key="camera"
+              class="d-flex flex-column grow"
+              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
@@ -941,7 +950,8 @@ export default defineComponent({
                 :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, camera, brightness, intercept }"
+                  updateTime, frameRate, originalFps, camera, brightness,
+                  intercept, getTiles, getTileURL }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
                 <LayerManager :camera="camera" />

@@ -534,6 +534,8 @@ def convert_large_image(
             queue=_get_queue_name(user),
             kwargs=dict(
                 folderId=dsFolder["_id"],
+                user_id=str(user["_id"]),
+                user_login=str(user["login"]),
                 girder_client_token=str(token["_id"]),
                 girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
                 girder_job_type="private" if job_is_private else "convert",

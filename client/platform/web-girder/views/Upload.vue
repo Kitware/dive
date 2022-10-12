@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes, LargeImageType,
 } from 'dive-common/constants';
 
 import {
@@ -258,7 +258,7 @@ export default defineComponent({
         const { formatSize, totalProgress, totalSize } = girderUpload.value;
         if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
           return formatSize(pendingUpload.files[0].progress.size);
-        } if (pendingUpload.type === ImageSequenceType) {
+        } if ([ImageSequenceType, LargeImageType].includes(pendingUpload.type)) {
           return `${filesNotUploaded(pendingUpload)} files`;
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos`;

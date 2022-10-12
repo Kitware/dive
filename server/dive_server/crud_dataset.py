@@ -386,6 +386,6 @@ def validate_files(files: List[str]):
         "ok": ok,
         "message": message,
         "type": mediatype,
-        "media": images + videos,
+        "media": images + videos + large_images,
         "annotations": csvs + ymls + jsons,
     }

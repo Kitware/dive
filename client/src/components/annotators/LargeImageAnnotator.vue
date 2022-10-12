@@ -2,7 +2,6 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from '@vue/composition-api';
-import { getTileURL, getTiles } from 'platform/web-girder/api/largeImage.service';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
@@ -55,6 +54,19 @@ export default defineComponent({
       type: Number as PropType<number | undefined>,
       default: undefined,
     },
+    getTiles: {
+      type: Function as PropType<
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (itemId: string, projection?: string) => Promise<Record<string, any>>>,
+      required: true,
+    },
+    getTileURL: {
+      type: Function as PropType<
+      (itemId: string, x: number, y: number,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      level: number, query: Record<string, any>) => string>,
+      required: true,
+    },
   },
   setup(props) {
     const loadingVideo = ref(false);
@@ -74,8 +86,8 @@ export default defineComponent({
       // allow hoisting for these functions to pass a reference before defining them.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
-    }); let projection: string | undefined;
-
+    });
+    let projection: string | undefined;
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
@@ -112,7 +124,7 @@ export default defineComponent({
         if (proj) {
           updatedParams.projection = proj;
         }
-        return getTileURL(itemId, level, x, y, updatedParams);
+        return props.getTileURL(itemId, level, x, y, updatedParams);
       };
       return returnFunc;
     }
@@ -204,7 +216,7 @@ export default defineComponent({
       //const baseData = await getTiles(props.imageData[data.frame].id);
       //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
-      const resp = await getTiles(props.imageData[data.frame].id, projection);
+      const resp = await props.getTiles(props.imageData[data.frame].id, projection);
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -217,7 +229,6 @@ export default defineComponent({
         maxLevel: resp.levels + 3,
         autoshareRenderer: false,
       };
-
       if (props.imageData.length) {
         if (geoSpatial) {
           initializeViewer(local.metadata.sourceSizeX, local.metadata.sourceSizeY,
@@ -275,6 +286,7 @@ export default defineComponent({
         data.ready = true;
         loadingVideo.value = false;
         loadingImage.value = false;
+        seek(0);
       }
     }
     // Watch imageData for change
