@@ -148,7 +148,9 @@ export default defineComponent({
       if (data.frame !== 0 && local.lastFrame === data.frame) {
         return;
       }
-      loadingImage.value = true;
+      if (props.imageData.length > 1) {
+        loadingImage.value = true;
+      }
       props.updateTime(data);
       // For faster swapping between loaded large images we swap two layers.
       if (local.nextLayer) {

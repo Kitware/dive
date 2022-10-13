@@ -199,7 +199,7 @@ export default defineComponent({
           <template #activator="{ on: tooltipOn }">
             <v-btn
               v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable"
+              :disabled="pipelinesNotRunnable || buttonOptions.disabled"
               :color="pipelinesCurrentlyRunning? 'warning' : buttonOptions.color"
               v-on="{ ...tooltipOn, ...menuOn }"
             >

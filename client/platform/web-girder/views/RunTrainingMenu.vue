@@ -136,7 +136,7 @@ export default defineComponent({
           <template #activator="{ on: tooltipOn }">
             <v-btn
               v-bind="buttonOptions"
-              :disabled="trainingDisabled"
+              :disabled="trainingDisabled || buttonOptions.disabled"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
               <v-icon>
