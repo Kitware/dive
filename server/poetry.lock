@@ -344,6 +344,7 @@ numpy = ["numpy (>1.0.0)"]
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "girder"
 version = "3.1.14"
@@ -402,7 +403,7 @@ girder = ">=3"
 
 [[package]]
 name = "girder-large-image"
-version = "1.14.4"
+version = "1.17.0"
 description = "A Girder plugin to work with large, multiresolution images."
 category = "main"
 optional = false
@@ -411,10 +412,10 @@ python-versions = ">=3.6"
 [package.dependencies]
 girder = ">=3.0.4"
 girder-jobs = ">=3.0.3"
-large-image = ">=1.14.4"
+large-image = ">=1.17.0"
 
 [package.extras]
-tasks = ["girder-worker[girder] (>=0.6.0)", "large-image-tasks[girder] (>=1.14.4)"]
+tasks = ["girder-worker[girder] (>=0.6.0)", "large-image-tasks[girder] (>=1.17.0)"]
 
 [[package]]
 name = "girder-worker"
@@ -659,7 +660,7 @@ zookeeper = ["kazoo (>=1.3.1)"]
 
 [[package]]
 name = "large-image"
-version = "1.14.5"
+version = "1.17.0"
 description = "Python modules to work with large, multiresolution images."
 category = "main"
 optional = false
@@ -673,31 +674,32 @@ Pillow = "*"
 psutil = ">=4.2.0"
 
 [package.extras]
-all = ["large-image-converter (>=1.14.5)", "large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)", "matplotlib", "pylibmc (>=1.5.1)", "pyvips", "simplejpeg"]
-bioformats = ["large-image-source-bioformats (>=1.14.5)"]
+all = ["large-image-converter (>=1.17.0)", "large-image-source-bioformats (>=1.17.0)", "large-image-source-deepzoom (>=1.17.0)", "large-image-source-dummy (>=1.17.0)", "large-image-source-gdal (>=1.17.0)", "large-image-source-mapnik (>=1.17.0)", "large-image-source-multi (>=1.17.0)", "large-image-source-nd2 (>=1.17.0)", "large-image-source-ometiff (>=1.17.0)", "large-image-source-openjpeg (>=1.17.0)", "large-image-source-openslide (>=1.17.0)", "large-image-source-pil (>=1.17.0)", "large-image-source-test (>=1.17.0)", "large-image-source-tiff (>=1.17.0)", "large-image-source-tifffile (>=1.17.0)", "large-image-source-vips (>=1.17.0)", "matplotlib", "pylibmc (>=1.5.1)", "pyvips", "simplejpeg"]
+bioformats = ["large-image-source-bioformats (>=1.17.0)"]
 colormaps = ["matplotlib"]
-converter = ["large-image-converter (>=1.14.5)"]
-deepzoom = ["large-image-source-deepzoom (>=1.14.5)"]
-dummy = ["large-image-source-dummy (>=1.14.5)"]
-gdal = ["large-image-source-gdal (>=1.14.5)"]
-mapnik = ["large-image-source-mapnik (>=1.14.5)"]
+converter = ["large-image-converter (>=1.17.0)"]
+deepzoom = ["large-image-source-deepzoom (>=1.17.0)"]
+dummy = ["large-image-source-dummy (>=1.17.0)"]
+gdal = ["large-image-source-gdal (>=1.17.0)"]
+mapnik = ["large-image-source-mapnik (>=1.17.0)"]
 memcached = ["pylibmc (>=1.5.1)"]
-multi = ["large-image-source-multi (>=1.14.5)"]
-nd2 = ["large-image-source-nd2 (>=1.14.5)"]
-ometiff = ["large-image-source-ometiff (>=1.14.5)"]
-openjpeg = ["large-image-source-openjpeg (>=1.14.5)"]
-openslide = ["large-image-source-openslide (>=1.14.5)"]
+multi = ["large-image-source-multi (>=1.17.0)"]
+nd2 = ["large-image-source-nd2 (>=1.17.0)"]
+ometiff = ["large-image-source-ometiff (>=1.17.0)"]
+openjpeg = ["large-image-source-openjpeg (>=1.17.0)"]
+openslide = ["large-image-source-openslide (>=1.17.0)"]
 performance = ["simplejpeg"]
-pil = ["large-image-source-pil (>=1.14.5)"]
-sources = ["large-image-source-bioformats (>=1.14.5)", "large-image-source-deepzoom (>=1.14.5)", "large-image-source-dummy (>=1.14.5)", "large-image-source-gdal (>=1.14.5)", "large-image-source-mapnik (>=1.14.5)", "large-image-source-multi (>=1.14.5)", "large-image-source-nd2 (>=1.14.5)", "large-image-source-ometiff (>=1.14.5)", "large-image-source-openjpeg (>=1.14.5)", "large-image-source-openslide (>=1.14.5)", "large-image-source-pil (>=1.14.5)", "large-image-source-test (>=1.14.5)", "large-image-source-tiff (>=1.14.5)", "large-image-source-vips (>=1.14.5)"]
-test = ["large-image-source-test (>=1.14.5)"]
-tiff = ["large-image-source-tiff (>=1.14.5)"]
+pil = ["large-image-source-pil (>=1.17.0)"]
+sources = ["large-image-source-bioformats (>=1.17.0)", "large-image-source-deepzoom (>=1.17.0)", "large-image-source-dummy (>=1.17.0)", "large-image-source-gdal (>=1.17.0)", "large-image-source-mapnik (>=1.17.0)", "large-image-source-multi (>=1.17.0)", "large-image-source-nd2 (>=1.17.0)", "large-image-source-ometiff (>=1.17.0)", "large-image-source-openjpeg (>=1.17.0)", "large-image-source-openslide (>=1.17.0)", "large-image-source-pil (>=1.17.0)", "large-image-source-test (>=1.17.0)", "large-image-source-tiff (>=1.17.0)", "large-image-source-tifffile (>=1.17.0)", "large-image-source-vips (>=1.17.0)"]
+test = ["large-image-source-test (>=1.17.0)"]
+tiff = ["large-image-source-tiff (>=1.17.0)"]
+tifffile = ["large-image-source-tifffile (>=1.17.0)"]
 tiledoutput = ["pyvips"]
-vips = ["large-image-source-vips (>=1.14.5)"]
+vips = ["large-image-source-vips (>=1.17.0)"]
 
 [[package]]
 name = "large-image-converter"
-version = "1.14.4"
+version = "1.17.0"
 description = "Converter for Large Image."
 category = "main"
 optional = false
@@ -705,7 +707,7 @@ python-versions = ">=3.6"
 
 [package.dependencies]
 gdal = "*"
-large-image-source-tiff = ">=1.14.4"
+large-image-source-tiff = ">=1.17.0"
 numpy = "*"
 psutil = "*"
 pyvips = "*"
@@ -713,12 +715,12 @@ tifftools = "*"
 
 [package.extras]
 jp2k = ["glymur"]
-sources = ["large-image[sources] (>=1.14.4)"]
+sources = ["large-image[sources] (>=1.17.0)"]
 stats = ["packaging", "scikit-image"]
 
 [[package]]
 name = "large-image-source-gdal"
-version = "1.14.5"
+version = "1.17.0"
 description = "A GDAL tilesource for large_image."
 category = "main"
 optional = false
@@ -726,47 +728,47 @@ python-versions = ">=3.6"
 
 [package.dependencies]
 gdal = "*"
-large-image = ">=1.14.5"
+large-image = ">=1.17.0"
 packaging = "*"
 pyproj = ">=2.2.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.5)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-source-mapnik"
-version = "1.14.5"
+version = "1.17.0"
 description = "A Mapnik tilesource for large_image."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-large-image = ">=1.14.5"
-large-image-source-gdal = ">=1.14.5"
+large-image = ">=1.17.0"
+large-image-source-gdal = ">=1.17.0"
 mapnik = "*"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.5)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-source-ometiff"
-version = "1.14.5"
+version = "1.17.0"
 description = "An OMETiff tilesource for large_image."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-large-image = ">=1.14.5"
-large-image-source-tiff = ">=1.14.5"
+large-image = ">=1.17.0"
+large-image-source-tiff = ">=1.17.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.5)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-source-openjpeg"
-version = "1.14.5"
+version = "1.17.0"
 description = "An Openjpeg tilesource for large_image."
 category = "main"
 optional = false
@@ -774,44 +776,44 @@ python-versions = ">=3.6"
 
 [package.dependencies]
 glymur = {version = ">=0.8.18", markers = "python_version >= \"3.7\""}
-large-image = ">=1.14.5"
+large-image = ">=1.17.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.5)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-source-pil"
-version = "1.14.4"
+version = "1.17.0"
 description = "A Pillow tilesource for large_image."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-large-image = ">=1.14.4"
+large-image = ">=1.17.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.4)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-source-tiff"
-version = "1.14.5"
+version = "1.17.0"
 description = "A TIFF tilesource for large_image."
 category = "main"
 optional = false
 python-versions = ">=3.6"
 
 [package.dependencies]
-large-image = ">=1.14.5"
+large-image = ">=1.17.0"
 pylibtiff = "*"
 tifftools = ">=1.2.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.14.5)"]
+girder = ["girder-large-image (>=1.17.0)"]
 
 [[package]]
 name = "large-image-tasks"
-version = "1.14.4"
+version = "1.17.0"
 description = "Girder Worker tasks for Large Image."
 category = "main"
 optional = false
@@ -821,8 +823,8 @@ python-versions = ">=3.6"
 girder-worker-utils = ">=0.8.5"
 
 [package.extras]
-girder = ["girder-worker[girder] (>=0.6.0)", "large-image-converter (>=1.14.4)"]
-worker = ["girder-worker[worker] (>=0.6.0)", "large-image-converter[sources] (>=1.14.4)"]
+girder = ["girder-worker[girder] (>=0.6.0)", "large-image-converter (>=1.17.0)"]
+worker = ["girder-worker[worker] (>=0.6.0)", "large-image-converter[sources] (>=1.17.0)"]
 
 [[package]]
 name = "libtiff"
@@ -838,6 +840,7 @@ numpy = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "lxml"
 version = "4.9.0"
@@ -879,6 +882,7 @@ python-versions = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "markupsafe"
 version = "2.1.1"
@@ -1037,6 +1041,7 @@ test = ["enum34", "ipaddress", "mock", "pywin32", "unittest2", "wmi"]
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl"
+
 [[package]]
 name = "py"
 version = "1.11.0"
@@ -1079,6 +1084,7 @@ python-versions = ">=3.6"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibmc-1.6.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "pylibtiff"
 version = "0.5.0"
@@ -1093,6 +1099,7 @@ numpy = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "pymongo"
 version = "3.12.3"
@@ -1151,6 +1158,7 @@ certifi = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "pyrabbit2"
 version = "1.0.7"
@@ -1195,6 +1203,7 @@ numpy = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "pytz"
 version = "2022.1"
@@ -1222,6 +1231,7 @@ test = ["cffi (>=1.0.0)", "pyperf", "pytest", "pytest-flake8", "pytest-runner"]
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 [[package]]
 name = "pywin32"
 version = "227"
@@ -1492,7 +1502,7 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.10"
-content-hash = "c30aa7166b0d73a865b63bdb74ae5034a57360b1ddf1236f527536de4b2cd573"
+content-hash = "d18734a3c63c43630f1fa1ba2a21fc3e2d1816defeb474eca53004d14ecc0bcd"
 
 [metadata.files]
 amqp = [
@@ -1749,8 +1759,8 @@ girder-jobs = [
     {file = "girder-jobs-3.1.14.tar.gz", hash = "sha256:a59d2213f8530b3989c72c848364df57fa05a8f06324d75ee5f907b52e02706e"},
 ]
 girder-large-image = [
-    {file = "girder-large-image-1.14.4.tar.gz", hash = "sha256:b57460fcdff65de7aa1a903b64971c46c9a509491d1513431bf58618fd131e19"},
-    {file = "girder_large_image-1.14.4-py3-none-any.whl", hash = "sha256:dea3231637eb454c74fd09e6c2ebbb229c2dfe5941d192b6d8c97a7cce884415"},
+    {file = "girder-large-image-1.17.0.tar.gz", hash = "sha256:d37c78e6c95e016a9b280030284954216716578103fbb6be5ef6dd8d28aa551c"},
+    {file = "girder_large_image-1.17.0-py3-none-any.whl", hash = "sha256:0354061c06fd3ee80bd3389f04b4d21cac4d9f0655ea4377520a7c74f58c3685"},
 ]
 girder-worker = [
     {file = "girder-worker-0.8.1.tar.gz", hash = "sha256:39fd1fd34d83953c31636a976e9c9b75eab08aefbaf2b9b7e8f6d24a39fa5031"},
@@ -1814,40 +1824,40 @@ kombu = [
     {file = "kombu-4.6.11.tar.gz", hash = "sha256:ca1b45faac8c0b18493d02a8571792f3c40291cf2bcf1f55afed3d8f3aa7ba74"},
 ]
 large-image = [
-    {file = "large-image-1.14.5.tar.gz", hash = "sha256:c0788e199886d2ee180cdd6f1ea247d7b12ae43fd6fad73686873326497bd90b"},
-    {file = "large_image-1.14.5-py3-none-any.whl", hash = "sha256:0dbac27c53c126b2bcfe540a9ba329e89f35d82c3b342b108da89a6209778174"},
+    {file = "large-image-1.17.0.tar.gz", hash = "sha256:f48bcf124c6816f7d7cb7e8ed648db4d3311882eb0fb8c2a785ade4f7f64d8b8"},
+    {file = "large_image-1.17.0-py3-none-any.whl", hash = "sha256:bc0c49dff6d28fd2e1cfa79c95056fb98aa66a06df7829183be91b3031c9560e"},
 ]
 large-image-converter = [
-    {file = "large-image-converter-1.14.4.tar.gz", hash = "sha256:cc62b9480369796167338f8942d3633130ee5d16c3e1503edddd2680caf31af4"},
-    {file = "large_image_converter-1.14.4-py3-none-any.whl", hash = "sha256:f26af4f03661ef521eaf6b0d5836fe2f4d85b5654c6c8272680de8a1c1cbd6bd"},
+    {file = "large-image-converter-1.17.0.tar.gz", hash = "sha256:05bdb847832aec695195c9efb97758bd9d617c56727f7288004559f4caa4c457"},
+    {file = "large_image_converter-1.17.0-py3-none-any.whl", hash = "sha256:29239da224c1a453120a78eea03a2378b6c711bcbf828943d4fb6ea57e4500af"},
 ]
 large-image-source-gdal = [
-    {file = "large-image-source-gdal-1.14.5.tar.gz", hash = "sha256:c5fe687dec452519b5430a30bc2f64f576cf4182e29495826d57a8ebab9bd4bc"},
-    {file = "large_image_source_gdal-1.14.5-py3-none-any.whl", hash = "sha256:9a232abbcc4f36bc18f438de886109d343b8ed4176c610b6ade40d8c03478e53"},
+    {file = "large-image-source-gdal-1.17.0.tar.gz", hash = "sha256:d6c0242b435bae386f3cb389680def72d573a665fc4fa0396daa3eb875814518"},
+    {file = "large_image_source_gdal-1.17.0-py3-none-any.whl", hash = "sha256:0500861ec7ee7be5c13490039dec15c852ca15845d552b88d5d248ad51222479"},
 ]
 large-image-source-mapnik = [
-    {file = "large-image-source-mapnik-1.14.5.tar.gz", hash = "sha256:c47d1d1a6892d89f2aed55ed90dd0205c947e56a4c2d6be5b2e25ed42acd321a"},
-    {file = "large_image_source_mapnik-1.14.5-py3-none-any.whl", hash = "sha256:2f148387e8edf12980d338c5eb5dbdabdbb22f290eb1d816bd95366bdbbe645d"},
+    {file = "large-image-source-mapnik-1.17.0.tar.gz", hash = "sha256:fd115c350e2042769e5ae5ad65feb76b1a76b94d3c6ce765e49749c3625a898e"},
+    {file = "large_image_source_mapnik-1.17.0-py3-none-any.whl", hash = "sha256:ca943745ad36f5cd95a9f8a2c88067a615b26bb5fe6e7fa38dd384898fc1749d"},
 ]
 large-image-source-ometiff = [
-    {file = "large-image-source-ometiff-1.14.5.tar.gz", hash = "sha256:bde1b9c222ef3f3878666f3ce9cbce306a3e8c28493ae4b8533bbec85c2768b9"},
-    {file = "large_image_source_ometiff-1.14.5-py3-none-any.whl", hash = "sha256:835d0b35cf2cd3ae845c14d600e06b17e2c32beb5bc415fa67791a2e508773be"},
+    {file = "large-image-source-ometiff-1.17.0.tar.gz", hash = "sha256:d423db1fadb270908fe062ec10aefd7dd6cb98b0f1f563de2247449e883b7e84"},
+    {file = "large_image_source_ometiff-1.17.0-py3-none-any.whl", hash = "sha256:a38402e609061864a64cd56f9fc40ab02249108dfeda3dbcd142c6dcaeffa569"},
 ]
 large-image-source-openjpeg = [
-    {file = "large-image-source-openjpeg-1.14.5.tar.gz", hash = "sha256:6c5fcbff75aebe4c183efe71a7daa1f4226df9fdefd4fe849f7a4b80634d4ade"},
-    {file = "large_image_source_openjpeg-1.14.5-py3-none-any.whl", hash = "sha256:91315fbc0c7d752349e53519aea6bd4fd877f12545a41e5f1f2ddb6242dd6e0a"},
+    {file = "large-image-source-openjpeg-1.17.0.tar.gz", hash = "sha256:7fdd8e5cc487398725de3aa723de9208b614011a0da3182b2b7921475dbd095a"},
+    {file = "large_image_source_openjpeg-1.17.0-py3-none-any.whl", hash = "sha256:da6fd1e35fdf93849bfcd77027802ad7b765b925c1687739115e931f2a8d4596"},
 ]
 large-image-source-pil = [
-    {file = "large-image-source-pil-1.14.4.tar.gz", hash = "sha256:6fc63c6b4451d5aeb7c9c901fae5df7a6112b5c6b684ac618907b49a52924731"},
-    {file = "large_image_source_pil-1.14.4-py3-none-any.whl", hash = "sha256:a52413e9f0e0a82a89a3f1c5ae69bd195dd9f6f6644aba3063dec892d52ff51a"},
+    {file = "large-image-source-pil-1.17.0.tar.gz", hash = "sha256:2c53c640cc49c1a6ff7fe2a02b4dd49192c48a4cbf7f0566db1ed1b302c84e25"},
+    {file = "large_image_source_pil-1.17.0-py3-none-any.whl", hash = "sha256:8a49351a2092a439c3a64f5bd8e81344cd66b5e3420c1b87ce513c5ef1461fd3"},
 ]
 large-image-source-tiff = [
-    {file = "large-image-source-tiff-1.14.5.tar.gz", hash = "sha256:6084a15aebbc8a89facaf60ae39ec1ca0478ef7079a6554985e1541f816083d3"},
-    {file = "large_image_source_tiff-1.14.5-py3-none-any.whl", hash = "sha256:bf8d345b0370349462eb3f228c2c9d8a342d7fbe4d2e73e258e560988efc8540"},
+    {file = "large-image-source-tiff-1.17.0.tar.gz", hash = "sha256:455029ffcb266c29e1c51fe23275d9c570c430f3701d1714f13bb1dc72af6159"},
+    {file = "large_image_source_tiff-1.17.0-py3-none-any.whl", hash = "sha256:81d20ac42ff86cd6d9b57fec227507928ecb4222945b83633637962e29c96e94"},
 ]
 large-image-tasks = [
-    {file = "large-image-tasks-1.14.4.tar.gz", hash = "sha256:141377d4b9aefea76c9aa6d087b54c84a7f5dc6fae231538dcd4d0cc8cfe1bd6"},
-    {file = "large_image_tasks-1.14.4-py3-none-any.whl", hash = "sha256:cd634d7fe48583634f92365fce2e89d1c37035b06991a49e58b532f1196bb5a8"},
+    {file = "large-image-tasks-1.17.0.tar.gz", hash = "sha256:21dec351615ea8134a15eca1beb51af61c67b8d59166a100f8d7c1d862b5c77f"},
+    {file = "large_image_tasks-1.17.0-py3-none-any.whl", hash = "sha256:5cad3a41376d5e31931730af5d4526abb45a2747e79ab3869d0799cea848fe6f"},
 ]
 libtiff = []
 lxml = [
