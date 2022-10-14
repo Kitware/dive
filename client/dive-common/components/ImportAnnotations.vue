@@ -125,7 +125,7 @@ export default defineComponent({
           <ul>
             <li> Viame CSV Files </li>
             <li> DIVE Annotation JSON </li>
-            <li> DIVE Configuation JSON</li>
+            <li> DIVE Configuration JSON</li>
             <li> KWCOCO JSON files </li>
           </ul>
           <a
