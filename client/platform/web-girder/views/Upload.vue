@@ -537,56 +537,57 @@ export default defineComponent({
               {{ computeUploadProgress(pendingUpload) }} remaining
             </span>
           </v-card>
-          <div
-            class="d-flex my-6"
-            :class="{
-              'flex-column': pendingUploads.length === 0,
-            }"
-          >
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
-              icon="mdi-folder-open"
-              open-type="image-sequence"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-              @multi-cam="openMultiCamDialog"
-            />
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
-              icon="mdi-file-video"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
-              open-type="video"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-              @multi-cam="openMultiCamDialog"
-            />
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
-              icon="mdi-folder-open"
-              open-type="large-image"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-              @multi-cam="openMultiCamDialog"
-            />
-
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
-              icon="mdi-zip-box"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
-              open-type="zip"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-            />
+          <div>
+            <v-list>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
+                  icon="mdi-folder-open"
+                  open-type="image-sequence"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                  @multi-cam="openMultiCamDialog"
+                />
+              </v-list-item>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+                  icon="mdi-file-video"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  open-type="video"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                  @multi-cam="openMultiCamDialog"
+                />
+              </v-list-item>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
+                  icon="mdi-folder-open"
+                  open-type="large-image"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                  @multi-cam="openMultiCamDialog"
+                />
+              </v-list-item>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
+                  icon="mdi-zip-box"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  open-type="zip"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                />
+              </v-list-item>
+              <v-list />
+            </v-list>
           </div>
           <div v-if="pendingUploads.length && pendingUploads.some((item) => item.type === 'zip')">
             <h3 class="text-center">

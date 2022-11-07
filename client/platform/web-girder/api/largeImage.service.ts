@@ -10,7 +10,6 @@ async function getTiles(itemId: string, projection = '') {
     url = `${url}?projection=${encodeURIComponent(projection)}`;
   }
   const { data } = await girderRest.get(url);
-  // const { data } = await girderRest.get(`item/${itemId}/tiles?projection=EPSG%3A3857`);
   return data;
 }
 function getTileURL(

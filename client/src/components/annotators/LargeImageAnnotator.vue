@@ -153,8 +153,8 @@ export default defineComponent({
       }
       props.updateTime(data);
       // For faster swapping between loaded large images we swap two layers.
-      if (local.nextLayer) {
-        if (local.nextLayerFrame === newFrame) {
+      if (true || local.nextLayer) {
+        if (false && local.nextLayerFrame === newFrame) {
           local.currentLayer.moveDown();
           const ltemp = local.currentLayer;
           local.currentLayer = local.nextLayer;
@@ -170,16 +170,30 @@ export default defineComponent({
           }
         } else {
           geoViewer.value.onIdle(async () => {
-            local.nextLayer.url(_getTileURL(props.imageData[newFrame].id, projection));
+            const resp2 = await props.getTiles(props.imageData[newFrame].id, projection);
+            const newParams = geo.util.pixelCoordinateParams(
+              container.value, resp2.sizeX, resp2.sizeY,
+              resp2.tileWidth, resp2.tileHeight,
+            );
+            console.log(newParams);
             geoViewer.value.onIdle(() => {
-            // Move the current layer down and set the next layer to the current layer.
-              local.currentLayer.moveDown();
-              const ltemp = local.currentLayer;
-              local.currentLayer = local.nextLayer;
-              local.nextLayer = ltemp;
+              console.log(local.currentLayer);
+              local.currentLayer.map().bounds(newParams.map.maxBounds);
+              local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
+              local.currentLayer._options.tileWidth = newParams.layer.tileWidth;
+              local.currentLayer._options.tileHeight = newParams.layer.tileWidth;
+              local.currentLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
+              local.currentLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
+              local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
+              // Move the current layer down and set the next layer to the current layer.
+              //local.currentLayer.moveDown();
+              //const ltemp = local.currentLayer;
+              //local.currentLayer = local.nextLayer;
+              //local.nextLayer = ltemp;
+              //local.currentLayer.visible(true);
               loadingImage.value = false;
               // If there is another frame we begin loading it with the current position/zoom level
-              if (props.imageData[newFrame + 1]) {
+              if (false && props.imageData[newFrame + 1]) {
                 local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
                 local.nextLayer.prefetch(
                   Math.round(geoViewer.value.zoom()),
@@ -236,11 +250,12 @@ export default defineComponent({
         nextLayerFrame: 0,
       };
       // If you uncomment below it will load the geoSpatial coordinates and a OSM layer map
-      // This doesn't account for annotations being in image space vs geospatial.
-      // const baseData = await props.getTiles(props.imageData[data.frame].id);
-      // geoSpatial = !(!baseData.geospatial || !baseData.bounds);
+      //This doesn't account for annotations being in image space vs geospatial.
+      //const baseData = await props.getTiles(props.imageData[data.frame].id);
+      //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
       const resp = await props.getTiles(props.imageData[data.frame].id, projection);
+      console.log(resp);
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -278,7 +293,7 @@ export default defineComponent({
             top: local.metadata.bounds.ymax,
             bottom: local.metadata.bounds.ymin,
           }, projection);
-          geoViewer.value.createLayer('osm');
+          geoViewer.value.createLayer('osm'); // create background layer
           geoViewer.value.zoomRange({
             min: geoViewer.value.origMin,
             max: geoViewer.value.zoomRange().max + 3,
@@ -293,11 +308,26 @@ export default defineComponent({
         const localParams = geoSpatial ? local.params : local.params.layer;
         local.currentLayer = geoViewer.value.createLayer('osm', localParams);
         // Set the next layer to pre load
-        if (!local.nextLayer && props.imageData.length > 1) {
+        if (!local.nextLayer && props.imageData.length > 1 && false) {
+          const resp2 = await props.getTiles(props.imageData[data.frame + 1].id, projection);
+          console.log(resp2);
+          localParams.levels = resp2.levels;
+          localParams.width = resp2.sizeX;
+          localParams.height = resp2.sizeY;
+          geoViewer.value.bounds({
+            left: 0,
+            top: 0,
+            bottom: localParams.height,
+            right: localParams.width,
+          }, projection);
+
           localParams.url = _getTileURL(props.imageData[data.frame + 1].id, projection);
           local.nextLayer = geoViewer.value.createLayer('osm', localParams);
           local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
           local.nextLayer.moveDown();
+          local.nextLayerFrame = data.frame + 1;
+        } else {
+          //local.nextLayer = geoViewer.value.createLayer('osm', localParams);
         }
 
         local.currentLayer.url(
@@ -310,7 +340,7 @@ export default defineComponent({
         data.ready = true;
         loadingVideo.value = false;
         loadingImage.value = false;
-        seek(0);
+        //seek(0);
       }
     }
     // Watch imageData for change
