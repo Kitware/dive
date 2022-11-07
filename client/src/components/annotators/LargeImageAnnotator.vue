@@ -129,6 +129,21 @@ export default defineComponent({
       };
       return returnFunc;
     }
+    async function cacheFrame(frame: number) {
+      // eslint-disable-next-line no-unreachable
+      const resp2 = await props.getTiles(props.imageData[frame].id, projection);
+      const newParams = geo.util.pixelCoordinateParams(
+        container.value, resp2.sizeX, resp2.sizeY,
+        resp2.tileWidth, resp2.tileHeight,
+      );
+      local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
+      local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
+      local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+      local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
+      local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
+      local.nextLayer.url(_getTileURL(props.imageData[frame].id));
+      local.nextLayerFrame = frame;
+    }
     /**
      * When the component is unmounted, cancel all outstanding
      * requests for image load.
@@ -153,53 +168,38 @@ export default defineComponent({
       }
       props.updateTime(data);
       // For faster swapping between loaded large images we swap two layers.
-      if (true || local.nextLayer) {
-        if (false && local.nextLayerFrame === newFrame) {
+      if (local.nextLayer) {
+        if (local.nextLayerFrame === newFrame) {
           local.currentLayer.moveDown();
+          local.currentLayer.opacity(0);
           const ltemp = local.currentLayer;
           local.currentLayer = local.nextLayer;
+          local.currentLayer.opacity(1.0);
           loadingImage.value = false;
           local.nextLayer = ltemp;
           if (props.imageData[newFrame + 1]) {
-            local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
-            local.nextLayer.prefetch(
-              Math.round(geoViewer.value.zoom()),
-              geoViewer.value.bounds(),
-            );
-            local.nextLayerFrame = newFrame + 1;
+            cacheFrame(newFrame + 1);
           }
         } else {
           geoViewer.value.onIdle(async () => {
+            loadingImage.value = true;
             const resp2 = await props.getTiles(props.imageData[newFrame].id, projection);
             const newParams = geo.util.pixelCoordinateParams(
               container.value, resp2.sizeX, resp2.sizeY,
               resp2.tileWidth, resp2.tileHeight,
             );
-            console.log(newParams);
             geoViewer.value.onIdle(() => {
-              console.log(local.currentLayer);
-              local.currentLayer.map().bounds(newParams.map.maxBounds);
               local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
               local.currentLayer._options.tileWidth = newParams.layer.tileWidth;
               local.currentLayer._options.tileHeight = newParams.layer.tileWidth;
               local.currentLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
               local.currentLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
               local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
-              // Move the current layer down and set the next layer to the current layer.
-              //local.currentLayer.moveDown();
-              //const ltemp = local.currentLayer;
-              //local.currentLayer = local.nextLayer;
-              //local.nextLayer = ltemp;
-              //local.currentLayer.visible(true);
               loadingImage.value = false;
               // If there is another frame we begin loading it with the current position/zoom level
-              if (false && props.imageData[newFrame + 1]) {
-                local.nextLayer.url(_getTileURL(props.imageData[newFrame + 1].id, projection));
-                local.nextLayer.prefetch(
-                  Math.round(geoViewer.value.zoom()),
-                  geoViewer.value.bounds(),
-                );
-                local.nextLayerFrame = newFrame + 1;
+              loadingImage.value = false;
+              if (props.imageData[newFrame + 1]) {
+                cacheFrame(newFrame + 1);
               }
             });
           });
@@ -255,7 +255,6 @@ export default defineComponent({
       //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
       const resp = await props.getTiles(props.imageData[data.frame].id, projection);
-      console.log(resp);
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -308,26 +307,22 @@ export default defineComponent({
         const localParams = geoSpatial ? local.params : local.params.layer;
         local.currentLayer = geoViewer.value.createLayer('osm', localParams);
         // Set the next layer to pre load
-        if (!local.nextLayer && props.imageData.length > 1 && false) {
+        if (!local.nextLayer && props.imageData.length > 1) {
           const resp2 = await props.getTiles(props.imageData[data.frame + 1].id, projection);
-          console.log(resp2);
-          localParams.levels = resp2.levels;
-          localParams.width = resp2.sizeX;
-          localParams.height = resp2.sizeY;
-          geoViewer.value.bounds({
-            left: 0,
-            top: 0,
-            bottom: localParams.height,
-            right: localParams.width,
-          }, projection);
 
-          localParams.url = _getTileURL(props.imageData[data.frame + 1].id, projection);
-          local.nextLayer = geoViewer.value.createLayer('osm', localParams);
+          const newParams = geo.util.pixelCoordinateParams(
+            container.value, resp2.sizeX, resp2.sizeY,
+            resp2.tileWidth, resp2.tileHeight,
+          );
+          local.nextLayer = geoViewer.value.createLayer('osm', newParams.layer);
+          local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
+          local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
+          local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+          local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
+          local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
           local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
           local.nextLayer.moveDown();
           local.nextLayerFrame = data.frame + 1;
-        } else {
-          //local.nextLayer = geoViewer.value.createLayer('osm', localParams);
         }
 
         local.currentLayer.url(
