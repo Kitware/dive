@@ -325,10 +325,12 @@ def add_annotations(
         annotations['tracks'][new_id]['id'] = new_id
         if prepend != '':
             track = annotations['tracks'][new_id]
+            newPairs = []
             for confidencePairs in track['confidencePairs']:
-                confidencePairs[0] = f'{prepend}_{confidencePairs[0]}'
+                newPairs.append([f'{prepend}_{confidencePairs[0]}', confidencePairs[1]])
+            annotations['tracks'][new_id]['confidencePairs'] = newPairs
 
-    return annotations
+    return annotations['tracks']
 
 
 def get_labels(user: types.GirderUserModel, published=False, shared=False):

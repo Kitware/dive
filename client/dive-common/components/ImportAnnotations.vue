@@ -35,7 +35,6 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const processing = ref(false);
     const menuOpen = ref(false);
-    const showSettings = ref(false);
     const additive = ref(false);
     const additivePrepend = ref('');
     const openUpload = async () => {
@@ -83,7 +82,6 @@ export default defineComponent({
       openUpload,
       processing,
       menuOpen,
-      showSettings,
       additive,
       additivePrepend,
     };
@@ -151,35 +149,33 @@ export default defineComponent({
             target="_blank"
           >Data Format Documentation</a>
         </v-card-text>
-        <v-col>
-          <v-row>
-            <v-btn
-              depressed
-              block
-              :disabled="!datasetId || processing"
-              @click="openUpload"
-            >
-              Import
-            </v-btn>
-          </v-row>
-          <v-row>
-            <v-checkbox
-              v-model="showSettings"
-              label="settings"
-            />
-          </v-row>
-          <div v-if="showSettings">
-            <v-switch
-              v-model="additive"
-              label="Additive"
-            />
-            <v-text-field
-              v-model="additivePrepend"
-              label="Prepend to types"
-              clearable
-            />
-          </div>
-        </v-col>
+        <v-container>
+          <v-col>
+            <v-row>
+              <v-btn
+                depressed
+                block
+                :disabled="!datasetId || processing"
+                @click="openUpload"
+              >
+                Import
+              </v-btn>
+            </v-row>
+            <v-row>
+              <v-switch
+                v-model="additive"
+                label="Additive"
+              />
+            </v-row>
+            <div v-if="additive">
+              <v-text-field
+                v-model="additivePrepend"
+                label="Prepend to types"
+                clearable
+              />
+            </div>
+          </v-col>
+        </v-container>
       </v-card>
     </template>
   </v-menu>

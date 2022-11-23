@@ -405,15 +405,6 @@ def process_items(
                 overwrite=True,
                 description=f'Import {results["type"].name} from {file["name"]}',
             )
-
-            crud_annotation.save_annotations(
-                folder,
-                user,
-                upsert_tracks=results['annotations']['tracks'].values(),
-                upsert_groups=results['annotations']['groups'].values(),
-                overwrite=True,
-                description=f'Import {results["type"].name} from {file["name"]}',
-            )
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
