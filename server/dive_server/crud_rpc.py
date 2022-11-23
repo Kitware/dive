@@ -348,7 +348,7 @@ def _get_data_by_type(
     return None
 
 
-def process_items(folder: types.GirderModel, user: types.GirderUserModel):
+def process_items(folder: types.GirderModel, user: types.GirderUserModel, additive=False, additive_prepend=''):
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
     """
@@ -364,7 +364,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         # Processing order: oldest to newest
         sort=[("created", pymongo.ASCENDING)],
     )
-    auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
+    auxiliary = crud.get_or_create_auxiliary_folder(folder, user, )
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
@@ -386,6 +386,19 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
         if results['annotations']:
+            updated_tracks = results['annotations']['tracks'].values()
+            if additive:  # get annotations and add them to the end
+                tracks = crud_annotation.add_annotations(folder, results['annotations']['tracks'], additive_prepend)
+                updated_tracks = tracks.values()
+            crud_annotation.save_annotations(
+                folder,
+                user,
+                upsert_tracks=updated_tracks,
+                upsert_groups=results['annotations']['groups'].values(),
+                overwrite=True,
+                description=f'Import {results["type"].name} from {file["name"]}',
+            )
+
             crud_annotation.save_annotations(
                 folder,
                 user,
@@ -401,7 +414,7 @@ def process_items(folder: types.GirderModel, user: types.GirderUserModel):
 
 
 def postprocess(
-    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool, skipTranscoding=False
+    user: types.GirderUserModel, dsFolder: types.GirderModel, skipJobs: bool, skipTranscoding=False, additive=False, additive_prepend=''
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -512,5 +525,5 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user)
+    process_items(dsFolder, user, additive, additive_prepend)
     return dsFolder
