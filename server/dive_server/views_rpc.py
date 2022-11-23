@@ -103,6 +103,24 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .param(
+            "additive",
+            "Whether to add new annotations to existing ones",
+            paramType="formData",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
+        .param(
+            "additive_prepend",
+            "When using additive the prepend to types: 'prepend_type'",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding):
-        return crud_rpc.postprocess(self.getCurrentUser(), folder, skipJobs, skipTranscoding)
+    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additive_prepend):
+        return crud_rpc.postprocess(
+            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additive_prepend
+        )
