@@ -112,7 +112,7 @@ class RpcResource(Resource):
             required=False,
         )
         .param(
-            "additive_prepend",
+            "additivePrepend",
             "When using additive the prepend to types: 'prepend_type'",
             paramType="formData",
             dataType="string",
@@ -120,7 +120,7 @@ class RpcResource(Resource):
             required=False,
         )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additive_prepend):
+    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additive_prepend
+            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend
         )

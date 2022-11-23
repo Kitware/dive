@@ -305,7 +305,7 @@ def get_annotations(dataset: types.GirderModel, revision: Optional[int] = None):
 
 
 def add_annotations(
-    dataset: type.GirderModel, new_tracks: dict, prepend='', revision: Optional[int] = None
+    dataset: types.GirderModel, new_tracks: dict, prepend='', revision: Optional[int] = None
 ):
     tracks = TrackItem().list(dataset, revision=revision)
     annotations: types.DIVEAnnotationSchema = {
@@ -321,10 +321,10 @@ def add_annotations(
     # Now add in the new tracks while renaming them
     for key in new_tracks.keys():
         new_id = int(key) + max_track_id + 1
-        tracks[new_id] = new_tracks[key]
-        tracks[new_id]['id'] = new_id
+        annotations['tracks'][new_id] = new_tracks[key]
+        annotations['tracks'][new_id]['id'] = new_id
         if prepend != '':
-            track = tracks[new_id]
+            track = annotations['tracks'][new_id]
             for confidencePairs in track['confidencePairs']:
                 confidencePairs[0] = f'{prepend}_{confidencePairs[0]}'
 

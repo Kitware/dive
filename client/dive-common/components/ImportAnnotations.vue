@@ -35,6 +35,9 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const processing = ref(false);
     const menuOpen = ref(false);
+    const showSettings = ref(false);
+    const additive = ref(false);
+    const additivePrepend = ref('');
     const openUpload = async () => {
       try {
         const ret = await openFromDisk('annotation');
@@ -44,9 +47,21 @@ export default defineComponent({
           let importFile = false;
           processing.value = true;
           if (ret.fileList?.length) {
-            importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
+            importFile = await importAnnotationFile(
+              props.datasetId,
+              path,
+              ret.fileList[0],
+              additive.value,
+              additivePrepend.value,
+            );
           } else {
-            importFile = await importAnnotationFile(props.datasetId, path);
+            importFile = await importAnnotationFile(
+              props.datasetId,
+              path,
+              undefined,
+              additive.value,
+              additivePrepend.value,
+            );
           }
 
           if (importFile) {
@@ -68,6 +83,9 @@ export default defineComponent({
       openUpload,
       processing,
       menuOpen,
+      showSettings,
+      additive,
+      additivePrepend,
     };
   },
 });
@@ -133,16 +151,35 @@ export default defineComponent({
             target="_blank"
           >Data Format Documentation</a>
         </v-card-text>
-        <v-card-actions>
-          <v-btn
-            depressed
-            block
-            :disabled="!datasetId || processing"
-            @click="openUpload"
-          >
-            Import
-          </v-btn>
-        </v-card-actions>
+        <v-col>
+          <v-row>
+            <v-btn
+              depressed
+              block
+              :disabled="!datasetId || processing"
+              @click="openUpload"
+            >
+              Import
+            </v-btn>
+          </v-row>
+          <v-row>
+            <v-checkbox
+              v-model="showSettings"
+              label="settings"
+            />
+          </v-row>
+          <div v-if="showSettings">
+            <v-switch
+              v-model="additive"
+              label="Additive"
+            />
+            <v-text-field
+              v-model="additivePrepend"
+              label="Prepend to types"
+              clearable
+            />
+          </div>
+        </v-col>
       </v-card>
     </template>
   </v-menu>

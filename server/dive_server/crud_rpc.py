@@ -349,7 +349,7 @@ def _get_data_by_type(
 
 
 def process_items(
-    folder: types.GirderModel, user: types.GirderUserModel, additive=False, additive_prepend=''
+    folder: types.GirderModel, user: types.GirderUserModel, additive=False, additivePrepend=''
 ):
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
@@ -394,7 +394,7 @@ def process_items(
             updated_tracks = results['annotations']['tracks'].values()
             if additive:  # get annotations and add them to the end
                 tracks = crud_annotation.add_annotations(
-                    folder, results['annotations']['tracks'], additive_prepend
+                    folder, results['annotations']['tracks'], additivePrepend
                 )
                 updated_tracks = tracks.values()
             crud_annotation.save_annotations(
@@ -426,7 +426,7 @@ def postprocess(
     skipJobs: bool,
     skipTranscoding=False,
     additive=False,
-    additive_prepend='',
+    additivePrepend='',
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -537,5 +537,5 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user, additive, additive_prepend)
+    process_items(dsFolder, user, additive, additivePrepend)
     return dsFolder
