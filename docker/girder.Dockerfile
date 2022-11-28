@@ -24,7 +24,7 @@ WORKDIR /opt/dive/src
 RUN apt-get update
 RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
 # Recommended poetry install https://python-poetry.org/docs/master/#installation
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.0 POETRY_HOME=/opt/dive/poetry python -
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.2 POETRY_HOME=/opt/dive/poetry python -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
 # Create a virtual environment for the installation
 RUN python -m venv /opt/dive/local/venv
