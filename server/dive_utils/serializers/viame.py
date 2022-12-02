@@ -7,7 +7,7 @@ import io
 import json
 import os
 import re
-from typing import Any, Dict, Generator, List, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
 from dive_utils.models import Feature, Track, interpolate
@@ -265,7 +265,7 @@ def load_json_as_track_and_attributes(
 
 
 def load_csv_as_tracks_and_attributes(
-    rows: List[str], imageMap: Dict[str, int] = None
+    rows: List[str], imageMap: Optional[Dict[str, int]] = None
 ) -> Tuple[types.DIVEAnnotationSchema, dict]:
     """
     Convert VIAME CSV to json tracks
