@@ -89,6 +89,10 @@ numpy = "^1.21.4"
 opencv-python = "^4.5.5"
 tox = "^3.25.0"
 
+[tool.poetry.extras]
+girder-large-image = ["all"]
+
+
 [tool.poetry.scripts]
 diveutils = "scripts.entrypoint_dev:cli"
 dive = "scripts.entrypoint_main:cli"
