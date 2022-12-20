@@ -257,9 +257,9 @@ export default defineComponent({
         if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
           return formatSize(pendingUpload.files[0].progress.size);
         } if (pendingUpload.type === ImageSequenceType) {
-          return `${filesNotUploaded(pendingUpload)} files`;
+          return `${filesNotUploaded(pendingUpload)} files remaining`;
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
-          return `${filesNotUploaded(pendingUpload)} videos`;
+          return `${filesNotUploaded(pendingUpload)} videos remaining`;
         } if ((pendingUpload.type === VideoType || pendingUpload.type === 'zip') && pendingUpload.uploading) {
           // For videos we display the total progress when uploading because
           // single videos can be large
@@ -530,7 +530,7 @@ export default defineComponent({
               </v-tooltip>
             </v-row>
             <span v-if="uploading">
-              {{ computeUploadProgress(pendingUpload) }} remaining
+              {{ computeUploadProgress(pendingUpload) }}
             </span>
           </v-card>
           <div
