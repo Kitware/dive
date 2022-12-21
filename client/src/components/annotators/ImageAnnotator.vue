@@ -312,10 +312,16 @@ export default defineComponent({
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-        const quadFeatureLayer = geoViewer.value.createLayer('feature', {
+        const params = {
           features: ['quad'],
           autoshareRenderer: false,
-        });
+          renderer: 'canvas',
+        };
+        if (imgInternal.image.naturalWidth > 8192 || imgInternal.image.naturalHeight > 8192) {
+          params.renderer = 'canvas';
+        }
+
+        const quadFeatureLayer = geoViewer.value.createLayer('feature', params);
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         setBrightnessFilter(props.brightness !== undefined);
