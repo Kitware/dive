@@ -314,13 +314,11 @@ export default defineComponent({
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const bigImage = (
           imgInternal.image.naturalWidth > 8192 || imgInternal.image.naturalHeight > 8192);
-        const params = {
+        const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
           renderer: bigImage ? 'canvas' : 'webgl',
-        };
-
-        const quadFeatureLayer = geoViewer.value.createLayer('feature', params);
+        });
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
         setBrightnessFilter(props.brightness !== undefined);
