@@ -43,7 +43,7 @@ export default function useEventChart<T extends BaseAnnotation>({
         }
       }
       if (confidencePairs.length) {
-        const trackType = track.getType(filtered.context.confidencePairIndex)[0];
+        const trackType = track.getType(filtered.context.confidencePairIndex);
         values.push({
           id: track.id,
           name: `Track ${track.id}`,

@@ -7,7 +7,7 @@
 
 This is the documentation site for DIVE, a [**free and open-source**](https://www.kitware.com/open-philosophy/) annotation and analysis platform for web and desktop built by [Kitware](https://kitware.com). DIVE integrates with the [VIAME toolkit](https://www.viametoolkit.org/), but it can also be used on its own.
 
-[:material-compass: Try the web version](Web-Version.md){ .md-button } [:material-desktop-mac: Get the desktop app](Dive-Desktop.md){ .md-button } [:material-lifebuoy: Get support](Support.md){ .md-button }
+[:material-compass: Try the web version](Web-Version.md){ .md-button } [:fontawesome-solid-desktop: Get the desktop app](Dive-Desktop.md){ .md-button } [:material-lifebuoy: Get support](Support.md){ .md-button }
 
 
 ![Home](images/Banner.png)
