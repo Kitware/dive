@@ -11,6 +11,7 @@ import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 
 export default defineComponent({
@@ -36,6 +37,23 @@ export default defineComponent({
       argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
     } else {
       argCopy.value.jsonMeta.fps = clientSettings.annotationFPS;
+    }
+
+    // Set default attributes for a stereo calibration configuration
+    if (argCopy.value.jsonMeta.stereoConfigurationFile) {
+      argCopy.value.jsonMeta.attributes = {};
+
+      // Create x, y, z attributes
+      ['x', 'y', 'z'].forEach((attributeKey) => {
+        // ugly but necessary to avoid typescript error
+        (argCopy.value.jsonMeta.attributes as Record<string, Attribute>)[attributeKey] = {
+          belongs: 'detection',
+          datatype: 'number',
+          key: `detection_${attributeKey}`,
+          name: attributeKey,
+          values: [],
+        };
+      });
     }
 
     watch(toRef(props, 'importData'), (val) => {
