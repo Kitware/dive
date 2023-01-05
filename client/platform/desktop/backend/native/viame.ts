@@ -147,9 +147,34 @@ async function runPipeline(
 
     if (meta.multiCam.calibration) {
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
+      command.push(`-c "${meta.multiCam.calibration}"`);
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
+  }
+
+  if (meta.stereoConfigurationFile) {
+    command.push(`-c "${meta.stereoConfigurationFile}"`);
+
+    if (meta.multiCam) {
+      // eslint-disable-next-line no-restricted-syntax
+      for (const camKey of Object.keys(meta.multiCam.cameras)) {
+        const trackFilename = `tracks_${camKey}.csv`;
+        const trackFileStream = fs.createWriteStream(
+          npath.join(jobWorkDir, trackFilename),
+        );
+        // eslint-disable-next-line no-await-in-loop
+        const { trackFileAbsPath } = await common.getValidatedProjectDir(settings, `${datasetId}/${camKey}`);
+        // eslint-disable-next-line no-await-in-loop
+        const inputData = await common.loadAnnotationFile(trackFileAbsPath);
+        // eslint-disable-next-line no-await-in-loop
+        await serialize(trackFileStream, inputData, meta);
+        trackFileStream.end();
+        const fullFilePath = npath.join(jobWorkDir, trackFilename);
+
+        command.push(`-s cameras_calibration:tracks_${camKey}="${fullFilePath}"`);
+      }
+    }
   }
 
   const job = observeChild(spawn(command.join(' '), {
