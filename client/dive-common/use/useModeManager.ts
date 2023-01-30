@@ -343,13 +343,20 @@ export default function useModeManager({
   }
 
 
-  function newTrackSettingsAfterLogic(addedTrack: Track) {
+  function newTrackSettingsAfterLogic(
+    addedTrack: Track,
+    options: {
+      skipAdvanceNextFrame: boolean;
+      keepCreating: boolean;
+    } = { skipAdvanceNextFrame: false, keepCreating: false },
+  ) {
     // Default settings which are updated by the TrackSettings component
     let newCreatingValue = false; // by default, disable creating at the end of this function
     if (creating) {
       if (addedTrack && trackSettings.value.newTrackSettings !== null) {
         if (trackSettings.value.newTrackSettings.mode === 'Track'
         && trackSettings.value.newTrackSettings.modeSettings.Track.autoAdvanceFrame
+        && !options.skipAdvanceNextFrame
         ) {
           aggregateController.value.nextFrame();
           newCreatingValue = true;
@@ -362,6 +369,11 @@ export default function useModeManager({
         }
       }
     }
+
+    if (options.keepCreating) {
+      newCreatingValue = true;
+    }
+
     _nudgeEditingCanary();
     creating = newCreatingValue;
   }
@@ -785,6 +797,7 @@ export default function useModeManager({
       unstageFromMerge: handleUnstageFromMerge,
       startLinking: handleStartLinking,
       stopLinking: handleStopLinking,
+      newTrackSettingsAfterLogic,
     },
   };
 }

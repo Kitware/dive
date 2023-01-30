@@ -134,7 +134,10 @@ export default class StyleManager {
       opacity: 0.45,
       fill: false,
     };
-    this.stateStyles = { standard, selected, disabled };
+
+    this.stateStyles = {
+      standard, selected, disabled,
+    };
     this.typeColors = d3.scaleOrdinal<string>().range(generateColors(10));
     this.markChangesPending = markChangesPending;
     this.typeStyling = computed(() => {

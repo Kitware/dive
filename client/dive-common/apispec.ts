@@ -74,6 +74,7 @@ export interface MultiCamImportFolderArgs {
     trackFile: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
+  stereoConfigurationFile?: string; // kwiver *.conf file
   type: 'image-sequence' | 'video';
 }
 
@@ -85,6 +86,7 @@ export interface MultiCamImportKeywordArgs {
     trackFile: string;
   }>; // glob pattern for base folder
   calibrationFile?: string; // NPZ calibation matrix file
+  stereoConfigurationFile?: string; // kwiver *.conf file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -150,7 +152,7 @@ interface Api {
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'stereoConfiguration', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
 }

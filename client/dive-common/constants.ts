@@ -52,6 +52,7 @@ const otherVideoTypes = [
 
 const calibrationFileTypes = [
   'npz',
+  'conf',
 ];
 
 const fileVideoTypes = [
@@ -108,6 +109,10 @@ const zipFileTypes = [
   'zip',
 ];
 
+const stereoCalibrationConfigurationFileTypes = [
+  'conf',
+];
+
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 
@@ -140,4 +145,5 @@ export {
   multiCamPipelineMarkers,
   JsonMetaRegEx,
   simplifyTrainingName,
+  stereoCalibrationConfigurationFileTypes,
 };

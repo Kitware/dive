@@ -166,7 +166,6 @@ export interface Handler {
   linkCameraTrack(baseTrackId: AnnotationId, linkTrackId: AnnotationId, camera: string): void;
   startLinking(camera: string): void;
   stopLinking(): void;
-
 }
 const HandlerSymbol = Symbol('handler');
 
@@ -206,7 +205,6 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
-
   };
 }
 

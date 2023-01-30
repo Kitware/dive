@@ -40,7 +40,7 @@ export default defineComponent({
     TypeSettingsPanel,
   },
 
-  setup() {
+  setup(props, ctx) {
     const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
@@ -84,6 +84,10 @@ export default defineComponent({
       return trap;
     });
 
+    function onTrackAdded(trackId: number) {
+      ctx.emit('track-added', trackId);
+    }
+
     return {
       /* data */
       data,
@@ -100,6 +104,7 @@ export default defineComponent({
       /* methods */
       doToggleMerge,
       swapTabs,
+      onTrackAdded,
     };
   },
 });
@@ -152,6 +157,7 @@ export default defineComponent({
             :hotkeys-disabled="visible() || readOnlyMode"
             :height="bottomHeight"
             @track-seek="$emit('track-seek', $event)"
+            @track-added="onTrackAdded"
           >
             <template slot="settings">
               <TrackSettingsPanel
