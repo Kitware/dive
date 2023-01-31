@@ -4,6 +4,7 @@ venv/
 **/build
 **/tests
 **/.tox
+**/.venv
 docker/girder_data
 *.Dockerfile
 docker-compose.*
