@@ -1,4 +1,5 @@
 from girder_worker.app import app
+import sys
 
 
 def main():
@@ -8,7 +9,7 @@ def main():
     and force our config to run last
     """
     app.config_from_object('dive_tasks.celeryconfig', force=True)
-    app.worker_main()
+    app.worker_main(argv=['worker'] + sys.argv[1:] if 'worker' not in sys.argv else sys.argv)
 
 
 if __name__ == '__main__':
