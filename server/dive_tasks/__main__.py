@@ -1,5 +1,6 @@
-from girder_worker.app import app
 import sys
+
+from girder_worker.app import app
 
 
 def main():

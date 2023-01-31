@@ -2,10 +2,10 @@ import os
 from pathlib import Path
 
 from girder import events, plugin
-from girder.plugin import getPlugin
 from girder.constants import AccessType
 from girder.models.setting import Setting
 from girder.models.user import User
+from girder.plugin import getPlugin
 from girder.utility import mail_utils
 from girder.utility.model_importer import ModelImporter
 from girder_jobs.models.job import Job
@@ -32,8 +32,8 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
         info["apiRoot"].dive_rpc = RpcResource("dive_rpc")
-        # required because girder doesn't load plugins and if requested we need to manuall load first.
-        getPlugin('jobs').load(info) 
+        # required because girder doesn't load plugins in order so we need to manually load first.
+        getPlugin('jobs').load(info)
         # Setup route additions for exsting resources
         info['apiRoot'].job.route("GET", ("queued",), countJobs)
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
