@@ -6,6 +6,7 @@ import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 
 Vue.use(Install);
 
@@ -46,6 +47,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   [AttributesSideBar.name]: {
     description: 'Attribute Details',
     component: AttributesSideBar,
+  },
+  [TrackViewerSettings.name]: {
+    description: 'Track Viewer Settings',
+    component: TrackViewerSettings,
   },
 };
 

@@ -1,59 +1,36 @@
 <script lang="ts">
 import {
-  ref, onMounted, onBeforeUnmount, defineComponent, toRef,
+  ref, onMounted, onBeforeUnmount, defineComponent, watch,
 } from '@vue/composition-api';
 
 import '@kitware/vtk.js/Rendering/Profiles/Glyph';
 import '@kitware/vtk.js/Rendering/Profiles/Geometry';
 
-import vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow';
-
-import vtkAxesActor from '@kitware/vtk.js/Rendering/Core/AxesActor';
-import vtkOrientationMarkerWidget from '@kitware/vtk.js/Interaction/Widgets/OrientationMarkerWidget';
-import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
-import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
-import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
-import vtkPoints from '@kitware/vtk.js/Common/Core/Points';
 // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
 // @ts-ignore no declaration file
 import vtkCubeAxesActor from '@kitware/vtk.js/Rendering/Core/CubeAxesActor';
-import vtkCellArray from '@kitware/vtk.js/Common/Core/CellArray';
-import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
-import vtkSphereSource from '@kitware/vtk.js/Filters/Sources/SphereSource';
+// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+// @ts-ignore no declaration file
+import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
+import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
+// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+// @ts-ignore no declaration file
+import vtkInteractorStyleTrackballCamera from '@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera';
+import { debounce } from '@kitware/vtk.js/macros';
 import {
+  useTrackViewerSettingsStore,
   useSelectedTrackId,
 } from 'vue-media-annotator/provides';
-import { debounce } from '@kitware/vtk.js/macros';
-import { RGBColor } from '@kitware/vtk.js/types';
+import { ViewUtils } from './trackUtils';
 import TrackManager from './TrackManager';
 import useTrackDrawer from './useTrackDrawer';
+import { smoothBounds } from './utils';
+import { noOp } from './misc';
+import { useOrientationMarkerWidget } from './useOrientationMarkerWidget';
+import { useLabelDrawer } from './useLabelDrawer';
 import { injectAggregateController } from '../annotators/useMediaController';
-import { Feature, ViewUtils } from './trackUtils';
-
-function setInteractiveMarkerWidget(
-  renderWindow: vtkRenderWindow|null,
-): vtkOrientationMarkerWidget|null {
-  if (!renderWindow) {
-    return null;
-  }
-
-  const axes = vtkAxesActor.newInstance();
-  const orientationWidget = vtkOrientationMarkerWidget.newInstance({
-    actor: axes,
-    interactor: renderWindow.getInteractor(),
-  });
-  orientationWidget.setEnabled(true);
-  orientationWidget.setViewportCorner(
-    vtkOrientationMarkerWidget.Corners.BOTTOM_LEFT,
-  );
-  orientationWidget.setViewportSize(0.15);
-  orientationWidget.setMinPixelSize(100);
-  orientationWidget.setMaxPixelSize(300);
-
-  return orientationWidget;
-}
 
 export default defineComponent({
   name: 'TrackViewer',
@@ -63,173 +40,227 @@ export default defineComponent({
       type: Number,
       required: true,
     },
-    onlyShowSelectedTrack: {
-      type: Boolean,
-      required: true,
-    },
   },
 
-  setup(props) {
-    const onlyShowSelectedTrack = toRef(props, 'onlyShowSelectedTrack');
+  setup() {
+    const orientationMarkerWidget = useOrientationMarkerWidget();
+    const trackViewerSettingsStore = useTrackViewerSettingsStore();
+
+    const {
+      onlyShowSelectedTrack,
+      cameraParallelProjection,
+      detectionGlyphSize,
+      cubeAxesBounds,
+      adjustCubeAxesBoundsManually,
+    } = trackViewerSettingsStore;
+
+    const renderer = ref<vtkRenderer>();
+    const viewportDimensions = ref({
+      height: 0,
+      width: 0,
+    });
 
     // Initialize the data structure to keep track of every tracks present in the 3d view
     const trackManager = new TrackManager();
-    const vtkContainer = ref(null);
-    let fullScreenRenderWindow: vtkFullScreenRenderWindow|null = null;
-    const rotationMatrixTransform = vtkMatrixBuilder.buildFromDegree().rotateZ(-90);
-    let renderer: vtkRenderer|null = null;
-    let renderWindow: vtkRenderWindow|null = null;
-    let orientationWidget: vtkOrientationMarkerWidget|null = null;
+    const vtkContainer = ref<HTMLDivElement>();
 
-    const drawFeature = function drawFeature(
-      sphereSource: vtkSphereSource,
-      points: vtkPoints,
-      lines: vtkCellArray,
-      trackColor: [number, number, number],
-      { x, y, z }: { x: number; y: number; z: number},
-      idx: number,
-    ) {
-      points.setPoint(
-        idx,
-        x,
-        y,
-        z,
-      );
+    let renderWindow: vtkRenderWindow | undefined;
+    let renderWindowInteractor: vtkRenderWindowInteractor | undefined;
+    const openglRenderWindow = ref<vtkOpenGLRenderWindow>();
 
-      if (idx > 0) {
-        // eslint-disable-next-line no-param-reassign
-        lines.getData()[idx] = idx - 1;
-        // eslint-disable-next-line no-param-reassign
-        lines.getData()[idx + 1] = idx;
-      }
-
-      const pointMapper = vtkMapper.newInstance();
-      pointMapper.setInputConnection(sphereSource.getOutputPort());
-
-      const pointActor = vtkActor.newInstance();
-
-      pointActor.setUserMatrix(rotationMatrixTransform.getMatrix());
-      pointActor.setPosition(x, y, z);
-      pointActor.setMapper(pointMapper);
-      pointActor.getProperty().setColor(...trackColor);
-      pointActor.setVisibility(false);
-
-      if (renderer) {
-        renderer.addActor(pointActor);
-      }
-
-      return pointActor;
-    };
     const viewUtils: ViewUtils = {
-      rerender: () => undefined,
-      createTrackActors(trackColor: RGBColor, features: Array<Feature>) {
-        const numberOfFeatures = features.length;
-
-        // One point stands for one detection
-        const points = vtkPoints.newInstance();
-        const pd = vtkPolyData.newInstance();
-
-        const mapper = vtkMapper.newInstance();
-        const trackActor = vtkActor.newInstance();
-        const trackActorProperty = trackActor.getProperty();
-        points.setNumberOfPoints(numberOfFeatures);
-
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore bad typing rules
-        const lines = vtkCellArray.newInstance({ size: numberOfFeatures + 1 });
-        lines.getData()[0] = numberOfFeatures;
-
-        // We uses a sphere to represents a detection in space
-        const sphereSource = vtkSphereSource.newInstance();
-        sphereSource.setRadius(0.003);
-        sphereSource.setThetaResolution(20);
-
-        const frameDetections: [number, vtkActor][] = features
-          .map((feature, idx) => {
-            const featureActor = drawFeature(sphereSource, points, lines, trackColor, feature, idx);
-            return [feature.frameNumber, featureActor];
-          });
-
-        pd.setPoints(points);
-
-        mapper.setInputData(pd);
-        rotationMatrixTransform.apply(points.getData());
-        pd.setLines(lines);
-
-        trackActorProperty.setColor(...trackColor);
-        trackActorProperty.setLineWidth(3);
-        trackActor.setMapper(mapper);
-
-        if (renderer) {
-          renderer.addActor(trackActor);
-        }
-
-        return {
-          trackActor,
-          frameDetections,
-        };
-      },
+      rerender: noOp,
     };
-
-    const {
-      onSelectedTrackChange,
-      onFrameChange,
-      initializeTracks,
-    } = useTrackDrawer(trackManager, onlyShowSelectedTrack, viewUtils);
 
     const mediaController = injectAggregateController();
 
     const selectedTrackIdRef = useSelectedTrackId();
-    const { frame } = mediaController.value;
+    const { frame: frameRef } = mediaController.value;
+
+    let vtkContainerResizeObserver: ResizeObserver | null = null;
+
+
+    const { initialize: initializeTrackDrawer } = useTrackDrawer({
+      trackManager,
+      onlyShowSelectedTrack,
+      detectionGlyphSize,
+      viewUtils,
+      renderer,
+    });
+
+
+    const { initialize: initializeLabelDrawer, drawLabels, clearLabelContext } = useLabelDrawer({
+      renderer,
+      viewportDimensions,
+      openglRenderWindow,
+    });
+
+    const drawCurrentFrameDetectionLabels = function drawCurrentFrameDetectionLabels() {
+      clearLabelContext();
+
+      if (!onlyShowSelectedTrack.value) {
+        const frameTracker = trackManager.getFrameTracker(frameRef.value);
+        if (frameTracker) {
+          const positionToLabel = new Map();
+          frameTracker.detectionActors.forEach((actor, idx) => {
+            positionToLabel.set(actor.getPosition(), frameTracker.trackIds[idx]);
+          });
+          drawLabels(positionToLabel);
+        }
+      } else if (selectedTrackIdRef.value) {
+        const trackTracker = trackManager.getTrack(selectedTrackIdRef.value);
+        if (trackTracker) {
+          const frameDetectionActor = trackTracker.detectionsMap.get(frameRef.value);
+          if (frameDetectionActor) {
+            const positionToLabel = new Map();
+            positionToLabel.set(frameDetectionActor.getPosition(), selectedTrackIdRef.value);
+            drawLabels(positionToLabel);
+          }
+        }
+      }
+    };
 
     onMounted(() => {
-      if (fullScreenRenderWindow) {
-        return;
-      }
+      renderWindow = vtkRenderWindow.newInstance();
 
-      fullScreenRenderWindow = vtkFullScreenRenderWindow.newInstance({
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore rootContainer is not declared but exists
-        rootContainer: vtkContainer.value,
-        background: [0, 0, 0],
+      openglRenderWindow.value = vtkOpenGLRenderWindow.newInstance();
+      renderWindow.addView(openglRenderWindow.value);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      openglRenderWindow.value.setContainer(vtkContainer.value!);
+
+      // Initialize the openglRenderWindow original size
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const { width, height } = vtkContainer.value!.getBoundingClientRect();
+      openglRenderWindow.value.setSize(width, height);
+      viewportDimensions.value.width = width;
+      viewportDimensions.value.height = height;
+      renderWindowInteractor = vtkRenderWindowInteractor.newInstance();
+      renderWindowInteractor.setView(openglRenderWindow.value);
+      renderWindowInteractor.initialize();
+      renderWindowInteractor.bindEvents(vtkContainer.value);
+      renderWindowInteractor.setInteractorStyle(vtkInteractorStyleTrackballCamera.newInstance());
+
+      renderWindowInteractor.onAnimation(drawCurrentFrameDetectionLabels);
+
+      renderer.value = vtkRenderer.newInstance({
+        background: [0.5, 0.5, 0.5],
+      });
+      const { labelTextCanvas } = initializeLabelDrawer();
+      // Initialize the openglRenderWindow original size
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      vtkContainer.value!.appendChild(labelTextCanvas);
+      renderWindow.addRenderer(renderer.value);
+
+      const camera = renderer.value.getActiveCamera();
+
+      watch(cameraParallelProjection, (parProjection) => {
+        if (!renderer.value) {
+          throw new Error('vtkRenderer instance not found.');
+        }
+        renderer.value.getActiveCamera().setParallelProjection(parProjection);
+        // renderer.value.resetCamera();
+        viewUtils.rerender();
+      }, {
+        immediate: true,
       });
 
-      renderer = fullScreenRenderWindow.getRenderer();
-      const camera = renderer.getActiveCamera();
-
       // trying to turn off shadows
-      renderer.getLights()[0].setShadowAttenuation(0);
-      renderWindow = renderer.getRenderWindow();
+      const light = renderer.value.getLights()[0];
+
+      if (light) {
+        light.setShadowAttenuation(0);
+      }
+
       const cubeAxes = vtkCubeAxesActor.newInstance();
       cubeAxes.setCamera(camera);
 
       viewUtils.rerender = debounce(() => {
-        if (!renderWindow || !renderer) {
-          throw new Error('Render window or renderer does not exists.');
+        if (!renderWindow || renderWindow.isDeleted() || !renderer.value) {
+          // pass
+        } else {
+          if (!adjustCubeAxesBoundsManually.value) {
+            renderer.value.removeActor(cubeAxes);
+            const bounds = renderer.value.computeVisiblePropBounds();
+            const smoothedBounds = smoothBounds(bounds);
+            cubeAxes.setDataBounds(smoothedBounds);
+            renderer.value.addActor(cubeAxes);
+          }
+          drawCurrentFrameDetectionLabels();
+
+          renderWindow.render();
         }
-        renderer.removeActor(cubeAxes);
-        const bounds = renderer.computeVisiblePropBounds();
-        cubeAxes.setDataBounds(bounds);
-        renderer.addActor(cubeAxes);
-        renderWindow.render();
       }, 10);
 
-      orientationWidget = setInteractiveMarkerWidget(renderWindow);
-      initializeTracks();
+      orientationMarkerWidget.enable(
+        renderWindow.getInteractor(),
+        renderer.value.getActiveCamera(),
+        viewUtils.rerender,
+      );
 
-      const bounds = renderer.computeVisiblePropBounds();
-      cubeAxes.setDataBounds(bounds);
-      renderer.addActor(cubeAxes);
+      // Initial track drawing
+      initializeTrackDrawer();
 
-      onFrameChange(frame.value, undefined);
-      onSelectedTrackChange(selectedTrackIdRef.value, undefined);
+      const bounds = renderer.value.computeVisiblePropBounds();
+      // Always override the default bounds value on initialize
+      const smoothedBounds = smoothBounds(bounds);
+      cubeAxes.setDataBounds(smoothedBounds);
+
+      cubeAxesBounds.value = {
+        xrange: smoothedBounds.slice(0, 2) as [number, number],
+        yrange: smoothedBounds.slice(2, 4) as [number, number],
+        zrange: smoothedBounds.slice(4, 6) as [number, number],
+      };
+
+      watch(cubeAxesBounds, (newRanges) => {
+        cubeAxes.setDataBounds([
+          ...newRanges.xrange,
+          ...newRanges.yrange,
+          ...newRanges.zrange,
+        ]);
+        viewUtils.rerender();
+      }, {
+        deep: true,
+      });
+
+      renderer.value.addActor(cubeAxes);
+
+      vtkContainerResizeObserver = new ResizeObserver((entries: readonly ResizeObserverEntry[]) => {
+        const vtkContainerEntry = entries[0];
+        // eslint-disable-next-line no-shadow
+        const { width, height } = vtkContainerEntry.contentRect;
+        if (openglRenderWindow.value) openglRenderWindow.value.setSize(width, height);
+
+        viewportDimensions.value.width = width;
+        viewportDimensions.value.height = height;
+
+        labelTextCanvas.setAttribute('width', String(width));
+        labelTextCanvas.setAttribute('height', String(height));
+        viewUtils.rerender();
+      });
+      // Observe the renderWindow container so we automatically resize the openglRenderWindow
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      vtkContainerResizeObserver.observe(vtkContainer.value!);
+      renderer.value.resetCamera();
+      viewUtils.rerender();
     });
 
     onBeforeUnmount(() => {
-      if (fullScreenRenderWindow) fullScreenRenderWindow.delete();
-      if (orientationWidget) orientationWidget.delete();
-      fullScreenRenderWindow = null;
-      orientationWidget = null;
+      viewUtils.rerender = noOp;
+      // Stop observing for resize
+      if (vtkContainerResizeObserver) vtkContainerResizeObserver.disconnect();
+      orientationMarkerWidget.disable();
+
+      if (renderer.value) renderer.value.delete();
+      if (openglRenderWindow.value) openglRenderWindow.value.delete();
+      if (renderWindow) renderWindow.delete();
+
+      if (renderWindowInteractor) {
+        renderWindowInteractor.unbindEvents();
+        renderWindowInteractor.delete();
+      }
+      openglRenderWindow.value = undefined;
+      renderWindow = undefined;
+      renderWindowInteractor = undefined;
     });
 
     return {
@@ -248,7 +279,8 @@ export default defineComponent({
 </template>
 
 <style>
-.vtk-container div {
-  max-height: calc(100% - var(--controls-height));
+.vtk-container {
+  width: 100%;
+  height: 100%;
 }
 </style>

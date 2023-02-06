@@ -1,3 +1,4 @@
+<!-- eslint-disable max-len -->
 <script lang="ts">
 import {
   defineComponent, ref, toRef, computed, Ref, reactive, watch, inject, nextTick, onBeforeUnmount,
@@ -48,6 +49,7 @@ import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
 import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
+import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 
@@ -92,9 +94,6 @@ export default defineComponent({
     const loadError = ref('');
 
     const tracks3d = ref(false);
-    const trackViewerSettings = reactive({
-      onlyShowSelectedTrack: false,
-    });
 
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -172,6 +171,7 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const trackViewerSettingsStore = new TrackViewerSettingsStore();
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -663,15 +663,6 @@ export default defineComponent({
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
 
-    // Handles the case where the user is leaving the 3d viewer, if so, just reloads the view
-    // in order to avoid broken features
-    watch(tracks3d, (newTracks3d: boolean, oldTracks3d: boolean) => {
-      if (oldTracks3d && !newTracks3d) {
-        reloadAnnotations();
-      }
-    });
-
-
     function handleResize() {
       if (controlsRef.value) {
         controlsHeight.value = controlsRef.value.$el.clientHeight;
@@ -785,6 +776,7 @@ export default defineComponent({
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
+        trackViewerSettingsStore,
         datasetId,
         editingMode,
         groupFilters,
@@ -866,7 +858,6 @@ export default defineComponent({
       onGeometryAdded,
       datasetId,
       tracks3d,
-      trackViewerSettings,
     };
   },
 });
@@ -952,10 +943,6 @@ export default defineComponent({
           Toggle 3d
         </v-btn>
 
-        <track-viewer-settings
-          v-if="tracks3d"
-          :only-show-selected-track.sync="trackViewerSettings.onlyShowSelectedTrack"
-        />
         <v-divider
           vertical
           class="mx-2"
@@ -1043,20 +1030,22 @@ export default defineComponent({
           ]"
           class="d-flex flex-column grow"
         >
-          <track-viewer
-            v-if="tracks3d"
-            :controls-height="controlsHeight"
-            :only-show-selected-track="trackViewerSettings.onlyShowSelectedTrack"
-          />
           <div
-            v-else
-            class="d-flex grow"
+            class="d-flex grow flex-wrap"
+            :style="{ 'max-height': `calc(100% - ${controlsHeight}px)` }"
           >
+            <div
+              v-if="tracks3d"
+              :style="{ height: '50%', width: '100%', 'flex-basis': '100%' }"
+            >
+              <track-viewer :controls-height="controlsHeight" />
+            </div>
+
             <div
               v-for="camera in multiCamList"
               :key="camera"
               class="d-flex flex-column grow"
-              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              :style="tracks3d ? { height: '50%' } : { height: '100%' }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
