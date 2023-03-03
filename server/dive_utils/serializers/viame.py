@@ -63,6 +63,8 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
 
 
 def _deduceType(value: Any) -> Union[bool, float, str]:
+    if isinstance(value, dict) or isinstance(value, list):
+        return None
     if value == "true":
         return True
     if value == "false":
@@ -71,8 +73,6 @@ def _deduceType(value: Any) -> Union[bool, float, str]:
         number = float(value)
         return number
     except ValueError:
-        if isinstance(value, dict) or isinstance(value, list):
-            return None
         return value
 
 
@@ -191,6 +191,8 @@ def create_attributes(
     key: str,
     val,
 ):
+    if val is None:
+        return
     valstring = f'{val}'
     attribute_key = f'{atr_type}_{key}'
     if attribute_key not in metadata_attributes:
@@ -261,7 +263,6 @@ def load_json_as_track_and_attributes(
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for (key, val) in detection_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
-
     calculate_attribute_types(metadata_attributes, test_vals)
     return json_data, metadata_attributes
 
