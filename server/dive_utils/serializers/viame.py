@@ -62,7 +62,7 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
-def _deduceType(value: str) -> Union[bool, float, str]:
+def _deduceType(value: Any) -> Union[bool, float, str]:
     if value == "true":
         return True
     if value == "false":
@@ -71,6 +71,8 @@ def _deduceType(value: str) -> Union[bool, float, str]:
         number = float(value)
         return number
     except ValueError:
+        if isinstance(value, dict) or isinstance(value, list):
+            return None
         return value
 
 
