@@ -319,9 +319,8 @@ def add_annotations(
         annotations['tracks'][serialized['id']] = serialized
         max_track_id = max(max_track_id, serialized['id'])
     # Now add in the new tracks while renaming them
-    count = 1
     for key in new_tracks.keys():
-        new_id = int(key) + max_track_id + count
+        new_id = int(key) + max_track_id + 1
         annotations['tracks'][new_id] = new_tracks[key]
         annotations['tracks'][new_id]['id'] = new_id
         if prepend != '':
@@ -330,7 +329,6 @@ def add_annotations(
             for confidencePairs in track['confidencePairs']:
                 newPairs.append([f'{prepend}_{confidencePairs[0]}', confidencePairs[1]])
             annotations['tracks'][new_id]['confidencePairs'] = newPairs
-        count += 1
 
     return annotations['tracks']
 

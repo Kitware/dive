@@ -283,7 +283,8 @@ def load_csv_as_tracks_and_attributes(
     reordered = False
     anyImageMatched = False
     missingImages: List[str] = []
-    for row in reader:
+    sortedlist = sorted(reader, key=lambda x: int(x[2]))
+    for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             continue
