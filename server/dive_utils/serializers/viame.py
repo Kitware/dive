@@ -38,7 +38,7 @@ def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
     metadata_dict['exported_by'] = 'dive:python'
     metadata_dict['exported_time'] = datetime.datetime.now().ctime()
     metadata_list = []
-    for (key, value) in metadata_dict.items():
+    for key, value in metadata_dict.items():
         metadata_list.append(f"{key}: {json.dumps(value)}")
     writer.writerow(['# metadata', *metadata_list])
 
@@ -217,7 +217,7 @@ def calculate_attribute_types(
             attribute_type = 'number'
             low_count = predefined_min_count
             values = []
-            for (key, val) in test_vals[attributeKey].items():
+            for key, val in test_vals[attributeKey].items():
                 if val <= low_count:
                     low_count = val
                 values.append(key)
@@ -246,18 +246,18 @@ def load_json_as_track_and_attributes(
     test_vals: Dict[str, Dict[str, int]] = {}
     tracks = json_data['tracks']
     # Get Attribute Maps to values
-    for (key, track) in tracks.items():
+    for key, track in tracks.items():
         track_attributes = {}
         detection_attributes = {}
-        for (attrkey, attribute) in track['attributes'].items():
+        for attrkey, attribute in track['attributes'].items():
             track_attributes[attrkey] = _deduceType(attribute)
         for feature in track['features']:
             if 'attributes' in feature.keys():
-                for (attrkey, attribute) in feature['attributes'].items():
+                for attrkey, attribute in feature['attributes'].items():
                     detection_attributes[attrkey] = _deduceType(attribute)
-        for (key, val) in track_attributes.items():
+        for key, val in track_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
-        for (key, val) in detection_attributes.items():
+        for key, val in detection_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
     calculate_attribute_types(metadata_attributes, test_vals)
@@ -324,10 +324,10 @@ def load_csv_as_tracks_and_attributes(
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 
-        for (key, val) in track_attributes.items():
+        for key, val in track_attributes.items():
             track.attributes[key] = val
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
-        for (key, val) in attributes.items():
+        for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
     trackarr = tracks.items()
@@ -394,7 +394,6 @@ def export_tracks_as_csv(
     for t in track_iterator:
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-
             # filter by types if applicable
             if typeFilter:
                 confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
