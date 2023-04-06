@@ -278,8 +278,8 @@ def load_csv_as_tracks_and_attributes(
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     reordered = False
-    anyImageMatched = False
     missingImages: List[str] = []
+    foundImages: List[Dict[str, Union[str, int]]] = []  # {image:str, frame: int, csvFrame: int}
     for row in reader:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
@@ -297,26 +297,30 @@ def load_csv_as_tracks_and_attributes(
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))
             expectedFrameNumber = imageMap.get(imageName)
+            foundFrame = expectedFrameNumber
+            if expectedFrameNumber is None:
+                foundFrame = -1
+            foundImage = {'image': imageName, 'frame': foundFrame, 'csvFrame': feature.frame}
+            hasImageAlready = foundImage in foundImages
+            if foundFrame != -1 and not hasImageAlready:
+                foundImages.append(foundImage)
             if expectedFrameNumber is None:
                 missingImages.append(imageFile)
-            elif expectedFrameNumber != feature.frame:
-                # force reorder the annotations
-                reordered = True
-                anyImageMatched = True
-                feature.frame = expectedFrameNumber
-            else:
-                anyImageMatched = True
 
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, id=trackId)
-        elif reordered:
-            # trackId was already in tracks, so the track consists of multiple frames
-            raise ValueError(
-                (
-                    'images were provided in an unexpected order '
-                    'and dataset contains multi-frame tracks. '
+        else:
+            maxFeatureFrame = float('-inf')
+            for subFeature in track.features:
+                maxFeatureFrame = max(maxFeatureFrame, subFeature.frame)
+            if feature.frame < maxFeatureFrame:
+                # trackId was already in tracks, so the track consists of multiple frames
+                raise ValueError(
+                    (
+                        'images were provided in an unexpected order '
+                        'and dataset contains multi-frame tracks. '
+                    )
                 )
-            )
 
         track = tracks[trackId]
         track.begin = min(feature.frame, track.begin)
@@ -330,23 +334,77 @@ def load_csv_as_tracks_and_attributes(
         for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
-    trackarr = tracks.items()
+    if imageMap and len(missingImages) and len(foundImages):
+        minFrame = float('inf')
+        maxFrame = float('-inf')
+        frameMapper = {}
+        filteredImages = [item for item in foundImages if item['frame'] != -1]
+        for index, item in enumerate(filteredImages):
+            if item['frame'] == -1:
+                continue
+            k = index + 1
+            if k < len(filteredImages):
+                if item['csvFrame'] + 1 != filteredImages[k]['csvFrame']:
+                    # We have misaligned video sequences so we error out
+                    raise ValueError(
+                        (
+                            'A subsampling of images were used with the CSV but they were not sequential'
+                        )
+                    )
+            frameMapper[item['csvFrame']] = index
+            minFrame = min(minFrame, item['csvFrame'])
+            maxFrame = max(maxFrame, item['csvFrame'])
 
-    if imageMap and len(missingImages) and anyImageMatched:
-        examples = ', '.join(missingImages[:3])
-        raise ValueError(
-            ' '.join(
-                [
-                    'CSV import was found to have a mix of missing images and images that',
-                    'were found in the data. This usually indicates a problem with the',
-                    'annotation file, but if you want to force the import to proceed, you',
-                    'can set all values in the Image Name column to be blank.  Then DIVE',
-                    'will not attempt to validate image names.',
-                    f'Missing images include: {examples}...',
-                ]
-            )
-        )
+        # Now we need to remap and filter tracks that are outside the frame range
+        trackValArr = list(tracks.values())
+        print(f'MaxFrame:{maxFrame} MinFrame:{minFrame}')
+        newDataMap: Dict[int, Track] = {}
+        for track in trackValArr:
+            if track.end >= minFrame or track.begin <= maxFrame:
+                begin = track.begin
+                end = track.end
+                if begin < minFrame or begin not in frameMapper.keys():
+                    begin = frameMapper[minFrame]
+                else:
+                    begin = frameMapper[begin]
+                if end > maxFrame or end not in frameMapper.keys():
+                    end = frameMapper[maxFrame]
+                else:
+                    end = frameMapper[end]
+                newTrack = Track(
+                    begin=begin,
+                    end=end,
+                    id=track.id,
+                    attributes=track.attributes,
+                    confidencePairs=track.confidencePairs,
+                )
+                for subFeature in track.features:
+                    # if feature frame is within the subFeature add and remap the frame to the new time
+                    if subFeature.frame >= minFrame and subFeature.frame <= maxFrame:
+                        newFeature = Feature(
+                            frame=subFeature.frame,
+                            bounds=subFeature.bounds,
+                            attributes=subFeature.attributes or None,
+                            geometry=subFeature.geometry or None,
+                            head=subFeature.head or None,
+                            tail=subFeature.tail or None,
+                            fishLength=subFeature.fishLength or None,
+                            interpolate=subFeature.interpolate or None,
+                            keyframe=subFeature.keyframe or None,
+                        )
+                        newFeature.frame = frameMapper[newFeature.frame]
+                        newTrack.features.append(newFeature)
+                if len(newTrack.features):
+                    # Only add the track if it has features
+                    print('Setting new Track')
+                    print(newTrack)
+                    newDataMap[newTrack.id] = newTrack
+        # Set the original tracks to the new list
+        print(newDataMap)
+        tracks = newDataMap
+
     # Now we process all the metadata_attributes for the types
+    trackarr = tracks.items()
     calculate_attribute_types(metadata_attributes, test_vals)
     annotations: types.DIVEAnnotationSchema = {
         'tracks': {str(trackId): track.dict(exclude_none=True) for trackId, track in trackarr},

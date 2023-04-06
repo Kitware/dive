@@ -251,7 +251,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
-  let anyImageMatched = false;
   let error: Error | undefined;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
@@ -371,8 +370,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             }
             if (expectedFrameNumber === undefined) {
               missingImages.push(rowInfo.filename);
-            } else {
-              anyImageMatched = true;
             }
           }
 
