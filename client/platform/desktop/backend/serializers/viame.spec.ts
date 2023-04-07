@@ -55,7 +55,7 @@ const imageFilenameTests = [
   },
   {
     pass: false,
-    error: 'Error: annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+    error: 'Error: Images were provided in an unexpected order and dataset contains multi-frame tracks.',
     csv: [
       '99,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '99,3.png,1,111,222,3333,444,1,-1,typestring,0.55',

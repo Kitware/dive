@@ -252,6 +252,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
   let error: Error | undefined;
+  let multiFrameTracks = false;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
     pipeline([input, parser], (err) => {
@@ -279,7 +280,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           }
           const k = i + 1;
           if (k < filteredImages.length) {
-            if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame) {
+            if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame || filteredImages[i].frame + 1 !== filteredImages[k].frame) {
             // We have misaligned video sequences so we error out
               error = new Error('A subsampling of images were used with the CSV but they were not sequential');
             }
@@ -336,8 +337,17 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
         Object.values(newDataMap).forEach((track) => {
           dataMap.set(track.id, track);
         });
+      } else if (missingImages.length === 0 && foundImages.length && multiFrameTracks) {
+        for (let i = 0; i < foundImages.length; i += 1) {
+          const k = i + 1;
+          if (k < foundImages.length) {
+            if (foundImages[i].csvFrame + 1 !== foundImages[k].csvFrame || foundImages[i].frame + 1 !== foundImages[k].frame) {
+            // We have misaligned video sequences so we error out
+              error = new Error('Images were provided in an unexpected order and dataset contains multi-frame tracks.');
+            }
+          }
+        }
       }
-
       const tracks = Object.fromEntries(dataMap);
 
       if (error !== undefined) {
@@ -386,6 +396,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             };
             dataMap.set(rowInfo.id, track);
           } else {
+            multiFrameTracks = true;
             let maxFeatureFrame = -Infinity;
             track.features.forEach((subFeature) => {
               maxFeatureFrame = Math.max(maxFeatureFrame, subFeature.frame);

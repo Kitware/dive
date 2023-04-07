@@ -277,7 +277,7 @@ def load_csv_as_tracks_and_attributes(
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
-    reordered = False
+    multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Union[str, int]]] = []  # {image:str, frame: int, csvFrame: int}
     for row in reader:
@@ -310,6 +310,7 @@ def load_csv_as_tracks_and_attributes(
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, id=trackId)
         else:
+            multiFrameTracks = True
             maxFeatureFrame = float('-inf')
             for subFeature in track.features:
                 maxFeatureFrame = max(maxFeatureFrame, subFeature.frame)
@@ -317,7 +318,7 @@ def load_csv_as_tracks_and_attributes(
                 # trackId was already in tracks, so the track consists of multiple frames
                 raise ValueError(
                     (
-                        'images were provided in an unexpected order '
+                        'Images were provided in an unexpected order '
                         'and dataset contains multi-frame tracks. '
                     )
                 )
@@ -344,7 +345,10 @@ def load_csv_as_tracks_and_attributes(
                 continue
             k = index + 1
             if k < len(filteredImages):
-                if item['csvFrame'] + 1 != filteredImages[k]['csvFrame']:
+                if (
+                    item['csvFrame'] + 1 != filteredImages[k]['csvFrame']
+                    or item['frame'] + 1 != filteredImages[k]['frame']
+                ):
                     # We have misaligned video sequences so we error out
                     raise ValueError(
                         (
@@ -357,7 +361,6 @@ def load_csv_as_tracks_and_attributes(
 
         # Now we need to remap and filter tracks that are outside the frame range
         trackValArr = list(tracks.values())
-        print(f'MaxFrame:{maxFrame} MinFrame:{minFrame}')
         newDataMap: Dict[int, Track] = {}
         for track in trackValArr:
             if track.end >= minFrame or track.begin <= maxFrame:
@@ -396,12 +399,24 @@ def load_csv_as_tracks_and_attributes(
                         newTrack.features.append(newFeature)
                 if len(newTrack.features):
                     # Only add the track if it has features
-                    print('Setting new Track')
-                    print(newTrack)
                     newDataMap[newTrack.id] = newTrack
         # Set the original tracks to the new list
-        print(newDataMap)
         tracks = newDataMap
+    elif len(foundImages) and len(missingImages) == 0 and multiFrameTracks:
+        # check ordering
+        for index, item in enumerate(foundImages):
+            k = index + 1
+            if k < len(foundImages):
+                if (
+                    item['csvFrame'] + 1 != foundImages[k]['csvFrame']
+                    or item['frame'] + 1 != foundImages[k]['frame']
+                ):
+                    # We have misaligned video sequences so we error out
+                    raise ValueError(
+                        (
+                            'Images were provided in an unexpected order and dataset contains multi-frame tracks.'
+                        )
+                    )
 
     # Now we process all the metadata_attributes for the types
     trackarr = tracks.items()
