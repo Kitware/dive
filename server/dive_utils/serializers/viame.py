@@ -310,6 +310,7 @@ def load_csv_as_tracks_and_attributes(
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, id=trackId)
         else:
+            track = tracks[trackId]
             multiFrameTracks = True
             maxFeatureFrame = float('-inf')
             for subFeature in track.features:
@@ -352,7 +353,8 @@ def load_csv_as_tracks_and_attributes(
                     # We have misaligned video sequences so we error out
                     raise ValueError(
                         (
-                            'A subsampling of images were used with the CSV but they were not sequential'
+                            'A subsampling of images were used with the CSV '
+                            'but they were not sequential'
                         )
                     )
             frameMapper[item['csvFrame']] = index
@@ -382,7 +384,7 @@ def load_csv_as_tracks_and_attributes(
                     confidencePairs=track.confidencePairs,
                 )
                 for subFeature in track.features:
-                    # if feature frame is within the subFeature add and remap the frame to the new time
+                    # feature frame is within the subFeature add and remap the frame to the new time
                     if subFeature.frame >= minFrame and subFeature.frame <= maxFrame:
                         newFeature = Feature(
                             frame=subFeature.frame,
@@ -414,7 +416,8 @@ def load_csv_as_tracks_and_attributes(
                     # We have misaligned video sequences so we error out
                     raise ValueError(
                         (
-                            'Images were provided in an unexpected order and dataset contains multi-frame tracks.'
+                            'Images were provided in an unexpected order '
+                            'and dataset contains multi-frame tracks.'
                         )
                     )
 
