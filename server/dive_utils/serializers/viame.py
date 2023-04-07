@@ -279,7 +279,7 @@ def load_csv_as_tracks_and_attributes(
     test_vals: Dict[str, Dict[str, int]] = {}
     multiFrameTracks = False
     missingImages: List[str] = []
-    foundImages: List[Dict[str, Union[str, int]]] = []  # {image:str, frame: int, csvFrame: int}
+    foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     for row in reader:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
