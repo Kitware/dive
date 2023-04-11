@@ -17,7 +17,7 @@ export interface UpdateResponse {
     string,
     GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>[]
   >;
-  union: GeoJSON.Polygon[];
+  union: GeoJSON.Polygon[] | [];
   unionWithoutBounds: GeoJSON.Polygon[];
   done?: boolean;
   newType?: EditAnnotationTypes;

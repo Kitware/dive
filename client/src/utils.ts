@@ -152,6 +152,12 @@ function getResponseError(error: AxiosError): string {
   return String(response?.data?.message || response?.data || error);
 }
 
+function withinBounds(coord: [number, number], bounds: RectBounds) {
+  const x = coord[0];
+  const y = coord[1];
+  return (x > bounds[0] && x < bounds[2] && y > bounds[1] && y < bounds[3]);
+}
+
 export {
   getResponseError,
   boundToGeojson,
@@ -162,4 +168,5 @@ export {
   removePoint,
   reOrderBounds,
   reOrdergeoJSON,
+  withinBounds,
 };
