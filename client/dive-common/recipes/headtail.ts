@@ -190,11 +190,13 @@ export default class HeadTail implements Recipe {
           } as GeoJSON.LineString;
         }
         if (geom.coordinates.length === 2) {
-          // If both are inside of the bbox don't adjust the union
           let union = HeadTail.findBounds(geom, PaddingVector);
           if (bounds !== null) {
+            // If both are inside of the bbox don't adjust the union
             if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
               union = [];
+            } else if (tail.length > 0) { // If creating new box add padding
+              union = HeadTail.findBounds(geom, PaddingVectorZero);
             }
           }
           // Both head and tail placed, replace them.
@@ -230,7 +232,7 @@ export default class HeadTail implements Recipe {
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
-          union: [HeadTail.findBounds(linestring.geometry, PaddingVectorZero)],
+          union: HeadTail.findBounds(linestring.geometry, PaddingVectorZero),
           done: true,
         };
       }
