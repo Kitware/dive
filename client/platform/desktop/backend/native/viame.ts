@@ -120,16 +120,17 @@ async function runPipeline(
       `-s track_writer:file_name="${trackOutput}"`,
     ];
   }
-  if (requiresInput) {
+  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+    || multiCamPipelineMarkers.includes(pipeline.type));
+  if (requiresInput && !stereoOrMultiCam) {
     command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
     command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
   }
 
   let multiOutFiles: Record<string, string>;
-  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
-    || multiCamPipelineMarkers.includes(pipeline.type));
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = writeMultiCamStereoPipelineArgs(jobWorkDir, meta);
+    // eslint-disable-next-line max-len
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
