@@ -62,7 +62,10 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
-def _deduceType(value: str) -> Union[bool, float, str]:
+def _deduceType(value: Any) -> Union[bool, float, str]:
+    if isinstance(value, dict) or isinstance(value, list):
+        return None
+
     if value == "true":
         return True
     if value == "false":
@@ -189,6 +192,8 @@ def create_attributes(
     key: str,
     val,
 ):
+    if val is None:
+        return
     valstring = f'{val}'
     attribute_key = f'{atr_type}_{key}'
     if attribute_key not in metadata_attributes:
