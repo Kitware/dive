@@ -263,7 +263,7 @@ def export_datasets_zipstream(
                     mediaFolder,
                     filters={"lowerName": {"$regex": mediaRegex}},
                 ):
-                    for (path, file) in Item().fileList(item):
+                    for path, file in Item().fileList(item):
                         for data in z.addFile(file, Path(f'{zip_path}{path}')):
                             yield data
                         break  # Media items should only have 1 valid file
