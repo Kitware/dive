@@ -283,6 +283,7 @@ def load_csv_as_tracks_and_attributes(
     test_vals: Dict[str, Dict[str, int]] = {}
     multiFrameTracks = False
     missingImages: List[str] = []
+    foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=lambda x: int(x[2]))
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):

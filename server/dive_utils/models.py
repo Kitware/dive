@@ -197,6 +197,7 @@ class GirderMetadataStatic(MetadataMutable):
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
 
+
 class MediaResource(BaseModel):
     url: str
     id: str
