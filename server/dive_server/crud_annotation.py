@@ -321,14 +321,15 @@ def add_annotations(
     # Now add in the new tracks while renaming them
     for key in new_tracks.keys():
         new_id = int(key) + max_track_id + 1
-        annotations['tracks'][new_id] = new_tracks[key]
-        annotations['tracks'][new_id]['id'] = new_id
+        new_id_str = str(new_id)
+        annotations['tracks'][new_id_str] = new_tracks[key]
+        annotations['tracks'][new_id_str]['id'] = new_id
         if prepend != '':
-            track = annotations['tracks'][new_id]
+            track = annotations['tracks'][new_id_str]
             newPairs = []
             for confidencePairs in track['confidencePairs']:
                 newPairs.append([f'{prepend}_{confidencePairs[0]}', confidencePairs[1]])
-            annotations['tracks'][new_id]['confidencePairs'] = newPairs
+            annotations['tracks'][new_id_str]['confidencePairs'] = newPairs
 
     return annotations['tracks']
 
