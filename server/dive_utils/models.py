@@ -196,8 +196,6 @@ class GirderMetadataStatic(MetadataMutable):
     originalFps: Optional[Union[float, int]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
-    probeClip: Optional[bool]
-
 
 class MediaResource(BaseModel):
     url: str
