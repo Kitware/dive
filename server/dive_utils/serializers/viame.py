@@ -268,6 +268,13 @@ def load_json_as_track_and_attributes(
     return json_data, metadata_attributes
 
 
+def custom_sort(row):
+    if len(row) == 0 or row[0].startswith("#"):
+        return (0, 0)
+    else:
+        return (1, int(row[2]))
+
+
 def load_csv_as_tracks_and_attributes(
     rows: List[str], imageMap: Optional[Dict[str, int]] = None
 ) -> Tuple[types.DIVEAnnotationSchema, dict]:
@@ -284,7 +291,7 @@ def load_csv_as_tracks_and_attributes(
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
-    sortedlist = sorted(reader, key=lambda x: int(x[2]))
+    sortedlist = sorted(reader, key=custom_sort)
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
