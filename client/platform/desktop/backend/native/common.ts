@@ -9,7 +9,7 @@ import mime from 'mime-types';
 import moment from 'moment';
 import lockfile from 'proper-lockfile';
 import {
-  cloneDeep, merge, uniq, pick, add, max,
+  cloneDeep, merge, uniq, pick,
 } from 'lodash';
 
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';

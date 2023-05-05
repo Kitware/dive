@@ -162,12 +162,22 @@ export default defineComponent({
               </v-btn>
             </v-row>
             <v-row>
-              <v-switch
-                v-model="additive"
-                label="Additive"
+              <v-checkbox
+                :input-value="!additive"
+                label="Overwrite"
+                @change="additive = !$event"
               />
             </v-row>
             <div v-if="additive">
+              <div
+                v-if="additive"
+                class="pa-2"
+              >
+                Imported annotations will be added to existing annotations.
+              </div>
+              <div class="pa-2">
+                The types can be modified to have a prepended value for comparison.
+              </div>
               <v-text-field
                 v-model="additivePrepend"
                 label="Prepend to types"
