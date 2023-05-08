@@ -264,9 +264,15 @@ def load_json_as_track_and_attributes(
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for key, val in detection_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
-
     calculate_attribute_types(metadata_attributes, test_vals)
     return json_data, metadata_attributes
+
+
+def custom_sort(row):
+    if len(row) == 0 or row[0].startswith("#"):
+        return (0, 0)
+    else:
+        return (1, int(row[2]))
 
 
 def load_csv_as_tracks_and_attributes(
@@ -285,7 +291,8 @@ def load_csv_as_tracks_and_attributes(
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
-    for row in reader:
+    sortedlist = sorted(reader, key=custom_sort)
+    for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             continue

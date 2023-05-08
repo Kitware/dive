@@ -548,6 +548,8 @@ async function _ingestFilePath(
   datasetId: string,
   path: string,
   imageMap?: Map<string, number>,
+  additive = false,
+  additivePrepend = '',
 ): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
   if (!fs.existsSync(path)) {
     return null;
@@ -588,6 +590,32 @@ async function _ingestFilePath(
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
   }
+  // If it is additive we need to re-ID tracks and do additive prepends
+  if (additive) {
+    // Load previous data
+    const existing = await loadDetections(settings, datasetId);
+    const { tracks } = existing;
+    let maxTrackId = -1;
+    Object.values(tracks).forEach((item) => {
+      maxTrackId = Math.max(item.id, maxTrackId);
+    });
+    maxTrackId += 1;
+    const newTracks = Object.values(annotations.tracks);
+    for (let i = 0; i < newTracks.length; i += 1) {
+      const newTrack = newTracks[i];
+      newTrack.id += maxTrackId;
+      if (additivePrepend !== '') {
+        const { confidencePairs } = newTrack;
+        for (let k = 0; k < confidencePairs.length; k += 1) {
+          confidencePairs[k] = [`${additivePrepend}_${confidencePairs[k][0]}`, confidencePairs[k][1]];
+        }
+        newTrack.confidencePairs = confidencePairs;
+      }
+      existing.tracks[newTrack.id] = newTrack;
+    }
+    annotations.tracks = existing.tracks;
+  }
+
   if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
     const processed = processTrackAttributes(Object.values(annotations.tracks));
     meta.attributes = processed.attributes;
@@ -618,6 +646,8 @@ async function ingestDataFiles(
   absPaths: string[],
   multiCamResults?: Record<string, string>,
   imageMap?: Map<string, number>,
+  additive = false,
+  additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
@@ -628,7 +658,9 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(settings, datasetId, path, imageMap);
+    const newMeta = await _ingestFilePath(
+      settings, datasetId, path, imageMap, additive, additivePrepend,
+    );
     if (newMeta !== null) {
       merge(meta, newMeta);
       processedFiles.push(path);
@@ -876,11 +908,12 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
   return undefined;
 }
 
-async function dataFileImport(settings: Settings, id: string, path: string) {
+async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   const result = await ingestDataFiles(
     settings, id, [path], undefined, validImageNamesMap(jsonMeta),
+    additive, additivePrepend,
   );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
