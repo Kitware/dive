@@ -1,9 +1,11 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import { Pipe } from 'dive-common/apispec';
 
-function postProcess(folderId: string, skipJobs = false, skipTranscoding = false) {
+function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '') {
   return girderRest.post(`dive_rpc/postprocess/${folderId}`, null, {
-    params: { skipJobs, skipTranscoding },
+    params: {
+      skipJobs, skipTranscoding, additive, additivePrepend,
+    },
   });
 }
 

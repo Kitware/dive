@@ -43,7 +43,7 @@ class Feature(BaseModel):
     frame: int
     flick: Optional[int]
     bounds: List[int]
-    attributes: Optional[Dict[str, Union[bool, float, str]]]
+    attributes: Optional[Dict[str, Any]] = {}
     geometry: Optional[GeoJSONFeatureCollection] = None
     head: Optional[Tuple[float, float]] = None
     tail: Optional[Tuple[float, float]] = None

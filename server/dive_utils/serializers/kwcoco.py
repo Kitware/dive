@@ -212,10 +212,10 @@ def load_coco_as_tracks_and_attributes(
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 
-        for (key, val) in track_attributes.items():
+        for key, val in track_attributes.items():
             track.attributes[key] = val
             viame.create_attributes(metadata_attributes, test_vals, 'track', key, val)
-        for (key, val) in attributes.items():
+        for key, val in attributes.items():
             viame.create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
     # Now we process all the metadata_attributes for the types
