@@ -35,6 +35,8 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const processing = ref(false);
     const menuOpen = ref(false);
+    const additive = ref(false);
+    const additivePrepend = ref('');
     const openUpload = async () => {
       try {
         const ret = await openFromDisk('annotation');
@@ -44,9 +46,21 @@ export default defineComponent({
           let importFile = false;
           processing.value = true;
           if (ret.fileList?.length) {
-            importFile = await importAnnotationFile(props.datasetId, path, ret.fileList[0]);
+            importFile = await importAnnotationFile(
+              props.datasetId,
+              path,
+              ret.fileList[0],
+              additive.value,
+              additivePrepend.value,
+            );
           } else {
-            importFile = await importAnnotationFile(props.datasetId, path);
+            importFile = await importAnnotationFile(
+              props.datasetId,
+              path,
+              undefined,
+              additive.value,
+              additivePrepend.value,
+            );
           }
 
           if (importFile) {
@@ -68,6 +82,8 @@ export default defineComponent({
       openUpload,
       processing,
       menuOpen,
+      additive,
+      additivePrepend,
     };
   },
 });
@@ -133,16 +149,43 @@ export default defineComponent({
             target="_blank"
           >Data Format Documentation</a>
         </v-card-text>
-        <v-card-actions>
-          <v-btn
-            depressed
-            block
-            :disabled="!datasetId || processing"
-            @click="openUpload"
-          >
-            Import
-          </v-btn>
-        </v-card-actions>
+        <v-container>
+          <v-col>
+            <v-row>
+              <v-btn
+                depressed
+                block
+                :disabled="!datasetId || processing"
+                @click="openUpload"
+              >
+                Import
+              </v-btn>
+            </v-row>
+            <v-row>
+              <v-checkbox
+                :input-value="!additive"
+                label="Overwrite"
+                @change="additive = !$event"
+              />
+            </v-row>
+            <div v-if="additive">
+              <div
+                v-if="additive"
+                class="pa-2"
+              >
+                Imported annotations will be added to existing annotations.
+              </div>
+              <div class="pa-2">
+                The types can be modified to have a prepended value for comparison.
+              </div>
+              <v-text-field
+                v-model="additivePrepend"
+                label="Prepend to types"
+                clearable
+              />
+            </div>
+          </v-col>
+        </v-container>
       </v-card>
     </template>
   </v-menu>

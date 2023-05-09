@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /**
  * VIAME CSV parser/serializer copied logically from
  * dive_utils.serializers.viame python module
@@ -7,7 +8,7 @@ import csvparser from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
-import { flattenDeep } from 'lodash';
+import { cloneDeep, flattenDeep } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
@@ -249,9 +250,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   let fps: number | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
-  let reordered = false;
-  let anyImageMatched = false;
-  let error: Error;
+  const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
+  let error: Error | undefined;
+  let multiFrameTracks = false;
 
   return new Promise<AnnotationFileData>((resolve, reject) => {
     pipeline([input, parser], (err) => {
@@ -259,28 +260,98 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
       if (err !== undefined) {
         reject(err);
       }
-      if (error !== undefined) {
-        reject(error);
+
+      // Do a secondary pass for if we are only visualizing a subset of sequences of images
+      if (missingImages.length > 0 && imageMap !== undefined && foundImages.length) {
+        if (error !== undefined) { // Most likely a reorder error so reset it
+          error = undefined;
+        }
+        // We need to find the total number of images mapped and make sure they are continuous
+        // Also need to create a mapping of old frame numbers to new numbers
+        // Additionall a min/max frame is required to cap tracks and remove items outside the range
+        let minFrame = Infinity;
+        let maxFrame = -Infinity;
+        const frameMapper: Record<number, number> = {};
+        const filteredImages = foundImages.filter((item) => item.frame !== -1);
+        for (let i = 0; i < filteredImages.length; i += 1) {
+          if (filteredImages[i].frame === -1) {
+            // eslint-disable-next-line no-continue
+            continue;
+          }
+          const k = i + 1;
+          if (k < filteredImages.length) {
+            if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame || filteredImages[i].frame + 1 !== filteredImages[k].frame) {
+            // We have misaligned video sequences so we error out
+              error = new Error('A subsampling of images were used with the CSV but they were not sequential');
+            }
+          }
+          frameMapper[filteredImages[i].csvFrame] = i;
+          minFrame = Math.min(minFrame, filteredImages[i].csvFrame);
+          maxFrame = Math.max(maxFrame, filteredImages[i].csvFrame);
+        }
+        // Now we need to remap and filter tracks that are outside the frame range
+        const newDataMap: Record<TrackData['id'], TrackData> = {};
+        const trackList = Object.values(Object.fromEntries(dataMap));
+        trackList.forEach((track) => {
+          if ((track.end >= minFrame)
+          || (track.begin <= maxFrame)) {
+            // begin and end frames need to be remapped to the subsampled region
+            let { begin } = track;
+            let { end } = track;
+            if (begin < minFrame || frameMapper[begin] === undefined) {
+              begin = frameMapper[minFrame];
+            } else {
+              begin = frameMapper[begin];
+            }
+            if (end > maxFrame || frameMapper[end] === undefined) {
+              end = frameMapper[maxFrame];
+            } else {
+              end = frameMapper[end];
+            }
+            const newTrack: TrackData = {
+              begin,
+              end,
+              id: track.id,
+              attributes: track.attributes,
+              confidencePairs: track.confidencePairs,
+              features: [],
+            };
+            track.features.forEach((feature) => {
+              // if feature frame is within the range add and remap the frame to the new time
+              if (feature.frame >= minFrame && feature.frame <= maxFrame) {
+                const newFeature = cloneDeep(feature);
+                newFeature.frame = frameMapper[newFeature.frame];
+                newTrack.features.push(newFeature);
+              }
+            });
+            if (newTrack.features.length) {
+              // Only add the track if it has features
+              newDataMap[newTrack.id] = newTrack;
+            }
+          }
+        });
+        // Clear the existing dataMap to add the updated data
+        dataMap.clear();
+
+        // Set the new data in the dataMap
+        Object.values(newDataMap).forEach((track) => {
+          dataMap.set(track.id, track);
+        });
+      } else if (missingImages.length === 0 && foundImages.length && multiFrameTracks) {
+        for (let i = 0; i < foundImages.length; i += 1) {
+          const k = i + 1;
+          if (k < foundImages.length) {
+            if (foundImages[i].csvFrame + 1 !== foundImages[k].csvFrame || foundImages[i].frame + 1 !== foundImages[k].frame) {
+            // We have misaligned video sequences so we error out
+              error = new Error('Images were provided in an unexpected order and dataset contains multi-frame tracks.');
+            }
+          }
+        }
       }
       const tracks = Object.fromEntries(dataMap);
 
-      if (imageMap !== undefined && missingImages.length > 0 && anyImageMatched) {
-        /**
-         * If any image from CSV was not missing, then some number of images
-         * from column 2 were actually valid and some were not.  This indicates that the dataset
-         * being loaded is probably corrupt.
-         *
-         * If all images were missing, then every single image was missing, which indicates
-         * that the dataset either had all empty values in column 2 or some other type of invalid
-         * string that should not prevent import.
-         */
-        reject([
-          'CSV import was found to have a mix of missing images and images that were found',
-          'in the data. This usually indicates a problem with the annotation file, but if',
-          'you want to force the import to proceed, you can set all values in the',
-          'Image Name column to be blank.  Then DIVE will not attempt to validate image names.',
-          `Missing images include: ${missingImages.slice(0, 5)}...`,
-        ].join(' '));
+      if (error !== undefined) {
+        reject(error);
       }
       resolve({ tracks, groups: {}, fps });
     });
@@ -293,19 +364,22 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
           if (imageMap !== undefined) {
-            // validate image ordering if the imageMap is provided and a non-whitespace filename
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
+            // Create a foundImage to map frames if a subset of images are used
+            const foundImage = {
+              image: imageName,
+              frame: expectedFrameNumber !== undefined ? expectedFrameNumber : -1,
+              csvFrame: rowInfo.frame,
+            };
+            const hasImageAlready = foundImages.find(
+              (item) => (item.frame === foundImage.frame && item.image === foundImage.image),
+            );
+            if (foundImage.frame !== -1 && hasImageAlready === undefined) {
+              foundImages.push(foundImage);
+            }
             if (expectedFrameNumber === undefined) {
               missingImages.push(rowInfo.filename);
-            } else if (expectedFrameNumber !== feature.frame) {
-              // force reorder the annotations
-              reordered = true;
-              anyImageMatched = true;
-              feature.frame = expectedFrameNumber;
-              rowInfo.frame = expectedFrameNumber;
-            } else {
-              anyImageMatched = true;
             }
           }
 
@@ -321,13 +395,20 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
               features: [],
             };
             dataMap.set(rowInfo.id, track);
-          } else if (reordered) {
-            // trackId was already in dataMap, so the track has more than 1 detection.
-            error = new Error(
-              'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
-            );
-            // eslint-disable-next-line no-continue
-            continue;
+          } else {
+            multiFrameTracks = true;
+            let maxFeatureFrame = -Infinity;
+            track.features.forEach((subFeature) => {
+              maxFeatureFrame = Math.max(maxFeatureFrame, subFeature.frame);
+            });
+            if (rowInfo.frame < maxFeatureFrame) {
+            // trackId was already in dataMap, and frame is out of order
+              error = new Error(
+                'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+              );
+              // eslint-disable-next-line no-continue
+              continue;
+            }
           }
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);

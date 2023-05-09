@@ -152,7 +152,8 @@ interface Api {
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
-  importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
+  importAnnotationFile(id: string, path: string, file?: File,
+    additive?: boolean, additivePrepend?: string): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 
