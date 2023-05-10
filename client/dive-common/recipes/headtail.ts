@@ -5,6 +5,7 @@ import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 import { Mousetrap } from 'vue-media-annotator/types';
+import { RectBounds, withinBounds } from 'vue-media-annotator/utils';
 
 export const HeadTailLineKey = 'HeadTails';
 export const HeadPointKey = 'head';
@@ -20,13 +21,13 @@ const PaddingVector: [number, number][] = [
   [-0.10, -0.10],
 ];
 /* No padding */
-// const PaddingVectorZero: [number, number][] = [
-//   [0, 0],
-//   [0, 0],
-//   [1, 0],
-//   [1, 0],
-//   [0, 0],
-// ];
+const PaddingVectorZero: [number, number][] = [
+  [0, 0],
+  [0, 0],
+  [1, 0],
+  [1, 0],
+  [0, 0],
+];
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -94,6 +95,16 @@ export default class HeadTail implements Recipe {
     }];
   }
 
+  private static coordsInBounds(bounds: RectBounds, coords: GeoJSON.Position[]) {
+    const results: boolean[] = [];
+    for (let i = 0; i < coords.length; i += 1) {
+      const x = coords[i][0];
+      const y = coords[i][1];
+      results.push(withinBounds([x, y], bounds));
+    }
+    return (results.filter((item) => item).length === coords.length);
+  }
+
   private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
     const firstFeature: GeoJSON.Feature<GeoJSON.Point> = {
       type: 'Feature',
@@ -153,7 +164,11 @@ export default class HeadTail implements Recipe {
         let geom = linestring.geometry;
         const head = track.getFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
         const tail = track.getFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
-
+        const currentFeature = track.features.find((item) => item.frame === frameNum);
+        let bounds: RectBounds | null = null;
+        if (currentFeature && currentFeature.bounds) {
+          bounds = currentFeature.bounds;
+        }
         if (head.length !== tail.length) {
           // If one point exists but not the other
           if (head.length > 0) {
@@ -175,21 +190,37 @@ export default class HeadTail implements Recipe {
           } as GeoJSON.LineString;
         }
         if (geom.coordinates.length === 2) {
+          let union = HeadTail.findBounds(geom, PaddingVector);
+          if (bounds !== null) {
+            // If both are inside of the bbox don't adjust the union
+            if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
+              union = [];
+            } else if (tail.length > 0) { // If creating new box add padding
+              union = HeadTail.findBounds(geom, PaddingVectorZero);
+            }
+          }
           // Both head and tail placed, replace them.
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
             newSelectedKey: HeadTailLineKey,
             done: true,
-            union: HeadTail.findBounds(geom, PaddingVector),
+            union,
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
           // Only the head placed so far
+          let union = HeadTail.findBounds(geom, PaddingVector);
+          if (bounds !== null) {
+            if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
+              union = [];
+            }
+          }
+
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(geom, this.startWithHead),
-            union: HeadTail.findBounds(geom, PaddingVector),
+            union,
             done: false,
           };
         }
@@ -201,7 +232,7 @@ export default class HeadTail implements Recipe {
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
-          union: HeadTail.findBounds(linestring.geometry, PaddingVector),
+          union: HeadTail.findBounds(linestring.geometry, PaddingVectorZero),
           done: true,
         };
       }
