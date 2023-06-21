@@ -261,7 +261,7 @@ export default function useTrackDrawer({
           return;
         }
 
-        const { x, y, z } = attributes;
+        const { stereo3d_x: x, stereo3d_y: y, stereo3d_z: z } = attributes;
 
         if (x === undefined || y === undefined || z === undefined) {
           return;

@@ -588,7 +588,6 @@ export default defineComponent({
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
         groupStyleManager.populateTypeStyles(meta.customGroupStyling);
 
-
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
