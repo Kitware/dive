@@ -44,7 +44,7 @@ export default defineComponent({
       argCopy.value.jsonMeta.attributes = {};
 
       // Create x, y, z attributes
-      ['x', 'y', 'z'].forEach((attributeKey) => {
+      ['stereo3d_x', 'stereo3d_y', 'stereo3d_z'].forEach((attributeKey) => {
         // ugly but necessary to avoid typescript error
         (argCopy.value.jsonMeta.attributes as Record<string, Attribute>)[attributeKey] = {
           belongs: 'detection',
