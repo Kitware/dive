@@ -139,6 +139,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  stereoConfigurationFile?: Readonly<string>;
 }
 
 interface Api {

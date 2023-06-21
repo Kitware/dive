@@ -2,7 +2,7 @@
 import { join } from 'path';
 import moment from 'moment';
 import {
-  computed, defineComponent, ref, Ref, reactive,
+  computed, defineComponent, ref, Ref,
 } from '@vue/composition-api';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
