@@ -48,8 +48,8 @@ import context from 'dive-common/store/context';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
-import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 
@@ -93,7 +93,8 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const loadError = ref('');
 
-    const tracks3d = ref(false);
+    const showTrack3dViewer = ref(false);
+    const isStereoConfigMode = ref(false);
 
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -529,6 +530,9 @@ export default defineComponent({
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
+
+        isStereoConfigMode.value = meta.stereoConfigurationFile != null;
+
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
@@ -545,6 +549,8 @@ export default defineComponent({
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
         groupStyleManager.populateTypeStyles(meta.customGroupStyling);
+
+
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
@@ -638,6 +644,18 @@ export default defineComponent({
           context.register({
             description: 'Group Manager',
             component: GroupSidebarVue,
+          });
+        }
+
+        if (meta.stereoConfigurationFile) {
+          context.register({
+            component: TrackViewerSettings,
+            description: 'Track Viewer Settings',
+          });
+        } else {
+          context.unregister({
+            component: TrackViewerSettings,
+            description: 'Track Viewer Settings',
           });
         }
       } catch (err) {
@@ -771,6 +789,12 @@ export default defineComponent({
       });
     }
 
+    // trigger resize of the annotator on track 3d viewer toggling
+    watch(showTrack3dViewer, async () => {
+      await nextTick();
+      onResize();
+    });
+
     provideAnnotator(
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
@@ -857,7 +881,8 @@ export default defineComponent({
       onTrackAdded,
       onGeometryAdded,
       datasetId,
-      tracks3d,
+      showTrack3dViewer,
+      isStereoConfigMode,
     };
   },
 });
@@ -936,12 +961,19 @@ export default defineComponent({
           </template>
         </v-select>
 
-        <v-btn
-          color="secondary"
-          @click="tracks3d = !tracks3d"
-        >
-          Toggle 3d
-        </v-btn>
+        <template v-if="isStereoConfigMode">
+          <v-divider
+            vertical
+            class="mx-2"
+          />
+
+          <v-switch
+            v-model="showTrack3dViewer"
+            label="Track 3D Viewer"
+            color="primary"
+            hide-details
+          />
+        </template>
 
         <v-divider
           vertical
@@ -1035,7 +1067,7 @@ export default defineComponent({
             :style="{ 'max-height': `calc(100% - ${controlsHeight}px)` }"
           >
             <div
-              v-if="tracks3d"
+              v-if="showTrack3dViewer"
               :style="{ height: '50%', width: '100%', 'flex-basis': '100%' }"
             >
               <track-viewer :controls-height="controlsHeight" />
@@ -1045,7 +1077,7 @@ export default defineComponent({
               v-for="camera in multiCamList"
               :key="camera"
               class="d-flex flex-column grow"
-              :style="tracks3d ? { height: '50%' } : { height: '100%' }"
+              :style="showTrack3dViewer ? { height: '50%' } : { height: '100%' }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
