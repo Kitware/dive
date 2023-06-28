@@ -48,6 +48,7 @@ import context from 'dive-common/store/context';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
+import { isStereo3dReady } from 'vue-media-annotator/components/track_3d_viewer/misc';
 import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
 import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
@@ -95,6 +96,7 @@ export default defineComponent({
 
     const showTrack3dViewer = ref(false);
     const isStereoConfigMode = ref(false);
+    const hasStereo3dAttributes = ref(false);
 
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -698,6 +700,9 @@ export default defineComponent({
       await nextTick();
       handleResize();
     });
+    watch(attributes, (attrs) => {
+      hasStereo3dAttributes.value = isStereo3dReady(attrs);
+    });
     onBeforeUnmount(() => {
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
@@ -882,6 +887,7 @@ export default defineComponent({
       datasetId,
       showTrack3dViewer,
       isStereoConfigMode,
+      hasStereo3dAttributes,
     };
   },
 });
@@ -970,6 +976,7 @@ export default defineComponent({
             v-model="showTrack3dViewer"
             label="Track 3D Viewer"
             color="primary"
+            :disabled="!hasStereo3dAttributes"
             hide-details
           />
         </template>
