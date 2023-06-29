@@ -86,7 +86,7 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '') {
   if (file === undefined) {
     return false;
   }
@@ -108,7 +108,7 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       headers: { 'Content-Type': 'application/octet-stream' },
     });
     if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true);
+      const final = await postProcess(parentId, true, false, additive, additivePrepend);
       return final.status === 200;
     }
   }

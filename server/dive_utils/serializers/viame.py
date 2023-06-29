@@ -38,7 +38,7 @@ def writeHeader(writer: 'csv._writer', metadata: Dict):  # type: ignore
     metadata_dict['exported_by'] = 'dive:python'
     metadata_dict['exported_time'] = datetime.datetime.now().ctime()
     metadata_list = []
-    for (key, value) in metadata_dict.items():
+    for key, value in metadata_dict.items():
         metadata_list.append(f"{key}: {json.dumps(value)}")
     writer.writerow(['# metadata', *metadata_list])
 
@@ -62,7 +62,10 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
-def _deduceType(value: str) -> Union[bool, float, str]:
+def _deduceType(value: Any) -> Union[bool, float, str, None]:
+    if isinstance(value, dict) or isinstance(value, list):
+        return None
+
     if value == "true":
         return True
     if value == "false":
@@ -189,6 +192,8 @@ def create_attributes(
     key: str,
     val,
 ):
+    if val is None:
+        return
     valstring = f'{val}'
     attribute_key = f'{atr_type}_{key}'
     if attribute_key not in metadata_attributes:
@@ -217,7 +222,7 @@ def calculate_attribute_types(
             attribute_type = 'number'
             low_count = predefined_min_count
             values = []
-            for (key, val) in test_vals[attributeKey].items():
+            for key, val in test_vals[attributeKey].items():
                 if val <= low_count:
                     low_count = val
                 values.append(key)
@@ -246,22 +251,28 @@ def load_json_as_track_and_attributes(
     test_vals: Dict[str, Dict[str, int]] = {}
     tracks = json_data['tracks']
     # Get Attribute Maps to values
-    for (key, track) in tracks.items():
+    for key, track in tracks.items():
         track_attributes = {}
         detection_attributes = {}
-        for (attrkey, attribute) in track['attributes'].items():
+        for attrkey, attribute in track['attributes'].items():
             track_attributes[attrkey] = _deduceType(attribute)
         for feature in track['features']:
             if 'attributes' in feature.keys():
-                for (attrkey, attribute) in feature['attributes'].items():
+                for attrkey, attribute in feature['attributes'].items():
                     detection_attributes[attrkey] = _deduceType(attribute)
-        for (key, val) in track_attributes.items():
+        for key, val in track_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
-        for (key, val) in detection_attributes.items():
+        for key, val in detection_attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
-
     calculate_attribute_types(metadata_attributes, test_vals)
     return json_data, metadata_attributes
+
+
+def custom_sort(row):
+    if len(row) == 0 or row[0].startswith("#"):
+        return (0, 0)
+    else:
+        return (1, int(row[2]))
 
 
 def load_csv_as_tracks_and_attributes(
@@ -277,10 +288,11 @@ def load_csv_as_tracks_and_attributes(
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
-    reordered = False
-    anyImageMatched = False
+    multiFrameTracks = False
     missingImages: List[str] = []
-    for row in reader:
+    foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
+    sortedlist = sorted(reader, key=custom_sort)
+    for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             continue
@@ -297,26 +309,32 @@ def load_csv_as_tracks_and_attributes(
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))
             expectedFrameNumber = imageMap.get(imageName)
+            foundFrame = expectedFrameNumber
+            if expectedFrameNumber is None:
+                foundFrame = -1
+            foundImage = {'image': imageName, 'frame': foundFrame, 'csvFrame': feature.frame}
+            hasImageAlready = foundImage in foundImages
+            if foundFrame != -1 and not hasImageAlready:
+                foundImages.append(foundImage)
             if expectedFrameNumber is None:
                 missingImages.append(imageFile)
-            elif expectedFrameNumber != feature.frame:
-                # force reorder the annotations
-                reordered = True
-                anyImageMatched = True
-                feature.frame = expectedFrameNumber
-            else:
-                anyImageMatched = True
 
         if trackId not in tracks:
             tracks[trackId] = Track(begin=feature.frame, end=feature.frame, id=trackId)
-        elif reordered:
-            # trackId was already in tracks, so the track consists of multiple frames
-            raise ValueError(
-                (
-                    'images were provided in an unexpected order '
-                    'and dataset contains multi-frame tracks. '
+        else:
+            track = tracks[trackId]
+            multiFrameTracks = True
+            maxFeatureFrame = float('-inf')
+            for subFeature in track.features:
+                maxFeatureFrame = max(maxFeatureFrame, subFeature.frame)
+            if feature.frame < maxFeatureFrame:
+                # trackId was already in tracks, so the track consists of multiple frames
+                raise ValueError(
+                    (
+                        'Images were provided in an unexpected order '
+                        'and dataset contains multi-frame tracks. '
+                    )
                 )
-            )
 
         track = tracks[trackId]
         track.begin = min(feature.frame, track.begin)
@@ -324,29 +342,99 @@ def load_csv_as_tracks_and_attributes(
         track.features.append(feature)
         track.confidencePairs = confidence_pairs
 
-        for (key, val) in track_attributes.items():
+        for key, val in track_attributes.items():
             track.attributes[key] = val
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
-        for (key, val) in attributes.items():
+        for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
 
-    trackarr = tracks.items()
+    if imageMap and len(missingImages) and len(foundImages):
+        minFrame = float('inf')
+        maxFrame = float('-inf')
+        frameMapper = {}
+        filteredImages = [item for item in foundImages if item['frame'] != -1]
+        for index, item in enumerate(filteredImages):
+            if item['frame'] == -1:
+                continue
+            k = index + 1
+            if k < len(filteredImages):
+                if (
+                    item['csvFrame'] + 1 != filteredImages[k]['csvFrame']
+                    or item['frame'] + 1 != filteredImages[k]['frame']
+                ):
+                    # We have misaligned video sequences so we error out
+                    raise ValueError(
+                        (
+                            'A subsampling of images were used with the CSV '
+                            'but they were not sequential'
+                        )
+                    )
+            frameMapper[item['csvFrame']] = index
+            minFrame = min(minFrame, item['csvFrame'])
+            maxFrame = max(maxFrame, item['csvFrame'])
 
-    if imageMap and len(missingImages) and anyImageMatched:
-        examples = ', '.join(missingImages[:3])
-        raise ValueError(
-            ' '.join(
-                [
-                    'CSV import was found to have a mix of missing images and images that',
-                    'were found in the data. This usually indicates a problem with the',
-                    'annotation file, but if you want to force the import to proceed, you',
-                    'can set all values in the Image Name column to be blank.  Then DIVE',
-                    'will not attempt to validate image names.',
-                    f'Missing images include: {examples}...',
-                ]
-            )
-        )
+        # Now we need to remap and filter tracks that are outside the frame range
+        trackValArr = list(tracks.values())
+        newDataMap: Dict[int, Track] = {}
+        for track in trackValArr:
+            if track.end >= minFrame or track.begin <= maxFrame:
+                begin = track.begin
+                end = track.end
+                if begin < minFrame or begin not in frameMapper.keys():
+                    begin = frameMapper[minFrame]
+                else:
+                    begin = frameMapper[begin]
+                if end > maxFrame or end not in frameMapper.keys():
+                    end = frameMapper[maxFrame]
+                else:
+                    end = frameMapper[end]
+                newTrack = Track(
+                    begin=begin,
+                    end=end,
+                    id=track.id,
+                    attributes=track.attributes,
+                    confidencePairs=track.confidencePairs,
+                )
+                for subFeature in track.features:
+                    # feature frame is within the subFeature add and remap the frame to the new time
+                    if subFeature.frame >= minFrame and subFeature.frame <= maxFrame:
+                        newFeature = Feature(
+                            frame=subFeature.frame,
+                            bounds=subFeature.bounds,
+                            attributes=subFeature.attributes or None,
+                            geometry=subFeature.geometry or None,
+                            head=subFeature.head or None,
+                            tail=subFeature.tail or None,
+                            fishLength=subFeature.fishLength or None,
+                            interpolate=subFeature.interpolate or None,
+                            keyframe=subFeature.keyframe or None,
+                        )
+                        newFeature.frame = frameMapper[newFeature.frame]
+                        newTrack.features.append(newFeature)
+                if len(newTrack.features):
+                    # Only add the track if it has features
+                    newDataMap[newTrack.id] = newTrack
+        # Set the original tracks to the new list
+        tracks = newDataMap
+    elif len(foundImages) and len(missingImages) == 0 and multiFrameTracks:
+        # check ordering
+        for index, item in enumerate(foundImages):
+            k = index + 1
+            if k < len(foundImages):
+                if (
+                    item['csvFrame'] + 1 != foundImages[k]['csvFrame']
+                    or item['frame'] + 1 != foundImages[k]['frame']
+                ):
+                    # We have misaligned video sequences so we error out
+                    raise ValueError(
+                        (
+                            'Images were provided in an unexpected order '
+                            'and dataset contains multi-frame tracks.'
+                        )
+                    )
+
     # Now we process all the metadata_attributes for the types
+    trackarr = tracks.items()
     calculate_attribute_types(metadata_attributes, test_vals)
     annotations: types.DIVEAnnotationSchema = {
         'tracks': {str(trackId): track.dict(exclude_none=True) for trackId, track in trackarr},
@@ -394,7 +482,6 @@ def export_tracks_as_csv(
     for t in track_iterator:
         track = Track(**t)
         if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-
             # filter by types if applicable
             if typeFilter:
                 confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
