@@ -14,6 +14,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
   jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
 } from './utils';
+// eslint-disable-next-line import/no-cycle
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
