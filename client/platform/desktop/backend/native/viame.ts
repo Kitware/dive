@@ -82,7 +82,7 @@ async function runPipeline(
   }
 
   let command: string[] = [];
-    const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
     || multiCamPipelineMarkers.includes(pipeline.type));
 
   if (metaType === 'video') {
@@ -101,10 +101,9 @@ async function runPipeline(
     ];
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${videoAbsPath}"`);
-      command.push(`-s detector_writer:file_name="${detectorOutput}"`)
-      command.push(`-s track_writer:file_name="${trackOutput}"`)
+      command.push(`-s detector_writer:file_name="${detectorOutput}"`);
+      command.push(`-s track_writer:file_name="${trackOutput}"`);
     }
-
   } else if (metaType === 'image-sequence') {
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
@@ -124,10 +123,9 @@ async function runPipeline(
     ];
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${manifestFile}"`);
-      command.push(`-s detector_writer:file_name="${detectorOutput}"`)
-      command.push(`-s track_writer:file_name="${trackOutput}"`)
+      command.push(`-s detector_writer:file_name="${detectorOutput}"`);
+      command.push(`-s track_writer:file_name="${trackOutput}"`);
     }
-  
   }
   if (requiresInput && !stereoOrMultiCam) {
     command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);

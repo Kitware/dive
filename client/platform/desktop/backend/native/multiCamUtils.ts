@@ -92,19 +92,30 @@ async function writeMultiCamStereoPipelineArgs(
       argFilePair[outputArgWriteTracks] = outputFileName;
       outFiles[key] = outputFileName;
       const inputArg = `input${i + 1}:video_filename`;
+      if (i === 0) {
+        argFilePair['detector_writer:file_name'] = outputFileName;
+        argFilePair['track_writer:file_name'] = outputFileName;
+      }
       if (list.type === 'image-sequence') {
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
         const inputFile = fs.createWriteStream(inputFileName);
         list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
         inputFile.end();
         argFilePair[inputArg] = inputFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = inputFileName;
+        }
       } else if (list.originalVideoFile) {
         const vidFile = list.transcodedVideoFile
           ? list.transcodedVideoFile : list.originalVideoFile;
         const vidTypeArg = `input${i + 1}:video_reader:type`;
         const vidType = 'vidl_ffmpeg';
         argFilePair[vidTypeArg] = vidType;
-        argFilePair[inputArg] = npath.join(originalBasePath, vidFile);
+        const videoFileName = npath.join(originalBasePath, vidFile);
+        argFilePair[inputArg] = videoFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = videoFileName;
+        }
       }
       if (utility) {
         const inputArgDetection = `detection_reader${i + 1}:file_name`;
@@ -115,6 +126,10 @@ async function writeMultiCamStereoPipelineArgs(
         const groundTruthFileStream = fs.createWriteStream(groundTruthFileName);
         argFilePair[inputArgTrack] = groundTruthFileName;
         argFilePair[inputArgDetection] = groundTruthFileName;
+        if (i === 0) {
+          argFilePair['detection_reader:file_name'] = groundTruthFileName;
+          argFilePair['track_reader:file_name'] = groundTruthFileName;
+        }
         const subMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
         const inputData = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
         await serialize(groundTruthFileStream, inputData, subMeta);
