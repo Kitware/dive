@@ -35,6 +35,7 @@ import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
+import AttributeTrackFilter from 'dive-common/components/AttributeTrackFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
@@ -62,6 +63,7 @@ export default defineComponent({
     VideoAnnotator,
     ImageAnnotator,
     ConfidenceFilter,
+    AttributeTrackFilter,
     UserGuideButton,
     EditorMenu,
   },
@@ -187,6 +189,7 @@ export default defineComponent({
       remove: removeTracks,
       markChangesPending,
       lookupGroups: cameraStore.lookupGroups,
+      getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
       groupFilterControls: groupFilters,
       setType: setTrackType,
       removeTypes,
@@ -587,6 +590,10 @@ export default defineComponent({
             removeSaveCamera(key);
           }
         });
+        // Needs to be done after the cameraMap is created
+        if (meta.attributeTrackFilters) {
+          trackFilters.loadTrackAttributesFilter(meta.attributeTrackFilters);
+        }
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -897,6 +904,9 @@ export default defineComponent({
       >
         <template v-if="context.state.active !== 'TypeThreshold'">
           <v-divider />
+          <AttributeTrackFilter
+            class="ma-2 mb-0"
+          />
           <ConfidenceFilter
             class="ma-2 mb-0"
             :confidence.sync="confidenceFilters.default"

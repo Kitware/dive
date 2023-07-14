@@ -6,6 +6,7 @@ import { use } from 'vue-media-annotator/provides';
 import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -114,6 +115,7 @@ interface DatasetMetaMutable {
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
+  attributeTrackFilters?: Readonly<AttributeTrackFilter[]>;
 }
 const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling'];
 

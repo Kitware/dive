@@ -28,6 +28,7 @@ export interface FilterControlsParams<T extends Track | Group> {
   setType: (id: AnnotationId, newType: string,
     confidenceVal?: number, currentType?: string) => void;
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
+  getTrack?: (trackId: Readonly<AnnotationId>, cameraName?: string) => T;
 }
 
 export type TrackWithContext = AnnotationWithContext<Track>;
@@ -59,6 +60,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   /* AnnotationIDs further filtered by individual checkedIds */
   enabledAnnotations: Ref<AnnotationWithContext<T>[]>;
 
+
   /* MarkChangesPending is called when meta config default types are modified  */
   private markChangesPending: () => void;
 
@@ -71,6 +73,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     confidenceVal?: number, currentType?: string) => void;
 
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
+
 
   constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.sorted.value.map((t) => t.id));
@@ -116,11 +119,13 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
     this.filteredAnnotations = ref([]);
 
+
     this.enabledAnnotations = computed(() => {
       const checkedSet = new Set(this.checkedIDs.value);
       return this.filteredAnnotations.value
         .filter((filtered) => checkedSet.has(filtered.annotation.id));
     });
+
 
     // because vue watchers don't behave properly, and it's better to not have
     // checkedIDs be a union null | array type

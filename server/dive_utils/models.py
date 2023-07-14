@@ -158,6 +158,28 @@ class CustomStyle(BaseModel):
     showConfidence: Optional[bool]
 
 
+class AttributeMatch(BaseModel):
+    op: Optional[Literal['=', '!=', '>', '<', '>=', '<=', 'range', 'in', 'rangeFilter']]
+    val: Any
+    userDefined: Optional[bool]
+    range: Optional[List[float]]
+
+
+class AttributeSelectAction(BaseModel):
+    track: Optional[Dict[str, AttributeMatch]]
+    detection: Optional[Dict[str, AttributeMatch]]
+
+
+class AttributeTrackFilter(BaseModel):
+    typeFilter: Optional[List[str]]
+    name: str
+    attribute: str
+    type: Literal['track', 'detection']
+    ignoreUndefined: Optional[bool]
+    filter: AttributeMatch
+    enabled: bool
+
+
 class MetadataMutable(BaseModel):
     version = (
         constants.JsonMetaCurrentVersion
@@ -166,6 +188,7 @@ class MetadataMutable(BaseModel):
     customGroupStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
+    attributeTrackFilters: Optional[List[AttributeTrackFilter]]
 
     @staticmethod
     def is_dive_configuration(value: dict):

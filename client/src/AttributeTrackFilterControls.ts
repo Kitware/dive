@@ -1,0 +1,133 @@
+/* eslint-disable max-len */
+import { AnnotationId } from './BaseAnnotation';
+import type Track from './track';
+
+export type MatchOperator = '=' | '!=' | '>' | '<' | '>=' | '<=' | 'range' | 'in' | 'rangeFilter';
+
+export type userDefinedVals = number | string | string[] | number[] | null | boolean;
+
+
+export interface AttributeMatch {
+    op?: MatchOperator;
+    val: userDefinedVals; //number, string, array of numbers or strings
+    userDefined?: boolean; // means that the user can edit the value in a filter tool
+    range?: number[];
+}
+
+
+export interface AttributeTrackFilter {
+    name: string;
+    typeFilter: string[]; // filter for track of specific types, will default to all
+    type: 'track' | 'detection';
+    attribute: string;
+    filter: AttributeMatch;
+    ignoreUndefined?: boolean;
+    enabled: boolean;
+}
+
+export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: userDefinedVals, userDefinedVal: userDefinedVals | undefined) => {
+  const results: boolean[] = [];
+  const checkVal = attributeMatch.userDefined ? userDefinedVal : attributeMatch.val;
+  if (attributeVal !== undefined) {
+    if (attributeMatch.op) {
+      switch (attributeMatch.op) {
+        case '=': {
+          // eslint-disable-next-line eqeqeq
+          results.push(attributeVal == checkVal);
+          break;
+        }
+        case '!=': {
+          // eslint-disable-next-line eqeqeq
+          results.push(attributeVal != checkVal);
+          break;
+        }
+        case '>': {
+          results.push(attributeVal as number | string > checkVal);
+          break;
+        }
+        case '<': {
+          results.push(attributeVal as number | string < checkVal);
+          break;
+        }
+        case '<=': {
+          results.push(attributeVal as number | string <= checkVal);
+          break;
+        }
+        case '>=': {
+          results.push(attributeVal as number | string >= checkVal);
+          break;
+        }
+        case 'rangeFilter': {
+          results.push(attributeVal as number > checkVal);
+          break;
+        }
+        case 'range': {
+          results.push(attributeVal as number | string >= checkVal[0] && attributeVal as number | string <= checkVal[1]);
+          break;
+        }
+        case 'in': {
+          results.push(checkVal.includes(attributeVal));
+          break;
+        }
+        default: {
+          results.push(attributeVal !== undefined);
+        }
+      }
+    }
+  } else {
+    results.push(false);
+  }
+  return results.filter((item) => item).length === results.length;
+};
+
+
+export const filterByTrackId = (
+  id: AnnotationId, getTrack: (trackId: AnnotationId) => Track,
+  filters: AttributeTrackFilter[],
+  userDefinedvals: userDefinedVals[],
+  enabled: boolean[],
+) => {
+  const track = getTrack(id);
+  const trackAttributes = track.attributes;
+  const trackFilters: AttributeTrackFilter[] = [];
+  const detectionFilters: AttributeTrackFilter[] = [];
+  const trackUserVals: userDefinedVals[] = [];
+  const detectionUserVals: userDefinedVals[] = [];
+  filters.forEach((item, index) => {
+    if (enabled[index]) {
+      if (item.type === 'track') {
+        trackFilters.push(item);
+        trackUserVals.push(userDefinedvals[index]);
+      } else if (item.type === 'detection') {
+        detectionFilters.push(item);
+        detectionUserVals.push(userDefinedvals[index]);
+      }
+    }
+  });
+  for (let i = 0; i < trackFilters.length; i += 1) {
+    const filter = trackFilters[i];
+    if (trackAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
+      return false;
+    }
+    const result = checkAttributes(filter.filter, trackAttributes[filter.attribute] as userDefinedVals, trackUserVals[i]);
+    if (!result) {
+      return false;
+    }
+  }
+  for (let i = 0; i < detectionFilters.length; i += 1) {
+    for (let k = 0; k < track.features.length; k += 1) {
+      const detectionAttributes = track.features[k].attributes;
+      const filter = detectionFilters[i];
+      if (detectionAttributes) {
+        if (detectionAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
+          return false;
+        }
+        const result = checkAttributes(filter.filter, detectionAttributes[filter.attribute] as userDefinedVals, trackUserVals[i]);
+        if (!result) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+};
