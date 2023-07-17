@@ -6,6 +6,7 @@ import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
 import type Track from './track';
 import { updateSubset } from './utils';
+import { AttributeTrackFilter } from './AttributeTrackFilterControls';
 
 export const DefaultConfidence = 0.1;
 /**
@@ -23,7 +24,13 @@ export interface AnnotationWithContext<T extends Track | Group> {
 
 export interface FilterControlsParams<T extends Track | Group> {
   sorted: Ref<SortedAnnotation[]>;
-  markChangesPending: () => void;
+  markChangesPending: ({
+    action,
+    attributeTrackFilter,
+  }: {
+    action?: 'upsert' | 'delete' | 'meta';
+    attributeTrackFilter?: AttributeTrackFilter;
+  }) => void;
   remove: (id: AnnotationId) => void;
   setType: (id: AnnotationId, newType: string,
     confidenceVal?: number, currentType?: string) => void;
@@ -62,7 +69,13 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
 
   /* MarkChangesPending is called when meta config default types are modified  */
-  private markChangesPending: () => void;
+  markChangesPending: ({
+    action,
+    attributeTrackFilter,
+  }: {
+    action?: 'upsert' | 'delete' | 'meta';
+    attributeTrackFilter?: AttributeTrackFilter;
+  }) => void;
 
   /* Hold a reference to the annotationStore */
   sorted: Readonly<Ref<SortedAnnotation[]>>;
@@ -159,7 +172,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       }
     });
     if (userInteraction) {
-      this.markChangesPending();
+      this.markChangesPending({ action: 'meta' });
     }
   }
 
@@ -168,7 +181,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       this.defaultTypes.value.splice(this.defaultTypes.value.indexOf(type), 1);
     }
     delete this.confidenceFilters.value[type];
-    this.markChangesPending();
+    this.markChangesPending({ action: 'meta' });
   }
 
   setConfidenceFilters(val?: Record<string, number>) {

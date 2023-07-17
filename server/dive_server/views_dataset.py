@@ -46,6 +46,7 @@ class DatasetResource(Resource):
 
         # do we make this another resource in girder?
         self.route("PATCH", (":id", "attributes"), self.patch_attributes)
+        self.route("PATCH", (":id", "attribute_track_filters"), self.patch_attribute_track_filters)
 
     @access.user
     @autoDescribeRoute(
@@ -302,3 +303,17 @@ class DatasetResource(Resource):
     )
     def patch_attributes(self, folder, data):
         return crud_dataset.update_attributes(folder, data)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Update set of possible attributes")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .jsonParam(
+            "data",
+            description="schema: AttributeTrackFilterUpdateArgs",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def patch_attribute_track_filters(self, folder, data):
+        return crud_dataset.update_attribute_track_filters(folder, data)

@@ -101,6 +101,28 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     });
   }
 
+  updateTrackFilter(index: number, val: AttributeTrackFilter) {
+    if (index < this.attributeFilters.value.length) {
+      this.attributeFilters.value.splice(index, 1, val);
+      this.userDefinedValues.value.splice(index, 1, val.filter.userDefined ? val.filter.val : null);
+      this.enabledFilters.value.splice(index, 1, val.enabled);
+    } else {
+      this.attributeFilters.value.push(val);
+      this.userDefinedValues.value.push(val.filter.userDefined ? val.filter.val : null);
+      this.enabledFilters.value.push(val.enabled);
+    }
+    this.markChangesPending({ action: 'upsert', attributeTrackFilter: val });
+  }
+
+  deleteTrackFilter(index: number) {
+    if (index < this.attributeFilters.value.length) {
+      const items = this.attributeFilters.value.splice(index, 1);
+      this.userDefinedValues.value.splice(index, 1);
+      this.enabledFilters.value.splice(index, 1);
+      this.markChangesPending({ action: 'delete', attributeTrackFilter: items[0] });
+    }
+  }
+
   setUserDefinedValue(index: number, val: number) {
     if (index < this.userDefinedValues.value.length) {
       this.userDefinedValues.value.splice(index, 1, val);

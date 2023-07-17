@@ -592,7 +592,7 @@ export default defineComponent({
         });
         // Needs to be done after the cameraMap is created
         if (meta.attributeTrackFilters) {
-          trackFilters.loadTrackAttributesFilter(meta.attributeTrackFilters);
+          trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools

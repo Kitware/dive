@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+import { isArray } from 'lodash';
 import { AnnotationId } from './BaseAnnotation';
 import type Track from './track';
 
@@ -8,7 +9,7 @@ export type userDefinedVals = number | string | string[] | number[] | null | boo
 
 
 export interface AttributeMatch {
-    op?: MatchOperator;
+    op: MatchOperator;
     val: userDefinedVals; //number, string, array of numbers or strings
     userDefined?: boolean; // means that the user can edit the value in a filter tool
     range?: number[];
@@ -42,31 +43,52 @@ export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: us
           break;
         }
         case '>': {
-          results.push(attributeVal as number | string > checkVal);
+          if (['number', 'string'].includes(typeof checkVal) && checkVal !== null && checkVal !== undefined) {
+            results.push(attributeVal as number | string > checkVal);
+          }
           break;
         }
         case '<': {
-          results.push(attributeVal as number | string < checkVal);
+          if (['number', 'string'].includes(typeof checkVal) && checkVal !== null && checkVal !== undefined) {
+            results.push(attributeVal as number | string < checkVal);
+          }
           break;
         }
         case '<=': {
-          results.push(attributeVal as number | string <= checkVal);
+          if (['number', 'string'].includes(typeof checkVal) && checkVal !== null && checkVal !== undefined) {
+            results.push(attributeVal as number | string <= checkVal);
+          }
           break;
         }
         case '>=': {
-          results.push(attributeVal as number | string >= checkVal);
+          if (['number', 'string'].includes(typeof checkVal) && checkVal !== null && checkVal !== undefined) {
+            results.push(attributeVal as number | string >= checkVal);
+          }
           break;
         }
         case 'rangeFilter': {
-          results.push(attributeVal as number > checkVal);
+          if (['number'].includes(typeof checkVal) && checkVal !== null && checkVal !== undefined) {
+            results.push(attributeVal as number | string > checkVal);
+          }
           break;
         }
         case 'range': {
-          results.push(attributeVal as number | string >= checkVal[0] && attributeVal as number | string <= checkVal[1]);
+          if (isArray(checkVal) && checkVal !== null && checkVal !== undefined) {
+            if (checkVal[0] !== null && checkVal[1] !== null) {
+              results.push(attributeVal as number | string >= checkVal[0] && attributeVal as number | string <= checkVal[1]);
+            }
+          }
           break;
         }
         case 'in': {
-          results.push(checkVal.includes(attributeVal));
+          if (isArray(checkVal) && checkVal !== null && checkVal !== undefined && attributeVal !== null) {
+            if (typeof checkVal[0] === 'number') {
+              results.push((checkVal as number[]).includes(attributeVal as number));
+            }
+            if (typeof checkVal[0] === 'string') {
+              results.push((checkVal as string[]).includes(attributeVal as string));
+            }
+          }
           break;
         }
         default: {

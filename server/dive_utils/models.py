@@ -165,11 +165,6 @@ class AttributeMatch(BaseModel):
     range: Optional[List[float]]
 
 
-class AttributeSelectAction(BaseModel):
-    track: Optional[Dict[str, AttributeMatch]]
-    detection: Optional[Dict[str, AttributeMatch]]
-
-
 class AttributeTrackFilter(BaseModel):
     typeFilter: Optional[List[str]]
     name: str
@@ -177,7 +172,7 @@ class AttributeTrackFilter(BaseModel):
     type: Literal['track', 'detection']
     ignoreUndefined: Optional[bool]
     filter: AttributeMatch
-    enabled: bool
+    enabled: Optional[bool]
 
 
 class MetadataMutable(BaseModel):
@@ -188,7 +183,7 @@ class MetadataMutable(BaseModel):
     customGroupStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
-    attributeTrackFilters: Optional[List[AttributeTrackFilter]]
+    attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
 
     @staticmethod
     def is_dive_configuration(value: dict):

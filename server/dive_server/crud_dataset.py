@@ -195,6 +195,34 @@ def update_attributes(dsFolder: types.GirderModel, data: dict):
     }
 
 
+class AttributeTrackFiltersUpdateArgs(BaseModel):
+    upsert: List[models.AttributeTrackFilter] = []
+    delete: List[str] = []
+
+    class Config:
+        extra = 'forbid'
+
+
+def update_attribute_track_filters(dsFolder: types.GirderModel, data: dict):
+    """Upsert or delete attributes"""
+    crud.verify_dataset(dsFolder)
+    validated: AttributeTrackFiltersUpdateArgs = crud.get_validated_model(
+        AttributeTrackFiltersUpdateArgs, **data
+    )
+    attributesfilters_dict = fromMeta(dsFolder, 'attributeTrackFilters', {})
+
+    for filter_id in validated.delete:
+        attributesfilters_dict.pop(str(filter_id), None)
+    for filter in validated.upsert:
+        attributesfilters_dict[str(filter.name)] = filter.dict(exclude_none=True)
+
+    upserted_len = len(validated.delete)
+    deleted_len = len(validated.upsert)
+
+    if upserted_len or deleted_len:
+        update_metadata(dsFolder, {'attributeTrackFilters': attributesfilters_dict})
+
+
 def export_datasets_zipstream(
     dsFolders: List[types.GirderModel],
     user: types.GirderUserModel,
