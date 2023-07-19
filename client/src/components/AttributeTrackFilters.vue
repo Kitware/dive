@@ -30,6 +30,7 @@ export default defineComponent({
       return typeMap;
     });
 
+
     const editingFilter: Ref<null | number> = ref(null);
     const addFilterDialog = ref(false);
     const filters = trackFilters.attributeFilters;
@@ -37,15 +38,45 @@ export default defineComponent({
     // editing/adding Attribute Filter
     const editingAtrKey = ref('');
     const editName = ref('');
-    const editingOps = ref(['=', '!=', '>', '<', '>=', '<=', 'range', 'in', 'rangeFilter']);
+    const baseOps = ['=', '!=', '>', '<', '>=', '<=', 'range', 'in', 'rangeFilter'];
+    const editingAttributeType = computed(() => {
+      if (editingAtrKey.value) {
+        const filtered = attributes.value.filter((item) => {
+          if (editingAtrKey.value) {
+            return item.name === editingAtrKey.value;
+          }
+          return false;
+        });
+        if (filtered.length > 0) {
+          return filtered[0].datatype;
+        }
+      }
+      return null;
+    });
+
+    const editingOps = computed(() => {
+      if (editingAttributeType.value) {
+        if (editingAttributeType.value === 'number') {
+          return ['=', '!=', '>', '<', '>=', '<=', 'range', 'rangeFilter'];
+        } if (editingAttributeType.value === 'text') {
+          return ['=', '!=', 'in'];
+        }
+        if (editingAttributeType.value === 'boolean') {
+          return ['=', '!='];
+        }
+      }
+      return baseOps;
+    });
+
+
     const editingAtrOp: Ref<MatchOperator> = ref('=');
     const editingAtrVal: Ref<string[] | string | number | number[] | null | boolean> = ref('');
     const editingRange: Ref<number[]> = ref([0, 1]);
     const editingAtrTypeList = ref(['track', 'detection']);
     const editingFilterEnabled = ref(false);
-    const editingFilterDisplay = ref(false);
     const editingAtrType: Ref<'track' | 'detection'> = ref('track');
     const editingUserDefined = ref(true);
+    const editingPrimaryDisplay = ref(true);
     const attributeList = computed(() => attributes.value.filter((item) => item.belongs === editingAtrType.value).map((item) => item.name));
 
     const changeAttributeType = () => {
@@ -60,7 +91,7 @@ export default defineComponent({
 
     const addEditTrackFilter = (index?: number) => {
       if (index !== undefined) {
-        const filter = filters.value[0];
+        const filter = filters.value[index];
         editingAtrKey.value = filter.attribute;
         editName.value = filter.name;
         editingFilterEnabled.value = filter.enabled;
@@ -68,6 +99,7 @@ export default defineComponent({
         editingAtrOp.value = filter.filter.op;
         editingAtrVal.value = filter.filter.val;
         editingUserDefined.value = filter.filter.userDefined || false;
+        editingPrimaryDisplay.value = filter.primaryDisplay || false;
         if (filter.filter.range) {
           editingRange.value = filter.filter.range;
         }
@@ -83,6 +115,8 @@ export default defineComponent({
       editingAtrOp.value = '=';
       editingAtrVal.value = '';
       addFilterDialog.value = false;
+      editingUserDefined.value = true;
+      editingPrimaryDisplay.value = true;
     };
 
     const saveFilter = () => {
@@ -92,6 +126,7 @@ export default defineComponent({
         name: editName.value,
         attribute: editingAtrKey.value,
         type: editingAtrType.value,
+        primaryDisplay: editingPrimaryDisplay.value,
         filter: {
           op: editingAtrOp.value,
           val: editingAtrVal.value,
@@ -125,7 +160,9 @@ export default defineComponent({
       editingAtrType,
       editingAtrTypeList,
       editingFilterEnabled,
-      editingFilterDisplay,
+      editingPrimaryDisplay,
+      editingAttributeType,
+      editingUserDefined,
       attributeList,
       editingRange,
       changeAttributeType,
@@ -153,6 +190,7 @@ export default defineComponent({
           editable
           @edit="addEditTrackFilter(index)"
           @delete="deleteFilter(index)"
+          class="attributeTrackFilter ma-2"
         />
       </v-card-text>
       <v-card-actions>
@@ -178,9 +216,33 @@ export default defineComponent({
           />
           <v-row dense>
             <v-select
+              v-model="editingAtrType"
+              :items="editingAtrTypeList"
+              label="Attribute Type"
+            />
+
+            <v-select
               v-model="editingAtrKey"
               :items="attributeList"
               label="Attribute"
+            />
+          </v-row>
+          <v-row dense>
+            <v-switch
+              v-model="editingFilterEnabled"
+              label="Enabled"
+              class="mx-2"
+            />
+
+            <v-switch
+              v-model="editingPrimaryDisplay"
+              label="Primary Display"
+              class="mx-2"
+            />
+            <v-switch
+              v-model="editingUserDefined"
+              label="User Editable"
+              class="mx-2"
             />
           </v-row>
           <v-row dense>
@@ -206,7 +268,9 @@ export default defineComponent({
               <v-combobox
                 v-model="editingAtrVal"
                 chips
+                dense
                 deletable-chips
+                multiple
                 :type="attributeTypes[editingAtrKey] === 'text' ? 'text' : 'number'"
               />
             </div>
@@ -263,32 +327,13 @@ export default defineComponent({
 <style scoped lang='scss'>
 @import 'src/components/styles/common.scss';
 
-.border-highlight {
-   border-bottom: 1px solid gray;
+ .attributeTrackFilter {
+  border: 1px solid gray;
+  padding: 5px;
  }
 
 .type-checkbox {
   max-width: 80%;
   overflow-wrap: anywhere;
-}
-
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
-  }
-}
-.outlined {
-  background-color: gray;
-  color: #222;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 0 5px;
-  font-size: 12px;
 }
 </style>

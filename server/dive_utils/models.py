@@ -173,6 +173,7 @@ class AttributeTrackFilter(BaseModel):
     ignoreUndefined: Optional[bool]
     filter: AttributeMatch
     enabled: Optional[bool]
+    primaryDisplay: Optional[bool]
 
 
 class MetadataMutable(BaseModel):

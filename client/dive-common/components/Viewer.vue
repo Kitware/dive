@@ -35,7 +35,6 @@ import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
-import AttributeTrackFilter from 'dive-common/components/AttributeTrackFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
@@ -47,6 +46,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -63,9 +63,9 @@ export default defineComponent({
     VideoAnnotator,
     ImageAnnotator,
     ConfidenceFilter,
-    AttributeTrackFilter,
     UserGuideButton,
     EditorMenu,
+    PrimaryAttributeTrackFilter,
   },
 
   // TODO: remove this in vue 3
@@ -898,16 +898,16 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        :enable-slot="context.state.active !== 'TypeThreshold'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
-        <template v-if="context.state.active !== 'TypeThreshold'">
+        <template>
           <v-divider />
-          <AttributeTrackFilter
-            class="ma-2 mb-0"
+          <primary-attribute-track-filter
+            :toggle="context.toggle"
           />
           <ConfidenceFilter
+            v-if="context.state.active !== 'TypeThreshold'"
             class="ma-2 mb-0"
             :confidence.sync="confidenceFilters.default"
             @end="saveThreshold"

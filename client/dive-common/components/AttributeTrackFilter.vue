@@ -1,8 +1,8 @@
 <script lang="ts">
 /* eslint-disable max-len */
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import { throttle } from 'lodash';
-import { useTrackFilters } from 'vue-media-annotator/provides';
+import { useAttributes, useTrackFilters } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'AttributeTrackFilter',
@@ -18,6 +18,7 @@ export default defineComponent({
   },
   setup(props) {
     const trackFilters = useTrackFilters();
+    const attributes = useAttributes();
     const baseFilter = computed(() => {
       if (trackFilters.attributeFilters.value.length > 0
         && trackFilters.attributeFilters.value[props.filterIndex]) {
@@ -27,24 +28,63 @@ export default defineComponent({
     });
     const enabled = computed(() => (baseFilter ? trackFilters.enabledFilters.value[props.filterIndex] : false));
     const range = computed(() => baseFilter.value?.filter?.range || [0, 1.0]);
-    const value = computed(() => {
+    const attrType = computed(() => {
       if (baseFilter.value) {
-        return trackFilters.userDefinedValues.value[props.filterIndex];
+        const filtered = attributes.value.filter((item) => {
+          if (baseFilter.value) {
+            return item.name === baseFilter.value.attribute;
+          }
+          return false;
+        });
+        if (filtered.length > 0) {
+          return filtered[0].datatype;
+        }
       }
       return null;
     });
 
+    const value = computed(() => {
+      if (baseFilter.value) {
+        const val = trackFilters.userDefinedValues.value[props.filterIndex];
+        if (attrType.value === 'number' && val !== null) {
+          if (typeof val === 'string') {
+            return parseFloat(val);
+          } if (typeof val === 'number') {
+            return val;
+          }
+        } else {
+          return val;
+        }
+      }
+      return null;
+    });
+    const typeConversion = ref({ text: 'string', number: 'number', boolean: 'boolean' });
+    const inputFilter = ref(['=', '!=', '>', '<', '>=', '<=']);
     function setEnabled(val: boolean) {
       trackFilters.setEnabled(props.filterIndex, val);
+      if (val) {
+        trackFilters.setUserDefinedValue(props.filterIndex, value.value);
+      }
     }
     function _updateValue(event: InputEvent) {
       if (event.target) {
         // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
         // @ts-ignore
-        trackFilters.setUserDefinedValue(props.filterIndex, Number.parseFloat(event.target.value));
+        if (attrType.value === 'number') {
+          const val = Number.parseFloat(event.target.value);
+          trackFilters.setUserDefinedValue(props.filterIndex, val);
+        } else if (attrType.value === 'text') {
+          trackFilters.setUserDefinedValue(props.filterIndex, event.target.value);
+        }
       }
     }
+
+    function updateCombo(event: string[]) {
+      console.log(event);
+      trackFilters.setUserDefinedValue(props.filterIndex, event);
+    }
     const updateValue = throttle(_updateValue, 100);
+
     return {
       updateValue,
       baseFilter,
@@ -53,13 +93,17 @@ export default defineComponent({
       trackFilters,
       enabled,
       setEnabled,
+      attrType,
+      inputFilter,
+      typeConversion,
+      updateCombo,
     };
   },
 });
 </script>
 
 <template>
-  <div v-if="baseFilter && value !== null">
+  <div v-if="baseFilter">
     <v-row
       v-if="editable"
       dense
@@ -93,28 +137,53 @@ export default defineComponent({
       />
       <span> {{ baseFilter.name }}</span>
 
-      <v-spacer v-if="!$scopedSlots.default" />
-      <span
-        v-if="(typeof value === 'number')"
-        class="pl-2"
+      <v-spacer />
+      <v-tooltip
+        bottom
+        max-width="200"
       >
-        {{ baseFilter.type }} attribute: <b> {{ baseFilter.attribute }} </b>
-      </span>
-      <v-spacer v-if="$scopedSlots.default" />
-      <slot />
+        <template #activator="{ on }">
+          <v-btn
+            small
+            icon
+            v-on="on"
+          >
+            <v-icon small>
+              mdi-information
+            </v-icon>
+          </v-btn>
+        </template>
+        <span>
+          <span
+            class="pl-2"
+          >
+            {{ baseFilter.type }} attribute: <b> {{ baseFilter.attribute }} </b>
+          </span>
+
+        </span>
+      </v-tooltip>
     </div>
     <div
       class="text-body-2 grey--text text--lighten-1 d-flex flex-row py-0"
     >
       <span
-        v-if="(typeof value === 'number')"
+        v-if="attrType === 'number' && typeof value === 'number' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
         class="pl-2"
       >
         {{ value.toFixed(2) }}
       </span>
+      <span
+        v-if="attrType === 'text' && typeof value === 'string' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
+        class="pl-2"
+      >
+        {{ value }}
+      </span>
+    </div>
+    <div v-if="!baseFilter.filter.userDefined">
+      Value {{ baseFilter.filter.op }} {{ baseFilter.filter.val }}
     </div>
     <input
-      v-if="!$scopedSlots.default"
+      v-else-if="baseFilter.filter.op === 'rangeFilter' && baseFilter.filter.userDefined"
       type="range"
       style="width: 100%"
       :min="range[0]"
@@ -125,6 +194,45 @@ export default defineComponent({
       persistent-hint
       @input="updateValue"
     >
+    <div v-else-if="baseFilter.filter.op !== 'in'">
+      <span> Value {{ baseFilter.filter.op }}</span>
+      <span class="mx-2">
+        <input
+          v-if="inputFilter.includes(baseFilter.filter.op) && attrType === 'number'"
+          :value="value"
+          type="number"
+          :step="0.01"
+          :disabled="!enabled"
+          class="input-box"
+          @input="updateValue"
+        >
+        <input
+          v-else-if="inputFilter.includes(baseFilter.filter.op) && attrType === 'text'"
+          :value="value"
+          type="text"
+          :disabled="!enabled"
+          class="input-box"
+          @change="updateValue"
+        >
+      </span>
+    </div>
+    <div v-else-if="baseFilter.filter.op === 'in'">
+      <div>Value in </div>
+      <v-row dense>
+        <v-combobox
+          if="baseFilter.filter.op === 'in' && attrType === 'text'"
+          multiple
+          chips
+          deletable-chips
+          clearable
+          dense
+          :value="value"
+          :disabled="!enabled"
+          class="input-box"
+          @change="updateCombo"
+        />
+      </v-row>
+    </div>
   </div>
 </template>
 
@@ -132,4 +240,12 @@ export default defineComponent({
 .filter-text {
   font-size: 0.75em;
 }
+.input-box {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 0 6px;
+    width: 110px;
+    color: white;
+  }
+
 </style>

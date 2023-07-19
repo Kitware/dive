@@ -66,7 +66,8 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           && enabledInGroupFilters && !resultsIds.has(annotation.id)
         ) {
           let addValue = true;
-          if (this.attributeFilters.value.length > 0 && params.getTrack !== undefined) {
+          if (this.attributeFilters.value.length > 0 && params.getTrack !== undefined
+            && this.enabledFilters.value.length > 0) {
             addValue = filterByTrackId(
               annotation.id,
               params.getTrack as (trackId: AnnotationId) => Track,
@@ -123,7 +124,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     }
   }
 
-  setUserDefinedValue(index: number, val: number) {
+  setUserDefinedValue(index: number, val: userDefinedVals) {
     if (index < this.userDefinedValues.value.length) {
       this.userDefinedValues.value.splice(index, 1, val);
     }

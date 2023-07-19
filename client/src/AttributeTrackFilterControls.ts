@@ -24,6 +24,7 @@ export interface AttributeTrackFilter {
     filter: AttributeMatch;
     ignoreUndefined?: boolean;
     enabled: boolean;
+    primaryDisplay?: boolean; // should this filter be displayed in the main interface
 }
 
 export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: userDefinedVals, userDefinedVal: userDefinedVals | undefined) => {
@@ -137,14 +138,15 @@ export const filterByTrackId = (
     }
   }
   for (let i = 0; i < detectionFilters.length; i += 1) {
-    for (let k = 0; k < track.features.length; k += 1) {
-      const detectionAttributes = track.features[k].attributes;
+    for (let k = 0; k < track.featureIndex.length; k += 1) {
+      const index = track.featureIndex[k];
+      const detectionAttributes = track.features[index].attributes;
       const filter = detectionFilters[i];
       if (detectionAttributes) {
         if (detectionAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
           return false;
         }
-        const result = checkAttributes(filter.filter, detectionAttributes[filter.attribute] as userDefinedVals, trackUserVals[i]);
+        const result = checkAttributes(filter.filter, detectionAttributes[filter.attribute] as userDefinedVals, detectionUserVals[i]);
         if (!result) {
           return false;
         }
