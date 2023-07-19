@@ -159,7 +159,7 @@ class CustomStyle(BaseModel):
 
 
 class AttributeMatch(BaseModel):
-    op: Optional[Literal['=', '!=', '>', '<', '>=', '<=', 'range', 'in', 'rangeFilter']]
+    op: Optional[Literal['=', '!=', '>', '<', '>=', '<=', 'range', 'in', 'rangeFilter', 'contains']]
     val: Any
     userDefined: Optional[bool]
     range: Optional[List[float]]

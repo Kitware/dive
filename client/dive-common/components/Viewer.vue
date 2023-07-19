@@ -44,6 +44,7 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
+import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -174,7 +175,7 @@ export default defineComponent({
     const getTracksMerged = (id: AnnotationId) => cameraStore.getTracksMerged(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
-      markChangesPending,
+      markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
       setType: setTrackType,
       removeTypes,
@@ -187,7 +188,7 @@ export default defineComponent({
     const trackFilters = new TrackFilterControls({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
-      markChangesPending,
+      markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       lookupGroups: cameraStore.lookupGroups,
       getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
       groupFilterControls: groupFilters,

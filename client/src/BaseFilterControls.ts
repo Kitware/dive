@@ -8,6 +8,12 @@ import type Track from './track';
 import { updateSubset } from './utils';
 import { AttributeTrackFilter } from './AttributeTrackFilterControls';
 
+interface MarkChangesPendingData {
+  action?: 'meta' | 'upsert' | 'delete';
+  attributeTrackFilter?: AttributeTrackFilter;
+}
+export type MarkChangesPendingFilter = (data?: MarkChangesPendingData) => void;
+
 export const DefaultConfidence = 0.1;
 /**
  * AnnotationWithContext wraps an annotation with additional information
@@ -24,13 +30,7 @@ export interface AnnotationWithContext<T extends Track | Group> {
 
 export interface FilterControlsParams<T extends Track | Group> {
   sorted: Ref<SortedAnnotation[]>;
-  markChangesPending: ({
-    action,
-    attributeTrackFilter,
-  }: {
-    action?: 'upsert' | 'delete' | 'meta';
-    attributeTrackFilter?: AttributeTrackFilter;
-  }) => void;
+  markChangesPending: MarkChangesPendingFilter;
   remove: (id: AnnotationId) => void;
   setType: (id: AnnotationId, newType: string,
     confidenceVal?: number, currentType?: string) => void;
@@ -69,13 +69,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
 
   /* MarkChangesPending is called when meta config default types are modified  */
-  markChangesPending: ({
-    action,
-    attributeTrackFilter,
-  }: {
-    action?: 'upsert' | 'delete' | 'meta';
-    attributeTrackFilter?: AttributeTrackFilter;
-  }) => void;
+  markChangesPending: MarkChangesPendingFilter;
 
   /* Hold a reference to the annotationStore */
   sorted: Readonly<Ref<SortedAnnotation[]>>;

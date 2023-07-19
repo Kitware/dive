@@ -59,28 +59,26 @@ export default defineComponent({
       return null;
     });
     const typeConversion = ref({ text: 'string', number: 'number', boolean: 'boolean' });
-    const inputFilter = ref(['=', '!=', '>', '<', '>=', '<=']);
+    const inputFilter = ref(['=', '!=', '>', '<', '>=', '<=', 'contains']);
     function setEnabled(val: boolean) {
       trackFilters.setEnabled(props.filterIndex, val);
       if (val) {
         trackFilters.setUserDefinedValue(props.filterIndex, value.value);
       }
     }
-    function _updateValue(event: InputEvent) {
-      if (event.target) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
+    function _updateValue(event: Event) {
+      const target: HTMLInputElement = event.target as HTMLInputElement;
+      if (target) {
         if (attrType.value === 'number') {
-          const val = Number.parseFloat(event.target.value);
+          const val = Number.parseFloat(target.value);
           trackFilters.setUserDefinedValue(props.filterIndex, val);
         } else if (attrType.value === 'text') {
-          trackFilters.setUserDefinedValue(props.filterIndex, event.target.value);
+          trackFilters.setUserDefinedValue(props.filterIndex, target.value);
         }
       }
     }
 
     function updateCombo(event: string[]) {
-      console.log(event);
       trackFilters.setUserDefinedValue(props.filterIndex, event);
     }
     const updateValue = throttle(_updateValue, 100);
@@ -154,10 +152,27 @@ export default defineComponent({
           </v-btn>
         </template>
         <span>
-          <span
-            class="pl-2"
-          >
-            {{ baseFilter.type }} attribute: <b> {{ baseFilter.attribute }} </b>
+          <span>
+            <div>
+              <b>Attribute:</b> <span>{{ baseFilter.attribute }}</span>
+            </div>
+
+            <div>
+              <b>Type:</b> <span>{{ baseFilter.type }}</span>
+            </div>
+
+            <div v-if="!baseFilter.filter.userDefined">
+              <b>Value:</b> <span>{{ baseFilter.filter.op }} {{ baseFilter.filter.val }}</span>
+            </div>
+            <div v-if="baseFilter.filter.userDefined">
+              <div>
+                <b>User Defined Value:</b> <span>{{ baseFilter.filter.op }} {{ value }}</span>
+              </div>
+              <div>
+                <b>Default Value:</b> <span>{{ baseFilter.filter.val }}</span>
+              </div>
+            </div>
+
           </span>
 
         </span>

@@ -3,7 +3,7 @@ import { isArray } from 'lodash';
 import { AnnotationId } from './BaseAnnotation';
 import type Track from './track';
 
-export type MatchOperator = '=' | '!=' | '>' | '<' | '>=' | '<=' | 'range' | 'in' | 'rangeFilter';
+export type MatchOperator = '=' | '!=' | '>' | '<' | '>=' | '<=' | 'range' | 'in' | 'rangeFilter' | 'contains';
 
 export type userDefinedVals = number | string | string[] | number[] | null | boolean;
 
@@ -78,6 +78,12 @@ export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: us
             if (checkVal[0] !== null && checkVal[1] !== null) {
               results.push(attributeVal as number | string >= checkVal[0] && attributeVal as number | string <= checkVal[1]);
             }
+          }
+          break;
+        }
+        case 'contains': {
+          if (checkVal !== null && attributeVal !== null && checkVal !== undefined) {
+            results.push(attributeVal?.toString().includes(checkVal.toString()));
           }
           break;
         }

@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 import { AttributeTrackFilter, MatchOperator } from 'vue-media-annotator/AttributeTrackFilterControls';
 import AttributeTrackFilterVue from '../../dive-common/components/AttributeTrackFilter.vue';
-import { useAttributes, useTrackFilters, useTrackStyleManager } from '../provides';
+import { useAttributes, useTrackFilters } from '../provides';
 
 
 export default defineComponent({
@@ -21,7 +21,6 @@ export default defineComponent({
   setup() {
     const trackFilters = useTrackFilters();
     const attributes = useAttributes();
-    const typeStylingRef = useTrackStyleManager().typeStyling;
     const attributeTypes = computed(() => {
       const typeMap: Record<string, string> = {};
       attributes.value.forEach((item) => {
@@ -35,6 +34,7 @@ export default defineComponent({
     const addFilterDialog = ref(false);
     const filters = trackFilters.attributeFilters;
 
+    const existingNames = computed(() => trackFilters.attributeFilters.value.map((item) => item.name));
     // editing/adding Attribute Filter
     const editingAtrKey = ref('');
     const editName = ref('');
@@ -59,7 +59,7 @@ export default defineComponent({
         if (editingAttributeType.value === 'number') {
           return ['=', '!=', '>', '<', '>=', '<=', 'range', 'rangeFilter'];
         } if (editingAttributeType.value === 'text') {
-          return ['=', '!=', 'in'];
+          return ['=', '!=', 'in', 'contains'];
         }
         if (editingAttributeType.value === 'boolean') {
           return ['=', '!='];
@@ -73,7 +73,7 @@ export default defineComponent({
     const editingAtrVal: Ref<string[] | string | number | number[] | null | boolean> = ref('');
     const editingRange: Ref<number[]> = ref([0, 1]);
     const editingAtrTypeList = ref(['track', 'detection']);
-    const editingFilterEnabled = ref(false);
+    const editingFilterEnabled = ref(true);
     const editingAtrType: Ref<'track' | 'detection'> = ref('track');
     const editingUserDefined = ref(true);
     const editingPrimaryDisplay = ref(true);
@@ -105,7 +105,11 @@ export default defineComponent({
         }
         editingFilter.value = index;
       } else {
+        editName.value = '';
+        editingAtrKey.value = '';
+        editingAtrOp.value = '=';
         editingFilter.value = filters.value.length;
+        editingFilterEnabled.value = true;
       }
       addFilterDialog.value = true;
     };
@@ -114,6 +118,8 @@ export default defineComponent({
       editingAtrKey.value = '';
       editingAtrOp.value = '=';
       editingAtrVal.value = '';
+      editName.value = '';
+      editingFilterEnabled.value = true;
       addFilterDialog.value = false;
       editingUserDefined.value = true;
       editingPrimaryDisplay.value = true;
@@ -140,10 +146,15 @@ export default defineComponent({
         trackFilters.updateTrackFilter(editingFilter.value, updatedTrackFilter);
       }
       addFilterDialog.value = false;
+      editingAtrKey.value = '';
+      editingAtrOp.value = '=';
+      editingAtrVal.value = '';
+      editName.value = '';
     };
     const deleteFilter = (index: number) => {
       trackFilters.deleteTrackFilter(index);
     };
+    const areSettingsValid = ref(false);
 
     return {
       trackFilters,
@@ -165,6 +176,8 @@ export default defineComponent({
       editingUserDefined,
       attributeList,
       editingRange,
+      areSettingsValid,
+      existingNames,
       changeAttributeType,
       cancelFilter,
       deleteFilter,
@@ -188,9 +201,9 @@ export default defineComponent({
           :key="item.name"
           :filter-index="index"
           editable
+          class="attributeTrackFilter ma-2"
           @edit="addEditTrackFilter(index)"
           @delete="deleteFilter(index)"
-          class="attributeTrackFilter ma-2"
         />
       </v-card-text>
       <v-card-actions>
@@ -210,100 +223,111 @@ export default defineComponent({
       <v-card>
         <v-card-title> Add/Edit Track Attribute Filter </v-card-title>
         <v-card-text>
-          <v-text-field
-            v-model="editName"
-            label="Filter Name"
-          />
-          <v-row dense>
-            <v-select
-              v-model="editingAtrType"
-              :items="editingAtrTypeList"
-              label="Attribute Type"
-            />
-
-            <v-select
-              v-model="editingAtrKey"
-              :items="attributeList"
-              label="Attribute"
-            />
-          </v-row>
-          <v-row dense>
-            <v-switch
-              v-model="editingFilterEnabled"
-              label="Enabled"
-              class="mx-2"
-            />
-
-            <v-switch
-              v-model="editingPrimaryDisplay"
-              label="Primary Display"
-              class="mx-2"
-            />
-            <v-switch
-              v-model="editingUserDefined"
-              label="User Editable"
-              class="mx-2"
-            />
-          </v-row>
-          <v-row dense>
-            <v-select
-              v-model="editingAtrOp"
-              :items="editingOps"
-              label="Operator"
-              @change="changeAttributeType"
-            />
-          </v-row>
-          <v-row dense>
+          <v-form
+            ref="form"
+            v-model="areSettingsValid"
+          >
             <v-text-field
-              v-if="!['range', 'in'].includes(editingAtrOp)"
-              v-model="editingAtrVal"
-              :type="attributeTypes[editingAtrKey] === 'text' ? 'text' : 'number'"
-              :label="editingAtrOp === 'rangeFilter' ? 'Default Value' : 'Test Value'"
-              persistent-hint
-              :hint="editingAtrOp === 'rangeFilter' ? 'Default Value' : 'Test Value'"
+              v-model="editName"
+              label="Filter Name"
+              :rules="[v => !!v || 'Name is required', (v) => (!existingNames.includes(v) || editingFilter !== filters.length) || 'Name needs to be unique']"
+              required
             />
-            <div
-              v-else-if="'in' === editingAtrOp"
-            >
-              <v-combobox
-                v-model="editingAtrVal"
-                chips
-                dense
-                deletable-chips
-                multiple
-                :type="attributeTypes[editingAtrKey] === 'text' ? 'text' : 'number'"
+            <v-row dense>
+              <v-select
+                v-model="editingAtrType"
+                :items="editingAtrTypeList"
+                label="Attribute Type"
               />
-            </div>
-            <div
-              v-else-if="'range' === editingAtrOp && editingAtrVal !== null && typeof editingAtrVal === 'object' && editingAtrVal.length > 0"
-            >
-              <v-text-field
-                v-model="editingAtrVal[0]"
-                :type="'number'"
-                label="low"
-              />
-              <v-text-field
-                v-model="editingAtrVal[1]"
-                :type="'number'"
-                label="high"
-              />
-            </div>
-            <v-row
-              v-if="'rangeFilter' === editingAtrOp"
-              dense
-            >
-              <v-text-field
-                v-model="editingRange[0]"
-                :type="'number'"
-                label="low range"
-              />
-              <v-text-field
-                v-model="editingRange[1]"
-                :type="'number'"
-                label="high range"
+
+              <v-select
+                v-model="editingAtrKey"
+                :rules="[v => !!v || 'Attribute is required']"
+                required
+                :items="attributeList"
+                label="Attribute"
               />
             </v-row>
-          </v-row>
+            <v-row dense>
+              <v-switch
+                v-model="editingFilterEnabled"
+                label="Enabled"
+                class="mx-2"
+              />
+
+              <v-switch
+                v-model="editingPrimaryDisplay"
+                label="Primary Display"
+                class="mx-2"
+              />
+              <v-switch
+                v-model="editingUserDefined"
+                label="User Editable"
+                class="mx-2"
+              />
+            </v-row>
+            <v-row dense>
+              <v-select
+                v-model="editingAtrOp"
+                :items="editingOps"
+                label="Operator"
+                :rules="[v => !!v || 'Operator is required']"
+                required
+                @change="changeAttributeType"
+              />
+            </v-row>
+            <v-row dense>
+              <v-text-field
+                v-if="!['range', 'in'].includes(editingAtrOp)"
+                v-model="editingAtrVal"
+                :type="attributeTypes[editingAtrKey] === 'text' ? 'text' : 'number'"
+                :label="editingAtrOp === 'rangeFilter' ? 'Default Value' : 'Test/Default Value'"
+                persistent-hint
+                :hint="editingAtrOp === 'rangeFilter' ? 'Default Value' : 'Test/Default Value'"
+              />
+              <div
+                v-else-if="'in' === editingAtrOp"
+              >
+                <v-combobox
+                  v-model="editingAtrVal"
+                  chips
+                  dense
+                  deletable-chips
+                  multiple
+                  :type="attributeTypes[editingAtrKey] === 'text' ? 'text' : 'number'"
+                />
+              </div>
+              <div
+                v-else-if="'range' === editingAtrOp && editingAtrVal !== null && typeof editingAtrVal === 'object' && editingAtrVal.length > 0"
+              >
+                <v-text-field
+                  v-model="editingAtrVal[0]"
+                  :type="'number'"
+                  label="low"
+                />
+                <v-text-field
+                  v-model="editingAtrVal[1]"
+                  :type="'number'"
+                  label="high"
+                />
+              </div>
+              <v-row
+                v-if="'rangeFilter' === editingAtrOp"
+                dense
+              >
+                <v-text-field
+                  v-model="editingRange[0]"
+                  :type="'number'"
+                  label="low range"
+                />
+                <v-text-field
+                  v-model="editingRange[1]"
+                  :type="'number'"
+                  label="high range"
+                />
+              </v-row>
+            </v-row>
+          </v-form>
         </v-card-text>
         <v-card-actions>
           <v-row>
@@ -313,6 +337,7 @@ export default defineComponent({
             </v-btn>
             <v-btn
               color="primary"
+              :disabled="!areSettingsValid"
               @click="saveFilter"
             >
               Save

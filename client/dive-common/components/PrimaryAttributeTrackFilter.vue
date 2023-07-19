@@ -29,7 +29,7 @@ export default defineComponent({
       });
       return filters;
     });
-    const count = computed(() => trackFilters.enabledFilters.value.filter((item) => item).length);
+    const count = computed(() => trackFilters.enabledFilters.value.filter((item) => item).length || 0);
     return {
       primaryFilters,
       expanded,
@@ -58,21 +58,30 @@ export default defineComponent({
         <b>Track Attribute Filters</b>
         <v-badge
           overlap
+          :value="count"
           bottom
-          :color="primary"
+          color="primary"
           :content="count"
           offset-x="12"
           offset-y="21"
         >
-          <div v-on="on">
-            <v-btn
-              small
-              icon
-            >
-              <v-icon>mdi-filter</v-icon>
-            </v-btn>
-          </div>
+          <v-tooltip
+            open-delay="50"
+            bottom
+            max-width="200"
+          >
+            <template #activator="{ on }">
+              <v-icon v-on="on">
+                mdi-filter
+              </v-icon>
+            </template>
+            <span>
+              There are {{ count }} filters active
+            </span>
+          </v-tooltip>
         </v-badge>
+
+
         <v-spacer />
         <v-btn
           icon
@@ -83,7 +92,10 @@ export default defineComponent({
         </v-btn>
       </v-row>
     </div>
-    <div v-if="expanded">
+    <div
+      v-if="expanded"
+      class="filterList"
+    >
       <div
         v-for="item in primaryFilters"
         :key="`filter_${item}`"
@@ -108,5 +120,9 @@ export default defineComponent({
 }
 .attributeTrackFilter{
   border-bottom: 1px solid gray;
+}
+.filterList {
+  overflow-y:auto;
+  max-height: 20vh;
 }
 </style>
