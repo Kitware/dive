@@ -1,25 +1,32 @@
-import girder_client
 import json
 import os
-import click
 
-'''
+import click
+import girder_client
+
+"""
 This script is used to sync a folder Hierarchy of Annotation files with a deployed version
 It will mimic 
-'''
+"""
 
 
 apiURL = "localhost"
 port = 8010
-baseGirderId = "64c167a0ddec2a1b05eabb76"  # Sample folder 
-baseGirderType = "folder" # folder | collection | user
+baseGirderId = ""  # Sample folder
+baseGirderType = "folder"  # folder | collection | user
+keyFolderName = "ANNOTATIONS"  # The folder name under which to look for Annotations
+keyFileName = "annotations-"  # a key for replacement on the annotation-file to sync it with the dataset
 limit = 10  # for testing purposes kkeep lower then increase
+default_label = "unlabeled"  # when uploading this will be the folder that will replace the existing annotations.
+# all other labels will create a clone with the name of the dataset and the label type.
+
 
 # Login to the girder client, interactive means it will prompt for username and password
 def login():
-    gc = girder_client.GirderClient(apiURL, port=port, apiRoot='girder/api/v1')
+    gc = girder_client.GirderClient(apiURL, port=port, apiRoot="girder/api/v1")
     gc.authenticate(interactive=True)
     return gc
+
 
 # Simple search within folder to get annotation files and their paths
 def get_annotations(folder):
@@ -27,47 +34,171 @@ def get_annotations(folder):
     foundfiles = []
     for root, dirs, files in os.walk(checkFolder):
         for file in files:
-            if file.endswith('.csv'):
+            if file.endswith(".csv"):
                 # base name exists we can get a list of files
                 foundfiles.append(os.path.join(root, file))
     return foundfiles
+
+
 # returns the girder base path for the indexed folder
 def getBasePath(gc: girder_client.GirderClient, folder: str, type: str):
-    return gc.sendRestRequest('GET', f'resource/{folder}/path?type={type}')
+    return gc.sendRestRequest("GET", f"resource/{folder}/path?type={type}")
 
-# attempts to find the filename dataset and the 'Video {filename}' 
+
+# attempts to find the filename dataset and the 'Video {filename}'
 def find_dataset(gc: girder_client.GirderClient, filename: str, baseGirderPath: str):
     basename = os.path.basename(filename)
-    check_path = filename.replace(basename, f'Video {basename}')
-    found = gc.sendRestRequest('GET', f'resource/lookup', parameters={"path": f'{baseGirderPath}/{check_path}'})
+    # first we need to remove the ANNOTATIONS/{labeled}/annotations from the filename
+    print(filename)
+    start_index = filename.find(keyFolderName)
+    end_index = filename.find(keyFileName) + len(keyFileName)
+    removed_label = filename[start_index:end_index].split("/")[1]
+    removed_data = filename[end_index:]
+    check_path = removed_data.replace(".csv", "")
+    check_path = check_path.replace(basename, f"Video {basename}")
+    # Check for a Video
+    found = gc.sendRestRequest(
+        "GET",
+        f"resource/lookup",
+        parameters={"path": f'/{baseGirderPath}/{check_path.replace(".csv", ".mp4")}'},
+    )
     if found:
-        if found.get('meta', {}).get('annotate', False):
-            return found.get('_id', False)
+        if found.get("meta", {}).get("annotate", False):
+            return {
+                "id": found.get("_id", False),
+                "label": removed_label,
+                "parentId": found.get("parentId", False),
+            }
     # secondary check on the root name with out "Video "
-    found = gc.sendRestRequest('GET', f'resource/lookup', parameters={"path": f'{baseGirderPath}/{filename}'})
+    check_path = check_path.replace(f"Video ", "")
+    found = gc.sendRestRequest(
+        "GET",
+        f"resource/lookup",
+        parameters={"path": f"/{baseGirderPath}/{check_path}"},
+    )
     if found:
-        if found.get('meta', {}).get('annotate', False):
-            return found.get('_id', False)
+        if found.get("meta", {}).get("annotate", False):
+            return {
+                "id": found.get("_id", False),
+                "label": removed_label,
+                "parentId": found.get("parentId", False),
+            }
+    # check for Image Directory
+    check_path = check_path.replace(".mp4", "")
+    found = gc.sendRestRequest(
+        "GET",
+        f"resource/lookup",
+        parameters={"path": f"/{baseGirderPath}/{check_path}"},
+    )
+    if found:
+        if found.get("meta", {}).get("annotate", False):
+            return {
+                "id": found.get("_id", False),
+                "label": removed_label,
+                "parentId": found.get("parentId", False),
+            }
     return False
 
-def upload_annotations(gc: girder_client.GirderClient, annotations):
-    for annotation in annotations:
-        gc.uploadFileToFolder(annotation['girderId'], annotation['file'])
-        gc.sendRestRequest('POST', f'dive_rpc/postprocess/{annotation["girderId"]}', data={'skipTranscoding': True, 'skipJobs': True})
 
+# Uploads annotations in place back into the source imagery/video directories on Girder
+def upload_inplace_annotations(gc: girder_client.GirderClient, annotations):
+    for annotation in annotations:
+        print(annotation)
+        upload_folder = annotation["girderId"]
+        upload_file = annotation["file"]
+        if (
+            annotation["label"] != default_label
+        ):  # now we clone based on non-default label
+            parent_folder = annotation["parentId"]
+            name = f"{os.path.basename(annotation['file']).replace(keyFileName, '').replace('.csv','')} - {annotation['label']}"
+            # Lets check if the folder already exists
+            folder_list = gc.sendRestRequest(
+                "GET",
+                f"folder?parentType=folder&parentId={parent_folder}&limit=99999&sort=lowerName&sortdir=1",
+            )
+            name_map = {}
+            for item in folder_list:
+                name_map[item["name"]] = item["_id"]
+            if name in name_map.keys():
+                upload_folder = name_map[name]
+            else:
+                new_folder = gc.sendRestRequest(
+                    "POST",
+                    f'dive_dataset?cloneId={annotation["girderId"]}&parentFolderId={parent_folder}&name={name}',
+                )
+                upload_folder = str(new_folder["_id"])
+
+        # Now we upload the file and trigger a post process to view the data
+        gc.uploadFileToFolder(upload_folder, upload_file)
+        gc.sendRestRequest(
+            "POST",
+            f"dive_rpc/postprocess/{upload_folder}",
+            data={"skipTranscoding": True, "skipJobs": True},
+        )
+
+
+# uploads annotations to a user public folder
+def clone_and_upload_annotations(
+    gc: girder_client.GirderClient, annotations, rootFolder
+):
+    for annotation in annotations:
+        upload_folder = annotation["girderId"]
+        upload_file = annotation["file"]
+        name = f"{os.path.basename(annotation['file']).replace('.csv','')}"
+        if annotation["label"] != default_label:  # now we change the name
+            name = f"{name} - {annotation['label']}"
+        new_folder = gc.sendRestRequest(
+            "POST",
+            f'dive_dataset?cloneId={annotation["girderId"]}&parentFolderId={rootFolder}&name={name}',
+        )
+        upload_folder = str(new_folder["_id"])
+        gc.uploadFileToFolder(upload_folder, upload_file)
+        gc.sendRestRequest(
+            "POST",
+            f"dive_rpc/postprocess/{upload_folder}",
+            data={"skipTranscoding": True, "skipJobs": True},
+        )
+
+
+# returns the public folder of the user who logged in
 def get_public_folder(gc: girder_client.GirderClient):
-    current_user = gc.sendRestRequest('GET', 'user/me')
-    userId = current_user['_id']
-    folders = gc.sendRestRequest('GET', f'folder?parentType=user&parentId={userId}&text=Public&limit=50&sort=lowerName&sortdir=1')
+    current_user = gc.sendRestRequest("GET", "user/me")
+    userId = current_user["_id"]
+    folders = gc.sendRestRequest(
+        "GET",
+        f"folder?parentType=user&parentId={userId}&text=Public&limit=50&sort=lowerName&sortdir=1",
+    )
     if len(folders) > 0:
-        uploadFolder = folders[0]['_id']
+        uploadFolder = folders[0]["_id"]
     else:
-        print('No folder found for the user')
+        print("No folder found for the user")
     return uploadFolder
 
+
+def ask_question(prompt):
+    while True:
+        response = input(prompt).strip().lower()
+        return response
+
+
+def ask_yes_no_question(prompt):
+    while True:
+        response = input(prompt).strip().lower()
+        if response == "y":
+            return True
+        elif response == "n":
+            return False
+        else:
+            print("Invalid input. Please enter 'y' or 'n'.")
+
+
 @click.command(name="LoadData", help="Load in ")
-@click.argument('folder') # a local folder to search for mp4 video files and json/csv files.
-def load_data(folder):
+@click.argument(
+    "folder"
+)  # a local folder to search for mp4 video files and json/csv files.
+@click.argument("girder_id", required=False)
+def load_data(folder, girder_id):
+    baseGirderId = girder_id
     annotations = get_annotations(folder)
     print(annotations)
     gc = login()
@@ -76,15 +207,34 @@ def load_data(folder):
     upload_list = []
     for annotation in annotations:
         print(annotation)
-        modifed = annotation.replace(folder, '').replace('.csv', '.mp4')
-        result = find_dataset(gc, modifed, base_path)
+        result = find_dataset(gc, annotation, base_path)
         if result:
-            upload_list.append({
-                'girderId': result,
-                'file': annotation,
-                'type': 'upload'
-            })
-   
-    upload_annotations(gc, upload_list)
-if __name__ == '__main__':
+            upload_list.append(
+                {
+                    "girderId": result["id"],
+                    "label": result["label"],
+                    "parentId": result["parentId"],
+                    "file": annotation,
+                    "type": "upload",
+                }
+            )
+    local_public = ask_yes_no_question(
+        f'Would you like to create a cloned copy of the images in your public folder?  If you choose "n" it will upload the annotations to the source image locations. (y/n)\n'
+    )
+    if local_public:
+        folder_name = None
+        while not folder_name:
+            folder_name = ask_question(
+                "What is the root folder that should be created in your Public folder?"
+            )
+        public_folder = get_public_folder(gc)
+        base_folder = gc.createFolder(
+            parentId=public_folder, name=folder_name, reuseExisting=True
+        )
+        clone_and_upload_annotations(gc, upload_list, str(base_folder["_id"]))
+    else:
+        upload_inplace_annotations(gc, upload_list)
+
+
+if __name__ == "__main__":
     load_data()
