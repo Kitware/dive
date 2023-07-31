@@ -34,11 +34,10 @@ it will create a clone with the name {Dataset} - {label}.  This allows multiple 
 
 apiURL = "localhost"
 port = 8010
-baseGirderId = ""  # Sample folder
+baseGirderId = ""  # Set by the second argument to the script
 baseGirderType = "folder"  # folder | collection | user
 keyFolderName = "ANNOTATIONS"  # The folder name under which to look for Annotations
 keyFileName = "annotations-"  # a key for replacement on the annotation-file to sync it with the dataset
-limit = 10  # for testing purposes kkeep lower then increase
 default_label = "unlabeled"  # when uploading this will be the folder that will replace the existing annotations.
 # all other labels will create a clone with the name of the dataset and the label type.
 
