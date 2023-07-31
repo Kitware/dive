@@ -5,8 +5,30 @@ import click
 import girder_client
 
 """
-This script is used to sync a folder Hierarchy of Annotation files with a deployed version
-It will mimic 
+This script is used to sync a folder Hierarchy of Annotation files with a similar folder structure within Girder
+
+Arguments: 
+- folder: local Folder Location
+- girder_id: girderId for matching folder on the server
+
+Process:
+
+1.  The system will look through the current folder for CSV files.  It is specifically looking for files with
+The format of /folder/folder/{keyFolderName}/{label}/{keyFilename}Dataset.csv where the keyFolderName and keyFilename are specified below in the main settings
+
+2. It retrieves the full base Path to the currently indicated girder_id specified in the arguments.
+
+3. The script attempts to find the matching dataset within the girder_id folder by removing the keyFolderName and keyFilename
+
+4. After finding the dataset it returns back an object with the label for the annotations, the girder parent folderId and the filename for the CSV files
+
+5. Now options are presented to the user, they can either upload the annotations to the source directory or they can create a folder in their User/Public
+directory with a custom name and clone the datasets to add annotations to.
+
+6. Once the decisions to either create a User/Public folder or upload to the dataset source locations is made the system will then upload the annotations.
+
+7. This is where the 'default_label' option is used.  If the the folder under Annotations doesn't match the 'default_label' when uploading to the source images
+it will create a clone with the name {Dataset} - {label}.  This allows multiple folders to be used to upload different annotations to the system.
 """
 
 
@@ -59,7 +81,7 @@ def find_dataset(gc: girder_client.GirderClient, filename: str, baseGirderPath: 
     # Check for a Video
     found = gc.sendRestRequest(
         "GET",
-        f"resource/lookup",
+        "resource/lookup",
         parameters={"path": f'/{baseGirderPath}/{check_path.replace(".csv", ".mp4")}'},
     )
     if found:
@@ -73,7 +95,7 @@ def find_dataset(gc: girder_client.GirderClient, filename: str, baseGirderPath: 
     check_path = check_path.replace(f"Video ", "")
     found = gc.sendRestRequest(
         "GET",
-        f"resource/lookup",
+        "resource/lookup",
         parameters={"path": f"/{baseGirderPath}/{check_path}"},
     )
     if found:
