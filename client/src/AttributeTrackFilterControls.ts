@@ -135,6 +135,10 @@ export const filterByTrackId = (
   });
   for (let i = 0; i < trackFilters.length; i += 1) {
     const filter = trackFilters[i];
+    // If we have a type filter only filter by the types specified
+    if (filter.typeFilter.length > 0 && !filter.typeFilter.includes(track.getType()[0])) {
+      return true;
+    }
     if (trackAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
       return false;
     }

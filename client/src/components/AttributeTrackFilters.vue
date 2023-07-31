@@ -5,7 +5,7 @@ import {
 } from '@vue/composition-api';
 import { AttributeTrackFilter, MatchOperator } from 'vue-media-annotator/AttributeTrackFilterControls';
 import AttributeTrackFilterVue from '../../dive-common/components/AttributeTrackFilter.vue';
-import { useAttributes, useTrackFilters } from '../provides';
+import { useAttributes, useTrackFilters, useTrackStyleManager } from '../provides';
 
 
 export default defineComponent({
@@ -20,6 +20,8 @@ export default defineComponent({
 
   setup() {
     const trackFilters = useTrackFilters();
+    const typeStylingRef = useTrackStyleManager().typeStyling;
+    const types = computed(() => trackFilters.allTypes.value);
     const attributes = useAttributes();
     const attributeTypes = computed(() => {
       const typeMap: Record<string, string> = {};
@@ -71,6 +73,7 @@ export default defineComponent({
 
     const editingAtrOp: Ref<MatchOperator> = ref('=');
     const editingAtrVal: Ref<string[] | string | number | number[] | null | boolean> = ref('');
+    const editingTypeFilter: Ref<string[]> = ref([]);
     const editingRange: Ref<number[]> = ref([0, 1]);
     const editingAtrTypeList = ref(['track', 'detection']);
     const editingFilterEnabled = ref(true);
@@ -98,6 +101,7 @@ export default defineComponent({
         editingAtrType.value = filter.type;
         editingAtrOp.value = filter.filter.op;
         editingAtrVal.value = filter.filter.val;
+        editingTypeFilter.value = filter.typeFilter;
         editingUserDefined.value = filter.filter.userDefined || false;
         editingPrimaryDisplay.value = filter.primaryDisplay || false;
         if (filter.filter.range) {
@@ -108,6 +112,7 @@ export default defineComponent({
         editName.value = '';
         editingAtrKey.value = '';
         editingAtrOp.value = '=';
+        editingTypeFilter.value = [];
         editingFilter.value = filters.value.length;
         editingFilterEnabled.value = true;
       }
@@ -118,6 +123,7 @@ export default defineComponent({
       editingAtrKey.value = '';
       editingAtrOp.value = '=';
       editingAtrVal.value = '';
+      editingTypeFilter.value = [];
       editName.value = '';
       editingFilterEnabled.value = true;
       addFilterDialog.value = false;
@@ -127,7 +133,7 @@ export default defineComponent({
 
     const saveFilter = () => {
       const updatedTrackFilter: AttributeTrackFilter = {
-        typeFilter: [],
+        typeFilter: editingTypeFilter.value,
         enabled: editingFilterEnabled.value,
         name: editName.value,
         attribute: editingAtrKey.value,
@@ -147,6 +153,7 @@ export default defineComponent({
       }
       addFilterDialog.value = false;
       editingAtrKey.value = '';
+      editingTypeFilter.value = [];
       editingAtrOp.value = '=';
       editingAtrVal.value = '';
       editName.value = '';
@@ -156,11 +163,16 @@ export default defineComponent({
     };
     const areSettingsValid = ref(false);
 
+    const deleteChip = (item: string) => {
+      editingTypeFilter.value.splice(editingTypeFilter.value.findIndex((data) => data === item));
+    };
+
     return {
       trackFilters,
       filters,
       editingFilter,
       attributeTypes,
+      types,
       // editing
       addFilterDialog,
       editName,
@@ -173,6 +185,7 @@ export default defineComponent({
       editingFilterEnabled,
       editingPrimaryDisplay,
       editingAttributeType,
+      editingTypeFilter,
       editingUserDefined,
       attributeList,
       editingRange,
@@ -183,6 +196,8 @@ export default defineComponent({
       deleteFilter,
       saveFilter,
       addEditTrackFilter,
+      typeStylingRef,
+      deleteChip,
     };
   },
 });
@@ -227,17 +242,57 @@ export default defineComponent({
             ref="form"
             v-model="areSettingsValid"
           >
-            <v-text-field
-              v-model="editName"
-              label="Filter Name"
-              :rules="[v => !!v || 'Name is required', (v) => (!existingNames.includes(v) || editingFilter !== filters.length) || 'Name needs to be unique']"
-              required
-            />
+            <v-row dense>
+              <v-text-field
+                v-model="editName"
+                label="Filter Name"
+                :rules="[v => !!v || 'Name is required', (v) => (!existingNames.includes(v) || editingFilter !== filters.length) || 'Name needs to be unique']"
+                required
+              />
+            </v-row>
+            <v-row dense>
+              <v-select
+                v-model="editingTypeFilter"
+                :items="types"
+                multiple
+                clearable
+                deletable-chips
+                chips
+                label="Track Types"
+              >
+                <template #selection="{ item }">
+                  <v-chip
+                    close
+                    :color="typeStylingRef.color(item)"
+                    text-color="#555555"
+                    @click:close="deleteChip(item)"
+                  >
+                    {{ item }}
+                  </v-chip>
+                </template>
+              </v-select>
+              <v-tooltip
+                open-delay="100"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon v-on="on">
+                    mdi-information
+                  </v-icon>
+                </template>
+                <span
+                  class="ma-0 pa-1"
+                >
+                  Empty is all Tracks, or select a specific track type to filter
+                </span>
+              </v-tooltip>
+            </v-row>
             <v-row dense>
               <v-select
                 v-model="editingAtrType"
                 :items="editingAtrTypeList"
                 label="Attribute Type"
+                class="mx-2"
               />
 
               <v-select
@@ -246,6 +301,7 @@ export default defineComponent({
                 required
                 :items="attributeList"
                 label="Attribute"
+                class="mx-2"
               />
             </v-row>
             <v-row dense>
@@ -254,17 +310,63 @@ export default defineComponent({
                 label="Enabled"
                 class="mx-2"
               />
+              <v-tooltip
+                open-delay="100"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon v-on="on">
+                    mdi-information
+                  </v-icon>
+                </template>
+                <span
+                  class="ma-0 pa-1"
+                >
+                  Will configure the filter to be enabled when opening the dataset.
+                </span>
+              </v-tooltip>
 
               <v-switch
                 v-model="editingPrimaryDisplay"
                 label="Primary Display"
                 class="mx-2"
               />
+              <v-tooltip
+                open-delay="100"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon v-on="on">
+                    mdi-information
+                  </v-icon>
+                </template>
+                <span
+                  class="ma-0 pa-1"
+                >
+                  The Track Attribute Filter will be displayed on the main panel below the type list.
+                </span>
+              </v-tooltip>
+
               <v-switch
                 v-model="editingUserDefined"
                 label="User Editable"
                 class="mx-2"
               />
+              <v-tooltip
+                open-delay="100"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon v-on="on">
+                    mdi-information
+                  </v-icon>
+                </template>
+                <span
+                  class="ma-0 pa-1"
+                >
+                  The values for the filter can be edited by the user.
+                </span>
+              </v-tooltip>
             </v-row>
             <v-row dense>
               <v-select

@@ -2,7 +2,7 @@
 /* eslint-disable max-len */
 import { computed, defineComponent, ref } from '@vue/composition-api';
 import { throttle } from 'lodash';
-import { useAttributes, useTrackFilters } from 'vue-media-annotator/provides';
+import { useAttributes, useTrackFilters, useTrackStyleManager } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'AttributeTrackFilter',
@@ -17,6 +17,8 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const typeStylingRef = useTrackStyleManager().typeStyling;
+
     const trackFilters = useTrackFilters();
     const attributes = useAttributes();
     const baseFilter = computed(() => {
@@ -95,6 +97,7 @@ export default defineComponent({
       inputFilter,
       typeConversion,
       updateCombo,
+      typeStylingRef,
     };
   },
 });
@@ -137,7 +140,7 @@ export default defineComponent({
 
       <v-spacer />
       <v-tooltip
-        bottom
+        right
         max-width="200"
       >
         <template #activator="{ on }">
@@ -163,6 +166,22 @@ export default defineComponent({
 
             <div v-if="!baseFilter.filter.userDefined">
               <b>Value:</b> <span>{{ baseFilter.filter.op }} {{ baseFilter.filter.val }}</span>
+            </div>
+            <div v-if="baseFilter.typeFilter.length">
+              <b>Types:</b>
+              <span
+                v-for="trackType in baseFilter.typeFilter"
+                :key="`${baseFilter.name}_${trackType}`"
+                class="mx-1"
+              >
+                <v-chip
+                  :color="typeStylingRef.color(trackType)"
+                  text-color="#555555"
+                >
+                  {{ trackType }}
+                </v-chip>
+
+              </span>
             </div>
             <div v-if="baseFilter.filter.userDefined">
               <div>
@@ -209,7 +228,10 @@ export default defineComponent({
       persistent-hint
       @input="updateValue"
     >
-    <div v-else-if="baseFilter.filter.op !== 'in'">
+    <div
+      v-else-if="baseFilter.filter.op !== 'in'"
+      class="my-1"
+    >
       <span> Value {{ baseFilter.filter.op }}</span>
       <span class="mx-2">
         <input
