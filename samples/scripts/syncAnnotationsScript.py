@@ -240,7 +240,7 @@ def load_data(folder, girder_id):
                 }
             )
     local_public = ask_yes_no_question(
-        f'Would you like to create a cloned copy of the images in your public folder?  If you choose "n" it will upload the annotations to the source image locations. (y/n)\n'
+        f'Would you like to create a cloned copy of the images in your DIVE public folder?  If you choose "n" it will upload the annotations to the source image locations. (y/n)\n'
     )
     if local_public:
         folder_name = None
