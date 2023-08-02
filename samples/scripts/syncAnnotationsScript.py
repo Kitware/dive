@@ -14,7 +14,7 @@ Arguments:
 Process:
 
 1.  The system will look through the current folder for CSV files.  It is specifically looking for files with
-The format of /folder/folder/{keyFolderName}/{label}/{keyFilename}Dataset.csv where the keyFolderName and keyFilename are specified below in the main settings
+The format of */{keyFolderName}/{label}/{keyFilename}Dataset.csv where the keyFolderName and keyFilename are specified below in the main settings
 
 2. It retrieves the full base Path to the currently indicated girder_id specified in the arguments.
 
