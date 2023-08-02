@@ -73,7 +73,7 @@ def find_dataset(gc: girder_client.GirderClient, filename: str, baseGirderPath: 
     print(filename)
     start_index = filename.find(keyFolderName)
     end_index = filename.find(keyFileName) + len(keyFileName)
-    removed_label = filename[start_index:end_index].split("/")[1]
+    removed_label = filename[start_index:end_index].split(os.path.sep)[1]
     removed_data = filename[end_index:]
     check_path = removed_data.replace(".csv", "")
     check_path = check_path.replace(basename, f"Video {basename}")
