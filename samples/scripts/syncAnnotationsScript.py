@@ -246,7 +246,7 @@ def load_data(folder, girder_id):
         folder_name = None
         while not folder_name:
             folder_name = ask_question(
-                "What is the root folder that should be created in your Public folder?"
+                "Provide the name for the folder that will be created in your DIVE Public folder:"
             )
         public_folder = get_public_folder(gc)
         base_folder = gc.createFolder(
