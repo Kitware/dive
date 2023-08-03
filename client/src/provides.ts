@@ -13,7 +13,7 @@ import type {
   AttributeFilter,
   AttributeKeyFilter,
   TimelineAttribute,
-} from './use/useAttributes';
+} from './use/AttributeTypes';
 import type { Time } from './use/useTimeObserver';
 import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';

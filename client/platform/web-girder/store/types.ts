@@ -26,6 +26,16 @@ export interface BrandState {
   brandData: BrandData;
 }
 
+export interface UserState {
+  user: null | {
+    admin: boolean;
+    email: string;
+    firstName: string;
+    login: string;
+    lastName: string;
+    status: string;
+  };
+}
 export interface JobState {
   jobIds: Record<string, number>;
   datasetStatus: Record<string, {status: number; jobId: string}>;
@@ -36,6 +46,7 @@ export interface RootState {
   Location: LocationState;
   Dataset: DatasetState;
   Brand: BrandState;
+  User: UserState;
 }
 
 export function useStore(): Store<RootState> {

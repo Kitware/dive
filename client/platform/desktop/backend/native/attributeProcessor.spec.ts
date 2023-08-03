@@ -3,7 +3,7 @@
 
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
-import type { Attribute } from 'vue-media-annotator/use/useAttributes';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import fs from 'fs-extra';
 import processTrackAttributes from './attributeProcessor';
 

@@ -14,6 +14,8 @@ import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
+import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
+import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
 import { geojsonToBound } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
@@ -33,6 +35,7 @@ import {
   useGroupStyleManager,
   useCameraStore,
   useSelectedCamera,
+  useAttributes,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -62,6 +65,7 @@ export default defineComponent({
     const selectedCamera = useSelectedCamera();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
+    const attributes = useAttributes();
     if (!trackStore || !groupStore) {
       throw Error(`TrackStore: ${trackStore} or GroupStore: ${groupStore} are undefined for camera ${props.camera}`);
     }
@@ -120,6 +124,18 @@ export default defineComponent({
       formatter: props.formatTextRow,
     });
 
+    const attributeBoxLayer = new AttributeBoxLayer({
+      annotator,
+      stateStyling: trackStyleManager.stateStyles,
+      typeStyling: typeStylingRef,
+    });
+
+    const attributeLayer = new AttributeLayer({
+      annotator,
+      stateStyling: trackStyleManager.stateStyles,
+      typeStyling: typeStylingRef,
+    });
+
     const editAnnotationLayer = new EditAnnotationLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
@@ -127,6 +143,18 @@ export default defineComponent({
       type: 'rectangle',
     });
 
+    const updateAttributes = () => {
+      const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
+        if (a.render && b.render) {
+          return (a.render.order - b.render.order);
+        }
+        return 0;
+      });
+      const user = ''; // TODO: Make a global setting for Web/Desktop
+      attributeLayer.updateRenderAttributes(newList, user);
+      attributeBoxLayer.updateRenderAttributes(newList);
+    };
+    updateAttributes();
     const uiLayer = new UILayer(annotator);
     const hoverOvered: Ref<ToolTipWidgetData[]> = ref([]);
     const toolTipWidgetProps = {
@@ -339,6 +367,21 @@ export default defineComponent({
       },
       { deep: true },
     );
+
+    watch(attributes, () => {
+      updateAttributes();
+      updateLayers(
+        frameNumberRef.value,
+        editingModeRef.value,
+        selectedTrackIdRef.value,
+        multiSeletListRef.value,
+        enabledTracksRef.value,
+        visibleModesRef.value,
+        selectedKeyRef.value,
+        props.colorBy,
+      );
+    });
+
 
     const Clicked = (trackId: number, editing: boolean) => {
       // If the camera isn't selected yet we ignore the click

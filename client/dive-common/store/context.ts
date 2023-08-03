@@ -4,7 +4,7 @@ import Vue, { VueConstructor } from 'vue';
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
-import AttributesSideBar from 'dive-common/components/AttributesSideBar.vue';
+import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 
 Vue.use(Install);

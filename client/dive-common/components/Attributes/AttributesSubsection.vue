@@ -12,11 +12,12 @@ import {
   useReadOnlyMode,
   useAttributesFilters,
 } from 'vue-media-annotator/provides';
-import type { Attribute, AttributeFilter } from 'vue-media-annotator/use/useAttributes';
-import AttributeInput from 'dive-common/components/AttributeInput.vue';
+import type { Attribute, AttributeFilter } from 'vue-media-annotator/use/AttributeTypes';
+import AttributeInput from 'dive-common/components/Attributes/AttributeInput.vue';
 import PanelSubsection from 'dive-common/components/PanelSubsection.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import context from 'dive-common/store/context';
+import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 export default defineComponent({
   components: {
@@ -36,6 +37,10 @@ export default defineComponent({
     mode: {
       type: String as PropType<'Track' | 'Detection'>,
       required: true,
+    },
+    user: {
+      type: String as PropType<string>,
+      default: '',
     },
   },
   setup(props, { emit }) {
@@ -103,15 +108,20 @@ export default defineComponent({
       activeSettings.value = !activeSettings.value;
     }
 
-    function updateAttribute({ name, value }: { name: string; value: unknown }) {
+    function updateAttribute({ name, value }: { name: string; value: unknown },
+      attribute: Attribute) {
       if (selectedTrackIdRef.value !== null) {
         // Tracks across all cameras get the same attributes set if they are linked
         const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
+        let user: null | string = null;
+        if (attribute.user) {
+          user = props.user || null;
+        }
         if (tracks.length) {
           if (props.mode === 'Track') {
-            tracks.forEach((track) => track.setAttribute(name, value));
+            tracks.forEach((track) => track.setAttribute(name, value, user));
           } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, value));
+            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, value, user));
           }
         }
       }
@@ -149,6 +159,24 @@ export default defineComponent({
     }
 
 
+    function getAttributeValue(attribute: Attribute) {
+      if (selectedAttributes.value && selectedAttributes.value.attributes) {
+        if (!attribute.user) {
+          return selectedAttributes.value.attributes[attribute.name];
+        }
+        const user = props.user || null;
+        if (user && selectedAttributes.value.attributes?.userAttributes !== undefined
+        && selectedAttributes.value.attributes.userAttributes[user]) {
+          if ((selectedAttributes.value.attributes
+            .userAttributes[user] as StringKeyObject)[attribute.name]) {
+            return ((selectedAttributes.value.attributes
+              .userAttributes[user] as StringKeyObject)[attribute.name]);
+          }
+        }
+      }
+      return undefined;
+    }
+
     return {
       frameRef,
       activeAttributesCount,
@@ -162,6 +190,7 @@ export default defineComponent({
       editAttribute,
       addAttribute,
       setEditIndividual,
+      getAttributeValue,
       //Sorting & Filters
       sortingMethodIcons,
       sortingMode,
@@ -299,11 +328,7 @@ export default defineComponent({
                 :name="attribute.name"
                 :disabled="readOnlyMode"
                 :values="attribute.values ? attribute.values : null"
-                :value="
-                  selectedAttributes && selectedAttributes.attributes
-                    ? selectedAttributes.attributes[attribute.name]
-                    : undefined
-                "
+                :value="getAttributeValue(attribute)"
                 :type-settings="attribute.editor || null"
                 @change="
                   updateAttribute($event)"
@@ -314,7 +339,7 @@ export default defineComponent({
                   class="attribute-item-value"
                   @click.stop="setEditIndividual(attribute)"
                 >
-                  {{ selectedAttributes.attributes[attribute.name] }}
+                  {{ getAttributeValue(attribute) }}
                 </div>
                 <div v-else>
                   <AttributeInput
@@ -322,11 +347,7 @@ export default defineComponent({
                     :name="attribute.name"
                     :disabled="readOnlyMode"
                     :values="attribute.values ? attribute.values : null"
-                    :value="
-                      selectedAttributes && selectedAttributes.attributes
-                        ? selectedAttributes.attributes[attribute.name]
-                        : undefined
-                    "
+                    :value="getAttributeValue(attribute)"
                     :type-settings="attribute.editor || null"
                     focus
                     @change="updateAttribute($event)"

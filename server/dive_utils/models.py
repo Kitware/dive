@@ -138,15 +138,40 @@ class NumericAttributeOptions(BaseModel):
 class StringAttributeOptions(BaseModel):
     type: Literal['locked', 'freeform']
 
+class RenderingDisplayDimension(BaseModel):
+    type: Literal['px' ,'%', 'auto']
+    val: float
+
+class RenderingAttributes(BaseModel):
+    typeFilter: List[str]
+    selected: Optional[bool]
+    displayName: str
+    displayColor: str
+    displayTextSize: float
+    valueColor: str
+    valueTextSize: str
+    order: int
+    location: Literal['inside', 'outside']
+    box: bool
+    boxColor: str
+    boxThickness: float
+    boxBackground: Optional[str]
+    boxOpacity: Optional[float]
+    layout: Literal['vertical', 'horizontal']
+    displayWidth: RenderingDisplayDimension
+    displayHeight: RenderingDisplayDimension
 
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']
     datatype: Literal['text', 'number', 'boolean']
     values: Optional[List[str]]
+    valueColors: Optional[Dict[str, str]]
     name: str
     key: str
     color: Optional[str]
+    user: Optional[bool]
     editor: Optional[Union[NumericAttributeOptions, StringAttributeOptions]]
+    render: Optional[RenderingAttributes]
 
 
 class CustomStyle(BaseModel):

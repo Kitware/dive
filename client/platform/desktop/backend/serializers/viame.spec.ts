@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
 import { Console } from 'console';
 

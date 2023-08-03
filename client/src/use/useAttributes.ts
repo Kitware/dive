@@ -6,76 +6,12 @@ import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
 import { LineChartData } from './useLineChart';
+import {
+  Attribute, AttributeFilter, AttributeKeyFilter,
+  AttributeStringFilter, AttributeNumberFilter,
+  TimelineAttribute,
+} from './AttributeTypes';
 
-export interface NumericAttributeEditorOptions {
-  type: 'combo'| 'slider';
-  range?: number[];
-  steps?: number;
-}
-export interface StringAttributeEditorOptions {
-  type: 'locked'| 'freeform';
-}
-
-export interface Attribute {
-  belongs: 'track' | 'detection';
-  datatype: 'text' | 'number' | 'boolean';
-  values?: string[];
-  name: string;
-  key: string;
-  color?: string;
-  editor?: NumericAttributeEditorOptions | StringAttributeEditorOptions;
-}
-
-export type Attributes = Record<string, Attribute>;
-type ValueOf<T> = T[keyof T];
-
-export interface AttributeNumberFilter {
-  type: 'range' | 'top'; // range filters for number values, top will show highest X values
-  comp: '>' | '<' | '>=' | '<=';
-  value: number; //current value
-  active: boolean; // if this filter is active
-  // Settings for Number Fitler
-  range: [number, number]; // Pairs of number indicating start/stop ranges
-  appliedTo: string[];
-}
-
-export interface AttributeStringFilter {
-  comp: '=' | '!=' | 'contains' | 'starts';
-  value: string[]; //Compares with array of items
-  appliedTo: string[];
-  active: boolean; // if this filter is active
-}
-
-export interface AttributeKeyFilter {
-  appliedTo: string[];
-  active: boolean; // if this filter is active
-  value: boolean;
-  type: 'key';
-}
-export interface AttributeBoolFilter {
-  value: boolean;
-  type: 'is' | 'not';
-  appliedTo: string[];
-  active: boolean; // if this filter is active
-}
-export interface AttributeFilter {
-  dataType: Attribute['datatype'] | 'key';
-  filterData:
-  AttributeNumberFilter
-  | AttributeStringFilter
-  | AttributeBoolFilter
-  | AttributeKeyFilter;
-}
-
-export interface TimelineAttribute {
-  data: LineChartData;
-  minFrame: number;
-  maxFrame: number;
-  minValue?: number;
-  maxValue?: number;
-  avgValue?: number;
-  type: Attribute['datatype'];
-}
 /**
  * Modified markChangesPending for attributes specifically
  */

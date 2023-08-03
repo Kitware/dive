@@ -6,7 +6,7 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type {
   Attribute, AttributeFilter, AttributeNumberFilter, AttributeStringFilter,
-} from 'vue-media-annotator/use/useAttributes';
+} from 'vue-media-annotator/use/AttributeTypes';
 import AttributeNumberFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeNumberFilter.vue';
 import AttributeNumberFilterSettings from 'vue-media-annotator/components/AttributeFilter/AttributeNumberFilterSettings.vue';
 import AttributeStringFilterVue from 'vue-media-annotator/components/AttributeFilter/AttributeStringFilter.vue';
