@@ -213,11 +213,12 @@ def ask_yes_no_question(prompt):
             print("Invalid input. Please enter 'y' or 'n'.")
 
 
-@click.command(name="LoadData", help="Load in ")
+@click.command(name="LoadData", help="Load in annotation from local directory ")
 @click.argument(
-    "folder"
+    "folder",
+    help="Path of directory containing the annotation csv"
 )  # a local folder to search for mp4 video files and json/csv files.
-@click.argument("girder_id", required=False)
+@click.argument("girder_id", required=False, help="girder_id of the destination directory on DIVE")
 def load_data(folder, girder_id):
     baseGirderId = girder_id
     annotations = get_annotations(folder)
