@@ -145,9 +145,10 @@ export default defineComponent({
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
     }
-    async function saveAttributeHandler({ data, oldAttribute }: {
+    async function saveAttributeHandler({ data, oldAttribute, close }: {
       oldAttribute?: Attribute;
       data: Attribute;
+      close: boolean;
     }) {
       editingError.value = null;
       if (!oldAttribute && attributes.value.some((attribute) => (
@@ -162,7 +163,7 @@ export default defineComponent({
       } catch (err) {
         editingError.value = err.message;
       }
-      if (!editingError.value) {
+      if (!editingError.value && close) {
         closeEditor();
       }
     }

@@ -276,7 +276,8 @@ export default defineComponent({
                   />
                 </v-radio-group>
               </div>
-              <div>
+              <!-- Hide this functionality for now -->
+              <div v-if="false">
                 <v-checkbox
                   v-model="user"
                   label="User Attribute"

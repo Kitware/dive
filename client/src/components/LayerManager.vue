@@ -268,8 +268,12 @@ export default defineComponent({
       pointLayer.changeData(frameData);
       if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
+        attributeBoxLayer.changeData(frameData);
+        attributeLayer.changeData(frameData);
       } else {
         textLayer.disable();
+        attributeLayer.disable();
+        attributeBoxLayer.disable();
       }
 
       if (selectedTrackId !== null) {

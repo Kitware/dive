@@ -228,8 +228,8 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
       ...baseStyle,
       textAlign: 'center',
       color: (data) => data.color,
-      fontSize: (data) => data.fontSize,
-      textScaled: 0,
+      //fontSize: (data) => data.fontSize,
+      //textScaled: 1,
     };
   }
 }

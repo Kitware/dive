@@ -138,9 +138,11 @@ class NumericAttributeOptions(BaseModel):
 class StringAttributeOptions(BaseModel):
     type: Literal['locked', 'freeform']
 
+
 class RenderingDisplayDimension(BaseModel):
-    type: Literal['px' ,'%', 'auto']
+    type: Literal['px', '%', 'auto']
     val: float
+
 
 class RenderingAttributes(BaseModel):
     typeFilter: List[str]
@@ -160,6 +162,7 @@ class RenderingAttributes(BaseModel):
     layout: Literal['vertical', 'horizontal']
     displayWidth: RenderingDisplayDimension
     displayHeight: RenderingDisplayDimension
+
 
 class Attribute(BaseModel):
     belongs: Literal['track', 'detection']
