@@ -1,3 +1,4 @@
+/* eslint-disable prefer-destructuring */
 /* eslint-disable max-len */
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
@@ -10,8 +11,9 @@ export interface AttributeTextData {
   selected: boolean;
   editing: boolean | string;
   color: string;
-  fontSize: string;
+  fontSize: string | undefined;
   text: string;
+  textAlign: string;
   x: number;
   y: number;
   offsetY?: number;
@@ -29,10 +31,11 @@ interface AttributeLayerParams {
   formatter?: FormatTextRow;
 }
 
+const lineHeight = 3;
 // function to calculate x,y as well as bounds based on render settings
 export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: Attribute['render'], renderIndex: number, renderAttrLength: number) {
   // Calculate X Position
-  if (renderSettings) {
+  if (renderSettings && renderSettings.layout === 'vertical') {
     const trackWidth = baseBounds[2] - baseBounds[0];
     const widthType = renderSettings.displayWidth.type;
     let width = renderSettings.displayWidth.val; //px is the type so the width is this
@@ -40,7 +43,8 @@ export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: A
       width = trackWidth * 0.01 * renderSettings.displayWidth.val;
     }
     // calculate center position for point
-    const x = baseBounds[2] + 0.5 * width;
+    const displayX = baseBounds[2] + 0.5 * width;
+    const valueX = displayX;
     // Calcualte Y Position
     const trackHeight = baseBounds[3] - baseBounds[1];
     const heightType = renderSettings.displayHeight.type;
@@ -59,11 +63,31 @@ export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: A
     const newBounds: RectBounds = [baseBounds[2], baseBounds[1] + (height * renderIndex), baseBounds[2] + width, baseBounds[1] + (height * renderIndex) + height];
 
     return {
-      x, displayHeight, valueHeight, newBounds,
+      displayX, displayHeight, valueX, valueHeight, newBounds,
+    };
+  }
+  if (renderSettings && renderSettings.layout === 'horizontal') {
+    // So now we have DisplayName: DisplayValue in a corner either inside or outside the box
+    // The height it determined by the number of attributes in the list
+    const anchor = [baseBounds[2], baseBounds[3]]; //SE corner
+    if (renderSettings.corner === 'SW') {
+      anchor[0] = baseBounds[0];
+    }
+    if (renderSettings.corner === 'NW') {
+      anchor[0] = baseBounds[0];
+      anchor[1] = baseBounds[1];
+    }
+
+    const displayX = anchor[0];
+    const valueX = anchor[0];
+    const displayHeight = anchor[1] + (lineHeight * (renderIndex));
+    const valueHeight = displayHeight;
+    return {
+      displayX, displayHeight, valueX, valueHeight, newBounds: [0, 0, 0, 0] as RectBounds,
     };
   }
   return {
-    x: 0, displayHeight: 0, valueHeight: 0, newBounds: [0, 0, 0, 0] as RectBounds,
+    displayX: 0, displayHeight: 0, valueX: 0, valueHeight: 0, newBounds: [0, 0, 0, 0] as RectBounds,
   };
 }
 
@@ -127,7 +151,9 @@ function defaultFormatter(
           }
         }
 
-        const { x, displayHeight, valueHeight } = calculateAttributeArea(bounds, currentRender, i, renderFiltered.length);
+        const {
+          displayX, displayHeight, valueX, valueHeight,
+        } = calculateAttributeArea(bounds, currentRender, i, renderFiltered.length);
 
         const displayColor = currentRender.displayColor === 'auto' ? renderAttr[i].color : currentRender.displayColor;
         const { displayTextSize } = currentRender;
@@ -135,10 +161,11 @@ function defaultFormatter(
           selected: annotation.selected,
           editing: annotation.editing,
           color: displayColor || 'white',
-          text: displayName,
-          fontSize: `${displayTextSize}px`,
-          x,
+          text: displayHeight === valueHeight ? `${displayName} : ` : displayName,
+          fontSize: displayTextSize === -1 ? undefined : `${displayTextSize}px`,
+          x: displayX,
           y: displayHeight,
+          textAlign: displayHeight === valueHeight ? 'end' : 'center',
           offsetX: 20,
         });
         let valueColor = currentRender.valueColor === 'auto' ? renderAttr[i].color : currentRender.valueColor;
@@ -157,9 +184,10 @@ function defaultFormatter(
           editing: annotation.editing,
           color: valueColor || 'white',
           text: value.toString(),
-          fontSize: `${valueTextSize}px`,
-          x,
+          fontSize: valueTextSize === -1 ? undefined : `${valueTextSize}px`,
+          x: valueX,
           y: valueHeight,
+          textAlign: displayHeight === valueHeight ? 'start' : 'center',
           offsetX: 20,
         });
       }
@@ -226,9 +254,10 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
     const baseStyle = super.createStyle();
     return {
       ...baseStyle,
-      textAlign: 'center',
+      textAlign: (data) => data.textAlign,
       color: (data) => data.color,
-      //fontSize: (data) => data.fontSize,
+      fontSize: (data) => data.fontSize,
+      textBaseline: 'top',
       //textScaled: 1,
     };
   }

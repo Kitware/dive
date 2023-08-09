@@ -119,7 +119,6 @@ export default class TextLayer extends BaseLayer<TextData> {
 
   createStyle(): LayerStyle<TextData> {
     const baseStyle = super.createStyle();
-    console.log(baseStyle);
     return {
       ...baseStyle,
       color: (data) => {

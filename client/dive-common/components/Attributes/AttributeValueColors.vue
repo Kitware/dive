@@ -1,7 +1,7 @@
 <!-- eslint-disable max-len -->
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, watch, computed, Ref,
+  defineComponent, ref, PropType, Ref,
 } from '@vue/composition-api';
 import { useStore } from 'platform/web-girder/store/types';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
@@ -34,9 +34,7 @@ export default defineComponent({
     const getActualValues = () => {
       // Need to go through all tracks with the attribute and get their values.
       const valueMap: Record<string, boolean> = {};
-      const camSize = cameraStore.camMap.value.size;
       cameraStore.camMap.value.forEach((camera) => {
-        const { size } = camera.trackStore.annotationMap;
         camera.trackStore.annotationMap.forEach((track) => {
           if (props.attribute.belongs === 'track') {
             if (!props.attribute.user && track.attributes[props.attribute.name]) {

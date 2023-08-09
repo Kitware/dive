@@ -114,7 +114,7 @@ export default defineComponent({
         // Tracks across all cameras get the same attributes set if they are linked
         const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
         let user: null | string = null;
-        if (attribute.user) {
+        if (attribute && attribute.user) {
           user = props.user || null;
         }
         if (tracks.length) {

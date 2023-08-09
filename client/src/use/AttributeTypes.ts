@@ -18,13 +18,14 @@ export interface AttributeRendering {
   valueColor: 'auto' | string;
   valueTextSize: number;
   order: number;
+  layout: 'vertical' | 'horizontal';
   location: 'inside' | 'outside';
+  corner?: 'NW' | 'SE' |'SW';
   box: boolean;
   boxColor: 'auto' | string;
   boxThickness: number;
   boxBackground?: string;
   boxOpacity?: number;
-  layout: 'vertical' | 'horizontal';
   displayWidth: {
     type: 'px' | '%';
     val: number;

@@ -98,7 +98,7 @@ def stream_subprocess(
             if keep_stdout:
                 stdout += line_str
 
-            if check_canceled(task, context, force=False):
+            if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
                 # Can never be sure what signal a process will respond to.
                 process.send_signal(signal.SIGTERM)
                 process.send_signal(signal.SIGKILL)

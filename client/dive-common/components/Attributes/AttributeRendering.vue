@@ -51,6 +51,8 @@ export default defineComponent({
     const boxOpacity: Ref<number | undefined> = ref(props.value.boxOpacity);
     const layoutOptions = ref(['vertical', 'horizontal']);
     const layout = ref(props.value.layout);
+    const cornerOptions = ref(['SE', 'SW', 'NW']);
+    const corner = ref(props.value.corner);
     const displayDimOptions = ref(['px', '%', 'auto']);
     const displayWidthType = ref(props.value.displayWidth.type);
     const displayWidthVal = ref(props.value.displayWidth.val);
@@ -80,7 +82,7 @@ export default defineComponent({
     });
 
     watch([displayName, displayTextSize, valueTextSize, displayColor, valueColor, order,
-      location, box, boxColor, boxThickness, layout, displayWidthType, displayWidthVal,
+      location, box, boxColor, boxThickness, layout, location, corner, displayWidthType, displayWidthVal,
       displayHeightType, displayHeightVal, typeFilter, computedBoxColor,
       computedDisplayColor, computedValueColor, selected, boxBackground, boxOpacity, boxThickness], () => {
       emit('input', {
@@ -93,12 +95,13 @@ export default defineComponent({
         valueColor: valueColorAuto.value ? 'auto' : valueColor.value,
         order: order.value,
         location: location.value,
+        layout: layout.value,
+        corner: corner.value,
         box: box.value,
         boxColor: boxColorAuto.value ? 'auto' : boxColor.value,
         boxThickness: boxThickness.value,
         boxBackground: boxBackground.value ? boxBackground.value : undefined,
         boxOpacity: boxOpacity.value ? boxOpacity.value : undefined,
-        layout: layout.value,
         displayWidth: {
           type: displayWidthType.value,
           val: displayWidthVal.value,
@@ -163,6 +166,7 @@ export default defineComponent({
       order,
       location,
       layout,
+      corner,
       box,
       boxColor,
       boxThickness,
@@ -175,6 +179,7 @@ export default defineComponent({
       // Options
       locationOptions,
       layoutOptions,
+      cornerOptions,
       displayDimOptions,
       displayColorAuto,
       valueColorAuto,
@@ -202,283 +207,365 @@ export default defineComponent({
 </script>
 <template>
   <div>
-    <h3>
-      Settings
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-icon v-on="on">
-            mdi-information
-          </v-icon>
-        </template>
-        <span>
-          <ul>
-            <li><b>Selected Track</b> : Only display attributes when a track is selected</li>
-            <li><b>Filter Types</b> : Only display attributes on the filtered types</li>
-            <li><b>Order</b> : Order top to bottom for attributes where 0 is higher</li>
-          </ul>
-        </span>
-      </v-tooltip>
-    </h3>
-    <v-row class="my-2 border">
-      <v-switch
-        v-model="selected"
-        label="Selected Track"
-        hint="Only display on selected Track"
-        persistent-hint
-        class="mx-2"
-      />
-      <v-select
-        v-model="typeFilter"
-        :items="types"
-        multiple
-        clearable
-        deletable-chips
-        chips
-        label="Filter Types"
-        class="mx-2"
-        style="max-width:250px"
-      >
-        <template #selection="{ item }">
-          <v-chip
-            close
-            :color="typeStylingRef.color(item)"
-            text-color="gray"
-            @click:close="deleteChip(item)"
-          >
-            {{ item }}
-          </v-chip>
-        </template>
-      </v-select>
-      <v-text-field
-        v-model.number="order"
-        type="number"
-        label="Order"
-        step="1"
-        hint="Top to bottom, lower is higher"
-        persistent-hint
-        class="mx-2"
-      />
-    </v-row>
-    <h3>
-      Display Name
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-icon v-on="on">
-            mdi-information
-          </v-icon>
-        </template>
-        <span>
-          <ul>
-            <li><b>Display Name</b> : Label that is displayed for attribute, auto-populates to the attribute name</li>
-            <li><b>Display Text Size</b> : Pixel font size for the attribute display name</li>
-            <li><b>Color</b> : Color of the text, auto will use attribute color</li>
-          </ul>
-        </span>
-      </v-tooltip>
-    </h3>
-    <v-row class="mb-2 border">
-      <v-text-field
-        v-model="displayName"
-        label="Display Name"
-        class="mx-2"
-      />
-      <v-text-field
-        v-model.number="displayTextSize"
-        type="number"
-        step="1"
-        label="Display Text Size"
-        class="mx-2"
-      />
-      <v-switch
-        v-model="displayColorAuto"
-        label="Auto Color"
-        class="mx-2"
-      />
-      <div
-        class="color-box mx-2 mt-2"
-        :class="{'edit-color-box': !displayColorAuto}"
-        :style="{
-          backgroundColor: computedDisplayColor,
-        }"
-        @click="setEditingColor('display', !displayColorAuto)"
-      />
-    </v-row>
-    <h3>
-      Value
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-icon v-on="on">
-            mdi-information
-          </v-icon>
-        </template>
-        <span>
-          <ul>
-            <li><b>Value Text Size</b> : Pixel font size for the attribute display name</li>
-            <li><b>Color</b> : Color of the text, auto will use attribute color</li>
-          </ul>
-        </span>
-      </v-tooltip>
-    </h3>
-    <v-row class="mb-2 border">
-      <v-text-field
-        v-model.number="valueTextSize"
-        type="number"
-        step="1"
-        label="Value Text Size"
-        class="mx-2"
-      />
-      <v-switch
-        v-model="valueColorAuto"
-        label="Auto Color"
-        class="mx-2"
-      />
-      <div
-        class="color-box mx-2 mt-2"
-        :class="{'edit-color-box': !valueColorAuto}"
-        :style="{
-          backgroundColor: computedValueColor,
-        }"
-        @click="setEditingColor('value', !valueColorAuto)"
-      />
-    </v-row>
-    <h3>
-      Dimensions
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-icon v-on="on">
-            mdi-information
-          </v-icon>
-        </template>
-        <span>
-          <p>This specifies the dimensions of the area surrounding the attribute area</p>
-          <ul>
-            <li><b>Type %</b> : Uses a the track width/length to caclulate a percentage using the value to size the area for the attribute</li>
-            <li><b>Type px</b> : A default pixel value for the width/height of the track, it is suggested to use a pixel value if you have varying widths of tracks</li>
-            <li><b>Type auto</b>: For Height values only it will auto use the space to evenly distribute attributes along the height of the track</li>
-          </ul>
-        </span>
-      </v-tooltip>
-    </h3>
-    <v-row class="border mb-2">
-      <v-row dense>
-        <v-select
-          v-model="displayWidthType"
-          :items="['%', 'px']"
-          label="Width Type"
-          class="mx-2"
-        />
-        <v-text-field
-          v-model.number="displayWidthVal"
-          label="Value"
-          type="number"
-          step="1"
-          class="mx-2"
-        />
-      </v-row>
-      <v-row dense>
-        <v-select
-          v-model="displayHeightType"
-          :items="displayDimOptions"
-          label="Height Type"
-          class="mx-2"
-        />
-        <v-text-field
-          v-model.number="displayHeightVal"
-          label="Value"
-          type="number"
-          step="1"
-          class="mx-2"
-        />
-      </v-row>
-    </v-row>
-    <h3>
-      Box
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-icon v-on="on">
-            mdi-information
-          </v-icon>
-        </template>
-        <span>
-          <p>Drawing a box around the area for the attribute</p>
-        </span>
-      </v-tooltip>
-    </h3>
-    <v-row class="my-2 border">
-      <v-row dense>
-        <v-switch
-          v-model="box"
-          label="Draw Box"
-          class="mx-2"
-        />
-        <v-text-field
-          v-if="box"
-          v-model.number="boxThickness"
-          label="Thickness"
-          type="number"
-          step="1"
-          class="mx-2"
-          style="max-width:75px;"
-        />
-        <v-switch
-          v-if="box"
-          v-model="boxColorAuto"
-          label="Auto Color"
-          class="mx-2"
-        />
-        <div
-          v-if="box"
-          class="color-box mx-2 mt-2"
-          :class="{'edit-color-box': !boxColorAuto}"
-          :style="{
-            backgroundColor: computedBoxColor,
-          }"
-          @click="setEditingColor('box', !boxColorAuto)"
-        />
-      </v-row>
-      <v-row
-        v-if="box"
-        dense
-      >
-        <v-switch
-          v-model="boxBackgroundSwitch"
-          label="Box Background"
-          class="mx-2"
-        />
-        <div
-          v-if="boxBackgroundSwitch"
-          class="color-box mx-2 mt-2 edit-color-box"
-          :style="{
-            backgroundColor: boxBackground,
-          }"
-          @click="setEditingColor('boxBackground', true)"
-        />
-        <v-slider
-          v-if="boxBackgroundSwitch"
-          v-model.number="boxOpacity"
-          :label="`Opacity (${boxOpacity})`"
-          min="0"
-          max="1"
-          step="0.01"
-          class="mx-2"
-        />
-      </v-row>
-    </v-row>
+    <v-expansion-panels>
+      <v-expansion-panel>
+        <v-expansion-panel-header>
+          <h3>
+            Main Settings
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <ul>
+                  <li><b>Selected Track</b> : Only display attributes when a track is selected</li>
+                  <li><b>Filter Types</b> : Only display attributes on the filtered types</li>
+                  <li><b>Order</b> : Order top to bottom for attributes where 0 is higher</li>
+                </ul>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="my-2 border">
+            <v-switch
+              v-model="selected"
+              label="Selected Track"
+              hint="Only display on selected Track"
+              persistent-hint
+              class="mx-2"
+            />
+            <v-select
+              v-model="typeFilter"
+              :items="types"
+              multiple
+              clearable
+              deletable-chips
+              chips
+              label="Filter Types"
+              class="mx-2"
+              style="max-width:250px"
+            >
+              <template #selection="{ item }">
+                <v-chip
+                  close
+                  :color="typeStylingRef.color(item)"
+                  text-color="gray"
+                  @click:close="deleteChip(item)"
+                >
+                  {{ item }}
+                </v-chip>
+              </template>
+            </v-select>
+            <v-text-field
+              v-model.number="order"
+              type="number"
+              label="Order"
+              step="1"
+              hint="Top to bottom, lower is higher"
+              persistent-hint
+              class="mx-2"
+            />
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+      <v-expansion-panel>
+        <v-expansion-panel-header>
+          <h3>
+            Layout
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <ul>
+                  <li><b>Location</b> : Display attributes inside or outside of the track box</li>
+                  <li><b>Layout</b> : Vertically stacked attributes or horizontal like confidence pairs</li>
+                  <li><b>Corner</b> : Which corner to place the list of attributes in</li>
+                </ul>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="my-2 border">
+            <v-select
+              v-model="location"
+              :items="locationOptions"
+              label="Location"
+              class="mx-2"
+              style="max-width:100px"
+            />
+            <v-select
+              v-model="layout"
+              :items="layoutOptions"
+              label="Layout"
+              class="mx-2"
+              style="max-width:100px"
+            />
+            <v-select
+              v-model="corner"
+              :items="cornerOptions"
+              label="Corner"
+              class="mx-2"
+              style="max-width:100px"
+            />
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+
+      <v-expansion-panel>
+        <v-expansion-panel-header>
+          <h3>
+            Display Name
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <ul>
+                  <li><b>Display Name</b> : Label that is displayed for attribute, auto-populates to the attribute name</li>
+                  <li><b>Display Text Size</b> : Pixel font size for the attribute display name (-1 is auto)</li>
+                  <li><b>Color</b> : Color of the text, auto will use attribute color</li>
+                </ul>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="mb-2 border">
+            <v-text-field
+              v-model="displayName"
+              label="Display Name"
+              class="mx-2"
+            />
+            <v-text-field
+              v-model.number="displayTextSize"
+              type="number"
+              step="1"
+              label="Display Text Size"
+              class="mx-2"
+            />
+            <v-switch
+              v-model="displayColorAuto"
+              label="Auto Color"
+              class="mx-2"
+            />
+            <div
+              class="color-box mx-2 mt-5"
+              :class="{'edit-color-box': !displayColorAuto}"
+              :style="{
+                backgroundColor: computedDisplayColor,
+              }"
+              @click="setEditingColor('display', !displayColorAuto)"
+            />
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+      <v-expansion-panel>
+        <v-expansion-panel-header>
+          <h3>
+            Value
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <ul>
+                  <li><b>Value Text Size</b> : Pixel font size for the attribute display name (-1 is auto)</li>
+                  <li><b>Color</b> : Color of the text, auto will use attribute color</li>
+                </ul>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="mb-2 border">
+            <v-text-field
+              v-model.number="valueTextSize"
+              type="number"
+              step="1"
+              label="Value Text Size"
+              class="mx-2"
+            />
+            <v-switch
+              v-model="valueColorAuto"
+              label="Auto Color"
+              class="mx-2"
+            />
+            <div
+              class="color-box mx-2 mt-5"
+              :class="{'edit-color-box': !valueColorAuto}"
+              :style="{
+                backgroundColor: computedValueColor,
+              }"
+              @click="setEditingColor('value', !valueColorAuto)"
+            />
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+      <v-expansion-panel v-if="layout === 'vertical'">
+        <v-expansion-panel-header>
+          <h3>
+            Dimensions
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <p>This specifies the dimensions of the area surrounding the attribute area</p>
+                <ul>
+                  <li><b>Type %</b> : Uses a the track width/length to caclulate a percentage using the value to size the area for the attribute</li>
+                  <li><b>Type px</b> : A default pixel value for the width/height of the track, it is suggested to use a pixel value if you have varying widths of tracks</li>
+                  <li><b>Type auto</b>: For Height values only it will auto use the space to evenly distribute attributes along the height of the track</li>
+                </ul>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="border mb-2">
+            <v-row dense>
+              <v-select
+                v-model="displayWidthType"
+                :items="['%', 'px']"
+                label="Width Type"
+                class="mx-2"
+              />
+              <v-text-field
+                v-model.number="displayWidthVal"
+                label="Value"
+                type="number"
+                step="1"
+                class="mx-2"
+              />
+            </v-row>
+            <v-row dense>
+              <v-select
+                v-model="displayHeightType"
+                :items="displayDimOptions"
+                label="Height Type"
+                class="mx-2"
+              />
+              <v-text-field
+                v-model.number="displayHeightVal"
+                label="Value"
+                type="number"
+                step="1"
+                class="mx-2"
+              />
+            </v-row>
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+      <v-expansion-panel v-if="layout === 'vertical'">
+        <v-expansion-panel-header>
+          <h3>
+            Box
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon v-on="on">
+                  mdi-information
+                </v-icon>
+              </template>
+              <span>
+                <p>Drawing a box around the area for the attribute</p>
+              </span>
+            </v-tooltip>
+          </h3>
+        </v-expansion-panel-header>
+        <v-expansion-panel-content>
+          <v-row class="my-2 border">
+            <v-row dense>
+              <v-switch
+                v-model="box"
+                label="Draw Box"
+                class="mx-2"
+              />
+              <v-text-field
+                v-if="box"
+                v-model.number="boxThickness"
+                label="Thickness"
+                type="number"
+                step="1"
+                class="mx-2"
+                style="max-width:75px;"
+              />
+              <v-switch
+                v-if="box"
+                v-model="boxColorAuto"
+                label="Auto Color"
+                class="mx-2"
+              />
+              <div
+                v-if="box"
+                class="color-box mx-2 mt-5"
+                :class="{'edit-color-box': !boxColorAuto}"
+                :style="{
+                  backgroundColor: computedBoxColor,
+                }"
+                @click="setEditingColor('box', !boxColorAuto)"
+              />
+            </v-row>
+            <v-row
+              v-if="box"
+              dense
+            >
+              <v-switch
+                v-model="boxBackgroundSwitch"
+                label="Box Background"
+                class="mx-2"
+              />
+              <div
+                v-if="boxBackgroundSwitch"
+                class="color-box mx-2 mt-2 edit-color-box"
+                :style="{
+                  backgroundColor: boxBackground,
+                }"
+                @click="setEditingColor('boxBackground', true)"
+              />
+              <v-slider
+                v-if="boxBackgroundSwitch"
+                v-model.number="boxOpacity"
+                :label="`Opacity (${boxOpacity})`"
+                min="0"
+                max="1"
+                step="0.01"
+                class="mx-2"
+              />
+            </v-row>
+          </v-row>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </v-expansion-panels>
     <v-dialog
       v-model="editingColor"
       max-width="300"
