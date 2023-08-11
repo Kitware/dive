@@ -96,6 +96,7 @@ def stream_subprocess(
                 manager.write('Killing subprocess')
                 process.send_signal(signal.SIGTERM)
                 process.send_signal(signal.SIGKILL)
+                time.sleep(10)
                 # VIAME doesn't respond to the above signals we need to interrupt
                 process.send_signal(signal.SIGINT)
 
@@ -116,6 +117,7 @@ def stream_subprocess(
                 process.send_signal(signal.SIGTERM)
                 process.send_signal(signal.SIGKILL)
                 # VIAME doesn't respond to the above signals we need to interrupt
+                time.sleep(10)
                 process.send_signal(signal.SIGINT)
         # flush logs
         manager._flush()
