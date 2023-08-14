@@ -3,6 +3,7 @@
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { RectBounds } from 'vue-media-annotator/utils';
+import * as d3 from 'd3';
 import { TypeStyling } from '../../StyleManager';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
@@ -31,7 +32,7 @@ interface AttributeLayerParams {
   formatter?: FormatTextRow;
 }
 
-const lineHeight = 3;
+const lineHeight = 15;
 // function to calculate x,y as well as bounds based on render settings
 export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: Attribute['render'], renderIndex: number, renderAttrLength: number) {
   // Calculate X Position
@@ -80,14 +81,15 @@ export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: A
 
     const displayX = anchor[0];
     const valueX = anchor[0];
-    const displayHeight = anchor[1] + (lineHeight * (renderIndex));
+    const displayHeight = anchor[1];
     const valueHeight = displayHeight;
+    const offsetY = (lineHeight * (renderIndex));
     return {
-      displayX, displayHeight, valueX, valueHeight, newBounds: [0, 0, 0, 0] as RectBounds,
+      displayX, displayHeight, valueX, valueHeight, offsetY, newBounds: [0, 0, 0, 0] as RectBounds,
     };
   }
   return {
-    displayX: 0, displayHeight: 0, valueX: 0, valueHeight: 0, newBounds: [0, 0, 0, 0] as RectBounds,
+    displayX: 0, displayHeight: 0, valueX: 0, valueHeight: 0, offsetY: 0, newBounds: [0, 0, 0, 0] as RectBounds,
   };
 }
 
@@ -152,7 +154,7 @@ function defaultFormatter(
         }
 
         const {
-          displayX, displayHeight, valueX, valueHeight,
+          displayX, displayHeight, valueX, valueHeight, offsetY,
         } = calculateAttributeArea(bounds, currentRender, i, renderFiltered.length);
 
         const displayColor = currentRender.displayColor === 'auto' ? renderAttr[i].color : currentRender.displayColor;
@@ -166,6 +168,7 @@ function defaultFormatter(
           x: displayX,
           y: displayHeight,
           textAlign: displayHeight === valueHeight ? 'end' : 'center',
+          offsetY,
           offsetX: 20,
         });
         let valueColor = currentRender.valueColor === 'auto' ? renderAttr[i].color : currentRender.valueColor;
@@ -174,6 +177,18 @@ function defaultFormatter(
           if (list) {
             valueColor = list[value] || valueColor;
           }
+        } else if (renderAttr[i].datatype === 'number' && currentRender.valueColor === 'auto' && renderAttr[i].valueColors !== undefined && typeof value === 'number') {
+          const colorArr = Object.entries(renderAttr[i].valueColors as Record<string, string>)
+            .map(([key, val]) => ({ key: parseFloat(key), val }));
+          colorArr.sort((a, b) => a.key - b.key);
+
+          const colorNums = colorArr.map((item) => item.key);
+          const colorVals = colorArr.map((item) => item.val);
+          const colorScale = d3.scaleLinear()
+            .domain(colorNums)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .range(colorVals as any);
+          valueColor = colorScale(value).toString() || renderAttr[i].color;
         }
         const { valueTextSize } = currentRender;
         if (value === undefined) {
@@ -189,6 +204,7 @@ function defaultFormatter(
           y: valueHeight,
           textAlign: displayHeight === valueHeight ? 'start' : 'center',
           offsetX: 20,
+          offsetY,
         });
       }
     }
@@ -254,6 +270,10 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
     const baseStyle = super.createStyle();
     return {
       ...baseStyle,
+      offset: (data) => ({
+        x: data.offsetX || 0,
+        y: data.offsetY || 0,
+      }),
       textAlign: (data) => data.textAlign,
       color: (data) => data.color,
       fontSize: (data) => data.fontSize,

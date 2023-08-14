@@ -7,13 +7,14 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
 import AttributeRendering from './AttributeRendering.vue';
 import AttributeValueColors from './AttributeValueColors.vue';
-
+import AttributeNumberValueColors from './AttributeNumberValueColors.vue';
 
 export default defineComponent({
   name: 'AttributeSettings',
   components: {
     AttributeRendering,
     AttributeValueColors,
+    AttributeNumberValueColors,
   },
   props: {
     selectedAttribute: {
@@ -220,7 +221,7 @@ export default defineComponent({
           <v-tabs v-model="currentTab">
             <v-tab> Main </v-tab>
             <v-tab> Rendering </v-tab>
-            <v-tab v-if="datatype==='text'">
+            <v-tab v-if="['text', 'number'].includes(datatype)">
               Value Colors
             </v-tab>
           </v-tabs>
@@ -401,6 +402,12 @@ export default defineComponent({
           </v-tab-item>
           <v-tab-item v-if="datatype === 'text'">
             <attribute-value-colors
+              :attribute="selectedAttribute"
+              @save="attributeColors = $event"
+            />
+          </v-tab-item>
+          <v-tab-item v-else-if="datatype === 'number'">
+            <attribute-number-value-colors
               :attribute="selectedAttribute"
               @save="attributeColors = $event"
             />

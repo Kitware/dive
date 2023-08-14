@@ -118,10 +118,16 @@ export default defineComponent({
           user = props.user || null;
         }
         if (tracks.length) {
+          let updatedValue = value;
+          if (attribute.datatype === 'number' && value !== undefined) {
+            updatedValue = parseFloat(value as string);
+          }
           if (props.mode === 'Track') {
-            tracks.forEach((track) => track.setAttribute(name, value, user));
+            tracks.forEach((track) => track.setAttribute(name, updatedValue, user));
           } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, value, user));
+            tracks.forEach((track) => track.setFeatureAttribute(
+              frameRef.value, name, updatedValue, user,
+            ));
           }
         }
       }
@@ -331,7 +337,7 @@ export default defineComponent({
                 :value="getAttributeValue(attribute)"
                 :type-settings="attribute.editor || null"
                 @change="
-                  updateAttribute($event)"
+                  updateAttribute($event, attribute)"
               />
               <div v-else>
                 <div
@@ -350,7 +356,7 @@ export default defineComponent({
                     :value="getAttributeValue(attribute)"
                     :type-settings="attribute.editor || null"
                     focus
-                    @change="updateAttribute($event)"
+                    @change="updateAttribute($event, attribute)"
                   />
                 </div>
               </div>
