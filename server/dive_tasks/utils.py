@@ -7,7 +7,6 @@ import signal
 import subprocess
 from subprocess import Popen
 import tempfile
-import time
 from typing import List, Tuple
 from urllib import request
 from urllib.parse import urlencode, urljoin
@@ -88,17 +87,6 @@ def stream_subprocess(
             stdout=subprocess.PIPE,
             stderr=stderr_file,
         )
-        while process.poll() is None:  # while there is no return code
-            time.sleep(60)  # every minute we check to see if the process is in the cancelling state
-            manager.refreshStatus()
-            print(manager.status)
-            if manager.status == JobStatus.CANCELING:
-                manager.write('Killing subprocess')
-                process.send_signal(signal.SIGTERM)
-                process.send_signal(signal.SIGKILL)
-                time.sleep(10)
-                # VIAME doesn't respond to the above signals we need to interrupt
-                process.send_signal(signal.SIGINT)
 
         if process.stdout is None:
             raise RuntimeError("Stdout must not be none")
@@ -112,12 +100,11 @@ def stream_subprocess(
 
             # Cancel the subprocess if the status is cancelling
             # note this only checks when there is stdout from the subprocess
+            manager.refreshStatus()
             if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
                 # Can never be sure what signal a process will respond to.
                 process.send_signal(signal.SIGTERM)
                 process.send_signal(signal.SIGKILL)
-                # VIAME doesn't respond to the above signals we need to interrupt
-                time.sleep(10)
                 process.send_signal(signal.SIGINT)
         # flush logs
         manager._flush()
