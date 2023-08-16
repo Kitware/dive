@@ -65,7 +65,7 @@ export default defineComponent({
         currentEditKey.value = attributeColors.value[index].key;
         currentEditColor.value = attributeColors.value[index].val;
       } else {
-        currentEditKey.value = 0;
+        currentEditKey.value = !attributeColors.value.length ? 0 : attributeColors.value[attributeColors.value.length - 1].key + 1;
         currentEditColor.value = '#FF0000';
       }
     };
