@@ -98,11 +98,14 @@ def stream_subprocess(
             if keep_stdout:
                 stdout += line_str
 
+            # Cancel the subprocess if the status is cancelling
+            # note this only checks when there is stdout from the subprocess
+            manager.refreshStatus()
             if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
                 # Can never be sure what signal a process will respond to.
                 process.send_signal(signal.SIGTERM)
                 process.send_signal(signal.SIGKILL)
-
+                process.send_signal(signal.SIGINT)
         # flush logs
         manager._flush()
         # Wait for exit up to 30 seconds after kill
