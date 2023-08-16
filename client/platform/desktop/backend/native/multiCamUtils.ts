@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 import npath from 'path';
 import fs from 'fs-extra';
 import {
@@ -5,7 +6,10 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 
-import { JsonMeta } from 'platform/desktop/constants';
+import { JsonMeta, Settings } from 'platform/desktop/constants';
+// eslint-disable-next-line import/no-cycle
+import { loadAnnotationFile, loadJsonMetadata, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
+import { serialize } from 'platform/desktop/backend/serializers/viame';
 
 /**
  * Figure out the destination location
@@ -71,12 +75,15 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
+async function writeMultiCamStereoPipelineArgs(
+  jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false,
+) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
-    let i = 0;
-    Object.entries(meta.multiCam.cameras).forEach(([key, list]) => {
+    const cameraList = Object.entries(meta.multiCam.cameras);
+    for (let i = 0; i < cameraList.length; i += 1) {
+      const [key, list] = cameraList[i];
       const { originalBasePath } = list;
       const outputFileName = `computed_tracks_${key}.csv`;
       const outputArg = `detector_writer${i + 1}:file_name`;
@@ -85,22 +92,50 @@ function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta) {
       argFilePair[outputArgWriteTracks] = outputFileName;
       outFiles[key] = outputFileName;
       const inputArg = `input${i + 1}:video_filename`;
+      if (i === 0) {
+        argFilePair['detector_writer:file_name'] = outputFileName;
+        argFilePair['track_writer:file_name'] = outputFileName;
+      }
       if (list.type === 'image-sequence') {
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
         const inputFile = fs.createWriteStream(inputFileName);
         list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
         inputFile.end();
         argFilePair[inputArg] = inputFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = inputFileName;
+        }
       } else if (list.originalVideoFile) {
         const vidFile = list.transcodedVideoFile
           ? list.transcodedVideoFile : list.originalVideoFile;
         const vidTypeArg = `input${i + 1}:video_reader:type`;
         const vidType = 'vidl_ffmpeg';
         argFilePair[vidTypeArg] = vidType;
-        argFilePair[inputArg] = npath.join(originalBasePath, vidFile);
+        const videoFileName = npath.join(originalBasePath, vidFile);
+        argFilePair[inputArg] = videoFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = videoFileName;
+        }
       }
-      i += 1;
-    });
+      if (utility) {
+        const inputArgDetection = `detection_reader${i + 1}:file_name`;
+        const inputArgTrack = `track_reader${i + 1}:file_name`;
+        const groundTruthFileName = npath.join(jobWorkDir, `detections${i + 1}.csv`);
+        // We need to download these files with the proper names
+        const projectDirInfo = await getValidatedProjectDir(settings, `${meta.id}/${key}`);
+        const groundTruthFileStream = fs.createWriteStream(groundTruthFileName);
+        argFilePair[inputArgTrack] = groundTruthFileName;
+        argFilePair[inputArgDetection] = groundTruthFileName;
+        if (i === 0) {
+          argFilePair['detection_reader:file_name'] = groundTruthFileName;
+          argFilePair['track_reader:file_name'] = groundTruthFileName;
+        }
+        const subMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+        const inputData = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+        await serialize(groundTruthFileStream, inputData, subMeta);
+        groundTruthFileStream.end();
+      }
+    }
   }
   return { argFilePair, outFiles };
 }
