@@ -155,6 +155,8 @@ export default defineComponent({
         case 'utility':
         case 'generate':
           return 'utilities';
+        case 'estimates':
+          return 'estimators';
         default:
           return `${pipeType}s`;
       }
