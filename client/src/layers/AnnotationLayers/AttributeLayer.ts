@@ -26,7 +26,9 @@ export type FormatTextRow = (
   annotation: FrameDataTrack,
   renderAttr: Attribute[],
   user: string,
-  typeStyling: TypeStyling) => AttributeTextData[] | null;
+  typeStyling: TypeStyling,
+  autoColorIndex: ((data: string | number | boolean) => string)[],
+  ) => AttributeTextData[] | null;
 
 interface AttributeLayerParams {
   formatter?: FormatTextRow;
@@ -104,6 +106,7 @@ function defaultFormatter(
   renderAttr: Attribute[],
   user: string,
   typeStyling: TypeStyling,
+  autoColorIndex: ((data: string | number | boolean) => string)[],
 ): AttributeTextData[] | null {
   if (annotation.features && annotation.features.bounds) {
     const { bounds } = annotation.features;
@@ -171,25 +174,7 @@ function defaultFormatter(
           offsetY,
           offsetX: 20,
         });
-        let valueColor = currentRender.valueColor === 'auto' ? renderAttr[i].color : currentRender.valueColor;
-        if (renderAttr[i].datatype === 'text' && currentRender.valueColor === 'auto' && renderAttr[i].valueColors && typeof value === 'string') {
-          const list = renderAttr[i].valueColors;
-          if (list) {
-            valueColor = list[value] || valueColor;
-          }
-        } else if (renderAttr[i].datatype === 'number' && currentRender.valueColor === 'auto' && renderAttr[i].valueColors !== undefined && typeof value === 'number') {
-          const colorArr = Object.entries(renderAttr[i].valueColors as Record<string, string>)
-            .map(([key, val]) => ({ key: parseFloat(key), val }));
-          colorArr.sort((a, b) => a.key - b.key);
-
-          const colorNums = colorArr.map((item) => item.key);
-          const colorVals = colorArr.map((item) => item.val);
-          const colorScale = d3.scaleLinear()
-            .domain(colorNums)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .range(colorVals as any);
-          valueColor = colorScale(value).toString() || renderAttr[i].color;
-        }
+        const valueColor = autoColorIndex[i](value);
         const { valueTextSize } = currentRender;
         if (value === undefined) {
           value = '';
@@ -220,12 +205,15 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
 
   renderAttributes: Attribute[];
 
+  autoColorIndex: ((data: string | number | boolean) => string)[];
+
   user: string;
 
   constructor(params: BaseLayerParams & AttributeLayerParams) {
     super(params);
     this.formatter = defaultFormatter;
     this.renderAttributes = [];
+    this.autoColorIndex = [];
     this.user = '';
   }
 
@@ -242,6 +230,35 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
 
   updateRenderAttributes(attributes: Attribute[], user: string) {
     this.renderAttributes = attributes;
+    this.autoColorIndex = [];
+    // We create the color formatter for the render attributesW
+    this.renderAttributes.forEach((item) => {
+      if (item.datatype === 'text') {
+        this.autoColorIndex.push((data: string | number | boolean) => {
+          if (item.valueColors && Object.keys(item.valueColors).length) {
+            return item.valueColors[data as string] || item.color || 'white';
+          }
+          return item.color || 'white';
+        });
+      } else if (item.datatype === 'number') {
+        this.autoColorIndex.push((data: string | number | boolean) => {
+          if (item.valueColors && Object.keys(item.valueColors).length) {
+            const colorArr = Object.entries(item.valueColors as Record<string, string>)
+              .map(([key, val]) => ({ key: parseFloat(key), val }));
+            colorArr.sort((a, b) => a.key - b.key);
+
+            const colorNums = colorArr.map((map) => map.key);
+            const colorVals = colorArr.map((map) => map.val);
+            const colorScale = d3.scaleLinear()
+              .domain(colorNums)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .range(colorVals as any);
+            return colorScale(data as number).toString() || item.color || 'white';
+          }
+          return item.color || 'white';
+        });
+      }
+    });
     this.user = user;
   }
 
@@ -249,7 +266,7 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
     const arr = [] as AttributeTextData[];
     const typeStyling = this.typeStyling.value;
     frameData.forEach((track: FrameDataTrack) => {
-      const formatted = this.formatter(track, this.renderAttributes, this.user, typeStyling);
+      const formatted = this.formatter(track, this.renderAttributes, this.user, typeStyling, this.autoColorIndex);
       if (formatted !== null) {
         arr.push(...formatted);
       }
