@@ -117,7 +117,7 @@ export default defineComponent({
           cols="3"
           class="column"
         >
-          Attribute Value
+          Value
         </v-col>
         <v-col
           cols="2"
