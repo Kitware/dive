@@ -28,7 +28,7 @@ export default defineComponent({
       }
       return null;
     });
-    const enabled = computed(() => (baseFilter ? trackFilters.enabledFilters.value[props.filterIndex] : false));
+    const enabled = computed(() => (baseFilter.value ? trackFilters.enabledFilters.value[props.filterIndex] : false));
     const range = computed(() => baseFilter.value?.filter?.range || [0, 1.0]);
     const attrType = computed(() => {
       if (baseFilter.value) {
@@ -45,7 +45,7 @@ export default defineComponent({
       return null;
     });
 
-    const value = computed(() => {
+    const userDefinedValue = computed(() => {
       if (baseFilter.value) {
         const val = trackFilters.userDefinedValues.value[props.filterIndex];
         if (attrType.value === 'number' && val !== null) {
@@ -61,11 +61,11 @@ export default defineComponent({
       return null;
     });
     const typeConversion = ref({ text: 'string', number: 'number', boolean: 'boolean' });
-    const inputFilter = ref(['=', '!=', '>', '<', '>=', '<=', 'contains']);
+    const inputFilter = ref(['=', '≠', '>', '<', '>=', '<=', 'contains']);
     function setEnabled(val: boolean) {
       trackFilters.setEnabled(props.filterIndex, val);
       if (val) {
-        trackFilters.setUserDefinedValue(props.filterIndex, value.value);
+        trackFilters.setUserDefinedValue(props.filterIndex, userDefinedValue.value);
       }
     }
     function _updateValue(event: Event) {
@@ -88,7 +88,7 @@ export default defineComponent({
     return {
       updateValue,
       baseFilter,
-      value,
+      userDefinedValue,
       range,
       trackFilters,
       enabled,
@@ -185,7 +185,7 @@ export default defineComponent({
             </div>
             <div v-if="baseFilter.filter.userDefined">
               <div>
-                <b>User Defined Value:</b> <span>{{ baseFilter.filter.op }} {{ value }}</span>
+                <b>User Defined Value:</b> <span>{{ baseFilter.filter.op }} {{ userDefinedValue }}</span>
               </div>
               <div>
                 <b>Default Value:</b> <span>{{ baseFilter.filter.val }}</span>
@@ -201,16 +201,16 @@ export default defineComponent({
       class="text-body-2 grey--text text--lighten-1 d-flex flex-row py-0"
     >
       <span
-        v-if="attrType === 'number' && typeof value === 'number' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
+        v-if="attrType === 'number' && typeof userDefinedValue === 'number' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
         class="pl-2"
       >
-        {{ value.toFixed(2) }}
+        {{ userDefinedValue.toFixed(2) }}
       </span>
       <span
-        v-if="attrType === 'text' && typeof value === 'string' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
+        v-if="attrType === 'text' && typeof userDefinedValue === 'string' && (!baseFilter.filter.userDefined || baseFilter.filter.op === 'rangeFilter')"
         class="pl-2"
       >
-        {{ value }}
+        {{ userDefinedValue }}
       </span>
     </div>
     <div v-if="!baseFilter.filter.userDefined">
@@ -223,7 +223,7 @@ export default defineComponent({
       :min="range[0]"
       :max="range[1]"
       :step="0.01"
-      :value="value"
+      :value="userDefinedValue"
       :disabled="!enabled"
       persistent-hint
       @input="updateValue"
@@ -236,16 +236,16 @@ export default defineComponent({
       <span class="mx-2">
         <input
           v-if="inputFilter.includes(baseFilter.filter.op) && attrType === 'number'"
-          :value="value"
+          :value="userDefinedValue"
           type="number"
-          :step="0.01"
+          step="0.01"
           :disabled="!enabled"
           class="input-box"
           @input="updateValue"
         >
         <input
           v-else-if="inputFilter.includes(baseFilter.filter.op) && attrType === 'text'"
-          :value="value"
+          :value="userDefinedValue"
           type="text"
           :disabled="!enabled"
           class="input-box"
@@ -263,7 +263,7 @@ export default defineComponent({
           deletable-chips
           clearable
           dense
-          :value="value"
+          :value="userDefinedValue"
           :disabled="!enabled"
           class="input-box"
           @change="updateCombo"

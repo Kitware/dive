@@ -3,7 +3,7 @@ import { isArray } from 'lodash';
 import { AnnotationId } from './BaseAnnotation';
 import type Track from './track';
 
-export type MatchOperator = '=' | '!=' | '>' | '<' | '>=' | '<=' | 'range' | 'in' | 'rangeFilter' | 'contains';
+export type MatchOperator = '=' | '≠' | '>' | '<' | '>=' | '<=' | 'range' | 'in' | 'rangeFilter' | 'contains';
 
 export type userDefinedVals = number | string | string[] | number[] | null | boolean;
 
@@ -38,7 +38,7 @@ export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: us
           results.push(attributeVal == checkVal);
           break;
         }
-        case '!=': {
+        case '≠': {
           // eslint-disable-next-line eqeqeq
           results.push(attributeVal != checkVal);
           break;
@@ -110,7 +110,7 @@ export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: us
 };
 
 
-export const filterByTrackId = (
+export const trackIdPassesFilter = (
   id: AnnotationId, getTrack: (trackId: AnnotationId) => Track,
   filters: AttributeTrackFilter[],
   userDefinedvals: userDefinedVals[],

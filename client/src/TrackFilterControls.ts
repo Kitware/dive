@@ -4,7 +4,7 @@ import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
 import type Track from './track';
-import { AttributeTrackFilter, filterByTrackId, userDefinedVals } from './AttributeTrackFilterControls';
+import { AttributeTrackFilter, trackIdPassesFilter, userDefinedVals } from './AttributeTrackFilterControls';
 
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   lookupGroups: (annotationId: AnnotationId) => Group[];
@@ -68,7 +68,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           let addValue = true;
           if (this.attributeFilters.value.length > 0 && params.getTrack !== undefined
             && this.enabledFilters.value.length > 0) {
-            addValue = filterByTrackId(
+            addValue = trackIdPassesFilter(
               annotation.id,
               params.getTrack as (trackId: AnnotationId) => Track,
               this.attributeFilters.value,

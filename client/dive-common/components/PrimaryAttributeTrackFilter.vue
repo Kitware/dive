@@ -40,7 +40,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <div v-if="primaryFilters.length">
+  <div
+    v-if="primaryFilters.length"
+    class="filter-container"
+  >
     <div id="AttributeFilters">
       <v-row
         dense
@@ -97,13 +100,13 @@ export default defineComponent({
       class="filterList"
     >
       <div
-        v-for="item in primaryFilters"
+        v-for="(item, index) in primaryFilters"
         :key="`filter_${item}`"
-        class="mx-2"
+        :class="{attributeTrackFilter: index !== primaryFilters.length - 1}"
       >
         <attribute-track-filter
           :filter-index="item"
-          class="attributeTrackFilter"
+          class="mx-2"
         />
       </div>
     </div>
@@ -124,5 +127,10 @@ export default defineComponent({
 .filterList {
   overflow-y:auto;
   max-height: 20vh;
+}
+.filter-container {
+  border-bottom: 4px solid gray;
+  margin-bottom: 10px;
+
 }
 </style>
