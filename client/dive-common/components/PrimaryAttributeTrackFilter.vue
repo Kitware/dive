@@ -132,7 +132,7 @@ export default defineComponent({
   max-height: 20vh;
 }
 .filter-container {
-  border-bottom: 1px solid white;
+  border-bottom: 1px solid gray;
   margin-bottom: 10px;
 
 }
