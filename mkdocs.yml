@@ -61,6 +61,7 @@ nav:
         - Attributes: UI-Attributes.md
         - Attributes Configuration: UI-AttributeConfiguration.md
         - Attributes Details: UI-AttributeDetails.md
+        - Attribute Track Filtering: UI-AttributeTrackFiltering.md
       - Group Manager: UI-Group-Manager.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:

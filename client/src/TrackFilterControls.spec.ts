@@ -85,6 +85,7 @@ function makeTrackFilterControls() {
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
+    getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
     setType: setTrackType,
     removeTypes,
   });

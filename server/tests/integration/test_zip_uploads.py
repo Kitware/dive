@@ -55,7 +55,7 @@ def test_upload_zip_data(dataset: dict):
     if Path(dsPath).is_file():
         client.uploadFileToFolder(newDatasetFolder['_id'], str(dsPath))
     client.post(f'dive_rpc/postprocess/{newDatasetFolder["_id"]}')
-    wait_for_jobs(client, max_wait_timeout=30, expected_status=dataset['job_status'])
+    wait_for_jobs(client, max_wait_timeout=180, expected_status=dataset['job_status'])
 
     resultFolder = client.getFolder(newDatasetFolder['_id'])
     # verify sub datasets if they exist

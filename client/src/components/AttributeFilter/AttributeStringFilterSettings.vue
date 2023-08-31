@@ -56,7 +56,7 @@ export default defineComponent({
         <v-row>
           <v-select
             v-model="value.comp"
-            :items="['=', '!=', 'contains', 'starts']"
+            :items="['=', '≠', 'contains', 'starts']"
             label="Comparison"
             outlined
           />

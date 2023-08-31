@@ -50,7 +50,9 @@ export default defineComponent({
       >
         █
       </span>
-      <span>{{ text }}</span>
+      <span
+        :class="{'main-confidence':text ==='Confidence Threshold'}"
+      >{{ text }}</span>
       <v-spacer v-if="!$scopedSlots.default" />
       <span class="pl-2">
         {{ confidence.toFixed(2) }}
@@ -72,3 +74,10 @@ export default defineComponent({
     >
   </div>
 </template>
+
+<style scoped>
+.main-confidence {
+  color: white;
+  font-weight: bold;
+}
+</style>

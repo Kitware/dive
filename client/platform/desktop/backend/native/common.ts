@@ -21,6 +21,7 @@ import {
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
+  SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -541,6 +542,29 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
   args.upsert.forEach((attribute) => {
     if (projectMetaData.attributes) {
       projectMetaData.attributes[attribute.key] = attribute;
+    }
+  });
+  await saveMetadata(settings, datasetId, projectMetaData);
+}
+
+async function saveAttributeTrackFilters(
+  settings: Settings,
+  datasetId: string,
+  args: SaveAttributeTrackFilterArgs,
+) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributeTrackFilters) {
+    projectMetaData.attributeTrackFilters = {};
+  }
+  args.delete.forEach((filterId) => {
+    if (projectMetaData.attributeTrackFilters && projectMetaData.attributeTrackFilters[filterId]) {
+      delete projectMetaData.attributeTrackFilters[filterId];
+    }
+  });
+  args.upsert.forEach((filter) => {
+    if (projectMetaData.attributeTrackFilters) {
+      projectMetaData.attributeTrackFilters[filter.name] = filter;
     }
   });
   await saveMetadata(settings, datasetId, projectMetaData);
@@ -1129,6 +1153,7 @@ export {
   saveMetadata,
   processTrainedPipeline,
   saveAttributes,
+  saveAttributeTrackFilters,
   findImagesInFolder,
   findTrackandMetaFileinFolder,
 };

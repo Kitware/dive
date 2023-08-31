@@ -6,6 +6,7 @@ import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
+import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
 
 Vue.use(Install);
 
@@ -46,6 +47,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   [AttributesSideBar.name]: {
     description: 'Attribute Details',
     component: AttributesSideBar,
+  },
+  [AttributeTrackFilters.name]: {
+    description: 'Attribute Track Filters',
+    component: AttributeTrackFilters,
   },
 };
 

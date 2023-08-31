@@ -6,14 +6,18 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import Group from 'vue-media-annotator/Group';
+import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
 interface ChangeMap {
   upsert: Map<TrackId, Track>;
   delete: Set<TrackId>;
   attributeUpsert: Map<string, Attribute>;
   attributeDelete: Set<string>;
-  groupUpset: Map<AnnotationId, Group>;
+  groupUpsert: Map<AnnotationId, Group>;
   groupDelete: Set<AnnotationId>;
+  attributeTrackFilterUpsert: Map<string, AttributeTrackFilter>;
+  attributeTrackFilterDelete: Set<string>;
+
   meta: number;
 }
 function _updatePendingChangeMap<K, V>(
@@ -42,12 +46,16 @@ export default function useSave(
       delete: new Set<TrackId>(),
       attributeUpsert: new Map<string, Attribute>(),
       attributeDelete: new Set<string>(),
-      groupUpset: new Map<AnnotationId, Group>(),
+      groupUpsert: new Map<AnnotationId, Group>(),
       groupDelete: new Set<AnnotationId>(),
+      attributeTrackFilterUpsert: new Map<string, AttributeTrackFilter>(),
+      attributeTrackFilterDelete: new Set<string>(),
       meta: 0,
     },
   };
-  const { saveDetections, saveMetadata, saveAttributes } = useApi();
+  const {
+    saveDetections, saveMetadata, saveAttributes, saveAttributeTrackFilters,
+  } = useApi();
 
   async function save(
     datasetMeta?: DatasetMetaMutable,
@@ -62,7 +70,7 @@ export default function useSave(
       if (
         pendingChangeMap.upsert.size
       || pendingChangeMap.delete.size
-      || pendingChangeMap.groupUpset.size
+      || pendingChangeMap.groupUpsert.size
       || pendingChangeMap.groupDelete.size
       ) {
         promiseList.push(saveDetections(saveId, {
@@ -71,7 +79,7 @@ export default function useSave(
             delete: Array.from(pendingChangeMap.delete),
           },
           groups: {
-            upsert: Array.from(pendingChangeMap.groupUpset).map((pair) => pair[1].serialize()),
+            upsert: Array.from(pendingChangeMap.groupUpsert).map((pair) => pair[1].serialize()),
             delete: Array.from(pendingChangeMap.groupDelete),
           },
         }).then(() => {
@@ -99,6 +107,16 @@ export default function useSave(
           pendingChangeMap.attributeDelete.clear();
         }));
       }
+      if (pendingChangeMap.attributeTrackFilterUpsert.size
+        || pendingChangeMap.attributeTrackFilterDelete.size) {
+        promiseList.push(saveAttributeTrackFilters(datasetId.value, {
+          upsert: Array.from(pendingChangeMap.attributeTrackFilterUpsert).map((pair) => pair[1]),
+          delete: Array.from(pendingChangeMap.attributeTrackFilterDelete),
+        }).then(() => {
+          pendingChangeMap.attributeTrackFilterUpsert.clear();
+          pendingChangeMap.attributeTrackFilterDelete.clear();
+        }));
+      }
     });
     // Final save into the multi-cam metadata if multiple cameras exists
     if (globalMetadataUpdated && datasetMeta && pendingChangeMaps) {
@@ -113,12 +131,14 @@ export default function useSave(
       action,
       track,
       attribute,
+      attributeTrackFilter,
       group,
       cameraName = 'singleCam',
     }: {
       action: 'upsert' | 'delete' | 'meta';
       track?: Track;
       attribute?: Attribute;
+      attributeTrackFilter?: AttributeTrackFilter;
       group?: Group;
       cameraName?: string;
     } = { action: 'meta' },
@@ -151,12 +171,20 @@ export default function useSave(
             pendingChangeMap.attributeUpsert,
             pendingChangeMap.attributeDelete,
           );
+        } else if (attributeTrackFilter !== undefined) {
+          _updatePendingChangeMap(
+            attributeTrackFilter.name,
+            attributeTrackFilter,
+            action,
+            pendingChangeMap.attributeTrackFilterUpsert,
+            pendingChangeMap.attributeTrackFilterDelete,
+          );
         } else if (group !== undefined) {
           _updatePendingChangeMap(
             group.id,
             group,
             action,
-            pendingChangeMap.groupUpset,
+            pendingChangeMap.groupUpsert,
             pendingChangeMap.groupDelete,
           );
         } else {
@@ -173,7 +201,7 @@ export default function useSave(
       pendingChangeMap.delete.clear();
       pendingChangeMap.attributeUpsert.clear();
       pendingChangeMap.attributeDelete.clear();
-      pendingChangeMap.groupUpset.clear();
+      pendingChangeMap.groupUpsert.clear();
       pendingChangeMap.groupDelete.clear();
       // eslint-disable-next-line no-param-reassign
       pendingChangeMap.meta = 0;
@@ -187,8 +215,10 @@ export default function useSave(
       delete: new Set<TrackId>(),
       attributeUpsert: new Map<string, Attribute>(),
       attributeDelete: new Set<string>(),
-      groupUpset: new Map<AnnotationId, Group>(),
+      groupUpsert: new Map<AnnotationId, Group>(),
       groupDelete: new Set<AnnotationId>(),
+      attributeTrackFilterUpsert: new Map<string, AttributeTrackFilter>(),
+      attributeTrackFilterDelete: new Set<string>(),
       meta: 0,
     };
   }

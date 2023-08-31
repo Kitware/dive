@@ -153,7 +153,7 @@ export default function UseAttributes(
   ) {
     if (filter.comp === '=') {
       return filter.value.includes(val);
-    } if (filter.comp === '!=') {
+    } if (filter.comp === '≠') {
       return !filter.value.includes(val);
     } if (filter.comp === 'contains') {
       return filter.value.reduce((prev, str) => prev || str.includes(val), false);

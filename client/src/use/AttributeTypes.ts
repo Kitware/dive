@@ -63,7 +63,7 @@ export interface AttributeNumberFilter {
 }
 
 export interface AttributeStringFilter {
-  comp: '=' | '!=' | 'contains' | 'starts';
+  comp: '=' | '≠' | 'contains' | 'starts';
   value: string[]; //Compares with array of items
   appliedTo: string[];
   active: boolean; // if this filter is active
