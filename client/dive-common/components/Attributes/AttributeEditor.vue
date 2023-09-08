@@ -1,8 +1,8 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, Ref, ref, watch,
+  computed, defineComponent, PropType, reactive, Ref, ref, watch,
 } from '@vue/composition-api';
-import { Attribute, NumericAttributeEditorOptions, StringAttributeEditorOptions } from 'vue-media-annotator/use/AttributeTypes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
 import AttributeRendering from './AttributeRendering.vue';
@@ -29,18 +29,22 @@ export default defineComponent({
   setup(props, { emit }) {
     const { prompt } = usePrompt();
     const trackStyleManager = useTrackStyleManager();
-    const name: Ref<string> = ref(props.selectedAttribute.name);
-    const belongs: Ref<string> = ref(props.selectedAttribute.belongs);
-    const datatype: Ref<string> = ref(props.selectedAttribute.datatype);
-    const attributeColors:
-      Ref<Record<string, string> | undefined> = ref(props.selectedAttribute.valueColors);
-    const color: Ref<string | undefined> = ref(props.selectedAttribute.color);
-    const tempColor = ref(trackStyleManager.typeStyling.value.color(name.value));
-    const areSettingsValid = ref(false);
     const currentTab = ref('Main');
-    const editor: Ref<
-      undefined | StringAttributeEditorOptions | NumericAttributeEditorOptions
-    > = ref(props.selectedAttribute.editor);
+
+    const baseSettings = reactive({
+      name: props.selectedAttribute.name,
+      belongs: props.selectedAttribute.belongs,
+      datatype: props.selectedAttribute.datatype,
+      areSettingsValid: false,
+      editor: props.selectedAttribute.editor,
+      values: props.selectedAttribute.values ? props.selectedAttribute.values : [],
+    });
+
+    const colorSettings = reactive({
+      attributeColors: props.selectedAttribute.valueColors,
+      color: props.selectedAttribute.color,
+      tempColor: trackStyleManager.typeStyling.value.color(baseSettings.name),
+    });
     let values: string[] = props.selectedAttribute.values ? props.selectedAttribute.values : [];
     let addNew = !props.selectedAttribute.key.length;
 
@@ -62,9 +66,9 @@ export default defineComponent({
     const renderingVals = ref(props.selectedAttribute.render);
 
     function setDefaultValue() {
-      name.value = '';
-      belongs.value = 'track';
-      datatype.value = 'number';
+      baseSettings.name = '';
+      baseSettings.belongs = 'track';
+      baseSettings.datatype = 'number';
       values = [];
     }
     function add() {
@@ -81,14 +85,14 @@ export default defineComponent({
       }
 
       const data = {
-        name: name.value,
-        belongs: belongs.value,
-        datatype: datatype.value,
-        values: datatype.value === 'text' && values ? values : [],
-        valueColors: attributeColors.value,
-        key: `${belongs.value}_${name.value}`,
-        editor: editor.value,
-        color: color.value,
+        name: baseSettings.name,
+        belongs: baseSettings.belongs,
+        datatype: baseSettings.datatype,
+        values: baseSettings.datatype === 'text' && values ? values : [],
+        valueColors: colorSettings.attributeColors,
+        key: `${baseSettings.belongs}_${baseSettings.name}`,
+        editor: baseSettings.editor,
+        color: colorSettings.color,
         render: renderingVals.value,
       };
 
@@ -113,38 +117,38 @@ export default defineComponent({
     }
     const typeChange = (type: 'number' | 'text' | 'boolean') => {
       if (type === 'number') {
-        editor.value = {
+        baseSettings.editor = {
           type: 'combo',
         };
       } else if (type === 'text') {
-        editor.value = {
+        baseSettings.editor = {
           type: 'freeform',
         };
       }
-      datatype.value = type;
+      baseSettings.datatype = type;
     };
     const numericChange = (type: 'combo' | 'slider') => {
       if (type === 'combo') {
-        editor.value = {
+        baseSettings.editor = {
           type: 'combo',
         };
       } else if (type === 'slider') {
-        editor.value = {
+        baseSettings.editor = {
           type: 'slider',
           range: [0, 1],
           steps: 0.1,
         };
       }
     };
-    watch(name, () => {
-      if (!color.value) {
-        tempColor.value = trackStyleManager.typeStyling.value.color(name.value);
+    watch(() => baseSettings.name, () => {
+      if (!colorSettings.color) {
+        colorSettings.tempColor = trackStyleManager.typeStyling.value.color(baseSettings.name);
       }
     });
 
     const launchColorEditor = () => {
-      if (!color.value) {
-        color.value = tempColor.value;
+      if (!colorSettings.color) {
+        colorSettings.color = colorSettings.tempColor;
       }
       colorEditor.value = true;
     };
@@ -184,20 +188,14 @@ export default defineComponent({
       }
     });
     return {
-      name,
-      belongs,
-      color,
+      baseSettings,
       colorEditor,
-      datatype,
       values,
       addNew,
-      editor,
-      areSettingsValid,
-      tempColor,
+      colorSettings,
       attributeRendering,
       renderingVals,
       currentTab,
-      attributeColors,
       //computed
       textValues,
       //functions
@@ -221,7 +219,7 @@ export default defineComponent({
           <v-tabs v-model="currentTab">
             <v-tab> Main </v-tab>
             <v-tab> Rendering </v-tab>
-            <v-tab v-if="['text', 'number'].includes(datatype)">
+            <v-tab v-if="['text', 'number'].includes(baseSettings.datatype)">
               Value Colors
             </v-tab>
           </v-tabs>
@@ -242,17 +240,17 @@ export default defineComponent({
             </v-alert>
             <v-form
               ref="form"
-              v-model="areSettingsValid"
+              v-model="baseSettings.areSettingsValid"
             >
               <v-text-field
-                v-model="name"
+                v-model="baseSettings.name"
                 label="Name"
                 :rules="[v => !!v || 'Name is required', v => !v.includes(' ') ||
                   'No spaces', v => v !== 'userAttributes' || 'Reserved Name']"
                 required
               />
               <v-select
-                :value="datatype"
+                :value="baseSettings.datatype"
                 :items="[
                   { text: 'Boolean', value: 'boolean' },
                   { text: 'Number', value: 'number' },
@@ -261,9 +259,9 @@ export default defineComponent({
                 label="Datatype"
                 @change="typeChange"
               />
-              <div v-if="datatype=== 'number'">
+              <div v-if="baseSettings.datatype=== 'number'">
                 <v-radio-group
-                  :value="(editor && editor.type) || 'combo'"
+                  :value="(baseSettings.editor && baseSettings.editor.type) || 'combo'"
                   row
                   label="Display Type:"
                   @change="numericChange"
@@ -287,47 +285,65 @@ export default defineComponent({
                   persistent-hint
                 />
               </div>
-              <div v-if="datatype === 'number' && editor && editor.type === 'slider'">
-                <v-row class="pt-2">
+              <div
+                v-if="baseSettings.datatype === 'number'
+                  && baseSettings.editor && baseSettings.editor.type === 'slider'"
+              >
+                <v-row
+                  v-if="baseSettings.editor.range"
+                  class="pt-2"
+                >
                   <v-text-field
-                    v-model.number="editor.range[0]"
+                    v-model.number="baseSettings.editor.range[0]"
                     dense
                     outlined
-                    :step="editor.range[0]> 1 ? 1 : 0.01"
+                    :step="baseSettings.editor.range[0]> 1 ? 1 : 0.01"
                     type="number"
                     label="Min"
                     :rules="[
                       v => !isNaN(parseFloat(v))|| 'Number is required',
-                      v => v < editor.range[1] || 'Min needs to be smaller than the Max']"
-                    :max="editor.range[1]"
+                      v => baseSettings.editor
+                        && baseSettings.editor.type === 'slider'
+                        && baseSettings.editor.range
+                        && v < baseSettings.editor.range[1]
+                        || 'Min needs to be smaller than the Max']"
+                    :max="baseSettings.editor.range[1]"
                     hint="Min limit for slider"
                     persistent-hint
                   />
                   <v-text-field
-                    v-model.number="editor.range[1]"
+                    v-model.number="baseSettings.editor.range[1]"
                     dense
                     outlined
-                    :step="editor.range[1]> 1 ? 1 : 0.01"
+                    :step="baseSettings.editor.range[1]> 1 ? 1 : 0.01"
                     type="number"
                     label="Max"
                     :rules="[
                       v => !isNaN(parseFloat(v)) || 'Number is required',
-                      v => v > editor.range[0] || 'Max needs to be larger than the Min']"
-                    :min="editor.range[0]"
+                      v => baseSettings.editor
+                        && baseSettings.editor.type === 'slider'
+                        && baseSettings.editor.range
+                        && v > baseSettings.editor.range[0]
+                        || 'Max needs to be larger than the Min']"
+                    :min="baseSettings.editor.range[0]"
                     hint="Max limit for slider"
                     persistent-hint
                   />
                 </v-row>
                 <v-row class="pt-2">
                   <v-text-field
-                    v-model.number="editor.steps"
+                    v-model.number="baseSettings.editor.steps"
                     dense
                     outlined
-                    :step="editor.steps> 1 ? 1 : 0.01"
+                    :step="baseSettings.editor
+                      && baseSettings.editor.steps && baseSettings.editor.steps > 1 ? 1 : 0.01"
                     type="number"
                     :rules="[
                       v => !isNaN(parseFloat(v)) || 'Number is required',
-                      v => v < (editor.range[1] - editor.range[0])
+                      v => baseSettings.editor
+                        && baseSettings.editor.type === 'slider'
+                        && baseSettings.editor.range
+                        && v < (baseSettings.editor.range[1] - baseSettings.editor.range[0])
                         || 'Steps should be smaller than the range']"
                     label="Slider Step Interval"
                     min="0"
@@ -337,7 +353,7 @@ export default defineComponent({
                 </v-row>
               </div>
               <v-textarea
-                v-if="datatype === 'text'"
+                v-if="baseSettings.datatype === 'text'"
                 v-model="textValues"
                 label="Predefined values"
                 hint="Line separated values"
@@ -361,17 +377,17 @@ export default defineComponent({
               </v-col>
               <v-col align-self="center">
                 <div
-                  v-if="!color"
+                  v-if="!colorSettings.color"
                   class="edit-color-box"
                   :style="{
-                    backgroundColor: tempColor,
+                    backgroundColor: colorSettings.tempColor,
                   }"
                   @click="launchColorEditor"
                 /><div
                   v-else
                   class="edit-color-box"
                   :style="{
-                    backgroundColor: color,
+                    backgroundColor: colorSettings.color,
                   }"
                   @click="launchColorEditor"
                 />
@@ -382,7 +398,7 @@ export default defineComponent({
               <v-spacer />
               <v-col>
                 <v-color-picker
-                  v-model="color"
+                  v-model="colorSettings.color"
                   hide-inputs
                 />
               </v-col>
@@ -400,16 +416,16 @@ export default defineComponent({
               :attribute="selectedAttribute"
             />
           </v-tab-item>
-          <v-tab-item v-if="datatype === 'text'">
+          <v-tab-item v-if="baseSettings.datatype === 'text'">
             <attribute-value-colors
               :attribute="selectedAttribute"
-              @save="attributeColors = $event"
+              @save="colorSettings.attributeColors = $event"
             />
           </v-tab-item>
-          <v-tab-item v-else-if="datatype === 'number'">
+          <v-tab-item v-else-if="baseSettings.datatype === 'number'">
             <attribute-number-value-colors
               :attribute="selectedAttribute"
-              @save="attributeColors = $event"
+              @save="colorSettings.attributeColors = $event"
             />
           </v-tab-item>
         </v-tabs-items>
@@ -447,7 +463,8 @@ export default defineComponent({
             </v-btn>
             <v-btn
               color="primary"
-              :disabled="!areSettingsValid || (!name || name.includes(' '))"
+              :disabled="!baseSettings.areSettingsValid
+                || (!baseSettings.name || baseSettings.name.includes(' '))"
               @click.prevent="submit"
             >
               Save

@@ -48,7 +48,7 @@ export default class AttributeBoxLayer extends BaseLayer<RectGeoJSData> {
       const arr: RectGeoJSData[] = [];
       frameData.forEach((track: FrameDataTrack) => {
         if (track.features && track.features.bounds) {
-          // So we need to go through the renderAttr and create a bounds for each renderAttr based on the settings
+          // Ho through the renderAttr and create a bounds for each renderAttr based on the settings
           const renderFiltered = this.renderAttributes.filter((item) => {
             if (item.render) {
               if (!item.render.typeFilter.includes('all')) {

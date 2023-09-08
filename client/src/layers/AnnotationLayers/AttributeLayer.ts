@@ -19,7 +19,6 @@ export interface AttributeTextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
-  // currentPair: boolean;
 }
 
 export type FormatTextRow = (
@@ -58,7 +57,6 @@ export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: A
     if (heightType === '%') {
       height = trackHeight * 0.01 * renderSettings.displayHeight.val;
     }
-    // So I think we want to set Display/Value
     const displayHeight = baseBounds[1] + (height * renderIndex) + height * (1 / 3);
     const valueHeight = baseBounds[1] + (height * renderIndex) + height * (2 / 3);
 
@@ -70,7 +68,7 @@ export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: A
     };
   }
   if (renderSettings && renderSettings.layout === 'horizontal') {
-    // So now we have DisplayName: DisplayValue in a corner either inside or outside the box
+    // DisplayName: DisplayValue in a corner either inside or outside the box
     // The height it determined by the number of attributes in the list
     const anchor = [baseBounds[2], baseBounds[3]]; //SE corner
     if (renderSettings.corner === 'SW') {
@@ -172,7 +170,7 @@ function defaultFormatter(
           y: displayHeight,
           textAlign: displayHeight === valueHeight ? 'end' : 'center',
           offsetY,
-          offsetX: 20,
+          offsetX: displayHeight === valueHeight ? 20 : 0,
         });
         const valueColor = autoColorIndex[i](value);
         const { valueTextSize } = currentRender;
@@ -188,14 +186,12 @@ function defaultFormatter(
           x: valueX,
           y: valueHeight,
           textAlign: displayHeight === valueHeight ? 'start' : 'center',
-          offsetX: 20,
+          offsetX: displayHeight === valueHeight ? 20 : 0,
           offsetY,
         });
       }
     }
     return arr;
-    // .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
-    // .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
   }
   return null;
 }
@@ -243,17 +239,16 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
       } else if (item.datatype === 'number') {
         this.autoColorIndex.push((data: string | number | boolean) => {
           if (item.valueColors && Object.keys(item.valueColors).length) {
-            const colorArr = Object.entries(item.valueColors as Record<string, string>)
+            const colorArr = Object.entries(item.valueColors as Record<number, string>)
               .map(([key, val]) => ({ key: parseFloat(key), val }));
             colorArr.sort((a, b) => a.key - b.key);
 
             const colorNums = colorArr.map((map) => map.key);
             const colorVals = colorArr.map((map) => map.val);
-            const colorScale = d3.scaleLinear()
+            const colorScale = d3.scaleLinear<string, number>()
               .domain(colorNums)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .range(colorVals as any);
-            return colorScale(data as number).toString() || item.color || 'white';
+              .range(colorVals);
+            return (data !== undefined && colorScale(data as number).toString()) || item.color || 'white';
           }
           return item.color || 'white';
         });
@@ -295,7 +290,7 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
       color: (data) => data.color,
       fontSize: (data) => data.fontSize,
       textBaseline: 'top',
-      //textScaled: 1,
+      textScaled: (data) => (data.fontSize ? 0 : undefined),
     };
   }
 }

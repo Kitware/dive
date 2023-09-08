@@ -1,7 +1,7 @@
 <!-- eslint-disable max-len -->
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, watch, computed, Ref,
+  defineComponent, ref, PropType, watch, computed, reactive,
 } from '@vue/composition-api';
 import { useTrackFilters, useTrackStyleManager } from 'vue-media-annotator/provides';
 import { Attribute, AttributeRendering } from 'vue-media-annotator/use/AttributeTypes';
@@ -24,94 +24,118 @@ export default defineComponent({
     const trackFilterControls = useTrackFilters();
     const types = computed(() => ['all', ...trackFilterControls.allTypes.value]);
 
-    const typeFilter: Ref<string[]> = ref(props.value.typeFilter || ['all']);
+    const mainSettings = reactive({
+      selected: props.value.selected || false,
+      typeFilter: props.value.typeFilter || ['all'],
+      order: props.value.order,
+    });
 
     const deleteChip = (item: string) => {
-      typeFilter.value.splice(typeFilter.value.findIndex((data) => data === item));
+      mainSettings.typeFilter.splice(mainSettings.typeFilter.findIndex((data) => data === item));
     };
 
-    const selected = ref(props.value.selected || false);
+    const layoutSettings = reactive({
+      layout: props.value.layout,
+      corner: props.value.corner,
+      location: props.value.location,
+    });
 
-    const displayName = ref(props.value.displayName);
-    const displayTextSize = ref(props.value.displayTextSize);
-    const valueTextSize = ref(props.value.valueTextSize);
-    const displayColor = ref(props.value.displayColor);
-    const displayColorAuto = ref(props.value.displayColor === 'auto');
-    const valueColor = ref(props.value.valueColor);
-    const valueColorAuto = ref(props.value.valueColor === 'auto');
-    const order = ref(props.value.order);
-    const locationOptions = ref(['inside', 'outside']);
-    const location = ref(props.value.location);
-    const box = ref(props.value.box);
-    const boxColor = ref(props.value.boxColor);
-    const boxColorAuto = ref(props.value.boxColor === 'auto');
-    const boxThickness = ref(props.value.boxThickness);
-    const boxBackground: Ref<string | undefined> = ref(props.value.boxBackground);
-    const boxBackgroundSwitch = ref(!!props.value.boxBackground);
-    const boxOpacity: Ref<number | undefined> = ref(props.value.boxOpacity);
-    const layoutOptions = ref(['vertical', 'horizontal']);
-    const layout = ref(props.value.layout);
-    const cornerOptions = ref(['SE', 'SW', 'NW']);
-    const corner = ref(props.value.corner);
-    const displayDimOptions = ref(['px', '%', 'auto']);
-    const displayWidthType = ref(props.value.displayWidth.type);
-    const displayWidthVal = ref(props.value.displayWidth.val);
-    const displayHeightType = ref(props.value.displayHeight.type);
-    const displayHeightVal = ref(props.value.displayHeight.val);
+    const displayNameSettings = reactive({
+      displayName: props.value.displayName,
+      displayTextSize: props.value.displayTextSize,
+      displayColor: props.value.displayColor,
+      displayColorAuto: props.value.displayColor === 'auto',
+    });
+
+    const valueSettings = reactive({
+      valueTextSize: props.value.valueTextSize,
+      valueColor: props.value.valueColor,
+      valueColorAuto: props.value.valueColor === 'auto',
+    });
+
+    const verticalDimensions = reactive({
+      displayWidthType: props.value.displayWidth.type,
+      displayWidthVal: props.value.displayWidth.val,
+      displayHeightType: props.value.displayHeight.type,
+      displayHeightVal: props.value.displayHeight.val,
+    });
+
+    const boxSettings = reactive({
+      box: props.value.box,
+      boxColor: props.value.boxColor,
+      boxColorAuto: props.value.boxColor === 'auto',
+      boxThickness: props.value.boxThickness,
+      boxBackground: props.value.boxBackground,
+      boxBackgroundSwitch: !!props.value.boxBackground,
+      boxOpacity: props.value.boxOpacity,
+    });
+
+    const dropdownOptions = reactive({
+      locationOptions: ['inside', 'outside'],
+      layoutOptions: ['vertical', 'horizontal'],
+      cornerOptions: ['SE', 'SW', 'NW'],
+      displayDimOptions: ['px', '%', 'auto'],
+    });
+
     const currentEditColor = ref('');
     const currentEditColorType = ref('');
     const editingColor = ref(false);
 
     const computedDisplayColor = computed(() => {
-      if (displayColorAuto.value || displayColor.value === 'auto') {
+      if (displayNameSettings.displayColorAuto || displayNameSettings.displayColor === 'auto') {
         return props.attribute.color || 'white';
       }
-      return displayColor.value;
+      return displayNameSettings.displayColor;
     });
     const computedValueColor = computed(() => {
-      if (valueColorAuto.value || valueColor.value === 'auto') {
+      if (valueSettings.valueColorAuto || valueSettings.valueColor === 'auto') {
         return props.attribute.color || 'white';
       }
-      return valueColor.value;
+      return valueSettings.valueColor;
     });
     const computedBoxColor = computed(() => {
-      if (boxColorAuto.value || boxColor.value === 'auto') {
+      if (boxSettings.boxColorAuto || boxSettings.boxColor === 'auto') {
         return props.attribute.color || 'white';
       }
-      return boxColor.value;
+      return boxSettings.boxColor;
     });
 
-    watch([displayName, displayTextSize, valueTextSize, displayColor, valueColor, order,
-      location, box, boxColor, boxThickness, layout, location, corner, displayWidthType, displayWidthVal,
-      displayHeightType, displayHeightVal, typeFilter, computedBoxColor,
-      computedDisplayColor, computedValueColor, selected, boxBackground, boxOpacity, boxThickness], () => {
+    const updateSettings = () => {
       emit('input', {
-        selected: selected.value,
-        typeFilter: typeFilter.value,
-        displayName: displayName.value,
-        displayTextSize: displayTextSize.value,
-        valueTextSize: valueTextSize.value,
-        displayColor: displayColorAuto.value ? 'auto' : displayColor.value,
-        valueColor: valueColorAuto.value ? 'auto' : valueColor.value,
-        order: order.value,
-        location: location.value,
-        layout: layout.value,
-        corner: corner.value,
-        box: box.value,
-        boxColor: boxColorAuto.value ? 'auto' : boxColor.value,
-        boxThickness: boxThickness.value,
-        boxBackground: boxBackground.value ? boxBackground.value : undefined,
-        boxOpacity: boxOpacity.value ? boxOpacity.value : undefined,
+        selected: mainSettings.selected,
+        typeFilter: mainSettings.typeFilter,
+        order: mainSettings.order,
+        displayName: displayNameSettings.displayName,
+        displayTextSize: displayNameSettings.displayTextSize,
+        displayColor: displayNameSettings.displayColorAuto ? 'auto' : displayNameSettings.displayColor,
+        valueTextSize: valueSettings.valueTextSize,
+        valueColor: valueSettings.valueColorAuto ? 'auto' : valueSettings.valueColor,
+        location: layoutSettings.location,
+        layout: layoutSettings.layout,
+        corner: layoutSettings.corner,
+        box: boxSettings.box,
+        boxColor: boxSettings.boxColorAuto ? 'auto' : boxSettings.boxColor,
+        boxThickness: boxSettings.boxThickness,
+        boxBackground: boxSettings.boxBackground ? boxSettings.boxBackground : undefined,
+        boxOpacity: boxSettings.boxOpacity ? boxSettings.boxOpacity : undefined,
         displayWidth: {
-          type: displayWidthType.value,
-          val: displayWidthVal.value,
+          type: verticalDimensions.displayWidthType,
+          val: verticalDimensions.displayWidthVal,
         },
         displayHeight: {
-          type: displayHeightType.value,
-          val: displayHeightVal.value,
+          type: verticalDimensions.displayHeightType,
+          val: verticalDimensions.displayHeightVal,
         },
       });
-    });
+    };
+    // Watch doesn't like arrays of reactive objects
+    watch(mainSettings, () => updateSettings());
+    watch(layoutSettings, () => updateSettings());
+    watch(displayNameSettings, () => updateSettings());
+    watch(valueSettings, () => updateSettings());
+    watch(verticalDimensions, () => updateSettings());
+    watch(boxSettings, () => updateSettings());
+
     const setEditingColor = (key: string, state: boolean) => {
       if (!state) { // skip if auto is set
         return;
@@ -127,78 +151,57 @@ export default defineComponent({
         currentEditColor.value = computedBoxColor.value;
       }
       if (currentEditColorType.value === 'boxBackground') {
-        currentEditColor.value = boxBackground.value ? boxBackground.value : 'white';
+        currentEditColor.value = boxSettings.boxBackground ? boxSettings.boxBackground : 'white';
       }
       editingColor.value = true;
     };
     const saveEditingColor = () => {
       if (currentEditColorType.value === 'display') {
-        displayColor.value = currentEditColor.value;
+        displayNameSettings.displayColor = currentEditColor.value;
       }
       if (currentEditColorType.value === 'value') {
-        valueColor.value = currentEditColor.value;
+        valueSettings.valueColor = currentEditColor.value;
       }
       if (currentEditColorType.value === 'box') {
-        boxColor.value = currentEditColor.value;
+        boxSettings.boxColor = currentEditColor.value;
       }
       if (currentEditColorType.value === 'boxBackground') {
-        boxBackground.value = currentEditColor.value;
+        boxSettings.boxBackground = currentEditColor.value;
       }
 
       editingColor.value = false;
     };
 
-    watch(boxBackgroundSwitch, () => {
-      if (boxBackgroundSwitch.value && boxBackground.value === undefined) {
-        boxBackground.value = 'white';
-        boxOpacity.value = 0;
-      } else if (!boxBackgroundSwitch.value && boxBackground.value) {
-        boxBackground.value = undefined;
-        boxOpacity.value = undefined;
+    watch(() => boxSettings.boxBackgroundSwitch, () => {
+      if (boxSettings.boxBackgroundSwitch && boxSettings.boxBackground === undefined) {
+        boxSettings.boxBackground = 'white';
+        boxSettings.boxOpacity = 0;
+      } else if (!boxSettings.boxBackgroundSwitch && boxSettings.boxBackground) {
+        boxSettings.boxBackground = undefined;
+        boxSettings.boxOpacity = undefined;
       }
     });
     return {
-      displayName,
-      displayTextSize,
-      displayColor,
-      valueTextSize,
-      valueColor,
-      order,
-      location,
-      layout,
-      corner,
-      box,
-      boxColor,
-      boxThickness,
-      boxOpacity,
-      boxBackground,
-      displayWidthType,
-      displayWidthVal,
-      displayHeightType,
-      displayHeightVal,
-      // Options
-      locationOptions,
-      layoutOptions,
-      cornerOptions,
-      displayDimOptions,
-      displayColorAuto,
-      valueColorAuto,
-      boxColorAuto,
+      //dropdowns
+      dropdownOptions,
+      mainSettings,
+      displayNameSettings,
+      valueSettings,
+      layoutSettings,
+      boxSettings,
+      verticalDimensions,
       // computed
       computedDisplayColor,
       computedValueColor,
       computedBoxColor,
       // color Editing
-      boxBackgroundSwitch,
       editingColor,
       currentEditColor,
       currentEditColorType,
       setEditingColor,
       saveEditingColor,
       // type filter
-      selected,
       typeStylingRef,
-      typeFilter,
       types,
       deleteChip,
     };
@@ -234,14 +237,14 @@ export default defineComponent({
         <v-expansion-panel-content>
           <v-row class="my-2 border">
             <v-switch
-              v-model="selected"
+              v-model="mainSettings.selected"
               label="Selected Track"
               hint="Only display on selected Track"
               persistent-hint
               class="mx-2"
             />
             <v-select
-              v-model="typeFilter"
+              v-model="mainSettings.typeFilter"
               :items="types"
               multiple
               clearable
@@ -263,7 +266,7 @@ export default defineComponent({
               </template>
             </v-select>
             <v-text-field
-              v-model.number="order"
+              v-model.number="mainSettings.order"
               type="number"
               label="Order"
               step="1"
@@ -300,22 +303,22 @@ export default defineComponent({
         <v-expansion-panel-content>
           <v-row class="my-2 border">
             <v-select
-              v-model="location"
-              :items="locationOptions"
+              v-model="layoutSettings.location"
+              :items="dropdownOptions.locationOptions"
               label="Location"
               class="mx-2"
               style="max-width:100px"
             />
             <v-select
-              v-model="layout"
-              :items="layoutOptions"
+              v-model="layoutSettings.layout"
+              :items="dropdownOptions.layoutOptions"
               label="Layout"
               class="mx-2"
               style="max-width:100px"
             />
             <v-select
-              v-model="corner"
-              :items="cornerOptions"
+              v-model="layoutSettings.corner"
+              :items="dropdownOptions.cornerOptions"
               label="Corner"
               class="mx-2"
               style="max-width:100px"
@@ -350,29 +353,29 @@ export default defineComponent({
         <v-expansion-panel-content>
           <v-row class="mb-2 border">
             <v-text-field
-              v-model="displayName"
+              v-model="displayNameSettings.displayName"
               label="Display Name"
               class="mx-2"
             />
             <v-text-field
-              v-model.number="displayTextSize"
+              v-model.number="displayNameSettings.displayTextSize"
               type="number"
               step="1"
               label="Display Text Size"
               class="mx-2"
             />
             <v-switch
-              v-model="displayColorAuto"
+              v-model="displayNameSettings.displayColorAuto"
               label="Auto Color"
               class="mx-2"
             />
             <div
               class="color-box mx-2 mt-5"
-              :class="{'edit-color-box': !displayColorAuto}"
+              :class="{'edit-color-box': !displayNameSettings.displayColorAuto}"
               :style="{
                 backgroundColor: computedDisplayColor,
               }"
-              @click="setEditingColor('display', !displayColorAuto)"
+              @click="setEditingColor('display', !displayNameSettings.displayColorAuto)"
             />
           </v-row>
         </v-expansion-panel-content>
@@ -402,29 +405,29 @@ export default defineComponent({
         <v-expansion-panel-content>
           <v-row class="mb-2 border">
             <v-text-field
-              v-model.number="valueTextSize"
+              v-model.number="valueSettings.valueTextSize"
               type="number"
               step="1"
               label="Value Text Size"
               class="mx-2"
             />
             <v-switch
-              v-model="valueColorAuto"
+              v-model="valueSettings.valueColorAuto"
               label="Auto Color"
               class="mx-2"
             />
             <div
               class="color-box mx-2 mt-5"
-              :class="{'edit-color-box': !valueColorAuto}"
+              :class="{'edit-color-box': !valueSettings.valueColorAuto}"
               :style="{
                 backgroundColor: computedValueColor,
               }"
-              @click="setEditingColor('value', !valueColorAuto)"
+              @click="setEditingColor('value', !valueSettings.valueColorAuto)"
             />
           </v-row>
         </v-expansion-panel-content>
       </v-expansion-panel>
-      <v-expansion-panel v-if="layout === 'vertical'">
+      <v-expansion-panel v-if="layoutSettings.layout === 'vertical'">
         <v-expansion-panel-header>
           <h3>
             Dimensions
@@ -452,13 +455,13 @@ export default defineComponent({
           <v-row class="border mb-2">
             <v-row dense>
               <v-select
-                v-model="displayWidthType"
+                v-model="verticalDimensions.displayWidthType"
                 :items="['%', 'px']"
                 label="Width Type"
                 class="mx-2"
               />
               <v-text-field
-                v-model.number="displayWidthVal"
+                v-model.number="verticalDimensions.displayWidthVal"
                 label="Value"
                 type="number"
                 step="1"
@@ -467,13 +470,13 @@ export default defineComponent({
             </v-row>
             <v-row dense>
               <v-select
-                v-model="displayHeightType"
-                :items="displayDimOptions"
+                v-model="verticalDimensions.displayHeightType"
+                :items="dropdownOptions.displayDimOptions"
                 label="Height Type"
                 class="mx-2"
               />
               <v-text-field
-                v-model.number="displayHeightVal"
+                v-model.number="verticalDimensions.displayHeightVal"
                 label="Value"
                 type="number"
                 step="1"
@@ -483,7 +486,7 @@ export default defineComponent({
           </v-row>
         </v-expansion-panel-content>
       </v-expansion-panel>
-      <v-expansion-panel v-if="layout === 'vertical'">
+      <v-expansion-panel v-if="layoutSettings.layout === 'vertical'">
         <v-expansion-panel-header>
           <h3>
             Box
@@ -506,13 +509,13 @@ export default defineComponent({
           <v-row class="my-2 border">
             <v-row dense>
               <v-switch
-                v-model="box"
+                v-model="boxSettings.box"
                 label="Draw Box"
                 class="mx-2"
               />
               <v-text-field
-                v-if="box"
-                v-model.number="boxThickness"
+                v-if="boxSettings.box"
+                v-model.number="boxSettings.boxThickness"
                 label="Thickness"
                 type="number"
                 step="1"
@@ -520,42 +523,42 @@ export default defineComponent({
                 style="max-width:75px;"
               />
               <v-switch
-                v-if="box"
-                v-model="boxColorAuto"
+                v-if="boxSettings.box"
+                v-model="boxSettings.boxColorAuto"
                 label="Auto Color"
                 class="mx-2"
               />
               <div
-                v-if="box"
+                v-if="boxSettings.box"
                 class="color-box mx-2 mt-5"
-                :class="{'edit-color-box': !boxColorAuto}"
+                :class="{'edit-color-box': !boxSettings.boxColorAuto}"
                 :style="{
                   backgroundColor: computedBoxColor,
                 }"
-                @click="setEditingColor('box', !boxColorAuto)"
+                @click="setEditingColor('box', !boxSettings.boxColorAuto)"
               />
             </v-row>
             <v-row
-              v-if="box"
+              v-if="boxSettings.box"
               dense
             >
               <v-switch
-                v-model="boxBackgroundSwitch"
+                v-model="boxSettings.boxBackgroundSwitch"
                 label="Box Background"
                 class="mx-2"
               />
               <div
-                v-if="boxBackgroundSwitch"
+                v-if="boxSettings.boxBackgroundSwitch"
                 class="color-box mx-2 mt-2 edit-color-box"
                 :style="{
-                  backgroundColor: boxBackground,
+                  backgroundColor: boxSettings.boxBackground,
                 }"
                 @click="setEditingColor('boxBackground', true)"
               />
               <v-slider
-                v-if="boxBackgroundSwitch"
-                v-model.number="boxOpacity"
-                :label="`Opacity (${boxOpacity})`"
+                v-if="boxSettings.boxBackgroundSwitch"
+                v-model.number="boxSettings.boxOpacity"
+                :label="`Opacity (${boxSettings.boxOpacity})`"
                 min="0"
                 max="1"
                 step="0.01"

@@ -26,6 +26,7 @@ export interface LayerStyle<D> {
   fill?: ObjectFunction<boolean, D> | boolean;
   radius?: PointFunction<number, D> | number;
   textAlign?: ((data: D) => string) | string;
+  textScaled?: ((data: D) => number | undefined) | number | undefined;
   [x: string]: unknown;
 }
 

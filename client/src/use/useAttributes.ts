@@ -245,7 +245,7 @@ export default function UseAttributes(
     track: Track,
     filter: AttributeKeyFilter,
   ) {
-    // So we need to generate a list of all of the attributres for the length of the track
+    // Generate a list of all of the attributres for the length of the track
     const valueMap: Record<string, TimelineAttribute> = { };
     track.features.forEach((feature) => {
       const { frame } = feature;

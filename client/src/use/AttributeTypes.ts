@@ -39,7 +39,7 @@ export interface Attribute {
   belongs: 'track' | 'detection';
   datatype: 'text' | 'number' | 'boolean';
   values?: string[];
-  valueColors?: Record<string, string>;
+  valueColors?: Record<string | number, string>;
   name: string;
   key: string;
   color?: string;
