@@ -94,6 +94,7 @@ export default defineComponent({
       meta: File | null,
       annotationFile: File | null,
       mediaList: File[],
+      suggestedFps?: number, // suggested FPS for large/images
     ) => {
       const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
       if (!resp.ok) {
@@ -102,7 +103,7 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
-      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+      const fps = suggestedFps || clientSettings.annotationFPS || DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -200,9 +201,11 @@ export default defineComponent({
           preUploadErrorMessage.value = null;
           try {
             if (dstype !== 'zip') {
+              const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
               await addPendingUpload(
                 name, processed.fullList, processed.metaFile,
                 processed.annotationFile, processed.mediaList,
+                suggestedFps,
               );
             } else {
               addPendingZipUpload(name, processed.fullList);

@@ -113,7 +113,7 @@ export default defineComponent({
       if (!data.ready) {
         return;
       }
-      if (img.naturalHeight > 8192 || img.naturalWidth > 8192) {
+      if (img.naturalHeight > 40960 || img.naturalWidth > 40960) {
         // Warn about large images and conversion if possible
         ctx.emit('large-image-warning', true);
       }

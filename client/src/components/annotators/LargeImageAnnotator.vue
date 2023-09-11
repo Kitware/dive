@@ -210,9 +210,20 @@ export default defineComponent({
       data.playing = false;
       loadingVideo.value = false;
     }
+    async function syncWithVideo(nextFrame: number): Promise<void> {
+      if (data.playing) {
+        if (nextFrame > data.maxFrame) {
+          return pause();
+        }
+        seek(nextFrame);
+        setTimeout(() => syncWithVideo(data.frame + 1), 1000 / props.frameRate);
+      }
+      return undefined;
+    }
     async function play() {
       try {
         data.playing = true;
+        syncWithVideo(data.frame + 1);
       } catch (ex) {
         console.error(ex);
       }
@@ -335,7 +346,7 @@ export default defineComponent({
         data.ready = true;
         loadingVideo.value = false;
         loadingImage.value = false;
-        //seek(0);
+        seek(0);
       }
     }
     // Watch imageData for change
