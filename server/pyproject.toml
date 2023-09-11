@@ -62,16 +62,15 @@ requests = ">=2.27.1"
 urllib3 = "<1.27"
 girder-large-image = "^1.17.0"
 large-image = "^1.17.0"
-large-image-source-pil = "^1.17.0"
 simplejpeg = "^1.6.4"
 large-image-tasks = "^1.17.0"
 large-image-converter = "^1.17.0"
 bitarray = "^2.5.1"
+large-image-source-pil = "^1.17.0"
 large-image-source-gdal = "^1.17.0"
 large-image-source-tiff = "^1.17.0"
 large-image-source-ometiff = "^1.17.0"
 large-image-source-openjpeg = "^1.17.0"
-large-image-source-mapnik = "^1.17.0"
 [tool.poetry.group.dev.dependencies]
 numpy = "^1.21.4"
 opencv-python = "^4.5.5"
@@ -92,7 +91,6 @@ rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 
 [tool.poetry.plugins."girder_worker_plugins"]
 dive_tasks = "dive_tasks:DIVEPlugin"
-
 
 [[tool.poetry.source]]
 name = "large-image"

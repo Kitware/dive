@@ -788,18 +788,22 @@ docs = ["furo (>=2023.7.26)", "sphinx (>=7.1.2)", "sphinx-autodoc-typehints (>=1
 testing = ["covdefaults (>=2.3)", "coverage (>=7.3)", "diff-cover (>=7.7)", "pytest (>=7.4)", "pytest-cov (>=4.1)", "pytest-mock (>=3.11.1)", "pytest-timeout (>=2.1)"]
 
 [[package]]
-name = "gdal"
-version = "3.7.1.1"
+name = "GDAL"
+version = "3.5.0"
 description = "GDAL: Geospatial Data Abstraction Library"
 category = "main"
 optional = false
-python-versions = ">=3.6.0"
+python-versions = "*"
 files = [
-    {file = "GDAL-3.7.1.1.tar.gz", hash = "sha256:d16c6dab28eda6c4b1a571e6dc3e3b0fd824a0a6c1cc1947fc7dcb580c9999de"},
+    {file = "GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:069b52aed5aa5ebcfc47e9d8d662381d8f7a99404345b699d97089c729fdcb7d"},
 ]
 
 [package.extras]
 numpy = ["numpy (>1.0.0)"]
+
+[package.source]
+type = "url"
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "girder"
@@ -1308,26 +1312,6 @@ pyproj = ">=2.2.0"
 girder = ["girder-large-image (>=1.23.6)"]
 
 [[package]]
-name = "large-image-source-mapnik"
-version = "1.23.6"
-description = "A Mapnik tilesource for large_image."
-category = "main"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "large-image-source-mapnik-1.23.6.tar.gz", hash = "sha256:f3bcce2c4832b191cefb9127b12171fda71bd388822b0e8c9f17ee85846e8aae"},
-    {file = "large_image_source_mapnik-1.23.6-py3-none-any.whl", hash = "sha256:fe79fa1b6446a267e5399980d5260b96ce75c2483434f3892afd3bd464afe1a0"},
-]
-
-[package.dependencies]
-large-image = ">=1.23.6"
-large-image-source-gdal = ">=1.23.6"
-mapnik = "*"
-
-[package.extras]
-girder = ["girder-large-image (>=1.23.6)"]
-
-[[package]]
 name = "large-image-source-ometiff"
 version = "1.23.6"
 description = "An OMETiff tilesource for large_image."
@@ -1550,21 +1534,6 @@ MarkupSafe = ">=0.9.2"
 babel = ["Babel"]
 lingua = ["lingua"]
 testing = ["pytest"]
-
-[[package]]
-name = "mapnik"
-version = "4.0.0"
-description = "Python bindings for Mapnik"
-category = "main"
-optional = false
-python-versions = "*"
-files = [
-    {file = "mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b10bedbfbcd94eae164cda62af6c2db4a9ca5c93b0f0f5f20057a6404b4ec7d3"},
-]
-
-[package.source]
-type = "url"
-url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "markupsafe"
@@ -2871,4 +2840,4 @@ girder-large-image = []
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.10"
-content-hash = "27043de12989ef8f964cb9529675f60be52518b48e6106ee566e3f8d2b3756fe"
+content-hash = "8f65fe5b00a18f9489f878c07f8c6196efb86f44cd3d2fc208c0a6b432df239f"
