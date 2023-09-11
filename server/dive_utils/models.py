@@ -151,7 +151,7 @@ class RenderingAttributes(BaseModel):
     displayColor: str
     displayTextSize: float
     valueColor: str
-    valueTextSize: str
+    valueTextSize: float
     order: int
     location: Literal['inside', 'outside']
     corner: Optional[Literal['SW', 'SE', 'NW']]
