@@ -282,7 +282,7 @@ name = "cachetools"
 version = "5.3.1"
 description = "Extensible memoizing collections and decorators"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "cachetools-5.3.1-py3-none-any.whl", hash = "sha256:95ef631eeaea14ba2e36f06437f36463aac3a096799e876ee55e5cdccb102590"},
@@ -792,7 +792,7 @@ name = "GDAL"
 version = "3.5.0"
 description = "GDAL: Geospatial Data Abstraction Library"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 files = [
     {file = "GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:069b52aed5aa5ebcfc47e9d8d662381d8f7a99404345b699d97089c729fdcb7d"},
@@ -875,7 +875,7 @@ name = "girder-large-image"
 version = "1.20.6"
 description = "A Girder plugin to work with large, multiresolution images."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "girder-large-image-1.20.6.tar.gz", hash = "sha256:26d223f48c2fc94473cf1787e983c5b30835b208718d45c498572f2f7245fe89"},
@@ -958,6 +958,9 @@ setuptools = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/Glymur-0.9.9-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
+[package.extras]
+test = ["pillow", "pytest"]
 
 [[package]]
 name = "gputil"
@@ -1226,7 +1229,7 @@ name = "large-image"
 version = "1.23.6"
 description = "Python modules to work with large, multiresolution images."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-1.23.6.tar.gz", hash = "sha256:2141b9b84822c913a6db10f82b5c7a1a273189bd409032732cfc5904ba916977"},
@@ -1270,7 +1273,7 @@ name = "large-image-converter"
 version = "1.23.6"
 description = "Converter for Large Image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-converter-1.23.6.tar.gz", hash = "sha256:458a46409ab30334060723ee032aaea1ed6e212a89271e7440df07a6130c334f"},
@@ -1295,7 +1298,7 @@ name = "large-image-source-gdal"
 version = "1.23.6"
 description = "A GDAL tilesource for large_image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-source-gdal-1.23.6.tar.gz", hash = "sha256:932e2e921b831943eda5313e32ca4c9b6444d120580be5d38f7c9f35d10286da"},
@@ -1316,7 +1319,7 @@ name = "large-image-source-ometiff"
 version = "1.23.6"
 description = "An OMETiff tilesource for large_image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-source-ometiff-1.23.6.tar.gz", hash = "sha256:19a77ec4c56e1749e889bfef4b00a9b12efcf89483a1ee7c25af63d028a2558c"},
@@ -1335,7 +1338,7 @@ name = "large-image-source-openjpeg"
 version = "1.23.6"
 description = "An Openjpeg tilesource for large_image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-source-openjpeg-1.23.6.tar.gz", hash = "sha256:f99a12a25592bcecfa46d9aa745dbed4bc8e1bd2f4a66597a1d5934eb26a53b2"},
@@ -1354,7 +1357,7 @@ name = "large-image-source-pil"
 version = "1.23.6"
 description = "A Pillow tilesource for large_image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-source-pil-1.23.6.tar.gz", hash = "sha256:362f89f2477a893dcd2dafa25c6eec607182e3556c2997859471949c88b16077"},
@@ -1373,7 +1376,7 @@ name = "large-image-source-tiff"
 version = "1.23.6"
 description = "A TIFF tilesource for large_image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-source-tiff-1.23.6.tar.gz", hash = "sha256:db5d322484505126985236dff523e8bf81993d9cda4ea1ecc14d5d467a5d9e2b"},
@@ -1393,7 +1396,7 @@ name = "large-image-tasks"
 version = "1.23.6"
 description = "Girder Worker tasks for Large Image."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "large-image-tasks-1.23.6.tar.gz", hash = "sha256:f49984b02f6226f7dc676a465c9f91399aea717d86d7fd1b5e9acc31594aacf7"},
@@ -1412,7 +1415,7 @@ name = "lxml"
 version = "4.9.3"
 description = "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, != 3.4.*"
 files = [
     {file = "lxml-4.9.3-cp27-cp27m-macosx_11_0_x86_64.whl", hash = "sha256:b0a545b46b526d418eb91754565ba5b63b1c0b12f9bd2f808c852d9b4b2f9b5c"},
@@ -1687,7 +1690,7 @@ name = "palettable"
 version = "3.3.3"
 description = "Color palettes for Python"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 files = [
     {file = "palettable-3.3.3-py2.py3-none-any.whl", hash = "sha256:74e9e7d7fe5a9be065e02397558ed1777b2df0b793a6f4ce1a5ee74f74fb0caa"},
@@ -1733,7 +1736,7 @@ name = "pillow"
 version = "10.0.0"
 description = "Python Imaging Library (Fork)"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "Pillow-10.0.0-cp310-cp310-macosx_10_10_x86_64.whl", hash = "sha256:1f62406a884ae75fb2f818694469519fb685cc7eaff05d3451a9ebe55c646891"},
@@ -1803,7 +1806,7 @@ name = "pkgconfig"
 version = "1.5.5"
 description = "Interface Python with pkg-config"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.3,<4.0"
 files = [
     {file = "pkgconfig-1.5.5-py3-none-any.whl", hash = "sha256:d20023bbeb42ee6d428a0fac6e0904631f545985a10cdd71a20aa58bc47a4209"},
@@ -1987,7 +1990,7 @@ name = "pylibtiff"
 version = "0.5.0"
 description = "PyLibTiff: a Python tiff library."
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 files = [
     {file = "pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:00f18e0907d309ba7fb2c65bfe709338a6f516d743d46d0488b403c6b17d318e"},
@@ -1999,6 +2002,7 @@ numpy = "*"
 [package.source]
 type = "url"
 url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+
 
 [[package]]
 name = "pymongo"
@@ -2153,7 +2157,7 @@ name = "pyproj"
 version = "3.5.0"
 description = "Python interface to PROJ (cartographic projections and coordinate transformations library)"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "pyproj-3.5.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:6475ce653880938468a1a1b7321267243909e34b972ba9e53d5982c41d555918"},
@@ -2243,7 +2247,7 @@ name = "pyvips"
 version = "2.2.0"
 description = "binding for the libvips image processing library, API mode"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 files = [
     {file = "pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b9fd0aeb0c9df5ad4459bce676948118fad261369295170df175677bec6f9c10"},
@@ -2515,20 +2519,20 @@ crt = ["botocore[crt] (>=1.20.29,<2.0a.0)"]
 
 [[package]]
 name = "setuptools"
-version = "68.2.0"
+version = "68.2.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "main"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-68.2.0-py3-none-any.whl", hash = "sha256:af3d5949030c3f493f550876b2fd1dd5ec66689c4ee5d5344f009746f71fd5a8"},
-    {file = "setuptools-68.2.0.tar.gz", hash = "sha256:00478ca80aeebeecb2f288d3206b0de568df5cd2b8fada1209843cc9a8d88a48"},
+    {file = "setuptools-68.2.1-py3-none-any.whl", hash = "sha256:eff96148eb336377ab11beee0c73ed84f1709a40c0b870298b0d058828761bae"},
+    {file = "setuptools-68.2.1.tar.gz", hash = "sha256:56ee14884fd8d0cd015411f4a13f40b4356775a0aefd9ebc1d3bfb9a1acb32f1"},
 ]
 
 [package.extras]
 docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-hoverxref (<2)", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
 testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-ruff", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
-testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "packaging", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
+testing-integration = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "packaging (>=23.1)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
 
 [[package]]
 name = "setuptools-scm"
@@ -2652,7 +2656,7 @@ name = "tifftools"
 version = "1.3.12"
 description = "Pure python tiff tools to handle all tags and IFDs."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 files = [
     {file = "tifftools-1.3.12-py3-none-any.whl", hash = "sha256:f738a2786e785411048fde8005f21fa8c342503e351ced1e72707507a7d0d7cf"},
@@ -2835,9 +2839,9 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy (>=0.9.1)", "pytest-ruff"]
 
 [extras]
-girder-large-image = []
+large-image = ["girder-large-image", "large-image", "large-image-tasks", "large-image-converter", "large-image-source-pil", "large-image-source-gdal", "large-image-source-tiff", "large-image-source-ometiff", "large-image-source-openjpeg"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.10"
-content-hash = "8f65fe5b00a18f9489f878c07f8c6196efb86f44cd3d2fc208c0a6b432df239f"
+content-hash = "d2784aaec5caca8345d653e3b3ed0c6a9abd5b91055b28abe901ebac3251ad1a"
