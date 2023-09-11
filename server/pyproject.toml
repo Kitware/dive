@@ -72,18 +72,6 @@ large-image-source-tiff = "^1.17.0"
 large-image-source-ometiff = "^1.17.0"
 large-image-source-openjpeg = "^1.17.0"
 large-image-source-mapnik = "^1.17.0"
-gdal = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-glymur = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/Glymur-0.9.9-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-libtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/libtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-mapnik = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/mapnik-4.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-psutil = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/psutil-5.7.3-cp38-cp38-manylinux2010_x86_64.whl"}
-pylibmc = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibmc-1.6.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-pyproj = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyproj-3.3.1.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-pyvips = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-python-javabridge = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/python_javabridge-4.0.3-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-pylibtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
-ujson = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/ujson-2.0-cp38-cp38-manylinux1_x86_64.whl"}
-openslide-python = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/openslide_python-1.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
 [tool.poetry.group.dev.dependencies]
 numpy = "^1.21.4"
 opencv-python = "^4.5.5"
@@ -104,6 +92,20 @@ rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 
 [tool.poetry.plugins."girder_worker_plugins"]
 dive_tasks = "dive_tasks:DIVEPlugin"
+
+
+[[tool.poetry.source]]
+name = "large-image"
+url = "https://girder.github.io/large_image_wheels/"
+default = false
+secondary = false
+
+
+[[tool.poetry.source]]
+name = "girder-large-image"
+url = "https://girder.github.io/large_image_wheels/"
+default = false
+secondary = false
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "setuptools"]
