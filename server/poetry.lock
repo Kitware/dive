@@ -788,22 +788,18 @@ docs = ["furo (>=2023.7.26)", "sphinx (>=7.1.2)", "sphinx-autodoc-typehints (>=1
 testing = ["covdefaults (>=2.3)", "coverage (>=7.3)", "diff-cover (>=7.7)", "pytest (>=7.4)", "pytest-cov (>=4.1)", "pytest-mock (>=3.11.1)", "pytest-timeout (>=2.1)"]
 
 [[package]]
-name = "GDAL"
-version = "3.5.0"
+name = "gdal"
+version = "3.7.1.1"
 description = "GDAL: Geospatial Data Abstraction Library"
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.6.0"
 files = [
-    {file = "GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:069b52aed5aa5ebcfc47e9d8d662381d8f7a99404345b699d97089c729fdcb7d"},
+    {file = "GDAL-3.7.1.1.tar.gz", hash = "sha256:d16c6dab28eda6c4b1a571e6dc3e3b0fd824a0a6c1cc1947fc7dcb580c9999de"},
 ]
 
 [package.extras]
 numpy = ["numpy (>1.0.0)"]
-
-[package.source]
-type = "url"
-url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.5.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "girder"
@@ -2875,4 +2871,4 @@ girder-large-image = []
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.10"
-content-hash = "c4890b5269b2e38d45ea8693e78cbefa894b32e0559e0ac1b67636bc12655a5d"
+content-hash = "27043de12989ef8f964cb9529675f60be52518b48e6106ee566e3f8d2b3756fe"
