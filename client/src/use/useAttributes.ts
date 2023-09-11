@@ -40,7 +40,7 @@ export interface AttributeNumberFilter {
 }
 
 export interface AttributeStringFilter {
-  comp: '=' | '!=' | 'contains' | 'starts';
+  comp: '=' | '≠' | 'contains' | 'starts';
   value: string[]; //Compares with array of items
   appliedTo: string[];
   active: boolean; // if this filter is active
@@ -217,7 +217,7 @@ export default function UseAttributes(
   ) {
     if (filter.comp === '=') {
       return filter.value.includes(val);
-    } if (filter.comp === '!=') {
+    } if (filter.comp === '≠') {
       return !filter.value.includes(val);
     } if (filter.comp === 'contains') {
       return filter.value.reduce((prev, str) => prev || str.includes(val), false);

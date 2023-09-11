@@ -8,7 +8,7 @@ import express from 'express';
 import bodyparser from 'body-parser';
 import rangeParser from 'range-parser';
 import fs from 'fs-extra';
-import { SaveAttributeArgs, SaveDetectionsArgs } from 'dive-common/apispec';
+import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } from 'dive-common/apispec';
 
 import settings from './state/settings';
 import * as common from './native/common';
@@ -82,6 +82,22 @@ apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
     }
     const args = req.body as SaveAttributeArgs;
     await common.saveAttributes(settings.get(), id, args);
+    res.status(200).send('done');
+  } catch (err) {
+    err.status = 500;
+    next(err);
+  }
+  return null;
+});
+
+apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res, next) => {
+  try {
+    let { id } = req.params;
+    if (req.params.camera) {
+      id = `${req.params.id}/${req.params.camera}`;
+    }
+    const args = req.body as SaveAttributeTrackFilterArgs;
+    await common.saveAttributeTrackFilters(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;

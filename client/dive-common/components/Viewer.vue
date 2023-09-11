@@ -45,8 +45,10 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
+import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -66,6 +68,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
+    PrimaryAttributeTrackFilter,
   },
 
   // TODO: remove this in vue 3
@@ -176,7 +179,7 @@ export default defineComponent({
     const getTracksMerged = (id: AnnotationId) => cameraStore.getTracksMerged(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
-      markChangesPending,
+      markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
       setType: setTrackType,
       removeTypes,
@@ -189,8 +192,9 @@ export default defineComponent({
     const trackFilters = new TrackFilterControls({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
-      markChangesPending,
+      markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       lookupGroups: cameraStore.lookupGroups,
+      getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
       groupFilterControls: groupFilters,
       setType: setTrackType,
       removeTypes,
@@ -591,6 +595,10 @@ export default defineComponent({
             removeSaveCamera(key);
           }
         });
+        // Needs to be done after the cameraMap is created
+        if (meta.attributeTrackFilters) {
+          trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
+        }
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -898,13 +906,16 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
-        :enable-slot="context.state.active !== 'TypeThreshold'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
-        <template v-if="context.state.active !== 'TypeThreshold'">
+        <template>
           <v-divider />
+          <primary-attribute-track-filter
+            :toggle="context.toggle"
+          />
           <ConfidenceFilter
+            v-if="context.state.active !== 'TypeThreshold'"
             class="ma-2 mb-0"
             :confidence.sync="confidenceFilters.default"
             @end="saveThreshold"

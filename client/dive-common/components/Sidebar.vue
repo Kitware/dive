@@ -27,7 +27,7 @@ export default defineComponent({
     },
     enableSlot: {
       type: Boolean,
-      default: false,
+      default: true,
     },
   },
 

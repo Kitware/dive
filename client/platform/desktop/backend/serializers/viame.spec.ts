@@ -15,7 +15,7 @@ const testData: testPairs[] = fs.readJSONSync('../testutils/viame.spec.json');
 const imageFilenameTests = [
   {
     pass: false,
-    error: 'CSV import was found to have a mix of missing images and images that were found in the data. This usually indicates a problem with the annotation file, but if you want to force the import to proceed, you can set all values in the Image Name column to be blank.  Then DIVE will not attempt to validate image names. Missing images include:        ...',
+    error: 'A subsampling of images were used with the CSV but they were not sequential',
     csv: [
       '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
@@ -23,7 +23,7 @@ const imageFilenameTests = [
   },
   {
     pass: false,
-    error: 'CSV import was found to have a mix of missing images and images that were found in the data. This usually indicates a problem with the annotation file, but if you want to force the import to proceed, you can set all values in the Image Name column to be blank.  Then DIVE will not attempt to validate image names. Missing images include: invalid...',
+    error: 'A subsampling of images were used with the CSV but they were not sequential',
     csv: [
       '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '1,invalid,0,111,222,3333,444,1,-1,typestring,0.55',
@@ -55,7 +55,7 @@ const imageFilenameTests = [
   },
   {
     pass: false,
-    error: 'Error: annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+    error: 'Error: Images were provided in an unexpected order and dataset contains multi-frame tracks.',
     csv: [
       '99,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
       '99,3.png,1,111,222,3333,444,1,-1,typestring,0.55',

@@ -1,6 +1,8 @@
 import type { GirderModel } from '@girder/components/src';
 
-import { DatasetMetaMutable, FrameImage, SaveAttributeArgs } from 'dive-common/apispec';
+import {
+  DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+} from 'dive-common/apispec';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { postProcess } from './rpc.service';
@@ -86,7 +88,7 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '') {
   if (file === undefined) {
     return false;
   }
@@ -108,7 +110,7 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       headers: { 'Content-Type': 'application/octet-stream' },
     });
     if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true);
+      const final = await postProcess(parentId, true, false, additive, additivePrepend);
       return final.status === 200;
     }
   }
@@ -117,6 +119,10 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
 
 function saveAttributes(folderId: string, args: SaveAttributeArgs) {
   return girderRest.patch(`/dive_dataset/${folderId}/attributes`, args);
+}
+
+function saveAttributeTrackFilters(folderId: string, args: SaveAttributeTrackFilterArgs) {
+  return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
 function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
@@ -144,6 +150,7 @@ export {
   importAnnotationFile,
   makeViameFolder,
   saveAttributes,
+  saveAttributeTrackFilters,
   saveMetadata,
   validateUploadGroup,
 };

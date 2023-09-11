@@ -21,11 +21,14 @@ import {
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
+  SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 import kpf from 'platform/desktop/backend/serializers/kpf';
+// TODO:  Check to Refactor this
+// eslint-disable-next-line import/no-cycle
 import { checkMedia, convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
@@ -41,6 +44,8 @@ import {
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
+// TODO:  Check to Refactor this
+// eslint-disable-next-line import/no-cycle
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 import { splitExt } from './utils';
 
@@ -542,12 +547,37 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
   await saveMetadata(settings, datasetId, projectMetaData);
 }
 
+async function saveAttributeTrackFilters(
+  settings: Settings,
+  datasetId: string,
+  args: SaveAttributeTrackFilterArgs,
+) {
+  const projectDirData = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (!projectMetaData.attributeTrackFilters) {
+    projectMetaData.attributeTrackFilters = {};
+  }
+  args.delete.forEach((filterId) => {
+    if (projectMetaData.attributeTrackFilters && projectMetaData.attributeTrackFilters[filterId]) {
+      delete projectMetaData.attributeTrackFilters[filterId];
+    }
+  });
+  args.upsert.forEach((filter) => {
+    if (projectMetaData.attributeTrackFilters) {
+      projectMetaData.attributeTrackFilters[filter.name] = filter;
+    }
+  });
+  await saveMetadata(settings, datasetId, projectMetaData);
+}
+
 
 async function _ingestFilePath(
   settings: Settings,
   datasetId: string,
   path: string,
   imageMap?: Map<string, number>,
+  additive = false,
+  additivePrepend = '',
 ): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
   if (!fs.existsSync(path)) {
     return null;
@@ -588,6 +618,32 @@ async function _ingestFilePath(
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
   }
+  // If it is additive we need to re-ID tracks and do additive prepends
+  if (additive) {
+    // Load previous data
+    const existing = await loadDetections(settings, datasetId);
+    const { tracks } = existing;
+    let maxTrackId = -1;
+    Object.values(tracks).forEach((item) => {
+      maxTrackId = Math.max(item.id, maxTrackId);
+    });
+    maxTrackId += 1;
+    const newTracks = Object.values(annotations.tracks);
+    for (let i = 0; i < newTracks.length; i += 1) {
+      const newTrack = newTracks[i];
+      newTrack.id += maxTrackId;
+      if (additivePrepend !== '') {
+        const { confidencePairs } = newTrack;
+        for (let k = 0; k < confidencePairs.length; k += 1) {
+          confidencePairs[k] = [`${additivePrepend}_${confidencePairs[k][0]}`, confidencePairs[k][1]];
+        }
+        newTrack.confidencePairs = confidencePairs;
+      }
+      existing.tracks[newTrack.id] = newTrack;
+    }
+    annotations.tracks = existing.tracks;
+  }
+
   if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {
     const processed = processTrackAttributes(Object.values(annotations.tracks));
     meta.attributes = processed.attributes;
@@ -618,6 +674,8 @@ async function ingestDataFiles(
   absPaths: string[],
   multiCamResults?: Record<string, string>,
   imageMap?: Map<string, number>,
+  additive = false,
+  additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
@@ -628,7 +686,9 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(settings, datasetId, path, imageMap);
+    const newMeta = await _ingestFilePath(
+      settings, datasetId, path, imageMap, additive, additivePrepend,
+    );
     if (newMeta !== null) {
       merge(meta, newMeta);
       processedFiles.push(path);
@@ -876,11 +936,12 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
   return undefined;
 }
 
-async function dataFileImport(settings: Settings, id: string, path: string) {
+async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   const result = await ingestDataFiles(
     settings, id, [path], undefined, validImageNamesMap(jsonMeta),
+    additive, additivePrepend,
   );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
@@ -1092,6 +1153,7 @@ export {
   saveMetadata,
   processTrainedPipeline,
   saveAttributes,
+  saveAttributeTrackFilters,
   findImagesInFolder,
   findTrackandMetaFileinFolder,
 };

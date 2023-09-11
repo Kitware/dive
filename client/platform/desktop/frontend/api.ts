@@ -8,7 +8,8 @@ import { dialog, app } from '@electron/remote';
 
 import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
-  Pipe, Pipelines, SaveAttributeArgs, SaveDetectionsArgs, TrainingConfigs,
+  Pipe, Pipelines, SaveAttributeArgs,
+  SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
 import {
@@ -131,8 +132,11 @@ function importMultiCam(args: MultiCamImportArgs):
   return ipcRenderer.invoke('import-multicam-media', { args });
 }
 
-function importAnnotationFile(id: string, path: string): Promise<boolean> {
-  return ipcRenderer.invoke('import-annotation', { id, path });
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean> {
+  return ipcRenderer.invoke('import-annotation', {
+    id, path, additive, additivePrepend,
+  });
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
@@ -207,6 +211,11 @@ async function saveAttributes(id: string, args: SaveAttributeArgs) {
   return client.post(`dataset/${id}/attributes`, args);
 }
 
+async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFilterArgs) {
+  const client = await getClient();
+  return client.post(`dataset/${id}/attribute_track_filters`, args);
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -217,6 +226,7 @@ export {
   saveMetadata,
   saveDetections,
   saveAttributes,
+  saveAttributeTrackFilters,
   openFromDisk,
   /* Nonstandard APIs */
   exportDataset,

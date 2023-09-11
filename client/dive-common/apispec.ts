@@ -6,6 +6,7 @@ import { use } from 'vue-media-annotator/provides';
 import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -62,6 +63,11 @@ interface SaveAttributeArgs {
   upsert: Attribute[];
 }
 
+interface SaveAttributeTrackFilterArgs {
+  delete: string[];
+  upsert: AttributeTrackFilter[];
+}
+
 interface FrameImage {
   url: string;
   filename: string;
@@ -114,8 +120,9 @@ interface DatasetMetaMutable {
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
   attributes?: Readonly<Record<string, Attribute>>;
+  attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -149,14 +156,17 @@ interface Api {
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
+  saveAttributeTrackFilters(datasetId: string,
+    args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
-  importAnnotationFile(id: string, path: string, file?: File): Promise<boolean>;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
+  importAnnotationFile(id: string, path: string, file?: File,
+    additive?: boolean, additivePrepend?: string): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 
@@ -193,6 +203,7 @@ export {
   Pipelines,
   SaveDetectionsArgs,
   SaveAttributeArgs,
+  SaveAttributeTrackFilterArgs,
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,

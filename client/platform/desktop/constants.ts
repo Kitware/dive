@@ -2,6 +2,7 @@ import type {
   DatasetMeta, DatasetMetaMutable, DatasetType,
   Pipe, SubType, MediaImportResponse,
 } from 'dive-common/apispec';
+import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 
@@ -107,6 +108,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
+
+  // attributes are not datasetMetaMutable and are stored separate
+  attributeTrackFilters?: Record<string, AttributeTrackFilter>;
 
   // confidence filter threshold for exporting
   confidenceFilters?: Record<string, number>;

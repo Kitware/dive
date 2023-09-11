@@ -426,7 +426,8 @@ def convert_video(
         jsoninfo = json.loads(stdout)
         videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
         if len(videostream) != 1:
-            raise Exception('Expected 1 video stream, found {}'.format(len(videostream)))
+            print('Expected 1 video stream, found {}'.format(len(videostream)))
+            print('Using first Video Stream found')
 
         # Extract average framerate
         avgFpsString: str = videostream[0]["avg_frame_rate"]
