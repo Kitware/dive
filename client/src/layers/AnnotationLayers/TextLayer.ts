@@ -12,7 +12,6 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
-  // currentPair: boolean;
 }
 
 export type FormatTextRow = (
@@ -71,8 +70,6 @@ function defaultFormatter(
       });
     }
     return arr;
-    // .sort((a, b) => (+b.currentPair) - (+a.currentPair)) // sort currentPair=true first
-    // .map((v, i) => ({ ...v, y: bounds[1] - (lineHeight * i) })); // calculate y after sort
   }
   return null;
 }

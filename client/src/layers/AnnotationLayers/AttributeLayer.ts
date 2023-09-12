@@ -238,7 +238,8 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
         });
       } else if (item.datatype === 'number') {
         this.autoColorIndex.push((data: string | number | boolean) => {
-          if (item.valueColors && Object.keys(item.valueColors).length) {
+          // Check that data is number and 2 colors for gradient
+          if (typeof data === 'number' && item.valueColors && Object.keys(item.valueColors).length > 1) {
             const colorArr = Object.entries(item.valueColors as Record<number, string>)
               .map(([key, val]) => ({ key: parseFloat(key), val }));
             colorArr.sort((a, b) => a.key - b.key);
