@@ -104,8 +104,8 @@ def _load_dynamic_models(user: types.GirderUserModel) -> Dict[str, types.Trainin
                     is_training_model = True
                     match = extension
             if is_training_model and not item['name'].startswith('embedded_'):
-                training_models[item['name']] = {
-                    "name": item['name'],
+                training_models[folder['name']] = {
+                    "name": f"{folder['name']} - {item['name']}",
                     "type": match,
                     "folderId": str(folder["_id"]),
                 }
@@ -129,6 +129,7 @@ def load_training_configs(user: types.GirderUserModel) -> Dict[str, types.Traini
     )
     static_models = static_job_configs.get('models', {})
     dynamic_models = _load_dynamic_models(user)
+    print(dynamic_models)
     static_models.update(dynamic_models)
     return static_models
 
