@@ -1,18 +1,22 @@
+import os
 from pathlib import Path
 import re
 from typing import Dict, List, Optional
 
+from dive_utils.constants import TrainingModelExtensions
 from dive_utils.types import (
     AvailableJobSchema,
     PipelineCategory,
     PipelineDescription,
     TrainingConfigurationSummary,
+    TrainingModelDescription,
 )
 
 DefaultTrainingConfiguration = "train_detector_default.viame_csv.conf"
 AllowedTrainingConfigs = r".*\.viame_csv\.conf$"
 DisallowedTrainingConfigs = r".*(_nf|\.continue)\.viame_csv\.conf$"
 AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
+
 DisallowedStaticPipelines = (
     # Remove utilities pipes which hold no meaning in web
     r".*local.*|"
@@ -81,8 +85,34 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
     }
 
 
+def load_training_models(search_path: Path) -> Dict[str, TrainingModelDescription]:
+    model_dict: Dict[str, TrainingModelDescription] = {}
+
+    # Use a list comprehension and glob to find matching files
+    matching_models = []
+    for root, _dirs, files in os.walk(search_path):
+        for file in files:
+            if file.endswith(
+                TrainingModelExtensions
+            ):  # The arg can be a tuple of suffixes to look for
+                matching_models.append(os.path.join(root, file))
+
+    for match in matching_models:
+        print(f"Discovered Model: {match}")
+        model_info: TrainingModelDescription = {
+            "name": os.path.basename(match),
+            "path": str(match),
+            "type": Path(match).suffix,
+            "folderId": None,
+        }
+        model_dict[Path(match).stem] = model_info
+
+    return model_dict
+
+
 def discover_configs(search_path: Path) -> AvailableJobSchema:
     return {
         'pipelines': load_static_pipelines(search_path),
         'training': load_training_configurations(search_path),
+        'models': load_training_models(search_path),
     }

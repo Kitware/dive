@@ -38,6 +38,17 @@ class GirderUserModel(GirderModel):
     login: str
 
 
+class TrainingModelDescription(TypedDict):
+    name: str  # fileanme
+    type: str  # extension for the type
+
+    # might not be in the root so we need a full path
+    path: Optional[str]
+    # If the model is stored in girder, this is
+    # the ID of the folder containing the model
+    folderId: Optional[str]
+
+
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
@@ -88,6 +99,7 @@ class PipelineCategory(TypedDict):
 class AvailableJobSchema(TypedDict):
     pipelines: Dict[str, PipelineCategory]
     training: TrainingConfigurationSummary
+    models: Dict[str, TrainingModelDescription]
 
 
 class DIVEAnnotationSchema(TypedDict):

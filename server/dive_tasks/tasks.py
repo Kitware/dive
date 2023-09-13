@@ -161,6 +161,7 @@ def upgrade_pipelines(
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
+    manager.write(str(summary))
     gc.put('dive_configuration/static_pipeline_configs', json=summary)
     # get a list of files in the zip directory for the installed configuration listing
     downloaded = []
