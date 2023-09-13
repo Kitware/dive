@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 __all__ = [
@@ -38,7 +39,7 @@ class GirderUserModel(GirderModel):
     login: str
 
 
-class TrainingModelDescription(TypedDict):
+class TrainingModelDescription(BaseModel):
     name: str  # fileanme
     type: str  # extension for the type
 
@@ -47,6 +48,13 @@ class TrainingModelDescription(TypedDict):
     # If the model is stored in girder, this is
     # the ID of the folder containing the model
     folderId: Optional[str]
+
+
+class TrainingModelTuneArgs(TrainingModelDescription):
+    """Update schema for mutable metadata fields"""
+
+    class Config:
+        extra = 'forbid'
 
 
 class PipelineDescription(TypedDict):
@@ -82,6 +90,7 @@ class TrainingJob(TypedDict):
     config: str  # Name of the training configuration file to use.
     annotated_frames_only: bool  # Train on only the annotated frames
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
+    model: Optional[TrainingModelTuneArgs]  # Model for fine-tune training
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
 

@@ -41,8 +41,16 @@ interface Category {
 }
 
 interface TrainingConfigs {
-  configs: string[];
-  default: string;
+  training: {
+    configs: string[];
+    default: string;
+  };
+  models: Record<string, {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  }>;
 }
 
 type Pipelines = Record<string, Category>;
@@ -148,6 +156,12 @@ interface Api {
     config: string,
     annotatedFramesOnly: boolean,
     labelText?: string,
+    fineTuneModel?: {
+      name: string;
+      type: string;
+      path?: string;
+      folderId?: string;
+    },
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;

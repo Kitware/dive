@@ -69,8 +69,14 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .jsonParam(
+            "tuneModel",
+            description="schema: TrainingModelTuneArgs",
+            requireObject=True,
+            paramType="body",
+        )
     )
-    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly, tuneModel):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)

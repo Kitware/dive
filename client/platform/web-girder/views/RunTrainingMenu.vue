@@ -37,6 +37,8 @@ export default defineComponent({
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
     const annotatedFramesOnly = ref<boolean>(false);
+    const fineTuning = ref<boolean>(false);
+    const selectedFineTune = ref<string>('');
     const {
       request: _runTrainingRequest,
       reset: dismissJobDialog,
@@ -45,10 +47,30 @@ export default defineComponent({
 
     const successMessage = computed(() => `Started training on ${props.selectedDatasetIds.length} dataset(s)`);
 
+    const fineTuneModelList = computed(() => {
+      const modelList: string[] = [];
+      if (trainingConfigurations.value?.models) {
+        Object.entries(trainingConfigurations.value.models)
+          .forEach(([key, value]) => {
+            modelList.push(value.name);
+          });
+      }
+      return modelList;
+    });
+    const selectedFineTuneObject = computed(() => {
+      if (selectedFineTune.value !== '' && trainingConfigurations.value?.models) {
+        const found = Object.entries(trainingConfigurations.value.models)
+          .find(([, value]) => value.name === selectedFineTune.value);
+        if (found) {
+          return found[1];
+        }
+      }
+      return undefined;
+    });
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
       trainingConfigurations.value = resp;
-      selectedTrainingConfig.value = resp.default;
+      selectedTrainingConfig.value = resp.training.default;
     });
 
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
@@ -73,6 +95,7 @@ export default defineComponent({
             selectedTrainingConfig.value,
             annotatedFramesOnly.value,
             labelText.value,
+            selectedFineTuneObject.value,
           );
         }
         return runTraining(
@@ -80,6 +103,8 @@ export default defineComponent({
           outputPipelineName,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
+          undefined,
+          selectedFineTuneObject.value,
         );
       });
       menuOpen.value = false;
@@ -115,6 +140,10 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       simplifyTrainingName,
+      // Fine-Tuning
+      fineTuning,
+      fineTuneModelList,
+      selectedFineTune,
     };
   },
 });
@@ -197,7 +226,7 @@ export default defineComponent({
               outlined
               class="my-4"
               label="Configuration File"
-              :items="trainingConfigurations.configs"
+              :items="trainingConfigurations.training.configs"
               :hint="selectedTrainingConfig"
               persistent-hint
             >
@@ -223,6 +252,23 @@ export default defineComponent({
               hint="Train only on frames with groundtruth and ignore frames without annotations"
               persistent-hint
               class="pt-0"
+            />
+            <v-checkbox
+              v-model="fineTuning"
+              label="Fine Tune Model"
+              hint="Fine Tune an existing model"
+              persistent-hint
+              class="pt-0"
+            />
+            <v-select
+              v-if="fineTuning"
+              v-model="selectedFineTune"
+              outlined
+              class="my-4"
+              label="Fine Tune Model"
+              :items="fineTuneModelList"
+              hint="Model to Fine Tune"
+              persistent-hint
             />
             <v-btn
               depressed

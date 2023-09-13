@@ -27,6 +27,7 @@ from . import crud_dataset
 class RunTrainingArgs(BaseModel):
     folderIds: List[str]
     labelText: Optional[str]
+    model: Optional[types.TrainingModelTuneArgs]
 
 
 def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
@@ -288,6 +289,7 @@ def run_training(
         'config': config,
         'annotated_frames_only': annotatedFramesOnly,
         'label_txt': bodyParams.labelText,
+        'model': bodyParams.model,
         'user_id': user.get('_id', 'unknown'),
         'user_login': user.get('login', 'unknown'),
     }

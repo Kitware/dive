@@ -24,8 +24,14 @@ function runTraining(
   config: string,
   annotatedFramesOnly: boolean,
   labelText?: string,
+  fineTuneModel?: {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  },
 ) {
-  return girderRest.post('dive_rpc/train', { folderIds, labelText }, {
+  return girderRest.post('dive_rpc/train', { folderIds, labelText, fineTuneModel }, {
     params: {
       pipelineName, config, annotatedFramesOnly,
     },

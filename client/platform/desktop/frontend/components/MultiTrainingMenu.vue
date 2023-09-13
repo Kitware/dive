@@ -39,8 +39,11 @@ export default defineComponent({
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       trainingConfigurations: {
-        configs: [],
-        default: '',
+        training: {
+          configs: [],
+          default: '',
+        },
+        models: {},
       } as TrainingConfigs,
       annotatedFramesOnly: false,
     });
@@ -68,7 +71,7 @@ export default defineComponent({
     onBeforeMount(async () => {
       const configs = await getTrainingConfigurations();
       data.trainingConfigurations = configs;
-      data.selectedTrainingConfig = configs.default;
+      data.selectedTrainingConfig = configs.training.default;
     });
 
     function toggleStaged(meta: DatasetMeta) {
@@ -180,7 +183,7 @@ export default defineComponent({
             outlined
             dense
             label="Configuration File (Required)"
-            :items="data.trainingConfigurations.configs"
+            :items="data.trainingConfigurations.training.configs"
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
