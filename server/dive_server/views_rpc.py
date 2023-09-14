@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -7,7 +7,7 @@ from girder.constants import AccessType
 from girder.models.folder import Folder
 from girder.models.token import Token
 
-from dive_utils.types import PipelineDescription
+from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
 
@@ -45,9 +45,9 @@ class RpcResource(Resource):
         .jsonParam(
             "body",
             description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content",
+             and labels.txt file content.  Additionally and model used for fine-tune training.",
             paramType="body",
-            schema={"folderIds": List[str], "labelText": str},
+            schema={"folderIds": List[str], "labelText": str, "model": Optional[TrainingModelTuneArgs]},
         )
         .param(
             "pipelineName",
@@ -69,14 +69,8 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
-        .jsonParam(
-            "tuneModel",
-            description="schema: TrainingModelTuneArgs",
-            requireObject=True,
-            paramType="body",
-        )
     )
-    def run_training(self, body, pipelineName, config, annotatedFramesOnly, tuneModel):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
