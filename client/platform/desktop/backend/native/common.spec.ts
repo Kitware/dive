@@ -11,7 +11,7 @@ import {
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
 import { MultiTrackRecord } from 'dive-common/apispec';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
 import { createWorkingDirectory } from './utils';
 

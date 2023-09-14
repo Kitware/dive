@@ -1,7 +1,7 @@
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { TrackData } from 'vue-media-annotator/track';
-import { Attributes } from 'vue-media-annotator/use/useAttributes';
+import { Attributes } from 'vue-media-annotator/use/AttributeTypes';
 
 
 /**

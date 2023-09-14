@@ -24,7 +24,7 @@ export interface Feature {
   bounds?: RectBounds;
   geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature>;
   fishLength?: number;
-  attributes?: StringKeyObject;
+  attributes?: StringKeyObject & { userAttributes?: StringKeyObject };
   head?: [number, number];
   tail?: [number, number];
 }
@@ -349,12 +349,27 @@ export default class Track extends BaseAnnotation {
   }
 
 
-  setFeatureAttribute(frame: number, name: string, value: unknown) {
+  setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
     if (this.features[frame]) {
-      this.features[frame].attributes = {
-        ...this.features[frame].attributes,
-        [name]: value,
-      };
+      if (user !== null) {
+        this.features[frame].attributes = {
+          ...this.features[frame].attributes,
+        };
+        if (this.features[frame].attributes !== undefined
+          && (this.features[frame].attributes as StringKeyObject).userAttributes === undefined) {
+          (this.features[frame].attributes as StringKeyObject).userAttributes = {};
+        }
+        ((this.features[frame].attributes as StringKeyObject)
+          .userAttributes as StringKeyObject)[user] = {
+          ...(this.features[frame].attributes as StringKeyObject)[user] as StringKeyObject,
+          [name]: value,
+        };
+      } else {
+        this.features[frame].attributes = {
+          ...this.features[frame].attributes,
+          [name]: value,
+        };
+      }
       this.notify('feature', this.features[frame]);
     }
   }
@@ -425,6 +440,21 @@ export default class Track extends BaseAnnotation {
       features.push(f);
     });
     return features;
+  }
+
+  getUserAttributeList() {
+    const userList = new Set<string>();
+    if (this.attributes && this.attributes.userAttributes) {
+      Object.keys(this.attributes.userAttributes).forEach((item) => userList.add(item));
+    }
+    if (this.features) {
+      this.features.forEach((feature) => {
+        if (feature.attributes && feature.attributes.userAttributes) {
+          Object.keys(feature.attributes.userAttributes).forEach((item) => userList.add(item));
+        }
+      });
+    }
+    return userList;
   }
 
   /* Serialize back to a regular track object */

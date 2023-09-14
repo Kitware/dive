@@ -4,7 +4,7 @@ import { GroupData } from 'vue-media-annotator/Group';
 
 import { use } from 'vue-media-annotator/provides';
 import { TrackData } from 'vue-media-annotator/track';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 

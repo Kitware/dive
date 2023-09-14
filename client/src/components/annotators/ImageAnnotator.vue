@@ -274,7 +274,7 @@ export default defineComponent({
         }
         // expectFrame is safe here because, even though this frame may never have been
         // seeked before, it is at MOST 1 frame away from a frame that has.
-        // So the correct behavior of this function implicitly requires that seek()
+        // The correct behavior of this function implicitly requires that seek()
         // always trigger caching for surrounding frames.
         const nextImage = expectFrame(nextFrame);
         if (!nextImage.cached) {
