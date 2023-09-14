@@ -566,18 +566,31 @@ export default defineComponent({
                   @multi-cam="openMultiCamDialog"
                 />
               </v-list-item>
-              <v-list-item>
-                <import-button
-                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
-                  icon="mdi-folder-open"
-                  open-type="large-image"
-                  class="grow my-2"
-                  :small="!!pendingUploads.length"
-                  :button-attrs="buttonAttrs"
-                  @open="openImport($event)"
-                  @multi-cam="openMultiCamDialog"
-                />
-              </v-list-item>
+              <v-tooltip
+                open-delay="50"
+                top
+                max-width="400"
+              >
+                <template #activator="{ on }">
+                  <v-list-item v-on="on">
+                    <import-button
+                      :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
+                      icon="mdi-folder-open"
+                      open-type="large-image"
+                      class="grow my-2"
+                      :small="!!pendingUploads.length"
+                      :button-attrs="buttonAttrs"
+                      @open="openImport($event)"
+                      @multi-cam="openMultiCamDialog"
+                    />
+                  </v-list-item>
+                </template>
+                <b>
+                  Allows for a single or sequence of geospatial
+                  large images for use in a tile server
+                  with formats such as: .tiff, .nitf, .ntf, .tif
+                </b>
+              </v-tooltip>
               <v-list-item>
                 <import-button
                   :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
