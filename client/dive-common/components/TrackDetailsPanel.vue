@@ -21,15 +21,15 @@ import {
   useCameraStore,
   useSelectedCamera,
 } from 'vue-media-annotator/provides';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
 import RangeEditor from 'vue-media-annotator/components/RangeEditor.vue';
 
-import AttributeInput from 'dive-common/components/AttributeInput.vue';
-import AttributeEditor from 'dive-common/components/AttributeEditor.vue';
-import AttributeSubsection from 'dive-common/components/AttributesSubsection.vue';
+import AttributeInput from 'dive-common/components/Attributes/AttributeInput.vue';
+import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
+import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
 
 export default defineComponent({
@@ -145,9 +145,10 @@ export default defineComponent({
     function editAttribute(attribute: Attribute) {
       editingAttribute.value = attribute;
     }
-    async function saveAttributeHandler({ data, oldAttribute }: {
+    async function saveAttributeHandler({ data, oldAttribute, close }: {
       oldAttribute?: Attribute;
       data: Attribute;
+      close: boolean;
     }) {
       editingError.value = null;
       if (!oldAttribute && attributes.value.some((attribute) => (
@@ -162,7 +163,7 @@ export default defineComponent({
       } catch (err) {
         editingError.value = err.message;
       }
-      if (!editingError.value) {
+      if (!editingError.value && close) {
         closeEditor();
       }
     }

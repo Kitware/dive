@@ -2,8 +2,8 @@ import type {
   DatasetMeta, DatasetMetaMutable, DatasetType,
   Pipe, SubType, MediaImportResponse,
 } from 'dive-common/apispec';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
 
 
 export const JsonMetaCurrentVersion = 1;
