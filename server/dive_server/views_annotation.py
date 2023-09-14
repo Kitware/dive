@@ -26,6 +26,7 @@ GetAnnotationParams = (
     .pagingParams("id", defaultLimit=0)
     .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
     .param('revision', 'revision', dataType='integer', required=False)
+    .param('tag', 'tag', dataType='string', required=False)
 )
 
 
@@ -41,21 +42,22 @@ class AnnotationResource(Resource):
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
         self.route("GET", ("labels",), self.get_labels)
+        self.route("GET", ("tags",), self.get_tags)
         self.route("PATCH", (), self.save_annotations)
         self.route("POST", ("rollback",), self.rollback)
 
     @access.user
     @autoDescribeRoute(GetAnnotationParams)
-    def get_tracks(self, limit: int, offset: int, sort, folder, revision):
+    def get_tracks(self, limit: int, offset: int, sort, folder, revision, tag):
         return crud_annotation.TrackItem().list(
-            folder, limit=limit, offset=offset, sort=sort, revision=revision
+            folder, limit=limit, offset=offset, sort=sort, revision=revision, tag=tag
         )
 
     @access.user
     @autoDescribeRoute(GetAnnotationParams)
-    def get_groups(self, limit: int, offset: int, sort, folder, revision):
+    def get_groups(self, limit: int, offset: int, sort, folder, revision, tag):
         return crud_annotation.GroupItem().list(
-            folder, limit=limit, offset=offset, sort=sort, revision=revision
+            folder, limit=limit, offset=offset, sort=sort, revision=revision, tag=tag
         )
 
     @access.user
@@ -67,6 +69,16 @@ class AnnotationResource(Resource):
     def get_revisions(self, limit: int, offset: int, sort, folder):
         cursor, total = crud_annotation.RevisionLogItem().list(folder, limit, offset, sort)
         cherrypy.response.headers['Girder-Total-Count'] = total
+        return cursor
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Get dataset annotation revision log")
+        .pagingParams("revision", defaultLimit=20)
+        .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
+    )
+    def get_tags(self, limit: int, offset: int, sort, folder):
+        cursor = crud_annotation.RevisionLogItem().tags(folder, limit, offset, sort)
         return cursor
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
@@ -140,7 +152,7 @@ class AnnotationResource(Resource):
         .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
         .jsonParam("body", "upsert and delete tracks", paramType="body", requireObject=True)
     )
-    def save_annotations(self, folder, body):
+    def save_annotations(self, folder, body, tag=None):
         crud.verify_dataset(folder)
         validated: crud_annotation.AnnotationUpdateArgs = crud.get_validated_model(
             crud_annotation.AnnotationUpdateArgs, **body
@@ -155,6 +167,7 @@ class AnnotationResource(Resource):
             delete_tracks=validated.tracks.delete,
             upsert_groups=upsert_groups,
             delete_groups=validated.groups.delete,
+            tag=validated.tag,
         )
 
     @access.user

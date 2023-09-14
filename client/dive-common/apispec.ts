@@ -56,6 +56,7 @@ interface SaveDetectionsArgs {
     delete: AnnotationId[];
     upsert: GroupData[];
   };
+  tag?: string;
 }
 
 interface SaveAttributeArgs {
@@ -151,7 +152,7 @@ interface Api {
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
-  loadDetections(datasetId: string, revision?: number): Promise<AnnotationSchemaList>;
+  loadDetections(datasetId: string, revision?: number, tag?: string): Promise<AnnotationSchemaList>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;

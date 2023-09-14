@@ -553,7 +553,7 @@ export default defineComponent({
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           // eslint-disable-next-line no-await-in-loop
-          const { tracks, groups } = await loadDetections(cameraId, props.revision);
+          const { tracks, groups } = await loadDetections(cameraId, props.revision, 'customTag');
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;

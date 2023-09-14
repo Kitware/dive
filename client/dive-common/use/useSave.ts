@@ -82,6 +82,7 @@ export default function useSave(
             upsert: Array.from(pendingChangeMap.groupUpsert).map((pair) => pair[1].serialize()),
             delete: Array.from(pendingChangeMap.groupDelete),
           },
+          tag: 'customTag',
         }).then(() => {
           pendingChangeMap.upsert.clear();
           pendingChangeMap.delete.clear();

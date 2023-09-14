@@ -117,6 +117,11 @@ export default defineComponent({
               <span>{{ revision.description }}</span>
             </v-tooltip>
           </v-list-item-title>
+          <v-list-item-title v-if="revision.tag">
+            <v-chip small outlined color="red">
+              {{ revision.tag }}
+            </v-chip>
+          </v-list-item-title>
           <v-list-item-subtitle>
             by
             <router-link
