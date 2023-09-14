@@ -6,6 +6,7 @@
 
 import ImageAnnotator from './annotators/ImageAnnotator.vue';
 import VideoAnnotator from './annotators/VideoAnnotator.vue';
+import LargeImageAnnotator from './annotators/LargeImageAnnotator.vue';
 
 import Controls from './controls/Controls.vue';
 import EventChart from './controls/EventChart.vue';
@@ -31,6 +32,7 @@ export {
   /* Annotators */
   ImageAnnotator,
   VideoAnnotator,
+  LargeImageAnnotator,
   /* Controls */
   Controls,
   EventChart,

@@ -60,11 +60,36 @@ typing-extensions = "^4.2.0"
 GPUtil = "^1.4.0"
 requests = ">=2.27.1"
 urllib3 = "<1.27"
-
+simplejpeg = "^1.6.4"
+bitarray = "^2.5.1"
+girder-large-image = { version = "^1.17.0", optional = true }
+large-image = { version = "^1.17.0", optional = true }
+large-image-tasks = { version = "^1.17.0", optional = true }
+large-image-converter = { version = "^1.17.0", optional = true }
+large-image-source-pil = { version = "^1.17.0", optional = true }
+large-image-source-gdal = { version = "^1.17.0", optional = true }
+large-image-source-tiff = { version = "^1.17.0", optional = true }
+large-image-source-ometiff = { version = "^1.17.0", optional = true }
+large-image-source-openjpeg = { version = "^1.17.0", optional = true }
 [tool.poetry.group.dev.dependencies]
 numpy = "^1.21.4"
 opencv-python = "^4.5.5"
 tox = "^3.25.0"
+
+[tool.poetry.extras]
+large-image = [
+  "girder-large-image",
+  "large-image",
+  "large-image-tasks",
+  "large-image-converter",
+  "large-image-source-pil",
+  "large-image-source-gdal",
+  "large-image-source-tiff",
+  "large-image-source-ometiff",
+  "large-image-source-openjpeg",
+]
+
+
 
 [tool.poetry.scripts]
 diveutils = "scripts.entrypoint_dev:cli"
@@ -77,6 +102,20 @@ rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 
 [tool.poetry.plugins."girder_worker_plugins"]
 dive_tasks = "dive_tasks:DIVEPlugin"
+
+
+[[tool.poetry.source]]
+name = "large-image"
+url = "https://girder.github.io/large_image_wheels/"
+default = false
+secondary = false
+
+
+[[tool.poetry.source]]
+name = "girder-large-image"
+url = "https://girder.github.io/large_image_wheels/"
+default = false
+secondary = false
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "setuptools"]

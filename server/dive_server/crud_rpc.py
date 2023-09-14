@@ -543,6 +543,9 @@ def postprocess(
         safeImageItems = Folder().childItems(
             dsFolder, filters={"lowerName": {"$regex": constants.safeImageRegex}}
         )
+        largeImageItems = Folder().childItems(
+            dsFolder, filters={"lowerName": {"$regex": constants.largeImageRegEx}}
+        )
 
         if imageItems.count() > safeImageItems.count():
             newjob = tasks.convert_images.apply_async(
@@ -562,8 +565,35 @@ def postprocess(
 
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
+        elif largeImageItems.count() > 0:
+            dsFolder["meta"][constants.DatasetMarker] = True
 
         Folder().save(dsFolder)
 
     process_items(dsFolder, user, additive, additivePrepend)
     return dsFolder
+
+
+def convert_large_image(
+    user: types.GirderUserModel,
+    dsFolder: types.GirderModel,
+):
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+    isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
+
+    if not isClone:
+        token = Token().createToken(user=user, days=2)
+        newjob = tasks.convert_large_images.apply_async(
+            queue=_get_queue_name(user),
+            kwargs=dict(
+                folderId=dsFolder["_id"],
+                user_id=str(user["_id"]),
+                user_login=str(user["login"]),
+                girder_client_token=str(token["_id"]),
+                girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
+                girder_job_type="private" if job_is_private else "convert",
+            ),
+        )
+        newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+        newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
+        Job().save(newjob.job)

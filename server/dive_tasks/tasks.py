@@ -594,6 +594,34 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
         )
 
 
+@app.task(bind=True, acks_late=True)
+def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
+    """
+    Converts all images in the folder to large images
+
+    This is typically done if the images are >8k W or L resolution
+
+    Returns the number of images successfully converted.
+    """
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    items_to_convert = [
+        item for item in gc.listItem(folderId) if (constants.safeImageRegex.search(item["name"]))
+    ]
+    for item in items_to_convert:
+        # Assumes 1 file per item
+        gc.post(f'/item/{item["_id"]}/tiles')
+    gc.addMetadataToFolder(
+        str(folderId),
+        {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.
+    )
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
     """

@@ -82,6 +82,11 @@ export default defineComponent({
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
     },
+    includesLargeImage() {
+      return (this.selected.filter(
+        ({ meta }) => meta && meta.type === 'large-image',
+      )).length > 0;
+    },
     locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
     },
@@ -157,11 +162,13 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
-                  v-bind="{ buttonOptions, menuOptions }"
+                  v-bind="{ buttonOptions:
+                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
-                  v-bind="{ buttonOptions, menuOptions }"
+                  v-bind="{ buttonOptions:
+                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
                   :selected-dataset-ids="locationInputs"
                   :running-pipelines="runningPipelines"
                 />

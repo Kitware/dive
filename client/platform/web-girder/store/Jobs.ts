@@ -75,7 +75,7 @@ export async function init(store: Store<RootState>) {
     store.commit('Jobs/setJobState', { jobId: job._id, value: job.status });
     if (typeof job.dataset_id === 'string') {
       store.commit('Jobs/setDatasetStatus', { datasetId: job.dataset_id, status: job.status, jobId: job._id });
-      if (job.type === 'pipelines' && NonRunningStates.includes(job.status)) {
+      if (['pipelines', 'convert'].includes(job.type || '') && NonRunningStates.includes(job.status)) {
         store.commit('Jobs/setCompleteJobsInfo', {
           datasetId: job.dataset_id,
           type: job.type,

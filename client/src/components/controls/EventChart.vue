@@ -92,20 +92,20 @@ export default Vue.extend({
       const bars = [];
       this.barData
         .filter((barData) => intersect(
-          [startFrame_, endFrame_],
-          [barData.startPoisiton, barData.endPosition],
+          [startFrame_, endFrame_ || 1],
+          [barData.startPoisiton, barData.endPosition || 1],
         ))
         .forEach((barData, i) => {
           barData.events
             .filter((event) => intersect(
-              [startFrame_, endFrame_],
+              [startFrame_, endFrame_ || 1],
               [event.range[0], event.range[1]],
             ))
             .forEach((event) => {
               const frameWidth = (x(this.startFrame_ + 1) - x(this.startFrame_)) * 0.6;
               bars.push({
                 left: x(event.range[0]),
-                right: x(event.range[1]),
+                right: x(event.range[1] || 1),
                 minWidth: frameWidth,
                 top: i * 15 + 3,
                 color: event.color,
@@ -113,7 +113,7 @@ export default Vue.extend({
                 name: event.name,
                 type: event.type,
                 id: event.id,
-                length: event.range[1] - event.range[0],
+                length: (event.range[1] - event.range[0]) || 1,
                 markers: event.markers,
               });
             });
@@ -150,13 +150,13 @@ export default Vue.extend({
       const width = this.clientWidth;
       const x = d3
         .scaleLinear()
-        .domain([this.startFrame_, this.endFrame_])
+        .domain([this.startFrame_, this.endFrame_ || 1])
         .range([this.margin, width]);
       this.x = x;
     },
     update() {
       this.startFrame_ = this.startFrame;
-      this.endFrame_ = this.endFrame;
+      this.endFrame_ = this.endFrame || 1;
       this.x.domain([this.startFrame_, this.endFrame_]);
       const { canvas } = this.$refs;
       const ctx = canvas.getContext('2d');

@@ -22,6 +22,7 @@ class RpcResource(Resource):
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
+        self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
 
     @access.user
     @autoDescribeRoute(
@@ -128,3 +129,15 @@ class RpcResource(Resource):
         return crud_rpc.postprocess(
             self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Convert folder of images to large images").modelParam(
+            "id",
+            description="Folder containing the items to process",
+            model=Folder,
+            level=AccessType.WRITE,
+        )
+    )
+    def convert_large_image(self, folder):
+        return crud_rpc.convert_large_image(self.getCurrentUser(), folder)

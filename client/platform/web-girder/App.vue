@@ -20,6 +20,8 @@ import {
   loadDetections,
   saveDetections,
   unwrap,
+  getTiles,
+  getTileURL,
 } from './api';
 import { openFromDisk } from './utils';
 
@@ -46,6 +48,8 @@ export default defineComponent({
       loadMetadata,
       openFromDisk,
       importAnnotationFile,
+      getTiles,
+      getTileURL,
     });
   },
 });

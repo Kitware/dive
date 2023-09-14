@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes, LargeImageType,
 } from 'dive-common/constants';
 
 import {
@@ -94,6 +94,7 @@ export default defineComponent({
       meta: File | null,
       annotationFile: File | null,
       mediaList: File[],
+      suggestedFps?: number, // suggested FPS for large/images
     ) => {
       const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
       if (!resp.ok) {
@@ -102,7 +103,7 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
-      const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+      const fps = suggestedFps || clientSettings.annotationFPS || DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
       // mapping needs to be done for the mixin upload functions
@@ -200,9 +201,11 @@ export default defineComponent({
           preUploadErrorMessage.value = null;
           try {
             if (dstype !== 'zip') {
+              const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
               await addPendingUpload(
                 name, processed.fullList, processed.metaFile,
                 processed.annotationFile, processed.mediaList,
+                suggestedFps,
               );
             } else {
               addPendingZipUpload(name, processed.fullList);
@@ -225,6 +228,8 @@ export default defineComponent({
         return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
       } if (type === 'video') {
         return websafeVideoTypes.concat(otherVideoTypes);
+      } if (type === 'large-image') {
+        return largeImageTypes;
       }
       return websafeImageTypes.concat(otherImageTypes);
     };
@@ -256,7 +261,7 @@ export default defineComponent({
         const { formatSize, totalProgress, totalSize } = girderUpload.value;
         if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
           return formatSize(pendingUpload.files[0].progress.size);
-        } if (pendingUpload.type === ImageSequenceType) {
+        } if ([ImageSequenceType, LargeImageType].includes(pendingUpload.type)) {
           return `${filesNotUploaded(pendingUpload)} files remaining`;
         } if (pendingUpload.type === VideoType && !pendingUpload.uploading) {
           return `${filesNotUploaded(pendingUpload)} videos remaining`;
@@ -468,14 +473,16 @@ export default defineComponent({
                     counter
                     :disabled="pendingUpload.uploading"
                     :prepend-icon="
-                      pendingUpload.type === 'image-sequence'
+                      ['image-sequence', 'large-image'].includes(pendingUpload.type)
                         ? 'mdi-image-multiple'
                         : 'mdi-file-video'
                     "
                     :label="
                       pendingUpload.type === 'image-sequence'
                         ? 'Image files'
-                        : 'Video file'
+                        : pendingUpload.type === 'video'
+                          ? 'Video file'
+                          : 'Tiled Image files'
                     "
                     :rules="[val => (val || '').length > 0 || 'Media Files are required']"
                     :accept="filterFileUpload(pendingUpload.type)"
@@ -533,44 +540,70 @@ export default defineComponent({
               {{ computeUploadProgress(pendingUpload) }}
             </span>
           </v-card>
-          <div
-            class="d-flex my-6"
-            :class="{
-              'flex-column': pendingUploads.length === 0,
-            }"
-          >
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
-              icon="mdi-folder-open"
-              open-type="image-sequence"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'mr-3' : 'my-3']"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-              @multi-cam="openMultiCamDialog"
-            />
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
-              icon="mdi-file-video"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
-              open-type="video"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-              @multi-cam="openMultiCamDialog"
-            />
-            <import-button
-              :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
-              icon="mdi-zip-box"
-              class="grow"
-              :small="!!pendingUploads.length"
-              :class="[pendingUploads.length ? 'ml-3' : 'my-3']"
-              open-type="zip"
-              :button-attrs="buttonAttrs"
-              @open="openImport($event)"
-            />
+          <div>
+            <v-list>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Image Sequence`"
+                  icon="mdi-folder-open"
+                  open-type="image-sequence"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                  @multi-cam="openMultiCamDialog"
+                />
+              </v-list-item>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Video`"
+                  icon="mdi-file-video"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  open-type="video"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                  @multi-cam="openMultiCamDialog"
+                />
+              </v-list-item>
+              <v-tooltip
+                open-delay="50"
+                top
+                max-width="400"
+              >
+                <template #activator="{ on }">
+                  <v-list-item v-on="on">
+                    <import-button
+                      :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
+                      icon="mdi-folder-open"
+                      open-type="large-image"
+                      class="grow my-2"
+                      :small="!!pendingUploads.length"
+                      :button-attrs="buttonAttrs"
+                      @open="openImport($event)"
+                      @multi-cam="openMultiCamDialog"
+                    />
+                  </v-list-item>
+                </template>
+                <b>
+                  Allows for a single or sequence of geospatial
+                  large images for use in a tile server
+                  with formats such as: .tiff, .nitf, .ntf, .tif
+                </b>
+              </v-tooltip>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"
+                  icon="mdi-zip-box"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  open-type="zip"
+                  :button-attrs="buttonAttrs"
+                  @open="openImport($event)"
+                />
+              </v-list-item>
+              <v-list />
+            </v-list>
           </div>
           <div v-if="pendingUploads.length && pendingUploads.some((item) => item.type === 'zip')">
             <h3 class="text-center">
