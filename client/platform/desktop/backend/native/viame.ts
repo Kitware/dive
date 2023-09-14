@@ -296,6 +296,11 @@ async function train(
     command.push('--gt-frames-only');
   }
 
+  if (runTrainingArgs.fineTuneModel && runTrainingArgs.fineTuneModel.path) {
+    command.push('--init-weights');
+    command.push(runTrainingArgs.fineTuneModel.path);
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,

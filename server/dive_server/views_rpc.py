@@ -47,7 +47,11 @@ class RpcResource(Resource):
             description="JSON object with Array of folderIds to run training on\
              and labels.txt file content.  Additionally and model used for fine-tune training.",
             paramType="body",
-            schema={"folderIds": List[str], "labelText": str, "model": Optional[TrainingModelTuneArgs]},
+            schema={
+                "folderIds": List[str],
+                "labelText": str,
+                "model": Optional[TrainingModelTuneArgs],
+            },
         )
         .param(
             "pipelineName",

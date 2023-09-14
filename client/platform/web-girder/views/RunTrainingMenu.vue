@@ -51,7 +51,7 @@ export default defineComponent({
       const modelList: string[] = [];
       if (trainingConfigurations.value?.models) {
         Object.entries(trainingConfigurations.value.models)
-          .forEach(([key, value]) => {
+          .forEach(([, value]) => {
             modelList.push(value.name);
           });
       }

@@ -38,6 +38,8 @@ export default defineComponent({
       stagedItems: {} as Record<string, DatasetMeta>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
+      fineTuneTraining: false,
+      selectedFineTune: null as null | string,
       trainingConfigurations: {
         training: {
           configs: [],
@@ -74,6 +76,15 @@ export default defineComponent({
       data.selectedTrainingConfig = configs.training.default;
     });
 
+    const modelList = computed(() => {
+      if (data.trainingConfigurations.models) {
+        const list = Object.entries(data.trainingConfigurations.models)
+          .map(([, value]) => value.name);
+        return list;
+      }
+      return [];
+    });
+
     function toggleStaged(meta: DatasetMeta) {
       if (data.stagedItems[meta.id]) {
         del(data.stagedItems, meta.id);
@@ -97,12 +108,20 @@ export default defineComponent({
     ));
 
     async function runTrainingOnFolder() {
+      // Get the full data for fine tuning
+      let foundTrainingModel;
+      if (data.fineTuneTraining) {
+        foundTrainingModel = Object.values(data.trainingConfigurations.models)
+          .find((item) => item.name === data.selectedFineTune);
+      }
       try {
         await runTraining(
           stagedItems.value.map(({ id }) => id),
           data.trainingOutputName,
           data.selectedTrainingConfig,
           data.annotatedFramesOnly,
+          undefined,
+          foundTrainingModel,
         );
         root.$router.push({ name: 'jobs' });
       } catch (err) {
@@ -127,6 +146,7 @@ export default defineComponent({
       nameRules,
       itemsPerPageOptions,
       clientSettings,
+      modelList,
       available: {
         items: availableItems,
         headers: headersTmpl.concat(
@@ -166,7 +186,10 @@ export default defineComponent({
       <v-card-text>
         Add datasets to the staging area and choose a training configuration.
       </v-card-text>
-      <v-row class="mt-4 pt-0">
+      <v-row
+        class="mt-4 pt-0"
+        dense
+      >
         <v-col sm="5">
           <v-text-field
             v-model="data.trainingOutputName"
@@ -231,6 +254,20 @@ export default defineComponent({
         >
           Train on ({{ staged.items.value.length }}) Datasets
         </v-btn>
+      </div>
+      <div class="d-flex flex-row mt-7">
+        <v-checkbox
+          v-model="data.fineTuneTraining"
+          label="Fine Tuning"
+          hint="Fine tune an existing model"
+        />
+        <v-spacer />
+        <v-select
+          v-if="data.fineTuneTraining"
+          v-model="data.selectedFineTune"
+          :items="modelList"
+          label="Fine Tune Model"
+        />
       </div>
     </div>
     <div>
