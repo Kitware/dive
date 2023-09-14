@@ -12,7 +12,7 @@ import {
 } from 'platform/web-girder/api';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import {
-  ImageSequenceType, MultiType, VideoType,
+  ImageSequenceType, LargeImageType, MultiType, VideoType,
 } from 'dive-common/constants';
 
 export default defineComponent({
@@ -161,6 +161,7 @@ export default defineComponent({
       return {
         [ImageSequenceType]: 'Image Sequence',
         [VideoType]: 'Video',
+        [LargeImageType]: 'Tiled Images',
       }[type];
     });
 

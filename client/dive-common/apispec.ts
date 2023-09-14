@@ -1,5 +1,5 @@
 import { provide } from '@vue/composition-api';
-import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { AnnotationId, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { GroupData } from 'vue-media-annotator/Group';
 
 import { use } from 'vue-media-annotator/provides';
@@ -8,7 +8,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
-type DatasetType = 'image-sequence' | 'video' | 'multi';
+type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
 type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
@@ -161,6 +161,10 @@ interface Api {
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
+   string;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string): Promise<boolean>;
 }

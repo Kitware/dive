@@ -50,7 +50,8 @@ interface CameraInitializerReturn {
     handleMouseEnter: () => void;
     handleMouseMove: (evt: MouseEvent) => void;
   };
-  initializeViewer: (width: number, height: number) => void;
+  initializeViewer: (width: number, height: number, tileWidth?: number,
+    tileHeight?: number, isMap?: boolean, geoSpatial?: boolean) => void;
   mediaController: MediaController;
 }
 
@@ -231,7 +232,7 @@ export function useMediaController() {
       geoViewerRef.value.center(zoomAndCenter.center);
     }
 
-    function resetMapDimensions(width: number, height: number, margin = 0.3) {
+    function resetMapDimensions(width: number, height: number, isMap = false, margin = 0.3) {
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];
       const data = state[camera];
@@ -252,30 +253,51 @@ export function useMediaController() {
         right: right * (1 + margin),
         bottom: bottom * (1 + margin),
       });
-      geoViewerRef.value.zoomRange({
+      if (!isMap) {
+        geoViewerRef.value.zoomRange({
         // do not set a min limit so that bounds clamping determines min
-        min: -Infinity,
-        // 4x zoom max
-        max: 4,
-      });
-      if (Object.keys(geoViewers).length === 1) {
-        geoViewerRef.value.clampBoundsX(true);
-        geoViewerRef.value.clampBoundsY(true);
-        geoViewerRef.value.clampZoom(true);
-      } else {
-        geoViewerRef.value.clampBoundsX(false);
-        geoViewerRef.value.clampBoundsY(false);
-        geoViewerRef.value.clampZoom(false);
+          min: -Infinity,
+          // 4x zoom max
+          max: 4,
+        });
+        if (Object.keys(geoViewers).length === 1) {
+          geoViewerRef.value.clampBoundsX(true);
+          geoViewerRef.value.clampBoundsY(true);
+          geoViewerRef.value.clampZoom(true);
+        } else {
+          geoViewerRef.value.clampBoundsX(false);
+          geoViewerRef.value.clampBoundsY(false);
+          geoViewerRef.value.clampZoom(false);
+        }
       }
       resetZoom();
     }
 
-    function initializeViewer(width: number, height: number) {
-      const params = geo.util.pixelCoordinateParams(
-        containers[camera].value, width, height, width, height,
+    function initializeViewer(
+      width: number, height: number,
+      tileWidth: number | undefined = undefined,
+      tileHeight: number | undefined = undefined,
+      isMap = false,
+      geoSpatial = false,
+    ) {
+      if (tileHeight === undefined) {
+        // eslint-disable-next-line no-param-reassign
+        tileHeight = height;
+      }
+      if (tileWidth === undefined) {
+        // eslint-disable-next-line no-param-reassign
+        tileWidth = width;
+      }
+      let params = geo.util.pixelCoordinateParams(
+        containers[camera].value, width, height, tileWidth, tileHeight,
       );
+      if (isMap && geoSpatial) {
+        params = { map: { node: containers[camera].value } };
+      }
       geoViewers[camera].value = geo.map(params.map);
-      resetMapDimensions(width, height);
+      if (!isMap || !geoSpatial) {
+        resetMapDimensions(width, height, isMap);
+      }
       const interactorOpts = geoViewers[camera].value.interactor().options();
       interactorOpts.keyboard.focusHighlight = false;
       interactorOpts.keyboard.actions = {};

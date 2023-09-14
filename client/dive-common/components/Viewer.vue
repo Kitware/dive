@@ -24,6 +24,7 @@ import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
   ImageAnnotator,
   VideoAnnotator,
+  LargeImageAnnotator,
   LayerManager,
   useMediaController,
 } from 'vue-media-annotator/components';
@@ -63,6 +64,7 @@ export default defineComponent({
     LayerManager,
     VideoAnnotator,
     ImageAnnotator,
+    LargeImageAnnotator,
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
@@ -104,7 +106,9 @@ export default defineComponent({
     const datasetName = ref('');
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
-    const { loadDetections, loadMetadata, saveMetadata } = useApi();
+    const {
+      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
+    } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
       // with stale data from props, for example if a persistent store
@@ -756,6 +760,9 @@ export default defineComponent({
       readonlyState,
       brightness,
       intercept,
+      /* large image methods */
+      getTiles,
+      getTileURL,
       /* methods */
       handler: globalHandler,
       save,
@@ -946,14 +953,17 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator' : 'video-annotator'"
+                :is="datasetType === 'image-sequence' ? 'image-annotator' :
+                  datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
                 v-bind="{
                   imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, camera, brightness, intercept }"
+                  updateTime, frameRate, originalFps, camera, brightness,
+                  intercept, getTiles, getTileURL }"
+                @large-image-warning="$emit('large-image-warning', true)"
               >
                 <LayerManager :camera="camera" />
               </component>

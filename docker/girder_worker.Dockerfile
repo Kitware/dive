@@ -23,13 +23,13 @@ COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
 RUN poetry env use system
 RUN poetry config virtualenvs.create false
 # Install dependencies only
-RUN poetry install --no-root
+RUN poetry install --no-root --extras "large-image"
 # Build girder client, including plugins like worker/jobs
 # RUN girder build
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-RUN poetry install --only main
+RUN poetry install --only main --extras "large-image"
 
 # ====================
 # == FFMPEG FETCHER ==

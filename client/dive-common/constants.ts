@@ -3,12 +3,14 @@ import { DatasetType } from './apispec';
 const ImageSequenceType = 'image-sequence';
 const VideoType = 'video';
 const MultiType = 'multi';
+const LargeImageType = 'large-image';
 
 const MediaTypes: Record<DatasetType, string> = {
   // friendly media type names
   [ImageSequenceType]: 'image sequence',
   [VideoType]: 'video',
   [MultiType]: 'multi',
+  [LargeImageType]: 'tiled image',
 };
 
 const DefaultVideoFPS = 10;
@@ -67,6 +69,14 @@ const fileVideoTypes = [
   'flv',
 ];
 
+const largeImageTypes = [
+  'image/geotiff',
+  'image/tiff',
+  'image/x-tiff',
+  'image/nitf',
+  'image/ntf',
+];
+
 const websafeImageTypes = [
   // 'image/apng',
   // 'image/bmp',
@@ -122,6 +132,7 @@ export {
   DefaultVideoFPS,
   ImageSequenceType,
   VideoType,
+  LargeImageType,
   MediaTypes,
   MultiType,
   FPSOptions,
@@ -133,6 +144,7 @@ export {
   websafeImageTypes,
   websafeVideoTypes,
   inputAnnotationTypes,
+  largeImageTypes,
   inputAnnotationFileTypes,
   listFileTypes,
   zipFileTypes,
