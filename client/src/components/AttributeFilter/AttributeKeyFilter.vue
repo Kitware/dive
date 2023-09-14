@@ -3,7 +3,7 @@ import {
   defineComponent, PropType, Ref, ref,
 } from '@vue/composition-api';
 
-import type { AttributeKeyFilter } from 'vue-media-annotator/use/useAttributes';
+import type { AttributeKeyFilter } from 'vue-media-annotator/use/AttributeTypes';
 import { cloneDeep } from 'lodash';
 import { useAttributes } from 'vue-media-annotator/provides';
 import TooltipBtn from '../TooltipButton.vue';

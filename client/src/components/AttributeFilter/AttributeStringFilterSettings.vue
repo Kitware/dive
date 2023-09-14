@@ -3,7 +3,7 @@ import {
   defineComponent, PropType,
 } from '@vue/composition-api';
 
-import type { AttributeStringFilter } from 'vue-media-annotator/use/useAttributes';
+import type { AttributeStringFilter } from 'vue-media-annotator/use/AttributeTypes';
 import TooltipBtn from '../TooltipButton.vue';
 
 export default defineComponent({
