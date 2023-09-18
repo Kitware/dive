@@ -27,6 +27,7 @@ interface AnnotationSchemaList {
   version: number;
   tracks: TrackData[];
   groups: GroupData[];
+  tags: string[];
 }
 
 interface Pipe {
@@ -167,7 +168,7 @@ interface Api {
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
   importAnnotationFile(id: string, path: string, file?: File,
-    additive?: boolean, additivePrepend?: string): Promise<boolean>;
+    additive?: boolean, additivePrepend?: string, tag?: string): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 
