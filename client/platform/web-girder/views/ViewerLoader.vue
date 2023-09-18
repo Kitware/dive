@@ -65,6 +65,10 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
+    tag: {
+      type: String,
+      default: undefined,
+    },
   },
 
   // TODO: This will require an import from vue-router for Vue3 compatibility
@@ -144,12 +148,35 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    function routeRevision(revisionId: number) {
-      ctx.root.$router.replace({
-        name: 'revision viewer',
-        params: { id: props.id, revision: revisionId.toString() },
-      });
+    function routeRevision(revisionId: number, tag?: string) {
+      if (tag && tag !== 'default') {
+        ctx.root.$router.replace({
+          name: 'revision tag viewer',
+          params: { id: props.id, revision: revisionId.toString(), tag },
+        });
+      } else {
+        ctx.root.$router.replace({
+          name: 'revision viewer',
+          params: { id: props.id, revision: revisionId.toString() },
+        });
+      }
     }
+
+    function routeTag(tag: string) {
+      if (tag === 'default') {
+        ctx.root.$router.replace({
+          name: 'viewer',
+          params: { id: props.id },
+        });
+      } else {
+        ctx.root.$router.replace({
+          name: 'tag viewer',
+          params: { id: props.id, tag },
+        });
+      }
+      viewerRef.value.reloadAnnotations();
+    }
+
 
     async function largeImageWarning() {
       const result = await prompt({
@@ -179,6 +206,7 @@ export default defineComponent({
       currentJob,
       runningPipelines,
       routeRevision,
+      routeTag,
       largeImageWarning,
       typeList,
     };
@@ -192,8 +220,10 @@ export default defineComponent({
     :key="id"
     ref="viewerRef"
     :revision="revisionNum"
+    :current-tag="tag"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
     @large-image-warning="largeImageWarning()"
+    @update:tag="routeTag"
   >
     <template #title>
       <ViewerAlert />

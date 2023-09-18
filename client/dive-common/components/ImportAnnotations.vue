@@ -1,8 +1,9 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useHandler } from 'vue-media-annotator/provides';
+import { cloneDeep } from 'lodash';
+import { useAnnotationTags, useAnnotationTag, useHandler } from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
@@ -32,6 +33,14 @@ export default defineComponent({
   setup(props) {
     const { openFromDisk, importAnnotationFile } = useApi();
     const { reloadAnnotations } = useHandler();
+    const tags = computed(() => {
+      const data = useAnnotationTags();
+      const temp = cloneDeep(data.value);
+      temp.push('default');
+      return temp;
+    });
+    const defaultTag = useAnnotationTag();
+    const currentTag = ref(defaultTag || 'default');
     const { prompt } = usePrompt();
     const processing = ref(false);
     const menuOpen = ref(false);
@@ -45,6 +54,7 @@ export default defineComponent({
           const path = ret.filePaths[0];
           let importFile = false;
           processing.value = true;
+          const tag = currentTag.value === 'default' ? undefined : currentTag.value;
           if (ret.fileList?.length) {
             importFile = await importAnnotationFile(
               props.datasetId,
@@ -52,6 +62,7 @@ export default defineComponent({
               ret.fileList[0],
               additive.value,
               additivePrepend.value,
+              tag,
             );
           } else {
             importFile = await importAnnotationFile(
@@ -60,6 +71,7 @@ export default defineComponent({
               undefined,
               additive.value,
               additivePrepend.value,
+              tag,
             );
           }
 
@@ -84,6 +96,8 @@ export default defineComponent({
       menuOpen,
       additive,
       additivePrepend,
+      tags,
+      currentTag,
     };
   },
 });
@@ -160,6 +174,30 @@ export default defineComponent({
               >
                 Import
               </v-btn>
+            </v-row>
+            <v-row
+              class="mt-3"
+              dense
+            >
+              <v-combobox
+                v-model="currentTag"
+                :items="tags"
+                chips
+                label="Annotation Tag"
+                outlined
+                small
+              >
+                <template v-slot:selection="{ attrs, item, selected }">
+                  <v-chip
+                    v-bind="attrs"
+                    small
+                    :input-value="selected"
+                    outlined
+                  >
+                    <strong>{{ item }}</strong>&nbsp;
+                  </v-chip>
+                </template>
+              </v-combobox>
             </v-row>
             <v-row>
               <v-checkbox

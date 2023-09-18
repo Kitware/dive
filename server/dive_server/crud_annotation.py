@@ -96,10 +96,15 @@ class RevisionLogItem(crud.PydanticModel):
         offset=0,
         sort=DEFAULT_REVISION_SORT,
         before: Optional[int] = None,
+        tag: Optional[str] = None,
     ) -> Tuple[Cursor, int]:
         query: dict = {DATASET: dsFolder['_id']}
         if before is not None:
             query[REVISION] = {'$lte': before}
+        if tag:
+            query[TAG] = tag
+        else:
+            query[TAG] = None
         cursor = self.find(
             offset=offset,
             limit=limit,
@@ -207,7 +212,7 @@ def save_annotations(
     delete_groups: Optional[Iterable[int]] = None,
     description="save",
     overwrite=False,
-    tag=None,
+    tag='',
 ):
     """
     Annotations are lazy-deleted by marking their staleness property as true.

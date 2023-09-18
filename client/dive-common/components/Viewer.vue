@@ -85,6 +85,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    currentTag: {
+      type: String,
+      default: '',
+    },
   },
   setup(props, ctx) {
     const { prompt } = usePrompt();
@@ -95,6 +99,9 @@ export default defineComponent({
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
+    const tags: Ref<string[]> = ref([]);
+    const tagDialog = ref(false);
+    const selectedTag = ref('');
     const {
       aggregateController,
       onResize,
@@ -393,11 +400,21 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save() {
+    async function save(tagVal?: string) {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
+      }
+      const saveTag = tagVal === 'default' ? undefined : tagVal;
+      // Need to mark all items as updated for any non-default tags
+      if (saveTag && selectedTag.value !== props.currentTag) {
+        const singleCam = cameraStore.camMap.value.get('singleCam');
+        if (singleCam) {
+          singleCam.trackStore.annotationMap.forEach((track) => {
+            markChangesPending({ action: 'upsert', track });
+          });
+        }
       }
       try {
         await saveToServer({
@@ -405,7 +422,7 @@ export default defineComponent({
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           // TODO Group confidence filters are not yet supported.
-        });
+        }, saveTag);
       } catch (err) {
         let text = 'Unable to Save Data';
         if (err.response && err.response.status === 403) {
@@ -447,6 +464,13 @@ export default defineComponent({
         });
       }
       return result;
+    }
+
+    async function handleTagChange(tag: string) {
+      const guard = await navigateAwayGuard();
+      if (guard) {
+        ctx.emit('update:tag', tag);
+      }
     }
 
     const selectCamera = async (camera: string, editMode = false) => {
@@ -553,7 +577,17 @@ export default defineComponent({
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           // eslint-disable-next-line no-await-in-loop
-          const { tracks, groups } = await loadDetections(cameraId, props.revision, 'customTag');
+          const {
+            tracks,
+            groups,
+            tags: foundTags,
+            // eslint-disable-next-line no-await-in-loop
+          } = await loadDetections(cameraId, props.revision, props.currentTag);
+          tags.value = foundTags.filter((item) => item);
+          if (props.currentTag !== '') {
+            tags.value.push('default');
+          }
+          selectedTag.value = props.currentTag ? props.currentTag : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -705,6 +739,8 @@ export default defineComponent({
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
+        annotationTag: toRef(props, 'currentTag'),
+        annotationTags: tags,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -777,6 +813,11 @@ export default defineComponent({
       navigateAwayGuard,
       warnBrowserExit,
       reloadAnnotations,
+      // Annotation Tags,
+      tags,
+      handleTagChange,
+      tagDialog,
+      selectedTag,
     };
   },
 });
@@ -791,6 +832,32 @@ export default defineComponent({
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
+        <v-menu
+          v-if="!currentTag || tags.length > 1"
+          offset-y
+        >
+          <template v-slot:activator="{ on }">                <v-chip
+            outlined
+            small
+            v-on="on"
+          > {{ currentTag || 'default' }}</v-chip>
+          </template>
+          <v-card outlined>
+            <v-list dense>
+              <v-list-item
+                v-for="tag in tags"
+                :key="tag"
+              >
+                <v-chip
+                  outlined
+                  small
+                  @click="handleTagChange(tag)"
+                > {{ tag }}</v-chip>
+
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </v-menu>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -875,26 +942,48 @@ export default defineComponent({
         :disabled="!readonlyState"
       >
         <template v-slot:activator="{ on }">
-          <v-badge
-            overlap
-            bottom
-            :color="readonlyState ? 'warning' : undefined"
-            :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
-            :content="!readonlyState ? pendingSaveCount : undefined"
-            :value="readonlyState || pendingSaveCount > 0"
-            offset-x="14"
-            offset-y="18"
+          <v-menu
+            offset-y
+            offset-x
           >
-            <div v-on="on">
-              <v-btn
-                icon
-                :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                @click="save"
+            <template v-slot:activator="{ on: onMenu }">
+              <v-badge
+                overlap
+                bottom
+                :color="readonlyState ? 'warning' : undefined"
+                :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
+                :content="!readonlyState ? pendingSaveCount : undefined"
+                :value="readonlyState || pendingSaveCount > 0"
+                offset-x="14"
+                offset-y="18"
               >
-                <v-icon>mdi-content-save</v-icon>
-              </v-btn>
-            </div>
-          </v-badge>
+                <div v-on="on">
+                  <v-btn
+                    :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
+                  >
+                    <v-icon @click="save(currentTag)">
+                      mdi-content-save
+                    </v-icon>
+                    <v-icon
+                      small
+                      v-on="onMenu"
+                    >
+                      mdi-chevron-down
+                    </v-icon>
+                  </v-btn>
+                </div>
+              </v-badge>
+            </template>
+            <v-card outlined>
+              <v-list dense>
+                <v-list-item>
+                  <v-btn @click="tagDialog = true">
+                    save As...
+                  </v-btn>
+                </v-list-item>
+              </v-list>
+            </v-card>
+          </v-menu>
         </template>
         <span>Read only mode, cannot save changes</span>
       </v-tooltip>
@@ -1008,6 +1097,53 @@ export default defineComponent({
       </v-col>
       <slot name="right-sidebar" />
     </v-row>
+    <v-dialog
+      v-model="tagDialog"
+      max-width="300"
+    >
+      <v-card>
+        <v-card-title>
+          Save As
+        </v-card-title>
+        <v-card-text>
+          <v-row dense>
+            <v-combobox
+              v-model="selectedTag"
+              :items="tags"
+              chips
+              label="Annotation Tag"
+              outlined
+            >
+              <template v-slot:selection="{ attrs, item, selected }">
+                <v-chip
+                  v-bind="attrs"
+                  :input-value="selected"
+                  outlined
+                >
+                  <strong>{{ item }}</strong>&nbsp;
+                </v-chip>
+              </template>
+            </v-combobox>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            depressed
+            text
+            @click="tagDialog = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            @click="save(selectedTag); tagDialog = false;"
+          >
+            Save
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
@@ -1033,4 +1169,5 @@ html {
 .text-xs-center {
   text-align: center !important;
 }
+
 </style>

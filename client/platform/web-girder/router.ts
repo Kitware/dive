@@ -45,8 +45,22 @@ const router = new Router({
       beforeEnter,
     },
     {
+      path: '/viewer/:id/tag/:tag',
+      name: 'tag viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
       path: '/viewer/:id/revision/:revision',
       name: 'revision viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
+      path: '/viewer/:id/tag/:tag/revision/:revision',
+      name: 'revision tag viewer',
       component: ViewerLoader,
       props: true,
       beforeEnter,

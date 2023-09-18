@@ -65,9 +65,20 @@ class AnnotationResource(Resource):
         Description("Get dataset annotation revision log")
         .pagingParams("revision", defaultLimit=20)
         .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
+        .param(
+            "tag",
+            "Custom tag for any annotations that are loaded",
+            paramType="query",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def get_revisions(self, limit: int, offset: int, sort, folder):
-        cursor, total = crud_annotation.RevisionLogItem().list(folder, limit, offset, sort)
+    def get_revisions(self, limit: int, offset: int, sort, folder, tag):
+        print(f'TAG:::::{tag}')
+        cursor, total = crud_annotation.RevisionLogItem().list(
+            folder, limit, offset, sort, None, tag
+        )
         cherrypy.response.headers['Girder-Total-Count'] = total
         return cursor
 

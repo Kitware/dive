@@ -38,6 +38,7 @@ async function loadDetections(folderId: string, revision?: number, tag?: string)
   return {
     tracks: (await girderRest.get<TrackData[]>('dive_annotation/track', { params })).data,
     groups: (await girderRest.get<GroupData[]>('dive_annotation/group', { params })).data,
+    tags: (await girderRest.get<string[]>('dive_annotation/tags', { params })).data,
     version: AnnotationsCurrentVersion,
   };
 }
@@ -47,10 +48,11 @@ function loadRevisions(
   limit?: number,
   offset?: number,
   sort?: string,
+  tag?: string,
 ) {
   return girderRest.get<Revision[]>('dive_annotation/revision', {
     params: {
-      folderId, sortdir: -1, limit, offset, sort,
+      folderId, sortdir: -1, limit, offset, sort, tag,
     },
   });
 }

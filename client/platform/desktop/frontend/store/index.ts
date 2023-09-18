@@ -42,6 +42,7 @@ export default function wrap(): Api {
       version: annotations.version,
       tracks: Object.values(annotations.tracks),
       groups: Object.values(annotations.groups),
+      tags: [],
     };
   }
 

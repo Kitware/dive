@@ -64,6 +64,12 @@ type ProgressType = Readonly<{ loaded: boolean }>;
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
 
+const AnnotationTagSymbol = Symbol('annotationTag');
+type AnnotationTagType = Readonly<Ref<string>>;
+
+const AnnotationTagsSymbol = Symbol('annotationTags');
+type AnnotationTagsType = Readonly<Ref<string[]>>;
+
 const SelectedCameraSymbol = Symbol('selectedCamera');
 type SelectedCameraType = Readonly<Ref<string>>;
 
@@ -229,6 +235,8 @@ export interface State {
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
+  annotationTag: AnnotationTagType;
+  annotationTags: AnnotationTagsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -285,6 +293,8 @@ function dummyState(): State {
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
+    annotationTag: ref(''),
+    annotationTags: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedCamera: ref('singleCam'),
@@ -326,6 +336,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
+  provide(AnnotationTagSymbol, state.annotationTag);
+  provide(AnnotationTagsSymbol, state.annotationTags);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -404,6 +416,14 @@ function useRevisionId() {
   return use<RevisionIdType>(RevisionIdSymbol);
 }
 
+function useAnnotationTag() {
+  return use<AnnotationTagType>(AnnotationTagSymbol);
+}
+
+function useAnnotationTags() {
+  return use<AnnotationTagsType>(AnnotationTagsSymbol);
+}
+
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -461,6 +481,8 @@ export {
   usePendingSaveCount,
   useProgress,
   useRevisionId,
+  useAnnotationTag,
+  useAnnotationTags,
   useTrackFilters,
   useTrackStyleManager,
   useSelectedCamera,
