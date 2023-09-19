@@ -100,7 +100,6 @@ export default defineComponent({
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
     const tags: Ref<string[]> = ref([]);
-    const tagDialog = ref(false);
     const selectedTag = ref('');
     const {
       aggregateController,
@@ -408,7 +407,7 @@ export default defineComponent({
       }
       const saveTag = tagVal === 'default' ? undefined : tagVal;
       // Need to mark all items as updated for any non-default tags
-      if (saveTag && selectedTag.value !== props.currentTag) {
+      if (saveTag && tagVal !== props.currentTag) {
         const singleCam = cameraStore.camMap.value.get('singleCam');
         if (singleCam) {
           singleCam.trackStore.annotationMap.forEach((track) => {
@@ -584,7 +583,7 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
           } = await loadDetections(cameraId, props.revision, props.currentTag);
           tags.value = foundTags.filter((item) => item);
-          if (props.currentTag !== '') {
+          if (props.currentTag !== '' || tags.value.length > 0) {
             tags.value.push('default');
           }
           selectedTag.value = props.currentTag ? props.currentTag : 'default';
@@ -710,6 +709,7 @@ export default defineComponent({
       selectCamera,
       linkCameraTrack,
       unlinkCameraTrack,
+      tagChange: handleTagChange,
     };
 
     const useAttributeFilters = {
@@ -815,8 +815,6 @@ export default defineComponent({
       reloadAnnotations,
       // Annotation Tags,
       tags,
-      handleTagChange,
-      tagDialog,
       selectedTag,
     };
   },
@@ -832,32 +830,21 @@ export default defineComponent({
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
-        <v-menu
-          v-if="!currentTag || tags.length > 1"
-          offset-y
+        <v-tooltip
+          v-if="currentTag || tags.length > 0"
+          bottom
         >
-          <template v-slot:activator="{ on }">                <v-chip
-            outlined
-            small
-            v-on="on"
-          > {{ currentTag || 'default' }}</v-chip>
+          <template v-slot:activator="{on}">
+            <v-chip
+              outlined
+              color="white"
+              small
+              v-on="on"
+              @click="context.toggle('AnnotationTags')"
+            > {{ currentTag || 'default' }}</v-chip>
           </template>
-          <v-card outlined>
-            <v-list dense>
-              <v-list-item
-                v-for="tag in tags"
-                :key="tag"
-              >
-                <v-chip
-                  outlined
-                  small
-                  @click="handleTagChange(tag)"
-                > {{ tag }}</v-chip>
-
-              </v-list-item>
-            </v-list>
-          </v-card>
-        </v-menu>
+          <span>Custom Annotation Tag.  Click to open the Annotation Tag Settings</span>
+        </v-tooltip>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -925,11 +912,19 @@ export default defineComponent({
           vertical
           class="mx-2"
         />
-        <v-icon
-          @click="context.toggle()"
+        <v-tooltip
+          bottom
         >
-          {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
-        </v-icon>
+          <template v-slot:activator="{on}">
+            <v-icon
+              v-on="on"
+              @click="context.toggle()"
+            >
+              {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+            </v-icon>
+          </template>
+          <span>Menus for Advanced Tools/Settings</span>
+        </v-tooltip>
 
         <slot name="extension-right" />
       </template>
@@ -942,48 +937,28 @@ export default defineComponent({
         :disabled="!readonlyState"
       >
         <template v-slot:activator="{ on }">
-          <v-menu
-            offset-y
-            offset-x
+          <v-badge
+            overlap
+            bottom
+            :color="readonlyState ? 'warning' : undefined"
+            :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
+            :content="!readonlyState ? pendingSaveCount : undefined"
+            :value="readonlyState || pendingSaveCount > 0"
+            offset-x="14"
+            offset-y="18"
           >
-            <template v-slot:activator="{ on: onMenu }">
-              <v-badge
-                overlap
-                bottom
-                :color="readonlyState ? 'warning' : undefined"
-                :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
-                :content="!readonlyState ? pendingSaveCount : undefined"
-                :value="readonlyState || pendingSaveCount > 0"
-                offset-x="14"
-                offset-y="18"
+            <div v-on="on">
+              <v-btn
+                icon
+                :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
+                @click="save(currentTag)"
               >
-                <div v-on="on">
-                  <v-btn
-                    :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                  >
-                    <v-icon @click="save(currentTag)">
-                      mdi-content-save
-                    </v-icon>
-                    <v-icon
-                      small
-                      v-on="onMenu"
-                    >
-                      mdi-chevron-down
-                    </v-icon>
-                  </v-btn>
-                </div>
-              </v-badge>
-            </template>
-            <v-card outlined>
-              <v-list dense>
-                <v-list-item>
-                  <v-btn @click="tagDialog = true">
-                    save As...
-                  </v-btn>
-                </v-list-item>
-              </v-list>
-            </v-card>
-          </v-menu>
+                <v-icon>
+                  mdi-content-save
+                </v-icon>
+              </v-btn>
+            </div>
+          </v-badge>
         </template>
         <span>Read only mode, cannot save changes</span>
       </v-tooltip>
@@ -1097,53 +1072,6 @@ export default defineComponent({
       </v-col>
       <slot name="right-sidebar" />
     </v-row>
-    <v-dialog
-      v-model="tagDialog"
-      max-width="300"
-    >
-      <v-card>
-        <v-card-title>
-          Save As
-        </v-card-title>
-        <v-card-text>
-          <v-row dense>
-            <v-combobox
-              v-model="selectedTag"
-              :items="tags"
-              chips
-              label="Annotation Tag"
-              outlined
-            >
-              <template v-slot:selection="{ attrs, item, selected }">
-                <v-chip
-                  v-bind="attrs"
-                  :input-value="selected"
-                  outlined
-                >
-                  <strong>{{ item }}</strong>&nbsp;
-                </v-chip>
-              </template>
-            </v-combobox>
-          </v-row>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            text
-            @click="tagDialog = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
-            @click="save(selectedTag); tagDialog = false;"
-          >
-            Save
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-main>
 </template>
 

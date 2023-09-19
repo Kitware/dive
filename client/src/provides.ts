@@ -107,7 +107,7 @@ const GroupFilterControlsSymbol = Symbol('groupFilters');
  */
 export interface Handler {
   /* Save pending changes to persistence layer */
-  save(): Promise<void>;
+  save(tag?: string): Promise<void>;
   /* Select and seek to track */
   trackSeek(AnnotationId: AnnotationId): void;
   /* Toggle editing mode for track */
@@ -172,6 +172,7 @@ export interface Handler {
   linkCameraTrack(baseTrackId: AnnotationId, linkTrackId: AnnotationId, camera: string): void;
   startLinking(camera: string): void;
   stopLinking(): void;
+  tagChange(tag: string): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -212,7 +213,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
-
+    tagChange(...args) { handle('tagChange', args); },
   };
 }
 

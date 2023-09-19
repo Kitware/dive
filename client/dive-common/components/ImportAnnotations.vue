@@ -176,6 +176,7 @@ export default defineComponent({
               </v-btn>
             </v-row>
             <v-row
+              v-if="currentTag !== ''"
               class="mt-3"
               dense
             >

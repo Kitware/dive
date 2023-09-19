@@ -18,6 +18,7 @@ import Export from './Export.vue';
 import Clone from './Clone.vue';
 import ViewerAlert from './ViewerAlert.vue';
 import RevisionHistory from './RevisionHistory.vue';
+import AnnotationTags from './AnnotationTags.vue';
 
 const buttonOptions = {
   text: true,
@@ -37,6 +38,11 @@ context.register({
   description: 'Revision History',
 });
 
+context.register({
+  component: AnnotationTags,
+  description: 'Annotation Tags',
+});
+
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -53,6 +59,7 @@ export default defineComponent({
     RevisionHistory,
     SidebarContext,
     ViewerAlert,
+    AnnotationTags,
     ...context.getComponents(),
   },
 
