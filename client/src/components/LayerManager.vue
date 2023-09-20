@@ -216,6 +216,7 @@ export default defineComponent({
               groups,
               features,
               styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
+              tag: track.tag,
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {

@@ -105,6 +105,7 @@ export default defineComponent({
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
     const tags: Ref<string[]> = ref([]);
+    const displayComparisons = ref(props.comparisonTags);
     const selectedTag = ref('');
     const {
       aggregateController,
@@ -715,6 +716,7 @@ export default defineComponent({
       discardChanges();
       progress.loaded = false;
       await loadData();
+      displayComparisons.value = props.comparisonTags;
     };
 
     watch(datasetId, reloadAnnotations);
@@ -861,6 +863,7 @@ export default defineComponent({
       // Annotation Tags,
       tags,
       selectedTag,
+      displayComparisons,
       tagColor: trackStyleManager.typeStyling.value.tagColor,
     };
   },
@@ -877,7 +880,7 @@ export default defineComponent({
       >
         {{ datasetName }}
         <v-tooltip
-          v-if="currentTag || tags.length > 0"
+          v-if="currentTag || tags.length > 0 || comparisonTags.length"
           bottom
         >
           <template v-slot:activator="{on}">
@@ -888,8 +891,36 @@ export default defineComponent({
               v-on="on"
               @click="context.toggle('AnnotationTags')"
             > {{ currentTag || 'default' }}</v-chip>
+
           </template>
           <span>Custom Annotation Tag.  Click to open the Annotation Tag Settings</span>
+        </v-tooltip>
+        <v-tooltip
+          v-if="displayComparisons && displayComparisons.length"
+          bottom
+        >
+          <template v-slot:activator="{on: onIcon}">
+            <v-icon
+              class="pl-2"
+              v-on="onIcon"
+            >mdi-set-center</v-icon>
+          </template>
+          <v-card>
+            <h2>Comparing</h2>
+            <v-list>
+              <v-list-item
+                v-for="item in displayComparisons"
+                :key="`comparison_${item}`"
+              >
+                <v-chip
+                  outlined
+                  :color="tagColor(item || 'default')"
+                  small
+                > {{ item }}
+                </v-chip>
+              </v-list-item>
+            </v-list>
+          </v-card>
         </v-tooltip>
         <div
           v-if="readonlyState"

@@ -32,11 +32,11 @@ export interface CustomStyle {
 }
 
 export interface TypeStyling {
-  color: (type: string) => string;
-  strokeWidth: (type: string) => number;
-  fill: (type: string) => boolean;
-  opacity: (type: string) => number;
-  labelSettings: (type: string) => { showLabel: boolean; showConfidence: boolean };
+  color: (type: string, tag?: boolean) => string;
+  strokeWidth: (type: string, tag?: boolean) => number;
+  fill: (type: string, tag?: boolean) => boolean;
+  opacity: (type: string, tag?: boolean) => number;
+  labelSettings: (type: string, tag?: boolean) => { showLabel: boolean; showConfidence: boolean };
   tagColor: (tag: string) => string;
 }
 
@@ -91,6 +91,13 @@ const defaultStaticStyles: Record<string, CustomStyle> = {
   },
 };
 
+const defaultTagStaticStyles: Record<string, CustomStyle> = {
+  default: {
+    fill: true,
+    opacity: 0.20,
+  },
+};
+
 export default class StyleManager {
   /**
    * Revision counter should be watched for re-rendering based on customStyles
@@ -100,6 +107,8 @@ export default class StyleManager {
   revisionCounter: Ref<number>;
 
   customStyles: Ref<Record<string, CustomStyle>>;
+
+  tagStyles: Ref<Record<string, CustomStyle>>;
 
   stateStyles: StateStyles;
 
@@ -112,6 +121,7 @@ export default class StyleManager {
   constructor({ markChangesPending, vuetify }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
+    this.tagStyles = ref({} as Record<string, CustomStyle>);
     // Annotation State Colors
     const standard: Style = {
       strokeWidth: 3,
@@ -142,8 +152,13 @@ export default class StyleManager {
       // establish dependency on revision counter
       if (this.revisionCounter.value) noop();
       const _customStyles = this.customStyles.value;
+      const _tagStyles = this.tagStyles.value;
       return {
-        color: (type: string) => {
+        color: (type: string, tag?: boolean) => {
+          if (tag && _tagStyles[type] && _tagStyles[type].color) {
+            return _tagStyles[type].color;
+          }
+
           if (_customStyles[type] && _customStyles[type].color) {
             return _customStyles[type].color;
           }
@@ -162,25 +177,34 @@ export default class StyleManager {
           }
           return this.typeColors(tag);
         },
-        strokeWidth: (type: string) => {
+        strokeWidth: (type: string, tag?: boolean) => {
+          if (tag && _tagStyles[type] && _tagStyles[type].strokeWidth) {
+            return _tagStyles[type].strokeWidth;
+          }
           if (_customStyles[type] && _customStyles[type].strokeWidth) {
             return _customStyles[type].strokeWidth;
           }
           return this.stateStyles.standard.strokeWidth;
         },
-        fill: (type: string) => {
+        fill: (type: string, tag?: boolean) => {
+          if (tag && _tagStyles[type] && _tagStyles[type].fill !== undefined) {
+            return _tagStyles[type].fill;
+          }
           if (_customStyles[type] && _customStyles[type].fill !== undefined) {
             return _customStyles[type].fill;
           }
           return this.stateStyles.standard.fill;
         },
-        opacity: (type: string) => {
+        opacity: (type: string, tag?: boolean) => {
+          if (tag && _tagStyles[type] && _tagStyles[type].opacity) {
+            return _tagStyles[type].opacity;
+          }
           if (_customStyles[type] && _customStyles[type].opacity) {
             return _customStyles[type].opacity;
           }
           return this.stateStyles.standard.opacity;
         },
-        labelSettings: (type: string) => {
+        labelSettings: (type: string, tag?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {
             if (typeof (_customStyles[type].showLabel) === 'boolean') {
@@ -188,6 +212,14 @@ export default class StyleManager {
             }
             if (typeof (_customStyles[type].showConfidence) === 'boolean') {
               showConfidence = _customStyles[type].showConfidence as boolean;
+            }
+          }
+          if (tag && _tagStyles[type]) {
+            if (typeof (_tagStyles[type].showLabel) === 'boolean') {
+              showLabel = _tagStyles[type].showLabel as boolean;
+            }
+            if (typeof (_tagStyles[type].showConfidence) === 'boolean') {
+              showConfidence = _tagStyles[type].showConfidence as boolean;
             }
           }
           return { showLabel, showConfidence };
@@ -205,6 +237,7 @@ export default class StyleManager {
     } else {
       this.customStyles.value = defaultStaticStyles;
     }
+    this.tagStyles.value = defaultTagStaticStyles;
   }
 
   updateTypeStyle(args: {

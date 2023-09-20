@@ -12,6 +12,7 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
+  tag?: string;
 }
 
 export type FormatTextRow = (
@@ -69,6 +70,28 @@ function defaultFormatter(
         y: bounds[1],
       });
     }
+    if (annotation.track.tag && confidencePairs.length) {
+      const { tag } = annotation.track;
+      let text = '';
+      const [type, confidence] = confidencePairs[0];
+      if (typeStyling) {
+        const { showLabel } = typeStyling.labelSettings(tag, true);
+        if (showLabel) {
+          text = tag;
+          arr.push({
+            selected: annotation.selected,
+            editing: annotation.editing,
+            type,
+            confidence,
+            text,
+            x: bounds[2],
+            y: bounds[3],
+            offsetX: 10,
+            tag,
+          });
+        }
+      }
+    }
     return arr;
   }
   return null;
@@ -119,6 +142,9 @@ export default class TextLayer extends BaseLayer<TextData> {
     return {
       ...baseStyle,
       color: (data) => {
+        if (data.tag) {
+          return this.typeStyling.value.tagColor(data.tag);
+        }
         if (data.editing || data.selected) {
           if (!data.selected) {
             if (this.stateStyling.disabled.color !== 'type') {

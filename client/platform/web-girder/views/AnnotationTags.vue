@@ -35,16 +35,15 @@ export default defineComponent({
       tagChange(newTag.value);
     };
 
-    const selectedTag = ref(currentTag || 'default');
+    const selectedTag = ref(currentTag.value || 'default');
 
     const compareChecks = ref(tags.value.map((item) => ({ name: item, checked: false })));
 
     const selectedComparisons = computed(() => compareChecks.value.filter((item) => item.checked).map((item) => item.name));
-
     const launchComparison = () => {
-      root.$router.push({
-        name: 'tag viewer',
-        params: { id: datasetId.value, tag: currentTag.value },
+      const tag = currentTag.value ? `/tag/${currentTag.value}` : '';
+      root.$router.replace({
+        path: `/viewer/${datasetId.value}${tag}`,
         query: { comparisonTags: selectedComparisons.value },
       });
       reloadAnnotations();

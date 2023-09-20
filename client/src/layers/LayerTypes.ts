@@ -20,6 +20,9 @@ export interface FrameDataTrack {
   /* The exact pair to base the style on  */
   styleType: [string, number];
 
+  /* The Tag if it exists for the Track */
+  tag?: string;
+
   /* All types related to the current annotation */
   // confidencePairs: [string, number][] | null;
 }

@@ -10,6 +10,7 @@ interface PolyGeoJSData{
   editing: boolean | string;
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
+  tag?: string;
 }
 
 
@@ -110,6 +111,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                   editing: frameData.editing,
                   styleType: frameData.styleType,
                   polygon,
+                  tag: frameData.tag,
                 };
                 arr.push(annotation);
               }
@@ -148,6 +150,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
+          if (data.tag) {
+            return this.typeStyling.value.fill(data.tag);
+          }
           if (data.styleType) {
             return this.typeStyling.value.fill(data.styleType[0]);
           }
@@ -160,6 +165,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
+          if (data.tag) {
+            return this.typeStyling.value.opacity(data.tag);
+          }
           if (data.styleType) {
             return this.typeStyling.value.opacity(data.styleType[0]);
           }

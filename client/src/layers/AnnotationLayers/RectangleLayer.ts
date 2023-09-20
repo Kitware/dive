@@ -12,6 +12,7 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  tag?: string;
 }
 
 
@@ -112,6 +113,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             styleType: track.styleType,
             polygon,
             hasPoly,
+            tag: track.tag,
           };
           arr.push(annotation);
         }
@@ -147,18 +149,27 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
+          if (data.tag) {
+            return this.typeStyling.value.fill(data.tag, true);
+          }
           if (data.styleType) {
             return this.typeStyling.value.fill(data.styleType[0]);
           }
           return this.stateStyling.standard.fill;
         },
         fillColor: (_point, _index, data) => {
+          if (data.tag) {
+            return this.typeStyling.value.tagColor(data.tag);
+          }
           if (data.styleType) {
             return this.typeStyling.value.color(data.styleType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
+          if (data.tag) {
+            return this.typeStyling.value.opacity(data.tag, true);
+          }
           if (data.styleType) {
             return this.typeStyling.value.opacity(data.styleType[0]);
           }
