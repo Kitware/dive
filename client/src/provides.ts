@@ -70,6 +70,9 @@ type AnnotationTagType = Readonly<Ref<string>>;
 const AnnotationTagsSymbol = Symbol('annotationTags');
 type AnnotationTagsType = Readonly<Ref<string[]>>;
 
+const ComparisonTagsSymbol = Symbol('comparisonTags');
+type ComparisonTagsType = Readonly<Ref<string[]>>;
+
 const SelectedCameraSymbol = Symbol('selectedCamera');
 type SelectedCameraType = Readonly<Ref<string>>;
 
@@ -238,6 +241,7 @@ export interface State {
   revisionId: RevisionIdType;
   annotationTag: AnnotationTagType;
   annotationTags: AnnotationTagsType;
+  comparisonTags: ComparisonTagsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -296,6 +300,7 @@ function dummyState(): State {
     revisionId: ref(0),
     annotationTag: ref(''),
     annotationTags: ref([]),
+    comparisonTags: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedCamera: ref('singleCam'),
@@ -339,6 +344,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(RevisionIdSymbol, state.revisionId);
   provide(AnnotationTagSymbol, state.annotationTag);
   provide(AnnotationTagsSymbol, state.annotationTags);
+  provide(ComparisonTagsSymbol, state.comparisonTags);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -425,6 +431,10 @@ function useAnnotationTags() {
   return use<AnnotationTagsType>(AnnotationTagsSymbol);
 }
 
+function useComparisonTags() {
+  return use<ComparisonTagsType>(ComparisonTagsSymbol);
+}
+
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -484,6 +494,7 @@ export {
   useRevisionId,
   useAnnotationTag,
   useAnnotationTags,
+  useComparisonTags,
   useTrackFilters,
   useTrackStyleManager,
   useSelectedCamera,

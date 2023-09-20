@@ -37,6 +37,7 @@ export interface TrackData extends BaseData {
 /* Constructor params for Track */
 interface TrackParams extends BaseAnnotationParams {
   features?: Array<Feature>;
+  tag?: string;
 }
 
 /**
@@ -52,12 +53,20 @@ export default class Track extends BaseAnnotation {
    * for performing fast search */
   featureIndex: number[];
 
+  /**
+   * Tag used for when making comparisons between sets of tracks
+   */
+  tag?: string;
+
   constructor(id: AnnotationId, params: TrackParams) {
     super(id, params);
     this.features = params.features || []; // NON-reactive sparse array
     this.featureIndex = [];
     Track.sanityCheckFeatures(this.features);
     this.repopulateInterpolatedFrames(this.features);
+    if (params.tag) {
+      this.tag = params.tag;
+    }
   }
 
   /**
@@ -499,7 +508,7 @@ export default class Track extends BaseAnnotation {
     };
   }
 
-  static fromJSON(json: TrackData): Track {
+  static fromJSON(json: TrackData, tag?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
       sparseFeatures[f.frame] = {
@@ -516,6 +525,7 @@ export default class Track extends BaseAnnotation {
       confidencePairs: json.confidencePairs,
       begin: json.begin,
       end: json.end,
+      tag,
     });
     return track;
   }

@@ -30,6 +30,13 @@ function adminGuard(to: Route, from: Route, next: Function) {
   }
 }
 
+function toArray(data: string | (string | null)[]) {
+  if (data && typeof data === 'string') {
+    return [data];
+  }
+  return data;
+}
+
 const router = new Router({
   routes: [
     {
@@ -41,14 +48,14 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: true,
+      props: (route) => ({ ...route.params, comparisonTags: toArray(route.query.comparisonTags) }),
       beforeEnter,
     },
     {
       path: '/viewer/:id/tag/:tag',
       name: 'tag viewer',
       component: ViewerLoader,
-      props: true,
+      props: (route) => ({ ...route.params, comparisonTags: toArray(route.query.comparisonTags) }),
       beforeEnter,
     },
     {

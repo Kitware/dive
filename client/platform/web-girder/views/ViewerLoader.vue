@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
 } from '@vue/composition-api';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -75,6 +75,10 @@ export default defineComponent({
     tag: {
       type: String,
       default: undefined,
+    },
+    comparisonTags: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
   },
 
@@ -229,6 +233,7 @@ export default defineComponent({
     :revision="revisionNum"
     :current-tag="tag"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    :comparison-tags="comparisonTags"
     @large-image-warning="largeImageWarning()"
     @update:tag="routeTag"
   >

@@ -37,6 +37,7 @@ export interface TypeStyling {
   fill: (type: string) => boolean;
   opacity: (type: string) => number;
   labelSettings: (type: string) => { showLabel: boolean; showConfidence: boolean };
+  tagColor: (tag: string) => string;
 }
 
 interface UseStylingParams {
@@ -150,6 +151,16 @@ export default class StyleManager {
             return this.typeColors.range()[0];
           }
           return this.typeColors(type);
+        },
+        tagColor: (tag: string) => {
+          if (!tag) {
+            return 'white';
+          } if (tag === 'default') {
+            return 'yellow';
+          } if (['groundTruth', 'GT', 'ground_truth', 'Groundtruth', 'GroundTruth', 'gt'].includes(tag)) {
+            return 'green';
+          }
+          return this.typeColors(tag);
         },
         strokeWidth: (type: string) => {
           if (_customStyles[type] && _customStyles[type].strokeWidth) {
