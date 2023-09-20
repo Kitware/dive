@@ -1,6 +1,7 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject, nextTick, onBeforeUnmount,
+  defineComponent, ref, toRef, computed, Ref,
+  reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -88,6 +89,10 @@ export default defineComponent({
     currentTag: {
       type: String,
       default: '',
+    },
+    comparisonTags: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
   },
   setup(props, ctx) {
@@ -596,6 +601,11 @@ export default defineComponent({
             if (tracks.length < 20000) {
               trackStore.setEnableSorting();
             }
+            let baseTag: string | undefined;
+            if (props.comparisonTags.length) {
+              baseTag = selectedTag.value;
+            }
+
             for (let j = 0; j < tracks.length; j += 1) {
               if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
@@ -603,7 +613,7 @@ export default defineComponent({
                 // eslint-disable-next-line no-await-in-loop
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
-              trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+              trackStore.insert(Track.fromJSON(tracks[j], baseTag), { imported: true });
             }
             for (let j = 0; j < groups.length; j += 1) {
               if (j % 4000 === 0) {
@@ -613,6 +623,40 @@ export default defineComponent({
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
               groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
+            }
+          }
+          // Check if we load more data for comparions
+          if (props.comparisonTags.length) {
+            for (let tagIndex = 0; tagIndex < props.comparisonTags.length; tagIndex += 1) {
+              const loadingTag = props.comparisonTags[tagIndex] === 'default' ? undefined : props.comparisonTags[tagIndex];
+              const {
+                tracks: tagTracks,
+                groups: tagGroups,
+                // eslint-disable-next-line no-await-in-loop
+              } = await loadDetections(cameraId, props.revision, loadingTag);
+              progress.total = tagTracks.length + tagGroups.length;
+              if (trackStore && groupStore) {
+                // We can start sorting if our total tracks are less than 20000
+                // If greater we do one sort at the end instead to speed loading.
+                if (tracks.length < 20000) {
+                  trackStore.setEnableSorting();
+                }
+                for (let j = 0; j < tagTracks.length; j += 1) {
+                  if (j % 4000 === 0) {
+                    /* Every N tracks, yeild some cycles for other scheduled tasks */
+                    progress.progress = j;
+                    // eslint-disable-next-line no-await-in-loop
+                    await new Promise((resolve) => window.setTimeout(resolve, 500));
+                  }
+                  // We need to increment the trackIds for the new comparison tags
+                  tagTracks[j].id = trackStore.getNewId();
+                  trackStore.insert(
+                    Track.fromJSON(tagTracks[j],
+                      props.comparisonTags[tagIndex]),
+                    { imported: true },
+                  );
+                }
+              }
             }
           }
         }
@@ -741,6 +785,7 @@ export default defineComponent({
         revisionId: toRef(props, 'revision'),
         annotationTag: toRef(props, 'currentTag'),
         annotationTags: tags,
+        comparisonTags: toRef(props, 'comparisonTags'),
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -816,6 +861,7 @@ export default defineComponent({
       // Annotation Tags,
       tags,
       selectedTag,
+      tagColor: trackStyleManager.typeStyling.value.tagColor,
     };
   },
 });
@@ -837,7 +883,7 @@ export default defineComponent({
           <template v-slot:activator="{on}">
             <v-chip
               outlined
-              color="white"
+              :color="tagColor(currentTag || 'default')"
               small
               v-on="on"
               @click="context.toggle('AnnotationTags')"
