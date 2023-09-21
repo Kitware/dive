@@ -92,10 +92,6 @@ const defaultStaticStyles: Record<string, CustomStyle> = {
 };
 
 const defaultTagStaticStyles: Record<string, CustomStyle> = {
-  default: {
-    fill: true,
-    opacity: 0.20,
-  },
 };
 
 export default class StyleManager {

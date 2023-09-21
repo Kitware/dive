@@ -48,6 +48,12 @@ export default defineComponent({
       });
       reloadAnnotations();
     };
+
+    const selectForComparison = (tag: string) => {
+      console.log(`comaprison: ${tag}`);
+      compareChecks.value = tags.value.map((item) => ({ name: item, checked: tag === item }));
+      console.log(compareChecks.value);
+    };
     return {
       currentTag,
       selectTag,
@@ -60,6 +66,7 @@ export default defineComponent({
       compareChecks,
       selectedComparisons,
       launchComparison,
+      selectForComparison,
     };
   },
 });
@@ -69,6 +76,19 @@ export default defineComponent({
   <div>
     <p> Available Tags</p>
     <v-list>
+      <v-list-item>
+        <v-row
+          dense
+          align="center"
+        >
+          <v-col cols="8">
+            Tag
+          </v-col>
+          <v-col cols="4">
+            Compare
+          </v-col>
+        </v-row>
+      </v-list-item>
       <v-list-item
         v-for="(tag, index) in tags"
         :key="tag"
@@ -81,6 +101,7 @@ export default defineComponent({
           <v-col cols="8">
             <v-chip
               outlined
+              small
               :color="typeStyling.tagColor(tag)"
               @click="selectTag(tag)"
             >
@@ -90,11 +111,11 @@ export default defineComponent({
             </v-chip>
           </v-col>
           <v-col cols="4">
-            <v-checkbox
-              v-model="compareChecks[index].checked"
-              label="Compare"
+            <v-switch
+              :value="compareChecks[index].checked"
               :disabled="selectedTag === compareChecks[index].name"
               dense
+              @change="selectForComparison(tag)"
             />
           </v-col>
         </v-row>

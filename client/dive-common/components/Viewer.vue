@@ -103,9 +103,11 @@ export default defineComponent({
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
-    const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
+    const readonlyState = computed(() => props.readOnlyMode
+    || props.revision !== undefined || !!(props.comparisonTags && props.comparisonTags.length));
     const tags: Ref<string[]> = ref([]);
-    const displayComparisons = ref(props.comparisonTags);
+    const displayComparisons = ref(props.comparisonTags.length
+      ? props.comparisonTags.slice(0, 1) : props.comparisonTags);
     const selectedTag = ref('');
     const {
       aggregateController,
@@ -628,8 +630,10 @@ export default defineComponent({
           }
           // Check if we load more data for comparions
           if (props.comparisonTags.length) {
-            for (let tagIndex = 0; tagIndex < props.comparisonTags.length; tagIndex += 1) {
-              const loadingTag = props.comparisonTags[tagIndex] === 'default' ? undefined : props.comparisonTags[tagIndex];
+            // Only compare one at a time
+            const firstTag = props.comparisonTags.slice(0, 1);
+            for (let tagIndex = 0; tagIndex < firstTag.length; tagIndex += 1) {
+              const loadingTag = firstTag[tagIndex] === 'default' ? undefined : firstTag[tagIndex];
               const {
                 tracks: tagTracks,
                 groups: tagGroups,
@@ -653,7 +657,7 @@ export default defineComponent({
                   tagTracks[j].id = trackStore.getNewId();
                   trackStore.insert(
                     Track.fromJSON(tagTracks[j],
-                      props.comparisonTags[tagIndex]),
+                      firstTag[tagIndex]),
                     { imported: true },
                   );
                 }
@@ -716,7 +720,8 @@ export default defineComponent({
       discardChanges();
       progress.loaded = false;
       await loadData();
-      displayComparisons.value = props.comparisonTags;
+      displayComparisons.value = props.comparisonTags.length
+        ? props.comparisonTags.slice(0, 1) : props.comparisonTags;
     };
 
     watch(datasetId, reloadAnnotations);

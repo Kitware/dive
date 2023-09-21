@@ -1,9 +1,11 @@
 /* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
 
+import { cloneDeep } from 'lodash';
 import { boundToGeojson } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
+import LineLayer from './LineLayer';
 
 interface RectGeoJSData{
   trackId: number;
@@ -13,6 +15,7 @@ interface RectGeoJSData{
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
   tag?: string;
+  dashed?: boolean;
 }
 
 
@@ -96,16 +99,24 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     }
 
 
-    formatData(frameData: FrameDataTrack[]) {
+    formatData(frameData: FrameDataTrack[], comparisonTags: string[] = []) {
       const arr: RectGeoJSData[] = [];
       frameData.forEach((track: FrameDataTrack) => {
         if (track.features && track.features.bounds) {
-          const polygon = boundToGeojson(track.features.bounds);
+          let polygon = boundToGeojson(track.features.bounds);
           let hasPoly = false;
           if (track.features.geometry?.features) {
             const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
             hasPoly = filtered.length > 0;
           }
+          const dashed = !!(track.tag && comparisonTags?.includes(track.tag));
+          if (dashed) {
+            const temp = cloneDeep(polygon);
+            temp.coordinates[0] = LineLayer.dashLine(temp.coordinates[0]);
+            polygon = temp;
+          }
+
+
           const annotation: RectGeoJSData = {
             trackId: track.track.id,
             selected: track.selected,
@@ -114,6 +125,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             polygon,
             hasPoly,
             tag: track.tag,
+            dashed,
           };
           arr.push(annotation);
         }
@@ -177,6 +189,11 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         },
         strokeOpacity: (_point, _index, data) => {
         // Reduce the rectangle opacity if a polygon is also drawn
+          if (_index % 2 === 1 && data.dashed) {
+            return 0.0;
+          }
+
+
           if (this.drawingOther && data.hasPoly) {
             return this.stateStyling.disabled.opacity;
           }
