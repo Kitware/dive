@@ -1,6 +1,4 @@
 /* eslint-disable class-methods-use-this */
-import geo, { GeoEvent } from 'geojs';
-
 import { RectBounds, boundToGeojson } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
@@ -22,7 +20,8 @@ function createOverlappingComparingBounds(comparingBounds: ComparingBounds[]): C
 
   for (let i = 0; i < comparingBounds.length; i += 1) {
     for (let j = i + 1; j < comparingBounds.length; j += 1) {
-      if (comparingBounds[i].type !== comparingBounds[j].type) {
+      if (comparingBounds[i].type !== comparingBounds[j].type
+        || comparingBounds[i].tag === comparingBounds[j].tag) {
         // eslint-disable-next-line no-continue
         continue;
       }
@@ -66,12 +65,6 @@ export default class OverlapLayer extends BaseLayer<OverlapJSData> {
         .createFeature('polygon', { selectionAPI: true });
       super.initialize();
     }
-
-    hoverAnnotations(e: GeoEvent) {
-      const { found } = this.featureLayer.pointSearch(e.mouse.geo);
-      this.bus.$emit('annotation-hover', found, e.mouse.geo);
-    }
-
 
     formatData(frameData: FrameDataTrack[]) {
       const arr: OverlapJSData[] = [];

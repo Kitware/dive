@@ -50,9 +50,7 @@ export default defineComponent({
     };
 
     const selectForComparison = (tag: string) => {
-      console.log(`comaprison: ${tag}`);
       compareChecks.value = tags.value.map((item) => ({ name: item, checked: tag === item }));
-      console.log(compareChecks.value);
     };
     return {
       currentTag,

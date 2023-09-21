@@ -900,32 +900,26 @@ export default defineComponent({
           </template>
           <span>Custom Annotation Tag.  Click to open the Annotation Tag Settings</span>
         </v-tooltip>
+        <span
+          v-if="displayComparisons && displayComparisons.length"
+          style="font-size:small"
+          class="px-2"
+        > Comparing: </span>
+
         <v-tooltip
           v-if="displayComparisons && displayComparisons.length"
           bottom
         >
           <template v-slot:activator="{on: onIcon}">
-            <v-icon
+            <v-chip
               class="pl-2"
+              small
+              outlined
+              :color="tagColor(displayComparisons[0] || 'default')"
               v-on="onIcon"
-            >mdi-set-center</v-icon>
+            > {{ displayComparisons[0] }}</v-chip>
           </template>
-          <v-card>
-            <h2>Comparing</h2>
-            <v-list>
-              <v-list-item
-                v-for="item in displayComparisons"
-                :key="`comparison_${item}`"
-              >
-                <v-chip
-                  outlined
-                  :color="tagColor(item || 'default')"
-                  small
-                > {{ item }}
-                </v-chip>
-              </v-list-item>
-            </v-list>
-          </v-card>
+          Click on the {{ currentTag || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
         <div
           v-if="readonlyState"
