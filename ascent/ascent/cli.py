@@ -152,7 +152,7 @@ def image_sequence(parent_folder, folder_name, path: Path, url, port):
         gc.addMetadataToFolder(
             new_folder["_id"],
             {
-                "type": "dataset",
+                "type": "image-sequence",
                 "fps": -1,
             },
         )
@@ -173,7 +173,7 @@ def video(parent_folder, folder_name, path, url, port):
         gc.addMetadataToFolder(
             new_folder["_id"],
             {
-                "type": "dataset",
+                "type": "video",
                 "fps": -1,
             },
         )
