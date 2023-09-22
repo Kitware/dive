@@ -153,7 +153,7 @@ def image_sequence(parent_folder, folder_name, path: Path, url, port):
             new_folder["_id"],
             {
                 "type": "image-sequence",
-                "fps": -1,
+                "fps": 1,
             },
         )
         gc.sendRestRequest(
