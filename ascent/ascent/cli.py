@@ -52,33 +52,23 @@ def global_options(func):
     return func
 
 
-_upload_options = [
-    click.option(
-        "--path",
+_upload_arguments = [
+    click.argument(
+        "folder-name",
+        type=str,
+        required=True,
+    ),
+    click.argument(
+        "path",
         required=True,
         type=click.Path(exists=True, readable=True, path_type=Path),
-        help="Local location of items(s) to upload"
     ),
-    click.option(
-        "--parent-folder",
-        type=str,
-        help="""
-        ID of girder folder that will be the parent of created folder.
-        Defaults to user root.
-        """
-    ),
-    click.option(
-        "--folder-name",
-        type=str,
-        required=True,
-        help="Unique folder name"
-    )
 
 ]
 
 
-def upload_options(func):
-    for option in _upload_options:
+def upload_arguments(func):
+    for option in _upload_arguments:
         func = option(func)
     return func
 
@@ -99,11 +89,6 @@ def login(api, port):
     else:
         gc.authenticate(os.environ.get('DIVE_USER'), os.environ.get('DIVE_PW'))
     return gc
-
-
-@click.group()
-def ascent():
-    pass
 
 
 def create_folder(parent_folder, folder_name, gc):
@@ -130,18 +115,34 @@ def create_folder(parent_folder, folder_name, gc):
     return new_folder
 
 
+@click.group()
+def ascent():
+    """A cli to interact with the DIVE API """
+    pass
+
+
 @ascent.group()
 def upload():
     pass
 
 
 @upload.command()
+@upload_arguments
 @global_options
-@upload_options
+@click.option(
+        "--parent-folder",
+        type=str,
+        help="The _id of girder folder that the new folder will be created in. Defaults to user root."
+    )
 def image_sequence(parent_folder, folder_name, path: Path, url, port):
+    """
+    Create folder with FOLDER_NAME in PARENT_FOLDER and upload a set of images from PATH\n
+
+    FOLDER_NAME is a unique name for the folder to be created \n
+    PATH is the the local path for the images to be uploaded
+    """
     gc = login(url, port)
     new_folder = create_folder(parent_folder, folder_name, gc)
-    print("upload image sequence")
 
     if new_folder:
         for file in path.iterdir():
@@ -164,8 +165,19 @@ def image_sequence(parent_folder, folder_name, path: Path, url, port):
 
 
 @upload.command()
-@upload_options
+@upload_arguments
+@click.option(
+        "--parent-folder",
+        type=str,
+        help="The _id of girder folder that the new folder will be created in. Defaults to user root."
+    )
 def video(parent_folder, folder_name, path, url, port):
+    """
+    Create folder with FOLDER_NAME in PARENT_FOLDER and upload a video from PATH\n
+
+    FOLDER_NAME is a unique name for the folder to be created \n
+    PATH is the the local path for the video to be uploaded
+    """
     gc = login(url, port)
     new_folder = create_folder(parent_folder, folder_name, gc)
     if new_folder:
@@ -185,8 +197,19 @@ def video(parent_folder, folder_name, path, url, port):
 
 
 @upload.command()
-@upload_options
+@upload_arguments
+@click.option(
+        "--parent-folder",
+        type=str,
+        help="The _id of girder folder that the new folder will be created in. Defaults to user root."
+    )
 def zip(parent_folder, folder_name, path, url, port):
+    """
+    Create folder with FOLDER_NAME in PARENT_FOLDER and upload a zip file from PATH\n
+
+    FOLDER_NAME is a unique name for the folder to be created \n
+    PATH is the the local path for the zip file to be uploaded
+    """
     gc = login(url, port)
     new_folder = create_folder(parent_folder, folder_name, gc)
     if new_folder:
