@@ -85,7 +85,7 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    currentTag: {
+    currentSet: {
       type: String,
       default: '',
     },
@@ -99,8 +99,8 @@ export default defineComponent({
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
-    const tags: Ref<string[]> = ref([]);
-    const selectedTag = ref('');
+    const sets: Ref<string[]> = ref([]);
+    const selecteSet = ref('');
     const {
       aggregateController,
       onResize,
@@ -399,15 +399,15 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(tagVal?: string) {
+    async function save(setVal?: string) {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
-      const saveTag = tagVal === 'default' ? undefined : tagVal;
-      // Need to mark all items as updated for any non-default tags
-      if (saveTag && tagVal !== props.currentTag) {
+      const saveSet = setVal === 'default' ? undefined : setVal;
+      // Need to mark all items as updated for any non-default sets
+      if (saveSet && setVal !== props.currentSet) {
         const singleCam = cameraStore.camMap.value.get('singleCam');
         if (singleCam) {
           singleCam.trackStore.annotationMap.forEach((track) => {
@@ -421,7 +421,7 @@ export default defineComponent({
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           // TODO Group confidence filters are not yet supported.
-        }, saveTag);
+        }, saveSet);
       } catch (err) {
         let text = 'Unable to Save Data';
         if (err.response && err.response.status === 403) {
@@ -465,10 +465,10 @@ export default defineComponent({
       return result;
     }
 
-    async function handleTagChange(tag: string) {
+    async function handleSetChange(set: string) {
       const guard = await navigateAwayGuard();
       if (guard) {
-        ctx.emit('update:tag', tag);
+        ctx.emit('update:set', set);
       }
     }
 
@@ -579,14 +579,14 @@ export default defineComponent({
           const {
             tracks,
             groups,
-            tags: foundTags,
+            sets: foundSets,
             // eslint-disable-next-line no-await-in-loop
-          } = await loadDetections(cameraId, props.revision, props.currentTag);
-          tags.value = foundTags.filter((item) => item);
-          if (props.currentTag !== '' || tags.value.length > 0) {
-            tags.value.push('default');
+          } = await loadDetections(cameraId, props.revision, props.currentSet);
+          sets.value = foundSets.filter((item) => item);
+          if (props.currentSet !== '' || sets.value.length > 0) {
+            sets.value.push('default');
           }
-          selectedTag.value = props.currentTag ? props.currentTag : 'default';
+          selecteSet.value = props.currentSet ? props.currentSet : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -709,7 +709,7 @@ export default defineComponent({
       selectCamera,
       linkCameraTrack,
       unlinkCameraTrack,
-      tagChange: handleTagChange,
+      setChange: handleSetChange,
     };
 
     const useAttributeFilters = {
@@ -739,8 +739,8 @@ export default defineComponent({
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
-        annotationTag: toRef(props, 'currentTag'),
-        annotationTags: tags,
+        annotationSet: toRef(props, 'currentSet'),
+        annotationSets: sets,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -813,9 +813,9 @@ export default defineComponent({
       navigateAwayGuard,
       warnBrowserExit,
       reloadAnnotations,
-      // Annotation Tags,
-      tags,
-      selectedTag,
+      // Annotation Sets,
+      sets,
+      selecteSet,
     };
   },
 });
@@ -831,7 +831,7 @@ export default defineComponent({
       >
         {{ datasetName }}
         <v-tooltip
-          v-if="currentTag || tags.length > 0"
+          v-if="currentSet || sets.length > 0"
           bottom
         >
           <template v-slot:activator="{on}">
@@ -840,10 +840,10 @@ export default defineComponent({
               color="white"
               small
               v-on="on"
-              @click="context.toggle('AnnotationTags')"
-            > {{ currentTag || 'default' }}</v-chip>
+              @click="context.toggle('AnnotationSets')"
+            > {{ currentSet || 'default' }}</v-chip>
           </template>
-          <span>Custom Annotation Tag.  Click to open the Annotation Tag Settings</span>
+          <span>Custom Annotation Set.  Click to open the Annotation Set Settings</span>
         </v-tooltip>
         <div
           v-if="readonlyState"
@@ -951,7 +951,7 @@ export default defineComponent({
               <v-btn
                 icon
                 :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                @click="save(currentTag)"
+                @click="save(currentSet)"
               >
                 <v-icon>
                   mdi-content-save

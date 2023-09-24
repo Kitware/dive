@@ -26,7 +26,7 @@ GetAnnotationParams = (
     .pagingParams("id", defaultLimit=0)
     .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
     .param('revision', 'revision', dataType='integer', required=False)
-    .param('tag', 'tag', dataType='string', required=False)
+    .param('set', 'set', dataType='string', required=False)
 )
 
 
@@ -42,22 +42,22 @@ class AnnotationResource(Resource):
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
         self.route("GET", ("labels",), self.get_labels)
-        self.route("GET", ("tags",), self.get_tags)
+        self.route("GET", ("sets",), self.get_sets)
         self.route("PATCH", (), self.save_annotations)
         self.route("POST", ("rollback",), self.rollback)
 
     @access.user
     @autoDescribeRoute(GetAnnotationParams)
-    def get_tracks(self, limit: int, offset: int, sort, folder, revision, tag):
+    def get_tracks(self, limit: int, offset: int, sort, folder, revision, set):
         return crud_annotation.TrackItem().list(
-            folder, limit=limit, offset=offset, sort=sort, revision=revision, tag=tag
+            folder, limit=limit, offset=offset, sort=sort, revision=revision, set=set
         )
 
     @access.user
     @autoDescribeRoute(GetAnnotationParams)
-    def get_groups(self, limit: int, offset: int, sort, folder, revision, tag):
+    def get_groups(self, limit: int, offset: int, sort, folder, revision, set):
         return crud_annotation.GroupItem().list(
-            folder, limit=limit, offset=offset, sort=sort, revision=revision, tag=tag
+            folder, limit=limit, offset=offset, sort=sort, revision=revision, set=set
         )
 
     @access.user
@@ -66,18 +66,17 @@ class AnnotationResource(Resource):
         .pagingParams("revision", defaultLimit=20)
         .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
         .param(
-            "tag",
-            "Custom tag for any annotations that are loaded",
+            "set",
+            "Custom set name for any annotations that are loaded",
             paramType="query",
             dataType="string",
             default='',
             required=False,
         )
     )
-    def get_revisions(self, limit: int, offset: int, sort, folder, tag):
-        print(f'TAG:::::{tag}')
+    def get_revisions(self, limit: int, offset: int, sort, folder, set):
         cursor, total = crud_annotation.RevisionLogItem().list(
-            folder, limit, offset, sort, None, tag
+            folder, limit, offset, sort, None, set
         )
         cherrypy.response.headers['Girder-Total-Count'] = total
         return cursor
@@ -88,8 +87,8 @@ class AnnotationResource(Resource):
         .pagingParams("revision", defaultLimit=20)
         .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
     )
-    def get_tags(self, limit: int, offset: int, sort, folder):
-        cursor = crud_annotation.RevisionLogItem().tags(folder, limit, offset, sort)
+    def get_sets(self, limit: int, offset: int, sort, folder):
+        cursor = crud_annotation.RevisionLogItem().sets(folder, limit, offset, sort)
         return cursor
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
@@ -163,7 +162,7 @@ class AnnotationResource(Resource):
         .modelParam("folderId", **DatasetModelParam, level=AccessType.WRITE)
         .jsonParam("body", "upsert and delete tracks", paramType="body", requireObject=True)
     )
-    def save_annotations(self, folder, body, tag=None):
+    def save_annotations(self, folder, body, set=None):
         crud.verify_dataset(folder)
         validated: crud_annotation.AnnotationUpdateArgs = crud.get_validated_model(
             crud_annotation.AnnotationUpdateArgs, **body
@@ -178,7 +177,7 @@ class AnnotationResource(Resource):
             delete_tracks=validated.tracks.delete,
             upsert_groups=upsert_groups,
             delete_groups=validated.groups.delete,
-            tag=validated.tag,
+            set=validated.set,
         )
 
     @access.user

@@ -121,17 +121,17 @@ class RpcResource(Resource):
             required=False,
         )
         .param(
-            "tag",
-            "Custom tag for any annotations that are loaded",
+            "set",
+            "Custom set name for any annotations that are loaded",
             paramType="formData",
             dataType="string",
             default='',
             required=False,
         )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, tag):
+    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, tag
+            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
         )
 
     @access.user

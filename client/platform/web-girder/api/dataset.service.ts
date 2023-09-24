@@ -88,7 +88,7 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', tag: string | undefined = undefined) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined) {
   if (file === undefined) {
     return false;
   }
@@ -110,7 +110,7 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       headers: { 'Content-Type': 'application/octet-stream' },
     });
     if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true, false, additive, additivePrepend, tag);
+      const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
       return final.status === 200;
     }
   }

@@ -18,7 +18,7 @@ import Export from './Export.vue';
 import Clone from './Clone.vue';
 import ViewerAlert from './ViewerAlert.vue';
 import RevisionHistory from './RevisionHistory.vue';
-import AnnotationTags from './AnnotationTags.vue';
+import AnnotationSets from './AnnotationSets.vue';
 
 const buttonOptions = {
   text: true,
@@ -39,8 +39,8 @@ context.register({
 });
 
 context.register({
-  component: AnnotationTags,
-  description: 'Annotation Tags',
+  component: AnnotationSets,
+  description: 'Annotation Sets',
 });
 
 /**
@@ -59,7 +59,7 @@ export default defineComponent({
     RevisionHistory,
     SidebarContext,
     ViewerAlert,
-    AnnotationTags,
+    AnnotationSets,
     ...context.getComponents(),
   },
 
@@ -72,7 +72,7 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
-    tag: {
+    set: {
       type: String,
       default: undefined,
     },
@@ -155,11 +155,11 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    function routeRevision(revisionId: number, tag?: string) {
-      if (tag && tag !== 'default') {
+    function routeRevision(revisionId: number, set?: string) {
+      if (set && set !== 'default') {
         ctx.root.$router.replace({
-          name: 'revision tag viewer',
-          params: { id: props.id, revision: revisionId.toString(), tag },
+          name: 'revision set viewer',
+          params: { id: props.id, revision: revisionId.toString(), set },
         });
       } else {
         ctx.root.$router.replace({
@@ -169,16 +169,16 @@ export default defineComponent({
       }
     }
 
-    function routeTag(tag: string) {
-      if (tag === 'default') {
+    function routeSet(set: string) {
+      if (set === 'default') {
         ctx.root.$router.replace({
           name: 'viewer',
           params: { id: props.id },
         });
       } else {
         ctx.root.$router.replace({
-          name: 'tag viewer',
-          params: { id: props.id, tag },
+          name: 'set viewer',
+          params: { id: props.id, set },
         });
       }
       viewerRef.value.reloadAnnotations();
@@ -213,7 +213,7 @@ export default defineComponent({
       currentJob,
       runningPipelines,
       routeRevision,
-      routeTag,
+      routeSet,
       largeImageWarning,
       typeList,
     };
@@ -227,10 +227,10 @@ export default defineComponent({
     :key="id"
     ref="viewerRef"
     :revision="revisionNum"
-    :current-tag="tag"
+    :current-set="set"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
     @large-image-warning="largeImageWarning()"
-    @update:tag="routeTag"
+    @update:set="routeSet"
   >
     <template #title>
       <ViewerAlert />

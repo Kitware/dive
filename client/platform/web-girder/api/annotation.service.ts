@@ -14,7 +14,7 @@ export interface Revision {
   dataset: Readonly<string>;
   description: Readonly<string>;
   revision: Readonly<number>;
-  tag?: Readonly<string>;
+  set?: Readonly<string>;
 }
 
 export interface Label {
@@ -27,18 +27,18 @@ export interface Label {
   }>;
 }
 
-async function loadDetections(folderId: string, revision?: number, tag?: string) {
+async function loadDetections(folderId: string, revision?: number, set?: string) {
   const params: Record<string, unknown> = { folderId };
   if (revision !== undefined) {
     params.revision = revision;
   }
   if (params !== undefined) {
-    params.tag = tag;
+    params.set = set;
   }
   return {
     tracks: (await girderRest.get<TrackData[]>('dive_annotation/track', { params })).data,
     groups: (await girderRest.get<GroupData[]>('dive_annotation/group', { params })).data,
-    tags: (await girderRest.get<string[]>('dive_annotation/tags', { params })).data,
+    sets: (await girderRest.get<string[]>('dive_annotation/sets', { params })).data,
     version: AnnotationsCurrentVersion,
   };
 }
@@ -48,11 +48,11 @@ function loadRevisions(
   limit?: number,
   offset?: number,
   sort?: string,
-  tag?: string,
+  set?: string,
 ) {
   return girderRest.get<Revision[]>('dive_annotation/revision', {
     params: {
-      folderId, sortdir: -1, limit, offset, sort, tag,
+      folderId, sortdir: -1, limit, offset, sort, set,
     },
   });
 }

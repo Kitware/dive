@@ -45,8 +45,8 @@ const router = new Router({
       beforeEnter,
     },
     {
-      path: '/viewer/:id/tag/:tag',
-      name: 'tag viewer',
+      path: '/viewer/:id/set/:set',
+      name: 'set viewer',
       component: ViewerLoader,
       props: true,
       beforeEnter,
@@ -59,8 +59,8 @@ const router = new Router({
       beforeEnter,
     },
     {
-      path: '/viewer/:id/tag/:tag/revision/:revision',
-      name: 'revision tag viewer',
+      path: '/viewer/:id/set/:set/revision/:revision',
+      name: 'revision set viewer',
       component: ViewerLoader,
       props: true,
       beforeEnter,

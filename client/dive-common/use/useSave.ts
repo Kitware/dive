@@ -59,7 +59,7 @@ export default function useSave(
 
   async function save(
     datasetMeta?: DatasetMetaMutable,
-    tag?: string,
+    set?: string,
   ) {
     if (readonlyMode.value) {
       throw new Error('attempted to save in read only mode');
@@ -83,7 +83,7 @@ export default function useSave(
             upsert: Array.from(pendingChangeMap.groupUpsert).map((pair) => pair[1].serialize()),
             delete: Array.from(pendingChangeMap.groupDelete),
           },
-          tag,
+          set,
         }).then(() => {
           pendingChangeMap.upsert.clear();
           pendingChangeMap.delete.clear();
