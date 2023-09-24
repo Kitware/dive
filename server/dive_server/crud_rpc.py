@@ -386,7 +386,11 @@ def _get_data_by_type(
 
 
 def process_items(
-    folder: types.GirderModel, user: types.GirderUserModel, additive=False, additivePrepend=''
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+    additive=False,
+    additivePrepend='',
+    set='',
 ):
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
@@ -441,6 +445,7 @@ def process_items(
                 upsert_groups=results['annotations']['groups'].values(),
                 overwrite=True,
                 description=f'Import {results["type"].name} from {file["name"]}',
+                set=set,
             )
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
@@ -455,6 +460,7 @@ def postprocess(
     skipTranscoding=False,
     additive=False,
     additivePrepend='',
+    set='',
 ) -> types.GirderModel:
     """
     Post-processing to be run after media/annotation import
@@ -570,7 +576,7 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user, additive, additivePrepend)
+    process_items(dsFolder, user, additive, additivePrepend, set)
     return dsFolder
 
 

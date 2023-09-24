@@ -124,10 +124,18 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .param(
+            "set",
+            "Custom set name for any annotations that are loaded",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend):
+    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend
+            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
         )
 
     @access.user

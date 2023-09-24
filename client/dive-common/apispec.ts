@@ -27,6 +27,7 @@ interface AnnotationSchemaList {
   version: number;
   tracks: TrackData[];
   groups: GroupData[];
+  sets: string[];
 }
 
 interface Pipe {
@@ -64,6 +65,7 @@ interface SaveDetectionsArgs {
     delete: AnnotationId[];
     upsert: GroupData[];
   };
+  set?: string;
 }
 
 interface SaveAttributeArgs {
@@ -165,7 +167,7 @@ interface Api {
   ): Promise<unknown>;
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
-  loadDetections(datasetId: string, revision?: number): Promise<AnnotationSchemaList>;
+  loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -180,7 +182,7 @@ interface Api {
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
   importAnnotationFile(id: string, path: string, file?: File,
-    additive?: boolean, additivePrepend?: string): Promise<boolean>;
+    additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean>;
 }
 const ApiSymbol = Symbol('api');
 

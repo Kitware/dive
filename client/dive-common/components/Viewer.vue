@@ -85,6 +85,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    currentSet: {
+      type: String,
+      default: '',
+    },
   },
   setup(props, ctx) {
     const { prompt } = usePrompt();
@@ -95,6 +99,8 @@ export default defineComponent({
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
+    const sets: Ref<string[]> = ref([]);
+    const selecteSet = ref('');
     const {
       aggregateController,
       onResize,
@@ -393,11 +399,21 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save() {
+    async function save(setVal?: string) {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
+      }
+      const saveSet = setVal === 'default' ? undefined : setVal;
+      // Need to mark all items as updated for any non-default sets
+      if (saveSet && setVal !== props.currentSet) {
+        const singleCam = cameraStore.camMap.value.get('singleCam');
+        if (singleCam) {
+          singleCam.trackStore.annotationMap.forEach((track) => {
+            markChangesPending({ action: 'upsert', track });
+          });
+        }
       }
       try {
         await saveToServer({
@@ -405,7 +421,7 @@ export default defineComponent({
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           // TODO Group confidence filters are not yet supported.
-        });
+        }, saveSet);
       } catch (err) {
         let text = 'Unable to Save Data';
         if (err.response && err.response.status === 403) {
@@ -447,6 +463,13 @@ export default defineComponent({
         });
       }
       return result;
+    }
+
+    async function handleSetChange(set: string) {
+      const guard = await navigateAwayGuard();
+      if (guard) {
+        ctx.emit('update:set', set);
+      }
     }
 
     const selectCamera = async (camera: string, editMode = false) => {
@@ -553,7 +576,17 @@ export default defineComponent({
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           // eslint-disable-next-line no-await-in-loop
-          const { tracks, groups } = await loadDetections(cameraId, props.revision);
+          const {
+            tracks,
+            groups,
+            sets: foundSets,
+            // eslint-disable-next-line no-await-in-loop
+          } = await loadDetections(cameraId, props.revision, props.currentSet);
+          sets.value = foundSets.filter((item) => item);
+          if (props.currentSet !== '' || sets.value.length > 0) {
+            sets.value.push('default');
+          }
+          selecteSet.value = props.currentSet ? props.currentSet : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -676,6 +709,7 @@ export default defineComponent({
       selectCamera,
       linkCameraTrack,
       unlinkCameraTrack,
+      setChange: handleSetChange,
     };
 
     const useAttributeFilters = {
@@ -705,6 +739,8 @@ export default defineComponent({
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
+        annotationSet: toRef(props, 'currentSet'),
+        annotationSets: sets,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -777,6 +813,9 @@ export default defineComponent({
       navigateAwayGuard,
       warnBrowserExit,
       reloadAnnotations,
+      // Annotation Sets,
+      sets,
+      selecteSet,
     };
   },
 });
@@ -791,6 +830,21 @@ export default defineComponent({
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
         {{ datasetName }}
+        <v-tooltip
+          v-if="currentSet || sets.length > 0"
+          bottom
+        >
+          <template v-slot:activator="{on}">
+            <v-chip
+              outlined
+              color="white"
+              small
+              v-on="on"
+              @click="context.toggle('AnnotationSets')"
+            > {{ currentSet || 'default' }}</v-chip>
+          </template>
+          <span>Custom Annotation Set.  Click to open the Annotation Set Settings</span>
+        </v-tooltip>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -858,11 +912,19 @@ export default defineComponent({
           vertical
           class="mx-2"
         />
-        <v-icon
-          @click="context.toggle()"
+        <v-tooltip
+          bottom
         >
-          {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
-        </v-icon>
+          <template v-slot:activator="{on}">
+            <v-icon
+              v-on="on"
+              @click="context.toggle()"
+            >
+              {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+            </v-icon>
+          </template>
+          <span>Menus for Advanced Tools/Settings</span>
+        </v-tooltip>
 
         <slot name="extension-right" />
       </template>
@@ -889,9 +951,11 @@ export default defineComponent({
               <v-btn
                 icon
                 :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                @click="save"
+                @click="save(currentSet)"
               >
-                <v-icon>mdi-content-save</v-icon>
+                <v-icon>
+                  mdi-content-save
+                </v-icon>
               </v-btn>
             </div>
           </v-badge>
@@ -1033,4 +1097,5 @@ html {
 .text-xs-center {
   text-align: center !important;
 }
+
 </style>
