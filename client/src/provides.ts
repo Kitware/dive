@@ -64,6 +64,12 @@ type ProgressType = Readonly<{ loaded: boolean }>;
 const RevisionIdSymbol = Symbol('revisionId');
 type RevisionIdType = Readonly<Ref<number>>;
 
+const AnnotationSetSymbol = Symbol('annotationSet');
+type AnnotationSetType = Readonly<Ref<string>>;
+
+const AnnotationSetsSymbol = Symbol('annotationSets');
+type AnnotationSetsType = Readonly<Ref<string[]>>;
+
 const SelectedCameraSymbol = Symbol('selectedCamera');
 type SelectedCameraType = Readonly<Ref<string>>;
 
@@ -101,7 +107,7 @@ const GroupFilterControlsSymbol = Symbol('groupFilters');
  */
 export interface Handler {
   /* Save pending changes to persistence layer */
-  save(): Promise<void>;
+  save(set?: string): Promise<void>;
   /* Select and seek to track */
   trackSeek(AnnotationId: AnnotationId): void;
   /* Toggle editing mode for track */
@@ -166,6 +172,7 @@ export interface Handler {
   linkCameraTrack(baseTrackId: AnnotationId, linkTrackId: AnnotationId, camera: string): void;
   startLinking(camera: string): void;
   stopLinking(): void;
+  setChange(set: string): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -206,7 +213,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
-
+    setChange(...args) { handle('setChange', args); },
   };
 }
 
@@ -229,6 +236,8 @@ export interface State {
   pendingSaveCount: pendingSaveCountType;
   progress: ProgressType;
   revisionId: RevisionIdType;
+  annotationSet: AnnotationSetType;
+  annotationSets: AnnotationSetsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -285,6 +294,8 @@ function dummyState(): State {
     pendingSaveCount: ref(0),
     progress: reactive({ loaded: true }),
     revisionId: ref(0),
+    annotationSet: ref(''),
+    annotationSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedCamera: ref('singleCam'),
@@ -326,6 +337,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(PendingSaveCountSymbol, state.pendingSaveCount);
   provide(ProgressSymbol, state.progress);
   provide(RevisionIdSymbol, state.revisionId);
+  provide(AnnotationSetSymbol, state.annotationSet);
+  provide(AnnotationSetsSymbol, state.annotationSets);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -404,6 +417,14 @@ function useRevisionId() {
   return use<RevisionIdType>(RevisionIdSymbol);
 }
 
+function useAnnotationSet() {
+  return use<AnnotationSetType>(AnnotationSetSymbol);
+}
+
+function useAnnotationSets() {
+  return use<AnnotationSetsType>(AnnotationSetsSymbol);
+}
+
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -461,6 +482,8 @@ export {
   usePendingSaveCount,
   useProgress,
   useRevisionId,
+  useAnnotationSet,
+  useAnnotationSets,
   useTrackFilters,
   useTrackStyleManager,
   useSelectedCamera,

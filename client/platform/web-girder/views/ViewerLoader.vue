@@ -18,6 +18,7 @@ import Export from './Export.vue';
 import Clone from './Clone.vue';
 import ViewerAlert from './ViewerAlert.vue';
 import RevisionHistory from './RevisionHistory.vue';
+import AnnotationSets from './AnnotationSets.vue';
 
 const buttonOptions = {
   text: true,
@@ -37,6 +38,11 @@ context.register({
   description: 'Revision History',
 });
 
+context.register({
+  component: AnnotationSets,
+  description: 'Annotation Sets',
+});
+
 /**
  * ViewerLoader is responsible for loading
  * data from girder.
@@ -53,6 +59,7 @@ export default defineComponent({
     RevisionHistory,
     SidebarContext,
     ViewerAlert,
+    AnnotationSets,
     ...context.getComponents(),
   },
 
@@ -62,6 +69,10 @@ export default defineComponent({
       required: true,
     },
     revision: {
+      type: String,
+      default: undefined,
+    },
+    set: {
       type: String,
       default: undefined,
     },
@@ -144,12 +155,35 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    function routeRevision(revisionId: number) {
-      ctx.root.$router.replace({
-        name: 'revision viewer',
-        params: { id: props.id, revision: revisionId.toString() },
-      });
+    function routeRevision(revisionId: number, set?: string) {
+      if (set && set !== 'default') {
+        ctx.root.$router.replace({
+          name: 'revision set viewer',
+          params: { id: props.id, revision: revisionId.toString(), set },
+        });
+      } else {
+        ctx.root.$router.replace({
+          name: 'revision viewer',
+          params: { id: props.id, revision: revisionId.toString() },
+        });
+      }
     }
+
+    function routeSet(set: string) {
+      if (set === 'default') {
+        ctx.root.$router.replace({
+          name: 'viewer',
+          params: { id: props.id },
+        });
+      } else {
+        ctx.root.$router.replace({
+          name: 'set viewer',
+          params: { id: props.id, set },
+        });
+      }
+      viewerRef.value.reloadAnnotations();
+    }
+
 
     async function largeImageWarning() {
       const result = await prompt({
@@ -179,6 +213,7 @@ export default defineComponent({
       currentJob,
       runningPipelines,
       routeRevision,
+      routeSet,
       largeImageWarning,
       typeList,
     };
@@ -192,8 +227,10 @@ export default defineComponent({
     :key="id"
     ref="viewerRef"
     :revision="revisionNum"
+    :current-set="set"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
     @large-image-warning="largeImageWarning()"
+    @update:set="routeSet"
   >
     <template #title>
       <ViewerAlert />

@@ -45,8 +45,22 @@ const router = new Router({
       beforeEnter,
     },
     {
+      path: '/viewer/:id/set/:set',
+      name: 'set viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
       path: '/viewer/:id/revision/:revision',
       name: 'revision viewer',
+      component: ViewerLoader,
+      props: true,
+      beforeEnter,
+    },
+    {
+      path: '/viewer/:id/set/:set/revision/:revision',
+      name: 'revision set viewer',
       component: ViewerLoader,
       props: true,
       beforeEnter,
