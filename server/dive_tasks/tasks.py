@@ -29,6 +29,7 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
         'configs': [],
         'default': None,
     },
+    'models': {},
 }
 
 # https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.csv

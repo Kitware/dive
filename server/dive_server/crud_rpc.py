@@ -103,12 +103,13 @@ def _load_dynamic_models(user: types.GirderUserModel) -> Dict[str, types.Trainin
                 if item['name'].endswith(extension):
                     is_training_model = True
                     match = extension
-            if is_training_model and not item['name'].startswith('embedded_'):
-                training_models[folder['name']] = {
+            if is_training_model and not item['name'].startswith('embedded_') and match:
+                model: types.TrainingModelDescription = {
                     "name": f"{folder['name']} - {item['name']}",
                     "type": match,
                     "folderId": str(folder["_id"]),
                 }
+                training_models[folder['name']] = model
     return training_models
 
 
