@@ -108,14 +108,14 @@ class Group(BaseAnnotation):
 
 class TrackItemSchema(Track):
     dataset: PydanticObjectId
-    tag: Optional[str]
+    set: Optional[str]
     rev_created: int = 0
     rev_deleted: Optional[int]
 
 
 class GroupItemSchema(Group):
     dataset: PydanticObjectId
-    tag: Optional[str]
+    set: Optional[str]
     rev_created: int = 0
     rev_deleted: Optional[int]
 
@@ -129,7 +129,7 @@ class RevisionLog(BaseModel):
     deletions: int = 0
     created: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str]
-    tag: Optional[str]
+    set: Optional[str]
 
 
 class NumericAttributeOptions(BaseModel):

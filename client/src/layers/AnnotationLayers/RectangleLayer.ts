@@ -14,7 +14,7 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
-  tag?: string;
+  set?: string;
   dashed?: boolean;
 }
 
@@ -99,7 +99,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     }
 
 
-    formatData(frameData: FrameDataTrack[], comparisonTags: string[] = []) {
+    formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
       const arr: RectGeoJSData[] = [];
       frameData.forEach((track: FrameDataTrack) => {
         if (track.features && track.features.bounds) {
@@ -109,10 +109,13 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
             hasPoly = filtered.length > 0;
           }
-          const dashed = !!(track.tag && comparisonTags?.includes(track.tag));
+          const dashed = !!(track.set && comparisonSets?.includes(track.set));
           if (dashed) {
             const temp = cloneDeep(polygon);
-            temp.coordinates[0] = LineLayer.dashLine(temp.coordinates[0]);
+            const width = track.features.bounds[2] - track.features.bounds[0];
+            const height = track.features.bounds[3] - track.features.bounds[1];
+            const dashSize = Math.min(width, height) / 20.0;
+            temp.coordinates[0] = LineLayer.dashLine(temp.coordinates[0], dashSize);
             polygon = temp;
           }
 
@@ -124,7 +127,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             styleType: track.styleType,
             polygon,
             hasPoly,
-            tag: track.tag,
+            set: track.set,
             dashed,
           };
           arr.push(annotation);
@@ -161,8 +164,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
-          if (data.tag) {
-            return this.typeStyling.value.fill(data.tag, true);
+          if (data.set) {
+            return this.typeStyling.value.fill(data.set, true);
           }
           if (data.styleType) {
             return this.typeStyling.value.fill(data.styleType[0]);
@@ -170,8 +173,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           return this.stateStyling.standard.fill;
         },
         fillColor: (_point, _index, data) => {
-          if (data.tag) {
-            return this.typeStyling.value.tagColor(data.tag);
+          if (data.set) {
+            return this.typeStyling.value.annotationSetColor(data.set);
           }
           if (data.styleType) {
             return this.typeStyling.value.color(data.styleType[0]);
@@ -179,8 +182,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
-          if (data.tag) {
-            return this.typeStyling.value.opacity(data.tag, true);
+          if (data.set) {
+            return this.typeStyling.value.opacity(data.set, true);
           }
           if (data.styleType) {
             return this.typeStyling.value.opacity(data.styleType[0]);

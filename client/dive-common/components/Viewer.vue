@@ -86,11 +86,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    currentTag: {
+    currentSet: {
       type: String,
       default: '',
     },
-    comparisonTags: {
+    comparisonSets: {
       type: Array as PropType<string[]>,
       default: () => [],
     },
@@ -104,11 +104,11 @@ export default defineComponent({
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode
-    || props.revision !== undefined || !!(props.comparisonTags && props.comparisonTags.length));
-    const tags: Ref<string[]> = ref([]);
-    const displayComparisons = ref(props.comparisonTags.length
-      ? props.comparisonTags.slice(0, 1) : props.comparisonTags);
-    const selectedTag = ref('');
+    || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
+    const sets: Ref<string[]> = ref([]);
+    const displayComparisons = ref(props.comparisonSets.length
+      ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
+    const selectedSet = ref('');
     const {
       aggregateController,
       onResize,
@@ -407,15 +407,15 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(tagVal?: string) {
+    async function save(setVal?: string) {
       // If editing the track, disable editing mode before save
       saveInProgress.value = true;
       if (editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
-      const saveTag = tagVal === 'default' ? undefined : tagVal;
-      // Need to mark all items as updated for any non-default tags
-      if (saveTag && tagVal !== props.currentTag) {
+      const saveSet = setVal === 'default' ? undefined : setVal;
+      // Need to mark all items as updated for any non-default sets
+      if (saveSet && setVal !== props.currentSet) {
         const singleCam = cameraStore.camMap.value.get('singleCam');
         if (singleCam) {
           singleCam.trackStore.annotationMap.forEach((track) => {
@@ -429,7 +429,7 @@ export default defineComponent({
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           // TODO Group confidence filters are not yet supported.
-        }, saveTag);
+        }, saveSet);
       } catch (err) {
         let text = 'Unable to Save Data';
         if (err.response && err.response.status === 403) {
@@ -473,10 +473,10 @@ export default defineComponent({
       return result;
     }
 
-    async function handleTagChange(tag: string) {
+    async function handleSetChange(set: string) {
       const guard = await navigateAwayGuard();
       if (guard) {
-        ctx.emit('update:tag', tag);
+        ctx.emit('update:set', set);
       }
     }
 
@@ -587,14 +587,14 @@ export default defineComponent({
           const {
             tracks,
             groups,
-            tags: foundTags,
+            sets: foundSets,
             // eslint-disable-next-line no-await-in-loop
-          } = await loadDetections(cameraId, props.revision, props.currentTag);
-          tags.value = foundTags.filter((item) => item);
-          if (props.currentTag !== '' || tags.value.length > 0) {
-            tags.value.push('default');
+          } = await loadDetections(cameraId, props.revision, props.currentSet);
+          sets.value = foundSets.filter((item) => item);
+          if (props.currentSet !== '' || sets.value.length > 0) {
+            sets.value.push('default');
           }
-          selectedTag.value = props.currentTag ? props.currentTag : 'default';
+          selectedSet.value = props.currentSet ? props.currentSet : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -604,9 +604,9 @@ export default defineComponent({
             if (tracks.length < 20000) {
               trackStore.setEnableSorting();
             }
-            let baseTag: string | undefined;
-            if (props.comparisonTags.length) {
-              baseTag = selectedTag.value;
+            let baseSet: string | undefined;
+            if (props.comparisonSets.length) {
+              baseSet = selectedSet.value;
             }
 
             for (let j = 0; j < tracks.length; j += 1) {
@@ -616,7 +616,7 @@ export default defineComponent({
                 // eslint-disable-next-line no-await-in-loop
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
-              trackStore.insert(Track.fromJSON(tracks[j], baseTag), { imported: true });
+              trackStore.insert(Track.fromJSON(tracks[j], baseSet), { imported: true });
             }
             for (let j = 0; j < groups.length; j += 1) {
               if (j % 4000 === 0) {
@@ -629,35 +629,35 @@ export default defineComponent({
             }
           }
           // Check if we load more data for comparions
-          if (props.comparisonTags.length) {
+          if (props.comparisonSets.length) {
             // Only compare one at a time
-            const firstTag = props.comparisonTags.slice(0, 1);
-            for (let tagIndex = 0; tagIndex < firstTag.length; tagIndex += 1) {
-              const loadingTag = firstTag[tagIndex] === 'default' ? undefined : firstTag[tagIndex];
+            const firstSet = props.comparisonSets.slice(0, 1);
+            for (let setIndex = 0; setIndex < firstSet.length; setIndex += 1) {
+              const loadingSet = firstSet[setIndex] === 'default' ? undefined : firstSet[setIndex];
               const {
-                tracks: tagTracks,
-                groups: tagGroups,
+                tracks: setTracks,
+                groups: setGroups,
                 // eslint-disable-next-line no-await-in-loop
-              } = await loadDetections(cameraId, props.revision, loadingTag);
-              progress.total = tagTracks.length + tagGroups.length;
+              } = await loadDetections(cameraId, props.revision, loadingSet);
+              progress.total = setTracks.length + setGroups.length;
               if (trackStore && groupStore) {
                 // We can start sorting if our total tracks are less than 20000
                 // If greater we do one sort at the end instead to speed loading.
                 if (tracks.length < 20000) {
                   trackStore.setEnableSorting();
                 }
-                for (let j = 0; j < tagTracks.length; j += 1) {
+                for (let j = 0; j < setTracks.length; j += 1) {
                   if (j % 4000 === 0) {
                     /* Every N tracks, yeild some cycles for other scheduled tasks */
                     progress.progress = j;
                     // eslint-disable-next-line no-await-in-loop
                     await new Promise((resolve) => window.setTimeout(resolve, 500));
                   }
-                  // We need to increment the trackIds for the new comparison tags
-                  tagTracks[j].id = trackStore.getNewId();
+                  // We need to increment the trackIds for the new comparison sets
+                  setTracks[j].id = trackStore.getNewId();
                   trackStore.insert(
-                    Track.fromJSON(tagTracks[j],
-                      firstTag[tagIndex]),
+                    Track.fromJSON(setTracks[j],
+                      firstSet[setIndex]),
                     { imported: true },
                   );
                 }
@@ -720,8 +720,8 @@ export default defineComponent({
       discardChanges();
       progress.loaded = false;
       await loadData();
-      displayComparisons.value = props.comparisonTags.length
-        ? props.comparisonTags.slice(0, 1) : props.comparisonTags;
+      displayComparisons.value = props.comparisonSets.length
+        ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
     };
 
     watch(datasetId, reloadAnnotations);
@@ -760,7 +760,7 @@ export default defineComponent({
       selectCamera,
       linkCameraTrack,
       unlinkCameraTrack,
-      tagChange: handleTagChange,
+      setChange: handleSetChange,
     };
 
     const useAttributeFilters = {
@@ -790,9 +790,9 @@ export default defineComponent({
         pendingSaveCount,
         progress,
         revisionId: toRef(props, 'revision'),
-        annotationTag: toRef(props, 'currentTag'),
-        annotationTags: tags,
-        comparisonTags: toRef(props, 'comparisonTags'),
+        annotationSet: toRef(props, 'currentSet'),
+        annotationSets: sets,
+        comparisonSets: toRef(props, 'comparisonSets'),
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -865,11 +865,11 @@ export default defineComponent({
       navigateAwayGuard,
       warnBrowserExit,
       reloadAnnotations,
-      // Annotation Tags,
-      tags,
-      selectedTag,
+      // Annotation Sets,
+      sets,
+      selectedSet,
       displayComparisons,
-      tagColor: trackStyleManager.typeStyling.value.tagColor,
+      annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
     };
   },
 });
@@ -885,20 +885,20 @@ export default defineComponent({
       >
         {{ datasetName }}
         <v-tooltip
-          v-if="currentTag || tags.length > 0 || comparisonTags.length"
+          v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
           <template v-slot:activator="{on}">
             <v-chip
               outlined
-              :color="tagColor(currentTag || 'default')"
+              :color="annotationSetColor(currentSet || 'default')"
               small
               v-on="on"
-              @click="context.toggle('AnnotationTags')"
-            > {{ currentTag || 'default' }}</v-chip>
+              @click="context.toggle('AnnotationSets')"
+            > {{ currentSet || 'default' }}</v-chip>
 
           </template>
-          <span>Custom Annotation Tag.  Click to open the Annotation Tag Settings</span>
+          <span>Custom Annotation Set.  Click to open the Annotation Set Settings</span>
         </v-tooltip>
         <span
           v-if="displayComparisons && displayComparisons.length"
@@ -915,11 +915,11 @@ export default defineComponent({
               class="pl-2"
               small
               outlined
-              :color="tagColor(displayComparisons[0] || 'default')"
+              :color="annotationSetColor(displayComparisons[0] || 'default')"
               v-on="onIcon"
             > {{ displayComparisons[0] }}</v-chip>
           </template>
-          Click on the {{ currentTag || 'default' }} chip to open the Comparison Menu
+          Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
         <div
           v-if="readonlyState"
@@ -1027,7 +1027,7 @@ export default defineComponent({
               <v-btn
                 icon
                 :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                @click="save(currentTag)"
+                @click="save(currentSet)"
               >
                 <v-icon>
                   mdi-content-save

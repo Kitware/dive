@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, toRef, watch } from '@vue/composition-api';
 import {
-  useAnnotationTag,
+  useAnnotationSet,
   useDatasetId, useHandler, usePendingSaveCount, useProgress, useRevisionId,
 } from 'vue-media-annotator/provides';
 import { loadRevisions, Revision } from 'platform/web-girder/api';
@@ -14,7 +14,7 @@ export default defineComponent({
   setup(_, ctx) {
     const saveCount = usePendingSaveCount();
     const datasetId = useDatasetId();
-    const currentTag = useAnnotationTag();
+    const currentSet = useAnnotationSet();
     const revisionId = useRevisionId();
     const progress = useProgress();
     const { reloadAnnotations } = useHandler();
@@ -24,12 +24,12 @@ export default defineComponent({
 
     async function loadNext() {
       await loadNextPage((l, o) => loadRevisions(
-        datasetId.value, l, o, undefined, currentTag.value,
+        datasetId.value, l, o, undefined, currentSet.value,
       ));
     }
 
     function checkout(id: number) {
-      ctx.emit('update:revision', id, currentTag.value);
+      ctx.emit('update:revision', id, currentSet.value);
       reloadAnnotations();
     }
 
@@ -121,13 +121,13 @@ export default defineComponent({
               <span>{{ revision.description }}</span>
             </v-tooltip>
           </v-list-item-title>
-          <v-list-item-title v-if="revision.tag">
+          <v-list-item-title v-if="revision.set">
             <v-chip
               small
               outlined
               color="red"
             >
-              {{ revision.tag }}
+              {{ revision.set }}
             </v-chip>
           </v-list-item-title>
           <v-list-item-subtitle>

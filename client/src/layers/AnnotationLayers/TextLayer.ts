@@ -12,7 +12,7 @@ export interface TextData {
   y: number;
   offsetY?: number;
   offsetX?: number;
-  tag?: string;
+  set?: string;
 }
 
 export type FormatTextRow = (
@@ -70,14 +70,14 @@ function defaultFormatter(
         y: bounds[1],
       });
     }
-    if (annotation.track.tag && confidencePairs.length) {
-      const { tag } = annotation.track;
+    if (annotation.track.set && confidencePairs.length) {
+      const { set } = annotation.track;
       let text = '';
       const [type, confidence] = confidencePairs[0];
       if (typeStyling) {
-        const { showLabel } = typeStyling.labelSettings(tag, true);
+        const { showLabel } = typeStyling.labelSettings(set, true);
         if (showLabel) {
-          text = tag;
+          text = set;
           arr.push({
             selected: annotation.selected,
             editing: annotation.editing,
@@ -87,7 +87,7 @@ function defaultFormatter(
             x: bounds[2],
             y: bounds[3],
             offsetX: 10,
-            tag,
+            set,
           });
         }
       }
@@ -142,8 +142,8 @@ export default class TextLayer extends BaseLayer<TextData> {
     return {
       ...baseStyle,
       color: (data) => {
-        if (data.tag) {
-          return this.typeStyling.value.tagColor(data.tag);
+        if (data.set) {
+          return this.typeStyling.value.annotationSetColor(data.set);
         }
         if (data.editing || data.selected) {
           if (!data.selected) {

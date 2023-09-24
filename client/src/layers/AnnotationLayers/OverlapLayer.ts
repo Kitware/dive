@@ -6,13 +6,13 @@ import { FrameDataTrack } from '../LayerTypes';
 interface OverlapJSData{
   type: string;
   polygon: GeoJSON.Polygon;
-  tag?: string;
+  set?: string;
 }
 
 interface ComparingBounds {
     bounds: RectBounds;
     type: string;
-    tag?: string;
+    set?: string;
 }
 
 function createOverlappingComparingBounds(comparingBounds: ComparingBounds[]): ComparingBounds[] {
@@ -21,7 +21,7 @@ function createOverlappingComparingBounds(comparingBounds: ComparingBounds[]): C
   for (let i = 0; i < comparingBounds.length; i += 1) {
     for (let j = i + 1; j < comparingBounds.length; j += 1) {
       if (comparingBounds[i].type !== comparingBounds[j].type
-        || comparingBounds[i].tag === comparingBounds[j].tag) {
+        || comparingBounds[i].set === comparingBounds[j].set) {
         // eslint-disable-next-line no-continue
         continue;
       }
@@ -37,7 +37,7 @@ function createOverlappingComparingBounds(comparingBounds: ComparingBounds[]): C
         overlappingBounds.push({
           bounds: [x1, y1, x2, y2],
           type: comparingBounds[i].type,
-          tag: comparingBounds[i].tag,
+          set: comparingBounds[i].set,
         });
       }
     }
@@ -76,7 +76,7 @@ export default class OverlapLayer extends BaseLayer<OverlapJSData> {
           comparingBounds.push({
             bounds: track.features.bounds,
             type: track.styleType[0],
-            tag: track.tag,
+            set: track.set,
           });
         }
       }

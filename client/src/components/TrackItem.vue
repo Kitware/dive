@@ -221,12 +221,12 @@ export default defineComponent({
         <span> {{ track.trackId }} </span>
       </v-tooltip>
       <v-chip
-        v-if="track.tag"
+        v-if="track.set"
         outlined
         x-small
-        :color="typeStyling.tagColor(track.tag)"
+        :color="typeStyling.annotationSetColor(track.set)"
       >
-        {{ track.tag }}
+        {{ track.set }}
       </v-chip>
 
       <v-spacer />

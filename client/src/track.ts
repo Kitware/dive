@@ -37,7 +37,7 @@ export interface TrackData extends BaseData {
 /* Constructor params for Track */
 interface TrackParams extends BaseAnnotationParams {
   features?: Array<Feature>;
-  tag?: string;
+  set?: string;
 }
 
 /**
@@ -54,9 +54,9 @@ export default class Track extends BaseAnnotation {
   featureIndex: number[];
 
   /**
-   * Tag used for when making comparisons between sets of tracks
+   * Set used for when making comparisons between sets of tracks
    */
-  tag?: string;
+  set?: string;
 
   constructor(id: AnnotationId, params: TrackParams) {
     super(id, params);
@@ -64,8 +64,8 @@ export default class Track extends BaseAnnotation {
     this.featureIndex = [];
     Track.sanityCheckFeatures(this.features);
     this.repopulateInterpolatedFrames(this.features);
-    if (params.tag) {
-      this.tag = params.tag;
+    if (params.set) {
+      this.set = params.set;
     }
   }
 
@@ -508,7 +508,7 @@ export default class Track extends BaseAnnotation {
     };
   }
 
-  static fromJSON(json: TrackData, tag?: string): Track {
+  static fromJSON(json: TrackData, set?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
       sparseFeatures[f.frame] = {
@@ -525,7 +525,7 @@ export default class Track extends BaseAnnotation {
       confidencePairs: json.confidencePairs,
       begin: json.begin,
       end: json.end,
-      tag,
+      set,
     });
     return track;
   }

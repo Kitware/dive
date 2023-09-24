@@ -12,7 +12,7 @@ from dive_utils import constants, fromMeta, models, types
 from dive_utils.serializers import viame
 
 DATASET = 'dataset'
-TAG = 'tag'
+SET = 'set'
 REVISION_DELETED = 'rev_deleted'
 REVISION_CREATED = 'rev_created'
 REVISION = 'revision'
@@ -30,18 +30,18 @@ class BaseItem(crud.PydanticModel):
         offset=0,
         sort=DEFAULT_ANNOTATION_SORT,
         revision: Optional[int] = None,
-        tag: Optional[int] = None,
+        set: Optional[int] = None,
     ) -> Cursor:
-        head: int = RevisionLogItem().latest(dsFolder) if revision is None else revision
+        head: int = RevisionLogItem().latest(dsFolder, set) if revision is None else revision
         query = {
             DATASET: dsFolder['_id'],
             REVISION_CREATED: {'$lte': head},
             '$or': [{REVISION_DELETED: {'$gt': head}}, {REVISION_DELETED: {'$exists': False}}],
         }
-        if tag:
-            query[TAG] = tag
+        if set:
+            query[SET] = set
         else:
-            query[TAG] = None
+            query[SET] = None
         return self.find(
             offset=offset, limit=limit, sort=sort, query=query, fields=self.PROJECT_FIELDS
         )
@@ -84,8 +84,10 @@ class RevisionLogItem(crud.PydanticModel):
         ]
         super().initialize("revisionLogItem", models.RevisionLog)
 
-    def latest(self, dsFolder: types.GirderModel) -> int:
+    def latest(self, dsFolder: types.GirderModel, set: Optional[str] = None) -> int:
         query = {DATASET: dsFolder['_id']}
+        if set:
+            query[SET] = set
         result = self.findOne(query, sort=[[REVISION, pymongo.DESCENDING]]) or {}
         return result.get(REVISION, 0)  # Revision 0 is always the empty revision
 
@@ -96,15 +98,15 @@ class RevisionLogItem(crud.PydanticModel):
         offset=0,
         sort=DEFAULT_REVISION_SORT,
         before: Optional[int] = None,
-        tag: Optional[str] = None,
+        set: Optional[str] = None,
     ) -> Tuple[Cursor, int]:
         query: dict = {DATASET: dsFolder['_id']}
         if before is not None:
             query[REVISION] = {'$lte': before}
-        if tag:
-            query[TAG] = tag
+        if set:
+            query[SET] = set
         else:
-            query[TAG] = None
+            query[SET] = None
         cursor = self.find(
             offset=offset,
             limit=limit,
@@ -115,7 +117,7 @@ class RevisionLogItem(crud.PydanticModel):
         total = self.find(query=query).count()
         return cursor, total
 
-    def tags(
+    def sets(
         self,
         dsFolder: types.GirderModel,
         limit=0,
@@ -129,7 +131,7 @@ class RevisionLogItem(crud.PydanticModel):
             sort=sort,
             query=query,
             fields=RevisionLogItem.PROJECT_FIELDS,
-        ).distinct(TAG)
+        ).distinct(SET)
         return cursor
 
 
@@ -197,7 +199,7 @@ class GroupUpdateArgs(BaseModel):
 class AnnotationUpdateArgs(BaseModel):
     tracks: TrackUpdateArgs = Field(default_factory=TrackUpdateArgs)
     groups: GroupUpdateArgs = Field(default_factory=GroupUpdateArgs)
-    tag: Optional[str]
+    set: Optional[str]
 
     class Config:
         extra = 'ignore'
@@ -212,7 +214,7 @@ def save_annotations(
     delete_groups: Optional[Iterable[int]] = None,
     description="save",
     overwrite=False,
-    tag='',
+    set='',
 ):
     """
     Annotations are lazy-deleted by marking their staleness property as true.
@@ -234,7 +236,7 @@ def save_annotations(
         collection: crud.PydanticModel,
         upsert_list: Iterable[dict],
         delete_list: Iterable[int],
-        tag: Optional[str] = None,
+        set: Optional[str] = None,
     ):
         expire_operations = []  # Mark existing records as deleted
         expire_result = {}
@@ -243,23 +245,23 @@ def save_annotations(
 
         if overwrite:
             query = {DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-            if tag:
-                query[TAG] = tag
+            if set:
+                query[SET] = set
             expire_result = collection.collection.bulk_write(
                 [pymongo.UpdateMany(query, delete_annotation_update)]
             ).bulk_api_result
 
         for id in delete_list:
             filter = {IDENTIFIER: id, DATASET: datasetId, REVISION_DELETED: {'$exists': False}}
-            if tag:
-                filter[TAG] = tag
+            if set:
+                filter[SET] = set
             # UpdateMany for safety, UpdateOne would also work
             expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
 
         for newdict in upsert_list:
             update_dict = {DATASET: datasetId, REVISION_CREATED: new_revision}
-            if tag:
-                update_dict[TAG] = tag
+            if set:
+                update_dict[SET] = set
             newdict.update(update_dict)
             newdict.pop(REVISION_DELETED, None)
             filter = {
@@ -267,8 +269,8 @@ def save_annotations(
                 DATASET: datasetId,
                 REVISION_DELETED: {'$exists': False},
             }
-            if tag:
-                filter[TAG] = tag
+            if set:
+                filter[SET] = set
             if not overwrite:
                 # UpdateMany for safety, UpdateOne would also work
                 expire_operations.append(pymongo.UpdateMany(filter, delete_annotation_update))
@@ -289,10 +291,10 @@ def save_annotations(
         return additions, deletions
 
     track_additions, track_deletions = update_collection(
-        TrackItem(), upsert_tracks, delete_tracks, tag
+        TrackItem(), upsert_tracks, delete_tracks, set
     )
     group_additions, group_deletions = update_collection(
-        GroupItem(), upsert_groups, delete_groups, tag
+        GroupItem(), upsert_groups, delete_groups, set
     )
     additions = track_additions + group_additions
     deletions = track_deletions + group_deletions
@@ -307,7 +309,7 @@ def save_annotations(
             additions=additions,
             deletions=deletions,
             description=description,
-            tag=tag,
+            set=set,
         )
         RevisionLogItem().create(log_entry)
 
@@ -332,7 +334,7 @@ def clone_annotations(
 
 
 def get_annotations(
-    dataset: types.GirderModel, revision: Optional[int] = None, tag: Optional[str] = None
+    dataset: types.GirderModel, revision: Optional[int] = None, set: Optional[str] = None
 ):
     """Get the DIVE json annotation file as a dict"""
     tracks = TrackItem().list(dataset, revision=revision)
@@ -356,9 +358,9 @@ def add_annotations(
     new_tracks: dict,
     prepend='',
     revision: Optional[int] = None,
-    tag: Optional[str] = None,
+    set: Optional[str] = None,
 ):
-    tracks = TrackItem().list(dataset, revision=revision, tag=tag)
+    tracks = TrackItem().list(dataset, revision=revision, set=set)
     annotations: types.DIVEAnnotationSchema = {
         'tracks': {},
         'groups': {},

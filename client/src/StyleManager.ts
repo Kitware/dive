@@ -32,12 +32,12 @@ export interface CustomStyle {
 }
 
 export interface TypeStyling {
-  color: (type: string, tag?: boolean) => string;
-  strokeWidth: (type: string, tag?: boolean) => number;
-  fill: (type: string, tag?: boolean) => boolean;
-  opacity: (type: string, tag?: boolean) => number;
-  labelSettings: (type: string, tag?: boolean) => { showLabel: boolean; showConfidence: boolean };
-  tagColor: (tag: string) => string;
+  color: (type: string, set?: boolean) => string;
+  strokeWidth: (type: string, set?: boolean) => number;
+  fill: (type: string, set?: boolean) => boolean;
+  opacity: (type: string, set?: boolean) => number;
+  labelSettings: (type: string, set?: boolean) => { showLabel: boolean; showConfidence: boolean };
+  annotationSetColor: (set: string) => string;
 }
 
 interface UseStylingParams {
@@ -91,7 +91,7 @@ const defaultStaticStyles: Record<string, CustomStyle> = {
   },
 };
 
-const defaultTagStaticStyles: Record<string, CustomStyle> = {
+const defaultSetStaticStyles: Record<string, CustomStyle> = {
 };
 
 export default class StyleManager {
@@ -104,7 +104,7 @@ export default class StyleManager {
 
   customStyles: Ref<Record<string, CustomStyle>>;
 
-  tagStyles: Ref<Record<string, CustomStyle>>;
+  annotationSetStyles: Ref<Record<string, CustomStyle>>;
 
   stateStyles: StateStyles;
 
@@ -117,7 +117,7 @@ export default class StyleManager {
   constructor({ markChangesPending, vuetify }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
-    this.tagStyles = ref({} as Record<string, CustomStyle>);
+    this.annotationSetStyles = ref({} as Record<string, CustomStyle>);
     // Annotation State Colors
     const standard: Style = {
       strokeWidth: 3,
@@ -148,11 +148,11 @@ export default class StyleManager {
       // establish dependency on revision counter
       if (this.revisionCounter.value) noop();
       const _customStyles = this.customStyles.value;
-      const _tagStyles = this.tagStyles.value;
+      const _annotationSetStyles = this.annotationSetStyles.value;
       return {
-        color: (type: string, tag?: boolean) => {
-          if (tag && _tagStyles[type] && _tagStyles[type].color) {
-            return _tagStyles[type].color;
+        color: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
+            return _annotationSetStyles[type].color;
           }
 
           if (_customStyles[type] && _customStyles[type].color) {
@@ -163,44 +163,44 @@ export default class StyleManager {
           }
           return this.typeColors(type);
         },
-        tagColor: (tag: string) => {
-          if (!tag) {
+        annotationSetColor: (set: string) => {
+          if (!set) {
             return 'white';
-          } if (tag === 'default') {
+          } if (set === 'default') {
             return 'yellow';
-          } if (['groundTruth', 'GT', 'ground_truth', 'Groundtruth', 'GroundTruth', 'gt'].includes(tag)) {
+          } if (['groundTruth', 'GT', 'ground_truth', 'Groundtruth', 'GroundTruth', 'gt'].includes(set)) {
             return 'green';
           }
-          return this.typeColors(tag);
+          return this.typeColors(set);
         },
-        strokeWidth: (type: string, tag?: boolean) => {
-          if (tag && _tagStyles[type] && _tagStyles[type].strokeWidth) {
-            return _tagStyles[type].strokeWidth;
+        strokeWidth: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].strokeWidth) {
+            return _annotationSetStyles[type].strokeWidth;
           }
           if (_customStyles[type] && _customStyles[type].strokeWidth) {
             return _customStyles[type].strokeWidth;
           }
           return this.stateStyles.standard.strokeWidth;
         },
-        fill: (type: string, tag?: boolean) => {
-          if (tag && _tagStyles[type] && _tagStyles[type].fill !== undefined) {
-            return _tagStyles[type].fill;
+        fill: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].fill !== undefined) {
+            return _annotationSetStyles[type].fill;
           }
           if (_customStyles[type] && _customStyles[type].fill !== undefined) {
             return _customStyles[type].fill;
           }
           return this.stateStyles.standard.fill;
         },
-        opacity: (type: string, tag?: boolean) => {
-          if (tag && _tagStyles[type] && _tagStyles[type].opacity) {
-            return _tagStyles[type].opacity;
+        opacity: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
+            return _annotationSetStyles[type].opacity;
           }
           if (_customStyles[type] && _customStyles[type].opacity) {
             return _customStyles[type].opacity;
           }
           return this.stateStyles.standard.opacity;
         },
-        labelSettings: (type: string, tag?: boolean) => {
+        labelSettings: (type: string, set?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {
             if (typeof (_customStyles[type].showLabel) === 'boolean') {
@@ -210,12 +210,12 @@ export default class StyleManager {
               showConfidence = _customStyles[type].showConfidence as boolean;
             }
           }
-          if (tag && _tagStyles[type]) {
-            if (typeof (_tagStyles[type].showLabel) === 'boolean') {
-              showLabel = _tagStyles[type].showLabel as boolean;
+          if (set && _annotationSetStyles[type]) {
+            if (typeof (_annotationSetStyles[type].showLabel) === 'boolean') {
+              showLabel = _annotationSetStyles[type].showLabel as boolean;
             }
-            if (typeof (_tagStyles[type].showConfidence) === 'boolean') {
-              showConfidence = _tagStyles[type].showConfidence as boolean;
+            if (typeof (_annotationSetStyles[type].showConfidence) === 'boolean') {
+              showConfidence = _annotationSetStyles[type].showConfidence as boolean;
             }
           }
           return { showLabel, showConfidence };
@@ -233,7 +233,7 @@ export default class StyleManager {
     } else {
       this.customStyles.value = defaultStaticStyles;
     }
-    this.tagStyles.value = defaultTagStaticStyles;
+    this.annotationSetStyles.value = defaultSetStaticStyles;
   }
 
   updateTypeStyle(args: {

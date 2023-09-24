@@ -37,7 +37,7 @@ import {
   useCameraStore,
   useSelectedCamera,
   useAttributes,
-  useComparisonTags,
+  useComparisonSets,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -65,7 +65,7 @@ export default defineComponent({
     const handler = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
-    const comparison = useComparisonTags();
+    const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
     const attributes = useAttributes();
@@ -225,7 +225,7 @@ export default defineComponent({
               groups,
               features,
               styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
-              tag: track.tag,
+              set: track.set,
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
