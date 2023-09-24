@@ -102,12 +102,12 @@ export default abstract class BaseLayer<D> {
 
     abstract redraw(): void;
 
-    changeData(frameData: FrameDataTrack[]) {
-      this.formattedData = this.formatData(frameData);
+    changeData(frameData: FrameDataTrack[], comparisons: string[] = []) {
+      this.formattedData = this.formatData(frameData, comparisons);
       this.redraw();
     }
 
-    abstract formatData(frameData: FrameDataTrack[]): D[];
+    abstract formatData(frameData: FrameDataTrack[], comparisons: string[]): D[];
 
     createStyle(): LayerStyle<D> {
       return {

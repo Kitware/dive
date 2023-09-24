@@ -10,6 +10,7 @@ import PolygonLayer from '../layers/AnnotationLayers/PolygonLayer';
 import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
+import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
@@ -36,6 +37,7 @@ import {
   useCameraStore,
   useSelectedCamera,
   useAttributes,
+  useComparisonSets,
 } from '../provides';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
@@ -63,6 +65,7 @@ export default defineComponent({
     const handler = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
     const attributes = useAttributes();
@@ -94,6 +97,12 @@ export default defineComponent({
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     });
+    const overlapLayer = new OverlapLayer({
+      annotator,
+      stateStyling: trackStyleManager.stateStyles,
+      typeStyling: typeStylingRef,
+    });
+
     const polyAnnotationLayer = new PolygonLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
@@ -216,6 +225,7 @@ export default defineComponent({
               groups,
               features,
               styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
+              set: track.set,
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
@@ -240,7 +250,10 @@ export default defineComponent({
       if (visibleModes.includes('rectangle')) {
         //We modify rects opacity/thickness if polygons are visible or not
         rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
-        rectAnnotationLayer.changeData(frameData);
+        rectAnnotationLayer.changeData(frameData, comparison.value);
+        if (comparison.value.length) {
+          overlapLayer.changeData(frameData);
+        }
       } else {
         rectAnnotationLayer.disable();
       }

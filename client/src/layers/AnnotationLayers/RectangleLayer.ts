@@ -1,9 +1,11 @@
 /* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
 
+import { cloneDeep } from 'lodash';
 import { boundToGeojson } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
+import LineLayer from './LineLayer';
 
 interface RectGeoJSData{
   trackId: number;
@@ -12,6 +14,8 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  set?: string;
+  dashed?: boolean;
 }
 
 
@@ -95,16 +99,27 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     }
 
 
-    formatData(frameData: FrameDataTrack[]) {
+    formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
       const arr: RectGeoJSData[] = [];
       frameData.forEach((track: FrameDataTrack) => {
         if (track.features && track.features.bounds) {
-          const polygon = boundToGeojson(track.features.bounds);
+          let polygon = boundToGeojson(track.features.bounds);
           let hasPoly = false;
           if (track.features.geometry?.features) {
             const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
             hasPoly = filtered.length > 0;
           }
+          const dashed = !!(track.set && comparisonSets?.includes(track.set));
+          if (dashed) {
+            const temp = cloneDeep(polygon);
+            const width = track.features.bounds[2] - track.features.bounds[0];
+            const height = track.features.bounds[3] - track.features.bounds[1];
+            const dashSize = Math.min(width, height) / 20.0;
+            temp.coordinates[0] = LineLayer.dashLine(temp.coordinates[0], dashSize);
+            polygon = temp;
+          }
+
+
           const annotation: RectGeoJSData = {
             trackId: track.track.id,
             selected: track.selected,
@@ -112,6 +127,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
             styleType: track.styleType,
             polygon,
             hasPoly,
+            set: track.set,
+            dashed,
           };
           arr.push(annotation);
         }
@@ -147,18 +164,27 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           return this.typeStyling.value.color('');
         },
         fill: (data) => {
+          if (data.set) {
+            return this.typeStyling.value.fill(data.set, true);
+          }
           if (data.styleType) {
             return this.typeStyling.value.fill(data.styleType[0]);
           }
           return this.stateStyling.standard.fill;
         },
         fillColor: (_point, _index, data) => {
+          if (data.set) {
+            return this.typeStyling.value.annotationSetColor(data.set);
+          }
           if (data.styleType) {
             return this.typeStyling.value.color(data.styleType[0]);
           }
           return this.typeStyling.value.color('');
         },
         fillOpacity: (_point, _index, data) => {
+          if (data.set) {
+            return this.typeStyling.value.opacity(data.set, true);
+          }
           if (data.styleType) {
             return this.typeStyling.value.opacity(data.styleType[0]);
           }
@@ -166,6 +192,11 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         },
         strokeOpacity: (_point, _index, data) => {
         // Reduce the rectangle opacity if a polygon is also drawn
+          if (_index % 2 === 1 && data.dashed) {
+            return 0.0;
+          }
+
+
           if (this.drawingOther && data.hasPoly) {
             return this.stateStyling.disabled.opacity;
           }

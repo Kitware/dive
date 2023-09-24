@@ -6,7 +6,7 @@ import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
 import TypePicker from './TypePicker.vue';
 import {
-  useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore,
+  useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore, useTrackStyleManager,
 } from '../provides';
 import Track from '../track';
 
@@ -66,6 +66,7 @@ export default defineComponent({
     const allTypesRef = trackFilters.allTypes;
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
+    const { typeStyling } = useTrackStyleManager();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
     /**
      * Use of revision is safe because it will only create a
@@ -170,6 +171,7 @@ export default defineComponent({
       toggleInterpolation,
       toggleKeyframe,
       setTrackType,
+      typeStyling,
     };
   },
 });
@@ -183,6 +185,7 @@ export default defineComponent({
     <v-row
       class="pt-2 justify-center item-row"
       no-gutters
+      align="center"
     >
       <div
         v-if="solo"
@@ -217,6 +220,15 @@ export default defineComponent({
         </template>
         <span> {{ track.trackId }} </span>
       </v-tooltip>
+      <v-chip
+        v-if="track.set"
+        outlined
+        x-small
+        :color="typeStyling.annotationSetColor(track.set)"
+      >
+        {{ track.set }}
+      </v-chip>
+
       <v-spacer />
       <TypePicker
         :value="trackType"

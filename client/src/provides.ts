@@ -70,6 +70,9 @@ type AnnotationSetType = Readonly<Ref<string>>;
 const AnnotationSetsSymbol = Symbol('annotationSets');
 type AnnotationSetsType = Readonly<Ref<string[]>>;
 
+const ComparisonSetsSymbol = Symbol('comparisonSets');
+type ComparisonSetsType = Readonly<Ref<string[]>>;
+
 const SelectedCameraSymbol = Symbol('selectedCamera');
 type SelectedCameraType = Readonly<Ref<string>>;
 
@@ -238,6 +241,7 @@ export interface State {
   revisionId: RevisionIdType;
   annotationSet: AnnotationSetType;
   annotationSets: AnnotationSetsType;
+  comparisonSets: ComparisonSetsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -296,6 +300,7 @@ function dummyState(): State {
     revisionId: ref(0),
     annotationSet: ref(''),
     annotationSets: ref([]),
+    comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedCamera: ref('singleCam'),
@@ -339,6 +344,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(RevisionIdSymbol, state.revisionId);
   provide(AnnotationSetSymbol, state.annotationSet);
   provide(AnnotationSetsSymbol, state.annotationSets);
+  provide(ComparisonSetsSymbol, state.comparisonSets);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -425,6 +431,10 @@ function useAnnotationSets() {
   return use<AnnotationSetsType>(AnnotationSetsSymbol);
 }
 
+function useComparisonSets() {
+  return use<ComparisonSetsType>(ComparisonSetsSymbol);
+}
+
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -484,6 +494,7 @@ export {
   useRevisionId,
   useAnnotationSet,
   useAnnotationSets,
+  useComparisonSets,
   useTrackFilters,
   useTrackStyleManager,
   useSelectedCamera,
