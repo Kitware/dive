@@ -6,9 +6,6 @@ import click
 import girder_client
 
 # TODO
-# Upload annotations
-# -validate file
-# -upload annotation file
 # Update existing folder
 #  - require id
 # -update/overwrite
