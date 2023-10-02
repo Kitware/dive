@@ -1,6 +1,7 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject, nextTick, onBeforeUnmount,
+  defineComponent, ref, toRef, computed, Ref,
+  reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
 } from '@vue/composition-api';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -89,6 +90,10 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    comparisonSets: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
   },
   setup(props, ctx) {
     const { prompt } = usePrompt();
@@ -98,9 +103,12 @@ export default defineComponent({
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
-    const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
+    const readonlyState = computed(() => props.readOnlyMode
+    || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
     const sets: Ref<string[]> = ref([]);
-    const selecteSet = ref('');
+    const displayComparisons = ref(props.comparisonSets.length
+      ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
+    const selectedSet = ref('');
     const {
       aggregateController,
       onResize,
@@ -586,7 +594,7 @@ export default defineComponent({
           if (props.currentSet !== '' || sets.value.length > 0) {
             sets.value.push('default');
           }
-          selecteSet.value = props.currentSet ? props.currentSet : 'default';
+          selectedSet.value = props.currentSet ? props.currentSet : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -596,6 +604,11 @@ export default defineComponent({
             if (tracks.length < 20000) {
               trackStore.setEnableSorting();
             }
+            let baseSet: string | undefined;
+            if (props.comparisonSets.length) {
+              baseSet = selectedSet.value;
+            }
+
             for (let j = 0; j < tracks.length; j += 1) {
               if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
@@ -603,7 +616,7 @@ export default defineComponent({
                 // eslint-disable-next-line no-await-in-loop
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
-              trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+              trackStore.insert(Track.fromJSON(tracks[j], baseSet), { imported: true });
             }
             for (let j = 0; j < groups.length; j += 1) {
               if (j % 4000 === 0) {
@@ -613,6 +626,42 @@ export default defineComponent({
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
               groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
+            }
+          }
+          // Check if we load more data for comparions
+          if (props.comparisonSets.length) {
+            // Only compare one at a time
+            const firstSet = props.comparisonSets.slice(0, 1);
+            for (let setIndex = 0; setIndex < firstSet.length; setIndex += 1) {
+              const loadingSet = firstSet[setIndex] === 'default' ? undefined : firstSet[setIndex];
+              const {
+                tracks: setTracks,
+                groups: setGroups,
+                // eslint-disable-next-line no-await-in-loop
+              } = await loadDetections(cameraId, props.revision, loadingSet);
+              progress.total = setTracks.length + setGroups.length;
+              if (trackStore && groupStore) {
+                // We can start sorting if our total tracks are less than 20000
+                // If greater we do one sort at the end instead to speed loading.
+                if (tracks.length < 20000) {
+                  trackStore.setEnableSorting();
+                }
+                for (let j = 0; j < setTracks.length; j += 1) {
+                  if (j % 4000 === 0) {
+                    /* Every N tracks, yeild some cycles for other scheduled tasks */
+                    progress.progress = j;
+                    // eslint-disable-next-line no-await-in-loop
+                    await new Promise((resolve) => window.setTimeout(resolve, 500));
+                  }
+                  // We need to increment the trackIds for the new comparison sets
+                  setTracks[j].id = trackStore.getNewId();
+                  trackStore.insert(
+                    Track.fromJSON(setTracks[j],
+                      firstSet[setIndex]),
+                    { imported: true },
+                  );
+                }
+              }
             }
           }
         }
@@ -671,6 +720,8 @@ export default defineComponent({
       discardChanges();
       progress.loaded = false;
       await loadData();
+      displayComparisons.value = props.comparisonSets.length
+        ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
     };
 
     watch(datasetId, reloadAnnotations);
@@ -741,6 +792,7 @@ export default defineComponent({
         revisionId: toRef(props, 'revision'),
         annotationSet: toRef(props, 'currentSet'),
         annotationSets: sets,
+        comparisonSets: toRef(props, 'comparisonSets'),
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -815,7 +867,9 @@ export default defineComponent({
       reloadAnnotations,
       // Annotation Sets,
       sets,
-      selecteSet,
+      selectedSet,
+      displayComparisons,
+      annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
     };
   },
 });
@@ -831,19 +885,41 @@ export default defineComponent({
       >
         {{ datasetName }}
         <v-tooltip
-          v-if="currentSet || sets.length > 0"
+          v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
           <template v-slot:activator="{on}">
             <v-chip
               outlined
-              color="white"
+              :color="annotationSetColor(currentSet || 'default')"
               small
               v-on="on"
               @click="context.toggle('AnnotationSets')"
             > {{ currentSet || 'default' }}</v-chip>
+
           </template>
           <span>Custom Annotation Set.  Click to open the Annotation Set Settings</span>
+        </v-tooltip>
+        <span
+          v-if="displayComparisons && displayComparisons.length"
+          style="font-size:small"
+          class="px-2"
+        > Comparing: </span>
+
+        <v-tooltip
+          v-if="displayComparisons && displayComparisons.length"
+          bottom
+        >
+          <template v-slot:activator="{on: onIcon}">
+            <v-chip
+              class="pl-2"
+              small
+              outlined
+              :color="annotationSetColor(displayComparisons[0] || 'default')"
+              v-on="onIcon"
+            > {{ displayComparisons[0] }}</v-chip>
+          </template>
+          Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
         <div
           v-if="readonlyState"
