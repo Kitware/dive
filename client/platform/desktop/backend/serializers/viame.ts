@@ -338,10 +338,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           dataMap.set(track.id, track);
         });
       } else if (missingImages.length === 0 && foundImages.length && multiFrameTracks) {
+        foundImages.sort((a, b) => a.csvFrame - b.csvFrame); // Sort to frame
         for (let i = 0; i < foundImages.length; i += 1) {
           const k = i + 1;
           if (k < foundImages.length) {
-            if (foundImages[i].csvFrame + 1 !== foundImages[k].csvFrame || foundImages[i].frame + 1 !== foundImages[k].frame) {
+            if (foundImages[i].csvFrame > foundImages[k].csvFrame || foundImages[i].frame > foundImages[k].frame) {
             // We have misaligned video sequences so we error out
               error = new Error('Images were provided in an unexpected order and dataset contains multi-frame tracks.');
             }
