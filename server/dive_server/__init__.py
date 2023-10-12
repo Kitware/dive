@@ -14,7 +14,7 @@ from dive_utils import constants
 
 from .client_webroot import ClientWebroot
 from .crud_annotation import GroupItem, RevisionLogItem, TrackItem
-from .event import process_fs_import, process_s3_import, send_new_user_email
+from .event import DIVES3Imports, process_fs_import, process_s3_import, send_new_user_email
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
@@ -52,6 +52,18 @@ class GirderPlugin(plugin.GirderPlugin):
         )
         info["serverRoot"].api = info["serverRoot"].girder.api
 
+        diveS3Import = DIVES3Imports()
+        events.bind(
+            "rest.post.assetstore/:id/import.before",
+            "process_s3_import_before",
+            diveS3Import.process_s3_import_before,
+        )
+
+        events.bind(
+            "rest.post.assetstore/:id/import.after",
+            "process_s3_import_after",
+            diveS3Import.process_s3_import_after,
+        )
         events.bind(
             "filesystem_assetstore_imported",
             "process_fs_import",
