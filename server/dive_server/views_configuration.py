@@ -76,7 +76,12 @@ class ConfigurationResource(Resource):
         static_job_configs: types.AvailableJobSchema = (
             Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or {}
         )
-        return static_job_configs.get('training', {})
+        model_configs = crud_rpc.load_training_configs(self.getCurrentUser())
+        training_configs = {
+            "training": static_job_configs.get('training', {}),
+            "models": model_configs,
+        }
+        return training_configs
 
     @access.admin
     @autoDescribeRoute(

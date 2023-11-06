@@ -161,6 +161,13 @@ export interface RunTraining {
   annotatedFramesOnly: boolean;
   // contents of labels.txt file
   labelText?: string;
+  // fine tuning model
+  fineTuneModel?: {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  };
 }
 
 export interface ConversionArgs {

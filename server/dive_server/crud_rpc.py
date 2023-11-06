@@ -18,6 +18,7 @@ import pymongo
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 
 from . import crud_dataset
@@ -26,6 +27,7 @@ from . import crud_dataset
 class RunTrainingArgs(BaseModel):
     folderIds: List[str]
     labelText: Optional[str]
+    fineTuneModel: Optional[types.TrainingModelTuneArgs]
 
 
 def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
@@ -87,6 +89,30 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     return pipelines
 
 
+def _load_dynamic_models(user: types.GirderUserModel) -> Dict[str, types.TrainingModelDescription]:
+    """Add any additional dynamic models to the existing training models list."""
+    training_models: Dict[str, types.TrainingModelDescription] = {}
+    for folder in Folder().findWithPermissions(
+        query={f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}},
+        user=user,
+    ):
+        for item in Folder().childItems(folder):
+            is_training_model = False
+            match = None
+            for extension in TrainingModelExtensions:
+                if item['name'].endswith(extension):
+                    is_training_model = True
+                    match = extension
+            if is_training_model and not item['name'].startswith('embedded_') and match:
+                model: types.TrainingModelDescription = {
+                    "name": f"{folder['name']} - {item['name']}",
+                    "type": match,
+                    "folderId": str(folder["_id"]),
+                }
+                training_models[folder['name']] = model
+    return training_models
+
+
 def load_pipelines(user: types.GirderUserModel) -> Dict[str, types.PipelineCategory]:
     """Load all static and dynamic pipelines"""
     static_job_configs: types.AvailableJobSchema = (
@@ -96,6 +122,17 @@ def load_pipelines(user: types.GirderUserModel) -> Dict[str, types.PipelineCateg
     dynamic_pipelines = _load_dynamic_pipelines(user)
     static_pipelines.update(dynamic_pipelines)
     return static_pipelines
+
+
+def load_training_configs(user: types.GirderUserModel) -> Dict[str, types.TrainingModelDescription]:
+    static_job_configs: types.AvailableJobSchema = (
+        Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or tasks.EMPTY_JOB_SCHEMA
+    )
+    static_models = static_job_configs.get('models', {})
+    dynamic_models = _load_dynamic_models(user)
+    print(dynamic_models)
+    static_models.update(dynamic_models)
+    return static_models
 
 
 def verify_pipe(user: types.GirderUserModel, pipeline: types.PipelineDescription):
@@ -246,6 +283,14 @@ def run_training(
         raise RestException(
             f'Output pipeline "{pipelineName}" already exists, please choose a different name'
         )
+    fineTuneModel = None
+    if bodyParams.fineTuneModel:
+        fineTuneModel = {
+            'name': bodyParams.fineTuneModel.name,
+            'type': bodyParams.fineTuneModel.type,
+            'path': bodyParams.fineTuneModel.path,
+            'folderId': bodyParams.fineTuneModel.folderId,
+        }
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
@@ -254,6 +299,7 @@ def run_training(
         'config': config,
         'annotated_frames_only': annotatedFramesOnly,
         'label_txt': bodyParams.labelText,
+        'model': fineTuneModel,
         'user_id': user.get('_id', 'unknown'),
         'user_login': user.get('login', 'unknown'),
     }
