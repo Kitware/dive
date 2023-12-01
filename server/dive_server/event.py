@@ -111,14 +111,14 @@ def process_assetstore_import(event, meta: dict):
             Folder().save(folder)
 
 
-def convert_video_recrusive(folder, user):
+def convert_video_recursive(folder, user):
     subFolders = list(Folder().childFolders(folder, 'folder', user))
     for child in subFolders:
         if child.get('meta', {}).get(MarkForPostProcess, False):
             child['meta']['MarkForPostProcess'] = False
             Folder().save(child)
             crud_rpc.postprocess(user, child, False, True)
-        convert_video_recrusive(child, user)
+        convert_video_recursive(child, user)
 
 
 class DIVES3Imports:
@@ -136,7 +136,7 @@ class DIVES3Imports:
             print(destinationFolder)
             userId = destinationFolder['creatorId'] or destinationFolder['baseParentId']
             user = User().findOne({'_id': ObjectId(userId)})
-            convert_video_recrusive(destinationFolder, user)
+            convert_video_recursive(destinationFolder, user)
         self.destinationId = None
         self.destinationType = None
 
