@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import json
 import os
+import time
 from pathlib import Path
 import shutil
 import signal
@@ -100,7 +101,11 @@ def stream_subprocess(
 
             # Cancel the subprocess if the status is cancelling
             # note this only checks when there is stdout from the subprocess
-            manager.refreshStatus()
+            current_time = time.time()
+            if current_time - last_refresh_time >= 300:
+                last_refresh_time = current_time
+                manager.refreshStatus()
+
             if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
                 # Can never be sure what signal a process will respond to.
                 process.send_signal(signal.SIGTERM)
