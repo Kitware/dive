@@ -21,7 +21,7 @@ export default defineComponent({
       color="accent"
     >
       <v-tab :to="{ name: 'recent' }">
-        Recents
+        Library
         <v-icon>mdi-folder-open</v-icon>
       </v-tab>
       <job-tab />

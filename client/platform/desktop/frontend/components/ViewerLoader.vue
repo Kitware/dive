@@ -129,7 +129,7 @@ export default defineComponent({
         style="flex-basis:0; flex-grow:0;"
       >
         <v-tab :to="{ name: 'recent' }">
-          Recents
+          Library
           <v-icon>mdi-folder-open</v-icon>
         </v-tab>
         <job-tab />
