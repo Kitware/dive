@@ -278,7 +278,11 @@ export default defineComponent({
       } else {
         tailLayer.disable();
       }
-      pointLayer.changeData(frameData);
+      if (visibleModes.includes('LineString')) {
+        pointLayer.changeData(frameData);
+      } else {
+        pointLayer.disable();
+      }
       if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
         attributeBoxLayer.changeData(frameData);

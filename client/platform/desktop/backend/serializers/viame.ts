@@ -281,8 +281,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           const k = i + 1;
           if (k < filteredImages.length) {
             if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame || filteredImages[i].frame + 1 !== filteredImages[k].frame) {
-            // We have misaligned video sequences so we error out
-              error = new Error('A subsampling of images were used with the CSV but they were not sequential');
+            // We have misaligned image sequences so we error out
+              error = new Error(`A subsampling of images were used with the CSV but they were not sequential\n 
+                ${filteredImages[i].csvFrame + 1} !== ${filteredImages[k].csvFrame} || ${filteredImages[i].frame + 1} !== ${filteredImages[k].frame}\n
+                image1: ${filteredImages[i].image} image2: ${filteredImages[k].image} - these should be sequential in the CSV
+              \n`);
             }
           }
           frameMapper[filteredImages[i].csvFrame] = i;

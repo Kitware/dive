@@ -210,7 +210,7 @@ export default defineComponent({
             block
             @click="doExport({ type: 'dataset' })"
           >
-            <span>export detections</span>
+            <span>VIAME CSV</span>
           </v-btn>
         </v-card-actions>
         <v-card-text class="pb-0">
