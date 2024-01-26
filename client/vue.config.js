@@ -82,7 +82,7 @@ module.exports = {
           artifactName: 'DIVE-Desktop-${version}.${ext}',
         },
         win: {
-          target: ['nsis', 'portable', 'msi', 'zip'],
+          target: ['portable', 'zip'],
           // eslint-disable-next-line no-template-curly-in-string
           artifactName: 'DIVE-Desktop-${version}.${ext}',
         },
