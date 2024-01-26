@@ -598,7 +598,6 @@ export default defineComponent({
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
-          console.log(`Loading Camera: ${camera}`);
           if (trackStore && groupStore) {
             // We can start sorting if our total tracks are less than 20000
             // If greater we do one sort at the end instead to speed loading.
