@@ -13,7 +13,7 @@ const MediaTypes: Record<DatasetType, string> = {
   [LargeImageType]: 'tiled image',
 };
 
-const DefaultVideoFPS = 10;
+const DefaultVideoFPS = -1;
 const FPSOptions = [
   { text: 1, value: 1 },
   { text: 5, value: 5 },

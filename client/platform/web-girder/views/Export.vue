@@ -298,13 +298,8 @@ export default defineComponent({
           </v-card-text>
 
           <v-card-actions>
-            <v-menu
-              offset-y
-              offset-x
-              nudge-left="180"
-              max-width="180"
-            >
-              <template v-slot:activator="{ on }">
+            <v-row>
+              <v-col>
                 <v-btn
                   depressed
                   block
@@ -313,35 +308,25 @@ export default defineComponent({
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
-                    class="col-11"
-                  >annotations</span>
+                  >VIAME CSV</span>
                   <span
                     v-else
-                    class="col-11"
                   >detections unavailable</span>
-                  <v-icon
-                    v-if="exportUrls.exportDetectionsUrl"
-                    class="button-dropdown col-1"
-                    v-on="on"
-                  >
-                    mdi-chevron-down
-                  </v-icon>
                 </v-btn>
-              </template>
-              <v-card outlined>
-                <v-list dense>
-                  <v-list-item
-                    style="align-items':'center"
-                    @click="doExport({ url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON })"
-                  >
-                    <v-list-item-content>
-                      <v-list-item-title>TrackJSON</v-list-item-title>
-                    </v-list-item-content>
-                  </v-list-item>
-                </v-list>
-              </v-card>
-            </v-menu>
+                <v-btn
+                  depressed
+                  block
+                  class="mt-2"
+                  :disabled="!exportUrls.exportDetectionsUrl"
+                  @click="doExport({ url: exportUrls
+                      && exportUrls.exportDetectionsUrlTrackJSON })"                >
+                  <span
+                    v-if="exportUrls.exportDetectionsUrl"
+                  >DIVE TrackJSON</span>
+                  <span
+                    v-else
+                  >detections unavailable</span>
+                      </v-btn>
             <!-- <v-btn
               depressed
               block
@@ -351,6 +336,8 @@ export default defineComponent({
               <span v-if="exportUrls.exportDetectionsUrl">annotations</span>
               <span v-else>detections unavailable</span>
             </v-btn> -->
+            </v-col>
+            </v-row>
           </v-card-actions>
 
           <v-card-text class="pb-0">

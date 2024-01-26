@@ -282,7 +282,7 @@ export default defineComponent({
           >
             mdi-check-circle
           </v-icon>
-          Sync recents with Project Data
+          Sync library with Project Data
         </v-btn>
 
         <v-card-text>

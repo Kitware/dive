@@ -112,15 +112,15 @@ By default, training runs include all frames from the chosen input datasets, and
 | Configuration | Availability | Use Case |
 | ------------- | ------------ | -------- |
 | detector_default | both | alias: train detector netharn cfrnn |
-| [detector_netharn_cfrnn](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_netharn_cfrnn.viame_csv.conf) | both | |
-| [detector_netharn_mask_rcnn](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_netharn_mask_rcnn.viame_csv.conf) | both | |
-| [detector_svm_over_generic_detections](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_svm_over_generic_detections.viame_csv.conf) | both | general purpose svm |
-| [detector_svm_over_fish_detections](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_svm_over_fish_detections.viame_csv.conf) | both | fish svm |
+| [detector_netharn_cfrnn](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_netharn_cfrnn.conf) | both | |
+| [detector_netharn_mask_rcnn](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_netharn_mask_rcnn.conf) | both | |
+| [detector_svm_over_generic_detections](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_svm_over_generic_detections.conf) | both | general purpose svm |
+| [detector_svm_over_fish_detections](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_detector_svm_over_fish_detections.conf) | both | fish svm |
 | frame_classifier_default | both | alias: frame classifier netharn resnet |
-| [frame_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_frame_classifier_netharn_resnet.viame_csv.conf) | both | full-frame |
-| [frame_classifier_svm_overn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_frame_classifier_svm_over_resnet.viame_csv.conf) | both | full-frame |
+| [frame_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_frame_classifier_netharn_resnet.conf) | both | full-frame |
+| [frame_classifier_svm_overn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_frame_classifier_svm_over_resnet.conf) | both | full-frame |
 | object_classifier_default | both | alias: netharn resnet object classifier |
-| [object_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_object_classifier_netharn_resnet.viame_csv.conf) | both | |
+| [object_classifier_netharn_resnet](https://github.com/VIAME/VIAME/blob/master/configs/pipelines/train_object_classifier_netharn_resnet.conf) | both | |
 | yolo | desktop only | can train, but resulting model **is not runnable with desktop** yet |
 
 ## Pipeline Import and Export

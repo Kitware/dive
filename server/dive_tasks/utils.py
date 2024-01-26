@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import json
 import os
+import time
 from pathlib import Path
 import shutil
 import signal
@@ -91,6 +92,8 @@ def stream_subprocess(
         if process.stdout is None:
             raise RuntimeError("Stdout must not be none")
 
+        last_refresh_time = time.time()
+
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
             line_str = line.decode('utf-8')
@@ -99,8 +102,13 @@ def stream_subprocess(
                 stdout += line_str
 
             # Cancel the subprocess if the status is cancelling
-            # note this only checks when there is stdout from the subprocess
-            manager.refreshStatus()
+            # note this only checks when there is stdout from the subprocess every 5 minutes
+            # refreshStatus I believe is an expensive tas
+            current_time = time.time()
+            if current_time - last_refresh_time >= 300:
+                last_refresh_time = current_time
+                manager.refreshStatus()
+
             if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
                 # Can never be sure what signal a process will respond to.
                 process.send_signal(signal.SIGTERM)

@@ -517,6 +517,9 @@ export default class Track extends BaseAnnotation {
       };
     });
     // accept either number or string, convert to number
+    if (json.id === null) {
+      console.log(json);
+    }
     const intTrackId = parseInt(json.id.toString(), 10);
     const track = new Track(intTrackId, {
       features: sparseFeatures,
