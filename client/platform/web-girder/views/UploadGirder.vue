@@ -101,7 +101,7 @@ export default Vue.extend({
       files = files.filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
-      const fps = parseInt(pendingUpload.fps, DefaultVideoFPS);
+      const fps = parseInt(pendingUpload.fps, 10);
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
