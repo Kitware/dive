@@ -63,7 +63,6 @@ requests = ">=2.27.1"
 urllib3 = "<1.27"
 simplejpeg = "^1.6.4"
 bitarray = "^2.5.1"
-gdal = "<=3.6.2"
 girder-large-image = { version = "^1.17.0", optional = true }
 large-image = { version = "^1.17.0", optional = true }
 large-image-tasks = { version = "^1.17.0", optional = true }
@@ -111,7 +110,6 @@ name = "large-image"
 url = "https://girder.github.io/large_image_wheels/"
 default = false
 secondary = false
-
 
 [[tool.poetry.source]]
 name = "girder-large-image"

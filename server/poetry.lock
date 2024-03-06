@@ -835,7 +835,7 @@ name = "gdal"
 version = "3.6.2"
 description = "GDAL: Geospatial Data Abstraction Library"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6.0"
 files = [
     {file = "GDAL-3.6.2.tar.gz", hash = "sha256:a167cde1813707d91a938dad1a22f280f5ad28c45980d42e948fb8c59f890f5a"},
@@ -2886,4 +2886,4 @@ large-image = ["girder-large-image", "large-image", "large-image-tasks", "large-
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.12"
-content-hash = "8133196f00f76c9f9e9cf27f3cf779df9fd8b1443c7495366d4934bb85162f0c"
+content-hash = "cea5ef4ba6d07c1a913c256ba32c491aaacea11f03ca91f353291d6808c082af"
