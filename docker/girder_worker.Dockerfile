@@ -2,13 +2,13 @@
 # == SERVER BUILD STAGE ==
 # ========================
 # Note: server-builder stage will be the same in both dockerfiles
-FROM python:3.8-buster as server-builder
+FROM python:3.11-bookworm as server-builder
 
 WORKDIR /opt/dive/src
 
 # https://cryptography.io/en/latest/installation/#debian-ubuntu
 RUN apt-get update
-RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
+RUN apt-get install -y build-essential libssl-dev libffi-dev libgdal-dev python3-dev cargo npm
 # Recommended poetry install https://python-poetry.org/docs/master/#installation
 RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.3.2 POETRY_HOME=/opt/dive/poetry python -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
@@ -34,7 +34,7 @@ RUN poetry install --only main --extras "large-image"
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-FROM python:3.8-buster as ffmpeg-builder
+FROM python:3.11-bookworm as ffmpeg-builder
 RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
 RUN mkdir /tmp/ffextracted
 RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
