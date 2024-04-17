@@ -11,7 +11,7 @@ import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import Vue from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
 
 export default defineComponent({

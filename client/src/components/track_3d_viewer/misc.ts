@@ -1,4 +1,4 @@
-import { Attribute } from 'vue-media-annotator/use/useAttributes';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
 const EXPECTED_ATTRIBUTE_NAMES = [
   'stereo3d_x',

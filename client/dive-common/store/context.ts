@@ -52,6 +52,7 @@ const componentMap: Record<string, ComponentMapItem> = {
   [AttributeTrackFilters.name]: {
     description: 'Attribute Track Filters',
     component: AttributeTrackFilters,
+  },
   [TrackViewerSettings.name]: {
     description: 'Track Viewer Settings',
     component: TrackViewerSettings,
