@@ -174,7 +174,7 @@ export default defineComponent({
       const cubeAxes = vtkCubeAxesActor.newInstance();
       cubeAxes.setCamera(camera);
 
-      viewUtils.rerender = debounce(() => {
+      viewUtils.rerender = debounce((resetCamera = false) => {
         if (!renderWindow || renderWindow.isDeleted() || !renderer.value) {
           // pass
         } else {
@@ -186,7 +186,9 @@ export default defineComponent({
             renderer.value.addActor(cubeAxes);
           }
           drawCurrentFrameDetectionLabels();
-
+          if (resetCamera) {
+            renderer.value.resetCamera();
+          }
           renderWindow.render();
         }
       }, 10);

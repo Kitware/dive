@@ -3,7 +3,7 @@ import StyleManager from 'vue-media-annotator/StyleManager';
 import * as vtkMath from '@kitware/vtk.js/Common/Core/Math';
 
 export interface ViewUtils {
-  rerender: () => void;
+  rerender: (resetCamera?: boolean) => void;
 }
 
 export interface Feature {

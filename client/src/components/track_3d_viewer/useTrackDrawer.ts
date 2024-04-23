@@ -391,7 +391,7 @@ export default function useTrackDrawer({
       showAllTracks();
     }
 
-    viewUtils.rerender();
+    viewUtils.rerender(true);
   };
 
   const onFilteredAnnotationsChange = function onFilteredAnnotationsChange(
