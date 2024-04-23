@@ -102,7 +102,7 @@ Attributes are part of the dataset configuration that can be imported and export
 ## Reserved Attribute Names
 
 Using certain import mode, attributes definitions might be created automatically. This is documented in this section.
-- When importing using 'Stereoscopic Calibration' mode, the `stereo3d_x`, `stereo3d_y` and `stereo3d_z` detection attributes definitions will be created automatically.
+- When importing using 'Stereoscopic' mode, the `stereo3d_x`, `stereo3d_y` and `stereo3d_z` detection attributes definitions will be created automatically.
 They holds the 3d location of a detected fish and are used in the Track 3D Viewer.
 
 ## Applying Attributes Demo

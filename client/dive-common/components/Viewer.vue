@@ -571,7 +571,7 @@ export default defineComponent({
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
 
-        isStereoConfigMode.value = meta.stereoConfigurationFile != null;
+        isStereoConfigMode.value = meta.calibrationFile != null;
 
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
@@ -741,7 +741,7 @@ export default defineComponent({
           });
         }
 
-        if (meta.stereoConfigurationFile) {
+        if (meta.calibrationFile) {
           context.register({
             component: TrackViewerSettings,
             description: 'Track Viewer Settings',

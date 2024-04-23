@@ -153,8 +153,8 @@ async function runPipeline(
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 
-  if (meta.stereoConfigurationFile) {
-    command.push(`-c "${meta.stereoConfigurationFile}"`);
+  if (meta.calibrationFile) {
+    command.push(`-c "${meta.calibrationFile}"`);
 
     if (meta.multiCam) {
       // eslint-disable-next-line no-restricted-syntax

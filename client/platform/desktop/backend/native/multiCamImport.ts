@@ -108,7 +108,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
       calibration: args.calibrationFile,
       defaultDisplay: args.defaultDisplay,
     },
-    stereoConfigurationFile: args.stereoConfigurationFile,
     subType: null,
   };
 
@@ -177,9 +176,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
-          if (args.stereoConfigurationFile) {
-            cameras[cameraName].stereoConfigurationFile = args.stereoConfigurationFile;
-          }
         });
     } else if (isKeywordArgs(args)) {
       jsonMeta.originalBasePath = args.sourcePath;
@@ -194,9 +190,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
-          if (args.stereoConfigurationFile) {
-            cameras[cameraName].stereoConfigurationFile = args.stereoConfigurationFile;
-          }
         });
     }
   } else {
@@ -205,7 +198,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
 
   if (jsonMeta.multiCam?.cameras && jsonMeta.multiCam.cameras.left
     && jsonMeta.multiCam.cameras.right && (
-      jsonMeta.multiCam.calibration || jsonMeta.stereoConfigurationFile
+      jsonMeta.multiCam.calibration
     )) {
     jsonMeta.subType = 'stereo';
   } else if (jsonMeta.multiCam) {

@@ -113,18 +113,6 @@ export default defineComponent({
             </v-list-item-content>
           </v-list-item>
 
-          <v-list-item
-            v-if="openType === 'image-sequence'"
-            style="align-items':'center"
-            @click="$emit('multi-cam', { stereo: true, openType, calibration: true })"
-          >
-            <v-list-item-icon>
-              <v-icon>mdi-binoculars</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Stereoscopic Calibration</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
 
           <v-list-item
             style="align-items':'center"

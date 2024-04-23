@@ -81,8 +81,7 @@ export interface MultiCamImportFolderArgs {
     sourcePath: string;
     trackFile: string;
   }>; // path/track file per camera
-  calibrationFile?: string; // NPZ calibation matrix file
-  stereoConfigurationFile?: string; // kwiver *.conf file
+  calibrationFile?: string; // NPZ calibation matrix file or kwivier *.conf file
   type: 'image-sequence' | 'video';
 }
 
@@ -93,8 +92,7 @@ export interface MultiCamImportKeywordArgs {
     glob: string;
     trackFile: string;
   }>; // glob pattern for base folder
-  calibrationFile?: string; // NPZ calibation matrix file
-  stereoConfigurationFile?: string; // kwiver *.conf file
+  calibrationFile?: string; // NPZ calibation matrix file or kwiver *.conf file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -139,7 +137,7 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
-  stereoConfigurationFile?: Readonly<string>;
+  calibrationFile?: Readonly<string>;
 }
 
 interface Api {

@@ -54,7 +54,6 @@ export default defineComponent({
     const pendingImportPayloads: Ref<Record<string, MediaImportResponse | null>> = ref({});
     const globList: Ref<Record<string, { glob: string; trackFile: string}>> = ref({});
     const calibrationFile = ref('');
-    const stereoConfigurationFile = ref('');
     const defaultDisplay = ref('left');
     const importAnnotationFilesCheck = ref(false);
     const { error: importError, request: importRequest } = useRequest();
@@ -199,8 +198,6 @@ export default defineComponent({
         const path = ret.filePaths[0];
         if (folder === 'calibration') {
           calibrationFile.value = path;
-        } else if (folder === 'stereoConfiguration') {
-          stereoConfigurationFile.value = path;
         } else if (importType.value === 'multi') {
           if (ret.root) {
             folderList.value[folder].sourcePath = ret.root;
@@ -253,10 +250,6 @@ export default defineComponent({
           calibrationFile: calibrationFile.value,
           type: props.dataType,
         };
-        if (props.calibration) {
-          delete args.calibrationFile;
-          args.stereoConfigurationFile = stereoConfigurationFile.value;
-        }
 
         emit('begin-multicam-import', args);
       } else if (importType.value === 'keyword') {
@@ -284,7 +277,7 @@ export default defineComponent({
       defaultDisplay,
       displayKeys,
       importAnnotationFilesCheck,
-      stereoConfigurationFile,
+      // stereoConfigurationFile,
       //Methods
       open,
       prepForImport,
@@ -479,32 +472,6 @@ export default defineComponent({
               </v-icon>
             </v-btn>
           </v-row>
-
-          <v-row
-            v-else-if="stereo && calibration"
-            no-gutters
-            class="align-center"
-          >
-            <v-text-field
-              label="Stereoscopic Configuration File:"
-              placeholder="Choose File"
-              disabled
-              outlined
-              dense
-              hide-details
-              :value="stereoConfigurationFile"
-              class="mr-3"
-            />
-            <v-btn
-              color="primary"
-              @click="open('stereoConfiguration', 'stereoConfiguration')"
-            >
-              Open Stereoscopic Configuration
-              <v-icon class="ml-2">
-                mdi-matrix
-              </v-icon>
-            </v-btn>
-          </v-row>
         </div>
       </div>
 
@@ -531,7 +498,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!nextSteps || (stereo && (!calibrationFile && !stereoConfigurationFile))"
+          :disabled="!nextSteps || (stereo && (!calibrationFile))"
           @click="prepForImport"
         >
           Begin Import

@@ -40,7 +40,7 @@ export default defineComponent({
     }
 
     // Set default attributes for a stereo calibration configuration
-    if (argCopy.value.jsonMeta.stereoConfigurationFile) {
+    if (argCopy.value.jsonMeta.multiCam?.calibration) {
       argCopy.value.jsonMeta.attributes = {};
 
       // Create x, y, z attributes
