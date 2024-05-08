@@ -1,40 +1,10 @@
 # ========================
 # == SERVER BUILD STAGE ==
 # ========================
-# Note: server-builder stage will be the same in both dockerfiles
-FROM python:3.11-bookworm as server-builder
-
-WORKDIR /opt/dive/src
-
-# https://cryptography.io/en/latest/installation/#debian-ubuntu
-RUN apt-get update
-RUN apt-get install -y build-essential libssl-dev libffi-dev libgdal-dev python3-dev cargo npm
-# Recommended poetry install https://python-poetry.org/docs/master/#installation
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.3.2 POETRY_HOME=/opt/dive/poetry python -
-ENV PATH="/opt/dive/poetry/bin:$PATH"
-# Create a virtual environment for the installation
-RUN python -m venv --copies /opt/dive/local/venv
-# Poetry needs this set to recognize it as ane existing environment
-ENV VIRTUAL_ENV="/opt/dive/local/venv"
-ENV PATH="/opt/dive/local/venv/bin:$PATH"
-# Copy only the lock and project files to optimize cache
-COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
-# Use the system installation
-RUN poetry env use system
-RUN poetry config virtualenvs.create false
-# Install dependencies only
-RUN poetry install --no-root --extras "large-image"
-# Build girder client, including plugins like worker/jobs
-# RUN girder build
-
-# Copy full source code and install
-COPY server/ /opt/dive/src/
-RUN poetry install --only main --extras "large-image"
-
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-FROM python:3.11-bookworm as ffmpeg-builder
+FROM python:3.8-bookworm as ffmpeg-builder
 RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
 RUN mkdir /tmp/ffextracted
 RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
@@ -53,9 +23,37 @@ RUN chmod +x /tini
 
 # Install python
 RUN export DEBIAN_FRONTEND=noninteractive && \
+  apt update && \
+  apt-get install software-properties-common -y && \
+  add-apt-repository ppa:deadsnakes/ppa && \
   apt-get update && \
-  apt-get install -qy python3.8 libpython3.8 && \
+  apt-get install -qy python3.11 python3-pip libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm  && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3.11 /usr/bin/python
+WORKDIR /opt/dive/src
+
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 POETRY_HOME=/opt/dive/poetry python -
+ENV PATH="/opt/dive/poetry/bin:$PATH"
+# Create a virtual environment for the installation
+RUN python -m venv --copies /opt/dive/local/venv
+# Poetry needs this set to recognize it as ane existing environment
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV PATH="/opt/dive/local/venv/bin:$PATH"
+# Copy only the lock and project files to optimize cache
+COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
+# Use the system installation
+RUN poetry env use system
+RUN poetry config virtualenvs.create false
+# Install dependencies only
+RUN poetry install --no-root
+# Build girder client, including plugins like worker/jobs
+# RUN girder build
+
+# Copy full source code and install
+COPY server/ /opt/dive/src/
+RUN poetry install --only main
+    
 
 # Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
@@ -70,9 +68,6 @@ USER dive
 ENV PATH="/opt/dive/local/venv/bin:$PATH"
 
 # Copy the built python installation
-COPY --chown=dive:dive --from=server-builder /opt/dive/local/venv/ /opt/dive/local/venv/
-# Copy the source code of the editable module
-COPY --chown=dive:dive --from=server-builder /opt/dive/src /opt/dive/src
 # Copy ffmpeg
 COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/venv/bin/
 # Copy provision scripts

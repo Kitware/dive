@@ -51,32 +51,36 @@ packages = [
 python = ">=3.8,<3.12"
 cheroot = ">=8.4.5"
 click = "^8.1.3"
-girder = "3.1.16"
-girder_jobs = "3.1.16"
-girder_worker = "0.9.0"
-girder_worker_utils = "0.8.7"
-pydantic = "1.9.0"
+girder = ">=3.2.3"
+girder_jobs = ">=3.2.3"
+girder_worker = ">=0.10.3"
+girder_worker_utils = ">=0.9.0"
+pydantic = "1.10.13"
 pyrabbit2 = "1.0.7"
 typing-extensions = "^4.2.0"
 GPUtil = "^1.4.0"
 requests = ">=2.27.1"
 urllib3 = "<1.27"
-simplejpeg = "^1.6.4"
-bitarray = "^2.5.1"
-girder-large-image = { version = "^1.17.0", optional = true }
-large-image = { version = "^1.17.0", optional = true }
-large-image-tasks = { version = "^1.17.0", optional = true }
-large-image-converter = { version = "^1.17.0", optional = true }
-large-image-source-pil = { version = "^1.17.0", optional = true }
-large-image-source-gdal = { version = "^1.17.0", optional = true }
-large-image-source-tiff = { version = "^1.17.0", optional = true }
-large-image-source-ometiff = { version = "^1.17.0", optional = true }
-large-image-source-openjpeg = { version = "^1.17.0", optional = true }
+bitarray = "^2.9.2"
+simplejpeg = "^1.7.2"
+girder-large-image = "^1.28.1"
+cherrypy = "^18.9.0"
+large-image-tasks = { version = "^1.28.1", optional = true }
+large-image-converter =  { version = "^1.28.1", optional = true }
+large-image-source-pil =  { version = "^1.28.1", optional = true }
+large-image-source-tiff =  { version = "^1.28.1", optional = true }
+large-image-source-gdal =  { version = "^1.28.1", optional = true }
+large-image =  { version = "^1.28.1", optional = true }
+large-image-source-ometiff =  { version = "^1.28.1", optional = true }
+large-image-source-openjpeg =  { version = "^1.28.1", optional = true }
+numpy = "1.24.4"
+gdal = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=39a98b7ab444097a56cc91bd73ee3485ab577296a771acc10e5106f92a2db7ab", optional = true}
+pylibtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=528b8c19bae69b7c53499572be578e98e2cc91e2ead479e2744201f3a981764f", optional = true}
+pyvips = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=64ddefeb25167da7485bc8aae3b1f9a52cb06b9d2a5112c97c6192402b1dbf4f"}
+
 [tool.poetry.group.dev.dependencies]
-numpy = "^1.21.4"
 opencv-python = "^4.5.5"
 tox = "^3.25.0"
-
 [tool.poetry.extras]
 large-image = [
   "girder-large-image",
@@ -88,13 +92,18 @@ large-image = [
   "large-image-source-tiff",
   "large-image-source-ometiff",
   "large-image-source-openjpeg",
+  "gdal",
+  "numpy",
 ]
 
-
+[build-system]
+requires = ["poetry-core", "setuptools"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 diveutils = "scripts.entrypoint_dev:cli"
 dive = "scripts.entrypoint_main:cli"
+
 
 [tool.poetry.plugins."girder.plugin"]
 dive_server = "dive_server:GirderPlugin"
@@ -104,19 +113,3 @@ rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 [tool.poetry.plugins."girder_worker_plugins"]
 dive_tasks = "dive_tasks:DIVEPlugin"
 
-
-[[tool.poetry.source]]
-name = "large-image"
-url = "https://girder.github.io/large_image_wheels/"
-default = false
-secondary = false
-
-[[tool.poetry.source]]
-name = "girder-large-image"
-url = "https://girder.github.io/large_image_wheels/"
-default = false
-secondary = false
-
-[build-system]
-requires = ["poetry-core>=1.0.0", "setuptools"]
-build-backend = "poetry.core.masonry.api"
