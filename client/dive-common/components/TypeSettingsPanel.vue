@@ -4,7 +4,7 @@ import {
   reactive,
   PropType,
   ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({

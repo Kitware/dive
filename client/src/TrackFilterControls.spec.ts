@@ -1,13 +1,10 @@
 /// <reference types="jest" />
-import Vue from 'vue';
-import CompositionApi from '@vue/composition-api';
+import { nextTick } from 'vue';
 import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
 import { AnnotationId } from './BaseAnnotation';
-
-Vue.use(CompositionApi);
 
 const markChangesPending = () => null;
 
@@ -49,8 +46,12 @@ function makeCameraStore() {
 }
 
 function makeGroupFilterControls(store: CameraStore) {
-  const setTrackType = (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => {
+  const setTrackType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
     store.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => store.removeTypes(id, types);
@@ -69,8 +70,12 @@ function makeGroupFilterControls(store: CameraStore) {
 function makeTrackFilterControls() {
   const cameraStore = makeCameraStore();
   const groupFilterControls = makeGroupFilterControls(cameraStore);
-  const setTrackType = (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => {
+  const setTrackType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
     cameraStore.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -99,7 +104,7 @@ describe('useAnnotationFilters', () => {
     expect(tf.allTypes.value).toEqual(['baz', 'bar']);
     expect(tf.filteredAnnotations.value.filter(({ annotation }) => annotation.getType() === 'baz').length).toBe(2);
     tf.updateTypeName({ currentType: 'baz', newType: 'newtype' });
-    await Vue.nextTick(); // must wait a tick for confidence to settle when newtype is added.
+    await nextTick(); // must wait a tick for confidence to settle when newtype is added.
     expect(tf.allTypes.value).toEqual(['newtype', 'bar']);
     expect(tf.filteredAnnotations.value.length).toBe(3);
     expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1, default: 0.1 });

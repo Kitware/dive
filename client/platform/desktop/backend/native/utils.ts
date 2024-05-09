@@ -84,9 +84,7 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 /**
  * Create job run working directory
  */
-async function createWorkingDirectory(
-  settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
-) {
+async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta[], pipeline: string) {
   if (jsonMetaList.length === 0) {
     throw new Error('At least 1 jsonMeta item must be provided');
   }

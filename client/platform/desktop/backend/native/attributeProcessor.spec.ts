@@ -1,5 +1,5 @@
 /* eslint-disable quote-props */
-/* eslint-disable @typescript-eslint/camelcase */
+/* eslint-disable @typescript-eslint/naming-convention */
 
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
@@ -8,7 +8,6 @@ import fs from 'fs-extra';
 import processTrackAttributes from './attributeProcessor';
 
 type AttributeTestGroup = [TrackData[], MultiTrackRecord, Record<string, Attribute>][];
-
 
 const testData: AttributeTestGroup = fs.readJSONSync('../testutils/attributes.spec.json');
 

@@ -1,13 +1,9 @@
-import Vue from 'vue';
-import Install, { ref, computed } from '@vue/composition-api';
+import { ref, computed } from 'vue';
 import { ipcRenderer } from 'electron';
 import { app } from '@electron/remote';
 import { Settings } from 'platform/desktop/constants';
 import { cloneDeep } from 'lodash';
 import * as semver from 'semver';
-
-// TODO remove this: this won't be necessary in Vue 3
-Vue.use(Install);
 
 const SettingsKey = 'desktop.settings';
 const VersionKey = 'desktop.currentVersion';

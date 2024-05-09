@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, reactive, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { injectAggregateController } from '../annotators/useMediaController';
@@ -141,7 +141,7 @@ export default defineComponent({
           <v-btn
             icon
             small
-            :color="mediaController.lockedCamera.value ? 'primary': 'default'"
+            :color="mediaController.lockedCamera.value ? 'primary' : 'default'"
             title="center camera on selected track"
             @click="mediaController.toggleLockedCamera"
           >
@@ -170,7 +170,7 @@ export default defineComponent({
             v-if="mediaController.cameras.value.length > 1"
             icon
             small
-            :color="mediaController.cameraSync.value ? 'primary': 'default'"
+            :color="mediaController.cameraSync.value ? 'primary' : 'default'"
             title="Synchronize camera controls"
 
             @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"

@@ -99,13 +99,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         adjacentPointProximity: 1,
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
-      this.featureLayer.geoOn(geo.event.annotation.edit_action,
-        (e: GeoEvent) => this.handleEditAction(e));
-      this.featureLayer.geoOn(geo.event.annotation.state,
-        (e: GeoEvent) => this.handleEditStateChange(e));
+      this.featureLayer.geoOn(
+        geo.event.annotation.edit_action,
+        (e: GeoEvent) => this.handleEditAction(e),
+      );
+      this.featureLayer.geoOn(
+        geo.event.annotation.state,
+        (e: GeoEvent) => this.handleEditStateChange(e),
+      );
       //Event name is misleading, this means hovering over an edit handle
-      this.featureLayer.geoOn(geo.event.annotation.select_edit_handle,
-        (e: GeoEvent) => this.hoverEditHandle(e));
+      this.featureLayer.geoOn(
+        geo.event.annotation.select_edit_handle,
+        (e: GeoEvent) => this.hoverEditHandle(e),
+      );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
@@ -126,8 +132,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           if (this.type !== 'rectangle') {
-            this.bus.$emit('update:selectedIndex',
-              this.selectedHandleIndex / divisor, this.type, this.selectedKey);
+            this.bus.$emit(
+              'update:selectedIndex',
+              this.selectedHandleIndex / divisor,
+              this.type,
+              this.selectedKey,
+            );
           }
         }
         this.disableModeSync = false;
@@ -175,11 +185,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           type: 'Feature',
           geometry: this.shapeInProgress,
           properties: {},
-        }, this.type, this.selectedKey, this.skipNextFunc(),
+        },
+        this.type,
+        this.selectedKey,
+        this.skipNextFunc(),
       );
       // triggers a mouse up while editing to make it seem like a point was placed
-      window.setTimeout(() => this.annotator.geoViewerRef.value.interactor().simulateEvent('mouseup',
-        { map: { x: e.mouse.geo.x, y: e.mouse.geo.y }, button: 'left' }), 0);
+      window.setTimeout(() => this.annotator.geoViewerRef.value.interactor().simulateEvent(
+        'mouseup',
+        { map: { x: e.mouse.geo.x, y: e.mouse.geo.y }, button: 'left' },
+      ), 0);
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
@@ -219,7 +234,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.annotator.setCursor('default');
     }
   }
-
 
   applyStylesToAnnotations() {
     const annotation = this.featureLayer.annotations()[0];
@@ -404,7 +418,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     return [];
   }
-
 
   /**
    *

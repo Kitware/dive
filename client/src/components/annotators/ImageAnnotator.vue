@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 
@@ -52,7 +52,7 @@ export default defineComponent({
       default: undefined,
     },
   },
-  setup(props, ctx) {
+  setup(props, { emit }) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const cameraInitializer = injectCameraInitializer();
@@ -115,7 +115,7 @@ export default defineComponent({
       }
       if (img.naturalHeight > 40960 || img.naturalWidth > 40960) {
         // Warn about large images and conversion if possible
-        ctx.emit('large-image-warning', true);
+        emit('large-image-warning', true);
       }
       if (
         img.naturalWidth > 0

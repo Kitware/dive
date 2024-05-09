@@ -1,14 +1,14 @@
 <script lang="ts">
 import {
   defineComponent, computed, PropType, ref, onBeforeMount, watch, toRef,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
-
+import { useStore } from 'platform/web-girder/store/types';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -30,8 +30,9 @@ export default defineComponent({
     },
   },
 
-  setup(props, { root }) {
-    const brandData = toRef(root.$store.state.Brand, 'brandData');
+  setup(props) {
+    const store = useStore();
+    const brandData = toRef(store.state.Brand, 'brandData');
     const { getTrainingConfigurations, runTraining } = useApi();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
@@ -66,7 +67,7 @@ export default defineComponent({
         if (!trainingConfigurations.value || !selectedTrainingConfig.value) {
           throw new Error('Training configurations not found.');
         }
-        if (labelText) {
+        if (labelText.value) {
           return runTraining(
             props.selectedDatasetIds,
             outputPipelineName,
@@ -128,7 +129,7 @@ export default defineComponent({
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
-      <template v-slot:activator="{ on: menuOn }">
+      <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
           :disabled="menuOptions.offsetX"
@@ -201,10 +202,10 @@ export default defineComponent({
               :hint="selectedTrainingConfig"
               persistent-hint
             >
-              <template v-slot:item="row">
+              <template #item="row">
                 {{ simplifyTrainingName(row.item) }}
               </template>
-              <template v-slot:selection="{ item}">
+              <template #selection="{ item }">
                 {{ simplifyTrainingName(item) }}
               </template>
             </v-select>

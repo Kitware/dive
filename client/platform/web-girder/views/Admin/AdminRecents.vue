@@ -2,11 +2,10 @@
 import {
   computed,
   defineComponent, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { getRecentDatasets } from 'platform/web-girder/api/admin.service';
 import type { GirderModel } from '@girder/components/src';
 import moment from 'moment';
-
 
 export default defineComponent({
   name: 'AdminRecents',
@@ -63,11 +62,11 @@ export default defineComponent({
           hide-default-footer
           class="elevation-1"
         >
-          <template v-slot:item.userDir="{ item }">
+          <template #item.userDir="{ item }">
             <v-tooltip
               bottom
             >
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   small
@@ -85,11 +84,11 @@ export default defineComponent({
               <span>Launch User Directory</span>
             </v-tooltip>
           </template>
-          <template v-slot:item.type="{ item }">
+          <template #item.type="{ item }">
             <v-icon> {{ item.type === 'video' ? 'mdi-file-video' : 'mdi-camera-burst' }}</v-icon>
           </template>
 
-          <template v-slot:item.dataset="{ item }">
+          <template #item.dataset="{ item }">
             <v-btn
               color="primary"
               :to="`/viewer/${item.dataset}`"

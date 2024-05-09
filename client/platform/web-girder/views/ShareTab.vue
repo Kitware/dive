@@ -1,7 +1,6 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import { useStore } from '../store/types';
-
 
 export default defineComponent({
   name: 'ShareTab',
@@ -42,13 +41,13 @@ export default defineComponent({
       </v-icon>
       Browse Data
     </v-tab>
-    <v-tab :to="{name: 'shared'}">
+    <v-tab :to="{ name: 'shared' }">
       <v-icon class="tab-icon">
         mdi-share-variant
       </v-icon>
       Shared with Me
     </v-tab>
-    <v-tab :to="{name: 'summary'}">
+    <v-tab :to="{ name: 'summary' }">
       <v-icon class="tab-icon">
         mdi-tag
       </v-icon>

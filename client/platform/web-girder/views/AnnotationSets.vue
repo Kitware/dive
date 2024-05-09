@@ -3,7 +3,7 @@
 import {
   computed,
   defineComponent, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   useAnnotationSet,
   useAnnotationSets,
@@ -11,13 +11,15 @@ import {
   useHandler,
   useTrackStyleManager,
 } from 'vue-media-annotator/provides';
+import { useRouter } from 'vue-router/composables';
 
 export default defineComponent({
   name: 'AnnotationSets',
   description: 'Annotation Sets',
 
-  setup(_, { root }) {
+  setup() {
     const currentSet = useAnnotationSet();
+    const router = useRouter();
     const sets = useAnnotationSets();
     const datasetId = useDatasetId();
     const { typeStyling } = useTrackStyleManager();
@@ -37,7 +39,7 @@ export default defineComponent({
 
     const launchComparison = () => {
       const set = currentSet.value ? `/set/${currentSet.value}` : '';
-      root.$router.replace({
+      router.replace({
         path: `/viewer/${datasetId.value}${set}`,
         query: { comparisonSets: selectedComparisons.value },
       });
@@ -46,7 +48,6 @@ export default defineComponent({
     const selectForComparison = (set: string) => {
       compareChecks.value = sets.value.map((item) => ({ name: item, checked: set === item }));
     };
-
 
     const computedSets = computed(() => {
       if (!sets.value.length) {
@@ -102,7 +103,7 @@ export default defineComponent({
       <v-list-item
         v-for="(set, index) in computedSets"
         :key="set"
-        :class="{'border': (set === currentSet || (!currentSet && set === 'default'))}"
+        :class="{ border: (set === currentSet || (!currentSet && set === 'default')) }"
       >
         <v-row
           dense

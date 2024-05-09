@@ -83,7 +83,6 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   }));
 }
 
-
 export {
   getLocationFromRoute,
   getRouteFromLocation,

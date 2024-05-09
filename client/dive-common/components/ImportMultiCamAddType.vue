@@ -1,6 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
-
+import { defineComponent, ref } from 'vue';
 
 export default defineComponent({
   name: 'ImportMultiCamAddType',
@@ -66,7 +65,7 @@ export default defineComponent({
       <v-btn
         color="error"
         class="mx-3"
-        @click="newSetName=''; enabled=false;"
+        @click="newSetName = ''; enabled = false;"
       >
         Cancel
       </v-btn>

@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, ref, onBeforeUnmount,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   GirderFileManager, getLocationType, GirderModel,
 } from '@girder/components/src';
@@ -76,7 +76,6 @@ export default defineComponent({
 });
 </script>
 
-
 <template>
   <GirderFileManager
     ref="fileManager"
@@ -97,7 +96,7 @@ export default defineComponent({
         max-width="800px"
         :persistent="uploading"
       >
-        <template #activator="{on}">
+        <template #activator="{ on }">
           <v-btn
             class="ma-0"
             text
@@ -120,7 +119,7 @@ export default defineComponent({
         />
       </v-dialog>
     </template>
-    <template #row="{item}">
+    <template #row="{ item }">
       <span>{{ item.name }}</span>
       <v-icon
         v-if="getters['Jobs/datasetRunningState'](item._id)"

@@ -5,8 +5,7 @@
  * Recipes can be activated by hotkeys or UI externally.
  * Recipes will usually deactivate themselves when the recipe is complete.
  */
-import Vue from 'vue';
-import { Ref } from '@vue/composition-api';
+import { Ref } from 'vue';
 
 import { Mousetrap } from './types';
 import Track from './track';
@@ -54,6 +53,5 @@ interface Recipe {
   mousetrap: () => Mousetrap[];
   deactivate: () => void;
 }
-
 
 export default Recipe;

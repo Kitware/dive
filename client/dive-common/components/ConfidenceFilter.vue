@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import { throttle, debounce } from 'lodash';
 
 export default defineComponent({
@@ -23,10 +23,8 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    function _updateConfidence(event: InputEvent) {
+    function _updateConfidence(event: InputEvent & {target: {value: string}}) {
       if (event.target) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-        // @ts-ignore
         emit('update:confidence', Number.parseFloat(event.target.value));
       }
     }
@@ -51,7 +49,7 @@ export default defineComponent({
         █
       </span>
       <span
-        :class="{'main-confidence':text ==='Confidence Threshold'}"
+        :class="{ 'main-confidence': text === 'Confidence Threshold' }"
       >{{ text }}</span>
       <v-spacer v-if="!$scopedSlots.default" />
       <span class="pl-2">

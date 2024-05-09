@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -188,7 +188,7 @@ export default defineComponent({
                 outlined
                 small
               >
-                <template v-slot:selection="{ attrs, item, selected }">
+                <template #selection="{ attrs, item, selected }">
                   <v-chip
                     v-bind="attrs"
                     small

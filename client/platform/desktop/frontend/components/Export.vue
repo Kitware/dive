@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, reactive, computed, toRef, watch, ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -159,7 +159,7 @@ export default defineComponent({
           </v-dialog>
           <AutosavePrompt
             v-model="savePrompt"
-            @save="doExport({type: 'dataset', forceSave: true })"
+            @save="doExport({ type: 'dataset', forceSave: true })"
           />
           <v-alert
             v-if="data.outPath"

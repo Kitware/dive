@@ -18,7 +18,6 @@ import {
   writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
 
-
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
 
@@ -183,9 +182,7 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        const { meta: newMeta } = await common.ingestDataFiles(
-          settings, datasetId, [detectorOutput, trackOutput], multiOutFiles,
-        );
+        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
         if (newMeta) {
           meta.attributes = newMeta.attributes;
           await common.saveMetadata(settings, datasetId, meta);
@@ -231,9 +228,7 @@ async function train(
   const jsonMetaList = infoAndMeta.map(({ meta }) => meta);
 
   // Working dir for training
-  const jobWorkDir = await createWorkingDirectory(
-    settings, jsonMetaList, runTrainingArgs.pipelineName,
-  );
+  const jobWorkDir = await createWorkingDirectory(settings, jsonMetaList, runTrainingArgs.pipelineName);
 
   // Argument files for training
   const inputFolderFileList = npath.join(jobWorkDir, 'input_folder_list.txt');
@@ -277,9 +272,7 @@ async function train(
   inputFile.end();
 
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
-  const configFilePath = npath.join(
-    settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig,
-  );
+  const configFilePath = npath.join(settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig);
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
@@ -330,9 +323,7 @@ async function train(
     const bodyText = [''];
     if (code === 0) {
       try {
-        await common.processTrainedPipeline(
-          settings, runTrainingArgs, jobWorkDir,
-        );
+        await common.processTrainedPipeline(settings, runTrainingArgs, jobWorkDir);
       } catch (err) {
         console.error(err);
         exitCode = 1;

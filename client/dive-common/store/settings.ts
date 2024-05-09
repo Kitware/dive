@@ -1,6 +1,5 @@
-import Install, { Ref, watch, reactive } from '@vue/composition-api';
+import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
-import Vue from 'vue';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
 interface AnnotationSettings {
@@ -78,9 +77,6 @@ const defaultSettings: AnnotationSettings = {
 function hydrate(obj: any): AnnotationSettings {
   return merge(cloneDeep(defaultSettings), obj);
 }
-
-// TODO remove this: this won't be necessary in Vue 3
-Vue.use(Install);
 
 //Load default settings initially
 const storedSettings = JSON.parse(localStorage.getItem('Settings') || '{}');

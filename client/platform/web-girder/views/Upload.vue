@@ -1,7 +1,7 @@
 <script lang='ts'>
 import {
   defineComponent, Ref, ref, computed,
-} from '@vue/composition-api';
+} from 'vue';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
@@ -203,8 +203,11 @@ export default defineComponent({
             if (dstype !== 'zip') {
               const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
               await addPendingUpload(
-                name, processed.fullList, processed.metaFile,
-                processed.annotationFile, processed.mediaList,
+                name,
+                processed.fullList,
+                processed.metaFile,
+                processed.annotationFile,
+                processed.mediaList,
                 suggestedFps,
               );
             } else {

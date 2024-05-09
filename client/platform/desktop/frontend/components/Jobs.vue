@@ -1,7 +1,7 @@
 <script lang="ts">
 import { shell } from 'electron';
 import moment, { utc } from 'moment';
-import { defineComponent, ref, onBeforeUnmount } from '@vue/composition-api';
+import { defineComponent, ref, onBeforeUnmount } from 'vue';
 
 import { DesktopJob } from 'platform/desktop/constants';
 
@@ -24,7 +24,6 @@ export default defineComponent({
       clockDriver.value += 1;
     }, 1000);
     onBeforeUnmount(() => clearInterval(clockDriverInterval));
-
 
     function toggleVisibleOutput(job: DesktopJob) {
       if (job.key === visibleOutput.value) {
@@ -104,8 +103,8 @@ export default defineComponent({
                 <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
                     {{ job.job.jobType }}:
-                    {{ datasets[job.job.datasetIds[0]] ?
-                      datasets[job.job.datasetIds[0]].name : job.job.datasetIds.join(', ') }}
+                    {{ datasets[job.job.datasetIds[0]]
+                      ? datasets[job.job.datasetIds[0]].name : job.job.datasetIds.join(', ') }}
                   </v-card-title>
                   <v-card-subtitle>
                     <table class="key-value-table">
@@ -170,7 +169,7 @@ export default defineComponent({
                       {{
                         utc(
                           moment(job.job.endTime || moment())
-                            .diff(moment(job.job.startTime))
+                            .diff(moment(job.job.startTime)),
                         )
                           .format("HH:mm:ss")
                       }}

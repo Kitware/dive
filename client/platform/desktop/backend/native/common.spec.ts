@@ -15,7 +15,6 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
 import { createWorkingDirectory } from './utils';
 
-
 const pipelines = {
   'classify_detections_svm.pipe': '',
   'common_generic_detector_with_filter.pipe': '',
@@ -230,10 +229,10 @@ mockfs({
     },
   },
   '/home/user/viamedata': {
-    // eslint-disable-next-line @typescript-eslint/camelcase
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     DIVE_Jobs: {
       goodTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         category_models: {
           'detector.pipe': '',
           'trained_detector.zip': '',
@@ -243,17 +242,17 @@ mockfs({
         missingModelFolder: {},
       },
       missingPipeTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         category_models: {
           'trained_detector.zip': '',
         },
       },
     },
-    // eslint-disable-next-line @typescript-eslint/camelcase
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     DIVE_Pipelines: {
       /* Empty */
     },
-    // eslint-disable-next-line @typescript-eslint/camelcase
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     DIVE_Projects: {
       projectid1: {
         'meta.json': JSON.stringify({
@@ -346,7 +345,7 @@ mockfs({
             'bar.png',
           ],
           attributes: {
-            // eslint-disable-next-line @typescript-eslint/camelcase
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             track_attribute1: {
               belongs: 'track',
               datatype: 'text',
@@ -354,7 +353,7 @@ mockfs({
               name: 'attribute1',
               key: 'track_attribute1',
             },
-            // eslint-disable-next-line @typescript-eslint/camelcase
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             detection_attribute1: {
               belongs: 'detection',
               datatype: 'number',
@@ -427,9 +426,7 @@ describe('native.common', () => {
 
   it('loadJsonMetadata prefers transcoded media when it exists', async () => {
     const data = await common.loadMetadata(settings, 'projectid1VideoGood', urlMapper);
-    const videoPath = npath.join(
-      settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4',
-    );
+    const videoPath = npath.join(settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4');
     expect(data.videoUrl).toBe(`http://localhost:8888/api/media?path=${videoPath}`);
   });
 

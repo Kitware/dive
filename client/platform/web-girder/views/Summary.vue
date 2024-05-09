@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import { defineComponent, ref } from 'vue';
 import * as d3 from 'd3';
 import type { DataTableHeader } from 'vuetify';
 import { generateColors } from 'vue-media-annotator/StyleManager';
@@ -7,7 +7,6 @@ import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import { getLabels } from '../api';
 import { Label } from '../api/annotation.service';
-
 
 export default defineComponent({
   setup() {
@@ -25,7 +24,6 @@ export default defineComponent({
 
     const color = (label: string) => ordinalColorMapper(label);
 
-
     const updateList = async () => {
       const response = await getLabels();
 
@@ -39,7 +37,6 @@ export default defineComponent({
       });
     };
     updateList();
-
 
     return {
       expanded,
@@ -63,7 +60,7 @@ export default defineComponent({
     show-expand
   >
     <template
-      v-slot:expanded-item="{ headers, item }"
+      #expanded-item="{ headers, item }"
     >
       <td :colspan="headers.length">
         <v-chip

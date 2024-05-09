@@ -249,7 +249,7 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
             const colorScale = d3.scaleLinear<string, number>()
               .domain(colorNums)
               .range(colorVals);
-            return (data !== undefined && colorScale(data as number).toString()) || item.color || 'white';
+            return (data !== undefined && colorScale(data as number)?.toString()) || item.color || 'white';
           }
           return item.color || 'white';
         });

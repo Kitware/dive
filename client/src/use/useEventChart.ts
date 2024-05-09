@@ -1,10 +1,9 @@
-
-import { computed, Ref } from '@vue/composition-api';
+import { computed, Ref } from 'vue';
 import type { AnnotationWithContext } from '../BaseFilterControls';
 import type { TypeStyling } from '../StyleManager';
 import BaseAnnotation, { AnnotationId } from '../BaseAnnotation';
-import type Group from '../Group';
 import type Track from '../track';
+import { Group } from '..';
 
 interface EventChartParams<T extends BaseAnnotation> {
   enabledTracks: Readonly<Ref<AnnotationWithContext<OneOf<T, [Group, Track]>>[]>>;

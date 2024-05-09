@@ -75,9 +75,7 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(
-  jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false,
-) {
+async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {

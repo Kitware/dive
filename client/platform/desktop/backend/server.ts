@@ -106,7 +106,6 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
   return null;
 });
 
-
 /* SAVE detections */
 apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
   try {

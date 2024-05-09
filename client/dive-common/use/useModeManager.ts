@@ -1,6 +1,6 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
-} from '@vue/composition-api';
+} from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
@@ -17,15 +17,12 @@ import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
 
-
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
 /* default to index + 1
  * call with -1 to select previous, or pass any other delta
  */
-function selectNext<T extends SortedAnnotation>(
-  filtered: Readonly<T>[], selected: Readonly<AnnotationId | null>, delta = 1,
-): AnnotationId | null {
+function selectNext<T extends SortedAnnotation<T>>(filtered: Readonly<T>[], selected: Readonly<AnnotationId | null>, delta = 1): AnnotationId | null {
   if (filtered.length > 0) {
     if (selected === null) {
       // if no track is selected, return the first trackId
@@ -116,13 +113,9 @@ export default function useModeManager({
     () => groupFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
   );
 
-  const selectNextTrack = (delta = 1) => selectNext(
-    _filteredTracks.value, selectedTrackId.value, delta,
-  );
+  const selectNextTrack = (delta = 1) => selectNext(_filteredTracks.value, selectedTrackId.value, delta);
 
-  const selectNextGroup = (delta = 1) => selectNext(
-    _filteredGroups.value, editingGroupId.value, delta,
-  );
+  const selectNextGroup = (delta = 1) => selectNext(_filteredGroups.value, editingGroupId.value, delta);
 
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     selectedTrackId.value = trackId;
@@ -331,7 +324,8 @@ export default function useModeManager({
     const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     if (trackStore) {
       const newTrackId = trackStore.add(
-        frame.value, trackType,
+        frame.value,
+        trackType,
         selectedTrackId.value || undefined,
         overrideTrackId,
       ).id;
@@ -341,7 +335,6 @@ export default function useModeManager({
     }
     throw Error(`Could not find trackStore for Camera: ${selectedCamera.value}`);
   }
-
 
   function newTrackSettingsAfterLogic(addedTrack: Track) {
     // Default settings which are updated by the TrackSettings component
@@ -484,12 +477,14 @@ export default function useModeManager({
             keyframe: true,
             bounds: updateBounds(real?.bounds, update.union, update.unionWithoutBounds),
             interpolate,
-          }, flatMapDeep(update.geoJsonFeatureRecord,
+          }, flatMapDeep(
+            update.geoJsonFeatureRecord,
             (geomlist, key_) => geomlist.map((geom) => ({
               type: geom.type,
               geometry: geom.geometry,
               properties: { key: key_ },
-            }))));
+            })),
+          ));
 
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing

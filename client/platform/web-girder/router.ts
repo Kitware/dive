@@ -14,6 +14,7 @@ import Summary from './views/Summary.vue';
 
 Vue.use(Router);
 
+// eslint-disable-next-line @typescript-eslint/ban-types
 function beforeEnter(to: Route, from: Route, next: Function) {
   if (!girderRest.user) {
     next('/login');
@@ -22,6 +23,7 @@ function beforeEnter(to: Route, from: Route, next: Function) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/ban-types
 function adminGuard(to: Route, from: Route, next: Function) {
   if (!girderRest.user.admin) {
     next('/');

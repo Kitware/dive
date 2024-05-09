@@ -1,14 +1,15 @@
 <script lang="ts">
 import {
   defineComponent, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AttributeNumberFilter } from 'vue-media-annotator/use/AttributeTypes';
 import TooltipBtn from '../TooltipButton.vue';
 
-
 export default defineComponent({
   name: 'AttributeNumberFilterSettings',
+
+  components: { TooltipBtn },
 
   props: {
     value: {
@@ -20,8 +21,6 @@ export default defineComponent({
       required: true,
     },
   },
-
-  components: { TooltipBtn },
 
   setup(props, { emit }) {
     const updateField = (key: string, val: number | string) => {
@@ -95,7 +94,7 @@ export default defineComponent({
             hide-details
             dense
             outlined
-            :step="value.range[0]> 1 ? 1 : 0.01"
+            :step="value.range[0] > 1 ? 1 : 0.01"
             type="number"
             label="Lower"
             :max="value.range[1]"
@@ -106,7 +105,7 @@ export default defineComponent({
             v-model.number="value.range[1]"
             dense
             outlined
-            :step="value.range[1]> 1 ? 1 : 0.01"
+            :step="value.range[1] > 1 ? 1 : 0.01"
             type="number"
             label="Upper"
             :min="value.range[0]"

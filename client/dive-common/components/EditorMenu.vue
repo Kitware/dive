@@ -168,9 +168,7 @@ export default Vue.extend({
       clearTimeout(this.toolTimeTimeout);
       if (this.editingDetails !== 'disabled') {
         this.toolTipForce = true;
-        this.toolTimeTimeout = setTimeout(
-          () => { this.toolTipForce = false; }, 2000,
-        ) as unknown as number;
+        this.toolTimeTimeout = setTimeout(() => { this.toolTipForce = false; }, 2000) as unknown as number;
       } else {
         this.toolTipForce = false;
       }
@@ -297,8 +295,7 @@ export default Vue.extend({
               min="0"
               max="100"
               :value="tailSettings.before"
-              @input="$emit('update:tail-settings', {
-                ...tailSettings, before: Number.parseFloat($event.target.value) })"
+              @input="$emit('update:tail-settings', { ...tailSettings, before: Number.parseFloat($event.target.value) })"
             >
             <div class="py-2" />
             <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
@@ -310,8 +307,7 @@ export default Vue.extend({
               min="0"
               max="100"
               :value="tailSettings.after"
-              @input="$emit('update:tail-settings', {
-                ...tailSettings, after: Number.parseFloat($event.target.value) })"
+              @input="$emit('update:tail-settings', { ...tailSettings, after: Number.parseFloat($event.target.value) })"
             >
           </v-card>
         </v-menu>

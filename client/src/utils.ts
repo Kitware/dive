@@ -51,9 +51,7 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
-function removePoint(
-  data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number,
-): boolean {
+function removePoint(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number): boolean {
   if (data.geometry.type === 'Polygon') {
     const coords = data.geometry.coordinates[0];
     const second = coords[1];

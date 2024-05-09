@@ -141,7 +141,6 @@ function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
 
-
 export {
   clone,
   getDataset,

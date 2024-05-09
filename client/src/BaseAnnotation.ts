@@ -1,4 +1,4 @@
-import { Ref, ref } from '@vue/composition-api';
+import { Ref, ref } from 'vue';
 
 export type ConfidencePair = [string, number];
 export type AnnotationId = number;
@@ -177,9 +177,7 @@ export default abstract class BaseAnnotation {
   /**
    * Figure out if any confidence pairs are above any corresponding thresholds
    */
-  static exceedsThreshold(
-    pairs: Array<ConfidencePair>, thresholds: Record<string, number>,
-  ): Array<ConfidencePair> {
+  static exceedsThreshold(pairs: Array<ConfidencePair>, thresholds: Record<string, number>): Array<ConfidencePair> {
     const defaultThresh = thresholds.default || 0;
     return pairs.filter(([name, value]) => value >= (thresholds[name] || defaultThresh));
   }

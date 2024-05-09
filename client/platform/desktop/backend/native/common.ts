@@ -158,7 +158,6 @@ async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 't
   return release;
 }
 
-
 async function _findCSVTrackFiles(searchPath: string) {
   const contents = await fs.readdir(searchPath);
   const csvFileCandidates = contents
@@ -269,9 +268,7 @@ async function loadMetadata(
     if (!projectMetaData.multiCam) {
       throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
     }
-    multiCamMedia = getMultiCamUrls(
-      projectMetaData, projectDirData.basePath, makeMediaUrl,
-    );
+    multiCamMedia = getMultiCamUrls(projectMetaData, projectDirData.basePath, makeMediaUrl);
     /* TODO: Done temporarily before we support true display of items */
     const defaultDisplay = multiCamMedia.cameras[multiCamMedia.defaultDisplay];
     imageData = defaultDisplay.imageData;
@@ -447,7 +444,6 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   };
 }
 
-
 /**
  * _saveSerialized save pre-serialized tracks to disk
  */
@@ -487,7 +483,7 @@ async function saveDetections(settings: Settings, datasetId: string, args: SaveD
   /* Update existing track file */
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  function _save<T>(type: 'tracks' | 'groups') {
+  function _save(type: 'tracks' | 'groups') {
     args[type].delete.forEach((id) => delete existing[type][id.toString()]);
     args[type].upsert.forEach((val: TrackData | GroupData) => {
       existing[type][val.id.toString()] = val;
@@ -526,7 +522,6 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
 }
-
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
@@ -569,7 +564,6 @@ async function saveAttributeTrackFilters(
   });
   await saveMetadata(settings, datasetId, projectMetaData);
 }
-
 
 async function _ingestFilePath(
   settings: Settings,
@@ -686,9 +680,7 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(
-      settings, datasetId, path, imageMap, additive, additivePrepend,
-    );
+    const newMeta = await _ingestFilePath(settings, datasetId, path, imageMap, additive, additivePrepend);
     if (newMeta !== null) {
       merge(meta, newMeta);
       processedFiles.push(path);
@@ -788,7 +780,6 @@ async function checkDataset(
   }
   return true;
 }
-
 
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
@@ -940,8 +931,13 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   const result = await ingestDataFiles(
-    settings, id, [path], undefined, validImageNamesMap(jsonMeta),
-    additive, additivePrepend,
+    settings,
+    id,
+    [path],
+    undefined,
+    validImageNamesMap(jsonMeta),
+    additive,
+    additivePrepend,
   );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
@@ -963,9 +959,7 @@ async function _importTrackFile(
     jsonMeta.transcodedImageFiles.sort(strNumericCompare);
   }
   if (userTrackFileAbsPath) {
-    const processed = await ingestDataFiles(
-      settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta),
-    );
+    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta));
     merge(jsonMeta, processed.meta);
     if (processed.processedFiles.length === 0) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
@@ -980,9 +974,7 @@ async function _importTrackFile(
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-async function completeConversion(
-  settings: Settings, datasetId: string, transcodingJobKey: string,
-) {
+async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (existing.transcodingJobKey === transcodingJobKey) {
@@ -1088,14 +1080,10 @@ async function finalizeMediaImport(
         multiCamTrackFile = args.multiCamTrackFiles[cameraName];
       }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(
-        settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile,
-      );
+      await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile);
     }
   }
-  const finalJsonMeta = await _importTrackFile(
-    settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
-  );
+  const finalJsonMeta = await _importTrackFile(settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath);
   if (args.metaFileAbsPath) {
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }

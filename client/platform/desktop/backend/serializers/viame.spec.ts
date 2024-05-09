@@ -70,7 +70,6 @@ const imageFilenameTests = [
   },
 ];
 
-
 const trackMap: MultiTrackRecord = {
   1: {
     begin: 0,
@@ -204,7 +203,6 @@ mockfs({
   '/csv': testFiles,
 });
 
-
 // Returns first confidence pairs output of CSV that isn't a comment
 function checkConfidenceOutput(output: string[]) {
   for (let i = 0; i < output.length; i += 1) {
@@ -246,7 +244,6 @@ describe('VIAME Python Compatibility Check', () => {
     }
   });
 });
-
 
 describe('VIAME serialize testing', () => {
   it('testing exporting with viame CSV and proper order', async () => {
@@ -319,7 +316,6 @@ describe('Test Image Filenames', () => {
     }
   });
 });
-
 
 afterAll(() => {
   mockfs.restore();

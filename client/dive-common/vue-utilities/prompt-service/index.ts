@@ -1,8 +1,7 @@
 /* disabled this rule for Vue.prototype.FOO = */
 /* eslint-disable no-param-reassign,func-names */
 
-import { VueConstructor } from 'vue';
-import { watch } from '@vue/composition-api';
+import { VueConstructor, watch } from 'vue';
 import Vuetify from 'vuetify/lib';
 import Prompt from './Prompt.vue';
 

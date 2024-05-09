@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { DatasetType } from 'dive-common/apispec';
-import { defineComponent, PropType } from '@vue/composition-api';
+import { defineComponent, PropType } from 'vue';
 
 export const DefaultButtonAttrs = {
   block: true,
@@ -51,7 +51,7 @@ export default defineComponent({
       nudge-left="180"
       max-width="180"
     >
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <v-btn
           v-bind="buttonAttrs"
           :large="!small"
@@ -114,7 +114,7 @@ export default defineComponent({
           </v-list-item>
           <v-list-item
             style="align-items':'center"
-            @click="$emit('multi-cam',{ stereo: true, openType })"
+            @click="$emit('multi-cam', { stereo: true, openType })"
           >
             <v-list-item-icon>
               <v-icon>mdi-binoculars</v-icon>
@@ -125,7 +125,7 @@ export default defineComponent({
           </v-list-item>
           <v-list-item
             style="align-items':'center"
-            @click="$emit('multi-cam',{ stereo: false, openType })"
+            @click="$emit('multi-cam', { stereo: false, openType })"
           >
             <v-list-item-icon>
               <v-icon>mdi-camera-burst</v-icon>

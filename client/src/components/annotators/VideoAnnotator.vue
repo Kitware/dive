@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, onBeforeUnmount, PropType, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 /**

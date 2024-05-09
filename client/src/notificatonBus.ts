@@ -13,7 +13,6 @@ export interface GirderNotification {
   [key: string]: any;
 }
 
-
 /**
  * Based on Girder Web Components NotificationBus, but simpler.
  * Register notifications directly on the girderRest instance using

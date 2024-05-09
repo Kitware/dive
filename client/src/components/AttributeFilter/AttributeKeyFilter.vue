@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType, Ref, ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AttributeKeyFilter } from 'vue-media-annotator/use/AttributeTypes';
 import { cloneDeep } from 'lodash';
@@ -11,6 +11,8 @@ import AttributeKeyFilterSettings from './AttributeKeyFilterSettings.vue';
 
 export default defineComponent({
   name: 'AttributeKeyFilter',
+
+  components: { TooltipBtn, AttributeKeyFilterSettings },
 
   props: {
     attributeFilter: {
@@ -26,8 +28,6 @@ export default defineComponent({
       default: false,
     },
   },
-
-  components: { TooltipBtn, AttributeKeyFilterSettings },
 
   setup(props, { emit }) {
     const settingsDialog = ref(false);

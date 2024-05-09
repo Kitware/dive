@@ -100,7 +100,6 @@ describe('native.multiCamImport', () => {
   }
 });
 
-
 afterAll(() => {
   mockfs.restore();
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, reactive, watch, toRefs,
-} from '@vue/composition-api';
+} from 'vue';
 import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
 import { clientSettings } from 'dive-common/store/settings';

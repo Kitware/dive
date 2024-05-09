@@ -1,4 +1,4 @@
-import type { Ref } from '@vue/composition-api';
+import type { Ref } from 'vue';
 
 /**
  * AggregateMediaController provides an interface for time and a few

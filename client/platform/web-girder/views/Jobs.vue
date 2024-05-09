@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
@@ -65,7 +65,7 @@ export default defineComponent({
           v-if="item.dataset_id"
           bottom
         >
-          <template #activator="{on, attrs}">
+          <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
               x-small
@@ -83,7 +83,7 @@ export default defineComponent({
           <span>Launch dataset viewer</span>
         </v-tooltip>
         <v-tooltip bottom>
-          <template #activator="{on, attrs}">
+          <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
               x-small

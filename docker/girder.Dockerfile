@@ -1,7 +1,7 @@
 # ========================
 # == CLIENT BUILD STAGE ==
 # ========================
-FROM node:16 as client-builder
+FROM node:20 as client-builder
 WORKDIR /app
 
 # Install dependencies

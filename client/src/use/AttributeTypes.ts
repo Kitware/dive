@@ -50,7 +50,6 @@ export interface Attribute {
 }
 
 export type Attributes = Record<string, Attribute>;
-type ValueOf<T> = T[keyof T];
 
 export interface AttributeNumberFilter {
   type: 'range' | 'top'; // range filters for number values, top will show highest X values

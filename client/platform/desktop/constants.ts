@@ -5,7 +5,6 @@ import type {
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
-
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;

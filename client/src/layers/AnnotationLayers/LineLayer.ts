@@ -13,7 +13,6 @@ interface LineGeoJSData{
   dashed?: boolean;
 }
 
-
 export default class LineLayer extends BaseLayer<LineGeoJSData> {
   constructor(params: BaseLayerParams) {
     super(params);

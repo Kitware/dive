@@ -7,14 +7,12 @@ export type MatchOperator = '=' | '≠' | '>' | '<' | '>=' | '<=' | 'range' | 'i
 
 export type userDefinedVals = number | string | string[] | number[] | null | boolean;
 
-
 export interface AttributeMatch {
     op: MatchOperator;
     val: userDefinedVals; //number, string, array of numbers or strings
     userDefined?: boolean; // means that the user can edit the value in a filter tool
     range?: number[];
 }
-
 
 export interface AttributeTrackFilter {
     name: string;
@@ -109,9 +107,9 @@ export const checkAttributes = (attributeMatch: AttributeMatch, attributeVal: us
   return results.filter((item) => item).length === results.length;
 };
 
-
 export const trackIdPassesFilter = (
-  id: AnnotationId, getTrack: (trackId: AnnotationId) => Track,
+  id: AnnotationId,
+  getTrack: (trackId: AnnotationId) => Track,
   filters: AttributeTrackFilter[],
   userDefinedvals: userDefinedVals[],
   enabled: boolean[],

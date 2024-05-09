@@ -1,17 +1,15 @@
 <script lang="ts">
 import { cloneDeep } from 'lodash';
-import {
+import Vue, {
   computed, defineComponent, watch, toRef, ref, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
 
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { DesktopMediaImportResponse } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
-import Vue from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
-
 
 export default defineComponent({
   name: 'ImportDialog',
@@ -194,7 +192,7 @@ export default defineComponent({
             @input="argCopy.trackFileAbsPath = $event"
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"
-            @click:clear="argCopy.trackFileAbsPath=''"
+            @click:clear="argCopy.trackFileAbsPath = ''"
           />
         </v-col>
       </v-row>
@@ -235,7 +233,7 @@ export default defineComponent({
           @input="argCopy.metaFileAbsPath = $event"
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"
-          @click:clear="argCopy.metaFileAbsPath=''"
+          @click:clear="argCopy.metaFileAbsPath = ''"
         />
         <v-text-field
           v-if="argCopy.jsonMeta.type === 'image-sequence'"
