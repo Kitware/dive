@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "target": "es2020",
+    "target": "ES2018",
     "module": "commonjs",
     "outDir": "./bin",
     "declaration": true,
