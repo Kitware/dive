@@ -29,7 +29,6 @@ yarn build:electron
 
 # lint and test
 yarn lint
-yarn lint:templates
 yarn test
 
 # Local verification of all tests, linting, builds

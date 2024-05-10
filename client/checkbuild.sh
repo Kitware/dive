@@ -11,7 +11,6 @@ yarn install --frozen-lockfile
 yarn test
 
 yarn lint &
-yarn lint:templates
 
 yarn build:web &
 yarn build:lib &
