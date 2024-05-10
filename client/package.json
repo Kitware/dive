@@ -18,7 +18,6 @@
     "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "vue-cli-service lint src/ dive-common/ platform/",
-    "lint:templates": "vtc --workspace . --srcDir src/",
     "test": "vue-cli-service test:unit src/ dive-common/ platform/"
   },
   "resolutions": {
