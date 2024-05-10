@@ -116,7 +116,7 @@
     "jest-transform-stub": "^2.0.0",
     "js-yaml": "^4.1.0",
     "mime-types": "^2.1.27",
-    "mock-fs": "^5.1.1",
+    "mock-fs": "^5.2.0",
     "proper-lockfile": "^4.1.1",
     "pump": "^3.0.0",
     "range-parser": "^1.2.1",

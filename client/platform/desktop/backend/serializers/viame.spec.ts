@@ -193,14 +193,16 @@ imageFilenameTests.forEach((item, index) => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 
-mockfs({
-  '/home': {},
-  'home/user/media/projectid1data': {
-    'foo.png': '',
-    'bar.png': '',
-  },
-  '/imageorder': imageOrderFiles,
-  '/csv': testFiles,
+beforeEach(() => {
+  mockfs({
+    '/home': {},
+    'home/user/media/projectid1data': {
+      'foo.png': '',
+      'bar.png': '',
+    },
+    '/imageorder': imageOrderFiles,
+    '/csv': testFiles,
+  });
 });
 
 // Returns first confidence pairs output of CSV that isn't a comment
@@ -317,6 +319,6 @@ describe('Test Image Filenames', () => {
   });
 });
 
-afterAll(() => {
+afterEach(() => {
   mockfs.restore();
 });
