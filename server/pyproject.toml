@@ -1,7 +1,6 @@
 [tool.black]
 line-length = 100
 skip-string-normalization = true
-target-version = ["py11"]
 exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
 
 [tool.isort]

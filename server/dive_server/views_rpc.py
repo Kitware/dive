@@ -209,7 +209,6 @@ class RpcResource(Resource):
     def convert_large_image(self, folder):
         return crud_rpc.convert_large_image(self.getCurrentUser(), folder)
 
-
     @access.user
     @autoDescribeRoute(
         Description("Post-processing for after S3 Imports")

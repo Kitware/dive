@@ -1,6 +1,7 @@
 """
 Cli tools for using parts of the DIVE codebase outside a web server environment
 """
+
 import functools
 import json
 from typing import BinaryIO, Dict, List, Optional, TextIO

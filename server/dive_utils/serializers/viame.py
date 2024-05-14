@@ -1,6 +1,7 @@
 """
 VIAME Fish format deserializer
 """
+
 import csv
 import datetime
 import io
