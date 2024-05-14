@@ -117,6 +117,7 @@ export default defineComponent({
       <v-row
         v-for="item in attributeFilter.appliedTo"
         :key="item"
+        class="py-2"
       >
         <div
           class="type-color-box"

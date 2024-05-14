@@ -123,6 +123,7 @@ export default defineComponent({
           </v-col>
           <v-col cols="4">
             <v-switch
+              v-if="compareChecks.length"
               :value="compareChecks[index].checked"
               :disabled="selectedSet === compareChecks[index].name"
               dense

@@ -60,7 +60,7 @@ export default defineComponent({
       <v-container>
         <h3> {{ currentMode }} </h3>
         <v-row class="px-3">
-          <div class="mx-1">
+          <div class="mx-1 my-3">
             <tooltip-btn
               icon="mdi-filter"
               tooltip-text="Filter Attributes displayed"
@@ -71,7 +71,7 @@ export default defineComponent({
               @click="currentMode = 'Filtering'"
             />
           </div>
-          <div class="mx-1">
+          <div class="mx-1 my-3">
             <tooltip-btn
               icon="mdi-chart-line-variant"
               tooltip-text="Chart Numeric Attributes"

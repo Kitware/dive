@@ -81,7 +81,7 @@ export default defineComponent({
       >
         Type Settings
         <v-row>
-          <v-col class="py-1">
+          <v-col>
             <v-btn
               dense
               small
@@ -97,8 +97,8 @@ export default defineComponent({
           </v-col>
           <v-col
             cols="2"
-            class="py-1"
             align="right"
+            justify="center"
           >
             <v-tooltip
               open-delay="200"

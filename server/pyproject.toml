@@ -74,9 +74,9 @@ large-image =  { version = "^1.28.1", optional = true }
 large-image-source-ometiff =  { version = "^1.28.1", optional = true }
 large-image-source-openjpeg =  { version = "^1.28.1", optional = true }
 numpy = "1.24.4"
-gdal = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=39a98b7ab444097a56cc91bd73ee3485ab577296a771acc10e5106f92a2db7ab", optional = true}
-pylibtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=528b8c19bae69b7c53499572be578e98e2cc91e2ead479e2744201f3a981764f", optional = true}
-pyvips = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=64ddefeb25167da7485bc8aae3b1f9a52cb06b9d2a5112c97c6192402b1dbf4f"}
+gdal = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", optional = true}
+pylibtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", optional = true}
+pyvips = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
 
 [tool.poetry.group.dev.dependencies]
 opencv-python = "^4.5.5"

@@ -833,7 +833,7 @@ numpy = ["numpy (>1.0.0)"]
 
 [package.source]
 type = "url"
-url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=39a98b7ab444097a56cc91bd73ee3485ab577296a771acc10e5106f92a2db7ab"
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-3.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "girder"
@@ -1757,11 +1757,11 @@ files = [
 [package.dependencies]
 numpy = [
     {version = ">=1.21.0", markers = "python_version <= \"3.9\" and platform_system == \"Darwin\" and platform_machine == \"arm64\" and python_version >= \"3.8\""},
-    {version = ">=1.19.3", markers = "platform_system == \"Linux\" and platform_machine == \"aarch64\" and python_version >= \"3.8\" and python_version < \"3.10\" or python_version > \"3.9\" and python_version < \"3.10\" or python_version >= \"3.9\" and platform_system != \"Darwin\" and python_version < \"3.10\" or python_version >= \"3.9\" and platform_machine != \"arm64\" and python_version < \"3.10\""},
-    {version = ">=1.17.3", markers = "(platform_system != \"Darwin\" and platform_system != \"Linux\") and python_version >= \"3.8\" and python_version < \"3.9\" or platform_system != \"Darwin\" and python_version >= \"3.8\" and python_version < \"3.9\" and platform_machine != \"aarch64\" or platform_machine != \"arm64\" and python_version >= \"3.8\" and python_version < \"3.9\" and platform_system != \"Linux\" or (platform_machine != \"arm64\" and platform_machine != \"aarch64\") and python_version >= \"3.8\" and python_version < \"3.9\""},
     {version = ">=1.23.5", markers = "python_version >= \"3.11\""},
     {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\" and python_version < \"3.11\""},
     {version = ">=1.21.2", markers = "platform_system != \"Darwin\" and python_version >= \"3.10\" and python_version < \"3.11\""},
+    {version = ">=1.19.3", markers = "platform_system == \"Linux\" and platform_machine == \"aarch64\" and python_version >= \"3.8\" and python_version < \"3.10\" or python_version > \"3.9\" and python_version < \"3.10\" or python_version >= \"3.9\" and platform_system != \"Darwin\" and python_version < \"3.10\" or python_version >= \"3.9\" and platform_machine != \"arm64\" and python_version < \"3.10\""},
+    {version = ">=1.17.3", markers = "(platform_system != \"Darwin\" and platform_system != \"Linux\") and python_version >= \"3.8\" and python_version < \"3.9\" or platform_system != \"Darwin\" and python_version >= \"3.8\" and python_version < \"3.9\" and platform_machine != \"aarch64\" or platform_machine != \"arm64\" and python_version >= \"3.8\" and python_version < \"3.9\" and platform_system != \"Linux\" or (platform_machine != \"arm64\" and platform_machine != \"aarch64\") and python_version >= \"3.8\" and python_version < \"3.9\""},
 ]
 
 [[package]]
@@ -2098,7 +2098,7 @@ description = "PyLibTiff: a Python tiff library."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:528b8c19bae69b7c53499572be578e98e2cc91e2ead479e2744201f3a981764f"},
+    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1f01ba9e3e88981114122ed127d2e11f31972764a2dbe18d57dc1718d62a5f46"},
 ]
 
 [package.dependencies]
@@ -2109,7 +2109,7 @@ bitarray = ["bitarray"]
 
 [package.source]
 type = "url"
-url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=528b8c19bae69b7c53499572be578e98e2cc91e2ead479e2744201f3a981764f"
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "pymongo"
@@ -2350,7 +2350,7 @@ description = "binding for the libvips image processing library, API mode"
 optional = false
 python-versions = "*"
 files = [
-    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:64ddefeb25167da7485bc8aae3b1f9a52cb06b9d2a5112c97c6192402b1dbf4f"},
+    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2d9d0472b0844bbcbbc6dd3bcc6acdd488e560185122ed5c9e5f117e2fcc5bd9"},
 ]
 
 [package.dependencies]
@@ -2363,7 +2363,7 @@ test = ["cffi (>=1.0.0)", "pyperf", "pytest"]
 
 [package.source]
 type = "url"
-url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=64ddefeb25167da7485bc8aae3b1f9a52cb06b9d2a5112c97c6192402b1dbf4f"
+url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [[package]]
 name = "pywin32"
@@ -2936,4 +2936,4 @@ large-image = ["gdal", "girder-large-image", "large-image", "large-image-convert
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.12"
-content-hash = "30172727ba862683d13b055dbad414e4f4d8598496b4f49a81818c10588d3d87"
+content-hash = "cf2413db8033431feacfb50092190c31e7bbbe6d9574dbae2d1bd40b01b694fd"

@@ -239,7 +239,6 @@ export default defineComponent({
   <div class="d-flex flex-column">
     <v-container
       dense
-      class="py-0"
     >
       <v-row
         class="border-highlight"
@@ -300,7 +299,7 @@ export default defineComponent({
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
-    <div class="pb-2 overflow-y-hidden">
+    <div class="py-2 overflow-y-hidden">
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"
