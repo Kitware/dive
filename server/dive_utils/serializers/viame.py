@@ -333,6 +333,8 @@ def load_csv_as_tracks_and_attributes(
                     (
                         'Images were provided in an unexpected order '
                         'and dataset contains multi-frame tracks. '
+                        f'featureFrame: {feature.frame} maxFeatureFrame: {maxFeatureFrame}'
+                        f'TrackId: {trackId}'
                     )
                 )
 
@@ -358,15 +360,18 @@ def load_csv_as_tracks_and_attributes(
                 continue
             k = index + 1
             if k < len(filteredImages):
+                item_difference = foundImages[k]['csvFrame'] - item['csvFrame']
                 if (
-                    item['csvFrame'] + 1 != filteredImages[k]['csvFrame']
-                    or item['frame'] + 1 != filteredImages[k]['frame']
+                    item['csvFrame'] + item_difference != filteredImages[k]['csvFrame']
+                    or item['frame'] + item_difference != filteredImages[k]['frame']
                 ):
                     # We have misaligned video sequences so we error out
                     raise ValueError(
                         (
                             'A subsampling of images were used with the CSV '
                             'but they were not sequential'
+                            f'foundImage: {filteredImages[k]} item: {item}'
+                            f'item difference: {item_difference}'
                         )
                     )
             frameMapper[item['csvFrame']] = index
@@ -421,15 +426,19 @@ def load_csv_as_tracks_and_attributes(
         for index, item in enumerate(foundImages):
             k = index + 1
             if k < len(foundImages):
+                # sometimes the frame difference isn't 1
+                item_difference = foundImages[k]['csvFrame'] - item['csvFrame']
                 if (
-                    item['csvFrame'] + 1 != foundImages[k]['csvFrame']
-                    or item['frame'] + 1 != foundImages[k]['frame']
+                    item['csvFrame'] + item_difference != foundImages[k]['csvFrame']
+                    or item['frame'] + item_difference != foundImages[k]['frame']
                 ):
                     # We have misaligned video sequences so we error out
                     raise ValueError(
                         (
                             'Images were provided in an unexpected order '
                             'and dataset contains multi-frame tracks.'
+                            f'foundImage: {foundImages[k]} item: {item}'
+                            f'itemDifference: {item_difference}'
                         )
                     )
 
