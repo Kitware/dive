@@ -41,6 +41,10 @@ jobs:
       name: Lint
       if: ${{ matrix.target == 'web' }}
       run: yarn lint
+    -
+      name: Lint templates
+      if: ${{ matrix.target == 'web' }}
+      run: yarn lint:templates  
     - 
       name: Run tests
       if: ${{ matrix.target == 'web' }}

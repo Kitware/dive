@@ -18,6 +18,7 @@
     "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "vue-cli-service lint src/ dive-common/ platform/",
+    "lint:templates": "eslint --ext vue src/ dive-common/ platform/",
     "test": "vue-cli-service test:unit src/ dive-common/ platform/"
   },
   "resolutions": {
@@ -106,7 +107,7 @@
     "eslint": "^8.55.0",
     "eslint-import-resolver-typescript": "^2.2.0",
     "eslint-plugin-import": "^2.20.2",
-    "eslint-plugin-vue": "^9.19.2",
+    "eslint-plugin-vue": "^9.26.0",
     "express": "^4.17.1",
     "ffmpeg-ffprobe-static": "^4.4.0-rc.11",
     "fs-extra": "^9.0.1",
