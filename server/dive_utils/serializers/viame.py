@@ -439,7 +439,6 @@ def load_csv_as_tracks_and_attributes(
                             'and dataset contains multi-frame tracks.'
                             f'foundImage: {foundImages[k]} item: {item}'
                             f'itemDifference: {item_difference}'
-
                         )
                     )
 
