@@ -21,16 +21,16 @@ if (
   && window.location.hostname !== 'localhost'
 ) {
   SentryInit({
-    dsn: process.env.VUE_APP_SENTRY_DSN,
+    dsn: process.env.VITE_APP_SENTRY_DSN,
     integrations: [
       new SentryVue({ Vue, logErrors: true }),
     ],
-    release: process.env.VUE_APP_GIT_HASH,
+    release: process.env.VITE_APP_GIT_HASH,
     environment: (window.location.hostname === 'viame.kitware.com')
       ? 'production' : 'development',
   });
   Vue.use(VueGtag, {
-    config: { id: process.env.VUE_APP_GTAG },
+    config: { id: process.env.VITE_APP_GTAG },
   }, router);
 }
 
