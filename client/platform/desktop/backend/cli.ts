@@ -52,7 +52,7 @@ function updater(update: DesktopJobUpdate) {
 
 async function parseViameFile(file: string) {
   const data = await parseFile(file);
-  stdout.write(JSON.stringify(data));
+  stdout.write(JSON.stringify(data[0]));
 }
 
 async function parseJsonFile(filepath: string, metapath: string) {

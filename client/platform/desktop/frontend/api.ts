@@ -133,7 +133,7 @@ function importMultiCam(args: MultiCamImportArgs):
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean> {
+function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
   return ipcRenderer.invoke('import-annotation', {
     id, path, additive, additivePrepend,
   });

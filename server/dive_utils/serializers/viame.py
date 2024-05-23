@@ -276,8 +276,8 @@ def custom_sort(row):
 
 
 def load_csv_as_tracks_and_attributes(
-    rows: List[str], imageMap: Optional[Dict[str, int]] = None
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+    rows: List[str], imageMap: Optional[Dict[str, int]] = None,
+) -> Tuple[types.DIVEAnnotationSchema, dict, List[str]]:
     """
     Convert VIAME CSV to json tracks
 
@@ -292,6 +292,7 @@ def load_csv_as_tracks_and_attributes(
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=custom_sort)
+    warnings: List[str] = []
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
@@ -355,10 +356,8 @@ def load_csv_as_tracks_and_attributes(
         maxFrame = float('-inf')
         frameMapper = {}
         filteredImages = [item for item in foundImages if item['frame'] != -1]
-        print('FilteredImages')
-        print(filteredImages)
-        print('FoundIamges')
-        print(foundImages)
+        print('IMAGEMAP')
+        print(imageMap)
         for index, item in enumerate(filteredImages):
             if item['frame'] == -1:
                 continue
@@ -369,8 +368,9 @@ def load_csv_as_tracks_and_attributes(
                     item['csvFrame'] + item_difference != filteredImages[k]['csvFrame']
                     or item['frame'] + item_difference != filteredImages[k]['frame']
                 ):
-                    # We have misaligned video sequences so we error out
-                    raise ValueError(
+                    # There are misaliged video sequences so we are going to utilize the imageMap
+                    # We have misaligned video sequences so we handle that with the image map if possible
+                    warnings.append(
                         (
                             'A subsampling of images were used with the CSV '
                             'but they were not sequential'
@@ -437,7 +437,7 @@ def load_csv_as_tracks_and_attributes(
                     or item['frame'] + item_difference != foundImages[k]['frame']
                 ):
                     # We have misaligned video sequences so we error out
-                    raise ValueError(
+                    warnings.append(
                         (
                             'Images were provided in an unexpected order '
                             'and dataset contains multi-frame tracks.'
@@ -454,7 +454,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes
+    return annotations, metadata_attributes, warnings
 
 
 def export_tracks_as_csv(
