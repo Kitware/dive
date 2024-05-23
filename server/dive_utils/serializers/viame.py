@@ -355,6 +355,10 @@ def load_csv_as_tracks_and_attributes(
         maxFrame = float('-inf')
         frameMapper = {}
         filteredImages = [item for item in foundImages if item['frame'] != -1]
+        print('FilteredImages')
+        print(filteredImages)
+        print('FoundIamges')
+        print(foundImages)
         for index, item in enumerate(filteredImages):
             if item['frame'] == -1:
                 continue
@@ -374,7 +378,7 @@ def load_csv_as_tracks_and_attributes(
                             f'item difference: {item_difference}'
                         )
                     )
-            frameMapper[item['csvFrame']] = index
+            frameMapper[item['csvFrame']] = item['frame']
             minFrame = min(minFrame, item['csvFrame'])
             maxFrame = max(maxFrame, item['csvFrame'])
 
