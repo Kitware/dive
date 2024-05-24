@@ -683,9 +683,7 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const results = await _ingestFilePath(
-      settings, datasetId, path, imageMap, additive, additivePrepend,
-    );
+    const results = await _ingestFilePath(settings, datasetId, path, imageMap, additive, additivePrepend);
     if (results !== null) {
       const [newMeta, warnings] = results;
       outwarnings = warnings;

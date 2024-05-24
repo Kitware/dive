@@ -318,8 +318,10 @@ export default defineComponent({
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({ url: exportUrls
-                    && exportUrls.exportDetectionsUrlTrackJSON })"
+                  @click="doExport({
+                    url: exportUrls
+                      && exportUrls.exportDetectionsUrlTrackJSON,
+                  })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
