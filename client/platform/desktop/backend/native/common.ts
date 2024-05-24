@@ -578,13 +578,14 @@ async function _ingestFilePath(
   imageMap?: Map<string, number>,
   additive = false,
   additivePrepend = '',
-): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
+): Promise<[(DatasetMetaMutable & { fps?: number }), string[]] | null> {
   if (!fs.existsSync(path)) {
     return null;
   }
   if (fs.statSync(path).size === 0) {
     return null;
   }
+  let warnings: string[] = [];
   // Make a copy of the file in aux
   const projectInfo = getProjectDir(settings, datasetId);
   const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
@@ -612,9 +613,10 @@ async function _ingestFilePath(
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
     const data = await viameSerializers.parseFile(path, imageMap);
-    annotations.tracks = data.tracks;
-    annotations.groups = data.groups;
-    meta.fps = data.fps;
+    annotations.tracks = data[0].tracks;
+    annotations.groups = data[0].groups;
+    meta.fps = data[0].fps;
+    [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
   }
@@ -652,7 +654,7 @@ async function _ingestFilePath(
     await _saveSerialized(settings, datasetId, annotations, true);
   }
 
-  return meta;
+  return [meta, warnings];
 }
 
 /**
@@ -679,17 +681,20 @@ async function ingestDataFiles(
 ): Promise<{
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
+  warnings: string[];
 }> {
   const processedFiles = []; // which files were processed to generate the detections
   const meta = {};
-
+  let outwarnings: string[] = [];
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(
+    const results = await _ingestFilePath(
       settings, datasetId, path, imageMap, additive, additivePrepend,
     );
-    if (newMeta !== null) {
+    if (results !== null) {
+      const [newMeta, warnings] = results;
+      outwarnings = warnings;
       merge(meta, newMeta);
       processedFiles.push(path);
     }
@@ -702,15 +707,17 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
-      if (newMeta !== null) {
+      const results = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
+      if (results !== null) {
+        const [newMeta, warnings] = results;
+        outwarnings = outwarnings.concat(warnings);
         merge(meta, newMeta);
         processedFiles.push(path);
       }
     }
   }
 
-  return { processedFiles, meta };
+  return { processedFiles, meta, warnings: outwarnings };
 }
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder

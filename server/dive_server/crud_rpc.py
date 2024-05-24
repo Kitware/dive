@@ -288,7 +288,7 @@ GetDataReturnType = TypedDict(
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-) -> Optional[GetDataReturnType]:
+) -> Optional[Tuple[GetDataReturnType, Optional[List[str]]]]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
@@ -325,10 +325,10 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes = viame.load_csv_as_tracks_and_attributes(
+        converted, attributes, warnings = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
         return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
@@ -374,6 +374,7 @@ def process_items(
         folder,
         user,
     )
+    aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
@@ -383,7 +384,9 @@ def process_items(
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
                 image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
-            results = _get_data_by_type(file, image_map=image_map)
+            results, warnings = _get_data_by_type(file, image_map=image_map)
+            if warnings:
+                aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
@@ -414,7 +417,7 @@ def process_items(
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
             crud_dataset.update_metadata(folder, results['meta'], False)
-
+    return aggregate_warnings
 
 def postprocess(
     user: types.GirderUserModel,
@@ -424,7 +427,7 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
-) -> types.GirderModel:
+) -> Tuple[types.GirderModel, Optional[List[str]]]:
     """
     Post-processing to be run after media/annotation import
 
@@ -539,8 +542,8 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user, additive, additivePrepend, set)
-    return dsFolder
+    aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    return dsFolder, aggregate_warnings
 
 
 def convert_large_image(

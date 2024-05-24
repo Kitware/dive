@@ -319,15 +319,16 @@ export default defineComponent({
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({ url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON })"                >
+                    && exportUrls.exportDetectionsUrlTrackJSON })"
+                >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
                   >DIVE TrackJSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
-                      </v-btn>
-            <!-- <v-btn
+                </v-btn>
+                <!-- <v-btn
               depressed
               block
               :disabled="!exportUrls.exportDetectionsUrl"
@@ -336,7 +337,7 @@ export default defineComponent({
               <span v-if="exportUrls.exportDetectionsUrl">annotations</span>
               <span v-else>detections unavailable</span>
             </v-btn> -->
-            </v-col>
+              </v-col>
             </v-row>
           </v-card-actions>
 
