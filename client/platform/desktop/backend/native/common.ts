@@ -689,11 +689,12 @@ async function ingestDataFiles(
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const [newMeta, warnings] = await _ingestFilePath(
+    const results = await _ingestFilePath(
       settings, datasetId, path, imageMap, additive, additivePrepend,
     );
-    outwarnings = warnings;
-    if (newMeta !== null) {
+    if (results !== null) {
+      const [newMeta, warnings] = results;
+      outwarnings = warnings;
       merge(meta, newMeta);
       processedFiles.push(path);
     }
@@ -706,9 +707,10 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const [newMeta, warnings] = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
-      outwarnings = outwarnings.concat(warnings);
-      if (newMeta !== null) {
+      const results = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
+      if (results !== null) {
+        const [newMeta, warnings] = results;
+        outwarnings = outwarnings.concat(warnings);
         merge(meta, newMeta);
         processedFiles.push(path);
       }
