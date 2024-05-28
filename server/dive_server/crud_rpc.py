@@ -288,7 +288,7 @@ GetDataReturnType = TypedDict(
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-) -> Optional[Tuple[GetDataReturnType, Optional[List[str]]]]:
+) -> Tuple[Optional[GetDataReturnType], Optional[List[str]]]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
