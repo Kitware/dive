@@ -15,6 +15,7 @@ import type {
 import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
+  stereoCalibrationConfigurationFileTypes,
 } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
@@ -27,7 +28,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'stereoConfiguration', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -51,6 +52,12 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
   if (datasetType === 'text') {
     filters = [
       { name: 'text', extensions: listFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'stereoConfiguration') {
+    filters = [
+      { name: 'configuration', extensions: stereoCalibrationConfigurationFileTypes },
       allFiles,
     ];
   }

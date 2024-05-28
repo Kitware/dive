@@ -60,7 +60,7 @@ By default, all attributes associated with the dataset are visible and editable.
 
 1. Click on the ==:material-plus: Attribute== icon for in either the track or detection attribute area.
     1. ![New Attribute Panel](images/Attributes/newAttribute.png)
-1. Enter a unique name
+1. Enter a unique name (see [Reserved Attribute Names section](#reserved-attribute-names))
 1. Choose a Datatype
     1. `Number`
     1. `Boolean` (True/False)
@@ -97,6 +97,13 @@ Attributes are part of the dataset configuration that can be imported and export
 1. Use this configuration with other datasets
     1. Use the ==:material-application-import: Import== button to load this configuration to other datasets.
     1. Upload the configuration file when you create new datasets to initialize them with these attribute definitions.
+
+
+## Reserved Attribute Names
+
+Using certain import mode, attributes definitions might be created automatically. This is documented in this section.
+- When importing using 'Stereoscopic' mode, the `stereo3d_x`, `stereo3d_y` and `stereo3d_z` detection attributes definitions will be created automatically.
+They holds the 3d location of a detected fish and are used in the Track 3D Viewer.
 
 ## Applying Attributes Demo
 

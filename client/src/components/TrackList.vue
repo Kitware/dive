@@ -51,7 +51,7 @@ export default defineComponent({
 
   components: { TrackItem },
 
-  setup(props) {
+  setup(props, ctx) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
     const trackFilters = useTrackFilters();
@@ -192,6 +192,11 @@ export default defineComponent({
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
 
+    function addTrackAndNotify() {
+      const trackId = trackAdd();
+      ctx.emit('track-added', trackId);
+    }
+
     return {
       allTypes: allTypesRef,
       data,
@@ -205,6 +210,7 @@ export default defineComponent({
       virtualListItems,
       virtualList: virtualScroll.virtualList,
       multiDelete,
+      addTrackAndNotify,
     };
   },
 });
@@ -279,7 +285,7 @@ export default defineComponent({
                 class="mr-2"
                 :color="newTrackColor"
                 v-on="on"
-                @click="trackAdd()"
+                @click="addTrackAndNotify()"
               >
                 <v-icon small>
                   mdi-plus

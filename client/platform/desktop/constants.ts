@@ -41,6 +41,7 @@ export interface Camera {
   transcodedImageFiles: string[];
   transcodedVideoFile: string;
   imageListPath?: string;
+  calibrationFile?: string;
 }
 
 export interface MultiCamDesktop {
@@ -120,6 +121,8 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   subType: SubType;
+
+  calibrationFile?: string; // kwiver *.conf file or *.npz
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

@@ -12,6 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "sourceMap": false,
     "baseUrl": ".",
+    "skipLibCheck": true,
     "paths": {
       "vue-media-annotator/*": [
         "src/*"
