@@ -66,7 +66,9 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
         return None
-
+    if value is None:
+        return None
+    
     if value == "true":
         return True
     if value == "false":
