@@ -299,10 +299,11 @@ def _get_data_by_type(
     :param image_map: Mapping of image names to frame numbers
     """
     if file is None:
-        return None
+        return None, None
     file_generator = File().download(file, headers=False)()
     file_string = b"".join(list(file_generator)).decode()
     data_dict = None
+    warnings = None
 
     # Discover the type of the mystery file
     if file['exts'][-1] == 'csv':
@@ -331,21 +332,21 @@ def _get_data_by_type(
         return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
         converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.DIVE_CONF:
-        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
+        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}, warnings
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}
-    return None
+        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+    return None, None
 
 
 def process_items(
