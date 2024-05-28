@@ -105,8 +105,6 @@ class RevisionLogItem(crud.PydanticModel):
             query[REVISION] = {'$lte': before}
         if set:
             query[SET] = set
-        else:
-            query[SET] = None
         cursor = self.find(
             offset=offset,
             limit=limit,
