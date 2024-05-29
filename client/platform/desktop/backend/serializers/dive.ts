@@ -62,7 +62,7 @@ function filterTracks(
     return filteredPairs.length > 0;
   });
   // Convert the track list back into an object
-  const updatedFilteredTracks: Record<number, Track> = {};
+  const updatedFilteredTracks: Record<number, TrackData> = {};
   filteredTracks.forEach((track) => {
     updatedFilteredTracks[track.id] = track;
   });
