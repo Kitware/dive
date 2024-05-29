@@ -1,7 +1,8 @@
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import { has } from 'lodash';
-import { AnnotationsCurrentVersion } from 'platform/desktop/constants';
-import { TrackData, TrackId } from 'vue-media-annotator/track';
+import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
+import fs from 'fs-extra';
 
 function makeEmptyAnnotationFile(): AnnotationSchema {
   return {
@@ -40,7 +41,56 @@ function migrate(jsonData: any): AnnotationSchema {
   }
 }
 
+function filterTracks(
+  data: AnnotationSchema,
+  meta: JsonMeta,
+  typeFilter = new Set<string>(),
+  options = {
+    excludeBelowThreshold: false,
+    header: true,
+  },
+): AnnotationSchema {
+  const filteredTracks = Object.values(data.tracks).filter((track) => {
+    const filters = meta.confidenceFilters || {};
+    /* Include only the pairs that exceed the threshold in CSV output */
+    const confidencePairs = options.excludeBelowThreshold
+      ? Track.exceedsThreshold(track.confidencePairs, filters)
+      : track.confidencePairs;
+    const filteredPairs = typeFilter.size > 0
+      ? confidencePairs.filter((x) => typeFilter.has(x[0]))
+      : confidencePairs;
+    return filteredPairs.length > 0;
+  });
+  // Convert the track list back into an object
+  const updatedFilteredTracks: Record<number, Track> = {};
+  filteredTracks.forEach((track) => {
+    updatedFilteredTracks[track.id] = track;
+  });
+  const updatedData = { ...data };
+  updatedData.tracks = updatedFilteredTracks;
+  // Write out the tracks to a file
+  return updatedData;
+}
+
+async function serializeFile(
+  path: string,
+  data: AnnotationSchema,
+  meta: JsonMeta,
+  typeFilter = new Set<string>(),
+  options = {
+    excludeBelowThreshold: false,
+    header: true,
+  },
+) {
+  const updatedData = filterTracks(data, meta, typeFilter, options);
+  // write updatedData JSON to a path
+  const jsonData = JSON.stringify(updatedData, null, 2);
+  await fs.writeFile(path, jsonData, 'utf8');
+}
+
 export {
   makeEmptyAnnotationFile,
   migrate,
+  filterTracks,
+  serializeFile,
 };

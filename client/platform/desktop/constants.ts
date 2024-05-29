@@ -220,6 +220,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
+    type?: 'csv' | 'json';
   }
 
 export interface ExportConfigurationArgs {
