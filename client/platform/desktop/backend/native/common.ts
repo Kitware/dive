@@ -1105,6 +1105,12 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  if (args.type === 'json') {
+    return dive.serializeFile(args.path, data, meta, args.typeFilter, {
+      excludeBelowThreshold: args.exclude,
+      header: true,
+    });
+  }
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
     excludeBelowThreshold: args.exclude,
     header: true,

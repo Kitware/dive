@@ -263,6 +263,10 @@ def export_datasets_zipstream(
 
     def stream():
         z = ziputil.ZipGenerator()
+        nestedExcludeBelowThreshold = excludeBelowThreshold
+        nestedTypeFilter = typeFilter
+        if nestedTypeFilter is None:
+            nestedTypeFilter = set()
         for dsFolder in dsFolders:
             zip_path = f"./{dsFolder['name']}/"
             try:
@@ -289,7 +293,25 @@ def export_datasets_zipstream(
             def makeDiveJson():
                 """Include DIVE JSON output annotation file"""
                 annotations = crud_annotation.get_annotations(dsFolder)
-                print(annotations)
+                tracks = annotations['tracks']
+
+                if nestedExcludeBelowThreshold:
+                    thresholds = fromMeta(dsFolder, "confidenceFilters", {})
+                if thresholds is None:
+                    thresholds = {}
+
+                updated_tracks = {}
+                for t in tracks:
+                    track = models.Track(**tracks[t])
+                    if (not nestedExcludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+                        # filter by types if applicable
+                        if nestedTypeFilter:
+                            confidence_pairs = [item for item in track.confidencePairs if item[0] in nestedTypeFilter]
+                            # skip line if no confidence pairs
+                            if not confidence_pairs:
+                                continue
+                        updated_tracks[t] = tracks[t]
+                annotations['tracks'] = updated_tracks         
                 yield json.dumps(annotations)
 
             for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):

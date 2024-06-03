@@ -553,9 +553,8 @@ async function serialize(
             Object.entries(feature.attributes || {}).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
-
             /* Track Attributes */
-            Object.entries(track.attributes).forEach(([key, val]) => {
+            Object.entries(track.attributes || {}).forEach(([key, val]) => {
               row.push(`${TrackAtrToken} ${key} ${val}`);
             });
 
