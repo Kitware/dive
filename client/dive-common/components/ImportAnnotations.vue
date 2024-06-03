@@ -74,7 +74,6 @@ export default defineComponent({
               set,
             );
           }
-          console.log(importFile);
           if (Array.isArray(importFile) && importFile.length) {
             const text = ['There were warnings when importing. While the data imported properly please double check your annotations',
               'Below is a list of information that can help with debugging',
