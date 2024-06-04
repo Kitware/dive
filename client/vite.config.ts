@@ -34,6 +34,12 @@ export default defineConfig(({ mode }) => {
           // Vuetify
           VuetifyResolver(),
         ],
+        // Don't exclude girder web components
+        exclude: [
+          /[\\/]node_modules[\\/](?!(@girder[\\/]components[\\/]|\.pnpm[\\/]@girder.*))/,
+          /[\\/]\.git[\\/]/,
+          /[\\/]\.nuxt[\\/]/,
+        ],
       }),
     //   createHtmlPlugin({
     //     inject: {
