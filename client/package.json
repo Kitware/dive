@@ -182,7 +182,6 @@
       "@typescript-eslint/no-unused-vars": "off",
       "vue/no-template-target-blank": "off",
       "vue/no-lone-template": "off",
-      "default-param-last": "off",
       "vuejs-accessibility/mouse-events-have-key-events": "off",
       "vuejs-accessibility/click-events-have-key-events": "off",
       "vue/no-mutating-props": "off",
