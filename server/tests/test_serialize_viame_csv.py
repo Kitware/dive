@@ -277,15 +277,14 @@ test_tuple: List[Tuple[dict, list, list]] = [
 
 image_filename_tests = [
     {
-        'pass': True,
+        'warning': False,
         'csv': [
             '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '1,2.png,0,111,222,3333,444,1,-1,typestring,0.55',
         ],
     },
     {
-        'pass': False,
-        'error': 'A subsampling of images were used with the CSV but they were not sequential',
+        'warning': True,
         'csv': [
             '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '1,invalid,0,111,222,3333,444,1,-1,typestring,0.55',
@@ -293,7 +292,7 @@ image_filename_tests = [
         ],
     },
     {
-        'pass': True,
+        'warning': False,
         'csv': [
             '0,invalid1,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '',
@@ -301,7 +300,7 @@ image_filename_tests = [
         ],
     },
     {
-        'pass': True,
+        'warning': False,
         'csv': [
             '0,       ,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '',
@@ -309,7 +308,7 @@ image_filename_tests = [
         ],
     },
     {
-        'pass': True,
+        'warning': False,
         'csv': [
             '0,1.png,1,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '',
@@ -317,15 +316,14 @@ image_filename_tests = [
         ],
     },
     {
-        'pass': False,
-        'error': 'Images were provided in an unexpected order and dataset contains multi-frame tracks.',
+        'warning': True,
         'csv': [
             '99,1.png,0,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '99,3.png,1,111,222,3333,444,1,-1,typestring,0.55',
         ],
     },
     {
-        'pass': True,
+        'warning': False,
         'csv': [
             '99,unknown1,2,884.66,510,1219.66,737.66,1,-1,ignored,0.98',
             '99,unknown2,2,111,222,3333,444,1,-1,typestring,0.55',
@@ -355,9 +353,10 @@ def test_empty_header():
 def test_image_filenames():
     image_map = {'1': 0, '2': 1, '3': 2}
     for test in image_filename_tests:
-        if test['pass']:
-            converted, _ = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+        if not test['warning']:
+            converted, _, warnings = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
             assert len(converted['tracks'].values()) > 0
         else:
-            with pytest.raises(ValueError, match=re.escape(test['error'])):
-                viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            converted, _, warnings = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            assert len(warnings) > 0
+

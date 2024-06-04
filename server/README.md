@@ -97,7 +97,7 @@ export GIRDER_API_KEY=CHANGEME
 poetry run tox -e testintegration
 
 # run only a particular test (be mindful of dependencies)
-poetry run tox -e testintegration -- -k test_pipelines
+poetry run tox -e testintegrationkeyword test_pipelines
 ```
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.

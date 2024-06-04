@@ -288,7 +288,7 @@ GetDataReturnType = TypedDict(
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-) -> Optional[GetDataReturnType]:
+) -> Tuple[Optional[GetDataReturnType], Optional[List[str]]]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
@@ -299,10 +299,11 @@ def _get_data_by_type(
     :param image_map: Mapping of image names to frame numbers
     """
     if file is None:
-        return None
+        return None, None
     file_generator = File().download(file, headers=False)()
     file_string = b"".join(list(file_generator)).decode()
     data_dict = None
+    warnings = None
 
     # Discover the type of the mystery file
     if file['exts'][-1] == 'csv':
@@ -325,27 +326,27 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes = viame.load_csv_as_tracks_and_attributes(
+        converted, attributes, warnings = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
         converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.DIVE_CONF:
-        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
+        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}, warnings
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}
-    return None
+        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+    return None, None
 
 
 def process_items(
@@ -374,6 +375,7 @@ def process_items(
         folder,
         user,
     )
+    aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
@@ -383,7 +385,9 @@ def process_items(
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
                 image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
-            results = _get_data_by_type(file, image_map=image_map)
+            results, warnings = _get_data_by_type(file, image_map=image_map)
+            if warnings:
+                aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
@@ -414,7 +418,7 @@ def process_items(
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
             crud_dataset.update_metadata(folder, results['meta'], False)
-
+    return aggregate_warnings
 
 def postprocess(
     user: types.GirderUserModel,
@@ -424,7 +428,7 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
-) -> types.GirderModel:
+) -> Tuple[types.GirderModel, Optional[List[str]]]:
     """
     Post-processing to be run after media/annotation import
 
@@ -539,8 +543,8 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user, additive, additivePrepend, set)
-    return dsFolder
+    aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    return dsFolder, aggregate_warnings
 
 
 def convert_large_image(

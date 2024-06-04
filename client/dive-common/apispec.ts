@@ -168,7 +168,7 @@ interface Api {
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
   importAnnotationFile(id: string, path: string, file?: File,
-    additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean>;
+    additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
 }
 const ApiSymbol = Symbol('api');
 
