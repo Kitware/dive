@@ -428,7 +428,7 @@ export default defineComponent({
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
       type: string,
       key = '',
-      cb: () => void,
+      cb: () => void = () => (undefined),
     ) => {
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);

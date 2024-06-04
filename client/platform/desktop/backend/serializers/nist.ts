@@ -124,8 +124,8 @@ function loadActivity(
   activity: NistActivity,
   baseFileName: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
-  currentLength: number,
-  activityPos: number,
+  currentLength: number = 0,
+  activityPos: number = 0,
 ): TrackData[] {
   const tracks: TrackJSON[] = [];
   Object.entries(activity.localization).forEach(([key, localization]) => {
