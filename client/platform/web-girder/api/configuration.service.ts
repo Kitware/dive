@@ -13,7 +13,6 @@ export interface BrandData {
 
 export type AddOns = [string, string, string, boolean][];
 
-
 function getBrandData() {
   return girderRest.get<BrandData>('dive_configuration/brand_data');
 }

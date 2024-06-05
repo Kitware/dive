@@ -2,7 +2,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, PropType, Ref, watch, onMounted,
-} from '@vue/composition-api';
+} from 'vue';
 import * as d3 from 'd3';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
@@ -17,7 +17,6 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const attributeColors: Ref<{key: number; val: string}[]> = ref([]);
-
 
     const recalculateGradient = () => {
       const linearGradient = d3.select('linearGradient');
@@ -95,7 +94,6 @@ export default defineComponent({
       setEditingColor(attributeColors.value.length);
     };
     const gradientSVG: Ref<SVGElement | null> = ref(null);
-
 
     watch(gradientSVG, () => {
       const svg = d3.select('#gradient-image');

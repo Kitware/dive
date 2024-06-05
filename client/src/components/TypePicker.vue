@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType, reactive, ref, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 export default defineComponent({
   name: 'TypePicker',

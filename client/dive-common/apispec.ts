@@ -1,4 +1,4 @@
-import { provide } from '@vue/composition-api';
+import { provide } from 'vue';
 import { AnnotationId, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { GroupData } from 'vue-media-annotator/Group';
 

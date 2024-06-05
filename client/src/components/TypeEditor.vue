@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType, reactive, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
@@ -183,7 +183,7 @@ export default defineComponent({
                 v-model="data.editingThickness"
                 type="number"
                 :rules="[
-                  val => val >= 0 || 'Must be >= 0'
+                  val => val >= 0 || 'Must be >= 0',
                 ]"
                 required
                 hide-details

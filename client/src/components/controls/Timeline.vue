@@ -255,11 +255,11 @@ export default {
       >
         <slot
           name="child"
-          :startFrame="startFrame"
-          :endFrame="endFrame"
-          :maxFrame="maxFrame"
-          :clientWidth="clientWidth"
-          :clientHeight="clientHeight"
+          :start-frame="startFrame"
+          :end-frame="endFrame"
+          :max-frame="maxFrame"
+          :client-width="clientWidth"
+          :client-height="clientHeight"
           :margin="margin"
         />
       </div>

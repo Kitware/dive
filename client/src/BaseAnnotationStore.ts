@@ -1,5 +1,5 @@
-import { ref, Ref, computed } from '@vue/composition-api';
-import IntervalTree from '@flatten-js/interval-tree';
+import { ref, Ref, computed } from 'vue';
+import IntervalTree, { NumericTuple } from '@flatten-js/interval-tree';
 import type Track from './track';
 import type Group from './Group';
 import type { AnnotationId, ConfidencePair, NotifierFuncParams } from './BaseAnnotation';
@@ -22,7 +22,8 @@ export interface InsertArgs {
 }
 
 //A subset of Track so copies of full track aren't passed around
-export interface SortedAnnotation {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export interface SortedAnnotation<T> {
   id: AnnotationId;
   begin: number;
   end: number;
@@ -64,7 +65,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
    */
   annotationIds: Ref<AnnotationId[]>;
 
-  sorted: Ref<SortedAnnotation[]>;
+  sorted: Ref<SortedAnnotation<Track | Group>[]>;
 
   cameraName: string;
 
@@ -123,7 +124,6 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     }
     return value;
   }
-
 
   /**
    * Some instances require returning the undefined value for checking purposes
@@ -185,7 +185,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
   remove(annotationId: AnnotationId, disableNotifications = false): void {
     const value = this.get(annotationId);
     const range = [value.begin, value.end];
-    if (!this.intervalTree.remove(range, annotationId.toString())) {
+    if (!this.intervalTree.remove(range as NumericTuple, annotationId.toString())) {
       throw new Error(`AnnotationId ${annotationId} with range ${range} not found in tree.`);
     }
     value.setNotifier(undefined);

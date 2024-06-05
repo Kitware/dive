@@ -7,7 +7,6 @@ import eventBus from 'platform/web-girder/eventBus';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { RootState, JobState } from './types';
 
-
 const JobStatus = all();
 const NonRunningStates = [
   JobStatus.CANCELED.value,

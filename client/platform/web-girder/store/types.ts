@@ -1,5 +1,5 @@
 import type { GirderModel, GirderModelType } from '@girder/components/src';
-import { inject } from '@vue/composition-api';
+import { inject } from 'vue';
 import type { BrandData } from 'platform/web-girder/api';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { Store } from 'vuex';

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import FilterList from 'vue-media-annotator/components/FilterList.vue';
 import GroupList from 'vue-media-annotator/components/GroupList.vue';
 
@@ -40,7 +40,6 @@ export default defineComponent({
   },
 });
 </script>
-
 
 <template>
   <StackedVirtualSidebarContainer

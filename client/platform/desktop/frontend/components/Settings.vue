@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, onBeforeMount, ref, computed, set, watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { dialog, app } from '@electron/remote';
 
@@ -221,8 +221,8 @@ export default defineComponent({
           dense
           text
           class="mx-4"
-          :type="settingsAreValid ===
-            false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
+          :type="settingsAreValid
+            === false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
           <span v-if="settingsAreValid === false">
             Checking for Kwiver

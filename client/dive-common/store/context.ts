@@ -1,5 +1,4 @@
-import Install, { reactive } from '@vue/composition-api';
-import Vue, { VueConstructor } from 'vue';
+import { reactive, Component } from 'vue';
 /* Components */
 import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
@@ -7,8 +6,6 @@ import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
-
-Vue.use(Install);
 
 interface ContextState {
   last: string;
@@ -18,7 +15,7 @@ interface ContextState {
 
 interface ComponentMapItem {
   description: string;
-  component: VueConstructor<Vue>;
+  component: Component;
 }
 
 const state: ContextState = reactive({
@@ -55,12 +52,12 @@ const componentMap: Record<string, ComponentMapItem> = {
 };
 
 function register(item: ComponentMapItem) {
-  componentMap[item.component.name] = item;
+  componentMap[item.component.name || 'default'] = item;
 }
 
 function unregister(item: ComponentMapItem) {
-  if (componentMap[item.component.name]) {
-    delete componentMap[item.component.name];
+  if (componentMap[item.component.name || 'default']) {
+    delete componentMap[item.component.name || 'default'];
   }
 }
 
@@ -70,9 +67,9 @@ function resetActive() {
 }
 
 function getComponents() {
-  const components: Record<string, VueConstructor<Vue>> = {};
+  const components: Record<string, Component> = {};
   Object.values(componentMap).forEach((v) => {
-    components[v.component.name] = v.component;
+    components[v.component.name || 'default'] = v.component;
   });
   return components;
 }

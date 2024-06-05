@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, watch, PropType, Ref, ref, computed, toRef,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { TrackWithContext } from '../BaseFilterControls';
 import { injectAggregateController } from './annotators/useMediaController';
@@ -125,7 +125,6 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
-
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
@@ -186,7 +185,7 @@ export default defineComponent({
     ) {
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
-        .map((str: string) => parseInt(str, 10));
+        .map((str) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
       rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
       polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
@@ -403,7 +402,6 @@ export default defineComponent({
       );
     });
 
-
     const Clicked = (trackId: number, editing: boolean) => {
       // If the camera isn't selected yet we ignore the click
       if (selectedCamera.value !== props.camera) {
@@ -415,7 +413,6 @@ export default defineComponent({
         handler.trackSelect(trackId, editing);
       }
     };
-
 
     //Sync of internal geoJS state with the application
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
@@ -431,7 +428,7 @@ export default defineComponent({
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
       type: string,
       key = '',
-      cb: () => void,
+      cb: () => void = () => (undefined),
     ) => {
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
@@ -454,8 +451,10 @@ export default defineComponent({
         );
       }
     });
-    editAnnotationLayer.bus.$on('update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
+    editAnnotationLayer.bus.$on(
+      'update:selectedIndex',
+      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+    );
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

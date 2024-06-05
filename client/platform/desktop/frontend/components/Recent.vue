@@ -3,7 +3,7 @@ import { join } from 'path';
 import moment from 'moment';
 import {
   computed, defineComponent, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
@@ -18,6 +18,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { DataTableHeader } from 'vuetify';
 
+import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -30,7 +31,6 @@ import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 
-
 export default defineComponent({
   components: {
     BrowserLink,
@@ -41,7 +41,8 @@ export default defineComponent({
     TooltipBtn,
   },
 
-  setup(_, { root }) {
+  setup() {
+    const router = useRouter();
     const importMultiCamDialog = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
@@ -67,7 +68,7 @@ export default defineComponent({
         const jsonMeta = await api.finalizeImport(args);
         pendingImportPayload.value = null; // close dialog
         if (!jsonMeta.transcodingJobKey) {
-          root.$router.push({
+          router.push({
             name: 'viewer',
             params: { id: jsonMeta.id },
           });
@@ -109,7 +110,6 @@ export default defineComponent({
       removeRecents(datasetId);
     }
 
-
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     function getTypeIcon(recent: JsonMetaCache) {
@@ -145,7 +145,7 @@ export default defineComponent({
         });
         return;
       }
-      root.$router.push({ name: 'viewer', params: { id: recent.id } });
+      router.push({ name: 'viewer', params: { id: recent.id } });
     }
 
     const headers: DataTableHeader[] = [
@@ -453,7 +453,7 @@ export default defineComponent({
       color="error"
     >
       {{ error }}
-      <template v-slot:action="{ attrs }">
+      <template #action="{ attrs }">
         <v-btn
           text
           v-bind="attrs"

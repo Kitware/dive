@@ -1,5 +1,4 @@
-import { ref, watch, Ref } from '@vue/composition-api';
-import Vue from 'vue';
+import Vue, { ref, watch, Ref } from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';

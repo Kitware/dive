@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from 'vue';
 import TooltipBtn from './TooltipButton.vue';
 
 /* Horizontal padding is the width of checkbox, scrollbar, and edit button */

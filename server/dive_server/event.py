@@ -15,15 +15,12 @@ from dive_utils.constants import (
     AssetstoreSourceMarker,
     AssetstoreSourcePathMarker,
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
-    LargeImageType,
     MarkForPostProcess,
     TypeMarker,
     VideoType,
     imageRegex,
-    largeImageRegEx,
     videoRegex,
 )
 

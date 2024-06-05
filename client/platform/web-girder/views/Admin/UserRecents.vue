@@ -2,11 +2,10 @@
 import {
   computed,
   defineComponent, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { getRecentUsers } from 'platform/web-girder/api/admin.service';
 import type { GirderModel } from '@girder/components/src';
 import moment from 'moment';
-
 
 export default defineComponent({
   name: 'UserRecents',
@@ -63,11 +62,11 @@ export default defineComponent({
           hide-default-footer
           class="elevation-1"
         >
-          <template v-slot:item.dir="{ item }">
+          <template #item.dir="{ item }">
             <v-tooltip
               bottom
             >
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   small
@@ -85,7 +84,7 @@ export default defineComponent({
               <span>Launch User Directory</span>
             </v-tooltip>
           </template>
-          <template v-slot:item.created="{ item }">
+          <template #item.created="{ item }">
             <span> {{ item.created }}</span>
           </template>
         </v-data-table>

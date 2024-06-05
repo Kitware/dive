@@ -22,7 +22,6 @@ import {
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
-
 /**
  * Native functions that run entirely in the renderer
  */
@@ -68,7 +67,6 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
   }
   return results;
 }
-
 
 /**
  * IPC api for small-body messages
@@ -143,9 +141,7 @@ function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
-async function exportDataset(
-  id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json',
-): Promise<string> {
+async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
   const location = await dialog.showSaveDialog({
     title: 'Export Dataset',
     defaultPath: npath.join(app.getPath('home'), type === 'json' ? `result_${id}.json` : `result_${id}.csv`),
@@ -204,7 +200,6 @@ async function saveDetections(id: string, args: SaveDetectionsArgs) {
   const client = await getClient();
   return client.post(`dataset/${id}/detections`, args);
 }
-
 
 async function saveAttributes(id: string, args: SaveAttributeArgs) {
   const client = await getClient();

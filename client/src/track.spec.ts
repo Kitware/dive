@@ -1,11 +1,7 @@
 /// <reference types="jest" />
-import Vue from 'vue';
-import CompositionApi from '@vue/composition-api';
 import Track, { TrackData } from './track';
 import { RectBounds } from './utils';
 import { ConfidencePair } from './BaseAnnotation';
-
-Vue.use(CompositionApi);
 
 describe('Track', () => {
   it('should create new instances from JSON', () => {

@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, PropType, computed, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
 import {
@@ -125,16 +125,16 @@ export default defineComponent({
                 v-on="on"
                 @click="$emit('update:collapsed', !collapsed)"
               >
-                {{ collapsed?'mdi-chevron-up-box': 'mdi-chevron-down-box' }}
+                {{ collapsed ? 'mdi-chevron-up-box' : 'mdi-chevron-down-box' }}
               </v-icon>
             </template>
             <span>Collapse/Expand Timeline</span>
           </v-tooltip>
           <v-btn
             class="ml-1"
-            :class="{'timeline-button':currentView!=='Detections' || collapsed}"
+            :class="{ 'timeline-button': currentView !== 'Detections' || collapsed }"
             depressed
-            :outlined="currentView==='Detections' && !collapsed"
+            :outlined="currentView === 'Detections' && !collapsed"
             x-small
             tab-index="-1"
             @click="toggleView('Detections')"
@@ -143,9 +143,9 @@ export default defineComponent({
           </v-btn>
           <v-btn
             class="ml-1"
-            :class="{'timeline-button':currentView!=='Events' || collapsed}"
+            :class="{ 'timeline-button': currentView !== 'Events' || collapsed }"
             depressed
-            :outlined="currentView==='Events' && !collapsed"
+            :outlined="currentView === 'Events' && !collapsed"
             x-small
             tab-index="-1"
             @click="toggleView('Events')"
@@ -155,9 +155,9 @@ export default defineComponent({
           <v-btn
             v-if="!multiCam && hasGroups"
             class="ml-1"
-            :class="{'timeline-button':currentView!=='Groups' || collapsed}"
+            :class="{ 'timeline-button': currentView !== 'Groups' || collapsed }"
             depressed
-            :outlined="currentView==='Groups' && !collapsed"
+            :outlined="currentView === 'Groups' && !collapsed"
             x-small
             tab-index="-1"
             @click="toggleView('Groups')"
@@ -167,9 +167,9 @@ export default defineComponent({
           <v-btn
             v-if="!multiCam && timelineEnabled"
             class="ml-1"
-            :class="{'timeline-button':currentView!=='Attributes' || collapsed}"
+            :class="{ 'timeline-button': currentView !== 'Attributes' || collapsed }"
             depressed
-            :outlined="currentView==='Attributes' && !collapsed"
+            :outlined="currentView === 'Attributes' && !collapsed"
             x-small
             tab-index="-1"
             @click="toggleView('Attributes')"
@@ -196,11 +196,11 @@ export default defineComponent({
               open-delay="250"
               rounded="pill"
             >
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-icon
                   @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
                   v-on="on"
-                > {{ volume === 0 ? 'mdi-volume-off' :'mdi-volume-medium' }}
+                > {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
                 </v-icon>
               </template>
               <v-card style="overflow:hidden; width:30px">
@@ -226,7 +226,7 @@ export default defineComponent({
               open-delay="250"
               rounded="lg"
             >
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-badge
                   :value="speed != 1.0"
                   color="#0277bd88"
@@ -302,7 +302,7 @@ export default defineComponent({
         }"
       >
         <line-chart
-          v-if="currentView==='Detections'"
+          v-if="currentView === 'Detections'"
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="childMaxFrame"
@@ -312,7 +312,7 @@ export default defineComponent({
           :margin="margin"
         />
         <event-chart
-          v-if="currentView==='Events'"
+          v-if="currentView === 'Events'"
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="childMaxFrame"
@@ -322,7 +322,7 @@ export default defineComponent({
           @select-track="$emit('select-track', $event)"
         />
         <event-chart
-          v-if="currentView==='Groups'"
+          v-if="currentView === 'Groups'"
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="childMaxFrame"
@@ -332,7 +332,7 @@ export default defineComponent({
           @select-track="$emit('select-group', $event)"
         />
         <line-chart
-          v-if="currentView==='Attributes'"
+          v-if="currentView === 'Attributes'"
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="endFrame"

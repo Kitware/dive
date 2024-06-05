@@ -1,6 +1,7 @@
 <script lang="ts">
-import { computed, defineComponent, PropType } from '@vue/composition-api';
+import { computed, defineComponent, PropType } from 'vue';
 
+import useVuetify from 'vue-media-annotator/use/useVuetify';
 import { useGroupFilterControls, useHandler, useReadOnlyMode } from '../provides';
 import Group from '../Group';
 
@@ -38,8 +39,8 @@ export default defineComponent({
     },
   },
 
-  setup(props, { root }) {
-    const vuetify = root.$vuetify;
+  setup(props) {
+    const vuetify = useVuetify();
     const groupFilters = useGroupFilterControls();
     const readOnlyMode = useReadOnlyMode();
     const handler = useHandler();

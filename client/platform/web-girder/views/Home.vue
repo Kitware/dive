@@ -2,7 +2,7 @@
 import {
   defineComponent,
   ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
@@ -50,6 +50,8 @@ export default defineComponent({
     DataShared,
     ShareTab,
   },
+  // everything below needs to be refactored to composition-api
+  inject: ['girderRest'],
   setup() {
     const loading = ref(false);
     const { prompt } = usePrompt();
@@ -72,8 +74,6 @@ export default defineComponent({
       getters,
     };
   },
-  // everything below needs to be refactored to composition-api
-  inject: ['girderRest'],
   computed: {
     ...mapState('Location', ['selected', 'location']),
     ...mapGetters('Location', ['locationIsViameFolder']),
@@ -162,13 +162,19 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
-                  v-bind="{ buttonOptions:
-                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage },
+                    menuOptions,
+                  }"
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
-                  v-bind="{ buttonOptions:
-                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage },
+                    menuOptions,
+                  }"
                   :selected-dataset-ids="locationInputs"
                   :running-pipelines="runningPipelines"
                 />

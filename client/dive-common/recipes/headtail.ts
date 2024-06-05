@@ -1,5 +1,4 @@
-import { ref, Ref } from '@vue/composition-api';
-import Vue from 'vue';
+import Vue, { ref, Ref } from 'vue';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
@@ -56,9 +55,7 @@ export default class HeadTail implements Recipe {
    * @param ls Linestring
    * @param paddingVector polypoints in terms of C and CPerp
    */
-  private static findBounds(
-    ls: GeoJSON.LineString, paddingVector: [number, number][],
-  ): GeoJSON.Polygon[] {
+  private static findBounds(ls: GeoJSON.LineString, paddingVector: [number, number][]): GeoJSON.Polygon[] {
     // Coords = [ Vec A, Vec B ]
     const coords = ls.coordinates;
     if (coords.length === 2) {

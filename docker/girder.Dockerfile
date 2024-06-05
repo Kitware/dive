@@ -16,15 +16,15 @@ RUN yarn build:web
 # == SERVER BUILD STAGE ==
 # ========================
 # Note: server-builder stage will be the same in both dockerfiles
-FROM python:3.8-buster as server-builder
+FROM python:3.11-bookworm as server-builder
 
 WORKDIR /opt/dive/src
 
 # https://cryptography.io/en/latest/installation/#debian-ubuntu
 RUN apt-get update
-RUN apt-get install -y build-essential libssl-dev libffi-dev python3-dev cargo npm
+RUN apt-get install -y build-essential libssl-dev libffi-dev python3-libtiff libgdal-dev python3-dev cargo npm
 # Recommended poetry install https://python-poetry.org/docs/master/#installation
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.3.2 POETRY_HOME=/opt/dive/poetry python -
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 POETRY_HOME=/opt/dive/poetry python -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
 # Create a virtual environment for the installation
 RUN python -m venv /opt/dive/local/venv
@@ -40,6 +40,17 @@ RUN poetry config virtualenvs.create false
 # Install dependencies only
 RUN poetry install --no-root --extras "large-image"
 # Build girder client, including plugins like worker/jobs
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+
+# Default node version
+RUN . ~/.bashrc && \
+    nvm install 14 && \
+    nvm alias default 14 && \
+    nvm use default && \
+    ln -s $(dirname `which npm`) /usr/local/node
+
+ENV PATH="/usr/local/node:$PATH"
+
 RUN girder build
 
 # Copy full source code and install
@@ -49,7 +60,7 @@ RUN poetry install --only main --extras "large-image"
 # =================
 # == DIST SERVER ==
 # =================
-FROM python:3.8-slim-buster as server
+FROM python:3.11-slim-bookworm as server
 
 # Hack: Tell GitPython to be quiet, we aren't using git
 ENV GIT_PYTHON_REFRESH="quiet"

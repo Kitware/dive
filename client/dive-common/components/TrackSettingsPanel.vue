@@ -5,7 +5,7 @@ import {
   PropType,
   ref,
   computed,
-} from '@vue/composition-api';
+} from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({

@@ -1,7 +1,6 @@
-
 import {
   ref, Ref, computed, set as VueSet, del as VueDel,
-} from '@vue/composition-api';
+} from 'vue';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
@@ -47,7 +46,7 @@ export default function UseAttributes(
     appliedTo: ['all'],
     active: true, // if this filter is active
     value: true,
-    type: 'key' as 'key',
+    type: 'key' as const,
   });
   const timelineEnabled: Ref<boolean> = ref(false);
 
@@ -81,7 +80,6 @@ export default function UseAttributes(
     VueSet(attributes.value, data.key, data);
     markChangesPending({ action: 'upsert', attribute: attributes.value[data.key] });
   }
-
 
   function deleteAttribute({ data }: {data: Attribute}, removeFromTracks = false) {
     if (attributes.value[data.key] !== undefined) {
@@ -186,8 +184,10 @@ export default function UseAttributes(
     return true;
   }
 
-  function applyKeyFilter(filter: AttributeKeyFilter,
-    item: Attribute) {
+  function applyKeyFilter(
+    filter: AttributeKeyFilter,
+    item: Attribute,
+  ) {
     if (filter.appliedTo.includes(item.name) || filter.appliedTo.includes('all')) {
       return true;
     }

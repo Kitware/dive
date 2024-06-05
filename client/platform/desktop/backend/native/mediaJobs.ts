@@ -2,7 +2,6 @@ import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
-
 import {
   Settings, DesktopJob,
   ConversionArgs,

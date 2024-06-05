@@ -1,6 +1,5 @@
-
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 
 export default defineComponent({
   setup() {
@@ -111,7 +110,7 @@ export default defineComponent({
         color="red"
         top
       >
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-row
             class="helpContextRow ma-0 align-center"
             v-on="on"

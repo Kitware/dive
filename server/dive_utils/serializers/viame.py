@@ -1,6 +1,7 @@
 """
 VIAME Fish format deserializer
 """
+
 import csv
 import datetime
 import io
@@ -307,7 +308,6 @@ def load_csv_as_tracks_and_attributes(
         ) = _parse_row_for_tracks(row)
 
         trackId, imageFile, _, _, _ = row_info(row)
-
         if imageMap:
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))

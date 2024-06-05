@@ -1,14 +1,10 @@
 /// <reference types="jest" />
 
-import CompositionApi, { ref } from '@vue/composition-api';
-import Vue from 'vue';
+import { ref } from 'vue';
 
 import type Vuetify from 'vuetify/lib';
 
 import StyleManager from './StyleManager';
-
-
-Vue.use(CompositionApi);
 
 const vuetify = {
   preset: {

@@ -2,20 +2,19 @@
 /* eslint-disable max-len */
 import {
   computed, defineComponent, reactive, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { AttributeTrackFilter, MatchOperator } from 'vue-media-annotator/AttributeTrackFilterControls';
 import AttributeTrackFilterVue from '../../dive-common/components/AttributeTrackFilter.vue';
 import { useAttributes, useTrackFilters, useTrackStyleManager } from '../provides';
 
-
 export default defineComponent({
   name: 'AttributeTrackFilters',
 
-  props: {
-  },
-
   components: {
     AttributeTrackFilterVue,
+  },
+
+  props: {
   },
 
   setup() {
@@ -30,7 +29,6 @@ export default defineComponent({
       });
       return typeMap;
     });
-
 
     const editingFilter: Ref<null | number> = ref(null);
     const addFilterDialog = ref(false);

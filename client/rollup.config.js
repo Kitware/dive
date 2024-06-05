@@ -9,7 +9,7 @@ import cleaner from 'rollup-plugin-cleaner';
 const clean = true;
 const tsconfig = 'tsconfig.rollup.json';
 const external = [
-  '@vue/composition-api',
+  'vue',
   '@flatten-js/interval-tree',
   'd3',
   'geojs',

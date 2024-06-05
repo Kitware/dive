@@ -12,10 +12,8 @@ async function getTiles(itemId: string, projection = '') {
   const { data } = await girderRest.get(url);
   return data;
 }
-function getTileURL(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  itemId: string, x: number, y: number, level: number, query: Record<string, any>,
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTileURL(itemId: string, x: number, y: number, level: number, query: Record<string, any>) {
   let url = `${girderRest.apiRoot}/item/${itemId}/tiles/zxy/${level}/${x}/${y}`;
   if (query) {
     const params = Object.keys(query).map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`).join('&');

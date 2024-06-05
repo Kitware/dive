@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, toRef, watch } from '@vue/composition-api';
+import { defineComponent, toRef, watch } from 'vue';
 import {
   useAnnotationSet,
   useDatasetId, useHandler, usePendingSaveCount, useProgress, useRevisionId,
@@ -11,7 +11,7 @@ export default defineComponent({
   name: 'RevisionHistory',
   description: 'Revision History',
 
-  setup(_, ctx) {
+  setup(_, { emit }) {
     const saveCount = usePendingSaveCount();
     const datasetId = useDatasetId();
     const currentSet = useAnnotationSet();
@@ -23,13 +23,11 @@ export default defineComponent({
     } = usePaginatedRequest<Revision>();
 
     async function loadNext() {
-      await loadNextPage((l, o) => loadRevisions(
-        datasetId.value, l, o, undefined, currentSet.value,
-      ));
+      await loadNextPage((l, o) => loadRevisions(datasetId.value, l, o, undefined, currentSet.value));
     }
 
     function checkout(id: number) {
-      ctx.emit('update:revision', id, currentSet.value);
+      emit('update:revision', id, currentSet.value);
       reloadAnnotations();
     }
 
@@ -82,7 +80,8 @@ export default defineComponent({
         depressed
         :to="{
           name: 'viewer',
-          params: { id: datasetId }}
+          params: { id: datasetId },
+        }
         "
       >
         Return to newest revision

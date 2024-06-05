@@ -76,16 +76,12 @@ export default function register() {
   });
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
-    const ret = await common.deleteDataset(
-      settings.get(), datasetId,
-    );
+    const ret = await common.deleteDataset(settings.get(), datasetId);
     return ret;
   });
 
   ipcMain.handle('check-dataset', async (event, { datasetId }: { datasetId: string }) => {
-    const ret = await common.checkDataset(
-      settings.get(), datasetId,
-    );
+    const ret = await common.checkDataset(settings.get(), datasetId);
     return ret;
   });
 
@@ -99,9 +95,7 @@ export default function register() {
     id, path, additive, additivePrepend,
   }: { id: string; path: string; additive: boolean; additivePrepend: string }) => {
     const ret = await common.dataFileImport(settings.get(), id, path, additive, additivePrepend);
-    console.log(ret.warnings);
-    if (ret.warnings.length)
-      return ret.warnings;
+    if (ret.warnings.length) return ret.warnings;
     return ret;
   });
 

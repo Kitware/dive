@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, PropType, reactive, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -27,6 +27,8 @@ const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'FilterList',
+
+  components: { TypeEditor, TooltipBtn, TypeItem },
 
   props: {
     showEmptyTypes: {
@@ -54,8 +56,6 @@ export default defineComponent({
       default: false,
     },
   },
-
-  components: { TypeEditor, TooltipBtn, TypeItem },
 
   setup(props) {
     const { prompt } = usePrompt();
@@ -198,7 +198,6 @@ export default defineComponent({
       }
     }
 
-
     function updateCheckedType(evt: boolean, type: string) {
       if (evt) {
         trackFilters.updateCheckedTypes(checkedTypesRef.value.concat([type]));
@@ -240,7 +239,6 @@ export default defineComponent({
   <div class="d-flex flex-column">
     <v-container
       dense
-      class="py-0"
     >
       <v-row
         class="border-highlight"
@@ -301,7 +299,7 @@ export default defineComponent({
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
-    <div class="pb-2 overflow-y-hidden">
+    <div class="py-2 overflow-y-hidden">
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"

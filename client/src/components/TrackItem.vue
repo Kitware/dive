@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, computed, PropType, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
 import TypePicker from './TypePicker.vue';
@@ -9,6 +9,7 @@ import {
   useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore, useTrackStyleManager,
 } from '../provides';
 import Track from '../track';
+import useVuetify from '../use/useVuetify';
 
 export default defineComponent({
   name: 'TrackItem',
@@ -58,8 +59,8 @@ export default defineComponent({
     },
   },
 
-  setup(props, { root, emit }) {
-    const vuetify = root.$vuetify;
+  setup(props, { emit }) {
+    const vuetify = useVuetify();
     const { frame: frameRef } = useTime();
     const handler = useHandler();
     const trackFilters = useTrackFilters();
@@ -232,7 +233,9 @@ export default defineComponent({
       <v-spacer />
       <TypePicker
         :value="trackType"
-        v-bind="{ lockTypes, readOnlyMode, allTypes, selected }"
+        v-bind="{
+          lockTypes, readOnlyMode, allTypes, selected,
+        }"
         @input="setTrackType($event)"
       />
     </v-row>
@@ -245,10 +248,10 @@ export default defineComponent({
         <span
           v-show="false"
           v-mousetrap="[
-            { bind: 'k', handler: toggleKeyframe},
-            { bind: 'i', handler: toggleInterpolation},
-            { bind: 'home', handler: () => $emit('seek', track.begin)},
-            { bind: 'end', handler: () => $emit('seek', track.end)},
+            { bind: 'k', handler: toggleKeyframe },
+            { bind: 'i', handler: toggleInterpolation },
+            { bind: 'home', handler: () => $emit('seek', track.begin) },
+            { bind: 'end', handler: () => $emit('seek', track.end) },
           ]"
         />
         <tooltip-btn

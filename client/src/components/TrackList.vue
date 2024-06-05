@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, reactive, computed, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
@@ -26,6 +26,8 @@ const TrackListHeaderHeight = 52;
 export default defineComponent({
   name: 'TrackList',
 
+  components: { TrackItem },
+
   props: {
     newTrackMode: {
       type: String,
@@ -48,8 +50,6 @@ export default defineComponent({
       default: 420,
     },
   },
-
-  components: { TrackItem },
 
   setup(props) {
     const { prompt } = usePrompt();

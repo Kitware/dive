@@ -1,4 +1,4 @@
-import { computed, Ref } from '@vue/composition-api';
+import { computed, Ref } from 'vue';
 import type { TrackWithContext } from '../BaseFilterControls';
 import type { TypeStyling } from '../StyleManager';
 

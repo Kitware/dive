@@ -427,9 +427,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           track.confidencePairs = confidencePairs;
           Object.entries(trackAttributes).forEach(([key, val]) => {
             // "track is possibly undefined" seems like a bug
-            // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-            // @ts-ignore
-            track.attributes[key] = val;
+            if (track && track.attributes) {
+              track.attributes[key] = val;
+            }
           });
         } catch (err) {
           if (!(err instanceof Error)) {

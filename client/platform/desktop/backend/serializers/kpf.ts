@@ -14,6 +14,7 @@ import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotat
 import { GroupMembers } from 'vue-media-annotator/Group';
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
 
+import { RectBounds } from 'vue-media-annotator/utils';
 import { AnnotationsCurrentVersion } from '../../constants';
 
 export const KPF_EXTENSIONS = ['activities.yml', 'geom.yml', 'types.yml'];
@@ -148,9 +149,7 @@ export default class KPF {
           features.push({
             frame: geom.ts0,
             attributes: {},
-            // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-            // @ts-ignore
-            bounds: geom.g0.split(' ').map((f: string) => parseFloat(f)),
+            bounds: geom.g0.split(' ').map((f: string) => parseFloat(f)) as RectBounds,
             interpolate: true,
           });
         }
@@ -218,12 +217,18 @@ export default class KPF {
     let geometryJson: any[] = [];
     let typeJson: any[] = [];
     texts.forEach((text) => {
-      activityJson = concat(activityJson,
-        (yaml.load(text) as any[]).filter((a) => !!a.act).map((a) => ({ ...a.act })));
-      geometryJson = concat(geometryJson,
-        (yaml.load(text) as any[]).filter((a) => !!a.geom).map((a) => ({ ...a.geom })));
-      typeJson = concat(typeJson,
-        (yaml.load(text) as any[]).filter((a) => !!a.types).map((a) => ({ ...a.types })));
+      activityJson = concat(
+        activityJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.act).map((a) => ({ ...a.act })),
+      );
+      geometryJson = concat(
+        geometryJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.geom).map((a) => ({ ...a.geom })),
+      );
+      typeJson = concat(
+        typeJson,
+        (yaml.load(text) as any[]).filter((a) => !!a.types).map((a) => ({ ...a.types })),
+      );
     });
     return new KPF(activityJson, geometryJson, typeJson);
   }

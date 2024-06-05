@@ -44,7 +44,7 @@ jobs:
     -
       name: Lint templates
       if: ${{ matrix.target == 'web' }}
-      run: yarn lint:templates
+      run: yarn lint:templates  
     - 
       name: Run tests
       if: ${{ matrix.target == 'web' }}
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8]
+        python-version: [3.11]
     steps:
     - name: Update Package References
       run: sudo apt-get update
@@ -78,6 +78,7 @@ jobs:
         python3-cachecontrol
         python3-dev
         python3-gdal 
+        libgdal-dev
     - name: Checkout repository
       uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}

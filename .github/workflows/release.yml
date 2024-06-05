@@ -22,8 +22,8 @@ jobs:
         # "ref" specifies the branch to check out.
         # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
         ref: ${{ github.event.release.target_commitish }}
-    - name: Use Node 12
-      uses: actions/setup-node@v2
+    - name: Use Node 16
+      uses: actions/setup-node@v3
       with:
         node-version: '16.14.2'
         # Specifies the registry, this field is required!
@@ -32,8 +32,6 @@ jobs:
     - run: git config --global user.name "GitHub Bot"
     - run: git config --global user.email "viame-web@kitware.com"
     - run: yarn lint
-    - run: yarn lint:templates
-
     - name: Unit tests
       run: yarn test
       if: ${{ matrix.config.os != 'windows-latest' }}

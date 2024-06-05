@@ -1,4 +1,5 @@
 """General CRUD operations and utilities shared among views"""
+
 from enum import Enum
 import functools
 import os

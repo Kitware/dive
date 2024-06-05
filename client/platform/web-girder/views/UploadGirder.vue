@@ -4,9 +4,6 @@ import { mixins } from '@girder/components/src';
 import { clone } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import {
-  DefaultVideoFPS,
-} from 'dive-common/constants';
-import {
   fileSuffixRegex,
 } from 'platform/web-girder/constants';
 

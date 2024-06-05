@@ -153,6 +153,7 @@ class AnnotationResource(Resource):
             setRawResponse()
             annotations = crud_annotation.get_annotations(folder, revision=revisionId)
             tracks = annotations['tracks']
+            thresholds = None
             if excludeBelowThreshold:
                 thresholds = fromMeta(folder, "confidenceFilters", {})
             if thresholds is None:

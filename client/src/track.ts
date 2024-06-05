@@ -357,7 +357,6 @@ export default class Track extends BaseAnnotation {
     return false;
   }
 
-
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
     if (this.features[frame]) {
       if (user !== null) {

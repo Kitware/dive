@@ -1,6 +1,6 @@
 import {
   reactive, Ref, toRefs,
-} from '@vue/composition-api';
+} from 'vue';
 import { throttle } from 'lodash';
 
 // https://en.wikipedia.org/wiki/Flick_(time)

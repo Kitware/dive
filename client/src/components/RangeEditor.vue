@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 export default defineComponent({
@@ -51,7 +51,6 @@ export default defineComponent({
   },
 });
 </script>
-
 
 <template>
   <div>

@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
@@ -43,14 +43,14 @@ export default defineComponent({
 
     /** State populated from provides if the dialog exists inside a viewer context */
     let save = () => Promise.resolve();
-    let pendingSaveCount = ref(0);
-    let checkedTypes = ref([] as readonly string[]);
-    let revisionId = ref(null as null | number);
+    const pendingSaveCount = ref(0);
+    const checkedTypes = ref([] as readonly string[]);
+    const revisionId = ref(null as null | number);
     if (props.blockOnUnsaved) {
       save = useHandler().save;
-      pendingSaveCount = usePendingSaveCount();
-      checkedTypes = useTrackFilters().checkedTypes;
-      revisionId = useRevisionId();
+      pendingSaveCount.value = usePendingSaveCount().value;
+      checkedTypes.value = useTrackFilters().checkedTypes.value;
+      revisionId.value = useRevisionId().value;
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -318,8 +318,10 @@ export default defineComponent({
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({ url: exportUrls
-                    && exportUrls.exportDetectionsUrlTrackJSON })"
+                  @click="doExport({
+                    url: exportUrls
+                      && exportUrls.exportDetectionsUrlTrackJSON,
+                  })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"

@@ -4,7 +4,7 @@ import {
   reactive,
   toRef,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 /* Magic numbers used in height calculations */
 const toolbarHeight = 112;

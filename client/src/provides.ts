@@ -1,6 +1,6 @@
 import {
   provide, inject, ref, Ref, reactive,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
@@ -19,7 +19,6 @@ import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
-
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -180,7 +179,6 @@ export interface Handler {
 }
 const HandlerSymbol = Symbol('handler');
 
-
 /**
  * Make a trivial noop handler. Useful if you only intend to
  * override some small number of values.
@@ -263,8 +261,12 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
-  const setTrackType = (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => {
+  const setTrackType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
     cameraStore.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -398,7 +400,6 @@ function useGroupFilterControls() {
   return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
-
 function useGroupStyleManager() {
   return use<StyleManager>(GroupStyleManagerSymbol);
 }
@@ -443,7 +444,6 @@ function useSelectedCamera() {
   return use<SelectedCameraType>(SelectedCameraSymbol);
 }
 
-
 function useSelectedKey() {
   return use<SelectedKeyType>(SelectedKeySymbol);
 }
@@ -463,7 +463,6 @@ function useTime() {
 function useTrackFilters() {
   return use<TrackFilterControls>(TrackFilterControlsSymbol);
 }
-
 
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);

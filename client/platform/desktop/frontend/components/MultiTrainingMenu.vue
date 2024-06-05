@@ -3,7 +3,7 @@ import type { DataTableHeader } from 'vuetify';
 
 import {
   computed, defineComponent, onBeforeMount, set, del, reactive, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
@@ -11,12 +11,14 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
+import { useRouter } from 'vue-router/composables';
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
-  setup(_, { root }) {
+  setup() {
     const { getPipelineList, getTrainingConfigurations, runTraining } = useApi();
     const { prompt } = usePrompt();
+    const router = useRouter();
 
     const unsortedPipelines = ref({} as Pipelines);
     onBeforeMount(async () => {
@@ -101,7 +103,7 @@ export default defineComponent({
           data.selectedTrainingConfig,
           data.annotatedFramesOnly,
         );
-        root.$router.push({ name: 'jobs' });
+        router.push({ name: 'jobs' });
       } catch (err) {
         let text = 'Unable to run training';
         if (err.response && err.response.status === 403) {
@@ -126,19 +128,17 @@ export default defineComponent({
       clientSettings,
       available: {
         items: availableItems,
-        headers: headersTmpl.concat(
-          {
-            text: 'View',
-            value: 'view',
-            sortable: false,
-            width: 80,
-          }, {
-            text: 'Include',
-            value: 'action',
-            sortable: false,
-            width: 80,
-          },
-        ),
+        headers: headersTmpl.concat({
+          text: 'View',
+          value: 'view',
+          sortable: false,
+          width: 80,
+        }, {
+          text: 'Include',
+          value: 'action',
+          sortable: false,
+          width: 80,
+        }),
       },
       staged: {
         items: stagedItems,
@@ -184,10 +184,10 @@ export default defineComponent({
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template v-slot:item="row">
+            <template #item="row">
               {{ simplifyTrainingName(row.item) }}
             </template>
-            <template v-slot:selection="{ item }">
+            <template #selection="{ item }">
               {{ simplifyTrainingName(item) }}
             </template>
           </v-select>
@@ -271,7 +271,6 @@ export default defineComponent({
     </div>
   </div>
 </template>
-
 
 <style lang="scss">
 .multitraining-menu {

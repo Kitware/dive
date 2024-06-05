@@ -294,7 +294,7 @@ def export_datasets_zipstream(
                 """Include DIVE JSON output annotation file"""
                 annotations = crud_annotation.get_annotations(dsFolder)
                 tracks = annotations['tracks']
-
+                thresholds = None
                 if nestedExcludeBelowThreshold:
                     thresholds = fromMeta(dsFolder, "confidenceFilters", {})
                 if thresholds is None:

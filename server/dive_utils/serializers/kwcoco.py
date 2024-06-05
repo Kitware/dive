@@ -1,6 +1,7 @@
 """
 KWCOCO JSON format deserializer
 """
+
 import functools
 from typing import Any, Dict, List, Tuple
 

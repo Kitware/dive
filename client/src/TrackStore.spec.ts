@@ -1,9 +1,6 @@
 /// <reference types="jest" />
-import Vue from 'vue';
-import CompositionApi, { watchEffect } from '@vue/composition-api';
+import Vue, { watchEffect } from 'vue';
 import TrackStore from './TrackStore';
-
-Vue.use(CompositionApi);
 
 describe('TrackStore', () => {
   it('can add and remove tracks', () => {
