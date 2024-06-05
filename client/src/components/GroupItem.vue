@@ -48,7 +48,7 @@ export default defineComponent({
     const style = computed(() => {
       if (props.selected) {
         return {
-          'background-color': `${vuetify?.theme.themes.dark.accentBackground}`,
+          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
         };
       }
       if (props.secondarySelected) {
