@@ -241,7 +241,7 @@ function _parseFeature(row: string[]) {
   };
 }
 
-async function parse(input: Readable, imageMap?: Map<string, number>): Promise<AnnotationFileData> {
+async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[AnnotationFileData, string[]]> {
   const parser = csvparser({
     delimiter: ',',
     // comment lines may not have the correct number of columns
@@ -253,8 +253,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
   let error: Error | undefined;
   let multiFrameTracks = false;
+  const warnings: string[] = [];
 
-  return new Promise<AnnotationFileData>((resolve, reject) => {
+  return new Promise<[AnnotationFileData, string[]]>((resolve, reject) => {
     pipeline([input, parser], (err) => {
       // undefined err indicates successful exit
       if (err !== undefined) {
@@ -280,15 +281,17 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           }
           const k = i + 1;
           if (k < filteredImages.length) {
-            if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame || filteredImages[i].frame + 1 !== filteredImages[k].frame) {
+            const itemDifference = foundImages[k].csvFrame - filteredImages[i].csvFrame;
+            if (
+              foundImages[i].csvFrame + itemDifference !== filteredImages[k].csvFrame || filteredImages[i].frame + itemDifference !== filteredImages[k].frame) {
             // We have misaligned image sequences so we error out
-              error = new Error(`A subsampling of images were used with the CSV but they were not sequential\n 
+              warnings.push(`A subsampling of images were used with the CSV but they were not sequential\n 
                 ${filteredImages[i].csvFrame + 1} !== ${filteredImages[k].csvFrame} || ${filteredImages[i].frame + 1} !== ${filteredImages[k].frame}\n
                 image1: ${filteredImages[i].image} image2: ${filteredImages[k].image} - these should be sequential in the CSV
               \n`);
             }
           }
-          frameMapper[filteredImages[i].csvFrame] = i;
+          frameMapper[filteredImages[i].csvFrame] = filteredImages[i].frame;
           minFrame = Math.min(minFrame, filteredImages[i].csvFrame);
           maxFrame = Math.max(maxFrame, filteredImages[i].csvFrame);
         }
@@ -347,7 +350,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           if (k < foundImages.length) {
             if (foundImages[i].csvFrame > foundImages[k].csvFrame || foundImages[i].frame > foundImages[k].frame) {
             // We have misaligned video sequences so we error out
-              error = new Error('Images were provided in an unexpected order and dataset contains multi-frame tracks.');
+              warnings.push(`Images were provided in an unexpected order and dataset contains multi-frame tracks.\n
+              image${i}: frame: ${foundImages[i].frame} csvFrame: ${foundImages[i].csvFrame}
+              image${k}: frame: ${foundImages[k].frame} csvFrame: ${foundImages[k].csvFrame}`);
             }
           }
         }
@@ -357,7 +362,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
       if (error !== undefined) {
         reject(error);
       }
-      resolve({ tracks, groups: {}, fps });
+      resolve([{ tracks, groups: {}, fps }, warnings]);
     });
     parser.on('readable', () => {
       let record: string[];
@@ -407,8 +412,10 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             });
             if (rowInfo.frame < maxFeatureFrame) {
             // trackId was already in dataMap, and frame is out of order
-              error = new Error(
-                'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+              warnings.push(
+                `annotations were provided in an unexpected order and dataset contains multi-frame tracks:
+                id: ${rowInfo.id}  filename: ${rowInfo.filename}  frame: ${rowInfo.frame}
+                maxFeatureFrame: ${maxFeatureFrame}`,
               );
               // eslint-disable-next-line no-continue
               continue;
@@ -446,7 +453,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
 }
 
 async function parseFile(path: string, imageMap?: Map<string, number>):
-  Promise<AnnotationFileData> {
+  Promise<[AnnotationFileData, string[]]> {
   const stream = fs.createReadStream(path);
   return parse(stream, imageMap);
 }
@@ -546,9 +553,8 @@ async function serialize(
             Object.entries(feature.attributes || {}).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
-
             /* Track Attributes */
-            Object.entries(track.attributes).forEach(([key, val]) => {
+            Object.entries(track.attributes || {}).forEach(([key, val]) => {
               row.push(`${TrackAtrToken} ${key} ${val}`);
             });
 

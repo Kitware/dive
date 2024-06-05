@@ -88,7 +88,7 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
   if (file === undefined) {
     return false;
   }
@@ -111,6 +111,11 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
     });
     if (uploadResponse.status === 200) {
       const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
+      if (final.data.length > 1) {
+        const warnings = final.data[1];
+        return warnings;
+      }
+
       return final.status === 200;
     }
   }

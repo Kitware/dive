@@ -2,7 +2,10 @@ import { getCurrentInstance } from 'vue';
 
 const useVuetify = () => {
   const vm = getCurrentInstance();
-  return vm?.proxy?.$vuetify || undefined;
+  if (vm?.proxy.$vuetify === undefined) {
+    throw new Error('Vuetify is undefined');
+  }
+  return vm.proxy.$vuetify;
 };
 
 export default useVuetify;

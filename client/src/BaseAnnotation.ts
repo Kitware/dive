@@ -140,7 +140,7 @@ export default abstract class BaseAnnotation {
     return this.confidencePairs;
   }
 
-  setType(annotationType: string, confidenceVal = 1, replace?: string) {
+  setType(annotationType: string, confidenceVal = 1, replace: string | undefined = undefined) {
     const old = this.confidencePairs;
     if (confidenceVal >= 1) {
       // dont' allow confidence greater than 1

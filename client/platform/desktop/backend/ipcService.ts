@@ -95,6 +95,7 @@ export default function register() {
     id, path, additive, additivePrepend,
   }: { id: string; path: string; additive: boolean; additivePrepend: string }) => {
     const ret = await common.dataFileImport(settings.get(), id, path, additive, additivePrepend);
+    if (ret.warnings.length) return ret.warnings;
     return ret;
   });
 

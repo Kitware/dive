@@ -131,7 +131,7 @@ function importMultiCam(args: MultiCamImportArgs):
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean> {
+function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
   return ipcRenderer.invoke('import-annotation', {
     id, path, additive, additivePrepend,
   });
@@ -141,14 +141,14 @@ function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
-async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[]): Promise<string> {
+async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
   const location = await dialog.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: npath.join(app.getPath('home'), `result_${id}.csv`),
+    defaultPath: npath.join(app.getPath('home'), type === 'json' ? `result_${id}.json` : `result_${id}.csv`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {
-      id, exclude, path: location.filePath, typeFilter: new Set(typeFilter),
+      id, exclude, path: location.filePath, typeFilter: new Set(typeFilter), type,
     };
     return ipcRenderer.invoke('export-dataset', args);
   }

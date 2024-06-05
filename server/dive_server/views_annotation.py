@@ -9,7 +9,7 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
-from dive_utils import constants, setContentDisposition
+from dive_utils import constants, setContentDisposition, models, fromMeta
 
 from . import crud, crud_annotation
 
@@ -152,6 +152,30 @@ class AnnotationResource(Resource):
             setContentDisposition(f'{folder["name"]}.dive.json', mime='application/json')
             setRawResponse()
             annotations = crud_annotation.get_annotations(folder, revision=revisionId)
+            tracks = annotations['tracks']
+            thresholds = None
+            if excludeBelowThreshold:
+                thresholds = fromMeta(folder, "confidenceFilters", {})
+            if thresholds is None:
+                thresholds = {}
+
+            updated_tracks = []
+            if typeFilter is None:
+                typeFilter = set()
+            print(tracks)
+            for t in tracks:
+                print(t)
+                print(tracks[t])
+                track = models.Track(**tracks[t])
+                if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+                    # filter by types if applicable
+                    if typeFilter:
+                        confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
+                        # skip line if no confidence pairs
+                        if not confidence_pairs:
+                            continue
+                    updated_tracks.append(tracks[t])
+            annotations['tracks'] = updated_tracks
             return json.dumps(annotations).encode('utf-8')
         else:
             raise RestException(f'Format {format} is not a valid option.')
