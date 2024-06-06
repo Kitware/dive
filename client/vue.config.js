@@ -22,7 +22,7 @@ function chainWebpack(config) {
      */
     'vtk.js': 'vtkjs',
   });
-  if (process.env.SENTRY_AUTH_TOKEN) {
+  if (process.env.SENTRY_AUTH_TOKEN || true) {
     config
       .plugin('SentryPlugin')
       .use(SentryPlugin, [{
@@ -33,16 +33,6 @@ function chainWebpack(config) {
         release: process.env.VUE_APP_GIT_HASH
       }]);
   }
-  config.module
-  .rule('babel')
-  .test(/\.js$/)
-  .exclude.add(/node_modules/)
-  .end()
-  .use('babel-loader')
-  .loader('babel-loader')
-  .options({
-    presets: ['@babel/preset-env']
-  });
 }
 
 module.exports = {

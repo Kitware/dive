@@ -61,7 +61,7 @@
     "@babel/plugin-proposal-do-expressions": "^7.24.1",
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@electron/remote": "^2.0.1",
-    "@sentry/webpack-plugin": "^2.16.1",
+    "@sentry/webpack-plugin": "^1.18.3",
     "@types/axios": "^0.14.0",
     "@types/body-parser": "^1.19.0",
     "@types/color-hash": "^1.0.0",
