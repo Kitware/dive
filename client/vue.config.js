@@ -22,7 +22,7 @@ function chainWebpack(config) {
      */
     'vtk.js': 'vtkjs',
   });
-  if (process.env.SENTRY_AUTH_TOKEN || true) {
+  if (process.env.SENTRY_AUTH_TOKEN) {
     config
       .plugin('SentryPlugin')
       .use(SentryPlugin, [{
