@@ -8,7 +8,7 @@ import csvparser from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
-import { cloneDeep, flattenDeep, has } from 'lodash';
+import { cloneDeep, flattenDeep } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
