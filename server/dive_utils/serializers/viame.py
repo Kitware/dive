@@ -296,9 +296,15 @@ def load_csv_as_tracks_and_attributes(
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=custom_sort)
     warnings: List[str] = []
+    fps = None
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
+            if (row[0] == '# metadata'):
+                if (row[1].startswith('fps: ')):
+                    fps_splits = row[1].split(':')
+                    if len(fps_splits) > 1:
+                        fps = fps_splits[1]
             continue
         (
             feature,
@@ -456,7 +462,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes, warnings
+    return annotations, metadata_attributes, warnings, fps
 
 
 def export_tracks_as_csv(

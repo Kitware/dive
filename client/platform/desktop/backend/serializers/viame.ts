@@ -8,7 +8,7 @@ import csvparser from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
-import { cloneDeep, flattenDeep } from 'lodash';
+import { cloneDeep, flattenDeep, has } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
@@ -55,13 +55,28 @@ function getCaptureGroups(regexp: RegExp, str: string) {
 }
 
 function _rowInfo(row: string[]) {
+  let fps;
   if (row[0].match(CommentRegex) !== null) {
-    throw new Error('comment row');
+    // we have a comment, check for FPS
+    let hasComment = false;
+    if (row.length > 1) {
+      if (row[1].startsWith('fps:')) {
+        const fpsSplit = row[1].split(':');
+        if (fpsSplit.length > 1) {
+          [, fps] = fpsSplit;
+          hasComment = true;
+        }
+      }
+    }
+    if (!hasComment) {
+      throw new Error('comment row');
+    }
   }
   if (row.length < 9) {
     throw new Error('malformed row: too few columns');
   }
   return {
+    fps,
     id: parseInt(row[0], 10),
     filename: row[1],
     frame: parseInt(row[2], 10),
@@ -254,6 +269,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   let error: Error | undefined;
   let multiFrameTracks = false;
   const warnings: string[] = [];
+  let fps;
 
   return new Promise<[AnnotationFileData, string[]]>((resolve, reject) => {
     pipeline([input, parser], (err) => {
@@ -372,6 +388,10 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
+          if (rowInfo.fps) {
+            fps = rowInfo.fps;
+            throw new Error('comment row with FPS');
+          }
           if (imageMap !== undefined) {
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
