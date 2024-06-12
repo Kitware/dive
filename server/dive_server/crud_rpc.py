@@ -326,10 +326,13 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes, warnings = viame.load_csv_as_tracks_and_attributes(
+        converted, attributes, warnings, fps = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+        meta = None
+        if fps is not None:
+            meta = { "fps" : fps }
+        return {'annotations': converted, 'meta': meta, 'attributes': attributes, 'type': as_type}, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
         return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
@@ -349,7 +352,7 @@ def _get_data_by_type(
     return None, None
 
 
-def process_items(
+def process_items( 
     folder: types.GirderModel,
     user: types.GirderUserModel,
     additive=False,

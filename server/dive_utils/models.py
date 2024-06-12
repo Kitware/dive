@@ -217,6 +217,7 @@ class MetadataMutable(BaseModel):
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
+    fps: Optional[float]
 
     @staticmethod
     def is_dive_configuration(value: dict):
