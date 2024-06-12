@@ -301,7 +301,7 @@ def load_csv_as_tracks_and_attributes(
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             if (row[0] == '# metadata'):
-                if (row[1].startswith('fps: ')):
+                if (row[1].startswith('Fps: ')):
                     fps_splits = row[1].split(':')
                     if len(fps_splits) > 1:
                         fps = fps_splits[1]
@@ -462,6 +462,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
+    print(f"FPS IS: {fps}")
     return annotations, metadata_attributes, warnings, fps
 
 

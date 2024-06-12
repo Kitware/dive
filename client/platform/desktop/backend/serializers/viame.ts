@@ -60,7 +60,7 @@ function _rowInfo(row: string[]) {
     // we have a comment, check for FPS
     let hasComment = false;
     if (row.length > 1) {
-      if (row[1].startsWith('fps:')) {
+      if (row[1].startsWith('Fps:')) {
         const fpsSplit = row[1].split(':');
         if (fpsSplit.length > 1) {
           [, fps] = fpsSplit;
@@ -269,7 +269,6 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   let error: Error | undefined;
   let multiFrameTracks = false;
   const warnings: string[] = [];
-  let fps;
 
   return new Promise<[AnnotationFileData, string[]]>((resolve, reject) => {
     pipeline([input, parser], (err) => {
@@ -389,7 +388,10 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
           if (rowInfo.fps) {
-            fps = rowInfo.fps;
+            const parsedFps = parseInt(rowInfo.fps, 10);
+            if (!Number.isNaN(parsedFps)) {
+              fps = parsedFps;
+            }
             throw new Error('comment row with FPS');
           }
           if (imageMap !== undefined) {

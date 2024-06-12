@@ -5,7 +5,7 @@ import click
 import girder_client
 
 apiURL = "localhost"
-rootFolder = "642577ffac91ad91682b0298"  # Sample folder girder Id
+rootFolder = "64c405c01cb3956240d67709"  # Sample folder girder Id
 
 
 # Login to the girder client, interactive means it will prompt for username and password
@@ -25,14 +25,14 @@ def process_folder(gc: girder_client.GirderClient, folderId, fps):
     for folder in folders:
         if folder.get('meta', {}).get('annotate', False):  # is a DIVE Dataset
             old_annotation_fps = folder.get('meta', {},).get('fps', None)
-            video_fps = folder.get('meta', {},).get('orignalFps', None)
+            video_fps = folder.get('meta', {},).get('originalFps', None)
             gc.addMetadataToFolder(str(folder['_id']), {
-                "fps": fps
+                "fps": int(fps)
             })
             processed.append({
                 'name': folder.get('name', 'unknown'),
                 'oldAnnotationFPS': old_annotation_fps,
-                'newAnnotationFPS': fps,
+                'newAnnotationFPS': int(fps),
                 'videoFPS': video_fps,
             })
         else:
