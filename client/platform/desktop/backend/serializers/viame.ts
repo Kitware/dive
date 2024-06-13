@@ -55,13 +55,28 @@ function getCaptureGroups(regexp: RegExp, str: string) {
 }
 
 function _rowInfo(row: string[]) {
+  let fps;
   if (row[0].match(CommentRegex) !== null) {
-    throw new Error('comment row');
+    // we have a comment, check for FPS
+    let hasComment = false;
+    if (row.length > 1) {
+      if (row[1].startsWith('Fps:')) {
+        const fpsSplit = row[1].split(':');
+        if (fpsSplit.length > 1) {
+          [, fps] = fpsSplit;
+          hasComment = true;
+        }
+      }
+    }
+    if (!hasComment) {
+      throw new Error('comment row');
+    }
   }
   if (row.length < 9) {
     throw new Error('malformed row: too few columns');
   }
   return {
+    fps,
     id: parseInt(row[0], 10),
     filename: row[1],
     frame: parseInt(row[2], 10),
@@ -372,6 +387,13 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
+          if (rowInfo.fps) {
+            const parsedFps = parseInt(rowInfo.fps, 10);
+            if (!Number.isNaN(parsedFps)) {
+              fps = parsedFps;
+            }
+            throw new Error('comment row with FPS');
+          }
           if (imageMap !== undefined) {
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
