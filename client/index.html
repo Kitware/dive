@@ -8,6 +8,13 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/platform/web-girder/main.ts"></script>
+    <script type="module">
+      const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+      if (buildTarget === 'electron') {
+        import('/platform/desktop/main.ts');
+      } else {
+        //import('/platform/web-girder/main.ts');
+      }
+    </script>
   </body>
 </html>
