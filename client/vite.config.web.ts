@@ -12,10 +12,9 @@ import packagejson from './package.json';
 const gitHash = gitDescribeSync().hash;
 const { version } = packagejson;
 const keepAliveAgent = new http.Agent({ keepAlive: true });
-const staticPath = process.env.NODE_ENV === 'production' ? process.env.VUE_APP_STATIC_PATH || './static/dive' : './';
-
+const staticPath = process.env.NODE_ENV === 'production' ? process.env.VITE_APP_STATIC_PATH || '/static/viame' : './';
 export default defineConfig({
-  base: './',
+  base: staticPath,
   optimizeDeps: {
     include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
   },
@@ -60,7 +59,6 @@ export default defineConfig({
         agent: keepAliveAgent,
       },
     },
-    publicPath: staticPath,
     strictPort: true,
   },
   build: {
