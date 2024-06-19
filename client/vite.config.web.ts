@@ -65,7 +65,12 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
-    outDir: 'dist_web',
+    outDir: 'dist',
+    rollupOptions: {
+      input: {
+        app: './index.web.html', // default
+      },
+    },
   },
   define: {
     'process.env.VITE_APP_GIT_HASH': JSON.stringify(gitHash),
