@@ -6,8 +6,8 @@ const SentryPlugin = require('@sentry/webpack-plugin');
 
 const keepAliveAgent = new http.Agent({ keepAlive: true });
 
-process.env.VUE_APP_GIT_HASH = gitDescribeSync().hash;
-process.env.VUE_APP_VERSION = packagejson.version;
+process.env.VITE_APP_GIT_HASH = gitDescribeSync().hash;
+process.env.VITE_APP_VERSION = packagejson.version;
 
 function chainWebpack(config) {
   config.output.strictModuleExceptionHandling(true);
@@ -30,7 +30,7 @@ function chainWebpack(config) {
         include: './dist',
         org: 'kitware-data',
         project: 'viame-web-client',
-        release: process.env.VUE_APP_GIT_HASH
+        release: process.env.VITE_APP_GIT_HASH
       }]);
   }
   config.module
@@ -57,7 +57,7 @@ module.exports = {
     },
   },
   productionSourceMap: true,
-  publicPath: process.env.VUE_APP_STATIC_PATH,
+  publicPath: process.env.VITE_APP_STATIC_PATH,
   chainWebpack,
   pluginOptions: {
     electronBuilder: {

@@ -2,7 +2,8 @@ import {
   app, protocol, screen, BrowserWindow, session,
 } from 'electron';
 import { initialize as initializeRemote } from '@electron/remote/main';
-import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
+import { join } from 'path';
+import { URL } from 'url';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
@@ -48,10 +49,10 @@ async function createWindow() {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html
       // #node-integration for more info
-      nodeIntegration: (!!process.env.ELECTRON_NODE_INTEGRATION),
-      plugins: true,
+      nodeIntegration: true,
+      contextIsolation: false,
       enableRemoteModule: true,
-      // Fix session such that every instance of the applicaton loads
+      // Fix session such that every instance of the application loads
       // the same session i.e.localStorage
       session: partitionSession,
     },
@@ -69,14 +70,14 @@ async function createWindow() {
   ipcListen();
   initializeRemote();
 
-  if (process.env.WEBPACK_DEV_SERVER_URL) {
+  if (import.meta.env.VITE_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
-    await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL as string);
+    await win.loadURL(import.meta.env.VITE_DEV_SERVER_URL as string);
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
-    createProtocol('app', partitionSession.protocol);
-    // Load the index.html when not in development
-    win.loadURL(`file://${__dirname}/index.html`);
+    const indexPath = join(__dirname, '../renderer/index.html');
+    const appURL = new URL(indexPath, 'file://');
+    await win.loadURL(appURL.toString());
   }
 
   win.on('closed', () => {

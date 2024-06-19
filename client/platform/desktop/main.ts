@@ -1,7 +1,7 @@
 import Vue from 'vue';
 
-import promptService from 'dive-common/vue-utilities/prompt-service';
-import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
+import promptService from '../../dive-common/vue-utilities/prompt-service';
+import vMousetrap from '../../dive-common/vue-utilities/v-mousetrap';
 
 import vuetify from './plugins/vuetify';
 import router from './router';

@@ -9,7 +9,7 @@ export default {
   },
   computed: {
     version() {
-      return process.env.VUE_APP_GIT_HASH;
+      return process.env.VITE_APP_GIT_HASH;
     },
   },
 };

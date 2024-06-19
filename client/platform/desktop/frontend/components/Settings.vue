@@ -23,7 +23,7 @@ export default defineComponent({
   },
   setup() {
     const { arch, platform, version } = process;
-    const gitHash = process.env.VUE_APP_GIT_HASH;
+    const gitHash = process.env.VITE_APP_GIT_HASH;
     const appversion = app.getVersion();
 
     // local copy of the global settings
