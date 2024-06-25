@@ -9,7 +9,7 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
-from dive_utils import constants, setContentDisposition, models, fromMeta
+from dive_utils import constants, fromMeta, models, setContentDisposition
 
 from . import crud, crud_annotation
 
@@ -170,7 +170,9 @@ class AnnotationResource(Resource):
                 if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
                     # filter by types if applicable
                     if typeFilter:
-                        confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
+                        confidence_pairs = [
+                            item for item in track.confidencePairs if item[0] in typeFilter
+                        ]
                         # skip line if no confidence pairs
                         if not confidence_pairs:
                             continue

@@ -33,7 +33,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 RUN ln -s /usr/bin/python3.11 /usr/bin/python
 WORKDIR /opt/dive/src
 
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.2 POETRY_HOME=/opt/dive/poetry python -
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.3 POETRY_HOME=/opt/dive/poetry python -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
 # Create a virtual environment for the installation
 RUN python -m venv --copies /opt/dive/local/venv

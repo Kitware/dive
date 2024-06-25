@@ -331,28 +331,53 @@ def _get_data_by_type(
         )
         meta = None
         if fps is not None:
-            meta = { "fps" : fps }
-        return {'annotations': converted, 'meta': meta, 'attributes': attributes, 'type': as_type}, warnings
+            meta = {"fps": fps}
+        return {
+            'annotations': converted,
+            'meta': meta,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+        return {
+            'annotations': converted,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
         converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+        return {
+            'annotations': converted,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.DIVE_CONF:
-        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}, warnings
+        return {
+            'annotations': None,
+            'meta': data_dict,
+            'attributes': None,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}, warnings
+        return {
+            'annotations': migrated,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
     return None, None
 
 
-def process_items( 
+def process_items(
     folder: types.GirderModel,
     user: types.GirderUserModel,
     additive=False,
@@ -422,6 +447,7 @@ def process_items(
         if results['meta']:
             crud_dataset.update_metadata(folder, results['meta'], False)
     return aggregate_warnings
+
 
 def postprocess(
     user: types.GirderUserModel,

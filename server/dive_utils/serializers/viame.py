@@ -68,7 +68,7 @@ def _deduceType(value: Any) -> Union[bool, float, str, None]:
         return None
     if value is None:
         return None
-    
+
     if value == "true":
         return True
     if value == "false":
@@ -279,7 +279,8 @@ def custom_sort(row):
 
 
 def load_csv_as_tracks_and_attributes(
-    rows: List[str], imageMap: Optional[Dict[str, int]] = None,
+    rows: List[str],
+    imageMap: Optional[Dict[str, int]] = None,
 ) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Optional[str]]:
     """
     Convert VIAME CSV to json tracks
@@ -300,8 +301,8 @@ def load_csv_as_tracks_and_attributes(
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
-            if (len(row) > 0 and row[0] == '# metadata'):
-                if (row[1].startswith('Fps: ')):
+            if len(row) > 0 and row[0] == '# metadata':
+                if row[1].startswith('Fps: '):
                     fps_splits = row[1].split(':')
                     if len(fps_splits) > 1:
                         fps = fps_splits[1]
@@ -500,7 +501,7 @@ def export_tracks_as_csv(
 
     for t in track_iterator:
         track = Track(**t)
-        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds, typeFilter):
             # filter by types if applicable
             if typeFilter:
                 confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]

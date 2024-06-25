@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/no-ref-as-operand -->
 <script lang="ts">
 import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
@@ -43,14 +44,14 @@ export default defineComponent({
 
     /** State populated from provides if the dialog exists inside a viewer context */
     let save = () => Promise.resolve();
-    const pendingSaveCount = ref(0);
-    const checkedTypes = ref([] as readonly string[]);
-    const revisionId = ref(null as null | number);
+    let pendingSaveCount = ref(0);
+    let checkedTypes = ref([] as readonly string[]);
+    let revisionId = ref(null as null | number);
     if (props.blockOnUnsaved) {
       save = useHandler().save;
-      pendingSaveCount.value = usePendingSaveCount().value;
-      checkedTypes.value = useTrackFilters().checkedTypes.value;
-      revisionId.value = useRevisionId().value;
+      pendingSaveCount = usePendingSaveCount();
+      checkedTypes = useTrackFilters().checkedTypes;
+      revisionId = useRevisionId();
     }
 
     async function doExport({ forceSave = false, url }: { url?: string; forceSave?: boolean }) {
@@ -225,6 +226,7 @@ export default defineComponent({
       />
       <v-card
         outlined
+        class="downloadMenu"
       >
         <v-card-title>
           Download options
@@ -266,7 +268,7 @@ export default defineComponent({
 
           <v-card-text class="pb-2">
             <div>Get latest annotation csv only</div>
-            <template v-if="dataset.confidenceFilters">
+            <template v-if="dataset.confidenceFilters || true">
               <v-checkbox
                 v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
@@ -391,3 +393,11 @@ export default defineComponent({
     </template>
   </v-menu>
 </template>
+
+<style scoped>
+.downloadMenu {
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+</style>
