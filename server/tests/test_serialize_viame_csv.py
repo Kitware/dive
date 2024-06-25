@@ -354,9 +354,12 @@ def test_image_filenames():
     image_map = {'1': 0, '2': 1, '3': 2}
     for test in image_filename_tests:
         if not test['warning']:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+                test['csv'], image_map
+            )
             assert len(converted['tracks'].values()) > 0
         else:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(test['csv'], image_map)
+            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+                test['csv'], image_map
+            )
             assert len(warnings) > 0
-
