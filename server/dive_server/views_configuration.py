@@ -49,6 +49,7 @@ class ConfigurationResource(Resource):
         super(ConfigurationResource, self).__init__()
         self.resourceName = resourceName
 
+        self.route("GET", (), self.get_config)
         self.route("GET", ("addons",), self.get_addons)
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
@@ -59,6 +60,16 @@ class ConfigurationResource(Resource):
         self.route("PUT", ("installed_addons",), self.update_installed_addons)
 
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
+
+    @access.public
+    @autoDescribeRoute(Description("Get Configuration Information"))
+    def get_config(self):
+        env = os.environ.copy()
+
+        distributed_worker = env.get("RABBITMQ_DISTRIBUTED_WORKER")
+        return {
+            'distributedWorker': distributed_worker
+        }
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))

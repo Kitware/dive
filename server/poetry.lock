@@ -2101,7 +2101,7 @@ description = "PyLibTiff: a Python tiff library."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1f01ba9e3e88981114122ed127d2e11f31972764a2dbe18d57dc1718d62a5f46"},
+    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:48a758bca6c4193fb2df694a292bef48cd8f263f486b803390645280a793318e"},
 ]
 
 [package.dependencies]
@@ -2353,7 +2353,7 @@ description = "binding for the libvips image processing library, API mode"
 optional = false
 python-versions = "*"
 files = [
-    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2d9d0472b0844bbcbbc6dd3bcc6acdd488e560185122ed5c9e5f117e2fcc5bd9"},
+    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:586222efad872f31711f3fb3ac65092e8ee242dac89eab12df145aa40165c714"},
 ]
 
 [package.dependencies]
