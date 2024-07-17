@@ -16,6 +16,7 @@ export default defineComponent({
     const restClient = useGirderRest();
     const store = useStore();
     const outstandingJobs = ref(0);
+    const distributedWorkerEnabled = ref(false);
 
     watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
       restClient.get('job/queued').then(({ data }) => {
@@ -30,6 +31,10 @@ export default defineComponent({
       loading.value = false;
     }
 
+    restClient.get('dive_configuration').then((data) => {
+      distributedWorkerEnabled.value = !!(data.data.distributedWorker);
+    });
+
     restClient.fetchUser()
       .then((user) => {
         privateQueueEnabled.value = user.user_private_queue_enabled;
@@ -41,6 +46,7 @@ export default defineComponent({
 
     return {
       privateQueueEnabled,
+      distributedWorkerEnabled,
       loading,
       outstandingJobs,
       /* methods */
@@ -120,6 +126,7 @@ export default defineComponent({
         </v-card-text>
       </v-card>
       <v-card
+        v-if="distributedWorkerEnabled"
         outlined
       >
         <v-card-title>
