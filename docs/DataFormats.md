@@ -147,7 +147,7 @@ interface DatasetMetaMutable {
 
 ## VIAME CSV
 
-Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/section_links/detection_file_conversions.html).
+Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sections/detection_file_conversions.html).
 
 !!! warning
     VIAME CSV is the format that DIVE exports to.  It doesn't support all features of the annotator (like groups) so you may need to use the DIVE Json format.  It's easier to work with.
