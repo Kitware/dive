@@ -121,7 +121,7 @@
     "pump": "^3.0.0",
     "range-parser": "^1.2.1",
     "request": "^2.88.2",
-    "rollup": "^2.59.0",
+    "rollup": "^3.29.5",
     "rollup-plugin-cleaner": "^1.0.0",
     "rollup-plugin-scss": "^3.0.0",
     "rollup-plugin-typescript2": "^0.30.0",
