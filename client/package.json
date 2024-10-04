@@ -38,7 +38,7 @@
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "^3.2.0",
     "@mdi/font": "^6.2.95",
-    "@sentry/browser": "^5.24.2",
+    "@sentry/browser": "^7.119.1",
     "@sentry/integrations": "^5.24.2",
     "axios": "^0.21.1",
     "color-hash": "^1.0.3",
