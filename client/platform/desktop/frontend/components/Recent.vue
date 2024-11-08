@@ -30,12 +30,14 @@ import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
+import BulkImportDialog from './BulkImportDialog.vue';
 
 export default defineComponent({
   components: {
     BrowserLink,
     ImportButton,
     ImportDialog,
+    BulkImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
     TooltipBtn,
@@ -44,7 +46,7 @@ export default defineComponent({
   setup() {
     const router = useRouter();
     const importMultiCamDialog = ref(false);
-    const pendingImportPayload: Ref<DesktopMediaImportResponse | null> = ref(null);
+    const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
@@ -54,11 +56,41 @@ export default defineComponent({
       error, loading: checkingMedia, request, reset: resetError,
     } = useRequest();
 
-    async function open(dstype: DatasetType | 'text', directory = false) {
+    async function open(dstype: DatasetType | 'bulk' | 'text', directory = false) {
       const ret = await api.openFromDisk(dstype, directory);
-      if (!ret.canceled) {
-        pendingImportPayload.value = await request(() => api.importMedia(ret.filePaths[0]));
+      if (ret.canceled) {
+        return;
       }
+
+      if (dstype === 'bulk') {
+        pendingImportPayload.value = await request(() => api.bulkImportMedia(ret.filePaths[0]));
+      } else {
+        pendingImportPayload.value = [await request(() => api.importMedia(ret.filePaths[0]))];
+      }
+    }
+
+    /** Accept args from the dialog, as it may have modified some parts */
+    async function finalizeBulkImport(argsArray: DesktopMediaImportResponse[]) {
+      importing.value = true;
+
+      const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
+      pendingImportPayload.value = null;
+
+      // TODO: This currently only shows the last item in recents
+      imports.forEach(async (jsonMeta) => {
+        if (!jsonMeta.transcodingJobKey) {
+          router.push({
+            name: 'viewer',
+            params: { id: jsonMeta.id },
+          });
+        } else {
+          // Display new data and await transcoding to complete
+          const recentsMeta = await api.loadMetadata(jsonMeta.id);
+          setRecents(recentsMeta);
+        }
+      });
+
+      importing.value = false;
     }
 
     /** Accept args from the dialog, as it may have modified some parts */
@@ -89,7 +121,7 @@ export default defineComponent({
 
     async function multiCamImport(args: MultiCamImportArgs) {
       importMultiCamDialog.value = false;
-      pendingImportPayload.value = await request(() => api.importMultiCam(args));
+      pendingImportPayload.value = [await request(() => api.importMultiCam(args))];
     }
 
     async function confirmDeleteDataset(datasetId: string, datasetName: string) {
@@ -180,6 +212,7 @@ export default defineComponent({
       // methods
       acknowledgeVersion,
       open,
+      finalizeBulkImport,
       finalizeImport,
       multiCamImport,
       join,
@@ -221,13 +254,21 @@ export default defineComponent({
       overlay-opacity="0.95"
       max-width="80%"
     >
-      <ImportDialog
-        v-if="pendingImportPayload !== null"
-        :import-data="pendingImportPayload"
-        :disabled="importing"
-        @finalize-import="finalizeImport($event)"
-        @abort="pendingImportPayload = null"
-      />
+      <template v-if="pendingImportPayload !== null">
+        <BulkImportDialog
+          v-if="pendingImportPayload.length > 1"
+          :imports="pendingImportPayload"
+          @finalize-import="finalizeBulkImport($event)"
+          @abort="pendingImportPayload = null"
+        />
+        <ImportDialog
+          v-else
+          :import-data="pendingImportPayload[0]"
+          :disabled="importing"
+          @finalize-import="finalizeImport($event)"
+          @abort="pendingImportPayload = null"
+        />
+      </template>
       <ImportMultiCamDialog
         v-else-if="importMultiCamDialog"
         :stereo="stereo"
@@ -319,6 +360,13 @@ export default defineComponent({
             md="6"
             sm="6"
           >
+            <ImportButton
+              name="Bulk Import"
+              icon="mdi-folder-multiple"
+              open-type="bulk"
+              class="my-3"
+              @open="open($event)"
+            />
             <ImportButton
               name="Open Image Sequence"
               icon="mdi-folder-open"

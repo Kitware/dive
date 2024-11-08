@@ -20,7 +20,7 @@ export default defineComponent({
       required: true,
     },
     openType: {
-      type: String as PropType<DatasetType | 'zip'>,
+      type: String as PropType<DatasetType | 'zip' | 'bulk'>,
       required: true,
     },
     multiCamImport: { //TODO: Temporarily used to hide the stereo settings from users

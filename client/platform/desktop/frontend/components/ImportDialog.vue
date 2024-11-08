@@ -22,11 +22,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // If being embedded into the bulk import dialog
+    embeddedData: {
+      type: Object as PropType<{ showNext: boolean, showBack: boolean } | undefined>,
+      default: undefined,
+    },
   },
   setup(props) {
     const argCopy = ref(cloneDeep(props.importData));
     const duplicates = ref(locateDuplicates(props.importData.jsonMeta));
     const showAdvanced = ref(false);
+    const embedded = toRef(props, 'embeddedData');
 
     // Set default FPS to stored value or video frame rate if it exceeds current frame rate
     if (clientSettings.annotationFPS === -1
@@ -83,6 +89,7 @@ export default defineComponent({
       }
     };
     return {
+      embedded,
       argCopy,
       duplicates,
       filteredImages,
@@ -314,14 +321,14 @@ export default defineComponent({
           class="mr-5"
           @click="$emit('abort')"
         >
-          Cancel
+          {{ embedded?.showBack ? "Back" : "Cancel" }}
         </v-btn>
         <v-btn
           color="primary"
           :disabled="!ready || disabled"
           @click="$emit('finalize-import', argCopy)"
         >
-          Finish Import
+          {{ embedded?.showNext ? "Next" : "Finish Import" }}
         </v-btn>
       </div>
     </v-card-text>
