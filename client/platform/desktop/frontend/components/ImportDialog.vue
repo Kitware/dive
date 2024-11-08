@@ -22,6 +22,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    // If being embedded into the bulk import dialog
+    embedded: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const argCopy = ref(cloneDeep(props.importData));
@@ -321,7 +326,7 @@ export default defineComponent({
           :disabled="!ready || disabled"
           @click="$emit('finalize-import', argCopy)"
         >
-          Finish Import
+          {{ embedded ? "Save" : "Finish Import" }}
         </v-btn>
       </div>
     </v-card-text>

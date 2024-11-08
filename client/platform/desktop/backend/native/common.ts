@@ -801,6 +801,36 @@ async function findTrackandMetaFileinFolder(path: string) {
   return { trackFileAbsPath, metaFileAbsPath };
 }
 
+async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse[]> {
+  const children = await fs.readdir(path, { withFileTypes: true });
+  const results = await Promise.all(children.map(async (dirent) => {
+    let importResult: DesktopMediaImportResponse | undefined;
+
+    // Try to set import result, defaulting to undefined
+    const resolvedPath = npath.resolve(path, dirent.name);
+    try {
+      importResult = await beginMediaImport(resolvedPath);
+    } catch (e) {
+      // Do nothing, var will stay undefined
+    }
+
+    return {
+      path: dirent,
+      result: importResult,
+    };
+  }));
+
+  // Filter successful imports
+  const validResults = results.filter((r) => r.result !== undefined).map((r) => r.result as DesktopMediaImportResponse);
+
+  // If the result was undefined and was a directory, recurse.
+  const toRecurse = results.filter((r) => r.result === undefined && r.path.isDirectory());
+  const subResults = await Promise.all(toRecurse.map(async (r) => bulkMediaImport(npath.resolve(path, r.path.name))));
+
+  // Combine valid results and any valid subResults
+  return Array.prototype.concat(validResults, ...subResults);
+}
+
 /**
  * Begin a dataset import.
  */
@@ -1133,6 +1163,7 @@ export {
   ProjectsFolderName,
   JobsFolderName,
   autodiscoverData,
+  bulkMediaImport,
   beginMediaImport,
   dataFileImport,
   deleteDataset,

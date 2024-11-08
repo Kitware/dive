@@ -70,6 +70,12 @@ export default function register() {
     return defaults;
   });
 
+  // eslint-disable-next-line arrow-body-style
+  ipcMain.handle('bulk-import-media', async (event, { path }: { path: string }) => {
+    const results = await common.bulkMediaImport(path);
+    return results;
+  });
+
   ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
     const ret = await common.beginMediaImport(path);
     return ret;
