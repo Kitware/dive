@@ -91,7 +91,7 @@ async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // eslint won't recognize \. as valid escape
   // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
+  const safeDatasetName = jsonMetaList[0].id.replace(/[\.\s/]+/g, '_');
   const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
