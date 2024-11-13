@@ -448,7 +448,7 @@ describe('native.common', () => {
       name: 'myproject1_name',
       createdAt: (new Date()).toString(),
       originalBasePath: '/foo/bar/baz',
-      id: 'myproject1',
+      id: 'myproject1_name_tktfgyv2g9',
       originalImageFiles: [],
       transcodedImageFiles: [],
       originalVideoFile: '',
@@ -461,7 +461,7 @@ describe('native.common', () => {
     const contents = fs.readdirSync(result);
     expect(stat.isDirectory()).toBe(true);
     expect(contents).toEqual([]);
-    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_mypipeline\.pipe_/);
+    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_tktfgyv2g9_mypipeline\.pipe_/);
   });
 
   it('beginMediaImport image sequence success', async () => {
