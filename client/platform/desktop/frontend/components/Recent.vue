@@ -47,7 +47,7 @@ export default defineComponent({
     const router = useRouter();
     const importMultiCamDialog = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
-    const bulkImport = computed(() => (pendingImportPayload.value !== null && pendingImportPayload.value.length > 1));
+    const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
@@ -58,6 +58,8 @@ export default defineComponent({
     } = useRequest();
 
     async function open(dstype: DatasetType | 'bulk' | 'text', directory = false) {
+      bulkImport.value = false;
+
       const ret = await api.openFromDisk(dstype, directory);
       if (ret.canceled) {
         return;
@@ -68,6 +70,7 @@ export default defineComponent({
         return;
       }
 
+      bulkImport.value = true;
       const foundImports = await request(() => api.bulkImportMedia(ret.filePaths[0]));
       if (!foundImports.length) {
         prompt({ title: 'No datasets found', text: 'Please check that your import path is correct and try again.', positiveButton: 'Okay' });
@@ -249,7 +252,32 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null || importMultiCamDialog || checkingMedia"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+      width="800"
+      :value="checkingMedia || importMultiCamDialog"
+    >
+      <v-card v-if="checkingMedia" outlined>
+        <v-card-title class="text-h5">
+          {{ bulkImport ? 'Importing...' : 'Calculating...' }}
+          <v-progress-linear
+            indeterminate
+            color="light-blue"
+          />
+        </v-card-title>
+      </v-card>
+      <ImportMultiCamDialog
+        v-else-if="importMultiCamDialog"
+        :stereo="stereo"
+        :data-type="multiCamOpenType"
+        :import-media="importMedia"
+        @begin-multicam-import="multiCamImport($event)"
+        @abort="importMultiCamDialog = false"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="pendingImportPayload !== null"
       persistent
       :width="bulkImport ? '1400' : '800'"
       overlay-opacity="0.95"
@@ -270,26 +298,6 @@ export default defineComponent({
           @abort="pendingImportPayload = null"
         />
       </template>
-      <ImportMultiCamDialog
-        v-else-if="importMultiCamDialog"
-        :stereo="stereo"
-        :data-type="multiCamOpenType"
-        :import-media="importMedia"
-        @begin-multicam-import="multiCamImport($event)"
-        @abort="importMultiCamDialog = false"
-      />
-      <v-card
-        v-else-if="checkingMedia"
-        outlined
-      >
-        <v-card-title class="text-h5">
-          Calculating...
-          <v-progress-linear
-            indeterminate
-            color="light-blue"
-          />
-        </v-card-title>
-      </v-card>
     </v-dialog>
     <navigation-bar />
     <v-container>
