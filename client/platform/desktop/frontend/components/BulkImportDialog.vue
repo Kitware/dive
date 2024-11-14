@@ -117,7 +117,7 @@ export default defineComponent({
 <template>
   <v-card outlined class="import-card" style="overflow-x: hidden;">
     <v-card-title class="text-h5">
-      Bulk Import
+      Bulk Import (Selecting {{ selectedImports.length }} of {{ imports.length }})
     </v-card-title>
 
     <v-dialog :value="currentImport !== undefined" width="800">
