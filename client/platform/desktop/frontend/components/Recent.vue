@@ -243,7 +243,7 @@ export default defineComponent({
     <v-dialog
       :value="pendingImportPayload !== null || importMultiCamDialog || checkingMedia"
       persistent
-      :width="bulkImport ? 'auto' : '800'"
+      :width="bulkImport ? '1400' : '800'"
       overlay-opacity="0.95"
       max-width="80%"
     >

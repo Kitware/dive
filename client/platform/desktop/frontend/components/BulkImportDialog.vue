@@ -12,19 +12,22 @@ const headers = [
     text: 'Dataset Name',
     align: 'start',
     sortable: false,
-    value: 'jsonMeta.name',
+    value: 'name',
+    width: '300',
   },
   {
     text: 'Path',
     align: 'start',
     sortable: false,
     value: 'path',
+    width: '800',
   },
   {
     text: 'Dataset Type',
     align: 'start',
     sortable: false,
     value: 'jsonMeta.type',
+    width: '150',
   },
   {
     text: 'Config',
@@ -136,8 +139,16 @@ export default defineComponent({
       disable-sort
       @input="updateSelected"
     >
+      <template #item.name="{ item }">
+        <div class="text-wrap" style="word-break: break-word;">
+          {{ item.jsonMeta.name }}
+        </div>
+      </template>
+
       <template #item.path="{ item }">
-        {{ formatPath(item) }}
+        <div class="text-wrap" style="word-break: break-word;">
+          {{ formatPath(item) }}
+        </div>
       </template>
 
       <template #item.config="{ item }">
