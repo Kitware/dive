@@ -801,34 +801,57 @@ async function findTrackandMetaFileinFolder(path: string) {
   return { trackFileAbsPath, metaFileAbsPath };
 }
 
+/**
+ * Attempt a media import on the provided path, which may or may not be a valid dataset.
+ */
+async function attemptMediaImport(path: string) {
+  try {
+    // Must await here, as otherwise the try/catch isn't correctly executed.
+    return await beginMediaImport(path);
+  } catch (e) {
+    console.warn(
+      `*** Failed to import at path "${path}", with message: "${(e as Error).message}".`
+      + ' This is expected if this file or directory does not contain a dataset.',
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * Recursively import all datasets in this directory, using a "breadth-first" approach.
+ * This function only recurses into a directory if the import of that directory fails.
+ */
 async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse[]> {
   const children = await fs.readdir(path, { withFileTypes: true });
-  const results = await Promise.all(children.map(async (dirent) => {
-    let importResult: DesktopMediaImportResponse | undefined;
+  const results: {path: fs.Dirent, result: DesktopMediaImportResponse | undefined}[] = [];
 
-    // Try to set import result, defaulting to undefined
-    const resolvedPath = npath.resolve(path, dirent.name);
-    try {
-      importResult = await beginMediaImport(resolvedPath);
-    } catch (e) {
-      // Do nothing, var will stay undefined
-    }
-
-    return {
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const dirent of children) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await attemptMediaImport(npath.resolve(path, dirent.name));
+    results.push({
       path: dirent,
-      result: importResult,
-    };
-  }));
+      result,
+    });
+  }
 
   // Filter successful imports
-  const validResults = results.filter((r) => r.result !== undefined).map((r) => r.result as DesktopMediaImportResponse);
+  const importResults = results.filter((r) => r.result !== undefined).map((r) => r.result as DesktopMediaImportResponse);
 
   // If the result was undefined and was a directory, recurse.
   const toRecurse = results.filter((r) => r.result === undefined && r.path.isDirectory());
-  const subResults = await Promise.all(toRecurse.map(async (r) => bulkMediaImport(npath.resolve(path, r.path.name))));
 
-  // Combine valid results and any valid subResults
-  return Array.prototype.concat(validResults, ...subResults);
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const r of toRecurse) {
+    // eslint-disable-next-line no-await-in-loop
+    const results = await bulkMediaImport(npath.resolve(path, r.path.name));
+    importResults.push(...results);
+  }
+
+  return importResults;
 }
 
 /**
