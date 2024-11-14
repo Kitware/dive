@@ -63,11 +63,19 @@ export default defineComponent({
         return;
       }
 
-      if (dstype === 'bulk') {
-        pendingImportPayload.value = await request(() => api.bulkImportMedia(ret.filePaths[0]));
-      } else {
+      if (dstype !== 'bulk') {
         pendingImportPayload.value = [await request(() => api.importMedia(ret.filePaths[0]))];
+        return;
       }
+
+      const foundImports = await request(() => api.bulkImportMedia(ret.filePaths[0]));
+      if (!foundImports.length) {
+        prompt({ title: 'No datasets found', text: 'Please check that your import path is correct and try again.', positiveButton: 'Okay' });
+        pendingImportPayload.value = null;
+        return;
+      }
+
+      pendingImportPayload.value = foundImports;
     }
 
     /** Accept args from the dialog, as it may have modified some parts */
