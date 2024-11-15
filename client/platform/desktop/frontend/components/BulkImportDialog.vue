@@ -13,14 +13,12 @@ const headers = [
     align: 'start',
     sortable: false,
     value: 'name',
-    width: '300',
   },
   {
     text: 'Path',
     align: 'start',
     sortable: false,
     value: 'path',
-    width: '800',
   },
   {
     text: 'Dataset Type',
@@ -31,7 +29,7 @@ const headers = [
   },
   {
     text: 'Config',
-    align: 'start',
+    align: 'end',
     sortable: false,
     value: 'config',
   },
