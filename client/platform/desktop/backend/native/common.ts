@@ -802,6 +802,59 @@ async function findTrackandMetaFileinFolder(path: string) {
 }
 
 /**
+ * Attempt a media import on the provided path, which may or may not be a valid dataset.
+ */
+async function attemptMediaImport(path: string) {
+  try {
+    // Must await here, as otherwise the try/catch isn't correctly executed.
+    return await beginMediaImport(path);
+  } catch (e) {
+    console.warn(
+      `*** Failed to import at path "${path}", with message: "${(e as Error).message}".`
+      + ' This is expected if this file or directory does not contain a dataset.',
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * Recursively import all datasets in this directory, using a "breadth-first" approach.
+ * This function only recurses into a directory if the import of that directory fails.
+ */
+async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse[]> {
+  const children = await fs.readdir(path, { withFileTypes: true });
+  const results: {path: fs.Dirent, result: DesktopMediaImportResponse | undefined}[] = [];
+
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const dirent of children) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await attemptMediaImport(npath.resolve(path, dirent.name));
+    results.push({
+      path: dirent,
+      result,
+    });
+  }
+
+  // Filter successful imports
+  const importResults = results.filter((r) => r.result !== undefined).map((r) => r.result as DesktopMediaImportResponse);
+
+  // If the result was undefined and was a directory, recurse.
+  const toRecurse = results.filter((r) => r.result === undefined && r.path.isDirectory());
+
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const r of toRecurse) {
+    // eslint-disable-next-line no-await-in-loop
+    const results = await bulkMediaImport(npath.resolve(path, r.path.name));
+    importResults.push(...results);
+  }
+
+  return importResults;
+}
+
+/**
  * Begin a dataset import.
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
@@ -1133,6 +1186,7 @@ export {
   ProjectsFolderName,
   JobsFolderName,
   autodiscoverData,
+  bulkMediaImport,
   beginMediaImport,
   dataFileImport,
   deleteDataset,

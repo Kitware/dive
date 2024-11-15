@@ -26,7 +26,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -53,7 +53,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
       allFiles,
     ];
   }
-  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
+  const props = (['image-sequence', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
   const results = await dialog.showOpenDialog({
     properties: [props],
     filters,
@@ -115,6 +115,10 @@ async function runTraining(
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-media', { path });
+}
+
+function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
+  return ipcRenderer.invoke('bulk-import-media', { path });
 }
 
 function deleteDataset(datasetId: string): Promise<boolean> {
@@ -228,6 +232,7 @@ export {
   exportConfiguration,
   finalizeImport,
   importMedia,
+  bulkImportMedia,
   deleteDataset,
   checkDataset,
   importAnnotationFile,
