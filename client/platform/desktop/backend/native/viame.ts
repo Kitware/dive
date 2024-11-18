@@ -59,7 +59,7 @@ async function runPipeline(
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
   let requiresInput = false;
-  if ((/utility_/g).test(pipeline.pipe)) {
+  if ((/utility_|filter_|transcode_/g).test(pipeline.pipe)) {
     requiresInput = true;
   }
   let groundTruthFileName;
@@ -126,6 +126,15 @@ async function runPipeline(
       command.push(`-s track_writer:file_name="${trackOutput}"`);
     }
   }
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
+    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
+    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+  }
+  if (runPipelineArgs.pipeline.type === 'transcode') {
+    command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
+  }
+
   if (requiresInput && !stereoOrMultiCam) {
     command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
     command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
