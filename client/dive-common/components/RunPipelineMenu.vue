@@ -161,6 +161,8 @@ export default defineComponent({
         case 'utility':
         case 'generate':
           return 'utilities';
+        case 'transcode':
+          return 'transcoders';
         default:
           return `${pipeType}s`;
       }
