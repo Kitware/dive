@@ -69,8 +69,12 @@ export default defineComponent({
     });
 
     const { openFromDisk } = useApi();
-    const openUpload = async (type: 'annotation' | 'meta') => {
-      const argMap = { annotation: 'trackFileAbsPath', meta: 'metaFileAbsPath' };
+    const openUpload = async (type: 'annotation' | 'meta' | 'camera') => {
+      const argMap = {
+        annotation: 'trackFileAbsPath',
+        meta: 'metaFileAbsPath',
+        camera: 'cameraFileAbsPath',
+      };
       const ret = await openFromDisk('annotation');
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
@@ -198,6 +202,24 @@ export default defineComponent({
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"
             @click:clear="argCopy.trackFileAbsPath = ''"
+          />
+        </v-col>
+      </v-row>
+      <v-row class="d-flex my-2 mt-2">
+        <v-col>
+          <v-text-field
+            :value="argCopy.cameraFileAbsPath"
+            outlined
+            clearable
+            dense
+            prepend-inner-icon="mdi-file-table"
+            label="Camera/Metadata File (Optional)"
+            hint="TODO"
+            persistent-hint
+            @input="argCopy.cameraFileAbsPath = $event"
+            @click="openUpload('camera')"
+            @click:prepend-inner="openUpload('camera')"
+            @click:clear="argCopy.cameraFileAbsPath = undefined"
           />
         </v-col>
       </v-row>

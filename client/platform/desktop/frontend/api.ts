@@ -7,7 +7,7 @@ import { ipcRenderer } from 'electron';
 import { dialog, app } from '@electron/remote';
 
 import type {
-  DatasetMetaMutable, DatasetType, MultiCamImportArgs,
+  DatasetMetaMutable, DiskOpenType, MultiCamImportArgs,
   Pipe, Pipelines, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
@@ -26,7 +26,7 @@ import {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
+async function openFromDisk(datasetType: DiskOpenType, directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {

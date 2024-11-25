@@ -9,6 +9,7 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
+type DiskOpenType = DatasetType | 'bulk' | 'calibration' | 'annotation' | 'camera' | 'text' | 'zip';
 type MultiTrackRecord = Record<string, TrackData>;
 type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
@@ -161,7 +162,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
+  openFromDisk(datasetType: DiskOpenType, directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,6 +198,7 @@ export {
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
   DatasetType,
+  DiskOpenType,
   SubType,
   FrameImage,
   MultiTrackRecord,
