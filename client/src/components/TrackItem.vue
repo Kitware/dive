@@ -129,6 +129,17 @@ export default defineComponent({
       props.track.toggleInterpolation(frameRef.value);
     }
 
+    function toggleAllInterpolation() {
+      props.track.toggleInterpolationForAllGaps(frameRef.value);
+    }
+
+    function clickToggleInterpolation(event: MouseEvent) {
+      if (event.ctrlKey) {
+        toggleAllInterpolation();
+      } else {
+        toggleInterpolation();
+      }
+    }
     function gotoNext() {
       const nextFrame = props.track.getNextKeyframe(frameRef.value + 1);
       if (nextFrame !== undefined) {
@@ -170,6 +181,8 @@ export default defineComponent({
       handler,
       openMultiCamTools,
       toggleInterpolation,
+      clickToggleInterpolation,
+      toggleAllInterpolation,
       toggleKeyframe,
       setTrackType,
       typeStyling,
@@ -250,6 +263,7 @@ export default defineComponent({
           v-mousetrap="[
             { bind: 'k', handler: toggleKeyframe },
             { bind: 'i', handler: toggleInterpolation },
+            { bind: 'ctrl+i', handler: toggleAllInterpolation },
             { bind: 'home', handler: () => $emit('seek', track.begin) },
             { bind: 'end', handler: () => $emit('seek', track.end) },
           ]"
@@ -285,8 +299,8 @@ export default defineComponent({
             :icon="(feature.shouldInterpolate)
               ? 'mdi-vector-selection'
               : 'mdi-selection-off'"
-            tooltip-text="Toggle interpolation"
-            @click="toggleInterpolation"
+            tooltip-text="Toggle interpolation, ctrl+click to toggle all interpolation"
+            @click="clickToggleInterpolation($event)"
           />
         </span>
         <span v-else>
