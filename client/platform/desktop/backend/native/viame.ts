@@ -129,6 +129,7 @@ async function runPipeline(
 
   if (runPipelineArgs.pipeline.type === 'filter') {
     command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
+    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
   }
   if (runPipelineArgs.pipeline.type === 'transcode') {
     command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
