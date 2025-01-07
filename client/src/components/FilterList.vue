@@ -146,7 +146,11 @@ export default defineComponent({
       const trackIdsForFrame = trackStore?.intervalTree
         .search([frame.value, frame.value])
         .map((str) => parseInt(str, 10));
-      return filteredTracksRef.value.filter((track) => trackIdsForFrame?.includes(track.annotation.id));
+      const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
+        const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
+        return !!keyframe;
+      });
+      return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
     });
 
     const currentFrameTrackTypes = computed(() => filteredTracksForFrame.value.reduce((acc, filteredTrack) => {
