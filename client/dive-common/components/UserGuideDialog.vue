@@ -44,10 +44,10 @@ export default defineComponent({
               name: 'Toggle Keyframe', icon: 'mdi-keyboard', actions: ['K'], description: 'Toggle Current Frame Keyframe',
             },
             {
-              name: 'Toggle Interpolation All', icon: 'mdi-keyboard', actions: ['I'], description: 'Toggle Interpolation On/Off',
+              name: 'Toggle Interpolation', icon: 'mdi-keyboard', actions: ['I'], description: 'Toggle Interpolation On/Off',
             },
             {
-              name: 'Toggle Interpolation', icon: 'mdi-keyboard', actions: ['CTRL+I'], description: 'Toggle Interpolation On/Off for all Frames',
+              name: 'Toggle Interpolation All', icon: 'mdi-keyboard', actions: ['CTRL+I'], description: 'Toggle Interpolation On/Off for all Frames',
             },
             {
               name: 'Split Track', icon: 'mdi-keyboard', actions: ['X'], description: 'Split Track',
