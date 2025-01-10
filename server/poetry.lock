@@ -287,17 +287,17 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.35.93"
+version = "1.35.96"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "boto3-1.35.93-py3-none-any.whl", hash = "sha256:7de2c44c960e486f3c57e5203ea6393c6c4f0914c5f81c789ceb8b5d2ba5d1c5"},
-    {file = "boto3-1.35.93.tar.gz", hash = "sha256:2446e819cf4e295833474cdcf2c92bc82718ce537e9ee1f17f7e3d237f60e69b"},
+    {file = "boto3-1.35.96-py3-none-any.whl", hash = "sha256:e6acb2380791b13d8fd55062d9bbc6e27c3ddb3e73cff71c4ca02e6743780c67"},
+    {file = "boto3-1.35.96.tar.gz", hash = "sha256:bace02ef2181d176cedc1f8f90c95c301bb7c555db124cf80bc193cbb52a7c64"},
 ]
 
 [package.dependencies]
-botocore = ">=1.35.93,<1.36.0"
+botocore = ">=1.35.96,<1.36.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.10.0,<0.11.0"
 
@@ -306,13 +306,13 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.35.93"
+version = "1.35.96"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "botocore-1.35.93-py3-none-any.whl", hash = "sha256:47f7161000af6036f806449e3de12acdd3ec11aac7f5578e43e96241413a0f8f"},
-    {file = "botocore-1.35.93.tar.gz", hash = "sha256:b8d245a01e7d64c41edcf75a42be158df57b9518a83a3dbf5c7e4b8c2bc540cc"},
+    {file = "botocore-1.35.96-py3-none-any.whl", hash = "sha256:b5f4cf11372aeccf87bb0b6148a020212c4c42fb5bcdebb6590bb10f6612b98e"},
+    {file = "botocore-1.35.96.tar.gz", hash = "sha256:385fd406ed14bdd624e082d3e15dd6575d490d5d7374fb02f0a798c3ca9ea802"},
 ]
 
 [package.dependencies]
@@ -945,22 +945,22 @@ girder = ">=3"
 
 [[package]]
 name = "girder-large-image"
-version = "1.30.5"
+version = "1.30.6"
 description = "A Girder plugin to work with large, multiresolution images."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "girder_large_image-1.30.5-py3-none-any.whl", hash = "sha256:76dc9f7d0d20c975af6c25df555c1b1d9c73b13f933274170bae5441fb4ad9ae"},
-    {file = "girder_large_image-1.30.5.tar.gz", hash = "sha256:372f808a65f03e34eea6f76d9598c14e6e935a759b069fe655d2d1d55025a7b3"},
+    {file = "girder_large_image-1.30.6-py3-none-any.whl", hash = "sha256:1ae4bb002e8823a042ce76226d0b5f6c14a35079337da10e28968a0cde682e06"},
+    {file = "girder_large_image-1.30.6.tar.gz", hash = "sha256:01b68d16a6b1fbc0275d91814fcc8d1f47b3af16cd5dfdb1bd07a8472d875928"},
 ]
 
 [package.dependencies]
 girder = ">=3.1.18"
 girder-jobs = ">=3.0.3"
-large_image = ">=1.30.5"
+large_image = ">=1.30.6"
 
 [package.extras]
-tasks = ["girder-worker[girder] (>=0.6.0)", "large-image-tasks[girder] (>=1.30.5)"]
+tasks = ["girder-worker[girder] (>=0.6.0)", "large-image-tasks[girder] (>=1.30.6)"]
 
 [[package]]
 name = "girder-worker"
@@ -1277,13 +1277,13 @@ zookeeper = ["kazoo (>=2.8.0)"]
 
 [[package]]
 name = "large-image"
-version = "1.30.5"
+version = "1.30.6"
 description = "Python modules to work with large, multiresolution images."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "large_image-1.30.5-py3-none-any.whl", hash = "sha256:c879500c47c780183c2e6285fe4e0c83ce04ce217cac109696c3d5802b2e2119"},
-    {file = "large_image-1.30.5.tar.gz", hash = "sha256:bc7dd4541ee8f5c314e90d377aa3aee61a8262d733596f943510a02a3656e138"},
+    {file = "large_image-1.30.6-py3-none-any.whl", hash = "sha256:2186b6d77f0ac66b80ccc50eafc68ebca60e62012c4cddd14ea88d4033978c63"},
+    {file = "large_image-1.30.6.tar.gz", hash = "sha256:ce7fba458c21f85b26ad936b83857928f6e0863cf70f5b63b65936dcd424d6e7"},
 ]
 
 [package.dependencies]
@@ -1294,170 +1294,170 @@ Pillow = "*"
 typing-extensions = "*"
 
 [package.extras]
-all = ["large-image-converter (>=1.30.5)", "large-image-source-bioformats (>=1.30.5)", "large-image-source-deepzoom (>=1.30.5)", "large-image-source-dicom (>=1.30.5)", "large-image-source-dummy (>=1.30.5)", "large-image-source-gdal (>=1.30.5)", "large-image-source-mapnik (>=1.30.5)", "large-image-source-multi (>=1.30.5)", "large-image-source-multi[all] (>=1.30.5)", "large-image-source-nd2 (>=1.30.5)", "large-image-source-ometiff (>=1.30.5)", "large-image-source-openjpeg (>=1.30.5)", "large-image-source-openslide (>=1.30.5)", "large-image-source-pil (>=1.30.5)", "large-image-source-pil[all] (>=1.30.5)", "large-image-source-rasterio (>=1.30.5)", "large-image-source-rasterio[all] (>=1.30.5)", "large-image-source-test (>=1.30.5)", "large-image-source-tiff (>=1.30.5)", "large-image-source-tiff[all] (>=1.30.5)", "large-image-source-tifffile (>=1.30.5)", "large-image-source-vips (>=1.30.5)", "large-image-source-zarr (>=1.30.5)", "matplotlib", "psutil (>=4.2.0)", "pylibmc (>=1.5.1)", "pyvips", "redis (>=4.5.5)", "simplejpeg"]
-bioformats = ["large-image-source-bioformats (>=1.30.5)"]
-colormaps = ["matplotlib"]
-common = ["large-image-source-deepzoom (>=1.30.5)", "large-image-source-dicom (>=1.30.5)", "large-image-source-multi (>=1.30.5)", "large-image-source-nd2 (>=1.30.5)", "large-image-source-openslide (>=1.30.5)", "large-image-source-pil[all] (>=1.30.5)", "large-image-source-rasterio[all] (>=1.30.5)", "large-image-source-test (>=1.30.5)", "large-image-source-tifffile (>=1.30.5)", "large-image-source-zarr (>=1.30.5)", "matplotlib", "psutil (>=4.2.0)", "pylibmc (>=1.5.1)", "redis (>=4.5.5)", "simplejpeg"]
-converter = ["large-image-converter (>=1.30.5)"]
-deepzoom = ["large-image-source-deepzoom (>=1.30.5)"]
-dicom = ["large-image-source-dicom (>=1.30.5)"]
-dummy = ["large-image-source-dummy (>=1.30.5)"]
-gdal = ["large-image-source-gdal (>=1.30.5)"]
-mapnik = ["large-image-source-mapnik (>=1.30.5)"]
+all = ["large-image-converter (>=1.30.6)", "large-image-source-bioformats (>=1.30.6)", "large-image-source-deepzoom (>=1.30.6)", "large-image-source-dicom (>=1.30.6)", "large-image-source-dummy (>=1.30.6)", "large-image-source-gdal (>=1.30.6)", "large-image-source-mapnik (>=1.30.6)", "large-image-source-multi (>=1.30.6)", "large-image-source-multi[all] (>=1.30.6)", "large-image-source-nd2 (>=1.30.6)", "large-image-source-ometiff (>=1.30.6)", "large-image-source-openjpeg (>=1.30.6)", "large-image-source-openslide (>=1.30.6)", "large-image-source-pil (>=1.30.6)", "large-image-source-pil[all] (>=1.30.6)", "large-image-source-rasterio (>=1.30.6)", "large-image-source-rasterio[all] (>=1.30.6)", "large-image-source-test (>=1.30.6)", "large-image-source-tiff (>=1.30.6)", "large-image-source-tiff[all] (>=1.30.6)", "large-image-source-tifffile (>=1.30.6)", "large-image-source-vips (>=1.30.6)", "large-image-source-zarr (>=1.30.6)", "matplotlib", "psutil (>=4.2.0)", "pylibmc (>=1.5.1)", "pyvips", "redis (>=4.5.5)", "simplejpeg", "tol_colors"]
+bioformats = ["large-image-source-bioformats (>=1.30.6)"]
+colormaps = ["matplotlib", "tol_colors"]
+common = ["large-image-source-deepzoom (>=1.30.6)", "large-image-source-dicom (>=1.30.6)", "large-image-source-multi (>=1.30.6)", "large-image-source-nd2 (>=1.30.6)", "large-image-source-openslide (>=1.30.6)", "large-image-source-pil[all] (>=1.30.6)", "large-image-source-rasterio[all] (>=1.30.6)", "large-image-source-test (>=1.30.6)", "large-image-source-tifffile (>=1.30.6)", "large-image-source-zarr (>=1.30.6)", "matplotlib", "psutil (>=4.2.0)", "simplejpeg", "tol_colors"]
+converter = ["large-image-converter (>=1.30.6)"]
+deepzoom = ["large-image-source-deepzoom (>=1.30.6)"]
+dicom = ["large-image-source-dicom (>=1.30.6)"]
+dummy = ["large-image-source-dummy (>=1.30.6)"]
+gdal = ["large-image-source-gdal (>=1.30.6)"]
+mapnik = ["large-image-source-mapnik (>=1.30.6)"]
 memcached = ["pylibmc (>=1.5.1)"]
-multi = ["large-image-source-multi (>=1.30.5)"]
-nd2 = ["large-image-source-nd2 (>=1.30.5)"]
-ometiff = ["large-image-source-ometiff (>=1.30.5)"]
-openjpeg = ["large-image-source-openjpeg (>=1.30.5)"]
-openslide = ["large-image-source-openslide (>=1.30.5)"]
+multi = ["large-image-source-multi (>=1.30.6)"]
+nd2 = ["large-image-source-nd2 (>=1.30.6)"]
+ometiff = ["large-image-source-ometiff (>=1.30.6)"]
+openjpeg = ["large-image-source-openjpeg (>=1.30.6)"]
+openslide = ["large-image-source-openslide (>=1.30.6)"]
 performance = ["psutil (>=4.2.0)", "simplejpeg"]
-pil = ["large-image-source-pil (>=1.30.5)"]
-rasterio = ["large-image-source-rasterio (>=1.30.5)"]
+pil = ["large-image-source-pil (>=1.30.6)"]
+rasterio = ["large-image-source-rasterio (>=1.30.6)"]
 redis = ["redis (>=4.5.5)"]
-sources = ["large-image-source-bioformats (>=1.30.5)", "large-image-source-deepzoom (>=1.30.5)", "large-image-source-dicom (>=1.30.5)", "large-image-source-dummy (>=1.30.5)", "large-image-source-gdal (>=1.30.5)", "large-image-source-mapnik (>=1.30.5)", "large-image-source-multi (>=1.30.5)", "large-image-source-nd2 (>=1.30.5)", "large-image-source-ometiff (>=1.30.5)", "large-image-source-openjpeg (>=1.30.5)", "large-image-source-openslide (>=1.30.5)", "large-image-source-pil (>=1.30.5)", "large-image-source-rasterio (>=1.30.5)", "large-image-source-test (>=1.30.5)", "large-image-source-tiff (>=1.30.5)", "large-image-source-tifffile (>=1.30.5)", "large-image-source-vips (>=1.30.5)", "large-image-source-zarr (>=1.30.5)"]
-test = ["large-image-source-test (>=1.30.5)"]
-tiff = ["large-image-source-tiff (>=1.30.5)"]
-tifffile = ["large-image-source-tifffile (>=1.30.5)"]
+sources = ["large-image-source-bioformats (>=1.30.6)", "large-image-source-deepzoom (>=1.30.6)", "large-image-source-dicom (>=1.30.6)", "large-image-source-dummy (>=1.30.6)", "large-image-source-gdal (>=1.30.6)", "large-image-source-mapnik (>=1.30.6)", "large-image-source-multi (>=1.30.6)", "large-image-source-nd2 (>=1.30.6)", "large-image-source-ometiff (>=1.30.6)", "large-image-source-openjpeg (>=1.30.6)", "large-image-source-openslide (>=1.30.6)", "large-image-source-pil (>=1.30.6)", "large-image-source-rasterio (>=1.30.6)", "large-image-source-test (>=1.30.6)", "large-image-source-tiff (>=1.30.6)", "large-image-source-tifffile (>=1.30.6)", "large-image-source-vips (>=1.30.6)", "large-image-source-zarr (>=1.30.6)"]
+test = ["large-image-source-test (>=1.30.6)"]
+tiff = ["large-image-source-tiff (>=1.30.6)"]
+tifffile = ["large-image-source-tifffile (>=1.30.6)"]
 tiledoutput = ["pyvips"]
-vips = ["large-image-source-vips (>=1.30.5)"]
-zarr = ["large-image-source-zarr (>=1.30.5)"]
+vips = ["large-image-source-vips (>=1.30.6)"]
+zarr = ["large-image-source-zarr (>=1.30.6)"]
 
 [[package]]
 name = "large-image-converter"
-version = "1.30.5"
+version = "1.30.6"
 description = "Converter for Large Image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_converter-1.30.5-py3-none-any.whl", hash = "sha256:7ee2ca6e23983757a11b23da20a54c7b454b01491aa1a60408239b251841f445"},
-    {file = "large_image_converter-1.30.5.tar.gz", hash = "sha256:eb35a0dfd91cb9baa30b7f312e674f10ad444ae04c52c5d8ead8637136abf47e"},
+    {file = "large_image_converter-1.30.6-py3-none-any.whl", hash = "sha256:b3875766b088a4b7c1706a9359cf884a16da4795b589ae34ad0a3627f984552c"},
+    {file = "large_image_converter-1.30.6.tar.gz", hash = "sha256:11e616ce2a860352ce84082951937cb7379fc08bc02545fd7b97003584254557"},
 ]
 
 [package.dependencies]
-large-image-source-tiff = ">=1.30.5"
+large-image-source-tiff = ">=1.30.6"
 numpy = "*"
 psutil = "*"
 pyvips = "*"
 tifftools = "*"
 
 [package.extras]
-all = ["gdal", "glymur", "large-image[sources] (>=1.30.5)", "packaging", "scikit-image"]
+all = ["gdal", "glymur", "large-image[sources] (>=1.30.6)", "packaging", "scikit-image"]
 geospatial = ["gdal"]
 jp2k = ["glymur"]
-sources = ["large-image[sources] (>=1.30.5)"]
+sources = ["large-image[sources] (>=1.30.6)"]
 stats = ["packaging", "scikit-image"]
 
 [[package]]
 name = "large-image-source-gdal"
-version = "1.30.5"
+version = "1.30.6"
 description = "A GDAL tilesource for large_image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_source_gdal-1.30.5-py3-none-any.whl", hash = "sha256:c391bc7194ab7f36f909bc5a0aa154af7039f497c2b50c103955d2e5058d407c"},
-    {file = "large_image_source_gdal-1.30.5.tar.gz", hash = "sha256:308e5cc51bbc31763d25e31edc1a62b5bfbba3997fa4a0c77133554f304f1a0e"},
+    {file = "large_image_source_gdal-1.30.6-py3-none-any.whl", hash = "sha256:97ab69a40b6272dc86efe44a844fc16fd1c1efc28b2ba7401d8eeae51584975c"},
+    {file = "large_image_source_gdal-1.30.6.tar.gz", hash = "sha256:2875d5ae74b5091ff3876dbf36a45facdeff3cc9a2a8235e7f702a196cdd1d2a"},
 ]
 
 [package.dependencies]
 gdal = "*"
-large-image = ">=1.30.5"
+large-image = ">=1.30.6"
 packaging = "*"
 pyproj = ">=3.5.0"
 
 [package.extras]
-girder = ["girder-large-image (>=1.30.5)"]
+girder = ["girder-large-image (>=1.30.6)"]
 
 [[package]]
 name = "large-image-source-ometiff"
-version = "1.30.5"
+version = "1.30.6"
 description = "An OMETiff tilesource for large_image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_source_ometiff-1.30.5-py3-none-any.whl", hash = "sha256:0cc3750b0e3c1912ae5e0145ad7a0c5f12ec3356d788373cd3c3029afd927b1b"},
-    {file = "large_image_source_ometiff-1.30.5.tar.gz", hash = "sha256:e290a86e895fadc49a362d455205a615e38d752a12620b56b93d73daa3e5bbbe"},
+    {file = "large_image_source_ometiff-1.30.6-py3-none-any.whl", hash = "sha256:4690cc8a457383247b61403ffb2e2558b239582f0dd7665089561c51176a3153"},
+    {file = "large_image_source_ometiff-1.30.6.tar.gz", hash = "sha256:1169db1a523dd2a769b92b21a5f7348946fb4ddd03cbb9df422fd683b1f6f1d0"},
 ]
 
 [package.dependencies]
-large-image = ">=1.30.5"
-large-image-source-tiff = ">=1.30.5"
+large-image = ">=1.30.6"
+large-image-source-tiff = ">=1.30.6"
 
 [package.extras]
-girder = ["girder-large-image (>=1.30.5)"]
+girder = ["girder-large-image (>=1.30.6)"]
 
 [[package]]
 name = "large-image-source-openjpeg"
-version = "1.30.5"
+version = "1.30.6"
 description = "An Openjpeg tilesource for large_image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_source_openjpeg-1.30.5-py3-none-any.whl", hash = "sha256:20a568453fc64948b742767635074e9d3ae8e88401c1c15e775189ad70d96a1e"},
-    {file = "large_image_source_openjpeg-1.30.5.tar.gz", hash = "sha256:6575ed2680d92d9dc424447770d43d9d3d8601e498385d49233f934cad1b250a"},
+    {file = "large_image_source_openjpeg-1.30.6-py3-none-any.whl", hash = "sha256:e0a8c9457f524188a3f6675a1185413934c79ec479c6922c91d3a4182d69f639"},
+    {file = "large_image_source_openjpeg-1.30.6.tar.gz", hash = "sha256:a9276a442c03da86bbebc3744723a30ee2135c4e520bbaeeb9d08101a0ed5220"},
 ]
 
 [package.dependencies]
 glymur = ">=0.8.18"
-large-image = ">=1.30.5"
+large-image = ">=1.30.6"
 
 [package.extras]
-girder = ["girder-large-image (>=1.30.5)"]
+girder = ["girder-large-image (>=1.30.6)"]
 
 [[package]]
 name = "large-image-source-pil"
-version = "1.30.5"
+version = "1.30.6"
 description = "A Pillow tilesource for large_image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_source_pil-1.30.5-py3-none-any.whl", hash = "sha256:17a9d0c780b6a6154cc597797839f300d6a699b02bef6d725ecb8fd9efe74d0d"},
-    {file = "large_image_source_pil-1.30.5.tar.gz", hash = "sha256:e87ea9b3bd450a05bb591aa6dead0b09c81e3060e3f6ba0d4628c4d301f673c9"},
+    {file = "large_image_source_pil-1.30.6-py3-none-any.whl", hash = "sha256:0fd0e146bfb5299a66c40a5734988999d158cb533c903efe070dbc1d34019ee2"},
+    {file = "large_image_source_pil-1.30.6.tar.gz", hash = "sha256:d0bfb65ceaaf3a3544a429a9552f2473e53d7d64eab19ecdff00e568355e72c2"},
 ]
 
 [package.dependencies]
-large-image = ">=1.30.5"
+large-image = ">=1.30.6"
 
 [package.extras]
 all = ["pillow-heif", "pillow-jpls", "pillow-jxl-plugin", "rawpy"]
-girder = ["girder-large-image (>=1.30.5)"]
+girder = ["girder-large-image (>=1.30.6)"]
 
 [[package]]
 name = "large-image-source-tiff"
-version = "1.30.5"
+version = "1.30.6"
 description = "A TIFF tilesource for large_image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_source_tiff-1.30.5-py3-none-any.whl", hash = "sha256:e1becd85c3abb721474b51bb330f6f8221e50f050ad81200e9c0f5cbd41bed44"},
-    {file = "large_image_source_tiff-1.30.5.tar.gz", hash = "sha256:b2c95c696031db9d23fe7ed886746703436d3656071716b9b1e55d1ba7b66416"},
+    {file = "large_image_source_tiff-1.30.6-py3-none-any.whl", hash = "sha256:3f969a9d1625d166780111cd6d8926fe79b1828e056133e8e0da23a61689944b"},
+    {file = "large_image_source_tiff-1.30.6.tar.gz", hash = "sha256:2e306783060ad0f7ab5688d735ee5e3ce1af6764e869ad8e68c3aa373d53303c"},
 ]
 
 [package.dependencies]
-large-image = ">=1.30.5"
+large-image = ">=1.30.6"
 pylibtiff = "*"
 tifftools = ">=1.2.0"
 
 [package.extras]
 all = ["pylibjpeg-openjpeg"]
-girder = ["girder-large-image (>=1.30.5)"]
+girder = ["girder-large-image (>=1.30.6)"]
 
 [[package]]
 name = "large-image-tasks"
-version = "1.30.5"
+version = "1.30.6"
 description = "Girder Worker tasks for Large Image."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "large_image_tasks-1.30.5-py3-none-any.whl", hash = "sha256:0dcebc1f589bb2643ec04d1258b57f31e4ceb6d819a93f65faead2b51e7e0ca4"},
-    {file = "large_image_tasks-1.30.5.tar.gz", hash = "sha256:32c03a0cd17e68f22e8ef1dc7cf039b0c4a34278b240722b701743927b9297f4"},
+    {file = "large_image_tasks-1.30.6-py3-none-any.whl", hash = "sha256:77ce9c8b9a84475dbc108b3892ac76bce9f93725b9a31b9c8f120d71ce3187c8"},
+    {file = "large_image_tasks-1.30.6.tar.gz", hash = "sha256:a5c2d5ff027ba766afc7d80b28c4f33f14b8036e596547663e3d356d7cc7e765"},
 ]
 
 [package.dependencies]
 girder-worker-utils = ">=0.8.5"
 
 [package.extras]
-girder = ["girder-worker[girder] (>=0.6.0)", "large-image-converter (>=1.30.5)"]
-worker = ["girder-worker[worker] (>=0.6.0)", "large-image-converter[sources] (>=1.30.5)"]
+girder = ["girder-worker[girder] (>=0.6.0)", "large-image-converter (>=1.30.6)"]
+worker = ["girder-worker[worker] (>=0.6.0)", "large-image-converter[sources] (>=1.30.6)"]
 
 [[package]]
 name = "lxml"
@@ -2122,7 +2122,7 @@ description = "PyLibTiff: a Python tiff library."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:db6305e8ebd5fedd1d86733ec5507d68b8fa322966714d7d00c79c157da1a609"},
+    {file = "pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:64ee602f79ebb3eea1f4f7ea2f61ada5bb35a67076c625a5d49246d3faa8abf0"},
 ]
 
 [package.dependencies]
@@ -2327,7 +2327,7 @@ description = "binding for the libvips image processing library, API mode"
 optional = false
 python-versions = "*"
 files = [
-    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:656f20906f87da5df52eb3ca82f40ae5e747deb5b88a3044dc913909855240e0"},
+    {file = "pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3660c421bf352df007a9a1a2c818841bfbff22ef66929f52fa1ff800ab28f65e"},
 ]
 
 [package.dependencies]
