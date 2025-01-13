@@ -152,6 +152,16 @@ export default defineComponent({
           params: { folderIds: JSON.stringify(props.datasetIds) },
 
         }),
+        exportAllUrlDetections: getUri({
+          url: 'dive_dataset/export',
+          params: {
+            ...params,
+            folderIds: JSON.stringify(props.datasetIds),
+            includeDetections: true,
+            includeMedia: false,
+          },
+        }),
+
       };
     });
 
@@ -386,6 +396,19 @@ export default defineComponent({
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
             >
               Everything
+            </v-btn>
+          </v-card-actions>
+          <v-card-text class="pb-0">
+            Export All selected Dataset Detections in VIAME CSV and TrackJSON
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
+            >
+              Detections
             </v-btn>
           </v-card-actions>
         </template>

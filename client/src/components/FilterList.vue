@@ -5,7 +5,9 @@ import {
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useReadOnlyMode } from '../provides';
+import {
+  useCameraStore, useReadOnlyMode, useSelectedCamera, useTime,
+} from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
@@ -60,10 +62,13 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
-
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
+    const { frame } = useTime();
+    const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     // Ordering of these lists should match
-    const sortingMethods = ['a-z', 'count'];
-    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
+    const sortingMethods = ['a-z', 'count', 'frame count'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending', 'mdi-sort-clock-ascending-outline'];
 
     const data = reactive({
       showPicker: false,
@@ -137,6 +142,26 @@ export default defineComponent({
       return acc;
     }, new Map<string, number>()));
 
+    const filteredTracksForFrame = computed(() => {
+      const trackIdsForFrame = trackStore?.intervalTree
+        .search([frame.value, frame.value])
+        .map((str) => parseInt(str, 10));
+      const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
+        const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
+        return !!keyframe;
+      });
+      return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
+    });
+
+    const currentFrameTrackTypes = computed(() => filteredTracksForFrame.value.reduce((acc, filteredTrack) => {
+      const confidencePair = filteredTrack.annotation
+        .getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair;
+      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+      return acc;
+    }, new Map<string, number>()));
+
     function sortAndFilterTypes(types: Ref<readonly string[]>) {
       const filtered = types.value
         .filter((t) => t.toLowerCase().includes(data.filterText.toLowerCase()));
@@ -146,6 +171,10 @@ export default defineComponent({
         case 'count':
           return filtered.sort(
             (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
+          );
+        case 'frame count':
+          return filtered.sort(
+            (a, b) => (currentFrameTrackTypes.value.get(b) || 0) - (currentFrameTrackTypes.value.get(a) || 0),
           );
         default:
           return filtered;
@@ -163,10 +192,11 @@ export default defineComponent({
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
       const checkedTypesDeRef = checkedTypesRef.value;
+      const frameTRackTypesDeRef = currentFrameTrackTypes.value;
       return visibleTypes.value.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${item} (${typeCountsDeRef.get(item) || 0})`,
+        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTRackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
       }));
@@ -258,11 +288,19 @@ export default defineComponent({
             class="my-1 type-checkbox"
             @change="headCheckClicked"
           />
-          <b>Type Filter</b>
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <b v-on="on">Type Filter</b>
+            </template>
+            <span>Toggle Type TotalCount:FrameCount Type Name</span>
+          </v-tooltip>
           <v-spacer />
           <tooltip-btn
             :icon="sortingMethodIcons[data.sortingMethod]"
-            tooltip-text="Sort types by count or alphabetically"
+            :tooltip-text="`Sort types by Total Count, Alphabetically or Frame Count, current: ${sortingMethods[data.sortingMethod]}`"
             @click="clickSortToggle"
           />
           <slot name="settings" />

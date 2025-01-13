@@ -60,7 +60,7 @@ class BaseAnnotation(BaseModel):
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
     meta: Optional[Dict[str, Any]]
 
-    def exceeds_thresholds(self, thresholds: Dict[str, float], typeFilter: Set[str]) -> bool:
+    def exceeds_thresholds(self, thresholds: Dict[str, float], typeFilter: Set[str] = None) -> bool:
         defaultThresh = thresholds.get('default', 0)
 
         # Check if there is any confidence value that exceeds the threshold
