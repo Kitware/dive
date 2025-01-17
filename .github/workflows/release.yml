@@ -22,6 +22,7 @@ jobs:
         # "ref" specifies the branch to check out.
         # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
         ref: ${{ github.event.release.target_commitish }}
+    - run: sudo apt-get install python3-distutils
     - name: Use Node 16
       uses: actions/setup-node@v3
       with:
