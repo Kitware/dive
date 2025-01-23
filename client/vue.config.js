@@ -65,6 +65,7 @@ module.exports = {
       // https://github.com/nklayman/vue-cli-plugin-electron-builder/pull/1088
       rendererProcessFile: 'platform/desktop/main.ts',
       // https://www.electron.build/configuration/configuration
+      customFileProtocol: './',
       builderOptions: {
         appId: 'com.kitware.viame',
         productName: 'DIVE-Desktop',
@@ -83,7 +84,7 @@ module.exports = {
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
-          main: 'background.js',
+          main: 'index.js',
           name: 'DIVE-Desktop'
         },
         linux: {

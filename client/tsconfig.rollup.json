@@ -3,9 +3,6 @@
   "compilerOptions": {
     "target": "ES2018",
     "module": "es2020",
-    "outDir": "./lib/",
-    "declaration": false,
-    "declarationDir": "./lib/types",
-    
+    "outDir": "./lib/",    
   },
 }
