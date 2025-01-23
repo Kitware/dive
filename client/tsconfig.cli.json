@@ -5,7 +5,8 @@
     "module": "commonjs",
     "outDir": "./bin",
     "declaration": true,
-    "declarationDir": "./bin/types"
+    "declarationDir": "./bin/types",
+    "skipLibCheck": true
   },
   "include": [
     "platform/desktop/constants.ts",
