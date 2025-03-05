@@ -248,13 +248,13 @@ export function useMediaController() {
         right: right * (1 + margin),
         bottom: bottom * (1 + margin),
       });
-      if (!isMap) {
-        geoViewerRef.value.zoomRange({
+      geoViewerRef.value.zoomRange({
         // do not set a min limit so that bounds clamping determines min
-          min: -Infinity,
-          // 4x zoom max
-          max: 4,
-        });
+        min: -Infinity,
+        // 32x zoom max
+        max: 32,
+      });
+      if (!isMap) {
         if (Object.keys(geoViewers).length === 1) {
           geoViewerRef.value.clampBoundsX(true);
           geoViewerRef.value.clampBoundsY(true);
