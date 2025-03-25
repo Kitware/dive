@@ -37,6 +37,7 @@ async function runPipeline(
   updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
+  forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
 
@@ -87,8 +88,8 @@ async function runPipeline(
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     if (meta.type === MultiType) {
-      videoAbsPath = getMultiCamVideoPath(meta);
-    } else if (meta.transcodedVideoFile) {
+      videoAbsPath = getMultiCamVideoPath(meta, forceTranscodedVideo);
+    } else if ((meta.transcodedVideoFile && meta.transcodedMisalign) || forceTranscodedVideo) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
     }
     command = [
@@ -220,6 +221,7 @@ async function train(
   updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
+  forceTranscoding?: boolean,
 ): Promise<DesktopJob> {
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -268,7 +270,7 @@ async function train(
     if (meta.type === 'video') {
       let videopath = '';
       /* If the video has been transcoded, use that video */
-      if (meta.transcodedVideoFile) {
+      if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
         videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
       } else {
         videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);

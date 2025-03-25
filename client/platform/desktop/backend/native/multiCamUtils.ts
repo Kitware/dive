@@ -75,7 +75,7 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false) {
+async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false, forceTranscoded = false) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
@@ -104,7 +104,7 @@ async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMet
           argFilePair['input:video_filename'] = inputFileName;
         }
       } else if (list.originalVideoFile) {
-        const vidFile = list.transcodedVideoFile
+        const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
           ? list.transcodedVideoFile : list.originalVideoFile;
         const vidTypeArg = `input${i + 1}:video_reader:type`;
         const vidType = 'vidl_ffmpeg';
@@ -194,11 +194,11 @@ function getMultiCamUrls(
   throw new Error('There is no multiCam data associated with this');
 }
 
-function getMultiCamVideoPath(meta: JsonMeta) {
+function getMultiCamVideoPath(meta: JsonMeta, forceTranscodedVideo?: boolean) {
   if (meta.multiCam && meta.multiCam.defaultDisplay) {
     if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
       const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
-      if (display.transcodedVideoFile) {
+      if (display.transcodedVideoFile && display.trans) {
         return display.transcodedVideoFile;
       }
       return display.originalVideoFile;
