@@ -145,7 +145,7 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
 
 
 def download_source_media(
-    girder_client: GirderClient, datasetId: str, dest: Path
+    girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded = False
 ) -> Tuple[List[str], str]:
     """Download media for dataset to dest path"""
     media = models.DatasetSourceMedia(**girder_client.get(f'dive_dataset/{datasetId}/media'))
@@ -157,8 +157,14 @@ def download_source_media(
             request.urlretrieve(url, filename=destination_path)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
-        destination_path = dest / media.video.filename
-        url = urljoin(girder_client.urlBase, media.video.url)
+        if media.video and media.sourceVideo and not force_transcoded:
+            destination_path = dest / media.sourceVideo.filename
+        else:
+            destination_path = dest / media.video.filename
+        if media.video and media.sourceVideo and not force_transcoded:
+            url = urljoin(girder_client.urlBase, media.sourceVideo.url)
+        else:
+            url = urljoin(girder_client.urlBase, media.video.url)
         request.urlretrieve(url, filename=destination_path)
         return [str(destination_path)], dataset.type
     else:

@@ -111,6 +111,7 @@ def get_media(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.DatasetSourceMedia:
     videoResource = None
+    sourceVideoResource = None
     imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
@@ -129,6 +130,19 @@ def get_media(
                 id=str(videoItem['_id']),
                 url=get_url(dsFolder, videoItem),
                 filename=videoItem['name'],
+            )
+        sourceVideoItem = Item().findOne(
+            {
+                'folderId': crud.getCloneRoot(user, dsFolder)['_id'],
+                'meta.codec': 'h264',
+                'meta.source_video': {'$in': [True, 'true', 'True']},
+            }
+        )
+        if str(sourceVideoItem['_id']) != str(videoItem['_id']):
+            sourceVideoResource = models.MediaResource(
+                id=str(sourceVideoItem['_id']),
+                url=get_url(dsFolder, sourceVideoItem),
+                filename=sourceVideoItem['name'],
             )
     elif source_type == constants.ImageSequenceType:
         imageData = [
@@ -155,6 +169,7 @@ def get_media(
     return models.DatasetSourceMedia(
         imageData=imageData,
         video=videoResource,
+        sourceVideo=sourceVideoItem
     )
 
 

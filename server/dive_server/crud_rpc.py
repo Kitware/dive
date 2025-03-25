@@ -129,6 +129,7 @@ def run_pipeline(
     user: types.GirderUserModel,
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
+    force_transcoded = False,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -171,6 +172,7 @@ def run_pipeline(
         "input_revision": input_revision,
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
+        'force_transcoded': force_transcoded,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -228,6 +230,7 @@ def run_training(
     pipelineName: str,
     config: str,
     annotatedFramesOnly: bool,
+    force_transcoded = False,
 ) -> types.GirderModel:
     dataset_input_list: List[Tuple[str, int]] = []
     if len(bodyParams.folderIds) == 0:
@@ -256,6 +259,7 @@ def run_training(
         'label_txt': bodyParams.labelText,
         'user_id': user.get('_id', 'unknown'),
         'user_login': user.get('login', 'unknown'),
+        'force_transcoded': force_transcoded,
     }
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     newjob = tasks.train_pipeline.apply_async(

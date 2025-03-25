@@ -47,6 +47,7 @@ interface MediaResource extends FrameImage {
 export interface DatasetSourceMedia {
   imageData: MediaResource[];
   video?: MediaResource;
+  sourceVideo?: MediaResource;
 }
 
 function getDatasetMedia(folderId: string) {

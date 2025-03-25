@@ -276,6 +276,7 @@ class MediaResource(BaseModel):
 class DatasetSourceMedia(BaseModel):
     imageData: List[MediaResource]
     video: Optional[MediaResource]
+    sourceVideo: Optional[MediaResource]
 
 
 class PrivateQueueEnabledResponse(BaseModel):
