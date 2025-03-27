@@ -35,10 +35,10 @@ export default defineComponent({
     const store = useStore();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
-    const jobTypes: Ref<string[]> = ref([]);
+    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training']);
     const jobStatusList: Ref<string[]> = ref(['Cancelled', 'Error', 'Inactive', 'Running', 'Cancelling', 'Success']);
     const filterStatus: Ref<string[]> = ref(['Running', 'Error', 'Inactive']);
-    const filterTypes: Ref<string[]> = ref([]);
+    const filterTypes: Ref<string[]> = ref(jobTypes.value);
     const trainingInputList: Ref<[string, number][]> = ref([]);
     const trainingListDialog = ref(false);
     const headers: Ref<{text: string; value: string}[]> = ref([
@@ -54,7 +54,11 @@ export default defineComponent({
     ]);
     const initTypes = async () => {
       const typesAndStatus = (await getJobTypesStatus());
-      jobTypes.value = typesAndStatus.data.types;
+      typesAndStatus.data.types.forEach((type) => {
+        if (!jobTypes.value.includes(type)) {
+          jobTypes.value.push(type);
+        }
+      });
       filterTypes.value = typesAndStatus.data.types;
     };
     const getData = async () => {
@@ -78,6 +82,8 @@ export default defineComponent({
           const temp = JSON.parse(item.kwargs);
           if (temp.params !== undefined) {
             params = temp.params;
+          } else if (isObject(temp)) {
+            params = temp;
           }
         }
         return {

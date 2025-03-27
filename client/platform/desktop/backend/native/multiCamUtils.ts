@@ -198,7 +198,7 @@ function getMultiCamVideoPath(meta: JsonMeta, forceTranscodedVideo?: boolean) {
   if (meta.multiCam && meta.multiCam.defaultDisplay) {
     if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
       const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
-      if (display.transcodedVideoFile && display.trans) {
+      if ((display.transcodedVideoFile && display.transcodedMisalign) || forceTranscodedVideo) {
         return display.transcodedVideoFile;
       }
       return display.originalVideoFile;

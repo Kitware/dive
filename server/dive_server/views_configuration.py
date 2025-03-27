@@ -58,7 +58,7 @@ class ConfigurationResource(Resource):
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
         self.route("PUT", ("installed_addons",), self.update_installed_addons)
-
+        self.route("POST", ("update_containers",), self.update_containers)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
 
     @access.public
@@ -172,3 +172,28 @@ class ConfigurationResource(Resource):
             girder_job_title="Upgrade Pipelines",
             girder_client_token=str(token["_id"]),
         )
+
+
+    @access.admin
+    @autoDescribeRoute(
+        Description(
+            "Force an update to the docker containers through watchtower using http interface"
+        )
+    )
+    def update_containers(self):
+        try:
+            print('Sending Post Request')
+            url = "http://watchtower:8080/v1/update"
+            token = os.environ.get("WATCHTOWER_API_TOKEN", "mytoken")
+            headers = {"Authorization": f"Bearer {token}"}
+            req = requests.get(url, headers=headers)
+            req.raise_for_status()
+            return "Update Successful"
+        except requests.exceptions.HTTPError as err:
+            return f"HTTP error occurred: {err}"
+        except requests.exceptions.ConnectionError as err:
+            return f"Error Connecting: {err}"
+        except requests.exceptions.Timeout as err:
+            return f"Timeout Error: {err}"
+        except requests.exceptions.RequestException as err:
+            return f"Something went wrong: {err}"

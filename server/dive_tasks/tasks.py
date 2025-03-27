@@ -498,6 +498,9 @@ def convert_video(
         utils.stream_subprocess(self, context, manager, {'args': command})
         # Check to see if frame alignment remains the same
         aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
+        misaligned_flag = False
+        if aligned_file != output_file_path:
+            misaligned_flag = True
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, aligned_file)
@@ -511,14 +514,17 @@ def convert_video(
                 "codec": "h264",
             },
         )
+        source_metadata = {
+            "source_video": True,
+            constants.OriginalFPSMarker: originalFps,
+            constants.OriginalFPSStringMarker: avgFpsString,
+            "codec": videostream[0]["codec_name"],
+        }
+        if misaligned_flag:
+            source_metadata[constants.MISALGINED_MARKER] = True
         gc.addMetadataToItem(
             itemId,
-            {
-                "source_video": True,
-                constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
-                "codec": videostream[0]["codec_name"],
-            },
+            source_metadata,
         )
         gc.addMetadataToFolder(
             folderId,

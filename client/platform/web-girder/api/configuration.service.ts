@@ -37,6 +37,10 @@ function postAddons(urls: string[], forceDownload: boolean) {
   return girderRest.post(`dive_configuration/upgrade_pipelines?force=${forceDownload}`, urls);
 }
 
+function updateContainers() {
+  return girderRest.post('dive_configuration/update_containers');
+}
+
 export {
   getBrandData,
   putBrandData,
@@ -44,4 +48,5 @@ export {
   getTrainingConfigurations,
   getAddons,
   postAddons,
+  updateContainers,
 };

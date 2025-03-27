@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import threading
 import os
 from pathlib import Path
 import shutil
@@ -81,6 +82,19 @@ def stream_subprocess(
     stdout = ""
     assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
 
+    stop_event = threading.Event()
+
+    def monitor_cancellation():
+        """Thread that periodically checks for cancellation."""
+        while not stop_event.wait(30):  # Check every 30 seconds
+            manager.refreshStatus()
+            if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
+                manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
+                process.send_signal(signal.SIGTERM)
+                process.send_signal(signal.SIGKILL)
+                process.send_signal(signal.SIGINT)
+                return  # Stop the thread
+
     with tempfile.TemporaryFile() as stderr_file:
         manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
         process = Popen(
@@ -92,7 +106,10 @@ def stream_subprocess(
         if process.stdout is None:
             raise RuntimeError("Stdout must not be none")
 
-        last_refresh_time = time.time()
+        # Start cancellation monitoring thread
+        cancel_thread = threading.Thread(target=monitor_cancellation, daemon=True)
+        cancel_thread.start()
+
 
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
@@ -100,20 +117,10 @@ def stream_subprocess(
             manager.write(line_str)
             if keep_stdout:
                 stdout += line_str
+        
+        stop_event.set()
+        cancel_thread.join()
 
-            # Cancel the subprocess if the status is cancelling
-            # note this only checks when there is stdout from the subprocess every 5 minutes
-            # refreshStatus I believe is an expensive tas
-            current_time = time.time()
-            if current_time - last_refresh_time >= 300:
-                last_refresh_time = current_time
-                manager.refreshStatus()
-
-            if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
-                # Can never be sure what signal a process will respond to.
-                process.send_signal(signal.SIGTERM)
-                process.send_signal(signal.SIGKILL)
-                process.send_signal(signal.SIGINT)
         # flush logs
         manager._flush()
         # Wait for exit up to 30 seconds after kill
