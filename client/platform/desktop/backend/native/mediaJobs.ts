@@ -227,6 +227,7 @@ async function convertMedia(
           jobWorkDir,
         );
         if (updatedFile !== args.mediaList[mediaIndex][1]) {
+          // eslint-disable-next-line no-param-reassign
           args.meta.transcodedMisalign = true;
           //We need to copy over and replace the media File to the properly updated file.
           await fs.move(updatedFile, args.mediaList[mediaIndex][1], { overwrite: true });

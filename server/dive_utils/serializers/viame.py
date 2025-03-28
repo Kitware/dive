@@ -375,8 +375,10 @@ def load_csv_as_tracks_and_attributes(
                     item['csvFrame'] + item_difference != filteredImages[k]['csvFrame']
                     or item['frame'] + item_difference != filteredImages[k]['frame']
                 ):
-                    # There are misaliged video sequences so we are going to utilize the imageMap
-                    # We have misaligned video sequences so we handle that with the image map if possible
+                    # There are misaliged video sequences so we are going to
+                    # utilize the imageMap
+                    # We have misaligned video sequences so we handle that
+                    # with the image map if possible
                     warnings.append(
                         (
                             'A subsampling of images were used with the CSV '

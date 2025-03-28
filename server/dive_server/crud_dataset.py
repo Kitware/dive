@@ -137,7 +137,11 @@ def get_media(
                     'meta.source_video': {'$in': [True, 'true', 'True']},
                 }
             )
-            if sourceVideoItem and str(sourceVideoItem['_id']) != str(videoItem['_id']) and videoItem.get('meta', {}).get(constants.MISALGINED_MARKER, False) is False:
+            if (
+                sourceVideoItem
+                and str(sourceVideoItem['_id']) != str(videoItem['_id'])
+                and videoItem.get('meta', {}).get(constants.MISALGINED_MARKER, False) is False
+            ):
                 sourceVideoResource = models.MediaResource(
                     id=str(sourceVideoItem['_id']),
                     url=get_url(dsFolder, sourceVideoItem),
@@ -168,9 +172,7 @@ def get_media(
         raise ValueError(f'Unrecognized source type: {source_type}')
 
     return models.DatasetSourceMedia(
-        imageData=imageData,
-        video=videoResource,
-        sourceVideo=sourceVideoResource
+        imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
 
 

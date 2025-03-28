@@ -129,7 +129,7 @@ def run_pipeline(
     user: types.GirderUserModel,
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
-    force_transcoded = False,
+    force_transcoded=False,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -230,7 +230,7 @@ def run_training(
     pipelineName: str,
     config: str,
     annotatedFramesOnly: bool,
-    force_transcoded = False,
+    force_transcoded=False,
 ) -> types.GirderModel:
     dataset_input_list: List[Tuple[str, int]] = []
     if len(bodyParams.folderIds) == 0:

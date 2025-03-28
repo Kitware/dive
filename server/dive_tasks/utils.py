@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import json
-import threading
 import os
 from pathlib import Path
 import shutil
@@ -8,7 +7,7 @@ import signal
 import subprocess
 from subprocess import Popen
 import tempfile
-import time
+import threading
 from typing import List, Tuple
 from urllib import request
 from urllib.parse import urlencode, urljoin
@@ -110,14 +109,13 @@ def stream_subprocess(
         cancel_thread = threading.Thread(target=monitor_cancellation, daemon=True)
         cancel_thread.start()
 
-
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
             line_str = line.decode('utf-8')
             manager.write(line_str)
             if keep_stdout:
                 stdout += line_str
-        
+
         stop_event.set()
         cancel_thread.join()
 
@@ -152,7 +150,7 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
 
 
 def download_source_media(
-    girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded = False
+    girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded=False
 ) -> Tuple[List[str], str]:
     """Download media for dataset to dest path"""
     media = models.DatasetSourceMedia(**girder_client.get(f'dive_dataset/{datasetId}/media'))

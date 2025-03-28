@@ -91,14 +91,19 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
-
     )
     def run_training(self, body, pipelineName, config, annotatedFramesOnly, forceTranscoded):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
         return crud_rpc.run_training(
-            user, token, run_training_args, pipelineName, config, annotatedFramesOnly, forceTranscoded,
+            user,
+            token,
+            run_training_args,
+            pipelineName,
+            config,
+            annotatedFramesOnly,
+            forceTranscoded,
         )
 
     @access.user

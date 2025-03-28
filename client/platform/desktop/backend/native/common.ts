@@ -1035,8 +1035,9 @@ async function _importTrackFile(
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
 async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  await getValidatedProjectDir(settings, datasetId);
   if (meta.transcodingJobKey === transcodingJobKey) {
+    // eslint-disable-next-line no-param-reassign
     meta.transcodingJobKey = undefined;
     saveMetadata(settings, datasetId, meta);
   }

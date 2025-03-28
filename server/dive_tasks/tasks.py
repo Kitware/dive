@@ -219,7 +219,9 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
-        input_media_list, _ = utils.download_source_media(gc, input_folder_id, input_path, force_transcoded)
+        input_media_list, _ = utils.download_source_media(
+            gc, input_folder_id, input_path, force_transcoded
+        )
 
         if input_type == constants.VideoType:
             input_fps = fromMeta(input_folder, constants.FPSMarker)

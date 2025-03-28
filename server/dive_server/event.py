@@ -22,8 +22,8 @@ from dive_utils.constants import (
     TypeMarker,
     VideoType,
     imageRegex,
+    largeImageRegEx,
     videoRegex,
-    largeImageRegEx
 )
 
 from . import crud_rpc
