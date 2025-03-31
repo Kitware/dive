@@ -60,6 +60,7 @@ class PipelineJob(TypedDict):
     output_folder: str  # Where to upload results
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
+    force_transcoded: Optional[bool]  # Force using the transcoded version
 
 
 class TrainingJob(TypedDict):
@@ -73,6 +74,7 @@ class TrainingJob(TypedDict):
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
+    force_transcoded: Optional[bool]  # Force using the transcoded version
 
 
 class TrainingConfigurationSummary(TypedDict):

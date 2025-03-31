@@ -111,6 +111,7 @@ def get_media(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.DatasetSourceMedia:
     videoResource = None
+    sourceVideoResource = None
     imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
@@ -130,6 +131,24 @@ def get_media(
                 url=get_url(dsFolder, videoItem),
                 filename=videoItem['name'],
             )
+            sourceVideoItem = Item().findOne(
+                {
+                    'folderId': crud.getCloneRoot(user, dsFolder)['_id'],
+                    'meta.source_video': {'$in': [True, 'true', 'True']},
+                }
+            )
+            if (
+                sourceVideoItem
+                and str(sourceVideoItem['_id']) != str(videoItem['_id'])
+                and videoItem.get('meta', {}).get(constants.MISALGINED_MARKER, False) is False
+            ):
+                sourceVideoResource = models.MediaResource(
+                    id=str(sourceVideoItem['_id']),
+                    url=get_url(dsFolder, sourceVideoItem),
+                    filename=sourceVideoItem['name'],
+                )
+            else:
+                sourceVideoResource = videoResource
     elif source_type == constants.ImageSequenceType:
         imageData = [
             models.MediaResource(
@@ -153,8 +172,7 @@ def get_media(
         raise ValueError(f'Unrecognized source type: {source_type}')
 
     return models.DatasetSourceMedia(
-        imageData=imageData,
-        video=videoResource,
+        imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
 
 
@@ -279,7 +297,7 @@ def export_datasets_zipstream(
                 continue
 
             def makeMetajson():
-                """Include dataset metadtata file with full export"""
+                """Include dataset metadatta file with full export"""
                 meta = get_dataset(dsFolder, user)
                 media = get_media(dsFolder, user)
                 yield json.dumps(

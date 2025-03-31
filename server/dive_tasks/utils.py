@@ -7,7 +7,7 @@ import signal
 import subprocess
 from subprocess import Popen
 import tempfile
-import time
+import threading
 from typing import List, Tuple
 from urllib import request
 from urllib.parse import urlencode, urljoin
@@ -81,6 +81,19 @@ def stream_subprocess(
     stdout = ""
     assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
 
+    stop_event = threading.Event()
+
+    def monitor_cancellation():
+        """Thread that periodically checks for cancellation."""
+        while not stop_event.wait(30):  # Check every 30 seconds
+            manager.refreshStatus()
+            if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
+                manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
+                process.send_signal(signal.SIGTERM)
+                process.send_signal(signal.SIGKILL)
+                process.send_signal(signal.SIGINT)
+                return  # Stop the thread
+
     with tempfile.TemporaryFile() as stderr_file:
         manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
         process = Popen(
@@ -92,7 +105,9 @@ def stream_subprocess(
         if process.stdout is None:
             raise RuntimeError("Stdout must not be none")
 
-        last_refresh_time = time.time()
+        # Start cancellation monitoring thread
+        cancel_thread = threading.Thread(target=monitor_cancellation, daemon=True)
+        cancel_thread.start()
 
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
@@ -101,19 +116,9 @@ def stream_subprocess(
             if keep_stdout:
                 stdout += line_str
 
-            # Cancel the subprocess if the status is cancelling
-            # note this only checks when there is stdout from the subprocess every 5 minutes
-            # refreshStatus I believe is an expensive tas
-            current_time = time.time()
-            if current_time - last_refresh_time >= 300:
-                last_refresh_time = current_time
-                manager.refreshStatus()
+        stop_event.set()
+        cancel_thread.join()
 
-            if check_canceled(task, context, force=False) or manager.status == JobStatus.CANCELING:
-                # Can never be sure what signal a process will respond to.
-                process.send_signal(signal.SIGTERM)
-                process.send_signal(signal.SIGKILL)
-                process.send_signal(signal.SIGINT)
         # flush logs
         manager._flush()
         # Wait for exit up to 30 seconds after kill
@@ -145,7 +150,7 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
 
 
 def download_source_media(
-    girder_client: GirderClient, datasetId: str, dest: Path
+    girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded=False
 ) -> Tuple[List[str], str]:
     """Download media for dataset to dest path"""
     media = models.DatasetSourceMedia(**girder_client.get(f'dive_dataset/{datasetId}/media'))
@@ -157,8 +162,14 @@ def download_source_media(
             request.urlretrieve(url, filename=destination_path)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
-        destination_path = dest / media.video.filename
-        url = urljoin(girder_client.urlBase, media.video.url)
+        if media.video and media.sourceVideo and not force_transcoded:
+            destination_path = dest / media.sourceVideo.filename
+        else:
+            destination_path = dest / media.video.filename
+        if media.video and media.sourceVideo and not force_transcoded:
+            url = urljoin(girder_client.urlBase, media.sourceVideo.url)
+        else:
+            url = urljoin(girder_client.urlBase, media.video.url)
         request.urlretrieve(url, filename=destination_path)
         return [str(destination_path)], dataset.type
     else:

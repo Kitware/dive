@@ -194,7 +194,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_type = params["input_type"]
     output_folder_id = str(params["output_folder"])
     input_revision = params["input_revision"]
-
+    force_transcoded = params.get('force_transcoded', False)
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -219,7 +219,9 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
-        input_media_list, _ = utils.download_source_media(gc, input_folder_id, input_path)
+        input_media_list, _ = utils.download_source_media(
+            gc, input_folder_id, input_path, force_transcoded
+        )
 
         if input_type == constants.VideoType:
             input_fps = fromMeta(input_folder, constants.FPSMarker)
@@ -301,6 +303,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     config = params['config']
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
+    force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
@@ -319,7 +322,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             utils.download_revision_csv(gc, source_folder_id, revision, groundtruth_path)
             # Download input media
             input_media_list, input_type = utils.download_source_media(
-                gc, source_folder_id, download_path
+                gc, source_folder_id, download_path, force_transcoded
             )
             if input_type == constants.VideoType:
                 download_path = Path(input_media_list[0])
@@ -497,6 +500,9 @@ def convert_video(
         utils.stream_subprocess(self, context, manager, {'args': command})
         # Check to see if frame alignment remains the same
         aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
+        misaligned_flag = False
+        if aligned_file != output_file_path:
+            misaligned_flag = True
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, aligned_file)
@@ -510,14 +516,17 @@ def convert_video(
                 "codec": "h264",
             },
         )
+        source_metadata = {
+            "source_video": True,
+            constants.OriginalFPSMarker: originalFps,
+            constants.OriginalFPSStringMarker: avgFpsString,
+            "codec": videostream[0]["codec_name"],
+        }
+        if misaligned_flag:
+            source_metadata[constants.MISALGINED_MARKER] = True
         gc.addMetadataToItem(
             itemId,
-            {
-                "source_video": True,
-                constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
-                "codec": videostream[0]["codec_name"],
-            },
+            source_metadata,
         )
         gc.addMetadataToFolder(
             folderId,

@@ -1034,12 +1034,12 @@ async function _importTrackFile(
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string) {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  if (existing.transcodingJobKey === transcodingJobKey) {
-    existing.transcodingJobKey = undefined;
-    saveMetadata(settings, datasetId, existing);
+async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
+  await getValidatedProjectDir(settings, datasetId);
+  if (meta.transcodingJobKey === transcodingJobKey) {
+    // eslint-disable-next-line no-param-reassign
+    meta.transcodingJobKey = undefined;
+    saveMetadata(settings, datasetId, meta);
   }
 }
 
@@ -1115,7 +1115,7 @@ async function finalizeMediaImport(
         mediaList: srcDstList,
       },
       updater,
-      (jobKey) => completeConversion(settings, jsonMeta.id, jobKey),
+      (jobKey, meta) => completeConversion(settings, jsonMeta.id, jobKey, meta),
     );
     jsonMeta.transcodingJobKey = jobBase.key;
   }

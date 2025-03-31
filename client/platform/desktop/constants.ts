@@ -39,6 +39,7 @@ export interface Camera {
   originalVideoFile: string;
   transcodedImageFiles: string[];
   transcodedVideoFile: string;
+  transcodedMisalign?: boolean;
   imageListPath?: string;
 }
 
@@ -88,6 +89,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // output of web safe transcoding
   // relative to project path
   transcodedVideoFile: string;
+
+  transcodedMisalign?: boolean;
 
   // ordered image filenames IF this is an image dataset
   // If paths are relative, they're relative to originalBasePath

@@ -128,6 +128,7 @@ export default defineComponent({
         type: resp.type,
         fps,
         uploading: false,
+        skipTranscoding: true,
       });
     };
     /**

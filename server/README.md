@@ -140,5 +140,5 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
 
 The girder-large-image plugin uses the `pip install --find-link` argument and poetry has some difficulty supporting that with a location that is deleting and replacing older versions.  This may cause some docker building errors so from time to time it may be necessary to update the poetry lock file.  This requires clearing your local poetry and pypi cache to properly work.  The command below when run in the server folder fixes any build issues
 
-`poetry cache clear --all pypi && pip cache purge && rm -rf ~/.cache/pypoetry ~/.cache/pip && rm poetry.lock && poetry lock --no-update`
+`poetry cache clear --all pypi && pip cache purge && rm -rf ~/.cache/pypoetry ~/.cache/pip && rm poetry.lock && poetry lock`
 

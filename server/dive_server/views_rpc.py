@@ -40,10 +40,18 @@ class RpcResource(Resource):
             required=True,
             level=AccessType.WRITE,
         )
+        .param(
+            "forceTranscoded",
+            "Force using the transcoded instead of source media",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
-    def run_pipeline_task(self, folder, pipeline: PipelineDescription):
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline)
+    def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
+        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
 
     @access.user
     @autoDescribeRoute(
@@ -75,13 +83,27 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .param(
+            "forceTranscoded",
+            "Force using the transcoded instead of source media",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
     )
-    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly, forceTranscoded):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
         return crud_rpc.run_training(
-            user, token, run_training_args, pipelineName, config, annotatedFramesOnly
+            user,
+            token,
+            run_training_args,
+            pipelineName,
+            config,
+            annotatedFramesOnly,
+            forceTranscoded,
         )
 
     @access.user
