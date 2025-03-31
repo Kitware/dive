@@ -52,16 +52,20 @@ export default defineComponent({
           }
         });
       } else {
-        jobColorMapping.value = renderPieChart(statsTableData.value.jobs, 'globalJobs');
-        if (responseData.value.groupByUser?.datasets) {
-          userColorMapping.value = renderPieChart(responseData.value.groupByUser.datasets, 'groupByUserDatasets');
-          renderPieChart(responseData.value.groupByUser.jobs, 'groupByUserJobs');
-        }
-        if (responseData.value.groupByMonth) {
-          renderBarChart(responseData.value.groupByMonth.datasets, 'groupByMonthDatasets');
-          renderBarChart(responseData.value.groupByMonth.newUsers, 'groupByMonthNewUser');
-          renderBarChart(responseData.value.groupByMonth.jobs, 'groupByMonthJobs');
-        }
+        nextTick(() => {
+          if (statsTableData.value) {
+            jobColorMapping.value = renderPieChart(statsTableData.value.jobs, 'globalJobs');
+          }
+          if (responseData.value?.groupByUser?.datasets) {
+            userColorMapping.value = renderPieChart(responseData.value.groupByUser.datasets, 'groupByUserDatasets');
+            renderPieChart(responseData.value.groupByUser.jobs, 'groupByUserJobs');
+          }
+          if (responseData.value?.groupByMonth) {
+            renderBarChart(responseData.value.groupByMonth.datasets, 'groupByMonthDatasets');
+            renderBarChart(responseData.value.groupByMonth.newUsers, 'groupByMonthNewUser');
+            renderBarChart(responseData.value.groupByMonth.jobs, 'groupByMonthJobs');
+          }
+        });
       }
     };
 
@@ -126,6 +130,8 @@ export default defineComponent({
         .selectAll('text')
         .attr('transform', 'rotate(-90)')
         .attr('text-anchor', 'end')
+        .attr('x', -15)
+        .attr('y', -5)
         .style('fill', '#ffffff');
 
       svg.append('g').call(d3.axisLeft(y));
