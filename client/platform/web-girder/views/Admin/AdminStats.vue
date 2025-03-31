@@ -9,11 +9,15 @@ import {
 } from 'platform/web-girder/api/configuration.service';
 import * as d3 from 'd3';
 
+type DataRecord = Record<string, number>;
+
+type ColorMapping = Record<string, string>;
+
 export default defineComponent({
   name: 'StatsComponent',
   setup() {
     // State to store data
-    const statsTableData: Ref<StatsResponse['table_stats'] | null> = ref();
+    const statsTableData: Ref<StatsResponse['table_stats'] | null> = ref(null);
     const responseData: Ref<StatsResponse | null> = ref(null);
     const selectedDateRange = ref<DateRange>('6 months');
     const selectedGroupBy = ref<GroupBy>();
@@ -61,13 +65,12 @@ export default defineComponent({
       }
     };
 
-    const renderPieChart = (data: Record<string, number>, target: string) => {
+    const renderPieChart = (data: DataRecord, target: string): ColorMapping => {
       const pieWidth = 300;
       const pieHeight = 300;
       const radius = Math.min(pieWidth, pieHeight) / 2;
 
-      // Select the target element and append an SVG for the pie chart
-      d3.select(`#${target}`).html(''); // This will remove all the children of the target element
+      d3.select(`#${target}`).html('');
       const pieSvg = d3.select(`#${target}`)
         .append('svg')
         .attr('width', pieWidth)
@@ -75,117 +78,74 @@ export default defineComponent({
         .append('g')
         .attr('transform', `translate(${pieWidth / 2},${pieHeight / 2})`);
 
-      // Define the pie chart layout
-      const pie = d3.pie().sort(null).value((d: [string, number]) => d[1]);
-      const arc = d3.arc().outerRadius(radius - 10).innerRadius(0);
-
-      // Convert the data object into an array of key-value pairs
+      const pie = d3.pie<[string, number]>().sort(null).value((d) => d[1]);
+      const arc = d3.arc<d3.PieArcDatum<[string, number]>>().outerRadius(radius - 10).innerRadius(0);
       const datasetData = Object.entries(data);
-
-      // Generate the pie chart data using the pie layout
       const pieData = pie(datasetData);
 
-      // Color scale based on the index of the data
-      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+      const colorScale = d3.scaleOrdinal<string>().domain(datasetData.map((d) => d[0])).range(d3.schemeCategory10);
+      const colorMapping: ColorMapping = {};
 
-      const colorMapping: Record<string, string> = {};
-      // Create the arcs for the pie chart slices
       pieSvg.selectAll('.arc')
         .data(pieData)
         .enter()
         .append('g')
         .attr('class', 'arc')
         .append('path')
-        .attr('d', arc)
-        .style('fill', (d, i) => {
-          const color = colorScale(i);
-          colorMapping[d.data[0]] = color; // Map the value to the color
+        .attr('d', arc as any)
+        .style('fill', (d) => {
+          const color = colorScale(d.data[0]);
+          colorMapping[d.data[0]] = color;
           return color;
         });
 
       return colorMapping;
     };
 
-    const renderBarChart = (data: Record<string, number>, target: string) => {
+    const renderBarChart = (data: DataRecord, target: string) => {
       const margin = {
         top: 20, right: 20, bottom: 70, left: 40,
       };
       const width = 800 - margin.left - margin.right;
       const height = 400 - margin.top - margin.bottom;
 
-      // Remove any existing content from the target element
       d3.select(`#${target}`).html('');
-
-      // Create the SVG element for the bar chart
       const svg = d3.select(`#${target}`).append('svg')
         .attr('width', width + margin.left + margin.right)
         .attr('height', height + margin.top + margin.bottom)
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      // Prepare the data - parse the 'YYYY-MM' keys to use as the X-axis labels
-      const dataset = Object.entries(data).map(([key, value]) => ({
-        date: key,
-        value,
-      }));
+      const dataset = Object.entries(data).map(([key, value]) => ({ date: key, value }));
+      const x = d3.scaleBand().domain(dataset.map((d) => d.date)).range([0, width]).padding(0.1);
+      const y = d3.scaleLinear().domain([0, d3.max(dataset, (d) => d.value) || 0]).nice().range([height, 0]);
 
-      // Set up the X and Y scales
-      const x = d3.scaleBand()
-        .domain(dataset.map((d) => d.date))
-        .range([0, width])
-        .padding(0.1); // Adds space between bars
-
-      const y = d3.scaleLinear()
-        .domain([0, d3.max(dataset, (d) => d.value)!])
-        .nice() // Adds some space to the top of the bars
-        .range([height, 0]);
-
-      // Add X-axis to the chart
-      svg.append('g');
       svg.append('g')
-        .attr('class', 'x-axis')
         .attr('transform', `translate(0,${height})`)
         .call(d3.axisBottom(x))
         .selectAll('text')
         .attr('transform', 'rotate(-90)')
         .attr('text-anchor', 'end')
-        .attr('fill', '#ffffff') // Color for the labels
-        .attr('dx', -10) // Slight adjustment for alignment
-        .attr('dy', -6) // Adjust vertical positioning
-        .style('font-size', '12px'); // Make text smaller if needed
+        .style('fill', '#ffffff');
 
-      // Add Y-axis to the chart
-      svg.append('g')
-        .call(d3.axisLeft(y));
+      svg.append('g').call(d3.axisLeft(y));
 
-      // Create the bars for the bar chart
       svg.selectAll('.bar')
         .data(dataset)
         .enter().append('rect')
         .attr('class', 'bar')
-        .attr('x', (d) => x(d.date))
-        .attr('y', (d) => y(d.value))
+        .attr('x', (d) => x(d.date) || 0)
+        .attr('y', (d) => y(d.value) ?? 0)
         .attr('width', x.bandwidth())
-        .attr('height', (d) => height - y(d.value))
-        .attr('fill', '#3498db'); // Customize color for bars
-      // Add labels above the bars
-      svg.selectAll('.label')
-        .data(dataset)
-        .enter().append('text')
-        .attr('class', 'label')
-        .attr('x', (d) => x(d.date) + x.bandwidth() / 2)
-        .attr('y', (d) => y(d.value) - 5)
-        .attr('text-anchor', 'middle')
-        .attr('fill', '#ffffff') // White color for the label
-        .attr('font-size', () => Math.max(x.bandwidth() * 0.2, 10)) // Adjust font size based on bar width
-        .text((d) => d.value);
+        .attr('height', (d) => height - (y(d.value) ?? 0))
+        .attr('fill', '#3498db');
     };
 
     // Fetch initial data on mounted
-    onMounted(fetchData);
+    onMounted(() => fetchData());
 
     // Watch for changes in dropdowns
-    watch([selectedDateRange, selectedGroupBy], fetchData);
+    watch([selectedDateRange, selectedGroupBy], () => fetchData());
 
     return {
       statsTableData,
