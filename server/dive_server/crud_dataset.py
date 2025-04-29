@@ -275,6 +275,8 @@ def export_datasets_zipstream(
             mediaRegex = constants.imageRegex
         elif source_type == constants.VideoType:
             mediaRegex = constants.videoRegex
+        elif source_type == constants.LargeImageType:
+            mediaRegex = constants.largeImageRegEx
         return gen, mediaFolder, mediaRegex
 
     failed_datasets = []
