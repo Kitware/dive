@@ -122,6 +122,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   subType: SubType;
+
+  // execTime is athe execution time for desktop runs
+  execTime?: number
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;

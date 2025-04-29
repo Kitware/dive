@@ -28,6 +28,7 @@ const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
+const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
 const TrackAtrToken = '(trk-atr)';
 const PolyToken = '(poly)';
@@ -37,6 +38,7 @@ export interface AnnotationFileData {
   tracks: MultiTrackRecord;
   groups: MultiGroupRecord;
   fps?: number;
+  execTime?: number;
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
@@ -95,7 +97,13 @@ function parseCommentRow(row: string[]) {
   if (matches !== null && matches.length >= 2) {
     fps = Number.parseFloat(matches[1]);
   }
-  return { fps };
+  let execTime: undefined | number;
+  const execMatches = getCaptureGroups(ExecTimeRegEx, fullrow);
+  if (execMatches !== null && execMatches.length >= 2) {
+    execTime = Number.parseFloat(execMatches[1]);
+  }
+
+  return { fps, execTime };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -263,6 +271,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
     relaxColumnCount: true,
   });
   let fps: number | undefined;
+  let execTime: number | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
@@ -377,7 +386,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
       if (error !== undefined) {
         reject(error);
       }
-      resolve([{ tracks, groups: {}, fps }, warnings]);
+      resolve([{
+        tracks, groups: {}, fps, execTime,
+      }, warnings]);
     });
     parser.on('readable', () => {
       let record: string[];
@@ -461,7 +472,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           }
           if (err.toString().includes('comment row')) {
             // parse comment row
-            fps = fps || parseCommentRow(record).fps;
+            const parsedComment = parseCommentRow(record);
+            fps = fps || parsedComment.fps;
+            if (parsedComment.execTime) {
+              execTime = parsedComment.execTime;
+            }
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
@@ -495,12 +510,16 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     'Confidence Pairs or Attributes',
   ]);
   if (meta.fps) {
-    writer.write([
+    const metadataRow = [
       '# metadata',
       `fps: ${meta.fps}`,
       `exported_by: ${JSON.stringify('dive:typescript')}`,
       `exported_time: ${JSON.stringify((new Date()).toLocaleString())}`,
-    ]);
+    ];
+    if (meta.execTime) {
+      metadataRow.push(`exec_time: ${meta.execTime}`);
+    }
+    writer.write(metadataRow);
   }
 }
 

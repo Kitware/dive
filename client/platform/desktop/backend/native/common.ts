@@ -586,7 +586,7 @@ async function _ingestFilePath(
   await fs.copy(path, newPath);
   // Attempt to process the file
   let annotations = dive.makeEmptyAnnotationFile();
-  const meta: DatasetMetaMutable & { fps?: number } = {};
+  const meta: DatasetMetaMutable & { fps?: number, execTime?: number } = {};
   let metadataConfig = false;
   if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
@@ -610,6 +610,7 @@ async function _ingestFilePath(
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
+    meta.execTime = data[0].execTime;
     [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
