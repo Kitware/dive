@@ -82,6 +82,11 @@ export default defineComponent({
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
     },
+    selectedFileIds() {
+      return this.selected.filter(
+        (element) => element._modelType === 'item',
+      ).map(({ _id }) => _id);
+    },
     includesLargeImage() {
       return (this.selected.filter(
         ({ meta }) => meta && meta.type === 'large-image',
@@ -181,6 +186,7 @@ export default defineComponent({
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"
+                  :file-ids="selectedFileIds"
                 />
                 <v-btn
                   :disabled="!selected.length"

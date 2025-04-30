@@ -21,7 +21,7 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob
+from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -84,8 +84,8 @@ class Config:
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
-        self.viame_pipeine_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing."
+        self.viame_pipeline_path = self.viame_install_path / self.pipeline_subdir
+        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
@@ -143,7 +143,7 @@ def upgrade_pipelines(
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
     # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(conf.viame_pipeine_path, conf.get_extracted_pipeline_path(missing_ok=True))
+    shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
@@ -280,6 +280,57 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
         gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+
+
+@app.task(bind=True, acks_late=True, ignore_results=True)
+def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
+    conf = Config()
+    context: dict = {}
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    gc: GirderClient = self.girder_client
+    utils.authenticate_urllib(gc)
+    manager.updateStatus(JobStatus.FETCHING_INPUT)
+
+    # Extract params
+    input_folder_id = params["input_folder"]
+    output_folder_id = params["output_folder"]
+    output_name = params["output_name"]
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
+        output_path = utils.make_directory(_working_directory_path / 'output')
+        onnx_path = output_path / output_name
+        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_to_onnx.pipe"
+
+        gc.downloadFolderRecursive(input_folder_id, str(trained_pipeline_path))
+
+        # Convert pipeline to ONNX
+        command = [
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
+            "kwiver runner",
+            f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
+            f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
+        ]
+
+        manager.updateStatus(JobStatus.RUNNING)
+        popen_kwargs = {
+            'args': " ".join(command),
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': output_path,
+            'env': conf.gpu_process_env,
+        }
+        utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        gc.uploadFileToFolder(output_folder_id, onnx_path)
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)

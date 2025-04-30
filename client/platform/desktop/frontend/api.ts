@@ -18,7 +18,7 @@ import {
 } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, ExportDatasetArgs, ExportConfigurationArgs,
+  RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
@@ -96,6 +96,14 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
   return ipcRenderer.invoke('run-pipeline', args);
 }
 
+async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
+  const args: ExportTrainedPipeline = {
+    path,
+    pipeline,
+  };
+  return ipcRenderer.invoke('export-trained-pipeline', args);
+}
+
 async function runTraining(
   folderIds: string[],
   pipelineName: string,
@@ -111,6 +119,10 @@ async function runTraining(
     labelText,
   };
   return ipcRenderer.invoke('run-training', args);
+}
+
+async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
+  return ipcRenderer.invoke('delete-trained-pipeline', pipeline);
 }
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
@@ -219,7 +231,9 @@ export {
   /* Standard Specification APIs */
   loadMetadata,
   getPipelineList,
+  deleteTrainedPipeline,
   runPipeline,
+  exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,

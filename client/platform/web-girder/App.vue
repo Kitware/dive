@@ -12,7 +12,9 @@ import { useStore } from 'platform/web-girder/store/types';
 import type { GirderMetadata } from './constants';
 import {
   getPipelineList,
+  deleteTrainedPipeline,
   runPipeline,
+  exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
@@ -41,7 +43,9 @@ export default defineComponent({
 
     provideApi({
       getPipelineList: unwrap(getPipelineList),
+      deleteTrainedPipeline: unwrap(deleteTrainedPipeline),
       runPipeline: unwrap(runPipeline),
+      exportTrainedPipeline: unwrap(exportTrainedPipeline),
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,

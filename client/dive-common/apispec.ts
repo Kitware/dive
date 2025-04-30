@@ -34,6 +34,7 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
+  folderId?: string
 }
 
 interface Category {
@@ -142,6 +143,8 @@ interface DatasetMeta extends DatasetMetaMutable {
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
+  deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
+  exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(

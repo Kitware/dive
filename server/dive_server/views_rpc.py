@@ -23,6 +23,7 @@ class RpcResource(Resource):
         self.resourceName = resourceName
 
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("POST", ("export",), self.export_pipeline_onnx)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
@@ -52,6 +53,21 @@ class RpcResource(Resource):
     )
     def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
         return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
+    
+    @access.user
+    @autoDescribeRoute(
+        Description("Export pipeline to ONNX")
+        .modelParam(
+            "folderId",
+            description="Folder id that contains the model to export",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
+        )
+    )
+    def export_pipeline_onnx(self, folder):
+        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), folder)
 
     @access.user
     @autoDescribeRoute(

@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -213,6 +214,75 @@ async function runPipeline(
 }
 
 /**
+ * a node.js implementation of dive_tasks.tasks.export_trained_model
+ */
+async function exportTrainedPipeline(settings: Settings,
+  exportTrainedPipelineArgs: ExportTrainedPipeline,
+  updater: DesktopJobUpdater,
+  validateViamePath: (settings: Settings) => Promise<true | string>,
+  viameConstants: ViameConstants,
+): Promise<DesktopJob> {
+  const { path, pipeline } = exportTrainedPipelineArgs;
+
+  const isValid = await validateViamePath(settings);
+  if (isValid !== true) {
+    throw new Error(isValid);
+  }
+
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, "convert_to_onnx.pipe");
+  const modelPipelineDir = npath.parse(pipeline.pipe).dir;
+  let weightsPath: string;
+  if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {
+    weightsPath = npath.join(modelPipelineDir, 'yolo.weights');
+  } else {
+    throw new Error("Your pipeline has no trained weights (yolo.weights is missing)");
+  }
+
+  const command = [
+    `${viameConstants.setupScriptAbs} &&`,
+    `"${viameConstants.kwiverExe}" runner ${exportPipelinePath}`,
+    `-s "onnx_convert:model_path=${weightsPath}"`,
+    `-s "onnx_convert:onnx_model_prefix=${path}"`,
+  ];
+
+  const job = observeChild(spawn(command.join(' '), {
+    shell: viameConstants.shell,
+    cwd: undefined,
+  }));
+
+  const jobBase: DesktopJob = {
+    key: `pipeline_${job.pid}`,
+    command: command.join(' '),
+    jobType: 'export',
+    pid: job.pid,
+    args: exportTrainedPipelineArgs,
+    title: `${exportTrainedPipelineArgs.pipeline.name} to ONNX`,
+    datasetIds: [],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  updater({
+    ...jobBase,
+    body: [''],
+  });
+
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater));
+
+  job.on('exit', async (code) => {
+    updater({
+      ...jobBase,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+
+  return jobBase;
+}
+
+/**
  * a node.js implementation of dive_tasks.tasks.run_training
  */
 async function train(
@@ -356,5 +426,6 @@ async function train(
 
 export {
   runPipeline,
+  exportTrainedPipeline,
   train,
 };

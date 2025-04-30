@@ -2,9 +2,11 @@ import OS from 'os';
 import http from 'http';
 import { ipcMain } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
+import type { Pipe } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   DesktopMediaImportResponse,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -32,6 +34,9 @@ export default function register() {
     const ret = await common.getPipelineList(settings.get());
     return ret;
   });
+  ipcMain.handle('delete-trained-pipeline', async (event, args: Pipe) => {
+    return await common.deleteTrainedPipeline(args);
+  })
   ipcMain.handle('get-training-configs', async () => {
     const ret = await common.getTrainingConfigs(settings.get());
     return ret;
@@ -121,6 +126,12 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.runPipeline(settings.get(), args, updater);
+  });
+  ipcMain.handle('export-trained-pipeline', async (event, args: ExportTrainedPipeline) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.exportTrainedPipeline(settings.get(), args, updater);
   });
   ipcMain.handle('run-training', async (event, args: RunTraining) => {
     const updater = (update: DesktopJobUpdate) => {

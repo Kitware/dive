@@ -65,6 +65,11 @@ export default {
         </v-tab>
         <JobsTab />
         <v-tab
+          :to="'/trained-models'"
+        >
+          Models <v-icon>mdi-brain</v-icon>
+        </v-tab>
+        <v-tab
           v-if="isAdmin"
           :to="`/admin`"
         >

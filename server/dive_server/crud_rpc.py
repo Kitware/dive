@@ -19,6 +19,7 @@ from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.serializers import dive, kpf, kwcoco, viame
+from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
@@ -200,6 +201,47 @@ def run_pipeline(
     )
     return newjob.job
 
+def export_trained_pipeline(
+    user: types.GirderUserModel,
+    folder: types.GirderModel
+) -> types.GirderModel:
+    folder_id_str = str(folder["_id"])
+    token = Token().createToken(user=user, days=14)
+
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+
+    params: types.PipelineJob = {
+        "input_folder": folder_id_str,
+        "output_folder": folder_id_str,
+        "output_name": "model.onnx",
+        'user_id': str(user.get('_id', 'unknown')),
+        'user_login': user.get('login', 'unknown'),
+    }
+    newjob = tasks.export_trained_pipeline.apply_async(
+        queue=_get_queue_name(user, "pipelines"),
+        kwargs=dict(
+            params=params,
+            girder_job_title=f"Exporting {str(folder['name'])} to ONNX",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="private" if job_is_private else "export",
+        ),
+    )
+
+    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+    newjob.job[constants.JOBCONST_PARAMS] = params
+    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
+    # Allow any users with access to the input data to also
+    # see and possibly manage the job
+    Job().copyAccessPolicies(folder, newjob.job)
+    Job().save(newjob.job)
+    # Inform Client of new Job added in inactive state
+    Notification().createNotification(
+        type='job_status',
+        data=newjob.job,
+        user=user,
+        expires=datetime.now() + timedelta(seconds=30),
+    )
+    return newjob.job
 
 def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     """Ensure that the user has a training results folder."""

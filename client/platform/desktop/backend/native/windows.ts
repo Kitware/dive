@@ -12,6 +12,7 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
   DesktopJobUpdater,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 import * as viame from './viame';
 
@@ -86,6 +87,17 @@ async function runPipeline(
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
+  });
+}
+
+async function exportTrainedPipeline(
+  settings: Settings,
+  exportTrainedPipelineArgs: ExportTrainedPipeline,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateFake, {
     ...ViameWindowsConstants,
     setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
@@ -168,6 +180,7 @@ export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
+  exportTrainedPipeline,
   train,
   nvidiaSmi,
   initialize,
