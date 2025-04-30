@@ -4,7 +4,7 @@
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-FROM python:3.8-bookworm as ffmpeg-builder
+FROM python:3.8-bookworm AS ffmpeg-builder
 RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
 RUN mkdir /tmp/ffextracted
 RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
@@ -12,7 +12,7 @@ RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
 # =================
 # == DIST WORKER ==
 # =================
-FROM kitware/viame:gpu-algorithms-latest as worker
+FROM kitware/viame:gpu-algorithms-web AS worker
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 

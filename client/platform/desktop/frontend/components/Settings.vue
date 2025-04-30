@@ -61,7 +61,6 @@ export default defineComponent({
         set(localSettings.value, name, result.filePaths[0]);
       }
     }
-
     async function save() {
       if (localSettings.value !== null) {
         settingsAreValid.value = false;
@@ -158,6 +157,7 @@ export default defineComponent({
             <v-col>
               <v-switch
                 v-model="localSettings.readonlyMode"
+                :disabled="!settingsAreValid"
                 color="primary"
                 :label="'Read only mode'"
                 hide-details
@@ -170,7 +170,7 @@ export default defineComponent({
         <v-card-text>
           <v-btn
             color="primary"
-            :disabled="pendingChanges"
+            :disabled="pendingChanges || !settingsAreValid"
             @click="save"
           >
             <v-icon class="mr-2">
