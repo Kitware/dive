@@ -230,6 +230,10 @@ async function exportTrainedPipeline(settings: Settings,
   }
 
   const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, "convert_to_onnx.pipe");
+  if (!fs.existsSync(npath.join(exportPipelinePath))) {
+    throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
+  }
+  
   const modelPipelineDir = npath.parse(pipeline.pipe).dir;
   let weightsPath: string;
   if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {

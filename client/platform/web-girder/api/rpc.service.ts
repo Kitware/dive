@@ -38,10 +38,10 @@ function deleteTrainedPipeline(pipeline: Pipe) {
 }
 
 function exportTrainedPipeline(path: string, pipeline: Pipe) {
-  console.log(pipeline);
   return girderRest.post('dive_rpc/export', null, {
     params: {
-      folderId: path,
+      modelFolderId: pipeline.folderId,
+      exportFolderId: path,
     },
   });
 }

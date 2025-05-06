@@ -58,16 +58,26 @@ class RpcResource(Resource):
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")
         .modelParam(
-            "folderId",
-            description="Folder id that contains the model to export",
+            "modelFolderId",
+            destName='modelFolderId',
+            description="Folder id in which the model to export is located",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .modelParam(
+            "exportFolderId",
+            destName='exportFolderId',
+            description="Folder id to which the model will be exported",
             model=Folder,
             paramType="query",
             required=True,
             level=AccessType.WRITE,
         )
     )
-    def export_pipeline_onnx(self, folder):
-        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), folder)
+    def export_pipeline_onnx(self, modelFolderId, exportFolderId):
+        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
 
     @access.user
     @autoDescribeRoute(

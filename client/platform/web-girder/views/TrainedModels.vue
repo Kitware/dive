@@ -17,6 +17,7 @@ export default defineComponent({
     const router = useRouter();
 
     const unsortedPipelines = ref({} as Pipelines);
+    const search = ref('');
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -59,11 +60,26 @@ export default defineComponent({
       router.push('/jobs');
     }
 
+    async function browseModel(item: Pipe) {
+      router.push(`/folder/${item.folderId}`);
+    }
+
     const trainedHeadersTmpl: DataTableHeader[] = [
       {
         text: 'Model',
         value: 'name',
         sortable: true,
+      },
+      {
+        text: 'Owner',
+        value: 'ownerLogin',
+        sortable: true,
+      },
+      {
+        text: 'Browse',
+        value: 'browse',
+        sortable: false,
+        width: 80,
       },
       {
         text: 'Export',
@@ -81,8 +97,10 @@ export default defineComponent({
     return {
       deleteModel,
       exportModel,
+      browseModel,
       items: trainedModels,
       headers: trainedHeadersTmpl,
+      search,
     };
   },
 });
@@ -91,10 +109,40 @@ export default defineComponent({
 <template>
   <v-container :fluid="$vuetify.breakpoint.mdAndDown">
     <v-card class="trained-models-wrapper mt-4 pa-6">
+      <v-card-title> Trained models </v-card-title>
+      <v-card-text>
+        <p>
+          Below is a list of trained models that you own or are shared with you.<br>
+          It doesn't include pretrained models provided by VIAME.
+        </p>
+      </v-card-text>
+
+      <template v-if="items.length > 0">
+        <v-text-field
+          v-model="search"
+          label="Search..."
+          prepend-inner-icon="mdi-magnify"
+          density="compact"
+          variant="solo-filled"
+          single-line />
+      </template>
+
       <v-data-table
         v-bind="{ headers: headers, items: items }"
         no-data-text="You don't have any trained model"
+        :search="search"
       >
+        <template #[`item.browse`]="{ item }">
+          <v-btn
+            :key="item.name"
+            color="info"
+            small
+            @click="browseModel(item)"
+          >
+            <v-icon>mdi-folder</v-icon>
+          </v-btn>
+        </template>
+
         <template #[`item.export`]="{ item }">
           <v-btn
             :key="item.name"

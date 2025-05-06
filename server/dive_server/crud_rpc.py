@@ -64,10 +64,33 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines: Dict[str, types.PipelineCategory] = {}
     pipelines[constants.TrainedPipelineCategory] = {"pipes": [], "description": ""}
-    for folder in Folder().findWithPermissions(
-        query={f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}},
-        user=user,
-    ):
+    
+    trained_pipelines_query = {f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}}
+    query = {'$and': [trained_pipelines_query, Folder().permissionClauses(user, AccessType.READ)]}
+    models = [
+        {'$match': query},
+        {
+            '$facet': {
+                'results': [
+                    {
+                        '$lookup': {
+                            'from': 'user',
+                            'localField': 'creatorId',
+                            'foreignField': '_id',
+                            'as': 'ownerLogin',
+                        },
+                    },
+                    {'$set': {'ownerLogin': {'$first': '$ownerLogin'}}},
+                    {'$set': {'ownerLogin': '$ownerLogin.login'}},
+                ],
+                'totalCount': [{'$count': 'count'}],
+            },
+        },
+    ]
+    response = next(Folder().collection.aggregate(models))
+    folders = [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
+
+    for folder in folders:
         pipename = None
         for item in Folder().childItems(folder):
             if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_'):
@@ -83,6 +106,8 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
                         "type": constants.TrainedPipelineCategory,
                         "pipe": pipename,
                         "folderId": str(folder["_id"]),
+                        "ownerLogin": folder["ownerLogin"],
+                        "ownerId": folder["creatorId"],
                     }
                 )
     return pipelines
@@ -203,16 +228,18 @@ def run_pipeline(
 
 def export_trained_pipeline(
     user: types.GirderUserModel,
-    folder: types.GirderModel
+    model_folder: types.GirderModel,
+    export_folder: types.GirderModel,
 ) -> types.GirderModel:
-    folder_id_str = str(folder["_id"])
+    model_folder_id_str = str(model_folder["_id"])
+    export_folder_id_str = str(export_folder['_id'])
     token = Token().createToken(user=user, days=14)
 
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
     params: types.PipelineJob = {
-        "input_folder": folder_id_str,
-        "output_folder": folder_id_str,
+        "input_folder": model_folder_id_str,
+        "output_folder": export_folder_id_str,
         "output_name": "model.onnx",
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
@@ -221,7 +248,7 @@ def export_trained_pipeline(
         queue=_get_queue_name(user, "pipelines"),
         kwargs=dict(
             params=params,
-            girder_job_title=f"Exporting {str(folder['name'])} to ONNX",
+            girder_job_title=f"Exporting {str(model_folder['name'])} to ONNX",
             girder_client_token=str(token["_id"]),
             girder_job_type="private" if job_is_private else "export",
         ),
@@ -232,7 +259,7 @@ def export_trained_pipeline(
     newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
     # Allow any users with access to the input data to also
     # see and possibly manage the job
-    Job().copyAccessPolicies(folder, newjob.job)
+    Job().copyAccessPolicies(model_folder, newjob.job)
     Job().save(newjob.job)
     # Inform Client of new Job added in inactive state
     Notification().createNotification(

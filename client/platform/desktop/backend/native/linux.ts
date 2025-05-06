@@ -96,8 +96,8 @@ async function exportTrainedPipeline(
 ): Promise<DesktopJob> {
   return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateViamePath, {
     ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings)
-  })
+    setupScriptAbs: sourceString(settings),
+  });
 }
 
 async function train(

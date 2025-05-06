@@ -79,6 +79,16 @@ export default defineComponent({
       }
     }
 
+    const isDownloadButtonDisplayed = computed(() => {
+      const datasetsSelected = props.datasetIds.length > 0;
+      const filesSelected = props.fileIds.length > 0;
+
+      return datasetsSelected !== filesSelected;
+    });
+
+    const isDatasetDownload = computed(() => props.datasetIds.length > 0 && props.fileIds.length === 0);
+    const isFilesDownload = computed(() => props.fileIds.length > 0 && props.datasetIds.length === 0);
+
     const menuOpen = ref(false);
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
@@ -198,7 +208,7 @@ export default defineComponent({
     });
 
     async function prepareExport() {
-      if (props.fileIds.length >= 1) {
+      if (isFilesDownload.value) {
         menuOpen.value = false;
         await doExport({ url: exportUrls.value && exportUrls.value.exportAllUrl });
       } else {
@@ -220,6 +230,9 @@ export default defineComponent({
       savePrompt,
       singleDataSetId,
       doExport,
+      isDownloadButtonDisplayed,
+      isDatasetDownload,
+      isFilesDownload,
     };
   },
 });
@@ -240,7 +253,7 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!(datasetIds.length > 0 && fileIds.length === 0 || datasetIds.length === 0 && fileIds.length > 0)"
+            :disabled="!isDownloadButtonDisplayed"
             v-on="{ ...tooltipOn, ...menuOn }"
 
             @click="prepareExport()"
@@ -255,12 +268,13 @@ export default defineComponent({
               Download
             </span>
             <v-spacer />
-            <v-icon v-if="menuOptions.right">
+            <v-icon v-if="menuOptions.right && isDatasetDownload">
               mdi-chevron-right
             </v-icon>
           </v-btn>
         </template>
-        <span>Download media and annotations</span>
+        <span v-if="isDatasetDownload">Download media and annotations</span>
+        <span v-else-if="isFilesDownload">Download selected files</span>
       </v-tooltip>
     </template>
     <template>

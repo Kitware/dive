@@ -146,7 +146,6 @@ export default defineComponent({
           title: 'Export Model',
           defaultPath: npath.join(app.getPath('home'), 'model.onnx'),
         });
-        console.log(location);
         if (!location.canceled && location.filePath) {
           await exportTrainedPipeline(location.filePath!, item);
         }
@@ -365,7 +364,6 @@ export default defineComponent({
         v-bind="{ headers: models.headers, items: models.items.value }"
         no-data-text="You don't have any trained model"
       >
-
         <template #[`item.export`]="{ item }">
           <v-btn
             :key="item.name"
@@ -387,10 +385,8 @@ export default defineComponent({
             <v-icon>mdi-trash-can</v-icon>
           </v-btn>
         </template>
-
       </v-data-table>
     </div>
-
   </div>
 </template>
 

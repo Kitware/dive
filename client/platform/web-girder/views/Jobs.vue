@@ -104,7 +104,7 @@ export default defineComponent({
               v-on="on"
             >
               <v-icon small>
-                mdi-eye
+                mdi-folder
               </v-icon>
             </v-btn>
           </template>
