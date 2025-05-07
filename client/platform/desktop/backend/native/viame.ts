@@ -285,6 +285,9 @@ async function exportTrainedPipeline(settings: Settings,
   job.on('exit', async (code) => {
     if (code === 0) {
       if (fs.existsSync(converterOutput)) {
+        if (fs.existsSync(path)) {
+          fs.unlinkSync(path);
+        }
         // We move instead of copying because .onnx files can be huge
         fs.moveSync(converterOutput, path);
       } else {

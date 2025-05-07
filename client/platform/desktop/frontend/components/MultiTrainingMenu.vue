@@ -148,11 +148,22 @@ export default defineComponent({
         });
         if (!location.canceled && location.filePath) {
           await exportTrainedPipeline(location.filePath!, item);
+          const goToJobsPage = !await prompt({
+            title: 'Export Started',
+            text: 'You can check the export status in the Jobs tab.',
+            negativeButton: 'View',
+            positiveButton: 'OK',
+            confirm: true,
+          });
+          if (goToJobsPage) {
+            router.push('/jobs');
+          }
         }
       } catch (err) {
         console.log(err);
-        let text = 'Unable to export model';
-        if (err.response?.status === 403) text = 'You do not have permission to export the selected resource(s).';
+        const errorTemplate = 'Unable to export model';
+        let text = `${errorTemplate}: ${err}`;
+        if (err.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
         prompt({
           title: 'Export Failed',
           text,
