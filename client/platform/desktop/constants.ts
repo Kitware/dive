@@ -191,7 +191,7 @@ export interface DesktopJob {
   // pid of the process spawned
   pid: number;
   // workingDir of the job's output
-  workingDir?: string;
+  workingDir: string;
   // exitCode if set, the job exited already
   exitCode: number | null;
   // startTime time of process initialization

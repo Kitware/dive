@@ -13,7 +13,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import * as common from './common';
-import { jobFileEchoMiddleware, createWorkingDirectory } from './utils';
+import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -242,39 +242,55 @@ async function exportTrainedPipeline(settings: Settings,
     throw new Error("Your pipeline has no trained weights (yolo.weights is missing)");
   }
 
+  const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
+
+  const converterOutput = npath.join(jobWorkDir, 'model.onnx');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
     `"${viameConstants.kwiverExe}" runner ${exportPipelinePath}`,
     `-s "onnx_convert:model_path=${weightsPath}"`,
-    `-s "onnx_convert:onnx_model_prefix=${path}"`,
+    `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
   ];
 
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
-    cwd: undefined,
+    cwd: jobWorkDir,
   }));
 
   const jobBase: DesktopJob = {
-    key: `pipeline_${job.pid}`,
+    key: `pipeline_${job.pid}_${jobWorkDir}`,
     command: command.join(' '),
     jobType: 'export',
     pid: job.pid,
     args: exportTrainedPipelineArgs,
     title: `${exportTrainedPipelineArgs.pipeline.name} to ONNX`,
+    workingDir: jobWorkDir,
     datasetIds: [],
     exitCode: job.exitCode,
     startTime: new Date(),
   };
+
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
   updater({
     ...jobBase,
     body: [''],
   });
 
-  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater));
-  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater));
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
   job.on('exit', async (code) => {
+    if (code === 0) {
+      if (fs.existsSync(converterOutput)) {
+        // We move instead of copying because .onnx files can be huge
+        fs.moveSync(converterOutput, path);
+      } else {
+        console.error("An error occured while creating the ONNX file.");
+      }
+    }
     updater({
       ...jobBase,
       body: [''],
