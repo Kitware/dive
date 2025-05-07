@@ -33,6 +33,19 @@ function runTraining(
   });
 }
 
+function deleteTrainedPipeline(pipeline: Pipe) {
+  return girderRest.delete(`folder/${pipeline.folderId}`);
+}
+
+function exportTrainedPipeline(path: string, pipeline: Pipe) {
+  return girderRest.post('dive_rpc/export', null, {
+    params: {
+      modelFolderId: pipeline.folderId,
+      exportFolderId: path,
+    },
+  });
+}
+
 function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
@@ -42,4 +55,6 @@ export {
   postProcess,
   runPipeline,
   runTraining,
+  deleteTrainedPipeline,
+  exportTrainedPipeline,
 };

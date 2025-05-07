@@ -101,6 +101,20 @@ async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta
   return runFolderPath;
 }
 
+async function createCustomWorkingDirectory(settings: Settings, prefix: string, pipeline: string) {
+  const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
+  // Formating prefix if for any reason the prefix is input by the user in the futur
+  // eslint-disable-next-line no-useless-escape
+  const safePrefix = prefix.replace(/[\.\s/]+/g, '_');
+  const runFolderName = moment().format(`[${safePrefix}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const runFolderPath = path.join(jobFolderPath, runFolderName);
+  if (!fs.existsSync(jobFolderPath)) {
+    await fs.mkdir(jobFolderPath);
+  }
+  await fs.mkdir(runFolderPath);
+  return runFolderPath;
+}
+
 /* same as os.path.splitext */
 function splitExt(input: string): [string, string] {
   const ext = path.extname(input);
@@ -112,6 +126,7 @@ export {
   getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,
+  createCustomWorkingDirectory,
   spawnResult,
   splitExt,
 };

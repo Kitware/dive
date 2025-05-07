@@ -24,6 +24,10 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    fileIds: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
     blockOnUnsaved: {
       type: Boolean,
       default: false,
@@ -75,6 +79,16 @@ export default defineComponent({
       }
     }
 
+    const isDownloadButtonDisplayed = computed(() => {
+      const datasetsSelected = props.datasetIds.length > 0;
+      const filesSelected = props.fileIds.length > 0;
+
+      return datasetsSelected !== filesSelected;
+    });
+
+    const isDatasetDownload = computed(() => props.datasetIds.length > 0 && props.fileIds.length === 0);
+    const isFilesDownload = computed(() => props.fileIds.length > 0 && props.datasetIds.length === 0);
+
     const menuOpen = ref(false);
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
@@ -104,6 +118,23 @@ export default defineComponent({
         excludeBelowThreshold: excludeBelowThreshold.value,
         typeFilter: excludeUncheckedTypes.value ? JSON.stringify(checkedTypes.value) : undefined,
       };
+      if (props.fileIds.length > 0) {
+        if (props.fileIds.length === 1) {
+          return {
+            exportAllUrl: getUri({
+              url: `item/${props.fileIds[0]}/download`,
+            }),
+          };
+        }
+        return {
+          exportAllUrl: getUri({
+            url: 'resource/download',
+            params: {
+              resources: JSON.stringify({ item: props.fileIds }),
+            },
+          }),
+        };
+      }
       if (singleDataSetId.value) {
         return {
           exportAllUrl: getUri({
@@ -176,6 +207,15 @@ export default defineComponent({
       }[type];
     });
 
+    async function prepareExport() {
+      if (isFilesDownload.value) {
+        menuOpen.value = false;
+        await doExport({ url: exportUrls.value && exportUrls.value.exportAllUrl });
+      } else {
+        menuOpen.value = true;
+      }
+    }
+
     return {
       error,
       dataset,
@@ -183,12 +223,16 @@ export default defineComponent({
       excludeBelowThreshold,
       excludeUncheckedTypes,
       menuOpen,
+      prepareExport,
       exportUrls,
       checkedTypes,
       revisionId,
       savePrompt,
       singleDataSetId,
       doExport,
+      isDownloadButtonDisplayed,
+      isDatasetDownload,
+      isFilesDownload,
     };
   },
 });
@@ -198,6 +242,7 @@ export default defineComponent({
   <v-menu
     v-model="menuOpen"
     :close-on-content-click="false"
+    :open-on-click="false"
     :nudge-width="120"
     v-bind="menuOptions"
     max-width="280"
@@ -208,8 +253,10 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!datasetIds.length"
+            :disabled="!isDownloadButtonDisplayed"
             v-on="{ ...tooltipOn, ...menuOn }"
+
+            @click="prepareExport()"
           >
             <v-icon>
               mdi-download
@@ -221,12 +268,13 @@ export default defineComponent({
               Download
             </span>
             <v-spacer />
-            <v-icon v-if="menuOptions.right">
+            <v-icon v-if="menuOptions.right && isDatasetDownload">
               mdi-chevron-right
             </v-icon>
           </v-btn>
         </template>
-        <span>Download media and annotations</span>
+        <span v-if="isDatasetDownload">Download media and annotations</span>
+        <span v-else-if="isFilesDownload">Download selected files</span>
       </v-tooltip>
     </template>
     <template>

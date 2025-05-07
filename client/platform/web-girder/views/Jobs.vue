@@ -78,7 +78,7 @@ export default defineComponent({
               depressed
               :to="{ name: 'viewer', params: { id: item.dataset_id } }"
               color="info"
-              class="ml-0"
+              class="mr-2"
               v-on="on"
             >
               <v-icon small>
@@ -88,6 +88,29 @@ export default defineComponent({
           </template>
           <span>Launch dataset viewer</span>
         </v-tooltip>
+
+        <v-tooltip
+          v-if="item.type == 'export' && item.statusText == 'Success'"
+          bottom
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              x-small
+              depressed
+              :href="`/#/folder/${JSON.parse(item.kwargs).params.input_folder}`"
+              color="info"
+              class="mr-2"
+              v-on="on"
+            >
+              <v-icon small>
+                mdi-folder
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Navigate to exported file</span>
+        </v-tooltip>
+
         <v-tooltip bottom>
           <template #activator="{ on, attrs }">
             <v-btn
@@ -96,7 +119,7 @@ export default defineComponent({
               depressed
               :href="`/girder/#job/${item._id}`"
               color="info"
-              class="mx-2"
+              class="mr-2"
               v-on="on"
             >
               <v-icon small>

@@ -22,6 +22,7 @@ import {
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
+  Pipe,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -442,6 +443,16 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
     default: configs[0],
     configs,
   };
+}
+
+/**
+ * delete a trained pipeline
+ */
+async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
+  if (pipeline.type !== 'trained') throw new Error(`${pipeline.name} is not a trained pipeline`);
+
+  const parent = npath.parse(pipeline.pipe).dir;
+  await fs.remove(parent);
 }
 
 /**
@@ -1196,6 +1207,7 @@ export {
   exportDataset,
   finalizeMediaImport,
   getPipelineList,
+  deleteTrainedPipeline,
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,

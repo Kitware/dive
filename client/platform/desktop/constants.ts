@@ -154,6 +154,11 @@ export interface RunPipeline {
   pipeline: Pipe;
 }
 
+export interface ExportTrainedPipeline {
+  path: string;
+  pipeline: Pipe;
+}
+
 /** TODO promote to apispec */
 export interface RunTraining {
   // datasets to run training on
@@ -179,11 +184,11 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ConversionArgs;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
