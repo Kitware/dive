@@ -1,18 +1,35 @@
 <script lang="ts">
 import {
   defineComponent, ref, reactive, watch, toRefs,
+  Ref,
+  computed,
 } from 'vue';
 import type { DataOptions } from 'vuetify';
-import { GirderModel, mixins } from '@girder/components/src';
+import {
+  GirderModel,
+  mixins,
+  GirderDataBrowser,
+  GirderDataTable,
+} from '@girder/components/src';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { getDatasetList } from '../api';
-import { useStore, LocationType } from '../store/types';
+import { getSharedWithMeFolders } from '../api';
+import {
+  useStore, LocationState, RootlessLocationType,
+} from '../store/types';
+import DataSharedBreadCrumb from './DataSharedBreadCrumb.vue';
 
 export default defineComponent({
   name: 'DataShared',
+  components: {
+    GirderDataBrowser,
+    GirderDataTable,
+    DataSharedBreadCrumb,
+  },
   setup() {
-    const total = ref();
+    const total = ref(0);
+    const path: Ref<RootlessLocationType[]> = ref([]);
+
     const dataList = ref([] as GirderModel[]);
     const tableOptions = reactive({
       page: 1,
@@ -21,14 +38,8 @@ export default defineComponent({
     } as DataOptions);
     const store = useStore();
     const { getters } = store;
-    const locationStore = store.state.Location;
-
-    const headers = [
-      { text: 'File Name', value: 'name' },
-      { text: '', value: 'annotator', sortable: false },
-      { text: 'File Size', value: 'formattedSize' },
-      { text: 'Shared By', value: 'ownerLogin' },
-    ];
+    const locationStore: LocationState = store.state.Location;
+    const localLocation = ref();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fixSize: any = mixins.sizeFormatter.methods;
@@ -41,8 +52,8 @@ export default defineComponent({
       const offset = (page - 1) * clientSettings.rowsPerPage;
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
-      const shared = true;
-      const response = await getDatasetList(limit, offset, sort, sortDir, shared);
+
+      const response = await getSharedWithMeFolders(limit, offset, sort, sortDir);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
       dataList.value.forEach((element) => {
@@ -51,13 +62,35 @@ export default defineComponent({
       });
     };
 
-    function setLocation(location: LocationType) {
-      store.dispatch('Location/setRouteFromLocation', location);
+    function setLocation(location: RootlessLocationType) {
+      localLocation.value = location;
+      for (let i = 0; i < path.value.length; i += 1) {
+        if (path.value[i]._id === location._id) {
+          path.value = path.value.slice(0, i + 1);
+          return;
+        }
+      }
+      path.value.push(location);
+    }
+
+    function resetLocation() {
+      path.value = [];
     }
 
     function isAnnotationFolder(item: GirderModel) {
       return item._modelType === 'folder' && item.meta.annotate;
     }
+
+    const rows = computed(() => dataList.value.map((item) => ({
+      ...item,
+      humanSize: fixSize.formatSize(item.size),
+      icon: item.public ? 'folder' : 'folderNonPublic',
+    })));
+
+    const options = ref({
+      itemsPerPage: clientSettings.rowsPerPage,
+      page: 1,
+    });
 
     watch(tableOptions, updateOptions, {
       deep: true,
@@ -67,16 +100,18 @@ export default defineComponent({
     updateOptions();
     return {
       isAnnotationFolder,
-      dataList,
       getters,
-      updateOptions,
       setLocation,
+      resetLocation,
+      rows,
       total,
       locationStore,
       clientSettings,
       itemsPerPageOptions,
+      options,
+      notSharedLocation: localLocation,
       ...toRefs(tableOptions),
-      headers,
+      path,
     };
   },
 });
@@ -84,25 +119,105 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-data-table
+  <v-card v-if="rows.length === 0">
+    <div class="no-shared">
+      <span class="pr-4">No datasets have been shared with you yet.</span>
+      <a href="https://kitware.github.io/dive/Web-Version/#sharing-data-with-teams">Learn more about sharing</a>
+    </div>
+  </v-card>
+  <girder-data-table
+    v-else-if="path.length === 0"
+    @rowclick="setLocation"
     v-model="locationStore.selected"
     :selectable="!getters['Location/locationIsViameFolder']"
-    :location="locationStore.location"
-    :headers="headers"
-    :page.sync="page"
-    :items-per-page.sync="clientSettings.rowsPerPage"
-    :sort-by.sync="sortBy"
-    :sort-desc.sync="sortDesc"
     :server-items-length="total"
-    :items="dataList"
-    :footer-props="{ itemsPerPageOptions }"
+    :items-per-page-options="itemsPerPageOptions"
+    :options="options"
+    :loading="false"
     item-key="_id"
     show-select
-    @input="$emit('input', $event)"
-    @update:location="setLocation"
+    :rows="rows">
+    <template #header="{ props, on }">
+      <thead>
+        <tr
+          :class="$vuetify.theme.dark ? 'darken-2' : 'lighten-5'"
+          class="secondary"
+        >
+          <th class="pl-3 pr-0" width="1%">
+            <v-checkbox
+              :input-value="props.everyItem"
+              class="pr-2"
+              color="accent"
+              hide-details="hide-details"
+              @click.native="on['toggle-select-all'](!props.everyItem)"
+            />
+          </th>
+          <th
+            class="pl-3"
+            colspan="10"
+            width="99%"
+          >
+            <v-row class="ma-1">
+              <data-shared-bread-crumb
+                :path="path"
+                :location="notSharedLocation"
+                @folder-click="setLocation"
+                @shared-click="resetLocation" />
+              <v-spacer />
+            </v-row>
+          </th>
+        </tr>
+      </thead>
+    </template>
+    <template #row="{ item }">
+      <span class="row-content">
+        <span>{{ item.name }}</span>
+        <v-icon
+          v-if="getters['Jobs/datasetRunningState'](item._id)"
+          color="warning"
+          class="rotate"
+        >
+          mdi-autorenew
+        </v-icon>
+        <v-btn
+          v-if="isAnnotationFolder(item)"
+          class="ml-2"
+          x-small
+          color="primary"
+          depressed
+          :to="{ name: 'viewer', params: { id: item._id } }"
+        >
+          Launch Annotator
+        </v-btn>
+        <span class="owner-text">Shared by {{ item.ownerLogin }}</span>
+      </span>
+    </template>
+  </girder-data-table>
+  <girder-data-browser
+    v-else
+    v-model="locationStore.selected"
+    :selectable="!getters['Location/locationIsViameFolder']"
+    :location="notSharedLocation"
+    :items-per-page-options="itemsPerPageOptions"
+    :options="options"
+    @update:location="setLocation($event)"
   >
-    <!-- eslint-disable-next-line -->
-    <template v-slot:item.annotator="{item}">
+    <template #breadcrumb>
+      <data-shared-bread-crumb
+        :path="path"
+        :location="notSharedLocation"
+        @folder-click="setLocation"
+        @shared-click="resetLocation" />
+    </template>
+    <template #row="{ item }">
+      <span>{{ item.name }}</span>
+      <v-icon
+        v-if="getters['Jobs/datasetRunningState'](item._id)"
+        color="warning"
+        class="rotate"
+      >
+        mdi-autorenew
+      </v-icon>
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"
@@ -114,9 +229,20 @@ export default defineComponent({
         Launch Annotator
       </v-btn>
     </template>
-    <template #no-data>
-      <span class="pr-4">No datasets have been shared with you yet.</span>
-      <a href="https://kitware.github.io/dive/Web-Version/#sharing-data-with-teams">Learn more about sharing</a>
-    </template>
-  </v-data-table>
+  </girder-data-browser>
 </template>
+
+<style lang="scss" scoped>
+.row-content {
+  display: inline-block;
+  width: 81%;
+
+  .owner-text {
+    float: right;
+  }
+}
+
+.no-shared {
+  padding: 20px;
+}
+</style>

@@ -37,9 +37,33 @@ function setUsePrivateQueue(userId: string, value = false) {
   });
 }
 
+async function getSharedWithMeFolders(
+  limit?: number,
+  offset?: number,
+  sort?: string,
+  sortDir?: number,
+  onlyNonAccessibles: boolean = true,
+) {
+  const response = await girderRest.get<GirderModel[]>('folder/shared-folders', {
+    params: {
+      limit,
+      offset,
+      sort,
+      sortDir,
+      onlyNonAccessibles,
+    },
+  });
+  response.data.forEach((element) => {
+    // eslint-disable-next-line no-param-reassign
+    element._modelType = 'folder';
+  });
+  return response;
+}
+
 export {
   deleteResources,
   getItemsInFolder,
   getFolder,
   setUsePrivateQueue,
+  getSharedWithMeFolders,
 };
