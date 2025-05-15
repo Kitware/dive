@@ -24,11 +24,13 @@ export default defineComponent({
       @click="$emit('shared-click')">
       mdi-share-variant
     </v-icon>
-    <div v-for="(pathPart, index) in path" :key="index">
-      <span class="divider">/</span>
-      <span v-if="index < path.length - 1" @click="$emit('folder-click', pathPart)" class="accent--text">{{ pathPart.name }}</span>
-      <span v-else>{{ pathPart.name }}</span>
-    </div>
+    <template v-for="(pathPart, index) in path">
+      <span class="divider" :key="`divider-${index}`">/</span>
+      <div :key="`divider-${index}`">
+        <span v-if="index < path.length - 1" @click="$emit('folder-click', pathPart)" class="accent--text">{{ pathPart.name }}</span>
+        <span v-else>{{ pathPart.name }}</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -36,6 +38,7 @@ export default defineComponent({
 .bread-crumb-wrapper {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
