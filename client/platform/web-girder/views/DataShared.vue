@@ -6,8 +6,8 @@ import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { getDatasetList } from '../api';
-import { useStore, LocationType } from '../store/types';
+import { getSharedWithMeFolders } from '../api';
+import { useStore } from '../store/types';
 
 export default defineComponent({
   name: 'DataShared',
@@ -25,7 +25,7 @@ export default defineComponent({
 
     const headers = [
       { text: 'File Name', value: 'name' },
-      { text: '', value: 'annotator', sortable: false },
+      { text: 'Type', value: 'type' },
       { text: 'File Size', value: 'formattedSize' },
       { text: 'Shared By', value: 'ownerLogin' },
     ];
@@ -41,19 +41,16 @@ export default defineComponent({
       const offset = (page - 1) * clientSettings.rowsPerPage;
       const sort = sortBy[0] || 'created';
       const sortDir = sortDesc[0] === false ? 1 : -1;
-      const shared = true;
-      const response = await getDatasetList(limit, offset, sort, sortDir, shared);
+      const response = await getSharedWithMeFolders(limit, offset, sort, sortDir);
       dataList.value = response.data;
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
       dataList.value.forEach((element) => {
         // eslint-disable-next-line no-param-reassign
         element.formattedSize = fixSize.formatSize(element.size);
+        // eslint-disable-next-line no-param-reassign
+        element.type = isAnnotationFolder(element) ? 'Dataset' : 'Folder';
       });
     };
-
-    function setLocation(location: LocationType) {
-      store.dispatch('Location/setRouteFromLocation', location);
-    }
 
     function isAnnotationFolder(item: GirderModel) {
       return item._modelType === 'folder' && item.meta.annotate;
@@ -70,7 +67,6 @@ export default defineComponent({
       dataList,
       getters,
       updateOptions,
-      setLocation,
       total,
       locationStore,
       clientSettings,
@@ -87,7 +83,6 @@ export default defineComponent({
   <v-data-table
     v-model="locationStore.selected"
     :selectable="!getters['Location/locationIsViameFolder']"
-    :location="locationStore.location"
     :headers="headers"
     :page.sync="page"
     :items-per-page.sync="clientSettings.rowsPerPage"
@@ -98,11 +93,18 @@ export default defineComponent({
     :footer-props="{ itemsPerPageOptions }"
     item-key="_id"
     show-select
-    @input="$emit('input', $event)"
-    @update:location="setLocation"
   >
     <!-- eslint-disable-next-line -->
-    <template v-slot:item.annotator="{item}">
+    <template v-slot:item.name="{ item }">
+      <div class="filename" @click="$router.push({ name: 'home', params: { routeType: 'folder', routeId: item._id } })">
+        <v-icon class="mb-1 mr-1">
+          mdi-folder{{ item.public ? '' : '-key' }}
+        </v-icon>
+        {{ item.name }}
+      </div>
+    </template>
+    <template v-slot:item.type="{ item }">
+      {{ item.type }}
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"
@@ -120,3 +122,14 @@ export default defineComponent({
     </template>
   </v-data-table>
 </template>
+
+<style lang="scss" scoped>
+.filename {
+  cursor: pointer;
+  opacity: 0.8;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+</style>

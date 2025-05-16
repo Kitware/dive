@@ -19,7 +19,7 @@ async function getDatasetList(
   limit?: number,
   offset?: number,
   sort?: string,
-  sortDir?: number,
+  sortdir?: number,
   shared?: boolean,
   published?: boolean,
 ) {
@@ -28,7 +28,7 @@ async function getDatasetList(
       limit,
       offset,
       sort,
-      sortDir,
+      sortdir,
       shared,
       published,
     },

@@ -18,7 +18,6 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import DataShared from './DataShared.vue';
 import { useStore } from '../store/types';
 import eventBus from '../eventBus';
 
@@ -47,7 +46,6 @@ export default defineComponent({
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
-    DataShared,
     ShareTab,
   },
   // everything below needs to be refactored to composition-api
