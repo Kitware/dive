@@ -5,6 +5,7 @@ from typing import Tuple
 from dive_utils import types
 
 from girder.models.folder import Folder
+from girder.models.user import User
 from girder.constants import AccessType
 
 def get_folders_shared_with_me_query(
@@ -75,6 +76,8 @@ def list_shared_folders(
     onlyNonAccessibles: bool = True
 ):
     sort, sortDir = (sortParams or [['created', 1]])[0]
+    if sort == 'type':
+        sort = 'meta.annotate'
 
     if onlyNonAccessibles:
         pipeline = get_only_root_folders_shared_with_me_pipeline(user)
@@ -111,3 +114,33 @@ def list_shared_folders(
     total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
     cherrypy.response.headers['Girder-Total-Count'] = total
     return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
+
+
+def get_root_path_or_relative(
+    user: types.GirderUserModel,
+    folder: types.GirderModel
+):
+    path_to_folder = Folder().parentsToRoot(folder, force=True, user=user)
+    final_path = []
+    
+    for item in reversed(path_to_folder):
+        if item['type'] == 'folder':
+            if not Folder().hasAccess(item['object'], user, AccessType.READ):
+                # If user can't read parent, set parent creator as root
+                creator = User().findOne({'_id': item['object']['creatorId']})
+                if creator:
+                    creator = User().filter(creator, user)
+                    final_path.append({
+                        'type': 'user',
+                        'object': creator
+                    })
+                break
+            item['object'] = Folder().filter(item['object'], user)
+            final_path.append(item)
+        else:
+            if item['type'] == 'user':
+                item['object'] = User().filter(item['object'], user)
+                final_path.append(item)
+            break
+
+    return list(reversed(final_path))

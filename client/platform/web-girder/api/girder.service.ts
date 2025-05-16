@@ -41,7 +41,7 @@ async function getSharedWithMeFolders(
   limit?: number,
   offset?: number,
   sort?: string,
-  sortDir?: number,
+  sortdir?: number,
   onlyNonAccessibles: boolean = true,
 ) {
   const response = await girderRest.get<GirderModel[]>('folder/shared-folders', {
@@ -49,7 +49,7 @@ async function getSharedWithMeFolders(
       limit,
       offset,
       sort,
-      sortDir,
+      sortdir,
       onlyNonAccessibles,
     },
   });

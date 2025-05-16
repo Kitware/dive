@@ -18,7 +18,7 @@ from .event import DIVES3Imports, process_fs_import, process_s3_import, send_new
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
-from .views_override import countJobs, use_private_queue, list_shared_folders
+from .views_override import countJobs, use_private_queue, list_shared_folders, get_root_path_or_relative
 from .views_rpc import RpcResource
 
 
@@ -38,6 +38,7 @@ class GirderPlugin(plugin.GirderPlugin):
         info['apiRoot'].job.route("GET", ("queued",), countJobs)
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
         info["apiRoot"].folder.route("GET", ("shared-folders",), list_shared_folders)
+        info["apiRoot"].folder.route("GET", (":id", "rootpath_or_relative"), get_root_path_or_relative)
         User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
 
         # Expose Job dataset assocation

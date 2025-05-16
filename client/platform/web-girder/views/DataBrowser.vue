@@ -3,7 +3,7 @@ import {
   computed, defineComponent, ref, onBeforeUnmount,
 } from 'vue';
 import {
-  GirderFileManager, getLocationType, GirderModel,
+  getLocationType, GirderModel,
 } from '@girder/components/src';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
@@ -11,9 +11,11 @@ import { useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
 import eventBus from '../eventBus';
 
+import DiveGirderBrowser from './DiveGirderBrowser.vue';
+
 export default defineComponent({
   components: {
-    GirderFileManager,
+    DiveGirderBrowser,
     Upload,
   },
 
@@ -77,7 +79,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <GirderFileManager
+  <DiveGirderBrowser
     ref="fileManager"
     v-model="locationStore.selected"
     :selectable="!getters['Location/locationIsViameFolder']"
@@ -159,5 +161,5 @@ export default defineComponent({
         published
       </v-chip>
     </template>
-  </GirderFileManager>
+  </DiveGirderBrowser>
 </template>
