@@ -10,23 +10,25 @@ from girder.constants import AccessType
 
 def get_folders_shared_with_me_query(
     user: types.GirderUserModel,
+    prefix: str = ''
 ):
-    query = {
+    return {
         '$and': [
-            Folder().permissionClauses(user=user, level=AccessType.READ),
+            # Folders expicilty set public are hidden (can also be False or None)
+            {'$nor': [{'public': True}]},
+
+            # Find folders not owned by the current user
+            {'$nor': [{prefix + 'creatorId': {'$eq': user['_id']}}, {prefix + 'creatorId': {'$eq': None}}]},
+
+             # But where the current user, or one group it belongs, has been given explicit access
             {
-                # Find folders not owned by the current user
-                '$nor': [{'creatorId': {'$eq': user['_id']}}, {'creatorId': {'$eq': None}}]
-            },
-            {
-                # But where the current user has been given explicit access
-                # Implicit public folders should not be considered "shared"
-                'access.users': {'$elemMatch': {'id': user['_id']}}
+                '$or': [
+                    {prefix + 'access.users': {'$elemMatch': {'id': user['_id'], 'level': {'$gte': AccessType.READ}}}},
+                    {prefix + 'access.groups': {'$elemMatch': {'id': {'$in': user.get('groups', [])}, 'level': {'$gte': AccessType.READ}}}},
+                ]
             },
         ]
     }
-
-    return query
 
 
 def get_only_root_folders_shared_with_me_pipeline(
@@ -55,12 +57,14 @@ def get_only_root_folders_shared_with_me_pipeline(
         }
     })
 
-    # Select only folders whose parents are not visible to user
+    # Filter folders to show depending on parent
     pipeline.append({
         '$match': {
             '$or': [
-                {'$nor': [Folder().permissionClauses(user=user, level=AccessType.READ, prefix='parent.')]},
-                {'parent': None}
+                # Only show folders that have no parent
+                {'parent': None},
+                # Or whose parent is not shared to the user
+                {'$nor': [get_folders_shared_with_me_query(user, prefix='parent.')]}
             ]
         }
     })
