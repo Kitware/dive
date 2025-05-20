@@ -22,6 +22,8 @@ export default defineComponent({
       import: 'Import multiple Types',
       showEmptyTypes: 'View types that are not used currently.',
       lockTypes: 'Only allows the use of defined types.',
+      preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
+      filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
     });
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
@@ -177,6 +179,68 @@ export default defineComponent({
                 </v-icon>
               </template>
               <span>{{ help.lockTypes }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.typeSettings.preventCascadeTypes"
+              label="Prevent Cascade Types"
+              class="my-0 ml-1 pt-0"
+              dense
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.preventCascadeTypes }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.typeSettings.filterTypesByFrame"
+              label="Filter Types by Frame"
+              class="my-0 ml-1 pt-0"
+              dense
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.filterTypesByFrame }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

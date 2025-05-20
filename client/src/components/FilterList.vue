@@ -1,10 +1,12 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, Ref,
+  computed, defineComponent, PropType, reactive, ref, Ref,
+  watch,
 } from 'vue';
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { clientSettings } from 'dive-common/store/settings';
 import {
   useCameraStore, useReadOnlyMode, useSelectedCamera, useTime,
 } from '../provides';
@@ -187,16 +189,25 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
+    const filterTypesByFrame = ref(clientSettings.typeSettings.filterTypesByFrame);
+
+    watch(() => clientSettings.typeSettings.filterTypesByFrame, (newValue) => {
+      filterTypesByFrame.value = newValue;
+    });
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
       const checkedTypesDeRef = checkedTypesRef.value;
-      const frameTRackTypesDeRef = currentFrameTrackTypes.value;
-      return visibleTypes.value.map((item) => ({
+      const frameTrackTypesDeRef = currentFrameTrackTypes.value;
+      let filteredTypeList = visibleTypes.value;
+      if (filterTypesByFrame.value) {
+        filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
+      }
+      return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTRackTypesDeRef.get(item) || 0} ${item}`,
+        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
       }));

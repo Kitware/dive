@@ -6,6 +6,8 @@ interface AnnotationSettings {
   typeSettings: {
     showEmptyTypes: boolean;
     lockTypes: boolean;
+    preventCascadeTypes?: boolean;
+    filterTypesByFrame?: boolean;
   };
   trackSettings: {
     newTrackSettings: {
@@ -24,6 +26,10 @@ interface AnnotationSettings {
     deletionSettings: {
       promptUser: boolean;
     };
+    trackListSettings: {
+      autoZoom?: boolean;
+      filterDetectionsByFrame?: boolean;
+    }
   };
   groupSettings: {
     newGroupSettings: {
@@ -53,6 +59,10 @@ const defaultSettings: AnnotationSettings = {
     deletionSettings: {
       promptUser: true,
     },
+    trackListSettings: {
+      autoZoom: false,
+      filterDetectionsByFrame: false,
+    },
   },
   groupSettings: {
     newGroupSettings: {
@@ -62,6 +72,7 @@ const defaultSettings: AnnotationSettings = {
   typeSettings: {
     showEmptyTypes: false,
     lockTypes: false,
+    preventCascadeTypes: false,
   },
   rowsPerPage: 20,
   annotationFPS: 10,
