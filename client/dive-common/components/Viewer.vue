@@ -278,6 +278,7 @@ export default defineComponent({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
+      getTracksMerged,
     });
 
     const { eventChartData } = useEventChart({

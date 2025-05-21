@@ -4,10 +4,12 @@ import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
 interface AnnotationSettings {
   typeSettings: {
+    trackSortDir: 'a-z' | 'count' | 'frame count';
     showEmptyTypes: boolean;
     lockTypes: boolean;
     preventCascadeTypes?: boolean;
     filterTypesByFrame?: boolean;
+    maxCountButton?: boolean;
   };
   trackSettings: {
     newTrackSettings: {
@@ -39,6 +41,10 @@ interface AnnotationSettings {
   rowsPerPage: number;
   annotationFPS: number;
   annotatorPreferences: AnnotatorPreferences;
+  timelineCountSettings: {
+    totalCount: boolean;
+    defaultView: 'tracks' | 'detections';
+  }
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -70,9 +76,11 @@ const defaultSettings: AnnotationSettings = {
     },
   },
   typeSettings: {
+    trackSortDir: 'a-z',
     showEmptyTypes: false,
     lockTypes: false,
     preventCascadeTypes: false,
+    maxCountButton: false,
   },
   rowsPerPage: 20,
   annotationFPS: 10,
@@ -82,6 +90,11 @@ const defaultSettings: AnnotationSettings = {
       after: 10,
     },
   },
+  timelineCountSettings: {
+    totalCount: true,
+    defaultView: 'tracks',
+  },
+
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

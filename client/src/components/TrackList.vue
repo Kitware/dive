@@ -64,7 +64,7 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const { frame: frameRef } = useTime();
+    const { frame: frameRef, isPlaying } = useTime();
     const multiSelectList = useMultiSelectList();
     const {
       trackSplit, removeTrack, trackAdd, trackSelect,
@@ -84,7 +84,7 @@ export default defineComponent({
     );
 
     const finalFilteredTracks = computed(() => {
-      if (filterDetectionsByFrame.value) {
+      if (filterDetectionsByFrame.value && !isPlaying.value) {
         return filteredTracksRef.value.filter((track) => {
           const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
           if (possibleTrack) {
@@ -226,14 +226,13 @@ export default defineComponent({
     });
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
-
     return {
       allTypes: allTypesRef,
       data,
       getItemProps,
       mouseTrap,
       newTrackColor,
-      filteredTracks: filteredTracksRef,
+      filteredTracks: finalFilteredTracks,
       readOnlyMode,
       trackAdd,
       virtualHeight,

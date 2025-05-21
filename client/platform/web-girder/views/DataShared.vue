@@ -103,7 +103,7 @@ export default defineComponent({
         {{ item.name }}
       </div>
     </template>
-    <template v-slot:item.type="{ item }">
+    <template #item.type="{ item }">
       {{ item.type }}
       <v-btn
         v-if="isAnnotationFolder(item)"
