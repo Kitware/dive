@@ -89,6 +89,11 @@ const defaultSettings: AnnotationSettings = {
       before: 20,
       after: 10,
     },
+    lockedCamera: {
+      enabled: false,
+      multiBounds: false,
+      transition: false,
+    },
   },
   timelineCountSettings: {
     totalCount: true,
@@ -118,7 +123,7 @@ export default function setup(allTypes: Ref<Readonly<string[]>>) {
     }
   });
 }
-watch(clientSettings, saveSettings);
+watch(clientSettings, saveSettings, { deep: true });
 
 export {
   clientSettings,

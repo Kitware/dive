@@ -8,4 +8,9 @@ export interface AnnotatorPreferences {
     before: number;
     after: number;
   };
+  lockedCamera: {
+  enabled?: boolean;
+  transition?: false | number;
+  multiBounds?: false | number;
+  }
 }
