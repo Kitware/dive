@@ -186,8 +186,8 @@ export default defineComponent({
                 Locked Camera Settings
               </v-card-title>
               <v-card-text v-if="clientSettings.annotatorPreferences.lockedCamera">
-                <v-row class="align-center">
-                  <v-col class="py-1">
+                <v-row class="align-center" dense>
+                  <v-col>
                     <v-switch
                       v-model="transitionVal"
                       small
@@ -197,7 +197,6 @@ export default defineComponent({
                   </v-col>
                   <v-col
                     cols="2"
-                    class="py-1"
                     align="right"
                   >
                     <v-tooltip
@@ -212,12 +211,12 @@ export default defineComponent({
                           mdi-help
                         </v-icon>
                       </template>
-                      <span>Padding around the selected track to Zoom to</span>
+                      <span>Enables a transition to see where in the image the selected track is located</span>
                     </v-tooltip>
                   </v-col>
                 </v-row>
-                <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.transition" class="align-center">
-                  <v-col class="py-1">
+                <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.transition" class="align-center" dense>
+                  <v-col>
                     Transition Time (ms):
                   </v-col>
                   <v-col>
@@ -226,13 +225,15 @@ export default defineComponent({
                       min="100"
                       max="2000"
                       step="50"
+                      dense
+                      hide-details
                       thumb-label="always"
                       @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
                     />
                   </v-col>
                 </v-row>
-                <v-row class="align-center">
-                  <v-col class="py-1">
+                <v-row class="align-center" dense>
+                  <v-col>
                     <v-switch
                       v-model="multBoundsVal"
                       small
@@ -242,7 +243,6 @@ export default defineComponent({
                   </v-col>
                   <v-col
                     cols="2"
-                    class="py-1"
                     align="right"
                   >
                     <v-tooltip
@@ -257,12 +257,12 @@ export default defineComponent({
                           mdi-help
                         </v-icon>
                       </template>
-                      <span>Transition to the new track using an animation</span>
+                      <span>If set this will zoom into a Y times the bounds around the selected track.  If not set it will use the current zoom level</span>
                     </v-tooltip>
                   </v-col>
                 </v-row>
-                <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.multiBounds" class="align-center">
-                  <v-col class="py-1">
+                <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.multiBounds" class="align-center" dense>
+                  <v-col>
                     Multiply Bounds:
                   </v-col>
                   <v-col>
@@ -271,6 +271,8 @@ export default defineComponent({
                       min="1"
                       max="4"
                       step="0.1"
+                      dense
+                      hide-details
                       thumb-label="always"
                       @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
                     />

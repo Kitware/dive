@@ -64,7 +64,7 @@ export default defineComponent({
         <v-btn
           icon
           small
-          class="mx-2"
+          class="mx-0"
           v-bind="attrs"
           v-on="on"
         >

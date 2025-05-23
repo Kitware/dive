@@ -313,8 +313,7 @@ export default defineComponent({
       dense
     >
       <v-row
-        class="border-highlight"
-        align="center"
+        class="border-highlight align-center"
       >
         <v-col
           id="type-header"
@@ -327,7 +326,7 @@ export default defineComponent({
             shrink
             hide-details
             color="white"
-            class="my-1 type-checkbox"
+            class="my-1 type-checkbox mt-0"
             @change="headCheckClicked"
           />
           <v-tooltip
@@ -369,6 +368,7 @@ export default defineComponent({
             </template>
             <span>Delete visible items</span>
           </v-tooltip>
+          <v-spacer />
         </v-col>
       </v-row>
     </v-container>

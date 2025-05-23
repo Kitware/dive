@@ -135,6 +135,7 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+    const sideBarCollapsed = ref(false);
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -743,7 +744,7 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch(controlsCollapsed, async () => {
+    watch([controlsCollapsed, sideBarCollapsed], async () => {
       await nextTick();
       handleResize();
     });
@@ -818,6 +819,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
       colorBy,
       clientSettings,
       datasetName,
@@ -951,6 +953,20 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <v-tooltip
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-icon
+              v-on="on"
+              @click="sideBarCollapsed = !sideBarCollapsed"
+            >
+              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+            </v-icon>
+          </template>
+          <span>Collapse Side Panel</span>
+        </v-tooltip>
+
         <EditorMenu
           v-bind="{
             editingMode,
@@ -1052,6 +1068,7 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
+        v-if="!sideBarCollapsed"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
@@ -1125,7 +1142,6 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            class="shrink"
             :collapsed.sync="controlsCollapsed"
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType,
