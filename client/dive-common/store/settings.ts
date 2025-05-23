@@ -102,18 +102,35 @@ const defaultSettings: AnnotationSettings = {
 
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hydrate(obj: any): AnnotationSettings {
+// Utility to safely load from localStorage
+function loadStoredSettings(): Partial<AnnotationSettings> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('Settings');
+      return raw ? JSON.parse(raw) : {};
+    }
+  } catch (e) {
+    console.warn('Failed to load settings from localStorage:', e);
+  }
+  return {};
+}
+
+// Utility to safely save to localStorage
+function saveSettings() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+    }
+  } catch (e) {
+    console.warn('Failed to save settings to localStorage:', e);
+  }
+}
+
+function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   return merge(cloneDeep(defaultSettings), obj);
 }
 
-//Load default settings initially
-const storedSettings = JSON.parse(localStorage.getItem('Settings') || '{}');
-const clientSettings = reactive(hydrate(storedSettings));
-
-function saveSettings() {
-  localStorage.setItem('Settings', JSON.stringify(clientSettings));
-}
+const clientSettings = reactive(hydrate(loadStoredSettings()));
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {
   // If a type is deleted, reset the default new track type to unknown

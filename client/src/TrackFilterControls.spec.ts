@@ -8,6 +8,22 @@ import { AnnotationId } from './BaseAnnotation';
 
 const markChangesPending = () => null;
 
+beforeEach(() => {
+  const localStorageMock = (() => {
+    let store: Record<string, string> = {};
+    return {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => { store[key] = value.toString(); },
+      removeItem: (key: string) => { delete store[key]; },
+      clear: () => { store = {}; },
+    };
+  })();
+
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+  });
+});
+
 /**
  * Tracks need to be initialized with features
  * in order to broadcast notifications
