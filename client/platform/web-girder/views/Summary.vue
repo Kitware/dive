@@ -12,7 +12,7 @@ export default defineComponent({
   setup() {
     const summaryList = ref<Array<Label>>();
     const expanded = ref<Array<Label>>();
-    const headers: DataTableHeader[] = [
+    const tableHeaders: DataTableHeader[] = [
       { text: 'Type', value: '_id' },
       { text: 'Number of Datasets', value: 'datasets.length' },
       { text: 'Number of Tracks', value: 'count' },
@@ -41,7 +41,7 @@ export default defineComponent({
     return {
       expanded,
       summaryList,
-      headers,
+      tableHeaders,
       clientSettings,
       itemsPerPageOptions,
     };
@@ -51,7 +51,7 @@ export default defineComponent({
 
 <template>
   <v-data-table
-    :headers="headers"
+    :headers="tableHeaders"
     :items="summaryList"
     :expanded.sync="expanded"
     :items-per-page.sync="clientSettings.rowsPerPage"

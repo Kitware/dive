@@ -192,6 +192,10 @@ export default function useModeManager({
     }
   }
 
+  function seekFrame(frame: number) {
+    aggregateController.value.seek(frame);
+  }
+
   async function _setLinkingTrack(trackId: TrackId) {
     //Confirm that there is no track for other cameras.
     const trackList = cameraStore.getTrackAll(trackId);
@@ -780,6 +784,7 @@ export default function useModeManager({
       unstageFromMerge: handleUnstageFromMerge,
       startLinking: handleStartLinking,
       stopLinking: handleStopLinking,
+      seekFrame,
     },
   };
 }

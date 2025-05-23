@@ -160,7 +160,6 @@ export default defineComponent({
           }
         }
       } catch (err) {
-        console.log(err);
         const errorTemplate = 'Unable to export model';
         let text = `${errorTemplate}: ${err}`;
         if (err.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;

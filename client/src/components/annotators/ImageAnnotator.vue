@@ -253,6 +253,7 @@ export default defineComponent({
     function pause() {
       data.playing = false;
       loadingVideo.value = false;
+      props.updateTime(data);
     }
     /**
      * Checks to see if there are enough cached images to play for X seconds.
@@ -300,6 +301,7 @@ export default defineComponent({
       try {
         data.playing = true;
         syncWithVideo(data.frame + 1);
+        props.updateTime(data);
       } catch (ex) {
         console.error(ex);
       }

@@ -216,7 +216,8 @@ async function runPipeline(
 /**
  * a node.js implementation of dive_tasks.tasks.export_trained_model
  */
-async function exportTrainedPipeline(settings: Settings,
+async function exportTrainedPipeline(
+  settings: Settings,
   exportTrainedPipelineArgs: ExportTrainedPipeline,
   updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
@@ -229,17 +230,17 @@ async function exportTrainedPipeline(settings: Settings,
     throw new Error(isValid);
   }
 
-  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, "convert_to_onnx.pipe");
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_to_onnx.pipe');
   if (!fs.existsSync(npath.join(exportPipelinePath))) {
     throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
   }
-  
+
   const modelPipelineDir = npath.parse(pipeline.pipe).dir;
   let weightsPath: string;
   if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {
     weightsPath = npath.join(modelPipelineDir, 'yolo.weights');
   } else {
-    throw new Error("Your pipeline has no trained weights (yolo.weights is missing)");
+    throw new Error('Your pipeline has no trained weights (yolo.weights is missing)');
   }
 
   const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
@@ -291,7 +292,7 @@ async function exportTrainedPipeline(settings: Settings,
         // We move instead of copying because .onnx files can be huge
         fs.moveSync(converterOutput, path);
       } else {
-        console.error("An error occured while creating the ONNX file.");
+        console.error('An error occured while creating the ONNX file.');
       }
     }
     updater({

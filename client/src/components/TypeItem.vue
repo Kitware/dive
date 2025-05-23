@@ -2,9 +2,6 @@
 import { computed, defineComponent } from 'vue';
 import TooltipBtn from './TooltipButton.vue';
 
-/* Horizontal padding is the width of checkbox, scrollbar, and edit button */
-const HorizontalPadding = 42 + 14 + 20;
-
 export default defineComponent({
   name: 'TypeItem',
 
@@ -35,11 +32,28 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
+    displayMaxButton: {
+      type: Boolean,
+      default: false,
+    },
   },
-
-  setup: (props) => ({
-    cssVars: computed(() => ({ '--content-width': `${props.width - HorizontalPadding}px` })),
-  }),
+  setup(props, { emit }) {
+    /* Horizontal padding is the width of checkbox, scrollbar, and edit button */
+    const HorizontalPadding = computed(() => {
+      if (!props.displayMaxButton) {
+        return 42 + 14 + 20;
+      }
+      return 42 + 14 + 20 + 30;
+    });
+    const cssVars = computed(() => ({ '--content-width': `${props.width - HorizontalPadding.value}px` }));
+    const goToFrame = () => {
+      emit('goToMaxFrame', props.type);
+    };
+    return {
+      cssVars,
+      goToFrame,
+    };
+  },
 });
 </script>
 
@@ -96,6 +110,29 @@ export default defineComponent({
         </template>
       </v-checkbox>
       <v-spacer />
+      <v-tooltip
+        v-if="displayMaxButton"
+        open-delay="100"
+        bottom
+      >
+        <template #activator="{ on }">
+          <v-btn
+            icon
+            class="hover-show-child"
+            small
+            v-on="on"
+            @click="goToFrame()"
+          >
+            <v-icon
+              small
+            >
+              mdi-counter
+            </v-icon>
+          </v-btn>
+        </template>
+        <span>Go to Max N Frame</span>
+      </v-tooltip>
+
       <v-tooltip
         open-delay="100"
         bottom

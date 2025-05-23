@@ -3,6 +3,7 @@ import {
   defineComponent, watch, PropType, Ref, ref, computed, toRef,
 } from 'vue';
 
+import { clientSettings } from 'dive-common/store/settings';
 import { TrackWithContext } from '../BaseFilterControls';
 import { injectAggregateController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
@@ -231,14 +232,44 @@ export default defineComponent({
               if (editingTrack && props.camera === selectedCamera.value) {
                 editingTracks.push(trackFrame);
               }
-              if (annotator.lockedCamera.value) {
+              if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
                 if (trackFrame.features?.bounds) {
                   const coords = {
                     x: (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
                     y: (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
                     z: 0,
                   };
-                  annotator.centerOn(coords);
+                  const [x0, y0, x1, y1] = trackFrame.features.bounds;
+
+                  const centerX = (x0 + x1) / 2.0;
+                  const centerY = (y0 + y1) / 2.0;
+
+                  const width = Math.abs(x1 - x0);
+                  const height = Math.abs(y1 - y0);
+
+                  // eslint-disable-next-line no-undef-init
+                  let zoom: number | undefined = undefined;
+                  if (clientSettings.annotatorPreferences.lockedCamera.multiBounds) {
+                    const multiplyBoundsVal = clientSettings.annotatorPreferences.lockedCamera.multiBounds ?? 1;
+
+                    const halfWidth = (width * multiplyBoundsVal) / 2.0;
+                    const halfHeight = (height * multiplyBoundsVal) / 2.0;
+
+                    const left = centerX - halfWidth;
+                    const right = centerX + halfWidth;
+                    const top = centerY - halfHeight;
+                    const bottom = centerY + halfHeight;
+
+                    const zoomAndCenter = annotator.geoViewerRef.value.zoomAndCenterFromBounds({
+                      left, top, right, bottom,
+                    });
+                    zoom = Math.round(zoomAndCenter.zoom);
+                  }
+                  if (clientSettings.annotatorPreferences.lockedCamera.transition) {
+                    annotator.transition({ x: coords.x, y: coords.y }, clientSettings.annotatorPreferences.lockedCamera.transition, zoom);
+                  } else {
+                    annotator.transition({ x: coords.x, y: coords.y }, 0, zoom);
+                  }
                 }
               }
             }

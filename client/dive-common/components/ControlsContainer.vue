@@ -1,6 +1,8 @@
 <script lang="ts">
 import {
   defineComponent, ref, PropType, computed, watch,
+  Ref,
+  reactive,
 } from 'vue';
 import type { DatasetType } from 'dive-common/apispec';
 import FileNameTimeDisplay from 'vue-media-annotator/components/controls/FileNameTimeDisplay.vue';
@@ -11,6 +13,7 @@ import {
   LineChart,
   Timeline,
 } from 'vue-media-annotator/components';
+import { clientSettings } from 'dive-common/store/settings';
 import { useAttributesFilters, useCameraStore, useSelectedCamera } from '../../src/provides';
 
 export default defineComponent({
@@ -49,6 +52,13 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
     const selectedCamera = useSelectedCamera();
+    const activeCountSettings = ref(false);
+    const countView: Ref<'tracks' | 'detections'> = ref(clientSettings.timelineCountSettings.defaultView);
+    const help = reactive({
+      countType: 'Swap between counting tracks vs counting detections',
+      showTotal: 'In the graph show a line for the total counts',
+    });
+
     const hasGroups = computed(
       () => !!cameraStore.camMap.value.get(selectedCamera.value)?.groupStore.sorted.value.length,
     );
@@ -84,6 +94,16 @@ export default defineComponent({
         toggleView('Events');
       }
     });
+
+    const toggleCountView = () => {
+      if (countView.value === 'detections') {
+        countView.value = 'tracks';
+      } else {
+        countView.value = 'detections';
+      }
+      clientSettings.timelineCountSettings.defaultView = countView.value;
+    };
+
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectAggregateController().value;
@@ -102,6 +122,11 @@ export default defineComponent({
       hasGroups,
       attributeData,
       timelineEnabled,
+      activeCountSettings,
+      clientSettings,
+      countView,
+      help,
+      toggleCountView,
     };
   },
 });
@@ -130,17 +155,102 @@ export default defineComponent({
             </template>
             <span>Collapse/Expand Timeline</span>
           </v-tooltip>
-          <v-btn
-            class="ml-1"
-            :class="{ 'timeline-button': currentView !== 'Detections' || collapsed }"
-            depressed
-            :outlined="currentView === 'Detections' && !collapsed"
-            x-small
-            tab-index="-1"
-            @click="toggleView('Detections')"
+
+          <v-menu
+            v-model="activeCountSettings"
+            :nudge-top="28"
+            top
+            :close-on-content-click="false"
+            open-on-hover
+            open-delay="750"
+            close-delay="500"
           >
-            Detections
-          </v-btn>
+            <template #activator="{ on, attrs }">
+              <v-btn
+                class="ml-1"
+                :class="{ 'timeline-button': currentView !== 'Detections' || collapsed }"
+                depressed
+                :outlined="currentView === 'Detections' && !collapsed"
+                x-small
+                tab-index="-1"
+                v-bind="attrs"
+                v-on="on"
+                @click="toggleView('Detections')"
+              >
+                <span class="mr-1"># of</span>{{ countView }}
+              </v-btn>
+            </template>
+            <v-card
+              outlined
+              class="pa-2 pr-4"
+              color="blue-grey darken-3"
+              style="overflow-y: none"
+            >
+              <v-card-title>
+                Count Settings
+              </v-card-title>
+              <v-card-text>
+                <v-row>
+                  <v-col class="py-1">
+                    <v-btn small @click="toggleCountView()">
+                      Swap to {{ countView === 'detections' ? 'Tracks' : 'Detections' }}
+                    </v-btn>
+                  </v-col>
+                  <v-col
+                    cols="2"
+                    class="py-1"
+                    align="right"
+                  >
+                    <v-tooltip
+                      open-delay="200"
+                      bottom
+                    >
+                      <template #activator="{ on }">
+                        <v-icon
+                          small
+                          v-on="on"
+                        >
+                          mdi-help
+                        </v-icon>
+                      </template>
+                      <span>{{ help.countType }}</span>
+                    </v-tooltip>
+                  </v-col>
+                </v-row>
+                <v-row>
+                  <v-col class="py-1">
+                    <v-switch
+                      v-model="clientSettings.timelineCountSettings.totalCount"
+                      label="Show Total Count"
+                      class="my-0 ml-1 pt-0"
+                      dense
+                      hide-details
+                    />
+                  </v-col>
+                  <v-col
+                    cols="2"
+                    class="py-1"
+                    align="right"
+                  >
+                    <v-tooltip
+                      open-delay="200"
+                      bottom
+                    >
+                      <template #activator="{ on }">
+                        <v-icon
+                          small
+                          v-on="on"
+                        >
+                          mdi-help
+                        </v-icon>
+                      </template>
+                      <span>{{ help.showTotal }}</span>
+                    </v-tooltip>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-menu>
           <v-btn
             class="ml-1"
             :class="{ 'timeline-button': currentView !== 'Events' || collapsed }"

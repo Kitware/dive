@@ -1,6 +1,8 @@
 // Reference used because of https://github.com/Microsoft/TypeScript/issues/28502
 /// <reference types="resize-observer-browser" />
 import geo, { GeoEvent } from 'geojs';
+import * as d3 from 'd3';
+
 import Vue, {
   ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
 } from 'vue';
@@ -21,7 +23,6 @@ interface MediaControllerReactiveData {
   frame: number;
   flick: number;
   filename: string;
-  lockedCamera: boolean;
   currentTime: number;
   duration: number;
   volume: number;
@@ -128,13 +129,6 @@ export function useMediaController() {
     });
   }
 
-  function toggleLockedCamera() {
-    cameras.value.forEach((camera) => {
-      const data = state[camera.toString()];
-      data.lockedCamera = !data.lockedCamera;
-    });
-  }
-
   function toggleSynchronizeCameras(val: boolean) {
     synchronizeCameras.value = val;
   }
@@ -192,7 +186,6 @@ export function useMediaController() {
       frame: 0,
       flick: 0,
       filename: '',
-      lockedCamera: false,
       currentTime: 0,
       duration: 0,
       volume: 0,
@@ -219,6 +212,15 @@ export function useMediaController() {
 
     function centerOn(coords: { x: number; y: number; z: number }) {
       geoViewers[camera].value.center(coords);
+    }
+
+    function transition(coords: { x: number; y: number}, duration: number, zoom?: number) {
+      geoViewers[camera].value.transition({
+        center: { x: coords.x, y: coords.y },
+        zoom,
+        duration,
+        interp: d3.interpolateZoom,
+      });
     }
 
     function resetZoom() {
@@ -396,7 +398,6 @@ export function useMediaController() {
       frame: toRef(state[camera], 'frame'),
       flick: toRef(state[camera], 'flick'),
       filename: toRef(state[camera], 'filename'),
-      lockedCamera: toRef(state[camera], 'lockedCamera'),
       duration: toRef(state[camera], 'duration'),
       volume: toRef(state[camera], 'volume'),
       maxFrame: toRef(state[camera], 'maxFrame'),
@@ -408,8 +409,8 @@ export function useMediaController() {
       pause: _pause,
       seek: _seek,
       resetZoom,
-      toggleLockedCamera,
       centerOn,
+      transition,
       setCursor,
       setImageCursor,
       setVolume: _setVolume,
@@ -448,8 +449,6 @@ export function useMediaController() {
       setVolume: over(map(subControllers, 'setVolume')),
       speed: defaultController.speed,
       setSpeed: over(map(subControllers, 'setSpeed')),
-      lockedCamera: defaultController.lockedCamera,
-      toggleLockedCamera,
       pause: over(map(subControllers, 'pause')),
       play: over(map(subControllers, 'play')),
       playing: defaultController.playing,

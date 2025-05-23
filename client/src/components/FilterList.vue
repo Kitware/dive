@@ -1,12 +1,14 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, Ref,
+  computed, defineComponent, PropType, reactive, ref, Ref,
+  watch,
 } from 'vue';
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { clientSettings } from 'dive-common/store/settings';
 import {
-  useCameraStore, useReadOnlyMode, useSelectedCamera, useTime,
+  useCameraStore, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
@@ -61,13 +63,14 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
+    const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
     const { frame } = useTime();
     const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     // Ordering of these lists should match
-    const sortingMethods = ['a-z', 'count', 'frame count'];
+    const sortingMethods: ('a-z' | 'count' | 'frame count')[] = ['a-z', 'count', 'frame count'];
     const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending', 'mdi-sort-clock-ascending-outline'];
 
     const data = reactive({
@@ -80,7 +83,7 @@ export default defineComponent({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
-      sortingMethod: 0, // index into sortingMethods
+      sortingMethod: sortingMethods.findIndex((item) => item === clientSettings.typeSettings.trackSortDir), // index into sortingMethods
       filterText: '',
     });
     const trackFilters = props.filterControls;
@@ -103,6 +106,7 @@ export default defineComponent({
 
     function clickSortToggle() {
       data.sortingMethod = (data.sortingMethod + 1) % sortingMethods.length;
+      clientSettings.typeSettings.trackSortDir = sortingMethods[data.sortingMethod];
     }
 
     async function clickDelete() {
@@ -148,7 +152,7 @@ export default defineComponent({
         .map((str) => parseInt(str, 10));
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
         const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
-        return !!keyframe;
+        return !!keyframe?.keyframe;
       });
       return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
     });
@@ -187,16 +191,25 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
+    const filterTypesByFrame = ref(clientSettings.typeSettings.filterTypesByFrame);
+
+    watch(() => clientSettings.typeSettings.filterTypesByFrame, (newValue) => {
+      filterTypesByFrame.value = newValue;
+    });
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
       const checkedTypesDeRef = checkedTypesRef.value;
-      const frameTRackTypesDeRef = currentFrameTrackTypes.value;
-      return visibleTypes.value.map((item) => ({
+      const frameTrackTypesDeRef = currentFrameTrackTypes.value;
+      let filteredTypeList = visibleTypes.value;
+      if (filterTypesByFrame.value) {
+        filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
+      }
+      return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTRackTypesDeRef.get(item) || 0} ${item}`,
+        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
       }));
@@ -238,6 +251,33 @@ export default defineComponent({
 
     const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
 
+    const goToPeakTrackFrame = (trackType: string) => {
+      const frameCounts = new Map<number, number>();
+
+      const tracksFilteredByType = filteredTracksRef.value.filter((track) => track.annotation.getType(track.context.confidencePairIndex) === trackType);
+      tracksFilteredByType.forEach((track) => {
+        const trackObj = cameraStore.getAnyPossibleTrack(track.annotation.id);
+        if (trackObj) {
+          trackObj.features.filter((item) => item.keyframe).forEach((item) => {
+            const current = frameCounts.get(item.frame) || 0;
+            frameCounts.set(item.frame, current + 1);
+          });
+        }
+      });
+
+      let maxFrame = -1;
+      let maxCount = 0;
+      frameCounts.forEach((count, f) => {
+        if (count > maxCount) {
+          maxCount = count;
+          maxFrame = f;
+        }
+      });
+      handler.seekFrame(maxFrame);
+    };
+
+    const showMaxFrameButton = computed(() => clientSettings.typeSettings.maxCountButton);
+
     return {
       data,
       headCheckState,
@@ -260,6 +300,8 @@ export default defineComponent({
       headCheckClicked,
       setCheckedTypes: trackFilters.updateCheckedTypes,
       updateCheckedType,
+      goToPeakTrackFrame,
+      showMaxFrameButton,
     };
   },
 });
@@ -271,8 +313,7 @@ export default defineComponent({
       dense
     >
       <v-row
-        class="border-highlight"
-        align="center"
+        class="border-highlight align-center"
       >
         <v-col
           id="type-header"
@@ -285,7 +326,7 @@ export default defineComponent({
             shrink
             hide-details
             color="white"
-            class="my-1 type-checkbox"
+            class="my-1 type-checkbox mt-0"
             @change="headCheckClicked"
           />
           <v-tooltip
@@ -327,6 +368,7 @@ export default defineComponent({
             </template>
             <span>Delete visible items</span>
           </v-tooltip>
+          <v-spacer />
         </v-col>
       </v-row>
     </v-container>
@@ -353,7 +395,9 @@ export default defineComponent({
             :display-text="item.displayText"
             :confidence-filter-num="item.confidenceFilterNum"
             :width="width"
+            :display-max-button="showMaxFrameButton"
             @setCheckedTypes="updateCheckedType($event, item.type)"
+            @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"
           />
         </template>

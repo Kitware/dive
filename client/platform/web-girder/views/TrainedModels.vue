@@ -124,7 +124,8 @@ export default defineComponent({
           prepend-inner-icon="mdi-magnify"
           density="compact"
           variant="solo-filled"
-          single-line />
+          single-line
+        />
       </template>
 
       <v-data-table

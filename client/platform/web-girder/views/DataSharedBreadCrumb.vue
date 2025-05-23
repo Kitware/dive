@@ -2,6 +2,7 @@
 import { createLocationValidator, getLocationType } from '@girder/components/src';
 
 export default {
+  inject: ['girderRest'],
   props: {
     location: {
       type: Object,
@@ -21,7 +22,6 @@ export default {
       default: false,
     },
   },
-  inject: ['girderRest'],
   data() {
     return {
       loading: false,

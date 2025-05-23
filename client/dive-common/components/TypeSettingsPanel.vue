@@ -22,6 +22,9 @@ export default defineComponent({
       import: 'Import multiple Types',
       showEmptyTypes: 'View types that are not used currently.',
       lockTypes: 'Only allows the use of defined types.',
+      preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
+      filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
+      maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
     });
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
@@ -61,7 +64,7 @@ export default defineComponent({
         <v-btn
           icon
           small
-          class="mx-2"
+          class="mx-0"
           v-bind="attrs"
           v-on="on"
         >
@@ -79,107 +82,204 @@ export default defineComponent({
         class="pa-2 pr-4"
         color="blue-grey darken-3"
       >
-        Type Settings
-        <v-row>
-          <v-col>
-            <v-btn
-              dense
-              small
-              outlined
-              hide-details
-              @click="importDialog = true"
-            >
-              <v-icon small>
-                mdi-plus
-              </v-icon>
-              Types
-            </v-btn>
-          </v-col>
-          <v-col
-            cols="2"
-            align="right"
-            justify="center"
-          >
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
+        <v-card-title>
+          Type Settings
+        </v-card-title>
+        <v-card-text>
+          <v-row>
+            <v-col>
+              <v-btn
+                dense
+                small
+                outlined
+                hide-details
+                @click="importDialog = true"
+              >
+                <v-icon small>
+                  mdi-plus
                 </v-icon>
-              </template>
-              <span>{{ help.import }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.typeSettings.showEmptyTypes"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Show Empty"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              bottom
-              max-width="200"
+                Types
+              </v-btn>
+            </v-col>
+            <v-col
+              cols="2"
+              align="right"
+              justify="center"
             >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.showEmptyTypes }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.typeSettings.lockTypes"
-              label="Lock Types"
-              class="my-0 ml-1 pt-0"
-              dense
-              hide-details
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              bottom
+              <v-tooltip
+                open-delay="200"
+                bottom
+                max-width="200"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.import }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.showEmptyTypes"
+                class="my-0 ml-1 pt-0"
+                dense
+                label="Show Empty"
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
             >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.lockTypes }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
+              <v-tooltip
+                open-delay="200"
+                bottom
+                max-width="200"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.showEmptyTypes }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.lockTypes"
+                label="Lock Types"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.lockTypes }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.preventCascadeTypes"
+                label="Prevent Cascade Types"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.preventCascadeTypes }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.filterTypesByFrame"
+                label="Filter Types by Frame"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.filterTypesByFrame }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.maxCountButton"
+                label="Show Max Count Button"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.maxCountButton }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+        </v-card-text>
       </v-card>
     </v-menu>
 
