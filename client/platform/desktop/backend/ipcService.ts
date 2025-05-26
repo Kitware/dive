@@ -37,7 +37,7 @@ export default function register() {
   ipcMain.handle('delete-trained-pipeline', async (event, args: Pipe) => {
     const ret = await common.deleteTrainedPipeline(args);
     return ret;
-  })
+  });
   ipcMain.handle('get-training-configs', async () => {
     const ret = await common.getTrainingConfigs(settings.get());
     return ret;

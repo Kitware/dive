@@ -112,6 +112,8 @@ export interface Handler {
   save(set?: string): Promise<void>;
   /* Select and seek to track */
   trackSeek(AnnotationId: AnnotationId): void;
+  /* Seek Frame */
+  seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
@@ -188,6 +190,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
   return {
     save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
+    seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
@@ -291,7 +294,7 @@ function dummyState(): State {
 
   });
   return {
-    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
+    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
     datasetId: ref(''),
@@ -314,6 +317,7 @@ function dummyState(): State {
       flick: ref(0),
       frameRate: ref(0),
       originalFps: ref(null),
+      isPlaying: ref(false),
     },
     trackFilters: trackFilterControls,
     trackStyleManager: new StyleManager({ markChangesPending }),
