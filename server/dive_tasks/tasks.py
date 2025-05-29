@@ -55,7 +55,8 @@ def get_gpu_environment() -> Dict[str, str]:
     # and it matches an installed GPU
     if gpus:
         env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
-    env["PATH"] = "/opt/noaa/viame/bin:/opt/dive/poetry/bin:/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    # Support for NOAA python3.10 means removing the local venv from the path
+    env["PATH"] = env.get("PATH").replace("/opt/dive/local/venv/bin", "")
     return env
 
 
