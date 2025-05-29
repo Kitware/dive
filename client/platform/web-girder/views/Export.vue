@@ -449,6 +449,13 @@ export default defineComponent({
           <v-card-text class="pb-0">
             Export All selected Dataset Detections in VIAME CSV and TrackJSON
           </v-card-text>
+          <v-checkbox
+            v-model="excludeBelowThreshold"
+            label="exclude tracks below confidence threshold"
+            dense
+            hide-details
+          />
+
           <v-card-actions>
             <v-spacer />
             <v-btn

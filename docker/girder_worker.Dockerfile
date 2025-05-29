@@ -30,29 +30,26 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   apt-get install -qy python3.11 libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm  && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN ln -s /usr/bin/python3.11 /usr/bin/python
+RUN ln -fs /usr/bin/python3.10 /usr/bin/python
 WORKDIR /opt/dive/src
 
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.3 POETRY_HOME=/opt/dive/poetry python -
+RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.3 POETRY_HOME=/opt/dive/poetry /usr/bin/python3.11 -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
 # Create a virtual environment for the installation
-RUN python -m venv --copies /opt/dive/local/venv
+RUN /usr/bin/python3.11 -m venv --copies /opt/dive/local/venv
 # Poetry needs this set to recognize it as ane existing environment
 ENV VIRTUAL_ENV="/opt/dive/local/venv"
-ENV PATH="/opt/dive/local/venv/bin:$PATH"
 # Copy only the lock and project files to optimize cache
 COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
 # Use the system installation
-RUN poetry env use system
-RUN poetry config virtualenvs.create false
+RUN poetry env use /usr/bin/python3.11
 # Install dependencies only
-RUN poetry install --no-root
+RUN poetry install --no-root --verbose
 # Build girder client, including plugins like worker/jobs
 # RUN girder build
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-RUN poetry install --only main
     
 
 # Create user "dive" 1099:1099 to align with base image permissions.
@@ -60,16 +57,15 @@ RUN poetry install --only main
 RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
 # Create a directory for VIAME Addons
 RUN install -g dive -o dive -d /tmp/addons
+RUN chown -R dive /opt/dive/local/
 
 # Switch to the new user
 USER dive
-
-# Setup the path of the incoming python installation
-ENV PATH="/opt/dive/local/venv/bin:$PATH"
+RUN poetry install --only main --verbose
 
 # Copy the built python installation
 # Copy ffmpeg
-COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/venv/bin/
+COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/ffmpeg/
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 
