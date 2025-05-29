@@ -66,7 +66,7 @@ class BaseAnnotation(BaseModel):
         # Check if there is any confidence value that exceeds the threshold
         exceeds_default_threshold = False
         for field, confidence in self.confidencePairs:
-            if confidence > thresholds.get(field, defaultThresh):
+            if confidence >= thresholds.get(field, defaultThresh):
                 if (
                     typeFilter and field in typeFilter
                 ):  # field is in the set and confidence > threshold
