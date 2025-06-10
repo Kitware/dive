@@ -1784,7 +1784,7 @@ files = [
     {file = "lxml-5.3.2-cp310-cp310-musllinux_1_2_ppc64le.whl", hash = "sha256:aa837e6ee9534de8d63bc4c1249e83882a7ac22bd24523f83fad68e6ffdf41ae"},
     {file = "lxml-5.3.2-cp310-cp310-musllinux_1_2_s390x.whl", hash = "sha256:da4c9223319400b97a2acdfb10926b807e51b69eb7eb80aad4942c0516934858"},
     {file = "lxml-5.3.2-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:dc0e9bdb3aa4d1de703a437576007d366b54f52c9897cae1a3716bb44fc1fc85"},
-    {file = "lxml-5.3.2-cp310-cp310-win32.whl", hash = "sha256:5f94909a1022c8ea12711db7e08752ca7cf83e5b57a87b59e8a583c5f35016ad"},
+    {file = "lxml-5.3.2-cp310-cp310-win32.win32.whl", hash = "sha256:dd755a0a78dd0b2c43f972e7b51a43be518ebc130c9f1a7c4480cf08b4385486"},
     {file = "lxml-5.3.2-cp310-cp310-win_amd64.whl", hash = "sha256:d64ea1686474074b38da13ae218d9fde0d1dc6525266976808f41ac98d9d7980"},
     {file = "lxml-5.3.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:9d61a7d0d208ace43986a92b111e035881c4ed45b1f5b7a270070acae8b0bfb4"},
     {file = "lxml-5.3.2-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:856dfd7eda0b75c29ac80a31a6411ca12209183e866c33faf46e77ace3ce8a79"},
@@ -3137,19 +3137,19 @@ typing-extensions = {version = ">=4.4.0", markers = "python_version < \"3.13\""}
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.32.4"
 description = "Python HTTP for Humans."
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6"},
-    {file = "requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760"},
+    {file = "requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c"},
+    {file = "requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422"},
 ]
 
 [package.dependencies]
 certifi = ">=2017.4.17"
-charset-normalizer = ">=2,<4"
+charset_normalizer = ">=2,<4"
 idna = ">=2.5,<4"
 urllib3 = ">=1.21.1,<3"
 
@@ -3503,7 +3503,6 @@ description = "A simple package for fast JPEG encoding and decoding."
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "python_version == \"3.9\" or python_version == \"3.8\" or platform_system == \"Linux\" and python_version < \"3.10\" and platform_machine == \"aarch64\""
 files = [
     {file = "simplejpeg-1.7.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:bf9cb941f980d884145d2b50b7991b5e38e9796da29433b8b768d883b9ea9fab"},
     {file = "simplejpeg-1.7.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:99e8a0d74b4686137157255d9cd0eb13c175d58fb7071b583449b637be719c57"},
@@ -3544,46 +3543,6 @@ files = [
 
 [package.dependencies]
 numpy = "<2"
-
-[[package]]
-name = "simplejpeg"
-version = "1.8.2"
-description = "A simple package for fast JPEG encoding and decoding."
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-markers = "python_version >= \"3.10\""
-files = [
-    {file = "simplejpeg-1.8.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:6e8f1c263649eb558cc648dc8a79f2ebff5ec1e51a81c055e23f248114c9a961"},
-    {file = "simplejpeg-1.8.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:2939dd276f9ff5b9350c9812b11c634e22886a1401c06c2c2d0bfd85fc7ec3be"},
-    {file = "simplejpeg-1.8.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d000ae1a74a5834e9b2908033c7c6ea882ffac733f682e7e94d9db21b709c6d8"},
-    {file = "simplejpeg-1.8.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:586b5b837a50161549ada6e013a5d7d2aec2a001c1857efebada676d96861aab"},
-    {file = "simplejpeg-1.8.2-cp310-cp310-win_amd64.whl", hash = "sha256:2b3223da318b3f063f146cde5c8394ca3c9ee32a4f740ffd8333d68042aecd78"},
-    {file = "simplejpeg-1.8.2-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:2a4c075ce3cabff2e2da9833ac30c33dbefbde6c2bf44c85b04427cccdaa71d9"},
-    {file = "simplejpeg-1.8.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8ab277564272aae211ec5b6a9466b2070d827eaafdae85c507b16970e8787256"},
-    {file = "simplejpeg-1.8.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6d64c0255db3dc5f7f6f61091ae9266fe2526c97160fd35025ee94d4d17dfc18"},
-    {file = "simplejpeg-1.8.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:064c583e7e33689d14a4621e2e9a330694b62e503961162bb897dccba446b52b"},
-    {file = "simplejpeg-1.8.2-cp311-cp311-win_amd64.whl", hash = "sha256:9f99156bfd211b4d2298ad5188173aca4a8ff6c7dc75695cba34df8442b7ec3b"},
-    {file = "simplejpeg-1.8.2-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:6185d3dbaac759f94663ad1b119f115e54fd472082d5ab0247292c06dfc4e8e0"},
-    {file = "simplejpeg-1.8.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:b9feef167f7b6d77a1e00a3f08026876d9776c8b94b7f68b1ebe66c11270a486"},
-    {file = "simplejpeg-1.8.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:70ea3ba9930ea991fa2a464efdcdd9c9db7e7f717949f4d291a87bdfbfc966a5"},
-    {file = "simplejpeg-1.8.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3e0217d767e0ecf7add67a41b9a368741dcc8e36ff89c1fc0a445cabc23f41b0"},
-    {file = "simplejpeg-1.8.2-cp312-cp312-win_amd64.whl", hash = "sha256:098cf1eb0ab5c26c94793e190bb8abd4439536b271b865ad37f594b1c9bb8d8f"},
-    {file = "simplejpeg-1.8.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:af6e5bf19570c8dcd7a1216c53e799155bade38f7f338a64db74be159115e18f"},
-    {file = "simplejpeg-1.8.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:0dfb97636e30344fe4ec9383d6af5efd177bd68a35a8696cc0358f5a7aa82342"},
-    {file = "simplejpeg-1.8.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:55da32610384f8f2b9156298648de265c3c07c4d14b7e718471b28cc447e6186"},
-    {file = "simplejpeg-1.8.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b36245beb2aa10e3279301236e82bb54886360b1da75a3c6eadd7065a8fab89d"},
-    {file = "simplejpeg-1.8.2-cp313-cp313-win_amd64.whl", hash = "sha256:dee5bef85e766e69952de157c5833b47ed8345333f14365a65216179770ad608"},
-    {file = "simplejpeg-1.8.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:e0eb1f3f9ffa1e584def93a321cc4ad62a21d68192f5ea087f1080ef2d64a358"},
-    {file = "simplejpeg-1.8.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:23bc1b85905793a1673c8e63eacb308a1070c12e96836239f32ad29f9d87c905"},
-    {file = "simplejpeg-1.8.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:405e24c75b89c66fef7e12407f87052fe3f04bedf4561d73e1f2ebf496eb96a9"},
-    {file = "simplejpeg-1.8.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4803ce1f16f364decd910de4cfbe35c12d9c228bc686fb2306a1b4e1a697cd4e"},
-    {file = "simplejpeg-1.8.2-cp39-cp39-win_amd64.whl", hash = "sha256:7d0f796c511f7483fa17ef05e8f37cdd62c229954374e5130d83138b957a4e5c"},
-    {file = "simplejpeg-1.8.2.tar.gz", hash = "sha256:b06e253a896c7fc4f257e11baf96d783817cea41360d0962a70c2743ba57bc30"},
-]
-
-[package.dependencies]
-numpy = ">=1.19.3"
 
 [[package]]
 name = "six"
