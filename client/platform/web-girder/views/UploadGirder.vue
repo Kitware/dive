@@ -8,6 +8,7 @@ import {
 } from 'platform/web-girder/constants';
 
 import { makeViameFolder, postProcess } from 'platform/web-girder/api';
+import { GirderUploadManager } from 'platform/web-girder/utils';
 
 export default Vue.extend({
   name: 'GirderUpload',
@@ -161,6 +162,7 @@ export default Vue.extend({
       await this.start({
         dest: folder,
         postUpload,
+        uploadCls: GirderUploadManager,
       });
     },
   },
