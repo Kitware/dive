@@ -50,8 +50,6 @@ services:
 
   girder_worker_training:
     restart: always
-    environment:
-      - "WORKER_WATCHING_QUEUES=training,pipelines"
 
   watchtower:
     image: containrrr/watchtower:latest
