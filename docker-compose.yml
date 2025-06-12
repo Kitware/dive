@@ -103,7 +103,14 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
-    gpus: "${PIPELINE_GPU_UUID:-all}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['0']
+            capabilities: [gpu]
+
     environment:
       - "WORKER_WATCHING_QUEUES=pipelines"
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
@@ -113,7 +120,13 @@ services:
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
-    gpus: "${TRAINING_GPU_UUID:-all}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['1']
+            capabilities: [gpu]
     environment:
       - "WORKER_WATCHING_QUEUES=training"
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
