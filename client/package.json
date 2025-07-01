@@ -103,7 +103,7 @@
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "csv-parse": "^4.13.1",
-    "electron": "^11.5.0",
+    "electron": "^28.3.2",
     "eslint": "^8.55.0",
     "eslint-import-resolver-typescript": "^2.2.0",
     "eslint-plugin-import": "^2.20.2",
