@@ -1,6 +1,6 @@
 import {
   provide, inject, ref, Ref, reactive,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
@@ -20,7 +20,6 @@ import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
 import TrackViewerSettingsStore from './components/track_3d_viewer/TrackViewerSettingsStore';
-
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -115,6 +114,8 @@ export interface Handler {
   save(set?: string): Promise<void>;
   /* Select and seek to track */
   trackSeek(AnnotationId: AnnotationId): void;
+  /* Seek Frame */
+  seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
@@ -182,7 +183,6 @@ export interface Handler {
 }
 const HandlerSymbol = Symbol('handler');
 
-
 /**
  * Make a trivial noop handler. Useful if you only intend to
  * override some small number of values.
@@ -192,6 +192,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
   return {
     save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
+    seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
@@ -267,8 +268,12 @@ const markChangesPending = () => { };
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
   const trackViewerSettingsStore = new TrackViewerSettingsStore();
-  const setTrackType = (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => {
+  const setTrackType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
     cameraStore.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -293,7 +298,7 @@ function dummyState(): State {
 
   });
   return {
-    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
+    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
     trackViewerSettingsStore,
@@ -317,6 +322,7 @@ function dummyState(): State {
       flick: ref(0),
       frameRate: ref(0),
       originalFps: ref(null),
+      isPlaying: ref(false),
     },
     trackFilters: trackFilterControls,
     trackStyleManager: new StyleManager({ markChangesPending }),
@@ -407,7 +413,6 @@ function useGroupFilterControls() {
   return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
-
 function useGroupStyleManager() {
   return use<StyleManager>(GroupStyleManagerSymbol);
 }
@@ -452,7 +457,6 @@ function useSelectedCamera() {
   return use<SelectedCameraType>(SelectedCameraSymbol);
 }
 
-
 function useSelectedKey() {
   return use<SelectedKeyType>(SelectedKeySymbol);
 }
@@ -472,7 +476,6 @@ function useTime() {
 function useTrackFilters() {
   return use<TrackFilterControls>(TrackFilterControlsSymbol);
 }
-
 
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);

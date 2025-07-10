@@ -19,16 +19,15 @@ import {
 } from 'dive-common/constants';
 import {
   DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
-  RunPipeline, RunTraining, ExportDatasetArgs, ExportConfigurationArgs,
+  RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
-
 
 /**
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'stereoConfiguration', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'stereoConfiguration', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -61,7 +60,7 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
       allFiles,
     ];
   }
-  const props = (datasetType === 'image-sequence' || directory) ? 'openDirectory' : 'openFile';
+  const props = (['image-sequence', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
   const results = await dialog.showOpenDialog({
     properties: [props],
     filters,
@@ -75,7 +74,6 @@ async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotati
   }
   return results;
 }
-
 
 /**
  * IPC api for small-body messages
@@ -105,6 +103,14 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
   return ipcRenderer.invoke('run-pipeline', args);
 }
 
+async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
+  const args: ExportTrainedPipeline = {
+    path,
+    pipeline,
+  };
+  return ipcRenderer.invoke('export-trained-pipeline', args);
+}
+
 async function runTraining(
   folderIds: string[],
   pipelineName: string,
@@ -122,8 +128,16 @@ async function runTraining(
   return ipcRenderer.invoke('run-training', args);
 }
 
+async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
+  return ipcRenderer.invoke('delete-trained-pipeline', pipeline);
+}
+
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return ipcRenderer.invoke('import-media', { path });
+}
+
+function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
+  return ipcRenderer.invoke('bulk-import-media', { path });
 }
 
 function deleteDataset(datasetId: string): Promise<boolean> {
@@ -140,7 +154,7 @@ function importMultiCam(args: MultiCamImportArgs):
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean> {
+function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
   return ipcRenderer.invoke('import-annotation', {
     id, path, additive, additivePrepend,
   });
@@ -150,16 +164,14 @@ function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
   return ipcRenderer.invoke('finalize-import', args);
 }
 
-async function exportDataset(
-  id: string, exclude: boolean, typeFilter: readonly string[],
-): Promise<string> {
+async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
   const location = await dialog.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: npath.join(app.getPath('home'), `result_${id}.csv`),
+    defaultPath: npath.join(app.getPath('home'), type === 'json' ? `result_${id}.json` : `result_${id}.csv`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {
-      id, exclude, path: location.filePath, typeFilter: new Set(typeFilter),
+      id, exclude, path: location.filePath, typeFilter: new Set(typeFilter), type,
     };
     return ipcRenderer.invoke('export-dataset', args);
   }
@@ -212,7 +224,6 @@ async function saveDetections(id: string, args: SaveDetectionsArgs) {
   return client.post(`dataset/${id}/detections`, args);
 }
 
-
 async function saveAttributes(id: string, args: SaveAttributeArgs) {
   const client = await getClient();
   return client.post(`dataset/${id}/attributes`, args);
@@ -227,7 +238,9 @@ export {
   /* Standard Specification APIs */
   loadMetadata,
   getPipelineList,
+  deleteTrainedPipeline,
   runPipeline,
+  exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
@@ -240,6 +253,7 @@ export {
   exportConfiguration,
   finalizeImport,
   importMedia,
+  bulkImportMedia,
   deleteDataset,
   checkDataset,
   importAnnotationFile,

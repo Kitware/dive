@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
   computed, defineComponent, ref, onBeforeUnmount,
-} from '@vue/composition-api';
+} from 'vue';
 import {
-  GirderFileManager, getLocationType, GirderModel,
+  getLocationType, GirderModel,
 } from '@girder/components/src';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
@@ -11,9 +11,11 @@ import { useStore, LocationType } from '../store/types';
 import Upload from './Upload.vue';
 import eventBus from '../eventBus';
 
+import DiveGirderBrowser from './DiveGirderBrowser.vue';
+
 export default defineComponent({
   components: {
-    GirderFileManager,
+    DiveGirderBrowser,
     Upload,
   },
 
@@ -76,9 +78,8 @@ export default defineComponent({
 });
 </script>
 
-
 <template>
-  <GirderFileManager
+  <DiveGirderBrowser
     ref="fileManager"
     v-model="locationStore.selected"
     :selectable="!getters['Location/locationIsViameFolder']"
@@ -97,7 +98,7 @@ export default defineComponent({
         max-width="800px"
         :persistent="uploading"
       >
-        <template #activator="{on}">
+        <template #activator="{ on }">
           <v-btn
             class="ma-0"
             text
@@ -120,7 +121,7 @@ export default defineComponent({
         />
       </v-dialog>
     </template>
-    <template #row="{item}">
+    <template #row="{ item }">
       <span>{{ item.name }}</span>
       <v-icon
         v-if="getters['Jobs/datasetRunningState'](item._id)"
@@ -160,5 +161,5 @@ export default defineComponent({
         published
       </v-chip>
     </template>
-  </GirderFileManager>
+  </DiveGirderBrowser>
 </template>

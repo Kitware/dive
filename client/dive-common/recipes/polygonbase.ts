@@ -1,6 +1,5 @@
 import { cloneDeep } from 'lodash';
-import { ref, Ref } from '@vue/composition-api';
-import Vue from 'vue';
+import Vue, { ref, Ref } from 'vue';
 
 import { removePoint } from 'vue-media-annotator/utils';
 import Track from 'vue-media-annotator/track';

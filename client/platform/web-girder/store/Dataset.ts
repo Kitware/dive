@@ -4,7 +4,6 @@ import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api'
 import { MultiType } from 'dive-common/constants';
 import type { DatasetState, RootState } from './types';
 
-
 const datasetModule: Module<DatasetState, RootState> = {
   namespaced: true,
   state: {

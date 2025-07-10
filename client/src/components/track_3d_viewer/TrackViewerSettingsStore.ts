@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-ignore */
-import { ref, Ref } from '@vue/composition-api';
+import { ref, Ref } from 'vue';
 
 export default class TrackViewerSettingsStore {
   cameraParallelProjection: Ref<boolean>;
@@ -21,7 +20,6 @@ export default class TrackViewerSettingsStore {
     this.onlyShowSelectedTrack = ref(false);
     this.detectionGlyphSize = ref(0.003);
 
-    // @ts-ignore
     this.cubeAxesBounds = ref({
       xrange: [-1, 1],
       yrange: [-1, 1],

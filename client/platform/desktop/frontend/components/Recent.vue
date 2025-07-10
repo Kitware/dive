@@ -3,7 +3,7 @@ import { join } from 'path';
 import moment from 'moment';
 import {
   computed, defineComponent, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
@@ -18,6 +18,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { DataTableHeader } from 'vuetify';
 
+import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -29,22 +30,25 @@ import { setOrGetConversionJob } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
-
+import BulkImportDialog from './BulkImportDialog.vue';
 
 export default defineComponent({
   components: {
     BrowserLink,
     ImportButton,
     ImportDialog,
+    BulkImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
     TooltipBtn,
   },
 
-  setup(_, { root }) {
+  setup() {
+    const router = useRouter();
     const importMultiCamDialog = ref(false);
     const calibration = ref(false);
-    const pendingImportPayload: Ref<DesktopMediaImportResponse | null> = ref(null);
+    const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
+    const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
     const stereo = ref(false);
     const multiCamOpenType: Ref<'image-sequence'|'video'> = ref('image-sequence');
@@ -54,11 +58,43 @@ export default defineComponent({
       error, loading: checkingMedia, request, reset: resetError,
     } = useRequest();
 
-    async function open(dstype: DatasetType | 'text', directory = false) {
+    async function open(dstype: DatasetType | 'bulk' | 'text', directory = false) {
+      bulkImport.value = false;
+
       const ret = await api.openFromDisk(dstype, directory);
-      if (!ret.canceled) {
-        pendingImportPayload.value = await request(() => api.importMedia(ret.filePaths[0]));
+      if (ret.canceled) {
+        return;
       }
+
+      if (dstype !== 'bulk') {
+        pendingImportPayload.value = [await request(() => api.importMedia(ret.filePaths[0]))];
+        return;
+      }
+
+      bulkImport.value = true;
+      const foundImports = await request(() => api.bulkImportMedia(ret.filePaths[0]));
+      if (!foundImports.length) {
+        prompt({ title: 'No datasets found', text: 'Please check that your import path is correct and try again.', positiveButton: 'Okay' });
+        pendingImportPayload.value = null;
+        return;
+      }
+
+      pendingImportPayload.value = foundImports;
+    }
+
+    /** Accept args from the dialog, as it may have modified some parts */
+    async function finalizeBulkImport(argsArray: DesktopMediaImportResponse[]) {
+      importing.value = true;
+
+      const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
+      pendingImportPayload.value = null;
+
+      imports.forEach(async (jsonMeta) => {
+        const recentsMeta = await api.loadMetadata(jsonMeta.id);
+        setRecents(recentsMeta);
+      });
+
+      importing.value = false;
     }
 
     /** Accept args from the dialog, as it may have modified some parts */
@@ -68,7 +104,7 @@ export default defineComponent({
         const jsonMeta = await api.finalizeImport(args);
         pendingImportPayload.value = null; // close dialog
         if (!jsonMeta.transcodingJobKey) {
-          root.$router.push({
+          router.push({
             name: 'viewer',
             params: { id: jsonMeta.id },
           });
@@ -90,7 +126,7 @@ export default defineComponent({
 
     async function multiCamImport(args: MultiCamImportArgs) {
       importMultiCamDialog.value = false;
-      pendingImportPayload.value = await request(() => api.importMultiCam(args));
+      pendingImportPayload.value = [await request(() => api.importMultiCam(args))];
     }
 
     async function confirmDeleteDataset(datasetId: string, datasetName: string) {
@@ -110,7 +146,6 @@ export default defineComponent({
       //Now we need to update recents by removing the dataset from localStorage
       removeRecents(datasetId);
     }
-
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
@@ -147,7 +182,7 @@ export default defineComponent({
         });
         return;
       }
-      root.$router.push({ name: 'viewer', params: { id: recent.id } });
+      router.push({ name: 'viewer', params: { id: recent.id } });
     }
 
     const headers: DataTableHeader[] = [
@@ -182,6 +217,7 @@ export default defineComponent({
       // methods
       acknowledgeVersion,
       open,
+      finalizeBulkImport,
       finalizeImport,
       multiCamImport,
       join,
@@ -198,6 +234,7 @@ export default defineComponent({
       stereo,
       filteredRecents,
       pendingImportPayload,
+      bulkImport,
       searchText,
       error,
       importing,
@@ -218,19 +255,21 @@ export default defineComponent({
 <template>
   <v-main>
     <v-dialog
-      :value="pendingImportPayload !== null || importMultiCamDialog || checkingMedia"
       persistent
-      width="800"
       overlay-opacity="0.95"
       max-width="80%"
+      width="800"
+      :value="checkingMedia || importMultiCamDialog"
     >
-      <ImportDialog
-        v-if="pendingImportPayload !== null"
-        :import-data="pendingImportPayload"
-        :disabled="importing"
-        @finalize-import="finalizeImport($event)"
-        @abort="pendingImportPayload = null"
-      />
+      <v-card v-if="checkingMedia" outlined>
+        <v-card-title class="text-h5">
+          {{ bulkImport ? 'Importing...' : 'Calculating...' }}
+          <v-progress-linear
+            indeterminate
+            color="light-blue"
+          />
+        </v-card-title>
+      </v-card>
       <ImportMultiCamDialog
         v-else-if="importMultiCamDialog"
         :stereo="stereo"
@@ -240,18 +279,29 @@ export default defineComponent({
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />
-      <v-card
-        v-else-if="checkingMedia"
-        outlined
-      >
-        <v-card-title class="text-h5">
-          Calculating...
-          <v-progress-linear
-            indeterminate
-            color="light-blue"
-          />
-        </v-card-title>
-      </v-card>
+    </v-dialog>
+    <v-dialog
+      :value="pendingImportPayload !== null"
+      persistent
+      :width="bulkImport ? '1400' : '800'"
+      overlay-opacity="0.95"
+      max-width="80%"
+    >
+      <template v-if="pendingImportPayload !== null">
+        <BulkImportDialog
+          v-if="bulkImport"
+          :import-data="pendingImportPayload"
+          @finalize-import="finalizeBulkImport($event)"
+          @abort="pendingImportPayload = null"
+        />
+        <ImportDialog
+          v-else
+          :import-data="pendingImportPayload[0]"
+          :disabled="importing"
+          @finalize-import="finalizeImport($event)"
+          @abort="pendingImportPayload = null"
+        />
+      </template>
     </v-dialog>
     <navigation-bar />
     <v-container>
@@ -323,6 +373,13 @@ export default defineComponent({
             md="6"
             sm="6"
           >
+            <ImportButton
+              name="Bulk Import"
+              icon="mdi-folder-multiple"
+              open-type="bulk"
+              class="my-3"
+              @open="open($event)"
+            />
             <ImportButton
               name="Open Image Sequence"
               icon="mdi-folder-open"
@@ -457,7 +514,7 @@ export default defineComponent({
       color="error"
     >
       {{ error }}
-      <template v-slot:action="{ attrs }">
+      <template #action="{ attrs }">
         <v-btn
           text
           v-bind="attrs"

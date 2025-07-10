@@ -1,7 +1,8 @@
+<!-- eslint-disable vue/no-ref-as-operand -->
 <script lang="ts">
 import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
@@ -20,6 +21,10 @@ export default defineComponent({
 
   props: {
     datasetIds: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
+    fileIds: {
       type: Array as PropType<string[]>,
       default: () => [],
     },
@@ -74,6 +79,16 @@ export default defineComponent({
       }
     }
 
+    const isDownloadButtonDisplayed = computed(() => {
+      const datasetsSelected = props.datasetIds.length > 0;
+      const filesSelected = props.fileIds.length > 0;
+
+      return datasetsSelected !== filesSelected;
+    });
+
+    const isDatasetDownload = computed(() => props.datasetIds.length > 0 && props.fileIds.length === 0);
+    const isFilesDownload = computed(() => props.fileIds.length > 0 && props.datasetIds.length === 0);
+
     const menuOpen = ref(false);
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
@@ -103,6 +118,23 @@ export default defineComponent({
         excludeBelowThreshold: excludeBelowThreshold.value,
         typeFilter: excludeUncheckedTypes.value ? JSON.stringify(checkedTypes.value) : undefined,
       };
+      if (props.fileIds.length > 0) {
+        if (props.fileIds.length === 1) {
+          return {
+            exportAllUrl: getUri({
+              url: `item/${props.fileIds[0]}/download`,
+            }),
+          };
+        }
+        return {
+          exportAllUrl: getUri({
+            url: 'resource/download',
+            params: {
+              resources: JSON.stringify({ item: props.fileIds }),
+            },
+          }),
+        };
+      }
       if (singleDataSetId.value) {
         return {
           exportAllUrl: getUri({
@@ -151,6 +183,16 @@ export default defineComponent({
           params: { folderIds: JSON.stringify(props.datasetIds) },
 
         }),
+        exportAllUrlDetections: getUri({
+          url: 'dive_dataset/export',
+          params: {
+            ...params,
+            folderIds: JSON.stringify(props.datasetIds),
+            includeDetections: true,
+            includeMedia: false,
+          },
+        }),
+
       };
     });
 
@@ -165,6 +207,15 @@ export default defineComponent({
       }[type];
     });
 
+    async function prepareExport() {
+      if (isFilesDownload.value) {
+        menuOpen.value = false;
+        await doExport({ url: exportUrls.value && exportUrls.value.exportAllUrl });
+      } else {
+        menuOpen.value = true;
+      }
+    }
+
     return {
       error,
       dataset,
@@ -172,12 +223,16 @@ export default defineComponent({
       excludeBelowThreshold,
       excludeUncheckedTypes,
       menuOpen,
+      prepareExport,
       exportUrls,
       checkedTypes,
       revisionId,
       savePrompt,
       singleDataSetId,
       doExport,
+      isDownloadButtonDisplayed,
+      isDatasetDownload,
+      isFilesDownload,
     };
   },
 });
@@ -187,6 +242,7 @@ export default defineComponent({
   <v-menu
     v-model="menuOpen"
     :close-on-content-click="false"
+    :open-on-click="false"
     :nudge-width="120"
     v-bind="menuOptions"
     max-width="280"
@@ -197,8 +253,10 @@ export default defineComponent({
           <v-btn
             class="ma-0"
             v-bind="buttonOptions"
-            :disabled="!datasetIds.length"
+            :disabled="!isDownloadButtonDisplayed"
             v-on="{ ...tooltipOn, ...menuOn }"
+
+            @click="prepareExport()"
           >
             <v-icon>
               mdi-download
@@ -210,12 +268,13 @@ export default defineComponent({
               Download
             </span>
             <v-spacer />
-            <v-icon v-if="menuOptions.right">
+            <v-icon v-if="menuOptions.right && isDatasetDownload">
               mdi-chevron-right
             </v-icon>
           </v-btn>
         </template>
-        <span>Download media and annotations</span>
+        <span v-if="isDatasetDownload">Download media and annotations</span>
+        <span v-else-if="isFilesDownload">Download selected files</span>
       </v-tooltip>
     </template>
     <template>
@@ -225,6 +284,7 @@ export default defineComponent({
       />
       <v-card
         outlined
+        class="downloadMenu"
       >
         <v-card-title>
           Download options
@@ -266,7 +326,7 @@ export default defineComponent({
 
           <v-card-text class="pb-2">
             <div>Get latest annotation csv only</div>
-            <template v-if="dataset.confidenceFilters">
+            <template v-if="dataset.confidenceFilters || true">
               <v-checkbox
                 v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
@@ -318,16 +378,19 @@ export default defineComponent({
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({ url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON })"                >
+                  @click="doExport({
+                    url: exportUrls
+                      && exportUrls.exportDetectionsUrlTrackJSON,
+                  })"
+                >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
                   >DIVE TrackJSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
-                      </v-btn>
-            <!-- <v-btn
+                </v-btn>
+                <!-- <v-btn
               depressed
               block
               :disabled="!exportUrls.exportDetectionsUrl"
@@ -336,7 +399,7 @@ export default defineComponent({
               <span v-if="exportUrls.exportDetectionsUrl">annotations</span>
               <span v-else>detections unavailable</span>
             </v-btn> -->
-            </v-col>
+              </v-col>
             </v-row>
           </v-card-actions>
 
@@ -383,8 +446,36 @@ export default defineComponent({
               Everything
             </v-btn>
           </v-card-actions>
+          <v-card-text class="pb-0">
+            Export All selected Dataset Detections in VIAME CSV and TrackJSON
+          </v-card-text>
+          <v-checkbox
+            v-model="excludeBelowThreshold"
+            label="exclude tracks below confidence threshold"
+            dense
+            hide-details
+          />
+
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
+            >
+              Detections
+            </v-btn>
+          </v-card-actions>
         </template>
       </v-card>
     </template>
   </v-menu>
 </template>
+
+<style scoped>
+.downloadMenu {
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+</style>

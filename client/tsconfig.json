@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "es2018",
-    "module": "esnext",
+    "target": "ES2018",
+    "module": "ES2020",
     "strict": true,
     "jsx": "preserve",
     "importHelpers": true,
@@ -25,7 +25,7 @@
       ]
     },
     "lib": [
-      "esnext",
+      "ESNext",
       "dom"
     ]
   },

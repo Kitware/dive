@@ -1,7 +1,7 @@
 <script lang="ts">
 import { shell } from 'electron';
 import moment, { utc } from 'moment';
-import { defineComponent, ref, onBeforeUnmount } from '@vue/composition-api';
+import { defineComponent, ref, onBeforeUnmount } from 'vue';
 
 import { DesktopJob } from 'platform/desktop/constants';
 
@@ -25,7 +25,6 @@ export default defineComponent({
     }, 1000);
     onBeforeUnmount(() => clearInterval(clockDriverInterval));
 
-
     function toggleVisibleOutput(job: DesktopJob) {
       if (job.key === visibleOutput.value) {
         visibleOutput.value = null;
@@ -35,7 +34,7 @@ export default defineComponent({
     }
 
     async function openPath(job: DesktopJob) {
-      shell.openPath(job.workingDir);
+      if (job.workingDir) shell.openPath(job.workingDir);
     }
 
     return {
@@ -104,8 +103,13 @@ export default defineComponent({
                 <v-col cols="8">
                   <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
                     {{ job.job.jobType }}:
-                    {{ datasets[job.job.datasetIds[0]] ?
-                      datasets[job.job.datasetIds[0]].name : job.job.datasetIds.join(', ') }}
+                    <template v-if="job.job.datasetIds.length > 0">
+                      {{ datasets[job.job.datasetIds[0]]
+                        ? datasets[job.job.datasetIds[0]].name : job.job.datasetIds.join(', ') }}
+                    </template>
+                    <template v-else>
+                      {{ job.job.title }}
+                    </template>
                   </v-card-title>
                   <v-card-subtitle>
                     <table class="key-value-table">
@@ -117,7 +121,7 @@ export default defineComponent({
                         <td>PID</td>
                         <td>{{ job.job.pid }}</td>
                       </tr>
-                      <tr>
+                      <tr v-if="job.job.datasetIds.length > 0">
                         <td>datasets</td>
                         <td>
                           <span
@@ -133,7 +137,7 @@ export default defineComponent({
                           </span>
                         </td>
                       </tr>
-                      <tr>
+                      <tr v-if="job.job.workingDir">
                         <td>work dir</td>
                         <td>
                           <span
@@ -170,7 +174,7 @@ export default defineComponent({
                       {{
                         utc(
                           moment(job.job.endTime || moment())
-                            .diff(moment(job.job.startTime))
+                            .diff(moment(job.job.startTime)),
                         )
                           .format("HH:mm:ss")
                       }}

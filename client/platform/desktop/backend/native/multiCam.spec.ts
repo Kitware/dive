@@ -27,7 +27,9 @@ jest.mock('./mediaJobs', () => ({
   })),
 }));
 
-mockfs(multiCamSetup.mockfs);
+beforeEach(() => {
+  mockfs(multiCamSetup.mockfs);
+});
 
 type FolderTest = Record<string, {
   input: MultiCamImportFolderArgs;
@@ -100,7 +102,6 @@ describe('native.multiCamImport', () => {
   }
 });
 
-
-afterAll(() => {
+afterEach(() => {
   mockfs.restore();
 });

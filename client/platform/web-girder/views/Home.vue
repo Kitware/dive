@@ -2,7 +2,7 @@
 import {
   defineComponent,
   ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
@@ -18,7 +18,6 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import DataShared from './DataShared.vue';
 import { useStore } from '../store/types';
 import eventBus from '../eventBus';
 
@@ -47,9 +46,10 @@ export default defineComponent({
     Upload,
     RunPipelineMenu,
     RunTrainingMenu,
-    DataShared,
     ShareTab,
   },
+  // everything below needs to be refactored to composition-api
+  inject: ['girderRest'],
   setup() {
     const loading = ref(false);
     const { prompt } = usePrompt();
@@ -72,14 +72,17 @@ export default defineComponent({
       getters,
     };
   },
-  // everything below needs to be refactored to composition-api
-  inject: ['girderRest'],
   computed: {
     ...mapState('Location', ['selected', 'location']),
     ...mapGetters('Location', ['locationIsViameFolder']),
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+      ).map(({ _id }) => _id);
+    },
+    selectedFileIds() {
+      return this.selected.filter(
+        (element) => element._modelType === 'item',
       ).map(({ _id }) => _id);
     },
     includesLargeImage() {
@@ -162,19 +165,26 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
-                  v-bind="{ buttonOptions:
-                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage },
+                    menuOptions,
+                  }"
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
-                  v-bind="{ buttonOptions:
-                    { ...buttonOptions, disabled: includesLargeImage }, menuOptions }"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage },
+                    menuOptions,
+                  }"
                   :selected-dataset-ids="locationInputs"
                   :running-pipelines="runningPipelines"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"
+                  :file-ids="selectedFileIds"
                 />
                 <v-btn
                   :disabled="!selected.length"

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /// <reference types="@types/geojson" />
+// @ts-nocheck
 
 /**
  * Command-line entrypoints into serializers and other tooling.
@@ -11,9 +13,6 @@ import { Writable } from 'stream';
 import { stdout, stderr } from 'process';
 import yargs from 'yargs';
 import fs from 'fs-extra';
-
-import Vue from 'vue';
-import CompositionApi from '@vue/composition-api';
 
 import Track from 'vue-media-annotator/track';
 
@@ -52,7 +51,7 @@ function updater(update: DesktopJobUpdate) {
 
 async function parseViameFile(file: string) {
   const data = await parseFile(file);
-  stdout.write(JSON.stringify(data));
+  stdout.write(JSON.stringify(data[0]));
 }
 
 async function parseJsonFile(filepath: string, metapath: string) {
@@ -270,7 +269,6 @@ if (argv._.includes('viame2json')) {
   };
   run();
 } else if (argv._.includes('stats')) {
-  Vue.use(CompositionApi); // needed for Track hydration.
   const settings = getSettings();
   const dspath = npath.join(settings.dataPath, common.ProjectsFolderName);
   const run = async () => {

@@ -21,7 +21,7 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob
+from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -55,7 +55,8 @@ def get_gpu_environment() -> Dict[str, str]:
     # and it matches an installed GPU
     if gpus:
         env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
-
+    # Support for NOAA python3.10 means removing the local venv from the path
+    env["PATH"] = env.get("PATH").replace("/opt/dive/local/venv/bin", "")
     return env
 
 
@@ -84,8 +85,8 @@ class Config:
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
-        self.viame_pipeine_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeine_path.exists(), "VIAME common pipe directory missing."
+        self.viame_pipeline_path = self.viame_install_path / self.pipeline_subdir
+        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
@@ -143,7 +144,7 @@ def upgrade_pipelines(
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
     # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(conf.viame_pipeine_path, conf.get_extracted_pipeline_path(missing_ok=True))
+    shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
@@ -194,7 +195,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     input_type = params["input_type"]
     output_folder_id = str(params["output_folder"])
     input_revision = params["input_revision"]
-
+    force_transcoded = params.get('force_transcoded', False)
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -219,7 +220,9 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
-        input_media_list, _ = utils.download_source_media(gc, input_folder_id, input_path)
+        input_media_list, _ = utils.download_source_media(
+            gc, input_folder_id, input_path, force_transcoded
+        )
 
         if input_type == constants.VideoType:
             input_fps = fromMeta(input_folder, constants.FPSMarker)
@@ -280,6 +283,57 @@ def run_pipeline(self: Task, params: PipelineJob):
         gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
+@app.task(bind=True, acks_late=True, ignore_results=True)
+def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
+    conf = Config()
+    context: dict = {}
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    gc: GirderClient = self.girder_client
+    utils.authenticate_urllib(gc)
+    manager.updateStatus(JobStatus.FETCHING_INPUT)
+
+    # Extract params
+    input_folder_id = params["input_folder"]
+    output_folder_id = params["output_folder"]
+    output_name = params["output_name"]
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
+        output_path = utils.make_directory(_working_directory_path / 'output')
+        onnx_path = output_path / output_name
+        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_to_onnx.pipe"
+
+        gc.downloadFolderRecursive(input_folder_id, str(trained_pipeline_path))
+
+        # Convert pipeline to ONNX
+        command = [
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
+            "kwiver runner",
+            f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
+            f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
+        ]
+
+        manager.updateStatus(JobStatus.RUNNING)
+        popen_kwargs = {
+            'args': " ".join(command),
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': output_path,
+            'env': conf.gpu_process_env,
+        }
+        utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        gc.uploadFileToFolder(output_folder_id, onnx_path)
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def train_pipeline(self: Task, params: TrainingJob):
     """Train a pipeline by making a call to viame_train_detector"""
@@ -301,6 +355,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     config = params['config']
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
+    force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
@@ -319,7 +374,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             utils.download_revision_csv(gc, source_folder_id, revision, groundtruth_path)
             # Download input media
             input_media_list, input_type = utils.download_source_media(
-                gc, source_folder_id, download_path
+                gc, source_folder_id, download_path, force_transcoded
             )
             if input_type == constants.VideoType:
                 download_path = Path(input_media_list[0])
@@ -497,6 +552,9 @@ def convert_video(
         utils.stream_subprocess(self, context, manager, {'args': command})
         # Check to see if frame alignment remains the same
         aligned_file = check_and_fix_frame_alignment(self, output_file_path, context, manager)
+        misaligned_flag = False
+        if aligned_file != output_file_path:
+            misaligned_flag = True
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         new_file = gc.uploadFileToFolder(folderId, aligned_file)
@@ -510,14 +568,17 @@ def convert_video(
                 "codec": "h264",
             },
         )
+        source_metadata = {
+            "source_video": True,
+            constants.OriginalFPSMarker: originalFps,
+            constants.OriginalFPSStringMarker: avgFpsString,
+            "codec": videostream[0]["codec_name"],
+        }
+        if misaligned_flag:
+            source_metadata[constants.MISALGINED_MARKER] = True
         gc.addMetadataToItem(
             itemId,
-            {
-                "source_video": True,
-                constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
-                "codec": videostream[0]["codec_name"],
-            },
+            source_metadata,
         )
         gc.addMetadataToFolder(
             folderId,

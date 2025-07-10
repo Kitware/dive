@@ -2,7 +2,7 @@ import type Vuetify from 'vuetify';
 
 import {
   ref, Ref, computed, set as VueSet,
-} from '@vue/composition-api';
+} from 'vue';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
 import { ScaleOrdinal } from 'd3';

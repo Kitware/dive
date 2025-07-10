@@ -1,14 +1,10 @@
-import Vue from 'vue';
 import { ipcRenderer } from 'electron';
-import Install, { ref, computed } from '@vue/composition-api';
+import Vue, { ref, computed } from 'vue';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
 import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
-
-// TODO remove this: this won't be necessary in Vue 3
-Vue.use(Install);
 
 /**
  * JsonMetaCache is a subset of JsonMeta

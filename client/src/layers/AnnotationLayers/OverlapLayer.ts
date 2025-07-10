@@ -46,113 +46,112 @@ function createOverlappingComparingBounds(comparingBounds: ComparingBounds[]): C
   return overlappingBounds;
 }
 
-
 export default class OverlapLayer extends BaseLayer<OverlapJSData> {
-    hoverOn: boolean; //to turn over annnotations on
+  hoverOn: boolean; //to turn over annnotations on
 
-    constructor(params: BaseLayerParams) {
-      super(params);
-      this.hoverOn = false;
-      //Only initialize once, prevents recreating Layer each edit
-      this.initialize();
-    }
+  constructor(params: BaseLayerParams) {
+    super(params);
+    this.hoverOn = false;
+    //Only initialize once, prevents recreating Layer each edit
+    this.initialize();
+  }
 
-    initialize() {
-      const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
-        features: ['polygon'],
-      });
-      this.featureLayer = layer
-        .createFeature('polygon', { selectionAPI: true });
-      super.initialize();
-    }
+  initialize() {
+    const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
+      features: ['polygon'],
+    });
+    this.featureLayer = layer
+      .createFeature('polygon', { selectionAPI: true });
+    super.initialize();
+  }
 
-    formatData(frameData: FrameDataTrack[]) {
-      const arr: OverlapJSData[] = [];
-      // For each track Type we need to calcualte the overlap area between areas;
-      const comparingBounds: ComparingBounds[] = [];
-      for (let i = 0; i < frameData.length; i += 1) {
-        const track = frameData[i];
-        if (track.features && track.features.bounds) {
-          comparingBounds.push({
-            bounds: track.features.bounds,
-            type: track.styleType[0],
-            set: track.set,
-          });
-        }
+  formatData(frameData: FrameDataTrack[]) {
+    const arr: OverlapJSData[] = [];
+    // For each track Type we need to calcualte the overlap area between areas;
+    const comparingBounds: ComparingBounds[] = [];
+    for (let i = 0; i < frameData.length; i += 1) {
+      const track = frameData[i];
+      if (track.features && track.features.bounds) {
+        comparingBounds.push({
+          bounds: track.features.bounds,
+          type: track.styleType[0],
+          set: track.set,
+        });
       }
-      const merged = createOverlappingComparingBounds(comparingBounds);
-      merged.forEach((merge) => {
-        const polygon = boundToGeojson(merge.bounds);
-
-        const annotation: OverlapJSData = {
-          polygon,
-          type: merge.type,
-        };
-        arr.push(annotation);
-      });
-      return arr;
     }
+    const merged = createOverlappingComparingBounds(comparingBounds);
+    merged.forEach((merge) => {
+      const polygon = boundToGeojson(merge.bounds);
 
-    redraw() {
-      this.featureLayer
-        .data(this.formattedData)
-        .polygon((d: OverlapJSData) => d.polygon.coordinates[0])
-        .draw();
-    }
+      const annotation: OverlapJSData = {
+        polygon,
+        type: merge.type,
+      };
+      arr.push(annotation);
+    });
+    return arr;
+  }
 
-    disable() {
-      this.featureLayer
-        .data([])
-        .draw();
-    }
+  redraw() {
+    this.featureLayer
+      .data(this.formattedData)
+      .polygon((d: OverlapJSData) => d.polygon.coordinates[0])
+      .draw();
+  }
 
-    createStyle(): LayerStyle<OverlapJSData> {
-      return {
-        ...super.createStyle(),
-        // Style conversion to get array objects to work in geoJS
-        position: (point) => ({ x: point[0], y: point[1] }),
-        strokeColor: (_point, _index, data) => {
-          if (data.type) {
-            return this.typeStyling.value.color(data.type);
-          }
-          return this.typeStyling.value.color('');
-        },
-        fill: (data) => {
-          return true;
-          if (data.type) {
-            return this.typeStyling.value.fill(data.type);
-          }
-          return this.stateStyling.standard.fill;
-        },
-        fillColor: (_point, _index, data) => {
-          if (data.type) {
-            return this.typeStyling.value.color(data.type);
-          }
-          return this.typeStyling.value.color('');
-        },
-        fillOpacity: (_point, _index, data) => {
-          return 0.25;
-          if (data.type) {
-            return this.typeStyling.value.opacity(data.type);
-          }
-          return this.stateStyling.standard.opacity;
-        },
-        strokeOpacity: (_point, _index, data) => {
+  disable() {
+    this.featureLayer
+      .data([])
+      .draw();
+  }
+
+  createStyle(): LayerStyle<OverlapJSData> {
+    return {
+      ...super.createStyle(),
+      // Style conversion to get array objects to work in geoJS
+      position: (point) => ({ x: point[0], y: point[1] }),
+      strokeColor: (_point, _index, data) => {
+        if (data.type) {
+          return this.typeStyling.value.color(data.type);
+        }
+        return this.typeStyling.value.color('');
+      },
+      fill: (data) => {
+        return true;
+        if (data.type) {
+          return this.typeStyling.value.fill(data.type);
+        }
+        return this.stateStyling.standard.fill;
+      },
+      fillColor: (_point, _index, data) => {
+        if (data.type) {
+          return this.typeStyling.value.color(data.type);
+        }
+        return this.typeStyling.value.color('');
+      },
+      fillOpacity: (_point, _index, data) => {
+        return 0.25;
+        if (data.type) {
+          return this.typeStyling.value.opacity(data.type);
+        }
+        return this.stateStyling.standard.opacity;
+      },
+      strokeOpacity: (_point, _index, data) => {
         // Reduce the rectangle opacity if a polygon is also drawn
-          if (data.type) {
-            return this.typeStyling.value.opacity(data.type);
-          }
+        if (data.type) {
+          return this.typeStyling.value.opacity(data.type);
+        }
 
-          return this.stateStyling.standard.opacity;
-        },
-        strokeWidth: (_point, _index, data) => {
+        return this.stateStyling.standard.opacity;
+      },
+      strokeWidth: (_point, _index, data) => {
         //Reduce rectangle line thickness if polygon is also drawn
 
-          if (data.type) {
-            return this.typeStyling.value.strokeWidth(data.type);
-          }
-          return this.stateStyling.standard.strokeWidth;
-        },
-      };
-    }
+        if (data.type) {
+          return this.typeStyling.value.strokeWidth(data.type);
+        }
+        return this.stateStyling.standard.strokeWidth;
+      },
+    };
+  }
 }

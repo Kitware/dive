@@ -1,6 +1,5 @@
 /*eslint class-methods-use-this: "off"*/
-import Vue from 'vue';
-import { Ref } from '@vue/composition-api';
+import Vue, { Ref } from 'vue';
 
 import { MediaController } from '../components/annotators/mediaControllerType';
 import { StateStyles, TypeStyling } from '../StyleManager';
@@ -50,55 +49,55 @@ export interface BaseLayerParams {
 }
 
 export default abstract class BaseLayer<D> {
-    formattedData: D[];
+  formattedData: D[];
 
-    annotator: MediaController;
+  annotator: MediaController;
 
-    stateStyling: StateStyles;
+  stateStyling: StateStyles;
 
-    style: LayerStyle<D>;
+  style: LayerStyle<D>;
 
-    typeStyling: Ref<TypeStyling>;
+  typeStyling: Ref<TypeStyling>;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    featureLayer: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  featureLayer: any;
 
-    selectedIndex: number[]; // sparse array
+  selectedIndex: number[]; // sparse array
 
-    bus: Vue;
+  bus: Vue;
 
-    constructor({
-      annotator,
-      stateStyling,
-      typeStyling,
-    }: BaseLayerParams) {
-      this.annotator = annotator;
-      this.stateStyling = stateStyling;
-      this.typeStyling = typeStyling;
-      this.formattedData = [];
-      this.style = {};
-      this.featureLayer = null;
-      this.selectedIndex = [];
-      this.bus = new Vue();
-      this.initialize();
+  constructor({
+    annotator,
+    stateStyling,
+    typeStyling,
+  }: BaseLayerParams) {
+    this.annotator = annotator;
+    this.stateStyling = stateStyling;
+    this.typeStyling = typeStyling;
+    this.formattedData = [];
+    this.style = {};
+    this.featureLayer = null;
+    this.selectedIndex = [];
+    this.bus = new Vue();
+    this.initialize();
+  }
+
+  initialize() {
+    this.style = this.createStyle();
+    const style = {
+      ...{
+        stroke: true,
+        uniformPolygon: true,
+        strokeColor: this.stateStyling.standard && this.stateStyling.standard.color,
+        strokeWidth: 1,
+        fill: false,
+      },
+      ...this.style,
+    };
+    if (this.featureLayer && this.featureLayer.style) {
+      this.featureLayer.style(style);
     }
-
-    initialize() {
-      this.style = this.createStyle();
-      const style = {
-        ...{
-          stroke: true,
-          uniformPolygon: true,
-          strokeColor: this.stateStyling.standard && this.stateStyling.standard.color,
-          strokeWidth: 1,
-          fill: false,
-        },
-        ...this.style,
-      };
-      if (this.featureLayer && this.featureLayer.style) {
-        this.featureLayer.style(style);
-      }
-    }
+  }
 
     abstract redraw(): void;
 

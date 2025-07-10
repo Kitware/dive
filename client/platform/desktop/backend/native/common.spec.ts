@@ -15,7 +15,6 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
 import { createWorkingDirectory } from './utils';
 
-
 const pipelines = {
   'classify_detections_svm.pipe': '',
   'common_generic_detector_with_filter.pipe': '',
@@ -137,251 +136,253 @@ testData.forEach((triplet, index) => {
   };
 });
 
-mockfs({
-  '/opt/viame': {
-    configs: {
-      pipelines: {
-        models: {},
-        templates: {},
-        ...pipelines,
+beforeEach(() => {
+  mockfs({
+    '/opt/viame': {
+      configs: {
+        pipelines: {
+          models: {},
+          templates: {},
+          ...pipelines,
+        },
       },
     },
-  },
-  '/home/user/testPairs': { ...fileSystemData },
-  '/home/user/output': {},
-  '/home/user/data': {
-    annotationImport: {
-      'viame.csv': emptyCsvString,
-      'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
-      // This file will be migrated
-      'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
-    },
-    imageSuccess: {
-      'foo.png': '',
-      'bar.png': '',
-      notanimage: '',
-      'notanimage.txt': '',
-    },
-    imageLists: {
-      success: {
+    '/home/user/testPairs': { ...fileSystemData },
+    '/home/user/output': {},
+    '/home/user/data': {
+      annotationImport: {
+        'viame.csv': emptyCsvString,
+        'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
+        // This file will be migrated
+        'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
+      },
+      imageSuccess: {
+        'foo.png': '',
+        'bar.png': '',
+        notanimage: '',
+        'notanimage.txt': '',
+      },
+      imageLists: {
+        success: {
         // bad sort order
-        'image_list.txt': 'image3.png\r\n/home/user/data/imageLists/success/image2.png\n\n\nimage4.png\n../success/image1.png',
-        'image1.png': '',
-        'image3.png': '',
-        'image2.png': '',
-        'image4.png': '',
-      },
-      successGlob: {
-        'image_list.txt': './2018-image2.png\n./nested/2018-image1.png\n./2019-image0.png',
-        '2018-image2.png': '',
-        '2019-image0.png': '',
-        nested: {
-          '2018-image1.png': '',
+          'image_list.txt': 'image3.png\r\n/home/user/data/imageLists/success/image2.png\n\n\nimage4.png\n../success/image1.png',
+          'image1.png': '',
+          'image3.png': '',
+          'image2.png': '',
+          'image4.png': '',
         },
-      },
-      failEmptyRelative: {
-        'image_list.txt': '\nimage1.png\nimage2.png',
-      },
-      failEmptyAbsolute: {
-        'name-not-important.txt': 'image1.png\n/bad/path/image2.png',
-        'image1.png': '',
-        'image2.png': '',
-      },
-      failEmptyList: {
-        'image_list.txt': '\n\n\r\n',
-      },
-      failInvalidImageMIME: {
-        'image_list.txt': '\nimage1.png\nimage2.txt',
-        'image1.png': '',
-        'image2.txt': '',
-      },
-    },
-    metaAttributesID: {
-      'foo.png': '',
-      'bar.png': '',
-      notanimage: '',
-      'notanimage.txt': '',
-    },
-    imageSuccessWithAnnotations: {
-      'foo.png': '',
-      'bar.png': '',
-      'file1.csv': emptyCsvString,
-    },
-    videoSuccess: {
-      'video1.avi': '',
-      'video1.mp4': '',
-      'otherfile.txt': '',
-      nomime: '',
-    },
-    metaJsonIncluded: {
-      'video1.avi': '',
-      'video1.mp4': '',
-      'meta.json': '{ "confidenceFilters": {"default": 0.8}, "customTypeStyling": {"other": { "color": "blue"}}, "attributes": {"track_NewTrackAttribute":{"belongs":"track","datatype":"text","values":[],"name":"NewTrackAttribute","key":"track_NewTrackAttribute"}}}',
-      nomime: '',
-    },
-    annotationEmptySuccess: {
-      'video1.mp4': '',
-      'result_foo.json': '',
-    },
-    multiCSV: {
-      'video1.mp4': '',
-      'file1.csv': '',
-      'file2.csv': '',
-    },
-  },
-  '/home/user/viamedata': {
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    DIVE_Jobs: {
-      goodTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        category_models: {
-          'detector.pipe': '',
-          'trained_detector.zip': '',
-        },
-      },
-      badTrainingJob: {
-        missingModelFolder: {},
-      },
-      missingPipeTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/camelcase
-        category_models: {
-          'trained_detector.zip': '',
-        },
-      },
-    },
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    DIVE_Pipelines: {
-      /* Empty */
-    },
-    // eslint-disable-next-line @typescript-eslint/camelcase
-    DIVE_Projects: {
-      projectid1: {
-        'meta.json': JSON.stringify({
-          version: 1,
-          id: 'projectid1',
-          type: 'image-sequence',
-          fps: 5,
-          originalBasePath: '/home/user/media/projectid1data',
-          originalImageFiles: [
-            'foo.png',
-            'bar.png',
-          ],
-        } as JsonMeta),
-        'result_whatever.json': JSON.stringify({}),
-        auxiliary: {},
-      },
-      projectid1VideoGood: {
-        'meta.json': JSON.stringify({
-          version: 1,
-          id: 'projectid1',
-          type: 'video',
-          fps: 5,
-          originalVideoFile: 'whatever.mp4',
-          transcodedVideoFile: 'whatever-transcoded.mp4',
-        } as JsonMeta),
-        'result_whatever.json': JSON.stringify({}),
-        auxiliary: {},
-      },
-      projectid2Bad: {
-        'meta.json': '{}',
-        // Won't match
-        'results_invalid.json': '',
-        auxiliary: {},
-      },
-      projectid3Bad: {},
-      projectid4Bad: {
-        'meta.json': '{}',
-        // Too many results
-        'result_1.json': '',
-        'result_2.json': '',
-        auxiliary: {},
-      },
-      projectid5Bad: {
-        // Missing Track JSON File
-        'meta.json': '{}',
-        auxiliary: {},
-      },
-      projectid6Delete: {
-        'meta.json': '{}',
-        'result_1.json': '',
-        'result_2.json': '',
-        auxiliary: {},
-      },
-      stereoDataset: {
-        'meta.json': {
-          type: 'multi',
-          multiCam: {
-            cameras: {
-              left: {
-                type: 'image-sequence',
-                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
-              },
-              right: {
-                type: 'image-sequence',
-                originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
-              },
-            },
+        successGlob: {
+          'image_list.txt': './2018-image2.png\n./nested/2018-image1.png\n./2019-image0.png',
+          '2018-image2.png': '',
+          '2019-image0.png': '',
+          nested: {
+            '2018-image1.png': '',
           },
         },
-        'result_1.json': '',
-        auxiliary: {},
-        left: {
-          'meta.json': '{}',
-          'result_1.json': '',
+        failEmptyRelative: {
+          'image_list.txt': '\nimage1.png\nimage2.png',
         },
-        right: {
-          'meta.json': '{}',
-          'result_1.json': '',
+        failEmptyAbsolute: {
+          'name-not-important.txt': 'image1.png\n/bad/path/image2.png',
+          'image1.png': '',
+          'image2.png': '',
+        },
+        failEmptyList: {
+          'image_list.txt': '\n\n\r\n',
+        },
+        failInvalidImageMIME: {
+          'image_list.txt': '\nimage1.png\nimage2.txt',
+          'image1.png': '',
+          'image2.txt': '',
         },
       },
       metaAttributesID: {
-        'meta.json': JSON.stringify({
-          version: 1,
-          id: 'metaAttributesID',
-          type: 'image-sequence',
-          fps: 5,
-          originalBasePath: '/home/user/media/metaAttributesID',
-          originalImageFiles: [
-            'foo.png',
-            'bar.png',
-          ],
-          attributes: {
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            track_attribute1: {
-              belongs: 'track',
-              datatype: 'text',
-              values: ['value1', 'value2', 'value3'],
-              name: 'attribute1',
-              key: 'track_attribute1',
-            },
-            // eslint-disable-next-line @typescript-eslint/camelcase
-            detection_attribute1: {
-              belongs: 'detection',
-              datatype: 'number',
-              name: 'attribute1',
-              key: 'detection_attribute1',
+        'foo.png': '',
+        'bar.png': '',
+        notanimage: '',
+        'notanimage.txt': '',
+      },
+      imageSuccessWithAnnotations: {
+        'foo.png': '',
+        'bar.png': '',
+        'file1.csv': emptyCsvString,
+      },
+      videoSuccess: {
+        'video1.avi': '',
+        'video1.mp4': '',
+        'otherfile.txt': '',
+        nomime: '',
+      },
+      metaJsonIncluded: {
+        'video1.avi': '',
+        'video1.mp4': '',
+        'meta.json': '{ "confidenceFilters": {"default": 0.8}, "customTypeStyling": {"other": { "color": "blue"}}, "attributes": {"track_NewTrackAttribute":{"belongs":"track","datatype":"text","values":[],"name":"NewTrackAttribute","key":"track_NewTrackAttribute"}}}',
+        nomime: '',
+      },
+      annotationEmptySuccess: {
+        'video1.mp4': '',
+        'result_foo.json': '',
+      },
+      multiCSV: {
+        'video1.mp4': '',
+        'file1.csv': '',
+        'file2.csv': '',
+      },
+    },
+    '/home/user/viamedata': {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+      DIVE_Jobs: {
+        goodTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+          category_models: {
+            'detector.pipe': '',
+            'trained_detector.zip': '',
+          },
+        },
+        badTrainingJob: {
+          missingModelFolder: {},
+        },
+        missingPipeTrainingJob: {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+          category_models: {
+            'trained_detector.zip': '',
+          },
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      DIVE_Pipelines: {
+      /* Empty */
+      },
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      DIVE_Projects: {
+        projectid1: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectid1',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/projectid1data',
+            originalImageFiles: [
+              'foo.png',
+              'bar.png',
+            ],
+          } as JsonMeta),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectid1VideoGood: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectid1',
+            type: 'video',
+            fps: 5,
+            originalVideoFile: 'whatever.mp4',
+            transcodedVideoFile: 'whatever-transcoded.mp4',
+          } as JsonMeta),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectid2Bad: {
+          'meta.json': '{}',
+          // Won't match
+          'results_invalid.json': '',
+          auxiliary: {},
+        },
+        projectid3Bad: {},
+        projectid4Bad: {
+          'meta.json': '{}',
+          // Too many results
+          'result_1.json': '',
+          'result_2.json': '',
+          auxiliary: {},
+        },
+        projectid5Bad: {
+        // Missing Track JSON File
+          'meta.json': '{}',
+          auxiliary: {},
+        },
+        projectid6Delete: {
+          'meta.json': '{}',
+          'result_1.json': '',
+          'result_2.json': '',
+          auxiliary: {},
+        },
+        stereoDataset: {
+          'meta.json': {
+            type: 'multi',
+            multiCam: {
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
+                },
+              },
             },
           },
-        }),
-        'result_whatever.json': JSON.stringify({}),
-        auxiliary: {},
-      },
-      projectid5missingMultiCam: {
-        'meta.json': JSON.stringify({
-          version: 1,
-          name: 'missingMulti',
-          id: 'projectid5',
-          type: 'multi',
-          fps: 5,
-          originalVideoFile: 'whatever.mp4',
-          transcodedVideoFile: 'whatever-transcoded.mp4',
-        } as JsonMeta),
-        'result_whatever.json': JSON.stringify({}),
-        auxiliary: {},
-      },
+          'result_1.json': '',
+          auxiliary: {},
+          left: {
+            'meta.json': '{}',
+            'result_1.json': '',
+          },
+          right: {
+            'meta.json': '{}',
+            'result_1.json': '',
+          },
+        },
+        metaAttributesID: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'metaAttributesID',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/metaAttributesID',
+            originalImageFiles: [
+              'foo.png',
+              'bar.png',
+            ],
+            attributes: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention
+              track_attribute1: {
+                belongs: 'track',
+                datatype: 'text',
+                values: ['value1', 'value2', 'value3'],
+                name: 'attribute1',
+                key: 'track_attribute1',
+              },
+              // eslint-disable-next-line @typescript-eslint/naming-convention
+              detection_attribute1: {
+                belongs: 'detection',
+                datatype: 'number',
+                name: 'attribute1',
+                key: 'detection_attribute1',
+              },
+            },
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectid5missingMultiCam: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            name: 'missingMulti',
+            id: 'projectid5',
+            type: 'multi',
+            fps: 5,
+            originalVideoFile: 'whatever.mp4',
+            transcodedVideoFile: 'whatever-transcoded.mp4',
+          } as JsonMeta),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
 
+      },
     },
-  },
+  });
 });
 
 describe('native.common', () => {
@@ -427,9 +428,7 @@ describe('native.common', () => {
 
   it('loadJsonMetadata prefers transcoded media when it exists', async () => {
     const data = await common.loadMetadata(settings, 'projectid1VideoGood', urlMapper);
-    const videoPath = npath.join(
-      settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4',
-    );
+    const videoPath = npath.join(settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4');
     expect(data.videoUrl).toBe(`http://localhost:8888/api/media?path=${videoPath}`);
   });
 
@@ -449,7 +448,7 @@ describe('native.common', () => {
       name: 'myproject1_name',
       createdAt: (new Date()).toString(),
       originalBasePath: '/foo/bar/baz',
-      id: 'myproject1',
+      id: 'myproject1_name_tktfgyv2g9',
       originalImageFiles: [],
       transcodedImageFiles: [],
       originalVideoFile: '',
@@ -462,7 +461,7 @@ describe('native.common', () => {
     const contents = fs.readdirSync(result);
     expect(stat.isDirectory()).toBe(true);
     expect(contents).toEqual([]);
-    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_mypipeline\.pipe_/);
+    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_tktfgyv2g9_mypipeline\.pipe_/);
   });
 
   it('beginMediaImport image sequence success', async () => {
@@ -728,6 +727,22 @@ describe('native.common', () => {
   });
 
   it('getPipelineList lists pipelines with Trained pipelines', async () => {
+    const trainingArgs: RunTraining = {
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedPipelineName',
+      trainingConfig: 'trainingConfig',
+      annotatedFramesOnly: false,
+    };
+    const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
+    expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
+    //Data should be moved out of the current folder
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    expect(sourceFolder.length).toBe(0);
+    //Folders hould be created for new pipeline
+    const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
+    const pipelineFolderExists = fs.existsSync(pipelineFolder);
+    expect(pipelineFolderExists).toBe(true);
+
     const exists = await fs.pathExists(settings.viamePath);
     expect(exists).toBe(true);
     const pipes = await common.getPipelineList(settings);
@@ -770,6 +785,6 @@ describe('native.common', () => {
   });
 });
 
-afterAll(() => {
+afterEach(() => {
   mockfs.restore();
 });

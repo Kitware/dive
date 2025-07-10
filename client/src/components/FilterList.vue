@@ -1,11 +1,15 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, Ref,
-} from '@vue/composition-api';
+  computed, defineComponent, PropType, reactive, ref, Ref,
+  watch,
+} from 'vue';
 import { difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useReadOnlyMode } from '../provides';
+import { clientSettings } from 'dive-common/store/settings';
+import {
+  useCameraStore, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
+} from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
@@ -27,6 +31,8 @@ const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'FilterList',
+
+  components: { TypeEditor, TooltipBtn, TypeItem },
 
   props: {
     showEmptyTypes: {
@@ -55,15 +61,17 @@ export default defineComponent({
     },
   },
 
-  components: { TypeEditor, TooltipBtn, TypeItem },
-
   setup(props) {
     const { prompt } = usePrompt();
+    const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
-
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
+    const { frame } = useTime();
+    const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     // Ordering of these lists should match
-    const sortingMethods = ['a-z', 'count'];
-    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
+    const sortingMethods: ('a-z' | 'count' | 'frame count')[] = ['a-z', 'count', 'frame count'];
+    const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending', 'mdi-sort-clock-ascending-outline'];
 
     const data = reactive({
       showPicker: false,
@@ -75,7 +83,7 @@ export default defineComponent({
       editingFill: false,
       editingOpacity: 1.0,
       valid: true,
-      sortingMethod: 0, // index into sortingMethods
+      sortingMethod: sortingMethods.findIndex((item) => item === clientSettings.typeSettings.trackSortDir), // index into sortingMethods
       filterText: '',
     });
     const trackFilters = props.filterControls;
@@ -98,6 +106,7 @@ export default defineComponent({
 
     function clickSortToggle() {
       data.sortingMethod = (data.sortingMethod + 1) % sortingMethods.length;
+      clientSettings.typeSettings.trackSortDir = sortingMethods[data.sortingMethod];
     }
 
     async function clickDelete() {
@@ -137,6 +146,26 @@ export default defineComponent({
       return acc;
     }, new Map<string, number>()));
 
+    const filteredTracksForFrame = computed(() => {
+      const trackIdsForFrame = trackStore?.intervalTree
+        .search([frame.value, frame.value])
+        .map((str) => parseInt(str, 10));
+      const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
+        const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
+        return !!keyframe?.keyframe;
+      });
+      return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
+    });
+
+    const currentFrameTrackTypes = computed(() => filteredTracksForFrame.value.reduce((acc, filteredTrack) => {
+      const confidencePair = filteredTrack.annotation
+        .getType(filteredTrack.context.confidencePairIndex);
+      const trackType = confidencePair;
+      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+      return acc;
+    }, new Map<string, number>()));
+
     function sortAndFilterTypes(types: Ref<readonly string[]>) {
       const filtered = types.value
         .filter((t) => t.toLowerCase().includes(data.filterText.toLowerCase()));
@@ -146,6 +175,10 @@ export default defineComponent({
         case 'count':
           return filtered.sort(
             (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
+          );
+        case 'frame count':
+          return filtered.sort(
+            (a, b) => (currentFrameTrackTypes.value.get(b) || 0) - (currentFrameTrackTypes.value.get(a) || 0),
           );
         default:
           return filtered;
@@ -158,15 +191,25 @@ export default defineComponent({
       }
       return sortAndFilterTypes(usedTypesRef);
     });
+    const filterTypesByFrame = ref(clientSettings.typeSettings.filterTypesByFrame);
+
+    watch(() => clientSettings.typeSettings.filterTypesByFrame, (newValue) => {
+      filterTypesByFrame.value = newValue;
+    });
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
       const checkedTypesDeRef = checkedTypesRef.value;
-      return visibleTypes.value.map((item) => ({
+      const frameTrackTypesDeRef = currentFrameTrackTypes.value;
+      let filteredTypeList = visibleTypes.value;
+      if (filterTypesByFrame.value) {
+        filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
+      }
+      return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${item} (${typeCountsDeRef.get(item) || 0})`,
+        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
       }));
@@ -198,7 +241,6 @@ export default defineComponent({
       }
     }
 
-
     function updateCheckedType(evt: boolean, type: string) {
       if (evt) {
         trackFilters.updateCheckedTypes(checkedTypesRef.value.concat([type]));
@@ -208,6 +250,33 @@ export default defineComponent({
     }
 
     const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
+
+    const goToPeakTrackFrame = (trackType: string) => {
+      const frameCounts = new Map<number, number>();
+
+      const tracksFilteredByType = filteredTracksRef.value.filter((track) => track.annotation.getType(track.context.confidencePairIndex) === trackType);
+      tracksFilteredByType.forEach((track) => {
+        const trackObj = cameraStore.getAnyPossibleTrack(track.annotation.id);
+        if (trackObj) {
+          trackObj.features.filter((item) => item.keyframe).forEach((item) => {
+            const current = frameCounts.get(item.frame) || 0;
+            frameCounts.set(item.frame, current + 1);
+          });
+        }
+      });
+
+      let maxFrame = -1;
+      let maxCount = 0;
+      frameCounts.forEach((count, f) => {
+        if (count > maxCount) {
+          maxCount = count;
+          maxFrame = f;
+        }
+      });
+      handler.seekFrame(maxFrame);
+    };
+
+    const showMaxFrameButton = computed(() => clientSettings.typeSettings.maxCountButton);
 
     return {
       data,
@@ -231,6 +300,8 @@ export default defineComponent({
       headCheckClicked,
       setCheckedTypes: trackFilters.updateCheckedTypes,
       updateCheckedType,
+      goToPeakTrackFrame,
+      showMaxFrameButton,
     };
   },
 });
@@ -240,11 +311,9 @@ export default defineComponent({
   <div class="d-flex flex-column">
     <v-container
       dense
-      class="py-0"
     >
       <v-row
-        class="border-highlight"
-        align="center"
+        class="border-highlight align-center"
       >
         <v-col
           id="type-header"
@@ -257,14 +326,22 @@ export default defineComponent({
             shrink
             hide-details
             color="white"
-            class="my-1 type-checkbox"
+            class="my-1 type-checkbox mt-0"
             @change="headCheckClicked"
           />
-          <b>Type Filter</b>
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <b v-on="on">Type Filter</b>
+            </template>
+            <span>Toggle Type TotalCount:FrameCount Type Name</span>
+          </v-tooltip>
           <v-spacer />
           <tooltip-btn
             :icon="sortingMethodIcons[data.sortingMethod]"
-            tooltip-text="Sort types by count or alphabetically"
+            :tooltip-text="`Sort types by Total Count, Alphabetically or Frame Count, current: ${sortingMethods[data.sortingMethod]}`"
             @click="clickSortToggle"
           />
           <slot name="settings" />
@@ -291,6 +368,7 @@ export default defineComponent({
             </template>
             <span>Delete visible items</span>
           </v-tooltip>
+          <v-spacer />
         </v-col>
       </v-row>
     </v-container>
@@ -301,7 +379,7 @@ export default defineComponent({
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
-    <div class="pb-2 overflow-y-hidden">
+    <div class="py-2 overflow-y-hidden">
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"
@@ -317,7 +395,9 @@ export default defineComponent({
             :display-text="item.displayText"
             :confidence-filter-num="item.confidenceFilterNum"
             :width="width"
+            :display-max-button="showMaxFrameButton"
             @setCheckedTypes="updateCheckedType($event, item.type)"
+            @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"
           />
         </template>

@@ -70,7 +70,6 @@ const imageFilenameTests = [
   },
 ];
 
-
 const trackMap: MultiTrackRecord = {
   1: {
     begin: 0,
@@ -194,16 +193,17 @@ imageFilenameTests.forEach((item, index) => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 
-mockfs({
-  '/home': {},
-  'home/user/media/projectid1data': {
-    'foo.png': '',
-    'bar.png': '',
-  },
-  '/imageorder': imageOrderFiles,
-  '/csv': testFiles,
+beforeEach(() => {
+  mockfs({
+    '/home': {},
+    'home/user/media/projectid1data': {
+      'foo.png': '',
+      'bar.png': '',
+    },
+    '/imageorder': imageOrderFiles,
+    '/csv': testFiles,
+  });
 });
-
 
 // Returns first confidence pairs output of CSV that isn't a comment
 function checkConfidenceOutput(output: string[]) {
@@ -239,14 +239,13 @@ describe('VIAME Python Compatibility Check', () => {
       const trackArray = Object.values(trackData);
       // eslint-disable-next-line no-await-in-loop
       const results = await parse(csvStream);
-      expect(Object.values(results.tracks)).toEqual(trackArray);
+      expect(Object.values(results[0].tracks)).toEqual(trackArray);
       // eslint-disable-next-line no-await-in-loop
-      const attData = processTrackAttributes(Object.values(results.tracks));
+      const attData = processTrackAttributes(Object.values(results[0].tracks));
       expect(testAttributes).toEqual(attData.attributes);
     }
   });
 });
-
 
 describe('VIAME serialize testing', () => {
   it('testing exporting with viame CSV and proper order', async () => {
@@ -314,13 +313,12 @@ describe('Test Image Filenames', () => {
       } else {
         // eslint-disable-next-line no-await-in-loop
         const result = await parseFile(testPath, imageMap);
-        expect(Object.values(result.tracks).length).toBeGreaterThan(0);
+        expect(Object.values(result[0].tracks).length).toBeGreaterThan(0);
       }
     }
   });
 });
 
-
-afterAll(() => {
+afterEach(() => {
   mockfs.restore();
 });

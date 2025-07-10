@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 
 import MultiTraining from './MultiTrainingMenu.vue';
 import BrowserLink from './BrowserLink.vue';

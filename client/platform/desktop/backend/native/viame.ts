@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -12,12 +13,11 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import * as common from './common';
-import { jobFileEchoMiddleware, createWorkingDirectory } from './utils';
+import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
-
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -38,6 +38,7 @@ async function runPipeline(
   updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
+  forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
 
@@ -60,7 +61,7 @@ async function runPipeline(
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
   let requiresInput = false;
-  if ((/utility_/g).test(pipeline.pipe)) {
+  if ((/utility_|filter_|transcode_/g).test(pipeline.pipe)) {
     requiresInput = true;
   }
   let groundTruthFileName;
@@ -88,8 +89,8 @@ async function runPipeline(
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     if (meta.type === MultiType) {
-      videoAbsPath = getMultiCamVideoPath(meta);
-    } else if (meta.transcodedVideoFile) {
+      videoAbsPath = getMultiCamVideoPath(meta, forceTranscodedVideo);
+    } else if ((meta.transcodedVideoFile && meta.transcodedMisalign) || forceTranscodedVideo) {
       videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
     }
     command = [
@@ -127,6 +128,15 @@ async function runPipeline(
       command.push(`-s track_writer:file_name="${trackOutput}"`);
     }
   }
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
+    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
+    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+  }
+  if (runPipelineArgs.pipeline.type === 'transcode') {
+    command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
+  }
+
   if (requiresInput && !stereoOrMultiCam) {
     command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
     command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
@@ -208,15 +218,106 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        const { meta: newMeta } = await common.ingestDataFiles(
-          settings, datasetId, [detectorOutput, trackOutput], multiOutFiles,
-        );
+        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
         if (newMeta) {
           meta.attributes = newMeta.attributes;
           await common.saveMetadata(settings, datasetId, meta);
         }
       } catch (err) {
         console.error(err);
+      }
+    }
+    updater({
+      ...jobBase,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+
+  return jobBase;
+}
+
+/**
+ * a node.js implementation of dive_tasks.tasks.export_trained_model
+ */
+async function exportTrainedPipeline(
+  settings: Settings,
+  exportTrainedPipelineArgs: ExportTrainedPipeline,
+  updater: DesktopJobUpdater,
+  validateViamePath: (settings: Settings) => Promise<true | string>,
+  viameConstants: ViameConstants,
+): Promise<DesktopJob> {
+  const { path, pipeline } = exportTrainedPipelineArgs;
+
+  const isValid = await validateViamePath(settings);
+  if (isValid !== true) {
+    throw new Error(isValid);
+  }
+
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_to_onnx.pipe');
+  if (!fs.existsSync(npath.join(exportPipelinePath))) {
+    throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
+  }
+
+  const modelPipelineDir = npath.parse(pipeline.pipe).dir;
+  let weightsPath: string;
+  if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {
+    weightsPath = npath.join(modelPipelineDir, 'yolo.weights');
+  } else {
+    throw new Error('Your pipeline has no trained weights (yolo.weights is missing)');
+  }
+
+  const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
+
+  const converterOutput = npath.join(jobWorkDir, 'model.onnx');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  const command = [
+    `${viameConstants.setupScriptAbs} &&`,
+    `"${viameConstants.kwiverExe}" runner ${exportPipelinePath}`,
+    `-s "onnx_convert:model_path=${weightsPath}"`,
+    `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
+  ];
+
+  const job = observeChild(spawn(command.join(' '), {
+    shell: viameConstants.shell,
+    cwd: jobWorkDir,
+  }));
+
+  const jobBase: DesktopJob = {
+    key: `pipeline_${job.pid}_${jobWorkDir}`,
+    command: command.join(' '),
+    jobType: 'export',
+    pid: job.pid,
+    args: exportTrainedPipelineArgs,
+    title: `${exportTrainedPipelineArgs.pipeline.name} to ONNX`,
+    workingDir: jobWorkDir,
+    datasetIds: [],
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+
+  fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
+
+  updater({
+    ...jobBase,
+    body: [''],
+  });
+
+  job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+  job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+
+  job.on('exit', async (code) => {
+    if (code === 0) {
+      if (fs.existsSync(converterOutput)) {
+        if (fs.existsSync(path)) {
+          fs.unlinkSync(path);
+        }
+        // We move instead of copying because .onnx files can be huge
+        fs.moveSync(converterOutput, path);
+      } else {
+        console.error('An error occured while creating the ONNX file.');
       }
     }
     updater({
@@ -239,6 +340,7 @@ async function train(
   updater: DesktopJobUpdater,
   validateViamePath: (settings: Settings) => Promise<true | string>,
   viameConstants: ViameConstants,
+  forceTranscoding?: boolean,
 ): Promise<DesktopJob> {
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -256,9 +358,7 @@ async function train(
   const jsonMetaList = infoAndMeta.map(({ meta }) => meta);
 
   // Working dir for training
-  const jobWorkDir = await createWorkingDirectory(
-    settings, jsonMetaList, runTrainingArgs.pipelineName,
-  );
+  const jobWorkDir = await createWorkingDirectory(settings, jsonMetaList, runTrainingArgs.pipelineName);
 
   // Argument files for training
   const inputFolderFileList = npath.join(jobWorkDir, 'input_folder_list.txt');
@@ -289,7 +389,7 @@ async function train(
     if (meta.type === 'video') {
       let videopath = '';
       /* If the video has been transcoded, use that video */
-      if (meta.transcodedVideoFile) {
+      if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
         videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
       } else {
         videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
@@ -302,9 +402,7 @@ async function train(
   inputFile.end();
 
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
-  const configFilePath = npath.join(
-    settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig,
-  );
+  const configFilePath = npath.join(settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig);
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
@@ -355,9 +453,7 @@ async function train(
     const bodyText = [''];
     if (code === 0) {
       try {
-        await common.processTrainedPipeline(
-          settings, runTrainingArgs, jobWorkDir,
-        );
+        await common.processTrainedPipeline(settings, runTrainingArgs, jobWorkDir);
       } catch (err) {
         console.error(err);
         exitCode = 1;
@@ -379,5 +475,6 @@ async function train(
 
 export {
   runPipeline,
+  exportTrainedPipeline,
   train,
 };

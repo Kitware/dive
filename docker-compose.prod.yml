@@ -50,8 +50,6 @@ services:
 
   girder_worker_training:
     restart: always
-    environment:
-      - "WORKER_WATCHING_QUEUES=training,pipelines"
 
   watchtower:
     image: containrrr/watchtower:latest
@@ -63,6 +61,12 @@ services:
       --label-enable
     environment:
       - "TZ=${TIMEZONE:-America/New_York}"
+      - WATCHTOWER_HTTP_API_PERIODIC_POLLS=true
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      # Watchtower port is exposed only internally to other containers and admins only have access to upate endpoint
+      - "WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_API_TOKEN:-mytoken}"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

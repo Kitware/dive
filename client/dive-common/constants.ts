@@ -132,7 +132,6 @@ function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
 }
 
-
 export {
   DefaultVideoFPS,
   ImageSequenceType,

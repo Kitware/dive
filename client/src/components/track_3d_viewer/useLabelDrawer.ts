@@ -1,9 +1,8 @@
 /* eslint-disable import/prefer-default-export */
-/* eslint-disable @typescript-eslint/ban-ts-ignore */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
-import { Ref } from '@vue/composition-api';
+import { Ref } from 'vue';
 
 interface LabelDrawerParams {
   renderer: Ref<vtkRenderer | undefined>;
@@ -54,12 +53,10 @@ export function useLabelDrawer({
 
     clearLabelContext();
 
-
     positionToLabel.forEach((label, position) => {
       const displayCoordinates = openglRenderWindow.value!.worldToDisplay(
         ...position,
-        // @ts-ignore
-        renderer.value,
+        renderer.value!,
       );
       labelTextContext!.font = 'bold 14px serif';
       labelTextContext!.textAlign = 'center';
@@ -72,7 +69,6 @@ export function useLabelDrawer({
       );
     });
   };
-
 
   return {
     initialize,

@@ -4,7 +4,7 @@ import {
   defineComponent,
   Ref,
   ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { flatten } from 'lodash';
 import {
   useSelectedTrackId,
@@ -362,7 +362,7 @@ export default defineComponent({
         </option>
       </datalist>
       <div
-        :class="{ 'multi-select-list': true, 'unlimited': editingGroup !== null }"
+        :class="{ 'multi-select-list': true, unlimited: editingGroup !== null }"
         class="track-details"
       >
         <v-card

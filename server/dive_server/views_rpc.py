@@ -23,6 +23,7 @@ class RpcResource(Resource):
         self.resourceName = resourceName
 
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("POST", ("export",), self.export_pipeline_onnx)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
@@ -40,10 +41,43 @@ class RpcResource(Resource):
             required=True,
             level=AccessType.WRITE,
         )
+        .param(
+            "forceTranscoded",
+            "Force using the transcoded instead of source media",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
-    def run_pipeline_task(self, folder, pipeline: PipelineDescription):
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline)
+    def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
+        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
+    
+    @access.user
+    @autoDescribeRoute(
+        Description("Export pipeline to ONNX")
+        .modelParam(
+            "modelFolderId",
+            destName='modelFolderId',
+            description="Folder id in which the model to export is located",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .modelParam(
+            "exportFolderId",
+            destName='exportFolderId',
+            description="Folder id to which the model will be exported",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.WRITE,
+        )
+    )
+    def export_pipeline_onnx(self, modelFolderId, exportFolderId):
+        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
 
     @access.user
     @autoDescribeRoute(
@@ -75,13 +109,27 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .param(
+            "forceTranscoded",
+            "Force using the transcoded instead of source media",
+            paramType="query",
+            dataType="boolean",
+            default=False,
+            required=False,
+        )
     )
-    def run_training(self, body, pipelineName, config, annotatedFramesOnly):
+    def run_training(self, body, pipelineName, config, annotatedFramesOnly, forceTranscoded):
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
         return crud_rpc.run_training(
-            user, token, run_training_args, pipelineName, config, annotatedFramesOnly
+            user,
+            token,
+            run_training_args,
+            pipelineName,
+            config,
+            annotatedFramesOnly,
+            forceTranscoded,
         )
 
     @access.user
@@ -208,7 +256,6 @@ class RpcResource(Resource):
     )
     def convert_large_image(self, folder):
         return crud_rpc.convert_large_image(self.getCurrentUser(), folder)
-
 
     @access.user
     @autoDescribeRoute(

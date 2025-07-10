@@ -1,6 +1,7 @@
 """
 VIAME Fish format deserializer
 """
+
 import csv
 import datetime
 import io
@@ -64,6 +65,8 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
 
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
+        return None
+    if value is None:
         return None
 
     if value == "true":
@@ -276,8 +279,9 @@ def custom_sort(row):
 
 
 def load_csv_as_tracks_and_attributes(
-    rows: List[str], imageMap: Optional[Dict[str, int]] = None
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+    rows: List[str],
+    imageMap: Optional[Dict[str, int]] = None,
+) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Optional[str]]:
     """
     Convert VIAME CSV to json tracks
 
@@ -292,9 +296,16 @@ def load_csv_as_tracks_and_attributes(
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=custom_sort)
+    warnings: List[str] = []
+    fps = None
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
+            if len(row) > 0 and row[0] == '# metadata':
+                if row[1].startswith('Fps: '):
+                    fps_splits = row[1].split(':')
+                    if len(fps_splits) > 1:
+                        fps = fps_splits[1]
             continue
         (
             feature,
@@ -304,7 +315,6 @@ def load_csv_as_tracks_and_attributes(
         ) = _parse_row_for_tracks(row)
 
         trackId, imageFile, _, _, _ = row_info(row)
-
         if imageMap:
             # validate image ordering if the imageMap is provided
             imageName, _ = os.path.splitext(os.path.basename(imageFile))
@@ -333,6 +343,8 @@ def load_csv_as_tracks_and_attributes(
                     (
                         'Images were provided in an unexpected order '
                         'and dataset contains multi-frame tracks. '
+                        f'featureFrame: {feature.frame} maxFeatureFrame: {maxFeatureFrame}'
+                        f'TrackId: {trackId}'
                     )
                 )
 
@@ -358,18 +370,24 @@ def load_csv_as_tracks_and_attributes(
                 continue
             k = index + 1
             if k < len(filteredImages):
+                item_difference = foundImages[k]['csvFrame'] - item['csvFrame']
                 if (
-                    item['csvFrame'] + 1 != filteredImages[k]['csvFrame']
-                    or item['frame'] + 1 != filteredImages[k]['frame']
+                    item['csvFrame'] + item_difference != filteredImages[k]['csvFrame']
+                    or item['frame'] + item_difference != filteredImages[k]['frame']
                 ):
-                    # We have misaligned video sequences so we error out
-                    raise ValueError(
+                    # There are misaliged video sequences so we are going to
+                    # utilize the imageMap
+                    # We have misaligned video sequences so we handle that
+                    # with the image map if possible
+                    warnings.append(
                         (
                             'A subsampling of images were used with the CSV '
                             'but they were not sequential'
+                            f'foundImage: {filteredImages[k]} item: {item}'
+                            f'item difference: {item_difference}'
                         )
                     )
-            frameMapper[item['csvFrame']] = index
+            frameMapper[item['csvFrame']] = item['frame']
             minFrame = min(minFrame, item['csvFrame'])
             maxFrame = max(maxFrame, item['csvFrame'])
 
@@ -421,15 +439,19 @@ def load_csv_as_tracks_and_attributes(
         for index, item in enumerate(foundImages):
             k = index + 1
             if k < len(foundImages):
+                # sometimes the frame difference isn't 1
+                item_difference = foundImages[k]['csvFrame'] - item['csvFrame']
                 if (
-                    item['csvFrame'] + 1 != foundImages[k]['csvFrame']
-                    or item['frame'] + 1 != foundImages[k]['frame']
+                    item['csvFrame'] + item_difference != foundImages[k]['csvFrame']
+                    or item['frame'] + item_difference != foundImages[k]['frame']
                 ):
                     # We have misaligned video sequences so we error out
-                    raise ValueError(
+                    warnings.append(
                         (
                             'Images were provided in an unexpected order '
                             'and dataset contains multi-frame tracks.'
+                            f'foundImage: {foundImages[k]} item: {item}'
+                            f'itemDifference: {item_difference}'
                         )
                     )
 
@@ -441,7 +463,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes
+    return annotations, metadata_attributes, warnings, fps
 
 
 def export_tracks_as_csv(
@@ -481,7 +503,7 @@ def export_tracks_as_csv(
 
     for t in track_iterator:
         track = Track(**t)
-        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds, typeFilter):
             # filter by types if applicable
             if typeFilter:
                 confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]

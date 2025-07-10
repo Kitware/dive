@@ -1,8 +1,9 @@
 <script lang="ts">
 import {
   defineComponent, watch, PropType, Ref, ref, computed, toRef,
-} from '@vue/composition-api';
+} from 'vue';
 
+import { clientSettings } from 'dive-common/store/settings';
 import { TrackWithContext } from '../BaseFilterControls';
 import { injectAggregateController } from './annotators/useMediaController';
 import RectangleLayer from '../layers/AnnotationLayers/RectangleLayer';
@@ -125,7 +126,6 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
-
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
@@ -186,7 +186,7 @@ export default defineComponent({
     ) {
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
-        .map((str: string) => parseInt(str, 10));
+        .map((str) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
       rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
       polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
@@ -232,14 +232,44 @@ export default defineComponent({
               if (editingTrack && props.camera === selectedCamera.value) {
                 editingTracks.push(trackFrame);
               }
-              if (annotator.lockedCamera.value) {
+              if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
                 if (trackFrame.features?.bounds) {
                   const coords = {
                     x: (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
                     y: (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
                     z: 0,
                   };
-                  annotator.centerOn(coords);
+                  const [x0, y0, x1, y1] = trackFrame.features.bounds;
+
+                  const centerX = (x0 + x1) / 2.0;
+                  const centerY = (y0 + y1) / 2.0;
+
+                  const width = Math.abs(x1 - x0);
+                  const height = Math.abs(y1 - y0);
+
+                  // eslint-disable-next-line no-undef-init
+                  let zoom: number | undefined = undefined;
+                  if (clientSettings.annotatorPreferences.lockedCamera.multiBounds) {
+                    const multiplyBoundsVal = clientSettings.annotatorPreferences.lockedCamera.multiBounds ?? 1;
+
+                    const halfWidth = (width * multiplyBoundsVal) / 2.0;
+                    const halfHeight = (height * multiplyBoundsVal) / 2.0;
+
+                    const left = centerX - halfWidth;
+                    const right = centerX + halfWidth;
+                    const top = centerY - halfHeight;
+                    const bottom = centerY + halfHeight;
+
+                    const zoomAndCenter = annotator.geoViewerRef.value.zoomAndCenterFromBounds({
+                      left, top, right, bottom,
+                    });
+                    zoom = Math.round(zoomAndCenter.zoom);
+                  }
+                  if (clientSettings.annotatorPreferences.lockedCamera.transition) {
+                    annotator.transition({ x: coords.x, y: coords.y }, clientSettings.annotatorPreferences.lockedCamera.transition, zoom);
+                  } else {
+                    annotator.transition({ x: coords.x, y: coords.y }, 0, zoom);
+                  }
                 }
               }
             }
@@ -403,7 +433,6 @@ export default defineComponent({
       );
     });
 
-
     const Clicked = (trackId: number, editing: boolean) => {
       // If the camera isn't selected yet we ignore the click
       if (selectedCamera.value !== props.camera) {
@@ -415,7 +444,6 @@ export default defineComponent({
         handler.trackSelect(trackId, editing);
       }
     };
-
 
     //Sync of internal geoJS state with the application
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
@@ -431,7 +459,7 @@ export default defineComponent({
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
       type: string,
       key = '',
-      cb: () => void,
+      cb: () => void = () => (undefined),
     ) => {
       const originalFrameNumber = frameNumberRef.value;
       if (type === 'rectangle') {
@@ -469,8 +497,10 @@ export default defineComponent({
         });
       }
     });
-    editAnnotationLayer.bus.$on('update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key));
+    editAnnotationLayer.bus.$on(
+      'update:selectedIndex',
+      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+    );
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

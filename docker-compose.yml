@@ -2,11 +2,6 @@
 
 # Use YAML anchors for the common config between both workers
 x-worker: &base-worker
-  deploy:
-    resources:
-      reservations:
-        devices:
-          - capabilities: [gpu]
   ipc: host
   build:
     context: .
@@ -46,6 +41,7 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
       - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
+      - RABBITMQ_DISTRIBUTED_WORKER=${RABBITMQ_DISTRIBUTED_WORKER:-0}
 
   mongo:
     image: mongo:5.0
@@ -70,8 +66,6 @@ services:
         source: ${PUBLIC_DATA_PATH:-./docker/girder_data}
         target: /data/public
         read_only: true
-        volume:
-          nocopy: true
     environment:
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER:-admin}"
@@ -84,6 +78,7 @@ services:
       - "RABBITMQ_MANAGEMENT_VHOST=${RABBITMQ_MANAGEMENT_VHOST:-default}"
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
       - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
+      - "WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-mytoken}"
     labels:
       # REMOVING WEEKLY UPDATE
       # - "com.centurylinklabs.watchtower.enable=true"
@@ -108,6 +103,14 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['0']
+            capabilities: [gpu]
+
     environment:
       - "WORKER_WATCHING_QUEUES=pipelines"
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
@@ -117,6 +120,13 @@ services:
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['1']
+            capabilities: [gpu]
     environment:
       - "WORKER_WATCHING_QUEUES=training"
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"

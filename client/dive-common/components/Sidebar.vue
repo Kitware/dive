@@ -4,7 +4,7 @@ import {
   defineComponent,
   reactive,
   toRef,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { FilterList, TrackList } from 'vue-media-annotator/components';
 import {
@@ -20,6 +20,15 @@ import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtua
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
+
+  components: {
+    StackedVirtualSidebarContainer,
+    TrackDetailsPanel,
+    TrackSettingsPanel,
+    FilterList,
+    TrackList,
+    TypeSettingsPanel,
+  },
   props: {
     width: {
       type: Number,
@@ -29,15 +38,6 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
-  },
-
-  components: {
-    StackedVirtualSidebarContainer,
-    TrackDetailsPanel,
-    TrackSettingsPanel,
-    FilterList,
-    TrackList,
-    TypeSettingsPanel,
   },
 
   setup() {
@@ -138,7 +138,7 @@ export default defineComponent({
             <template #settings>
               <TypeSettingsPanel
                 :all-types="allTypesRef"
-                @import-types="$emit('import-types',$event)"
+                @import-types="$emit('import-types', $event)"
               />
             </template>
           </FilterList>

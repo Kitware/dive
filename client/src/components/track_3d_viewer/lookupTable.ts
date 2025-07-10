@@ -1,7 +1,6 @@
 /* eslint-disable import/prefer-default-export */
 /* eslint-disable no-console */
 /* eslint-disable no-plusplus */
-/* eslint-disable @typescript-eslint/ban-ts-ignore */
 
 import vtkLookupTable from '@kitware/vtk.js/Common/Core/LookupTable';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -13,13 +12,10 @@ export function buildLookupTable(color: RGBColor, currentFrame: number, frameCou
   // if outside of range, opacity = 0
   const lookupTable = vtkLookupTable.newInstance();
 
-
   lookupTable.setUseBelowRangeColor(true);
-  // @ts-ignore
-  lookupTable.setBelowRangeColor(...color, 0);
+  lookupTable.setBelowRangeColor([...color, 0]);
   lookupTable.setUseAboveRangeColor(true);
-  // @ts-ignore
-  lookupTable.setAboveRangeColor(...color, 0);
+  lookupTable.setAboveRangeColor([...color, 0]);
 
   const size = Math.min(currentFrame + 1, frameCount);
 

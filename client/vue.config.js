@@ -33,6 +33,16 @@ function chainWebpack(config) {
         release: process.env.VUE_APP_GIT_HASH
       }]);
   }
+  config.module
+  .rule('babel')
+  .test(/\.js$/)
+  .exclude.add(/node_modules/)
+  .end()
+  .use('babel-loader')
+  .loader('babel-loader')
+  .options({
+    presets: ['@babel/preset-env']
+  });
 }
 
 module.exports = {
@@ -55,6 +65,7 @@ module.exports = {
       // https://github.com/nklayman/vue-cli-plugin-electron-builder/pull/1088
       rendererProcessFile: 'platform/desktop/main.ts',
       // https://www.electron.build/configuration/configuration
+      customFileProtocol: './',
       builderOptions: {
         appId: 'com.kitware.viame',
         productName: 'DIVE-Desktop',
@@ -73,7 +84,7 @@ module.exports = {
         extraMetadata: {
           // https://github.com/nklayman/vue-cli-plugin-electron-builder/issues/188
           // https://github.com/electron-userland/electron-builder/issues/2592
-          main: 'background.js',
+          main: 'index.js',
           name: 'DIVE-Desktop'
         },
         linux: {

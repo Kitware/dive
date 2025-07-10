@@ -1,6 +1,7 @@
 """
 KWCOCO JSON format deserializer
 """
+
 import functools
 from typing import Any, Dict, List, Tuple
 
@@ -182,7 +183,7 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
 
 
 def load_coco_as_tracks_and_attributes(
-    coco: Dict[str, List[dict]]
+    coco: Dict[str, List[dict]],
 ) -> Tuple[types.DIVEAnnotationSchema, dict]:
     """
     Convert KWCOCO json to DIVE json tracks.

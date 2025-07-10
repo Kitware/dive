@@ -3,7 +3,7 @@
 import {
   defineComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
 import { cloneDeep } from 'lodash';
@@ -62,7 +62,6 @@ export interface ImageDataItem {
   filename: string;
 }
 
-
 export default defineComponent({
   components: {
     ControlsContainer,
@@ -103,7 +102,7 @@ export default defineComponent({
       default: () => [],
     },
   },
-  setup(props, ctx) {
+  setup(props, { emit }) {
     const { prompt } = usePrompt();
     const loadError = ref('');
 
@@ -149,7 +148,7 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
-
+    const sideBarCollapsed = ref(false);
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -199,8 +198,12 @@ export default defineComponent({
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
     };
-    const setTrackType = (id: AnnotationId, newType: string,
-      confidenceVal?: number, currentType?: string) => {
+    const setTrackType = (
+      id: AnnotationId,
+      newType: string,
+      confidenceVal?: number,
+      currentType?: string,
+    ) => {
       cameraStore.setTrackType(id, newType, confidenceVal, currentType);
     };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -278,7 +281,6 @@ export default defineComponent({
       cameraStore,
     });
 
-
     const allSelectedIds = computed(() => {
       const selected = selectedTrackId.value;
       if (selected !== null) {
@@ -291,6 +293,7 @@ export default defineComponent({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
+      getTracksMerged,
     });
 
     const { eventChartData } = useEventChart({
@@ -318,9 +321,7 @@ export default defineComponent({
         const groups = cameraStore.lookupGroups(trackId);
         let newtracks: [Track, Track];
         try {
-          newtracks = track.split(
-            frame, cameraStore.getNewTrackId(), cameraStore.getNewTrackId() + 1,
-          );
+          newtracks = track.split(frame, cameraStore.getNewTrackId(), cameraStore.getNewTrackId() + 1);
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
@@ -490,7 +491,7 @@ export default defineComponent({
     async function handleSetChange(set: string) {
       const guard = await navigateAwayGuard();
       if (guard) {
-        ctx.emit('update:set', set);
+        emit('update:set', set);
       }
     }
 
@@ -526,7 +527,7 @@ export default defineComponent({
           handler.trackEdit(selectedTrackId.value);
         }
       }
-      ctx.emit('change-camera', camera);
+      emit('change-camera', camera);
     };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
@@ -542,7 +543,7 @@ export default defineComponent({
         editingTrack.value = false;
       }
       selectCamera(camera, event?.button === 2);
-      ctx.emit('change-camera', camera);
+      emit('change-camera', camera);
     };
     const trackSettings = toRef(clientSettings, 'trackSettings');
 
@@ -694,8 +695,10 @@ export default defineComponent({
                   // We need to increment the trackIds for the new comparison sets
                   setTracks[j].id = trackStore.getNewId();
                   trackStore.insert(
-                    Track.fromJSON(setTracks[j],
-                      firstSet[setIndex]),
+                    Track.fromJSON(
+                      setTracks[j],
+                      firstSet[setIndex],
+                    ),
                     { imported: true },
                   );
                 }
@@ -791,7 +794,7 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch(controlsCollapsed, async () => {
+    watch([controlsCollapsed, sideBarCollapsed], async () => {
       await nextTick();
       handleResize();
     });
@@ -935,6 +938,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
       colorBy,
       clientSettings,
       datasetName,
@@ -1013,7 +1017,7 @@ export default defineComponent({
           v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
-          <template v-slot:activator="{on}">
+          <template #activator="{ on }">
             <v-chip
               outlined
               :color="annotationSetColor(currentSet || 'default')"
@@ -1035,7 +1039,7 @@ export default defineComponent({
           v-if="displayComparisons && displayComparisons.length"
           bottom
         >
-          <template v-slot:activator="{on: onIcon}">
+          <template #activator="{ on: onIcon }">
             <v-chip
               class="pl-2"
               small
@@ -1054,7 +1058,7 @@ export default defineComponent({
           <v-tooltip
             bottom
           >
-            <template v-slot:activator="{on}">
+            <template #activator="{ on }">
               <v-chip
                 class="warning pr-1"
                 style="white-space:nowrap;display:inline"
@@ -1074,10 +1078,28 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <v-tooltip
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-icon
+              v-on="on"
+              @click="sideBarCollapsed = !sideBarCollapsed"
+            >
+              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+            </v-icon>
+          </template>
+          <span>Collapse Side Panel</span>
+        </v-tooltip>
+
         <EditorMenu
           v-bind="{
-            editingMode, visibleModes, editingTrack, recipes,
-            multiSelectActive, editingDetails,
+            editingMode,
+            visibleModes,
+            editingTrack,
+            recipes,
+            multiSelectActive,
+            editingDetails,
             groupEditActive: editingGroupId !== null,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
@@ -1106,7 +1128,7 @@ export default defineComponent({
           @change="changeCamera"
         >
           <template #item="{ item }">
-            {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
+            {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
 
@@ -1132,7 +1154,7 @@ export default defineComponent({
         <v-tooltip
           bottom
         >
-          <template v-slot:activator="{on}">
+          <template #activator="{ on }">
             <v-icon
               v-on="on"
               @click="context.toggle()"
@@ -1153,7 +1175,7 @@ export default defineComponent({
         bottom
         :disabled="!readonlyState"
       >
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-badge
             overlap
             bottom
@@ -1187,6 +1209,7 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
+        v-if="!sideBarCollapsed"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
         @track-added="onTrackAdded"
@@ -1245,16 +1268,24 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator' :
-                  datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                :is="datasetType === 'image-sequence' ? 'image-annotator'
+                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
-                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
+                :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
-                  imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, camera, brightness,
-                  intercept, getTiles, getTileURL }"
+                  imageData: imageData[camera],
+                  videoUrl: videoUrl[camera],
+                  updateTime,
+                  frameRate,
+                  originalFps,
+                  camera,
+                  brightness,
+                  intercept,
+                  getTiles,
+                  getTileURL,
+                }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
                 <LayerManager
@@ -1266,9 +1297,10 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            class="shrink"
             :collapsed.sync="controlsCollapsed"
-            v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
+            v-bind="{
+              lineChartData, eventChartData, groupChartData, datasetType,
+            }"
             @select-track="handler.trackSelect"
           />
         </div>

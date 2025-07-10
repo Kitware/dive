@@ -1,12 +1,15 @@
-import Install, { Ref, watch, reactive } from '@vue/composition-api';
+import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
-import Vue from 'vue';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
 interface AnnotationSettings {
   typeSettings: {
+    trackSortDir: 'a-z' | 'count' | 'frame count';
     showEmptyTypes: boolean;
     lockTypes: boolean;
+    preventCascadeTypes?: boolean;
+    filterTypesByFrame?: boolean;
+    maxCountButton?: boolean;
   };
   trackSettings: {
     newTrackSettings: {
@@ -26,6 +29,10 @@ interface AnnotationSettings {
     deletionSettings: {
       promptUser: boolean;
     };
+    trackListSettings: {
+      autoZoom?: boolean;
+      filterDetectionsByFrame?: boolean;
+    }
   };
   groupSettings: {
     newGroupSettings: {
@@ -35,6 +42,10 @@ interface AnnotationSettings {
   rowsPerPage: number;
   annotationFPS: number;
   annotatorPreferences: AnnotatorPreferences;
+  timelineCountSettings: {
+    totalCount: boolean;
+    defaultView: 'tracks' | 'detections';
+  }
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -56,6 +67,10 @@ const defaultSettings: AnnotationSettings = {
     deletionSettings: {
       promptUser: true,
     },
+    trackListSettings: {
+      autoZoom: false,
+      filterDetectionsByFrame: false,
+    },
   },
   groupSettings: {
     newGroupSettings: {
@@ -63,8 +78,11 @@ const defaultSettings: AnnotationSettings = {
     },
   },
   typeSettings: {
+    trackSortDir: 'a-z',
     showEmptyTypes: false,
     lockTypes: false,
+    preventCascadeTypes: false,
+    maxCountButton: false,
   },
   rowsPerPage: 20,
   annotationFPS: 10,
@@ -73,24 +91,48 @@ const defaultSettings: AnnotationSettings = {
       before: 20,
       after: 10,
     },
+    lockedCamera: {
+      enabled: false,
+      multiBounds: false,
+      transition: false,
+    },
   },
+  timelineCountSettings: {
+    totalCount: true,
+    defaultView: 'tracks',
+  },
+
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hydrate(obj: any): AnnotationSettings {
+// Utility to safely load from localStorage
+function loadStoredSettings(): Partial<AnnotationSettings> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('Settings');
+      return raw ? JSON.parse(raw) : {};
+    }
+  } catch (e) {
+    console.warn('Failed to load settings from localStorage:', e);
+  }
+  return {};
+}
+
+// Utility to safely save to localStorage
+function saveSettings() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+    }
+  } catch (e) {
+    console.warn('Failed to save settings to localStorage:', e);
+  }
+}
+
+function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   return merge(cloneDeep(defaultSettings), obj);
 }
 
-// TODO remove this: this won't be necessary in Vue 3
-Vue.use(Install);
-
-//Load default settings initially
-const storedSettings = JSON.parse(localStorage.getItem('Settings') || '{}');
-const clientSettings = reactive(hydrate(storedSettings));
-
-function saveSettings() {
-  localStorage.setItem('Settings', JSON.stringify(clientSettings));
-}
+const clientSettings = reactive(hydrate(loadStoredSettings()));
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {
   // If a type is deleted, reset the default new track type to unknown
@@ -100,7 +142,7 @@ export default function setup(allTypes: Ref<Readonly<string[]>>) {
     }
   });
 }
-watch(clientSettings, saveSettings);
+watch(clientSettings, saveSettings, { deep: true });
 
 export {
   clientSettings,

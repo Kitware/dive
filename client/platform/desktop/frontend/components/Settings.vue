@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, onBeforeMount, ref, computed, set, watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { dialog, app } from '@electron/remote';
 
@@ -61,7 +61,6 @@ export default defineComponent({
         set(localSettings.value, name, result.filePaths[0]);
       }
     }
-
     async function save() {
       if (localSettings.value !== null) {
         settingsAreValid.value = false;
@@ -158,6 +157,7 @@ export default defineComponent({
             <v-col>
               <v-switch
                 v-model="localSettings.readonlyMode"
+                :disabled="!settingsAreValid"
                 color="primary"
                 :label="'Read only mode'"
                 hide-details
@@ -170,7 +170,7 @@ export default defineComponent({
         <v-card-text>
           <v-btn
             color="primary"
-            :disabled="pendingChanges"
+            :disabled="pendingChanges || !settingsAreValid"
             @click="save"
           >
             <v-icon class="mr-2">
@@ -221,8 +221,8 @@ export default defineComponent({
           dense
           text
           class="mx-4"
-          :type="settingsAreValid ===
-            false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
+          :type="settingsAreValid
+            === false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
           <span v-if="settingsAreValid === false">
             Checking for Kwiver

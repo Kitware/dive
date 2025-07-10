@@ -15,7 +15,6 @@ from dive_utils.constants import (
     AssetstoreSourceMarker,
     AssetstoreSourcePathMarker,
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
     LargeImageType,
@@ -63,6 +62,25 @@ def process_assetstore_import(event, meta: dict):
 
     if imageRegex.search(importPath):
         dataset_type = ImageSequenceType
+    elif largeImageRegEx.search(importPath):
+        dataset_type = LargeImageType
+        parentFolder = Folder().findOne({"_id": item["folderId"]})
+        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
+        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
+        user = User().findOne({'_id': ObjectId(userId)})
+        # Need to create a new DIVE Dataset Folder for each file if the Setting says we should
+        foldername = f'Large Image {item["name"]}'
+        # resuse existing folder if it already exists with same name
+        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
+        # resuse existing folder if it already exists with same name
+        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
+        now = datetime.now()
+        if now - dest['created'] > timedelta(hours=1):
+            # Remove the old  referenced item, replace it with the new one.
+            oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})
+            if oldItem is not None:
+                Item().remove(oldItem)
+        Item().move(item, dest)
 
     elif videoRegex.search(importPath):
         # Look for existing video dataset directory

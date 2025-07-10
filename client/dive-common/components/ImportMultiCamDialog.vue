@@ -1,8 +1,7 @@
 <script lang="ts">
-import Vue from 'vue';
-import {
+import Vue, {
   computed, defineComponent, ref, Ref, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import {
   MediaImportResponse,
@@ -20,13 +19,13 @@ import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 
 export default defineComponent({
+  name: 'ImportMultiCamDialog',
   components: {
     ImportMultiCamCameraGroup,
     ImportMultiCamChooseAnnotation,
     ImportMultiCamChooseSource,
     ImportMultiCamAddType,
   },
-  name: 'ImportMultiCamDialog',
   props: {
     stereo: {
       type: Boolean as PropType<boolean>,
@@ -357,7 +356,7 @@ export default defineComponent({
       </div>
 
       <!-- Keyword Builder -->
-      <div v-else-if="importType ==='keyword'">
+      <div v-else-if="importType === 'keyword'">
         <ImportMultiCamChooseSource
           camera-name="Folder or Image List"
           :data-type="dataType"
@@ -440,7 +439,7 @@ export default defineComponent({
               label="Default Display"
             >
               <v-radio
-                v-for="(item,index) in displayKeys"
+                v-for="(item, index) in displayKeys"
                 :key="index"
                 :value="item"
                 :label="item"

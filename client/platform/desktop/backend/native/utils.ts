@@ -84,17 +84,29 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 /**
  * Create job run working directory
  */
-async function createWorkingDirectory(
-  settings: Settings, jsonMetaList: JsonMeta[], pipeline: string,
-) {
+async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta[], pipeline: string) {
   if (jsonMetaList.length === 0) {
     throw new Error('At least 1 jsonMeta item must be provided');
   }
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // eslint won't recognize \. as valid escape
   // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].name.replace(/[\.\s/]+/g, '_');
+  const safeDatasetName = jsonMetaList[0].id.replace(/[\.\s/]+/g, '_');
   const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const runFolderPath = path.join(jobFolderPath, runFolderName);
+  if (!fs.existsSync(jobFolderPath)) {
+    await fs.mkdir(jobFolderPath);
+  }
+  await fs.mkdir(runFolderPath);
+  return runFolderPath;
+}
+
+async function createCustomWorkingDirectory(settings: Settings, prefix: string, pipeline: string) {
+  const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
+  // Formating prefix if for any reason the prefix is input by the user in the futur
+  // eslint-disable-next-line no-useless-escape
+  const safePrefix = prefix.replace(/[\.\s/]+/g, '_');
+  const runFolderName = moment().format(`[${safePrefix}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -114,6 +126,7 @@ export {
   getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,
+  createCustomWorkingDirectory,
   spawnResult,
   splitExt,
 };

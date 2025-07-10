@@ -1,18 +1,16 @@
 <script lang="ts">
 import { cloneDeep } from 'lodash';
-import {
+import Vue, {
   computed, defineComponent, watch, toRef, ref, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
 
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { DesktopMediaImportResponse } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
-import Vue from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
-
 
 export default defineComponent({
   name: 'ImportDialog',
@@ -22,6 +20,11 @@ export default defineComponent({
       required: true,
     },
     disabled: {
+      type: Boolean,
+      default: false,
+    },
+    // If being embedded into the bulk import dialog
+    embedded: {
       type: Boolean,
       default: false,
     },
@@ -212,7 +215,7 @@ export default defineComponent({
             @input="argCopy.trackFileAbsPath = $event"
             @click="openUpload('annotation')"
             @click:prepend-inner="openUpload('annotation')"
-            @click:clear="argCopy.trackFileAbsPath=''"
+            @click:clear="argCopy.trackFileAbsPath = ''"
           />
         </v-col>
       </v-row>
@@ -253,7 +256,7 @@ export default defineComponent({
           @input="argCopy.metaFileAbsPath = $event"
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"
-          @click:clear="argCopy.metaFileAbsPath=''"
+          @click:clear="argCopy.metaFileAbsPath = ''"
         />
         <v-text-field
           v-if="argCopy.jsonMeta.type === 'image-sequence'"
@@ -341,7 +344,7 @@ export default defineComponent({
           :disabled="!ready || disabled"
           @click="$emit('finalize-import', argCopy)"
         >
-          Finish Import
+          {{ embedded ? "Save" : "Finish Import" }}
         </v-btn>
       </div>
     </v-card-text>

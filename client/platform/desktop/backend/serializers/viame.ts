@@ -28,6 +28,7 @@ const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
+const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
 const TrackAtrToken = '(trk-atr)';
 const PolyToken = '(poly)';
@@ -37,6 +38,7 @@ export interface AnnotationFileData {
   tracks: MultiTrackRecord;
   groups: MultiGroupRecord;
   fps?: number;
+  execTime?: number;
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
@@ -55,13 +57,28 @@ function getCaptureGroups(regexp: RegExp, str: string) {
 }
 
 function _rowInfo(row: string[]) {
+  let fps;
   if (row[0].match(CommentRegex) !== null) {
-    throw new Error('comment row');
+    // we have a comment, check for FPS
+    let hasComment = false;
+    if (row.length > 1) {
+      if (row[1].startsWith('Fps:')) {
+        const fpsSplit = row[1].split(':');
+        if (fpsSplit.length > 1) {
+          [, fps] = fpsSplit;
+          hasComment = true;
+        }
+      }
+    }
+    if (!hasComment) {
+      throw new Error('comment row');
+    }
   }
   if (row.length < 9) {
     throw new Error('malformed row: too few columns');
   }
   return {
+    fps,
     id: parseInt(row[0], 10),
     filename: row[1],
     frame: parseInt(row[2], 10),
@@ -80,7 +97,13 @@ function parseCommentRow(row: string[]) {
   if (matches !== null && matches.length >= 2) {
     fps = Number.parseFloat(matches[1]);
   }
-  return { fps };
+  let execTime: undefined | number;
+  const execMatches = getCaptureGroups(ExecTimeRegEx, fullrow);
+  if (execMatches !== null && execMatches.length >= 2) {
+    execTime = Number.parseFloat(execMatches[1]);
+  }
+
+  return { fps, execTime };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -241,20 +264,22 @@ function _parseFeature(row: string[]) {
   };
 }
 
-async function parse(input: Readable, imageMap?: Map<string, number>): Promise<AnnotationFileData> {
+async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[AnnotationFileData, string[]]> {
   const parser = csvparser({
     delimiter: ',',
     // comment lines may not have the correct number of columns
     relaxColumnCount: true,
   });
   let fps: number | undefined;
+  let execTime: number | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
   let error: Error | undefined;
   let multiFrameTracks = false;
+  const warnings: string[] = [];
 
-  return new Promise<AnnotationFileData>((resolve, reject) => {
+  return new Promise<[AnnotationFileData, string[]]>((resolve, reject) => {
     pipeline([input, parser], (err) => {
       // undefined err indicates successful exit
       if (err !== undefined) {
@@ -280,15 +305,17 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           }
           const k = i + 1;
           if (k < filteredImages.length) {
-            if (filteredImages[i].csvFrame + 1 !== filteredImages[k].csvFrame || filteredImages[i].frame + 1 !== filteredImages[k].frame) {
+            const itemDifference = foundImages[k].csvFrame - filteredImages[i].csvFrame;
+            if (
+              foundImages[i].csvFrame + itemDifference !== filteredImages[k].csvFrame || filteredImages[i].frame + itemDifference !== filteredImages[k].frame) {
             // We have misaligned image sequences so we error out
-              error = new Error(`A subsampling of images were used with the CSV but they were not sequential\n 
+              warnings.push(`A subsampling of images were used with the CSV but they were not sequential\n 
                 ${filteredImages[i].csvFrame + 1} !== ${filteredImages[k].csvFrame} || ${filteredImages[i].frame + 1} !== ${filteredImages[k].frame}\n
                 image1: ${filteredImages[i].image} image2: ${filteredImages[k].image} - these should be sequential in the CSV
               \n`);
             }
           }
-          frameMapper[filteredImages[i].csvFrame] = i;
+          frameMapper[filteredImages[i].csvFrame] = filteredImages[i].frame;
           minFrame = Math.min(minFrame, filteredImages[i].csvFrame);
           maxFrame = Math.max(maxFrame, filteredImages[i].csvFrame);
         }
@@ -347,7 +374,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           if (k < foundImages.length) {
             if (foundImages[i].csvFrame > foundImages[k].csvFrame || foundImages[i].frame > foundImages[k].frame) {
             // We have misaligned video sequences so we error out
-              error = new Error('Images were provided in an unexpected order and dataset contains multi-frame tracks.');
+              warnings.push(`Images were provided in an unexpected order and dataset contains multi-frame tracks.\n
+              image${i}: frame: ${foundImages[i].frame} csvFrame: ${foundImages[i].csvFrame}
+              image${k}: frame: ${foundImages[k].frame} csvFrame: ${foundImages[k].csvFrame}`);
             }
           }
         }
@@ -357,7 +386,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
       if (error !== undefined) {
         reject(error);
       }
-      resolve({ tracks, groups: {}, fps });
+      resolve([{
+        tracks, groups: {}, fps, execTime,
+      }, warnings]);
     });
     parser.on('readable', () => {
       let record: string[];
@@ -367,6 +398,13 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           const {
             rowInfo, feature, trackAttributes, confidencePairs,
           } = _parseFeature(record);
+          if (rowInfo.fps) {
+            const parsedFps = parseInt(rowInfo.fps, 10);
+            if (!Number.isNaN(parsedFps)) {
+              fps = parsedFps;
+            }
+            throw new Error('comment row with FPS');
+          }
           if (imageMap !== undefined) {
             const [imageName] = splitExt(rowInfo.filename);
             const expectedFrameNumber = imageMap.get(imageName);
@@ -407,8 +445,10 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
             });
             if (rowInfo.frame < maxFeatureFrame) {
             // trackId was already in dataMap, and frame is out of order
-              error = new Error(
-                'annotations were provided in an unexpected order and dataset contains multi-frame tracks',
+              warnings.push(
+                `annotations were provided in an unexpected order and dataset contains multi-frame tracks:
+                id: ${rowInfo.id}  filename: ${rowInfo.filename}  frame: ${rowInfo.frame}
+                maxFeatureFrame: ${maxFeatureFrame}`,
               );
               // eslint-disable-next-line no-continue
               continue;
@@ -420,9 +460,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           track.confidencePairs = confidencePairs;
           Object.entries(trackAttributes).forEach(([key, val]) => {
             // "track is possibly undefined" seems like a bug
-            // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-            // @ts-ignore
-            track.attributes[key] = val;
+            if (track && track.attributes) {
+              track.attributes[key] = val;
+            }
           });
         } catch (err) {
           if (!(err instanceof Error)) {
@@ -432,7 +472,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
           }
           if (err.toString().includes('comment row')) {
             // parse comment row
-            fps = fps || parseCommentRow(record).fps;
+            const parsedComment = parseCommentRow(record);
+            fps = fps || parsedComment.fps;
+            if (parsedComment.execTime) {
+              execTime = parsedComment.execTime;
+            }
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
@@ -446,7 +490,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<A
 }
 
 async function parseFile(path: string, imageMap?: Map<string, number>):
-  Promise<AnnotationFileData> {
+  Promise<[AnnotationFileData, string[]]> {
   const stream = fs.createReadStream(path);
   return parse(stream, imageMap);
 }
@@ -466,12 +510,16 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     'Confidence Pairs or Attributes',
   ]);
   if (meta.fps) {
-    writer.write([
+    const metadataRow = [
       '# metadata',
       `fps: ${meta.fps}`,
       `exported_by: ${JSON.stringify('dive:typescript')}`,
       `exported_time: ${JSON.stringify((new Date()).toLocaleString())}`,
-    ]);
+    ];
+    if (meta.execTime) {
+      metadataRow.push(`exec_time: ${meta.execTime}`);
+    }
+    writer.write(metadataRow);
   }
 }
 
@@ -546,9 +594,8 @@ async function serialize(
             Object.entries(feature.attributes || {}).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
-
             /* Track Attributes */
-            Object.entries(track.attributes).forEach(([key, val]) => {
+            Object.entries(track.attributes || {}).forEach(([key, val]) => {
               row.push(`${TrackAtrToken} ${key} ${val}`);
             });
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from 'vue';
 import {
   useCameraStore,
   useEditingMode, useHandler, useSelectedCamera,
@@ -131,7 +131,7 @@ export default defineComponent({
           :key="camera"
         >
           <v-row>
-            <h2 :class="{selected:camera === selectedCamera}">
+            <h2 :class="{ selected: camera === selectedCamera }">
               {{ camera }}
             </h2>
           </v-row>

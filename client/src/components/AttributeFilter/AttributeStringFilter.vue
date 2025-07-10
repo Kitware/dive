@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType, Ref, ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AttributeStringFilter } from 'vue-media-annotator/use/AttributeTypes';
 import { cloneDeep } from 'lodash';
@@ -10,6 +10,8 @@ import AttributeStringFilterSettings from './AttributeStringFilterSettings.vue';
 
 export default defineComponent({
   name: 'AttributeStringFilter',
+
+  components: { TooltipBtn, AttributeStringFilterSettings },
 
   props: {
     attributeFilter: {
@@ -22,8 +24,6 @@ export default defineComponent({
     },
 
   },
-
-  components: { TooltipBtn, AttributeStringFilterSettings },
 
   setup(props, { emit }) {
     const settingsDialog = ref(false);

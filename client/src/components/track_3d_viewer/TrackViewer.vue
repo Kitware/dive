@@ -1,22 +1,18 @@
 <script lang="ts">
 import {
   ref, onMounted, onBeforeUnmount, defineComponent, watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 import '@kitware/vtk.js/Rendering/Profiles/Glyph';
 import '@kitware/vtk.js/Rendering/Profiles/Geometry';
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore no declaration file
+// @ts-expect-error no declaration file
 import vtkCubeAxesActor from '@kitware/vtk.js/Rendering/Core/CubeAxesActor';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore no declaration file
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
-// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-// @ts-ignore no declaration file
+// @ts-expect-error no declaration file
 import vtkInteractorStyleTrackballCamera from '@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera';
 import { debounce } from '@kitware/vtk.js/macros';
 import {
@@ -79,7 +75,6 @@ export default defineComponent({
 
     let vtkContainerResizeObserver: ResizeObserver | null = null;
 
-
     const { initialize: initializeTrackDrawer } = useTrackDrawer({
       trackManager,
       onlyShowSelectedTrack,
@@ -87,7 +82,6 @@ export default defineComponent({
       viewUtils,
       renderer,
     });
-
 
     const { initialize: initializeLabelDrawer, drawLabels, clearLabelContext } = useLabelDrawer({
       renderer,

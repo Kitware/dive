@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-ignore */
 /* eslint-disable import/prefer-default-export */
 import vtkAxesActor from '@kitware/vtk.js/Rendering/Core/AxesActor';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
@@ -8,7 +7,7 @@ import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWind
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import * as vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import { ref } from '@vue/composition-api';
+import { ref } from 'vue';
 
 const getMajorAxisFromViewUp = function getMajorAxisFromViewUp(
   viewUp: Vector3,
@@ -58,8 +57,7 @@ export function useOrientationMarkerWidget() {
       throw new Error('Failed to add widget to view.');
     }
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-    // @ts-ignore
+    // @ts-expect-error it exists
     viewWidget.onOrientationChange(({ direction }) => {
       const focalPoint = camera.getFocalPoint();
       const position = camera.getPosition();

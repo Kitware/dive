@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import geo from 'geojs';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
@@ -133,8 +133,11 @@ export default defineComponent({
       // eslint-disable-next-line no-unreachable
       const resp2 = await props.getTiles(props.imageData[frame].id, projection);
       const newParams = geo.util.pixelCoordinateParams(
-        container.value, resp2.sizeX, resp2.sizeY,
-        resp2.tileWidth, resp2.tileHeight,
+        container.value,
+        resp2.sizeX,
+        resp2.sizeY,
+        resp2.tileWidth,
+        resp2.tileHeight,
       );
       local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
       local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
@@ -185,8 +188,11 @@ export default defineComponent({
             loadingImage.value = true;
             const resp2 = await props.getTiles(props.imageData[newFrame].id, projection);
             const newParams = geo.util.pixelCoordinateParams(
-              container.value, resp2.sizeX, resp2.sizeY,
-              resp2.tileWidth, resp2.tileHeight,
+              container.value,
+              resp2.sizeX,
+              resp2.sizeY,
+              resp2.tileWidth,
+              resp2.tileHeight,
             );
             geoViewer.value.onIdle(() => {
               local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
@@ -280,16 +286,30 @@ export default defineComponent({
       };
       if (props.imageData.length) {
         if (geoSpatial) {
-          initializeViewer(local.metadata.sourceSizeX, local.metadata.sourceSizeY,
-            local.metadata.tileWidth, local.metadata.tileHeight,
-            true, geoSpatial);
+          initializeViewer(
+            local.metadata.sourceSizeX,
+            local.metadata.sourceSizeY,
+            local.metadata.tileWidth,
+            local.metadata.tileHeight,
+            true,
+            geoSpatial,
+          );
         } else {
-          initializeViewer(local.width, local.height,
-            local.metadata.tileWidth, local.metadata.tileHeight, true, geoSpatial);
+          initializeViewer(
+            local.width,
+            local.height,
+            local.metadata.tileWidth,
+            local.metadata.tileHeight,
+            true,
+            geoSpatial,
+          );
           // Need to set up the params using pixelCoorindateParams here instead of in useMediaViewer
           local.params = geo.util.pixelCoordinateParams(
-            container.value, local.width, local.height,
-            local.metadata.tileWidth, local.metadata.tileHeight,
+            container.value,
+            local.width,
+            local.height,
+            local.metadata.tileWidth,
+            local.metadata.tileHeight,
           );
           local.params.layer.useCredentials = true;
           local.params.layer.autoshareRenderer = false;
@@ -322,8 +342,11 @@ export default defineComponent({
           const resp2 = await props.getTiles(props.imageData[data.frame + 1].id, projection);
 
           const newParams = geo.util.pixelCoordinateParams(
-            container.value, resp2.sizeX, resp2.sizeY,
-            resp2.tileWidth, resp2.tileHeight,
+            container.value,
+            resp2.sizeX,
+            resp2.sizeY,
+            resp2.tileWidth,
+            resp2.tileHeight,
           );
           local.nextLayer = geoViewer.value.createLayer('osm', newParams.layer);
           local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
@@ -337,8 +360,10 @@ export default defineComponent({
         }
 
         local.currentLayer.url(
-          _getTileURL(props.imageData[data.frame].id,
-            projection),
+          _getTileURL(
+            props.imageData[data.frame].id,
+            projection,
+          ),
         );
         // Set quadFeature and conditionally apply brightness filter
         setBrightnessFilter(props.brightness !== undefined);

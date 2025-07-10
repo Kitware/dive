@@ -271,6 +271,22 @@ export default class Track extends BaseAnnotation {
     }
   }
 
+  toggleInterpolationForAllGaps(frame: number): void {
+    const { interpolate } = this.canInterpolate(frame);
+
+    for (let i = this.begin; i < this.end; i += 1) {
+      const { features } = this.canInterpolate(i);
+      const [real, lower, upper] = features;
+      const targetKeyframe = real?.keyframe ? real : (lower || upper);
+      if (targetKeyframe) {
+        this.setFeature({
+          ...targetKeyframe,
+          interpolate: !interpolate,
+        });
+      }
+    }
+  }
+
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
@@ -356,7 +372,6 @@ export default class Track extends BaseAnnotation {
     }
     return false;
   }
-
 
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
     if (this.features[frame]) {

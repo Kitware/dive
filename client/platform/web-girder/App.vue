@@ -5,12 +5,16 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import { provideApi } from 'dive-common/apispec';
+import { useRoute } from 'vue-router/composables';
+import { useStore } from 'platform/web-girder/store/types';
 import type { GirderMetadata } from './constants';
 import {
   getPipelineList,
+  deleteTrainedPipeline,
   runPipeline,
+  exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
@@ -28,16 +32,20 @@ import { openFromDisk } from './utils';
 export default defineComponent({
   name: 'App',
   components: {},
-  setup(_, { root }) {
+  setup() {
+    const route = useRoute();
+    const store = useStore();
     async function loadMetadata(datasetId: string): Promise<GirderMetadata> {
-      return root.$store.dispatch('Dataset/load', datasetId);
+      return store.dispatch('Dataset/load', datasetId);
     }
 
-    root.$store.dispatch('Location/setLocationFromRoute', root.$route);
+    store.dispatch('Location/setLocationFromRoute', route);
 
     provideApi({
       getPipelineList: unwrap(getPipelineList),
+      deleteTrainedPipeline: unwrap(deleteTrainedPipeline),
       runPipeline: unwrap(runPipeline),
+      exportTrainedPipeline: unwrap(exportTrainedPipeline),
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,

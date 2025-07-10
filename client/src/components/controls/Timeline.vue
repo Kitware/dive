@@ -28,6 +28,7 @@ export default {
       clientWidth: 0,
       clientHeight: 0,
       margin: 20,
+      resizeObserver: null,
     };
   },
   computed: {
@@ -93,14 +94,27 @@ export default {
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.resizeHandler);
+    if (this.resizeObserver && this.$refs.workarea) {
+      this.resizeObserver.unobserve(this.$refs.workarea);
+      this.resizeObserver.disconnect();
+    }
   },
   mounted() {
     this.initialize();
   },
   methods: {
     initialize() {
+      if (!this.$refs.workarea) {
+        return;
+      }
       const width = this.$refs.workarea.clientWidth || 0;
       const height = this.$refs.workarea.clientHeight || 0;
+      if (this.$refs.workarea) {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.resizeHandler();
+        });
+        this.resizeObserver.observe(this.$refs.workarea);
+      }
       // clientWidth and clientHeight are properties used to resize child elements
       this.clientWidth = width - this.margin;
       // Timeline height needs to offset so it doesn't overlap the frame number
@@ -255,11 +269,11 @@ export default {
       >
         <slot
           name="child"
-          :startFrame="startFrame"
-          :endFrame="endFrame"
-          :maxFrame="maxFrame"
-          :clientWidth="clientWidth"
-          :clientHeight="clientHeight"
+          :start-frame="startFrame"
+          :end-frame="endFrame"
+          :max-frame="maxFrame"
+          :client-width="clientWidth"
+          :client-height="clientHeight"
           :margin="margin"
         />
       </div>

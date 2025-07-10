@@ -116,7 +116,8 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   /* Extract and validate media from import path */
   if (args.type === 'video') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.sourceList),
+      await asyncForEach(
+        Object.entries(args.sourceList),
         async ([cameraName, item]) => {
           if (item.trackFile) {
             multiCamTrackFiles[cameraName] = item.trackFile;
@@ -152,13 +153,15 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
           } else {
             throw new Error(`could not determine video MIME type for ${video}`);
           }
-        });
+        },
+      );
     } else if (isKeywordArgs(args)) {
       throw new Error('glob pattern matching is not supported for multi-cam videos');
     }
   } else if (args.type === 'image-sequence') {
     if (isFolderArgs(args)) {
-      await asyncForEach(Object.entries(args.sourceList),
+      await asyncForEach(
+        Object.entries(args.sourceList),
         async ([cameraName, item]) => {
           if (item.trackFile) {
             multiCamTrackFiles[cameraName] = item.trackFile;
@@ -176,10 +179,12 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
-        });
+        },
+      );
     } else if (isKeywordArgs(args)) {
       jsonMeta.originalBasePath = args.sourcePath;
-      await asyncForEach(Object.entries(args.globList),
+      await asyncForEach(
+        Object.entries(args.globList),
         async ([cameraName, item]) => {
           const found = await findImagesInFolder(args.sourcePath, item.glob);
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
@@ -190,7 +195,8 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
-        });
+        },
+      );
     }
   } else {
     throw new Error('only video and image-sequence types are supported');

@@ -1,6 +1,6 @@
 /* eslint-disable consistent-return */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { Ref, watch } from '@vue/composition-api';
+import { Ref, watch } from 'vue';
 import {
   useTrackFilters,
   useSelectedTrackId,
@@ -131,8 +131,6 @@ export default function useTrackDrawer({
     const trackActorProperty = trackActor.getProperty();
     points.setNumberOfPoints(numberOfFeatures);
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-    // @ts-ignore size does not exists
     const lines = vtkCellArray.newInstance({ size: numberOfFeatures + 1 });
     lines.getData()[0] = numberOfFeatures;
 
@@ -433,7 +431,6 @@ export default function useTrackDrawer({
     onFrameChange(frameRef.value, undefined);
     onSelectedTrackChange(selectedTrackIdRef.value, null);
   };
-
 
   watch(selectedTrackIdRef, onSelectedTrackChange);
   watch(frameRef, onFrameChange);

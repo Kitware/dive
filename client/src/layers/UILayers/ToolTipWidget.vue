@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { StateStyles } from '../../StyleManager';
 import { ToolTipWidgetData } from './UILayerTypes';
 /*
