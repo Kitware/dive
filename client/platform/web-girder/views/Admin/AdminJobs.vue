@@ -2,7 +2,7 @@
 import {
   computed,
   defineComponent, onMounted, ref, Ref, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   cancelJob, deleteJob, getJobTypesStatus, getRecentJobs,
 } from 'platform/web-girder/api/admin.service';
@@ -35,10 +35,10 @@ export default defineComponent({
     const store = useStore();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
-    const jobTypes: Ref<string[]> = ref([]);
+    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training']);
     const jobStatusList: Ref<string[]> = ref(['Cancelled', 'Error', 'Inactive', 'Running', 'Cancelling', 'Success']);
     const filterStatus: Ref<string[]> = ref(['Running', 'Error', 'Inactive']);
-    const filterTypes: Ref<string[]> = ref([]);
+    const filterTypes: Ref<string[]> = ref(jobTypes.value);
     const trainingInputList: Ref<[string, number][]> = ref([]);
     const trainingListDialog = ref(false);
     const headers: Ref<{text: string; value: string}[]> = ref([
@@ -54,7 +54,11 @@ export default defineComponent({
     ]);
     const initTypes = async () => {
       const typesAndStatus = (await getJobTypesStatus());
-      jobTypes.value = typesAndStatus.data.types;
+      typesAndStatus.data.types.forEach((type) => {
+        if (!jobTypes.value.includes(type)) {
+          jobTypes.value.push(type);
+        }
+      });
       filterTypes.value = typesAndStatus.data.types;
     };
     const getData = async () => {
@@ -78,6 +82,8 @@ export default defineComponent({
           const temp = JSON.parse(item.kwargs);
           if (temp.params !== undefined) {
             params = temp.params;
+          } else if (isObject(temp)) {
+            params = temp;
           }
         }
         return {
@@ -190,7 +196,11 @@ export default defineComponent({
             outlined
             @change="getData"
           >
-            <template v-slot:selection="{ attrs, item, select, selected }">
+            <template
+              #selection="{
+                attrs, item, select, selected,
+              }"
+            >
               <v-chip
                 v-bind="attrs"
                 :input-value="selected"
@@ -213,7 +223,11 @@ export default defineComponent({
             outlined
             @change="getData"
           >
-            <template v-slot:selection="{ attrs, item, select, selected }">
+            <template
+              #selection="{
+                attrs, item, select, selected,
+              }"
+            >
               <v-chip
                 v-bind="attrs"
                 :input-value="selected"
@@ -235,7 +249,7 @@ export default defineComponent({
           hide-default-footer
           class="elevation-1"
         >
-          <template v-slot:item.userDir="{ item }">
+          <template #item.userDir="{ item }">
             <div v-if="item.userDir === 'Unknown'">
               Unknown
             </div>
@@ -243,7 +257,7 @@ export default defineComponent({
               v-else
               bottom
             >
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   small
@@ -261,19 +275,19 @@ export default defineComponent({
               <span>Launch User Directory</span>
             </v-tooltip>
           </template>
-          <template v-slot:item.type="{ item }">
+          <template #item.type="{ item }">
             {{ item.type }}
           </template>
-          <template v-slot:item.status="{ item }">
+          <template #item.status="{ item }">
             <JobProgress :formatted-job="formatStatus(item.status)" />
           </template>
-          <template v-slot:item.params="{ item }">
+          <template #item.params="{ item }">
             <div v-if="item.type === 'pipelines'">
               <div v-if="item.params.input_folder">
                 <v-tooltip
                   bottom
                 >
-                  <template #activator="{on, attrs}">
+                  <template #activator="{ on, attrs }">
                     <v-btn
                       v-bind="attrs"
                       x-small
@@ -297,7 +311,7 @@ export default defineComponent({
                 <v-tooltip
                   bottom
                 >
-                  <template #activator="{on, attrs}">
+                  <template #activator="{ on, attrs }">
                     <v-btn
                       v-bind="attrs"
                       x-small
@@ -317,9 +331,9 @@ export default defineComponent({
               </div>
             </div>
           </template>
-          <template v-slot:item.actions="{ item }">
+          <template #item.actions="{ item }">
             <v-tooltip bottom>
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   x-small
@@ -340,7 +354,7 @@ export default defineComponent({
               v-if="item.status < 3 "
               bottom
             >
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   x-small
@@ -360,7 +374,7 @@ export default defineComponent({
             <v-tooltip
               bottom
             >
-              <template #activator="{on, attrs}">
+              <template #activator="{ on, attrs }">
                 <v-btn
                   v-bind="attrs"
                   x-small
@@ -401,7 +415,7 @@ export default defineComponent({
               <v-tooltip
                 bottom
               >
-                <template #activator="{on, attrs}">
+                <template #activator="{ on, attrs }">
                   <v-btn
                     v-bind="attrs"
                     depressed

@@ -5,6 +5,8 @@ import AdminRecents from './Admin/AdminRecents.vue';
 import UserRecents from './Admin/UserRecents.vue';
 import AdminJobs from './Admin/AdminJobs.vue';
 import AdminBranding from './Admin/AdminBranding.vue';
+import AdminStats from './Admin/AdminStats.vue';
+import AdminUpdate from './Admin/AdminUpdate.vue';
 
 export default {
   name: 'AdminPage',
@@ -14,6 +16,8 @@ export default {
     UserRecents,
     AdminJobs,
     AdminBranding,
+    AdminStats,
+    AdminUpdate,
   },
   props: {
   },
@@ -36,6 +40,8 @@ export default {
           <v-tab> Jobs </v-tab>
           <v-tab> Addons </v-tab>
           <v-tab> Branding </v-tab>
+          <v-tab> Stats </v-tab>
+          <v-tab> Update </v-tab>
         </v-tabs>
       </v-card-title>
       <v-tabs-items v-model="currentTab">
@@ -53,6 +59,12 @@ export default {
         </v-tab-item>
         <v-tab-item>
           <AdminBranding />
+        </v-tab-item>
+        <v-tab-item>
+          <AdminStats />
+        </v-tab-item>
+        <v-tab-item>
+          <AdminUpdate />
         </v-tab-item>
       </v-tabs-items>
 

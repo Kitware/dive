@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, computed, PropType, ref, onBeforeMount,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   Pipelines,
   Pipe,
@@ -114,9 +114,7 @@ export default defineComponent({
     ));
 
     const pipelinesCurrentlyRunning = computed(
-      () => props.selectedDatasetIds.reduce(
-        (acc, item) => acc || props.runningPipelines.includes(item), false,
-      ),
+      () => props.selectedDatasetIds.reduce((acc, item) => acc || props.runningPipelines.includes(item), false),
     );
 
     const singlePipelineValue = computed(() => {
@@ -163,6 +161,8 @@ export default defineComponent({
         case 'utility':
         case 'generate':
           return 'utilities';
+        case 'transcode':
+          return 'transcoders';
         default:
           return `${pipeType}s`;
       }
@@ -191,7 +191,7 @@ export default defineComponent({
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
-      <template v-slot:activator="{ on: menuOn }">
+      <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
           :disabled="menuOptions.offsetX"
@@ -200,7 +200,7 @@ export default defineComponent({
             <v-btn
               v-bind="buttonOptions"
               :disabled="pipelinesNotRunnable || buttonOptions.disabled"
-              :color="pipelinesCurrentlyRunning? 'warning' : buttonOptions.color"
+              :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
               v-on="{ ...tooltipOn, ...menuOn }"
             >
               <v-icon> mdi-pipe </v-icon>
@@ -292,7 +292,7 @@ export default defineComponent({
                 offset-x
                 right
               >
-                <template v-slot:activator="{ on }">
+                <template #activator="{ on }">
                   <v-btn
                     depressed
                     block

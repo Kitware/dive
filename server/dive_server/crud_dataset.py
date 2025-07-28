@@ -111,6 +111,7 @@ def get_media(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.DatasetSourceMedia:
     videoResource = None
+    sourceVideoResource = None
     imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
@@ -130,6 +131,24 @@ def get_media(
                 url=get_url(dsFolder, videoItem),
                 filename=videoItem['name'],
             )
+            sourceVideoItem = Item().findOne(
+                {
+                    'folderId': crud.getCloneRoot(user, dsFolder)['_id'],
+                    'meta.source_video': {'$in': [True, 'true', 'True']},
+                }
+            )
+            if (
+                sourceVideoItem
+                and str(sourceVideoItem['_id']) != str(videoItem['_id'])
+                and videoItem.get('meta', {}).get(constants.MISALGINED_MARKER, False) is False
+            ):
+                sourceVideoResource = models.MediaResource(
+                    id=str(sourceVideoItem['_id']),
+                    url=get_url(dsFolder, sourceVideoItem),
+                    filename=sourceVideoItem['name'],
+                )
+            else:
+                sourceVideoResource = videoResource
     elif source_type == constants.ImageSequenceType:
         imageData = [
             models.MediaResource(
@@ -153,8 +172,7 @@ def get_media(
         raise ValueError(f'Unrecognized source type: {source_type}')
 
     return models.DatasetSourceMedia(
-        imageData=imageData,
-        video=videoResource,
+        imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
 
 
@@ -257,12 +275,18 @@ def export_datasets_zipstream(
             mediaRegex = constants.imageRegex
         elif source_type == constants.VideoType:
             mediaRegex = constants.videoRegex
+        elif source_type == constants.LargeImageType:
+            mediaRegex = constants.largeImageRegEx
         return gen, mediaFolder, mediaRegex
 
     failed_datasets = []
 
     def stream():
         z = ziputil.ZipGenerator()
+        nestedExcludeBelowThreshold = excludeBelowThreshold
+        nestedTypeFilter = typeFilter
+        if nestedTypeFilter is None:
+            nestedTypeFilter = set()
         for dsFolder in dsFolders:
             zip_path = f"./{dsFolder['name']}/"
             try:
@@ -275,7 +299,7 @@ def export_datasets_zipstream(
                 continue
 
             def makeMetajson():
-                """Include dataset metadtata file with full export"""
+                """Include dataset metadatta file with full export"""
                 meta = get_dataset(dsFolder, user)
                 media = get_media(dsFolder, user)
                 yield json.dumps(
@@ -289,7 +313,29 @@ def export_datasets_zipstream(
             def makeDiveJson():
                 """Include DIVE JSON output annotation file"""
                 annotations = crud_annotation.get_annotations(dsFolder)
-                print(annotations)
+                tracks = annotations['tracks']
+                thresholds = None
+                if nestedExcludeBelowThreshold:
+                    thresholds = fromMeta(dsFolder, "confidenceFilters", {})
+                if thresholds is None:
+                    thresholds = {}
+
+                updated_tracks = {}
+                for t in tracks:
+                    track = models.Track(**tracks[t])
+                    if (not nestedExcludeBelowThreshold) or track.exceeds_thresholds(thresholds):
+                        # filter by types if applicable
+                        if nestedTypeFilter:
+                            confidence_pairs = [
+                                item
+                                for item in track.confidencePairs
+                                if item[0] in nestedTypeFilter
+                            ]
+                            # skip line if no confidence pairs
+                            if not confidence_pairs:
+                                continue
+                        updated_tracks[t] = tracks[t]
+                annotations['tracks'] = updated_tracks
                 yield json.dumps(annotations)
 
             for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):

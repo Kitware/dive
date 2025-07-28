@@ -1,5 +1,4 @@
-import { ref, watch, Ref } from '@vue/composition-api';
-import Vue from 'vue';
+import Vue, { ref, watch, Ref } from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
@@ -12,14 +11,14 @@ export default function useVirtualScrollTo({
   filteredListRef,
   selectedIdRef,
   multiSelectList,
-  selectNext,
+  trackSelect,
 }: {
   itemHeight: Readonly<number>;
   getAnnotation: (id: AnnotationId) => Track | Group | undefined;
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
-  selectNext: (id: AnnotationId) => void;
+  trackSelect: (id: AnnotationId | null, edit: boolean) => void;
 }) {
   const virtualList = ref(null as null | Vue);
 
@@ -57,10 +56,30 @@ export default function useVirtualScrollTo({
     direction: 'up' | 'down',
   ): void {
     if (virtualList.value !== null && element === virtualList.value.$el) {
-      if (direction === 'up') {
-        selectNext(-1);
+      if (filteredListRef.value.length === 0) {
+        return;
+      }
+      const index = filteredListRef.value.findIndex((item) => item.annotation.id === selectedIdRef.value);
+      if (index === -1 && direction === 'up') {
+        const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
+        trackSelect(newId, false);
+      } else if (index === -1 && direction === 'down') {
+        const newId = filteredListRef.value[0].annotation.id;
+        trackSelect(newId, false);
+      } else if (direction === 'up') {
+        if (index > 0) {
+          trackSelect(filteredListRef.value[index - 1].annotation.id, false);
+        } else {
+          const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
+          trackSelect(newId, false);
+        }
       } else if (direction === 'down') {
-        selectNext(1);
+        if (index === filteredListRef.value.length - 1) {
+          trackSelect(filteredListRef.value[0].annotation.id, false);
+        } else {
+          const newId = filteredListRef.value[index + 1].annotation.id;
+          trackSelect(newId, false);
+        }
       }
       keyEvent.preventDefault();
     }

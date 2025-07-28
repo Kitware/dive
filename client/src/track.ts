@@ -37,6 +37,7 @@ export interface TrackData extends BaseData {
 /* Constructor params for Track */
 interface TrackParams extends BaseAnnotationParams {
   features?: Array<Feature>;
+  set?: string;
 }
 
 /**
@@ -52,12 +53,20 @@ export default class Track extends BaseAnnotation {
    * for performing fast search */
   featureIndex: number[];
 
+  /**
+   * Set used for when making comparisons between sets of tracks
+   */
+  set?: string;
+
   constructor(id: AnnotationId, params: TrackParams) {
     super(id, params);
     this.features = params.features || []; // NON-reactive sparse array
     this.featureIndex = [];
     Track.sanityCheckFeatures(this.features);
     this.repopulateInterpolatedFrames(this.features);
+    if (params.set) {
+      this.set = params.set;
+    }
   }
 
   /**
@@ -262,6 +271,22 @@ export default class Track extends BaseAnnotation {
     }
   }
 
+  toggleInterpolationForAllGaps(frame: number): void {
+    const { interpolate } = this.canInterpolate(frame);
+
+    for (let i = this.begin; i < this.end; i += 1) {
+      const { features } = this.canInterpolate(i);
+      const [real, lower, upper] = features;
+      const targetKeyframe = real?.keyframe ? real : (lower || upper);
+      if (targetKeyframe) {
+        this.setFeature({
+          ...targetKeyframe,
+          interpolate: !interpolate,
+        });
+      }
+    }
+  }
+
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
     this.features[feature.frame] = {
@@ -347,7 +372,6 @@ export default class Track extends BaseAnnotation {
     }
     return false;
   }
-
 
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
     if (this.features[frame]) {
@@ -499,7 +523,7 @@ export default class Track extends BaseAnnotation {
     };
   }
 
-  static fromJSON(json: TrackData): Track {
+  static fromJSON(json: TrackData, set?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
       sparseFeatures[f.frame] = {
@@ -516,6 +540,7 @@ export default class Track extends BaseAnnotation {
       confidencePairs: json.confidencePairs,
       begin: json.begin,
       end: json.end,
+      set,
     });
     return track;
   }

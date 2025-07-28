@@ -9,24 +9,34 @@ The timeline provides a control bar and a few different temporal visualizations.
 ## Control Bar
 
 * ==:material-chevron-down-box:== will minimize the timeline.
-* ==Detections== button selects the **Detection Count** histogram timeline view.
+* ==# of Detections== button selects the **Track/Detection Count** histogram timeline view.
 * ==Events== button selects the **Event View**, which is a Gantt-style track chart.
 * ==Groups== button selects the **Group View**, which is a Gantt-style group chart.
 * ==:material-skip-previous:==  ==:material-play:== ==:material-skip-next:== are standard media playback controls.
 * ==:material-speedometer:==  ==:material-volume-medium:== opens the video playback speed controls and volume controls, respectively.
 * ==frame ##== shows the current frame number.
 * ==:material-lock-open:== will enable camera lock, which causes the annotation view to auto-zoom and pan to whatever annotation is currently selected.  This is useful when reviewing the output of a pipeline.
+    * Hovering over the camera lock will open additional settings for forcing transition and locking to a zoomed in multiple of the bbox size
 * ==:material-image-filter-center-focus:== or the ++r++ key will reset zoom/pan in the annotation view.
 * ==:material-contrast-box:== will open the image contrast adjustment panel.
 
-## Detection Count
+## Detection/Track Count
 
 ![Timeline View](images/Timeline/TimelineView.png)
 
-This is the default visualization.  It is a stacked histogram of track/detection types over the duration of the sequence.
-
 * Line color matches the annotation type style.
 * Top green line is the sum count of all annotations of all types on each frame.
+
+
+This is the default visualization.  It is a stacked histogram of track/detection types over the duration of the sequence.
+Hovering over the Button for # of Tracks will bring up a settings panel where a user can swap between the # of Detections vs the # of Tracks
+* Tracks - This is the count of tracks at each frame which uses tracks begin/end times so tracks with gaps in the detections will still show up on the frame
+* Detections - This is a count of the detections so it will show gaps in tracks
+
+![Detection/Track Count Settings](images/Timeline/CountSettings.png)
+
+* Swap to Detections/Tracks will swap to the different styles of counting
+* Show Total Count will hide/show the total count for all tracks/detections
 
 ## Event View
 

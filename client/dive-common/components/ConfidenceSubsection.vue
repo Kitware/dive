@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 
 import {
   useTrackStyleManager,

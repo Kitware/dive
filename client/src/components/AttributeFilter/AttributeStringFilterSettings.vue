@@ -1,13 +1,15 @@
 <script lang="ts">
 import {
   defineComponent, PropType,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AttributeStringFilter } from 'vue-media-annotator/use/AttributeTypes';
 import TooltipBtn from '../TooltipButton.vue';
 
 export default defineComponent({
   name: 'AttributeStringFilterSettings',
+
+  components: { TooltipBtn },
 
   props: {
     value: {
@@ -19,8 +21,6 @@ export default defineComponent({
       required: true,
     },
   },
-
-  components: { TooltipBtn },
 
   setup(props, { emit }) {
     const updateField = (key: string, val: number | string) => {

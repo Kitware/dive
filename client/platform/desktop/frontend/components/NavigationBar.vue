@@ -1,5 +1,5 @@
 <script>
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import JobTab from './JobTab.vue';
 
 export default defineComponent({
@@ -21,7 +21,7 @@ export default defineComponent({
       color="accent"
     >
       <v-tab :to="{ name: 'recent' }">
-        Recents
+        Library
         <v-icon>mdi-folder-open</v-icon>
       </v-tab>
       <job-tab />

@@ -2,9 +2,8 @@
 import {
   computed,
   defineComponent, ref, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { getAddons, postAddons } from 'platform/web-girder/api/configuration.service';
-
 
 export default defineComponent({
   name: 'AddOns',
@@ -75,7 +74,7 @@ export default defineComponent({
           show-select
           class="elevation-1"
         >
-          <template v-slot:item.Installed="{ item }">
+          <template #item.Installed="{ item }">
             <v-icon
               large
               :color="item.Installed ? 'success' : 'error'"

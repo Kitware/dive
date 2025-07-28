@@ -1,6 +1,6 @@
 import {
   provide, inject, ref, Ref, reactive,
-} from '@vue/composition-api';
+} from 'vue';
 
 import type { AnnotatorPreferences as AnnotatorPrefsIface } from './types';
 import StyleManager from './StyleManager';
@@ -19,7 +19,6 @@ import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
-
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -70,6 +69,9 @@ type AnnotationSetType = Readonly<Ref<string>>;
 const AnnotationSetsSymbol = Symbol('annotationSets');
 type AnnotationSetsType = Readonly<Ref<string[]>>;
 
+const ComparisonSetsSymbol = Symbol('comparisonSets');
+type ComparisonSetsType = Readonly<Ref<string[]>>;
+
 const SelectedCameraSymbol = Symbol('selectedCamera');
 type SelectedCameraType = Readonly<Ref<string>>;
 
@@ -110,6 +112,8 @@ export interface Handler {
   save(set?: string): Promise<void>;
   /* Select and seek to track */
   trackSeek(AnnotationId: AnnotationId): void;
+  /* Seek Frame */
+  seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
@@ -177,7 +181,6 @@ export interface Handler {
 }
 const HandlerSymbol = Symbol('handler');
 
-
 /**
  * Make a trivial noop handler. Useful if you only intend to
  * override some small number of values.
@@ -187,6 +190,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
   return {
     save(...args) { handle('save', args); return Promise.resolve(); },
     trackSeek(...args) { handle('trackSeek', args); },
+    seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
@@ -238,6 +242,7 @@ export interface State {
   revisionId: RevisionIdType;
   annotationSet: AnnotationSetType;
   annotationSets: AnnotationSetsType;
+  comparisonSets: ComparisonSetsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -259,8 +264,12 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
-  const setTrackType = (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => {
+  const setTrackType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
     cameraStore.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -285,7 +294,7 @@ function dummyState(): State {
 
   });
   return {
-    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 } }),
+    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
     datasetId: ref(''),
@@ -296,6 +305,7 @@ function dummyState(): State {
     revisionId: ref(0),
     annotationSet: ref(''),
     annotationSets: ref([]),
+    comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     selectedCamera: ref('singleCam'),
@@ -307,6 +317,7 @@ function dummyState(): State {
       flick: ref(0),
       frameRate: ref(0),
       originalFps: ref(null),
+      isPlaying: ref(false),
     },
     trackFilters: trackFilterControls,
     trackStyleManager: new StyleManager({ markChangesPending }),
@@ -339,6 +350,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(RevisionIdSymbol, state.revisionId);
   provide(AnnotationSetSymbol, state.annotationSet);
   provide(AnnotationSetsSymbol, state.annotationSets);
+  provide(ComparisonSetsSymbol, state.comparisonSets);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -392,7 +404,6 @@ function useGroupFilterControls() {
   return use<GroupFilterControls>(GroupFilterControlsSymbol);
 }
 
-
 function useGroupStyleManager() {
   return use<StyleManager>(GroupStyleManagerSymbol);
 }
@@ -425,6 +436,10 @@ function useAnnotationSets() {
   return use<AnnotationSetsType>(AnnotationSetsSymbol);
 }
 
+function useComparisonSets() {
+  return use<ComparisonSetsType>(ComparisonSetsSymbol);
+}
+
 function useTrackStyleManager() {
   return use<StyleManager>(TrackStyleManagerSymbol);
 }
@@ -432,7 +447,6 @@ function useTrackStyleManager() {
 function useSelectedCamera() {
   return use<SelectedCameraType>(SelectedCameraSymbol);
 }
-
 
 function useSelectedKey() {
   return use<SelectedKeyType>(SelectedKeySymbol);
@@ -453,7 +467,6 @@ function useTime() {
 function useTrackFilters() {
   return use<TrackFilterControls>(TrackFilterControlsSymbol);
 }
-
 
 function useVisibleModes() {
   return use<VisibleModesType>(VisibleModesSymbol);
@@ -484,6 +497,7 @@ export {
   useRevisionId,
   useAnnotationSet,
   useAnnotationSets,
+  useComparisonSets,
   useTrackFilters,
   useTrackStyleManager,
   useSelectedCamera,

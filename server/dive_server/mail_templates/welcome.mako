@@ -27,7 +27,7 @@
   <ul>
     <li><a href="https://www.viametoolkit.org/">VIAME Project homepage</a></li>
     <li><a href="https://kitware.github.io/dive/">Documentation for Web and DIVE Desktop</a></li>
-    <li><a href="https://viame.readthedocs.io/en/latest/section_links/documentation_overview.html">Documentation for VIAME Toolkit</a></li>
+    <li><a href="https://viame.readthedocs.io/en/latest/">Documentation for VIAME Toolkit</a></li>
   </ul>
 
   <h2>Support</h2>

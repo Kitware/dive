@@ -77,6 +77,7 @@ export default Vue.extend({
     GirderDetailList,
   },
   mixins: [sizeFormatter, usernameFormatter],
+  inject: ['girderRest'],
   props: {
     value: {
       required: true,
@@ -92,7 +93,6 @@ export default Vue.extend({
       showUpsert: false,
     };
   },
-  inject: ['girderRest'],
   asyncComputed: {
     async details() {
       if (this.datum && this.datum.created) {

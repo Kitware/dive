@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import VueGtag from 'vue-gtag';
-import VueCompositionApi from '@vue/composition-api';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
@@ -15,7 +14,6 @@ import router from './router';
 import store from './store';
 
 Vue.config.productionTip = false;
-Vue.use(VueCompositionApi);
 Vue.use(vMousetrap);
 
 if (

@@ -1,4 +1,4 @@
-import type { Ref } from '@vue/composition-api';
+import type { Ref } from 'vue';
 
 /**
  * AggregateMediaController provides an interface for time and a few
@@ -9,7 +9,6 @@ import type { Ref } from '@vue/composition-api';
 export interface AggregateMediaController {
   currentTime: Readonly<Ref<number>>;
   frame: Readonly<Ref<number>>;
-  lockedCamera: Readonly<Ref<boolean>>;
   maxFrame: Readonly<Ref<number>>;
   playing: Readonly<Ref<boolean>>;
   speed: Readonly<Ref<number>>;
@@ -25,7 +24,6 @@ export interface AggregateMediaController {
   prevFrame: () => void;
   setVolume: (volume: number) => void;
   setSpeed: (speed: number) => void;
-  toggleLockedCamera: () => void;
   getController: (cameraName: string) => MediaController;
   toggleSynchronizeCameras: (sync: boolean) => void;
 }
@@ -45,6 +43,7 @@ export interface MediaController extends AggregateMediaController {
   syncedFrame: Readonly<Ref<number>>;
 
   centerOn(coords: { x: number; y: number; z: number }): void;
+  transition(coords: { x: number; y:number}, duration: number, zoom?: number): void;
   setCursor(camera: string): void;
   setImageCursor(camera: string): void;
   resetMapDimensions(width: number, height: number, isMap?: boolean, margin?: number): void;

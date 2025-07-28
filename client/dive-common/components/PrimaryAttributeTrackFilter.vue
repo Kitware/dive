@@ -2,7 +2,7 @@
 /* eslint-disable max-len */
 import {
   computed, defineComponent, PropType, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { useTrackFilters } from 'vue-media-annotator/provides';
 import AttributeTrackFilter from './AttributeTrackFilter.vue';
 
@@ -86,7 +86,6 @@ export default defineComponent({
             </span>
           </v-tooltip>
         </v-badge>
-
 
         <v-spacer />
         <v-btn

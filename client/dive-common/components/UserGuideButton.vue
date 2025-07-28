@@ -40,7 +40,7 @@ export default {
       v-model="dialog"
       width="800"
     >
-      <template #activator="{on}">
+      <template #activator="{ on }">
         <v-btn
           dense
           depressed

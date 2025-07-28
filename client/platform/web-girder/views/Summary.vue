@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import { defineComponent, ref } from 'vue';
 import * as d3 from 'd3';
 import type { DataTableHeader } from 'vuetify';
 import { generateColors } from 'vue-media-annotator/StyleManager';
@@ -8,12 +8,11 @@ import { clientSettings } from 'dive-common/store/settings';
 import { getLabels } from '../api';
 import { Label } from '../api/annotation.service';
 
-
 export default defineComponent({
   setup() {
     const summaryList = ref<Array<Label>>();
     const expanded = ref<Array<Label>>();
-    const headers: DataTableHeader[] = [
+    const tableHeaders: DataTableHeader[] = [
       { text: 'Type', value: '_id' },
       { text: 'Number of Datasets', value: 'datasets.length' },
       { text: 'Number of Tracks', value: 'count' },
@@ -24,7 +23,6 @@ export default defineComponent({
     const ordinalColorMapper = d3.scaleOrdinal<string>().range(labelColors);
 
     const color = (label: string) => ordinalColorMapper(label);
-
 
     const updateList = async () => {
       const response = await getLabels();
@@ -40,11 +38,10 @@ export default defineComponent({
     };
     updateList();
 
-
     return {
       expanded,
       summaryList,
-      headers,
+      tableHeaders,
       clientSettings,
       itemsPerPageOptions,
     };
@@ -54,7 +51,7 @@ export default defineComponent({
 
 <template>
   <v-data-table
-    :headers="headers"
+    :headers="tableHeaders"
     :items="summaryList"
     :expanded.sync="expanded"
     :items-per-page.sync="clientSettings.rowsPerPage"
@@ -63,7 +60,7 @@ export default defineComponent({
     show-expand
   >
     <template
-      v-slot:expanded-item="{ headers, item }"
+      #expanded-item="{ headers, item }"
     >
       <td :colspan="headers.length">
         <v-chip

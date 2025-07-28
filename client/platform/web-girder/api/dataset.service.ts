@@ -19,7 +19,7 @@ async function getDatasetList(
   limit?: number,
   offset?: number,
   sort?: string,
-  sortDir?: number,
+  sortdir?: number,
   shared?: boolean,
   published?: boolean,
 ) {
@@ -28,7 +28,7 @@ async function getDatasetList(
       limit,
       offset,
       sort,
-      sortDir,
+      sortdir,
       shared,
       published,
     },
@@ -47,6 +47,7 @@ interface MediaResource extends FrameImage {
 export interface DatasetSourceMedia {
   imageData: MediaResource[];
   video?: MediaResource;
+  sourceVideo?: MediaResource;
 }
 
 function getDatasetMedia(folderId: string) {
@@ -88,7 +89,7 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined) {
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
   if (file === undefined) {
     return false;
   }
@@ -111,6 +112,11 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
     });
     if (uploadResponse.status === 200) {
       const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
+      if (final.data.length > 1) {
+        const warnings = final.data[1];
+        return warnings;
+      }
+
       return final.status === 200;
     }
   }
@@ -140,7 +146,6 @@ interface ValidationResponse {
 function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
-
 
 export {
   clone,

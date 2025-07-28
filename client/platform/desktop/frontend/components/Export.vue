@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, reactive, computed, toRef, watch, ref,
-} from '@vue/composition-api';
+} from 'vue';
 
 import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -54,7 +54,7 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
-    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration'; forceSave?: boolean}) {
+    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration' | 'trackJSON'; forceSave?: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
         savePrompt.value = false;
@@ -67,6 +67,10 @@ export default defineComponent({
           const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
           data.err = null;
           data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter);
+        } else if (type === 'trackJSON') {
+          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
+          data.err = null;
+          data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter, 'json');
         } else if (type === 'configuration') {
           data.outPath = await exportConfiguration(props.id);
         }
@@ -159,7 +163,7 @@ export default defineComponent({
           </v-dialog>
           <AutosavePrompt
             v-model="savePrompt"
-            @save="doExport({type: 'dataset', forceSave: true })"
+            @save="doExport({ type: 'dataset', forceSave: true })"
           />
           <v-alert
             v-if="data.outPath"
@@ -169,7 +173,7 @@ export default defineComponent({
           >
             Export succeeded.
           </v-alert>
-          <div>Export to VIAME CSV format</div>
+          <div>Export to Annotations</div>
           <template v-if="thresholds.length">
             <v-checkbox
               v-model="data.excludeBelowThreshold"
@@ -204,14 +208,26 @@ export default defineComponent({
           </template>
         </v-card-text>
         <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            block
-            @click="doExport({ type: 'dataset' })"
-          >
-            <span>export detections</span>
-          </v-btn>
+          <v-row>
+            <v-col>
+              <v-btn
+                depressed
+                block
+                class="my-1"
+                @click="doExport({ type: 'dataset' })"
+              >
+                <span>VIAME CSV</span>
+              </v-btn>
+              <v-btn
+                depressed
+                block
+                class="my-1"
+                @click="doExport({ type: 'trackJSON' })"
+              >
+                <span>TRACK JSON</span>
+              </v-btn>
+            </v-col>
+          </v-row>
         </v-card-actions>
         <v-card-text class="pb-0">
           Export the dataset configuration, including

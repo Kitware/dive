@@ -1,3 +1,4 @@
+import { UploadManager, Location } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,
@@ -5,6 +6,7 @@ import {
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
 import { Route } from 'vue-router';
+import { AxiosInstance } from 'axios';
 
 /**
  * If the current route is representable by a LocationType, return it.
@@ -83,9 +85,29 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   }));
 }
 
+interface UploadOptions {
+  $rest: AxiosInstance;
+  parent: Location;
+  progress?: () => null;
+  params?: Record<string, unknown>;
+  chunkLen?: number;
+}
+
+class GirderUploadManager extends UploadManager {
+  constructor(file: File, options: UploadOptions = {} as UploadOptions) {
+    const envChunkSize = parseInt(process.env.VUE_APP_UPLOAD_CHUNK_SIZE || '', 10);
+    const chunkSize = Number.isFinite(envChunkSize) ? envChunkSize : 64 * 1024 * 1024;
+    const finalOptions: UploadOptions = {
+      ...options,
+      chunkLen: options.chunkLen ?? chunkSize,
+    };
+    super(file, finalOptions);
+  }
+}
 
 export {
   getLocationFromRoute,
   getRouteFromLocation,
   openFromDisk,
+  GirderUploadManager,
 };

@@ -1,7 +1,8 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref, reactive, watch, inject, nextTick, onBeforeUnmount,
-} from '@vue/composition-api';
+  defineComponent, ref, toRef, computed, Ref,
+  reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
+} from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
 import { cloneDeep } from 'lodash';
@@ -55,7 +56,6 @@ export interface ImageDataItem {
   filename: string;
 }
 
-
 export default defineComponent({
   components: {
     ControlsContainer,
@@ -89,8 +89,12 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    comparisonSets: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
   },
-  setup(props, ctx) {
+  setup(props, { emit }) {
     const { prompt } = usePrompt();
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
@@ -98,9 +102,12 @@ export default defineComponent({
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
-    const readonlyState = computed(() => props.readOnlyMode || props.revision !== undefined);
+    const readonlyState = computed(() => props.readOnlyMode
+    || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
     const sets: Ref<string[]> = ref([]);
-    const selecteSet = ref('');
+    const displayComparisons = ref(props.comparisonSets.length
+      ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
+    const selectedSet = ref('');
     const {
       aggregateController,
       onResize,
@@ -128,7 +135,7 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
-
+    const sideBarCollapsed = ref(false);
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -177,8 +184,12 @@ export default defineComponent({
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
     };
-    const setTrackType = (id: AnnotationId, newType: string,
-      confidenceVal?: number, currentType?: string) => {
+    const setTrackType = (
+      id: AnnotationId,
+      newType: string,
+      confidenceVal?: number,
+      currentType?: string,
+    ) => {
       cameraStore.setTrackType(id, newType, confidenceVal, currentType);
     };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
@@ -256,7 +267,6 @@ export default defineComponent({
       cameraStore,
     });
 
-
     const allSelectedIds = computed(() => {
       const selected = selectedTrackId.value;
       if (selected !== null) {
@@ -269,6 +279,7 @@ export default defineComponent({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
+      getTracksMerged,
     });
 
     const { eventChartData } = useEventChart({
@@ -296,9 +307,7 @@ export default defineComponent({
         const groups = cameraStore.lookupGroups(trackId);
         let newtracks: [Track, Track];
         try {
-          newtracks = track.split(
-            frame, cameraStore.getNewTrackId(), cameraStore.getNewTrackId() + 1,
-          );
+          newtracks = track.split(frame, cameraStore.getNewTrackId(), cameraStore.getNewTrackId() + 1);
         } catch (err) {
           await prompt({
             title: 'Error while splitting track',
@@ -468,7 +477,7 @@ export default defineComponent({
     async function handleSetChange(set: string) {
       const guard = await navigateAwayGuard();
       if (guard) {
-        ctx.emit('update:set', set);
+        emit('update:set', set);
       }
     }
 
@@ -504,7 +513,7 @@ export default defineComponent({
           handler.trackEdit(selectedTrackId.value);
         }
       }
-      ctx.emit('change-camera', camera);
+      emit('change-camera', camera);
     };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
@@ -520,7 +529,7 @@ export default defineComponent({
         editingTrack.value = false;
       }
       selectCamera(camera, event?.button === 2);
-      ctx.emit('change-camera', camera);
+      emit('change-camera', camera);
     };
     /** Trigger data load */
     const loadData = async () => {
@@ -586,7 +595,7 @@ export default defineComponent({
           if (props.currentSet !== '' || sets.value.length > 0) {
             sets.value.push('default');
           }
-          selecteSet.value = props.currentSet ? props.currentSet : 'default';
+          selectedSet.value = props.currentSet ? props.currentSet : 'default';
           progress.total = tracks.length + groups.length;
           const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
           const groupStore = cameraStore.camMap.value.get(camera)?.groupStore;
@@ -596,6 +605,11 @@ export default defineComponent({
             if (tracks.length < 20000) {
               trackStore.setEnableSorting();
             }
+            let baseSet: string | undefined;
+            if (props.comparisonSets.length) {
+              baseSet = selectedSet.value;
+            }
+
             for (let j = 0; j < tracks.length; j += 1) {
               if (j % 4000 === 0) {
               /* Every N tracks, yeild some cycles for other scheduled tasks */
@@ -603,7 +617,7 @@ export default defineComponent({
                 // eslint-disable-next-line no-await-in-loop
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
-              trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+              trackStore.insert(Track.fromJSON(tracks[j], baseSet), { imported: true });
             }
             for (let j = 0; j < groups.length; j += 1) {
               if (j % 4000 === 0) {
@@ -613,6 +627,44 @@ export default defineComponent({
                 await new Promise((resolve) => window.setTimeout(resolve, 500));
               }
               groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
+            }
+          }
+          // Check if we load more data for comparions
+          if (props.comparisonSets.length) {
+            // Only compare one at a time
+            const firstSet = props.comparisonSets.slice(0, 1);
+            for (let setIndex = 0; setIndex < firstSet.length; setIndex += 1) {
+              const loadingSet = firstSet[setIndex] === 'default' ? undefined : firstSet[setIndex];
+              const {
+                tracks: setTracks,
+                groups: setGroups,
+                // eslint-disable-next-line no-await-in-loop
+              } = await loadDetections(cameraId, props.revision, loadingSet);
+              progress.total = setTracks.length + setGroups.length;
+              if (trackStore && groupStore) {
+                // We can start sorting if our total tracks are less than 20000
+                // If greater we do one sort at the end instead to speed loading.
+                if (tracks.length < 20000) {
+                  trackStore.setEnableSorting();
+                }
+                for (let j = 0; j < setTracks.length; j += 1) {
+                  if (j % 4000 === 0) {
+                    /* Every N tracks, yeild some cycles for other scheduled tasks */
+                    progress.progress = j;
+                    // eslint-disable-next-line no-await-in-loop
+                    await new Promise((resolve) => window.setTimeout(resolve, 500));
+                  }
+                  // We need to increment the trackIds for the new comparison sets
+                  setTracks[j].id = trackStore.getNewId();
+                  trackStore.insert(
+                    Track.fromJSON(
+                      setTracks[j],
+                      firstSet[setIndex],
+                    ),
+                    { imported: true },
+                  );
+                }
+              }
             }
           }
         }
@@ -671,6 +723,8 @@ export default defineComponent({
       discardChanges();
       progress.loaded = false;
       await loadData();
+      displayComparisons.value = props.comparisonSets.length
+        ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
     };
 
     watch(datasetId, reloadAnnotations);
@@ -690,7 +744,7 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch(controlsCollapsed, async () => {
+    watch([controlsCollapsed, sideBarCollapsed], async () => {
       await nextTick();
       handleResize();
     });
@@ -741,6 +795,7 @@ export default defineComponent({
         revisionId: toRef(props, 'revision'),
         annotationSet: toRef(props, 'currentSet'),
         annotationSets: sets,
+        comparisonSets: toRef(props, 'comparisonSets'),
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -764,6 +819,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
       colorBy,
       clientSettings,
       datasetName,
@@ -815,7 +871,9 @@ export default defineComponent({
       reloadAnnotations,
       // Annotation Sets,
       sets,
-      selecteSet,
+      selectedSet,
+      displayComparisons,
+      annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
     };
   },
 });
@@ -831,19 +889,41 @@ export default defineComponent({
       >
         {{ datasetName }}
         <v-tooltip
-          v-if="currentSet || sets.length > 0"
+          v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
-          <template v-slot:activator="{on}">
+          <template #activator="{ on }">
             <v-chip
               outlined
-              color="white"
+              :color="annotationSetColor(currentSet || 'default')"
               small
               v-on="on"
               @click="context.toggle('AnnotationSets')"
             > {{ currentSet || 'default' }}</v-chip>
+
           </template>
           <span>Custom Annotation Set.  Click to open the Annotation Set Settings</span>
+        </v-tooltip>
+        <span
+          v-if="displayComparisons && displayComparisons.length"
+          style="font-size:small"
+          class="px-2"
+        > Comparing: </span>
+
+        <v-tooltip
+          v-if="displayComparisons && displayComparisons.length"
+          bottom
+        >
+          <template #activator="{ on: onIcon }">
+            <v-chip
+              class="pl-2"
+              small
+              outlined
+              :color="annotationSetColor(displayComparisons[0] || 'default')"
+              v-on="onIcon"
+            > {{ displayComparisons[0] }}</v-chip>
+          </template>
+          Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
         <div
           v-if="readonlyState"
@@ -853,7 +933,7 @@ export default defineComponent({
           <v-tooltip
             bottom
           >
-            <template v-slot:activator="{on}">
+            <template #activator="{ on }">
               <v-chip
                 class="warning pr-1"
                 style="white-space:nowrap;display:inline"
@@ -873,10 +953,28 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <v-tooltip
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-icon
+              v-on="on"
+              @click="sideBarCollapsed = !sideBarCollapsed"
+            >
+              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+            </v-icon>
+          </template>
+          <span>Collapse Side Panel</span>
+        </v-tooltip>
+
         <EditorMenu
           v-bind="{
-            editingMode, visibleModes, editingTrack, recipes,
-            multiSelectActive, editingDetails,
+            editingMode,
+            visibleModes,
+            editingTrack,
+            recipes,
+            multiSelectActive,
+            editingDetails,
             groupEditActive: editingGroupId !== null,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
@@ -905,7 +1003,7 @@ export default defineComponent({
           @change="changeCamera"
         >
           <template #item="{ item }">
-            {{ item }} {{ item === defaultCamera ? '(Default)': '' }}
+            {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
         <v-divider
@@ -915,7 +1013,7 @@ export default defineComponent({
         <v-tooltip
           bottom
         >
-          <template v-slot:activator="{on}">
+          <template #activator="{ on }">
             <v-icon
               v-on="on"
               @click="context.toggle()"
@@ -936,7 +1034,7 @@ export default defineComponent({
         bottom
         :disabled="!readonlyState"
       >
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-badge
             overlap
             bottom
@@ -970,6 +1068,7 @@ export default defineComponent({
       style="min-width: 700px;"
     >
       <sidebar
+        v-if="!sideBarCollapsed"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
@@ -1012,21 +1111,29 @@ export default defineComponent({
               v-for="camera in multiCamList"
               :key="camera"
               class="d-flex flex-column grow"
-              :style="{ height: `calc(100% - ${controlsHeight}px)`}"
+              :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator' :
-                  datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                :is="datasetType === 'image-sequence' ? 'image-annotator'
+                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
-                :class="{'selected-camera': selectedCamera === camera && camera !== 'singleCam'}"
+                :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
-                  imageData: imageData[camera], videoUrl: videoUrl[camera],
-                  updateTime, frameRate, originalFps, camera, brightness,
-                  intercept, getTiles, getTileURL }"
+                  imageData: imageData[camera],
+                  videoUrl: videoUrl[camera],
+                  updateTime,
+                  frameRate,
+                  originalFps,
+                  camera,
+                  brightness,
+                  intercept,
+                  getTiles,
+                  getTileURL,
+                }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
                 <LayerManager :camera="camera" />
@@ -1035,9 +1142,10 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            class="shrink"
             :collapsed.sync="controlsCollapsed"
-            v-bind="{ lineChartData, eventChartData, groupChartData, datasetType }"
+            v-bind="{
+              lineChartData, eventChartData, groupChartData, datasetType,
+            }"
             @select-track="handler.trackSelect"
           />
         </div>

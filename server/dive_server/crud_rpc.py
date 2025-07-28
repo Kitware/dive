@@ -20,6 +20,7 @@ from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
+from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
@@ -65,10 +66,33 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines: Dict[str, types.PipelineCategory] = {}
     pipelines[constants.TrainedPipelineCategory] = {"pipes": [], "description": ""}
-    for folder in Folder().findWithPermissions(
-        query={f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}},
-        user=user,
-    ):
+    
+    trained_pipelines_query = {f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}}
+    query = {'$and': [trained_pipelines_query, Folder().permissionClauses(user, AccessType.READ)]}
+    models = [
+        {'$match': query},
+        {
+            '$facet': {
+                'results': [
+                    {
+                        '$lookup': {
+                            'from': 'user',
+                            'localField': 'creatorId',
+                            'foreignField': '_id',
+                            'as': 'ownerLogin',
+                        },
+                    },
+                    {'$set': {'ownerLogin': {'$first': '$ownerLogin'}}},
+                    {'$set': {'ownerLogin': '$ownerLogin.login'}},
+                ],
+                'totalCount': [{'$count': 'count'}],
+            },
+        },
+    ]
+    response = next(Folder().collection.aggregate(models))
+    folders = [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
+
+    for folder in folders:
         pipename = None
         for item in Folder().childItems(folder):
             if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_'):
@@ -84,6 +108,8 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
                         "type": constants.TrainedPipelineCategory,
                         "pipe": pipename,
                         "folderId": str(folder["_id"]),
+                        "ownerLogin": folder["ownerLogin"],
+                        "ownerId": folder["creatorId"],
                     }
                 )
     return pipelines
@@ -166,6 +192,7 @@ def run_pipeline(
     user: types.GirderUserModel,
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
+    force_transcoded=False,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -208,6 +235,7 @@ def run_pipeline(
         "input_revision": input_revision,
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
+        'force_transcoded': force_transcoded,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -235,6 +263,49 @@ def run_pipeline(
     )
     return newjob.job
 
+def export_trained_pipeline(
+    user: types.GirderUserModel,
+    model_folder: types.GirderModel,
+    export_folder: types.GirderModel,
+) -> types.GirderModel:
+    model_folder_id_str = str(model_folder["_id"])
+    export_folder_id_str = str(export_folder['_id'])
+    token = Token().createToken(user=user, days=14)
+
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+
+    params: types.PipelineJob = {
+        "input_folder": model_folder_id_str,
+        "output_folder": export_folder_id_str,
+        "output_name": "model.onnx",
+        'user_id': str(user.get('_id', 'unknown')),
+        'user_login': user.get('login', 'unknown'),
+    }
+    newjob = tasks.export_trained_pipeline.apply_async(
+        queue=_get_queue_name(user, "pipelines"),
+        kwargs=dict(
+            params=params,
+            girder_job_title=f"Exporting {str(model_folder['name'])} to ONNX",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="private" if job_is_private else "export",
+        ),
+    )
+
+    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
+    newjob.job[constants.JOBCONST_PARAMS] = params
+    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
+    # Allow any users with access to the input data to also
+    # see and possibly manage the job
+    Job().copyAccessPolicies(model_folder, newjob.job)
+    Job().save(newjob.job)
+    # Inform Client of new Job added in inactive state
+    Notification().createNotification(
+        type='job_status',
+        data=newjob.job,
+        user=user,
+        expires=datetime.now() + timedelta(seconds=30),
+    )
+    return newjob.job
 
 def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     """Ensure that the user has a training results folder."""
@@ -265,6 +336,7 @@ def run_training(
     pipelineName: str,
     config: str,
     annotatedFramesOnly: bool,
+    force_transcoded=False,
 ) -> types.GirderModel:
     dataset_input_list: List[Tuple[str, int]] = []
     if len(bodyParams.folderIds) == 0:
@@ -302,6 +374,7 @@ def run_training(
         'model': fineTuneModel,
         'user_id': user.get('_id', 'unknown'),
         'user_login': user.get('login', 'unknown'),
+        'force_transcoded': force_transcoded,
     }
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     newjob = tasks.train_pipeline.apply_async(
@@ -334,7 +407,7 @@ GetDataReturnType = TypedDict(
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
-) -> Optional[GetDataReturnType]:
+) -> Tuple[Optional[GetDataReturnType], Optional[List[str]]]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
     parse it appropriately.
@@ -345,10 +418,11 @@ def _get_data_by_type(
     :param image_map: Mapping of image names to frame numbers
     """
     if file is None:
-        return None
+        return None, None
     file_generator = File().download(file, headers=False)()
     file_string = b"".join(list(file_generator)).decode()
     data_dict = None
+    warnings = None
 
     # Discover the type of the mystery file
     if file['exts'][-1] == 'csv':
@@ -371,27 +445,55 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes = viame.load_csv_as_tracks_and_attributes(
+        converted, attributes, warnings, fps = viame.load_csv_as_tracks_and_attributes(
             file_string.splitlines(), image_map
         )
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        meta = None
+        if fps is not None:
+            meta = {"fps": fps}
+        return {
+            'annotations': converted,
+            'meta': meta,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.MEVA_KPF:
         converted, attributes = kpf.convert(kpf.load(file_string))
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {
+            'annotations': converted,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
 
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
         converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        return {'annotations': converted, 'meta': None, 'attributes': attributes, 'type': as_type}
+        return {
+            'annotations': converted,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.DIVE_CONF:
-        return {'annotations': None, 'meta': data_dict, 'attributes': None, 'type': as_type}
+        return {
+            'annotations': None,
+            'meta': data_dict,
+            'attributes': None,
+            'type': as_type,
+        }, warnings
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
-        return {'annotations': migrated, 'meta': None, 'attributes': attributes, 'type': as_type}
-    return None
+        return {
+            'annotations': migrated,
+            'meta': None,
+            'attributes': attributes,
+            'type': as_type,
+        }, warnings
+    return None, None
 
 
 def process_items(
@@ -420,6 +522,7 @@ def process_items(
         folder,
         user,
     )
+    aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
@@ -429,7 +532,9 @@ def process_items(
             image_map = None
             if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
                 image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
-            results = _get_data_by_type(file, image_map=image_map)
+            results, warnings = _get_data_by_type(file, image_map=image_map)
+            if warnings:
+                aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
@@ -460,6 +565,7 @@ def process_items(
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
             crud_dataset.update_metadata(folder, results['meta'], False)
+    return aggregate_warnings
 
 
 def postprocess(
@@ -470,7 +576,7 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
-) -> types.GirderModel:
+) -> Tuple[types.GirderModel, Optional[List[str]]]:
     """
     Post-processing to be run after media/annotation import
 
@@ -585,8 +691,8 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    process_items(dsFolder, user, additive, additivePrepend, set)
-    return dsFolder
+    aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    return dsFolder, aggregate_warnings
 
 
 def convert_large_image(

@@ -2,9 +2,11 @@ import OS from 'os';
 import http from 'http';
 import { ipcMain } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
+import type { Pipe } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   DesktopMediaImportResponse,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -30,6 +32,10 @@ export default function register() {
   });
   ipcMain.handle('get-pipeline-list', async () => {
     const ret = await common.getPipelineList(settings.get());
+    return ret;
+  });
+  ipcMain.handle('delete-trained-pipeline', async (event, args: Pipe) => {
+    const ret = await common.deleteTrainedPipeline(args);
     return ret;
   });
   ipcMain.handle('get-training-configs', async () => {
@@ -70,22 +76,23 @@ export default function register() {
     return defaults;
   });
 
+  ipcMain.handle('bulk-import-media', async (event, { path }: { path: string }) => {
+    const results = await common.bulkMediaImport(path);
+    return results;
+  });
+
   ipcMain.handle('import-media', async (event, { path }: { path: string }) => {
     const ret = await common.beginMediaImport(path);
     return ret;
   });
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
-    const ret = await common.deleteDataset(
-      settings.get(), datasetId,
-    );
+    const ret = await common.deleteDataset(settings.get(), datasetId);
     return ret;
   });
 
   ipcMain.handle('check-dataset', async (event, { datasetId }: { datasetId: string }) => {
-    const ret = await common.checkDataset(
-      settings.get(), datasetId,
-    );
+    const ret = await common.checkDataset(settings.get(), datasetId);
     return ret;
   });
 
@@ -99,6 +106,7 @@ export default function register() {
     id, path, additive, additivePrepend,
   }: { id: string; path: string; additive: boolean; additivePrepend: string }) => {
     const ret = await common.dataFileImport(settings.get(), id, path, additive, additivePrepend);
+    if (ret.warnings.length) return ret.warnings;
     return ret;
   });
 
@@ -119,6 +127,12 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.runPipeline(settings.get(), args, updater);
+  });
+  ipcMain.handle('export-trained-pipeline', async (event, args: ExportTrainedPipeline) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.exportTrainedPipeline(settings.get(), args, updater);
   });
   ipcMain.handle('run-training', async (event, args: RunTraining) => {
     const updater = (update: DesktopJobUpdate) => {

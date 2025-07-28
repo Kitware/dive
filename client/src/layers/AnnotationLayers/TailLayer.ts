@@ -167,9 +167,7 @@ export default class TailLayer extends BaseLayer<TailData[]> {
       strokeColor: (point, _, trackData) => {
         if (trackData[0]) {
           if (trackData[0].selected) {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-            // @ts-ignore
-            if ((point as { interpolated: boolean }).interpolated) {
+            if ((point as unknown as { interpolated: boolean }).interpolated) {
               return 'yellow';
             }
             return this.stateStyling.selected.color;

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -52,7 +52,7 @@ export default defineComponent({
         if (!ret.canceled) {
           menuOpen.value = false;
           const path = ret.filePaths[0];
-          let importFile = false;
+          let importFile: boolean | string[] = false;
           processing.value = true;
           const set = currentSet.value === 'default' ? undefined : currentSet.value;
           if (ret.fileList?.length) {
@@ -73,6 +73,16 @@ export default defineComponent({
               additivePrepend.value,
               set,
             );
+          }
+          if (Array.isArray(importFile) && importFile.length) {
+            const text = ['There were warnings when importing. While the data imported properly please double check your annotations',
+              'Below is a list of information that can help with debugging',
+            ].concat(importFile as string[]);
+            await prompt({
+              title: 'Import Warnings',
+              text,
+              positiveButton: 'OK',
+            });
           }
 
           if (importFile) {
@@ -188,7 +198,7 @@ export default defineComponent({
                 outlined
                 small
               >
-                <template v-slot:selection="{ attrs, item, selected }">
+                <template #selection="{ attrs, item, selected }">
                   <v-chip
                     v-bind="attrs"
                     small

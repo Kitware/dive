@@ -78,5 +78,9 @@ nav:
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
+  - Scripting: 
+    - Introduction: scripting/Scripting.md
+    - Endpoints: scripting/Endpoints.md
+    - GirderClient: scripting/GirderClient.md
   - Frequently Asked Questions: FAQ.md
   - Support: Support.md

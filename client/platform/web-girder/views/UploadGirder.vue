@@ -4,13 +4,11 @@ import { mixins } from '@girder/components/src';
 import { clone } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import {
-  DefaultVideoFPS,
-} from 'dive-common/constants';
-import {
   fileSuffixRegex,
 } from 'platform/web-girder/constants';
 
 import { makeViameFolder, postProcess } from 'platform/web-girder/api';
+import { GirderUploadManager } from 'platform/web-girder/utils';
 
 export default Vue.extend({
   name: 'GirderUpload',
@@ -101,7 +99,7 @@ export default Vue.extend({
       files = files.filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
-      const fps = parseInt(pendingUpload.fps, DefaultVideoFPS);
+      const fps = parseInt(pendingUpload.fps, 10);
 
       // eslint-disable-next-line no-param-reassign
       pendingUpload.uploading = true;
@@ -164,6 +162,7 @@ export default Vue.extend({
       await this.start({
         dest: folder,
         postUpload,
+        uploadCls: GirderUploadManager,
       });
     },
   },

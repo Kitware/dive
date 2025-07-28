@@ -79,6 +79,7 @@ class PipelineJob(TypedDict):
     output_folder: str  # Where to upload results
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
+    force_transcoded: Optional[bool]  # Force using the transcoded version
 
 
 class TrainingJob(TypedDict):
@@ -93,6 +94,17 @@ class TrainingJob(TypedDict):
     model: Optional[TrainingModelTuneArgs]  # Model for fine-tune training
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
+    force_transcoded: Optional[bool]  # Force using the transcoded version
+
+
+class ExportTrainedPipelineJob(TypedDict):
+    """Describes the parameters for exporting a pipeline"""
+
+    input_folder: str  # Where the model to export is
+    output_folder: str  # Where to upload results
+    output_name: str  # Name of the exported file
+    user_id: str  # user id who started the job
+    user_login: str  # login of user who started the job
 
 
 class TrainingConfigurationSummary(TypedDict):

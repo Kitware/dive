@@ -12,6 +12,7 @@ import {
   Settings, SettingsCurrentVersion,
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
   DesktopJobUpdater,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 import * as viame from './viame';
 
@@ -62,11 +63,9 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   }
 
   const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-  const kwiverExistsOnPath = observeChild(spawn(
-    `${modifiedCommand} && kwiver.exe help`, {
-      shell: true,
-    },
-  ));
+  const kwiverExistsOnPath = observeChild(spawn(`${modifiedCommand} && kwiver.exe help`, {
+    shell: true,
+  }));
   return new Promise((resolve) => {
     kwiverExistsOnPath.on('exit', (code) => {
       if (code === 0) {
@@ -80,7 +79,7 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
 
 // Mock the validate call when starting jobs because it just takes too long to run.
 // TODO: maybe perform a lightweight check or some other test that doesn't spawn() kwiver
-const validateFake = () => Promise.resolve(true as true);
+const validateFake = () => Promise.resolve(true as const);
 
 async function runPipeline(
   settings: Settings,
@@ -88,6 +87,17 @@ async function runPipeline(
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
   return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
+  });
+}
+
+async function exportTrainedPipeline(
+  settings: Settings,
+  exportTrainedPipelineArgs: ExportTrainedPipeline,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateFake, {
     ...ViameWindowsConstants,
     setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
   });
@@ -170,6 +180,7 @@ export default {
   DefaultSettings,
   validateViamePath,
   runPipeline,
+  exportTrainedPipeline,
   train,
   nvidiaSmi,
   initialize,

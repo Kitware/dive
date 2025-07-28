@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
@@ -16,6 +16,7 @@ export default defineComponent({
     const restClient = useGirderRest();
     const store = useStore();
     const outstandingJobs = ref(0);
+    const distributedWorkerEnabled = ref(false);
 
     watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
       restClient.get('job/queued').then(({ data }) => {
@@ -30,6 +31,10 @@ export default defineComponent({
       loading.value = false;
     }
 
+    restClient.get('dive_configuration').then((data) => {
+      distributedWorkerEnabled.value = !!(data.data.distributedWorker);
+    });
+
     restClient.fetchUser()
       .then((user) => {
         privateQueueEnabled.value = user.user_private_queue_enabled;
@@ -41,6 +46,7 @@ export default defineComponent({
 
     return {
       privateQueueEnabled,
+      distributedWorkerEnabled,
       loading,
       outstandingJobs,
       /* methods */
@@ -65,14 +71,14 @@ export default defineComponent({
           v-if="item.dataset_id"
           bottom
         >
-          <template #activator="{on, attrs}">
+          <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
               x-small
               depressed
               :to="{ name: 'viewer', params: { id: item.dataset_id } }"
               color="info"
-              class="ml-0"
+              class="mr-2"
               v-on="on"
             >
               <v-icon small>
@@ -82,15 +88,38 @@ export default defineComponent({
           </template>
           <span>Launch dataset viewer</span>
         </v-tooltip>
+
+        <v-tooltip
+          v-if="item.type == 'export' && item.statusText == 'Success'"
+          bottom
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              x-small
+              depressed
+              :href="`/#/folder/${JSON.parse(item.kwargs).params.input_folder}`"
+              color="info"
+              class="mr-2"
+              v-on="on"
+            >
+              <v-icon small>
+                mdi-folder
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Navigate to exported file</span>
+        </v-tooltip>
+
         <v-tooltip bottom>
-          <template #activator="{on, attrs}">
+          <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
               x-small
               depressed
               :href="`/girder/#job/${item._id}`"
               color="info"
-              class="mx-2"
+              class="mr-2"
               v-on="on"
             >
               <v-icon small>
@@ -120,6 +149,7 @@ export default defineComponent({
         </v-card-text>
       </v-card>
       <v-card
+        v-if="distributedWorkerEnabled"
         outlined
       >
         <v-card-title>

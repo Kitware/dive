@@ -1,6 +1,6 @@
 import {
   ref, computed, Ref, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import type { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
@@ -20,8 +20,8 @@ export const DefaultConfidence = 0.1;
  * such as why the annotation was included or returned by a system
  * or function.
  */
-export interface AnnotationWithContext<T extends Track | Group> {
-  annotation: Readonly<SortedAnnotation>;
+export interface AnnotationWithContext<T> {
+  annotation: Readonly<SortedAnnotation<T>>;
   context: {
     // confidencePair index within annotation that makes this annotation a positive filter result
     confidencePairIndex: number;
@@ -29,7 +29,7 @@ export interface AnnotationWithContext<T extends Track | Group> {
 }
 
 export interface FilterControlsParams<T extends Track | Group> {
-  sorted: Ref<SortedAnnotation[]>;
+  sorted: Ref<SortedAnnotation<T>[]>;
   markChangesPending: MarkChangesPendingFilter;
   remove: (id: AnnotationId) => void;
   setType: (id: AnnotationId, newType: string,
@@ -67,12 +67,11 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   /* AnnotationIDs further filtered by individual checkedIds */
   enabledAnnotations: Ref<AnnotationWithContext<T>[]>;
 
-
   /* MarkChangesPending is called when meta config default types are modified  */
   markChangesPending: MarkChangesPendingFilter;
 
   /* Hold a reference to the annotationStore */
-  sorted: Readonly<Ref<SortedAnnotation[]>>;
+  sorted: Readonly<Ref<SortedAnnotation<T>[]>>;
 
   remove: (id: AnnotationId) => void;
 
@@ -80,7 +79,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     confidenceVal?: number, currentType?: string) => void;
 
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
-
 
   constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.sorted.value.map((t) => t.id));
@@ -126,13 +124,11 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
     this.filteredAnnotations = ref([]);
 
-
     this.enabledAnnotations = computed(() => {
       const checkedSet = new Set(this.checkedIDs.value);
       return this.filteredAnnotations.value
         .filter((filtered) => checkedSet.has(filtered.annotation.id));
     });
-
 
     // because vue watchers don't behave properly, and it's better to not have
     // checkedIDs be a union null | array type
@@ -157,7 +153,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       }
     });
   }
-
 
   importTypes(types: string[], userInteraction = true) {
     types.forEach((type) => {

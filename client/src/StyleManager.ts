@@ -2,7 +2,7 @@ import type Vuetify from 'vuetify';
 
 import {
   ref, Ref, computed, set as VueSet,
-} from '@vue/composition-api';
+} from 'vue';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
 import { ScaleOrdinal } from 'd3';
@@ -32,11 +32,12 @@ export interface CustomStyle {
 }
 
 export interface TypeStyling {
-  color: (type: string) => string;
-  strokeWidth: (type: string) => number;
-  fill: (type: string) => boolean;
-  opacity: (type: string) => number;
-  labelSettings: (type: string) => { showLabel: boolean; showConfidence: boolean };
+  color: (type: string, set?: boolean) => string;
+  strokeWidth: (type: string, set?: boolean) => number;
+  fill: (type: string, set?: boolean) => boolean;
+  opacity: (type: string, set?: boolean) => number;
+  labelSettings: (type: string, set?: boolean) => { showLabel: boolean; showConfidence: boolean };
+  annotationSetColor: (set: string) => string;
 }
 
 interface UseStylingParams {
@@ -90,6 +91,9 @@ const defaultStaticStyles: Record<string, CustomStyle> = {
   },
 };
 
+const defaultSetStaticStyles: Record<string, CustomStyle> = {
+};
+
 export default class StyleManager {
   /**
    * Revision counter should be watched for re-rendering based on customStyles
@@ -99,6 +103,8 @@ export default class StyleManager {
   revisionCounter: Ref<number>;
 
   customStyles: Ref<Record<string, CustomStyle>>;
+
+  annotationSetStyles: Ref<Record<string, CustomStyle>>;
 
   stateStyles: StateStyles;
 
@@ -111,6 +117,7 @@ export default class StyleManager {
   constructor({ markChangesPending, vuetify }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
+    this.annotationSetStyles = ref({} as Record<string, CustomStyle>);
     // Annotation State Colors
     const standard: Style = {
       strokeWidth: 3,
@@ -141,8 +148,13 @@ export default class StyleManager {
       // establish dependency on revision counter
       if (this.revisionCounter.value) noop();
       const _customStyles = this.customStyles.value;
+      const _annotationSetStyles = this.annotationSetStyles.value;
       return {
-        color: (type: string) => {
+        color: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
+            return _annotationSetStyles[type].color;
+          }
+
           if (_customStyles[type] && _customStyles[type].color) {
             return _customStyles[type].color;
           }
@@ -151,25 +163,44 @@ export default class StyleManager {
           }
           return this.typeColors(type);
         },
-        strokeWidth: (type: string) => {
+        annotationSetColor: (set: string) => {
+          if (!set) {
+            return 'white';
+          } if (set === 'default') {
+            return 'yellow';
+          } if (['groundTruth', 'GT', 'ground_truth', 'Groundtruth', 'GroundTruth', 'gt'].includes(set)) {
+            return 'green';
+          }
+          return this.typeColors(set);
+        },
+        strokeWidth: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].strokeWidth) {
+            return _annotationSetStyles[type].strokeWidth;
+          }
           if (_customStyles[type] && _customStyles[type].strokeWidth) {
             return _customStyles[type].strokeWidth;
           }
           return this.stateStyles.standard.strokeWidth;
         },
-        fill: (type: string) => {
+        fill: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].fill !== undefined) {
+            return _annotationSetStyles[type].fill;
+          }
           if (_customStyles[type] && _customStyles[type].fill !== undefined) {
             return _customStyles[type].fill;
           }
           return this.stateStyles.standard.fill;
         },
-        opacity: (type: string) => {
+        opacity: (type: string, set?: boolean) => {
+          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
+            return _annotationSetStyles[type].opacity;
+          }
           if (_customStyles[type] && _customStyles[type].opacity) {
             return _customStyles[type].opacity;
           }
           return this.stateStyles.standard.opacity;
         },
-        labelSettings: (type: string) => {
+        labelSettings: (type: string, set?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {
             if (typeof (_customStyles[type].showLabel) === 'boolean') {
@@ -177,6 +208,14 @@ export default class StyleManager {
             }
             if (typeof (_customStyles[type].showConfidence) === 'boolean') {
               showConfidence = _customStyles[type].showConfidence as boolean;
+            }
+          }
+          if (set && _annotationSetStyles[type]) {
+            if (typeof (_annotationSetStyles[type].showLabel) === 'boolean') {
+              showLabel = _annotationSetStyles[type].showLabel as boolean;
+            }
+            if (typeof (_annotationSetStyles[type].showConfidence) === 'boolean') {
+              showConfidence = _annotationSetStyles[type].showConfidence as boolean;
             }
           }
           return { showLabel, showConfidence };
@@ -194,6 +233,7 @@ export default class StyleManager {
     } else {
       this.customStyles.value = defaultStaticStyles;
     }
+    this.annotationSetStyles.value = defaultSetStaticStyles;
   }
 
   updateTypeStyle(args: {

@@ -1,12 +1,13 @@
 // Reference used because of https://github.com/Microsoft/TypeScript/issues/28502
 /// <reference types="resize-observer-browser" />
 import geo, { GeoEvent } from 'geojs';
-import {
+import * as d3 from 'd3';
+
+import Vue, {
   ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
-} from '@vue/composition-api';
+} from 'vue';
 import { map, over } from 'lodash';
 
-import Vue from 'vue';
 import { use } from '../../provides';
 import type { AggregateMediaController, MediaController } from './mediaControllerType';
 
@@ -22,7 +23,6 @@ interface MediaControllerReactiveData {
   frame: number;
   flick: number;
   filename: string;
-  lockedCamera: boolean;
   currentTime: number;
   duration: number;
   volume: number;
@@ -129,13 +129,6 @@ export function useMediaController() {
     });
   }
 
-  function toggleLockedCamera() {
-    cameras.value.forEach((camera) => {
-      const data = state[camera.toString()];
-      data.lockedCamera = !data.lockedCamera;
-    });
-  }
-
   function toggleSynchronizeCameras(val: boolean) {
     synchronizeCameras.value = val;
   }
@@ -193,7 +186,6 @@ export function useMediaController() {
       frame: 0,
       flick: 0,
       filename: '',
-      lockedCamera: false,
       currentTime: 0,
       duration: 0,
       volume: 0,
@@ -222,12 +214,19 @@ export function useMediaController() {
       geoViewers[camera].value.center(coords);
     }
 
+    function transition(coords: { x: number; y: number}, duration: number, zoom?: number) {
+      geoViewers[camera].value.transition({
+        center: { x: coords.x, y: coords.y },
+        zoom,
+        duration,
+        interp: d3.interpolateZoom,
+      });
+    }
+
     function resetZoom() {
       const geoViewerRef = geoViewers[camera];
       const data = state[camera];
-      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(
-        data.originalBounds, 0,
-      );
+      const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(data.originalBounds, 0);
       geoViewerRef.value.zoom(zoomAndCenter.zoom);
       geoViewerRef.value.center(zoomAndCenter.center);
     }
@@ -242,9 +241,7 @@ export function useMediaController() {
         bottom: height,
         right: width,
       });
-      const params = geo.util.pixelCoordinateParams(
-        containerRef.value, width, height, width, height,
-      );
+      const params = geo.util.pixelCoordinateParams(containerRef.value, width, height, width, height);
       const { right, bottom } = params.map.maxBounds;
       data.originalBounds = params.map.maxBounds;
       geoViewerRef.value.maxBounds({
@@ -253,13 +250,13 @@ export function useMediaController() {
         right: right * (1 + margin),
         bottom: bottom * (1 + margin),
       });
-      if (!isMap) {
-        geoViewerRef.value.zoomRange({
+      geoViewerRef.value.zoomRange({
         // do not set a min limit so that bounds clamping determines min
-          min: -Infinity,
-          // 4x zoom max
-          max: 4,
-        });
+        min: -Infinity,
+        // 32x zoom max
+        max: 32,
+      });
+      if (!isMap) {
         if (Object.keys(geoViewers).length === 1) {
           geoViewerRef.value.clampBoundsX(true);
           geoViewerRef.value.clampBoundsY(true);
@@ -274,7 +271,8 @@ export function useMediaController() {
     }
 
     function initializeViewer(
-      width: number, height: number,
+      width: number,
+      height: number,
       tileWidth: number | undefined = undefined,
       tileHeight: number | undefined = undefined,
       isMap = false,
@@ -288,9 +286,7 @@ export function useMediaController() {
         // eslint-disable-next-line no-param-reassign
         tileWidth = width;
       }
-      let params = geo.util.pixelCoordinateParams(
-        containers[camera].value, width, height, tileWidth, tileHeight,
-      );
+      let params = geo.util.pixelCoordinateParams(containers[camera].value, width, height, tileWidth, tileHeight);
       if (isMap && geoSpatial) {
         params = { map: { node: containers[camera].value } };
       }
@@ -402,7 +398,6 @@ export function useMediaController() {
       frame: toRef(state[camera], 'frame'),
       flick: toRef(state[camera], 'flick'),
       filename: toRef(state[camera], 'filename'),
-      lockedCamera: toRef(state[camera], 'lockedCamera'),
       duration: toRef(state[camera], 'duration'),
       volume: toRef(state[camera], 'volume'),
       maxFrame: toRef(state[camera], 'maxFrame'),
@@ -414,8 +409,8 @@ export function useMediaController() {
       pause: _pause,
       seek: _seek,
       resetZoom,
-      toggleLockedCamera,
       centerOn,
+      transition,
       setCursor,
       setImageCursor,
       setVolume: _setVolume,
@@ -454,8 +449,6 @@ export function useMediaController() {
       setVolume: over(map(subControllers, 'setVolume')),
       speed: defaultController.speed,
       setSpeed: over(map(subControllers, 'setSpeed')),
-      lockedCamera: defaultController.lockedCamera,
-      toggleLockedCamera,
       pause: over(map(subControllers, 'pause')),
       play: over(map(subControllers, 'play')),
       playing: defaultController.playing,

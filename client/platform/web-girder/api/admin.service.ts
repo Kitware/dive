@@ -40,7 +40,6 @@ function deleteJob(jobId: string) {
   return girderRest.delete(`job/${jobId}`);
 }
 
-
 export {
   getRecentDatasets,
   getRecentJobs,

@@ -13,7 +13,7 @@ const MediaTypes: Record<DatasetType, string> = {
   [LargeImageType]: 'tiled image',
 };
 
-const DefaultVideoFPS = 10;
+const DefaultVideoFPS = -1;
 const FPSOptions = [
   { text: 1, value: 1 },
   { text: 5, value: 5 },
@@ -124,9 +124,8 @@ const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
 
 function simplifyTrainingName(item: string) {
-  return item.replace('.viame_csv.conf', '');
+  return item.replace('.conf', '');
 }
-
 
 export {
   DefaultVideoFPS,

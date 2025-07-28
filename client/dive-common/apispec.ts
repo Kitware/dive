@@ -1,4 +1,4 @@
-import { provide } from '@vue/composition-api';
+import { provide } from 'vue';
 import { AnnotationId, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { GroupData } from 'vue-media-annotator/Group';
 
@@ -34,6 +34,9 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
+  folderId?: string;
+  ownerId?: string;
+  ownerLogin?: string;
 }
 
 interface Category {
@@ -150,6 +153,8 @@ interface DatasetMeta extends DatasetMetaMutable {
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe): Promise<unknown>;
+  deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
+  exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
@@ -175,14 +180,14 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
   importAnnotationFile(id: string, path: string, file?: File,
-    additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean>;
+    additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
 }
 const ApiSymbol = Symbol('api');
 

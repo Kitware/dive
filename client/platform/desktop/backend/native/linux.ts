@@ -13,6 +13,7 @@ import {
   NvidiaSmiReply,
   RunTraining,
   DesktopJobUpdater,
+  ExportTrainedPipeline,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
@@ -88,6 +89,17 @@ async function runPipeline(
   });
 }
 
+async function exportTrainedPipeline(
+  settings: Settings,
+  exportTrainedPipelineArgs: ExportTrainedPipeline,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateViamePath, {
+    ...ViameLinuxConstants,
+    setupScriptAbs: sourceString(settings),
+  });
+}
+
 async function train(
   settings: Settings,
   runTrainingArgs: RunTraining,
@@ -132,6 +144,7 @@ export default {
   DefaultSettings,
   nvidiaSmi,
   runPipeline,
+  exportTrainedPipeline,
   train,
   validateViamePath,
 };

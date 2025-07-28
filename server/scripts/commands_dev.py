@@ -4,6 +4,7 @@ that should not be shipped with the regular installation or installed in CI
 
 Debug cli needs [dev] extra_require from setuptools.
 """
+
 import os
 
 import click

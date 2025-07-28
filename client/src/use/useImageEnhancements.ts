@@ -1,8 +1,7 @@
-
 import {
   computed,
   ref, Ref, set as VueSet,
-} from '@vue/composition-api';
+} from 'vue';
 
 // Expecting this may be a placeholder for more complicated client side enhancements
 // or more image filters
@@ -10,7 +9,6 @@ export interface ImageEnhancements {
     blackPoint?: number;
     whitePoint?: number;
   }
-
 
 export default function useImageEnhancements() {
   const imageEnhancements: Ref<ImageEnhancements> = ref({});

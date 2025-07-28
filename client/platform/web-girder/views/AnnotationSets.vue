@@ -1,13 +1,17 @@
+<!-- eslint-disable max-len -->
 <script lang="ts">
 import {
   computed,
   defineComponent, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
   useAnnotationSet,
   useAnnotationSets,
+  useDatasetId,
   useHandler,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
+import { useRouter } from 'vue-router/composables';
 
 export default defineComponent({
   name: 'AnnotationSets',
@@ -15,14 +19,34 @@ export default defineComponent({
 
   setup() {
     const currentSet = useAnnotationSet();
+    const router = useRouter();
     const sets = useAnnotationSets();
+    const datasetId = useDatasetId();
+    const { typeStyling } = useTrackStyleManager();
     const newSet = ref('');
     const validForm = ref(false);
-    const { save, setChange } = useHandler();
-    const selectedSet = (set: string) => {
+    const { save, setChange, reloadAnnotations } = useHandler();
+    const selectSet = (set: string) => {
       if ((set !== currentSet.value && set !== 'default') || ((set === 'default') && currentSet.value)) {
         setChange(set);
       }
+    };
+    const selectedSet = ref(currentSet.value || 'default');
+
+    const compareChecks = ref(sets.value.map((item) => ({ name: item, checked: false })));
+
+    const selectedComparisons = computed(() => compareChecks.value.filter((item) => item.checked).map((item) => item.name));
+
+    const launchComparison = () => {
+      const set = currentSet.value ? `/set/${currentSet.value}` : '';
+      router.replace({
+        path: `/viewer/${datasetId.value}${set}`,
+        query: { comparisonSets: selectedComparisons.value },
+      });
+      reloadAnnotations();
+    };
+    const selectForComparison = (set: string) => {
+      compareChecks.value = sets.value.map((item) => ({ name: item, checked: set === item }));
     };
 
     const computedSets = computed(() => {
@@ -39,12 +63,19 @@ export default defineComponent({
 
     return {
       currentSet,
-      selectedSet,
+      selectSet,
       sets,
       newSet,
       addSet,
       validForm,
       computedSets,
+      typeStyling,
+      selectedSet,
+      compareChecks,
+      selectedComparisons,
+      launchComparison,
+      selectForComparison,
+
     };
   },
 });
@@ -56,20 +87,63 @@ export default defineComponent({
       Available Sets
     </div>
     <v-list>
-      <v-list-item
-        v-for="set in computedSets"
-        :key="set"
-      >
-        <v-chip
-          outlined
-          :color="set === currentSet || (!currentSet && set === 'default') ? 'cyan' : 'white'"
-          @click="selectedSet(set)"
+      <v-list-item>
+        <v-row
+          dense
+          align="center"
         >
-          {{ set }}
-        </v-chip>
+          <v-col cols="8">
+            Set
+          </v-col>
+          <v-col cols="4">
+            Compare
+          </v-col>
+        </v-row>
+      </v-list-item>
+      <v-list-item
+        v-for="(set, index) in computedSets"
+        :key="set"
+        :class="{ border: (set === currentSet || (!currentSet && set === 'default')) }"
+      >
+        <v-row
+          dense
+          align="center"
+        >
+          <v-col cols="8">
+            <v-chip
+              outlined
+              small
+              :color="typeStyling.annotationSetColor(set)"
+              @click="selectSet(set)"
+            >
+              <span>
+                {{ `${set}${set === currentSet || (!currentSet && set === 'default') ? '*' : ''}` }}
+              </span>
+            </v-chip>
+          </v-col>
+          <v-col cols="4">
+            <v-switch
+              v-if="compareChecks.length"
+              :value="compareChecks[index].checked"
+              :disabled="selectedSet === compareChecks[index].name"
+              dense
+              @change="selectForComparison(set)"
+            />
+          </v-col>
+        </v-row>
       </v-list-item>
     </v-list>
     <v-divider />
+    <div v-if="selectedComparisons.length">
+      <p> Compare {{ selectedComparisons.join(', ') }} sets</p>
+      <v-btn
+        color="primary"
+        @click="launchComparison()"
+      >
+        Compare
+      </v-btn>
+      <v-divider />
+    </div>
     <v-expansion-panels>
       <v-expansion-panel>
         <v-expansion-panel-header> Add New Set</v-expansion-panel-header>

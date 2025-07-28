@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, onBeforeUnmount, PropType, toRef, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 /**
@@ -149,6 +149,7 @@ export default defineComponent({
       video.pause();
       seek(data.frame); // snap to frame boundary
       data.playing = false;
+      props.updateTime(data);
     }
     function syncWithVideo() {
       if (data.playing) {
@@ -170,6 +171,7 @@ export default defineComponent({
       try {
         await video.play();
         data.playing = true;
+        props.updateTime(data);
         syncWithVideo();
       } catch (ex) {
         console.error(ex);

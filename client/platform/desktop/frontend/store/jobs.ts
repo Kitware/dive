@@ -2,14 +2,10 @@
  * Job Manager
  */
 import { ipcRenderer } from 'electron';
-import Vue from 'vue';
-import Install, {
+import {
   ref, Ref, set, computed,
-} from '@vue/composition-api';
+} from 'vue';
 import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
-
-// TODO remove this: this won't be necessary in Vue 3
-Vue.use(Install);
 
 interface DesktopJobHistory {
   job: DesktopJob;
@@ -59,7 +55,6 @@ function setOrGetConversionJob(datasetId: string, status?: boolean) {
   return existing;
 }
 
-
 function init() {
   ipcRenderer.on('job-update', (event, args: DesktopJobUpdate) => {
     updateHistory(args);
@@ -70,7 +65,6 @@ function init() {
 }
 
 init();
-
 
 export {
   jobHistory,

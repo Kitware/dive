@@ -3,22 +3,29 @@ import type { DataTableHeader } from 'vuetify';
 
 import {
   computed, defineComponent, onBeforeMount, set, del, reactive, ref,
-} from '@vue/composition-api';
+} from 'vue';
 import {
-  DatasetMeta, Pipelines, TrainingConfigs, useApi,
+  DatasetMeta, Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
+import { useRouter } from 'vue-router/composables';
+import npath from 'path';
+import { dialog, app } from '@electron/remote';
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
-  setup(_, { root }) {
-    const { getPipelineList, getTrainingConfigurations, runTraining } = useApi();
+  setup() {
+    const {
+      getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, runTraining, exportTrainedPipeline,
+    } = useApi();
     const { prompt } = usePrompt();
+    const router = useRouter();
 
     const unsortedPipelines = ref({} as Pipelines);
+
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
     });
@@ -26,6 +33,13 @@ export default defineComponent({
     const trainedPipelines = computed(() => {
       if (unsortedPipelines.value.trained) {
         return unsortedPipelines.value.trained.pipes.map((item) => item.name);
+      }
+      return [];
+    });
+
+    const trainedModels = computed(() => {
+      if (unsortedPipelines.value.trained) {
+        return unsortedPipelines.value.trained.pipes;
       }
       return [];
     });
@@ -70,13 +84,21 @@ export default defineComponent({
       },
     ];
 
+    const trainedHeadersTmpl: DataTableHeader[] = [
+      {
+        text: 'Model',
+        value: 'name',
+        sortable: true,
+      },
+    ];
+
     onBeforeMount(async () => {
       const configs = await getTrainingConfigurations();
       data.trainingConfigurations = configs;
       data.selectedTrainingConfig = configs.training.default;
     });
 
-    const modelList = computed(() => {
+    const trainingConfigurationModels = computed(() => {
       if (data.trainingConfigurations.models) {
         const list = Object.entries(data.trainingConfigurations.models)
           .map(([, value]) => value.name);
@@ -107,6 +129,62 @@ export default defineComponent({
         && data.trainingOutputName
     ));
 
+    async function deleteModel(item: Pipe) {
+      const confirmDelete = await prompt({
+        title: `Delete "${item.name}" model`,
+        text: 'Are you sure you want to delete this model?',
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+
+      if (confirmDelete) {
+        try {
+          await deleteTrainedPipeline(item);
+          unsortedPipelines.value = await getPipelineList();
+        } catch (err) {
+          let text = 'Unable to delete model';
+          if (err.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
+          prompt({
+            title: 'Delete Failed',
+            text,
+            positiveButton: 'OK',
+          });
+        }
+      }
+    }
+
+    async function exportModel(item: Pipe) {
+      try {
+        const location = await dialog.showSaveDialog({
+          title: 'Export Model',
+          defaultPath: npath.join(app.getPath('home'), 'model.onnx'),
+        });
+        if (!location.canceled && location.filePath) {
+          await exportTrainedPipeline(location.filePath!, item);
+          const goToJobsPage = !await prompt({
+            title: 'Export Started',
+            text: 'You can check the export status in the Jobs tab.',
+            negativeButton: 'View',
+            positiveButton: 'OK',
+            confirm: true,
+          });
+          if (goToJobsPage) {
+            router.push('/jobs');
+          }
+        }
+      } catch (err) {
+        const errorTemplate = 'Unable to export model';
+        let text = `${errorTemplate}: ${err}`;
+        if (err.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
+        prompt({
+          title: 'Export Failed',
+          text,
+          positiveButton: 'OK',
+        });
+      }
+    }
+
     async function runTrainingOnFolder() {
       // Get the full data for fine tuning
       let foundTrainingModel;
@@ -123,7 +201,7 @@ export default defineComponent({
           undefined,
           foundTrainingModel,
         );
-        root.$router.push({ name: 'jobs' });
+        router.push({ name: 'jobs' });
       } catch (err) {
         let text = 'Unable to run training';
         if (err.response && err.response.status === 403) {
@@ -140,28 +218,42 @@ export default defineComponent({
     return {
       data,
       toggleStaged,
+      deleteModel,
+      exportModel,
       simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
       nameRules,
       itemsPerPageOptions,
       clientSettings,
-      modelList,
+      trainingConfigurationModels,
+      models: {
+        items: trainedModels,
+        headers: trainedHeadersTmpl.concat({
+          text: 'Export',
+          value: 'export',
+          sortable: false,
+          width: 80,
+        }, {
+          text: 'Delete',
+          value: 'delete',
+          sortable: false,
+          width: 80,
+        }),
+      },
       available: {
         items: availableItems,
-        headers: headersTmpl.concat(
-          {
-            text: 'View',
-            value: 'view',
-            sortable: false,
-            width: 80,
-          }, {
-            text: 'Include',
-            value: 'action',
-            sortable: false,
-            width: 80,
-          },
-        ),
+        headers: headersTmpl.concat({
+          text: 'View',
+          value: 'view',
+          sortable: false,
+          width: 80,
+        }, {
+          text: 'Include',
+          value: 'action',
+          sortable: false,
+          width: 80,
+        }),
       },
       staged: {
         items: stagedItems,
@@ -210,10 +302,10 @@ export default defineComponent({
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template v-slot:item="row">
+            <template #item="row">
               {{ simplifyTrainingName(row.item) }}
             </template>
-            <template v-slot:selection="{ item }">
+            <template #selection="{ item }">
               {{ simplifyTrainingName(item) }}
             </template>
           </v-select>
@@ -265,7 +357,7 @@ export default defineComponent({
         <v-select
           v-if="data.fineTuneTraining"
           v-model="data.selectedFineTune"
-          :items="modelList"
+          :items="trainingConfigurationModels"
           label="Fine Tune Model"
         />
       </div>
@@ -309,9 +401,44 @@ export default defineComponent({
         </template>
       </v-data-table>
     </div>
+
+    <div>
+      <v-card-title class="text-h4">
+        Trained models
+      </v-card-title>
+      <v-card-text>
+        Here are all your trained models
+      </v-card-text>
+      <v-data-table
+        dense
+        v-bind="{ headers: models.headers, items: models.items.value }"
+        no-data-text="You don't have any trained model"
+      >
+        <template #[`item.export`]="{ item }">
+          <v-btn
+            :key="item.name"
+            color="info"
+            x-small
+            @click="exportModel(item)"
+          >
+            <v-icon>mdi-export</v-icon>
+          </v-btn>
+        </template>
+
+        <template #[`item.delete`]="{ item }">
+          <v-btn
+            :key="item.name"
+            color="error"
+            x-small
+            @click="deleteModel(item)"
+          >
+            <v-icon>mdi-trash-can</v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+    </div>
   </div>
 </template>
-
 
 <style lang="scss">
 .multitraining-menu {

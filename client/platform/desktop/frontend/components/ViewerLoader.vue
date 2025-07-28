@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, ref, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
@@ -90,9 +90,7 @@ export default defineComponent({
       // Check if any running job contains the root props.id
       // for multicam this is why we use the reduce to check each id
       if (runningJobs.value.find(
-        (item) => item.job.datasetIds.reduce(
-          (prev: boolean, current) => (current.includes(props.id) && prev), true,
-        ),
+        (item) => item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
       )) {
         results.push(props.id);
       }
@@ -129,7 +127,7 @@ export default defineComponent({
         style="flex-basis:0; flex-grow:0;"
       >
         <v-tab :to="{ name: 'recent' }">
-          Recents
+          Library
           <v-icon>mdi-folder-open</v-icon>
         </v-tab>
         <job-tab />

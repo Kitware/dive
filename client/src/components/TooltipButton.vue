@@ -58,7 +58,7 @@ export default Vue.extend({
         :tile="tile"
         class="ma-0"
         v-on="on"
-        @click="$emit('click')"
+        @click="$emit('click', $event)"
       >
         <v-icon>
           {{ icon }}

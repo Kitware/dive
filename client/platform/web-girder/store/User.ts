@@ -4,7 +4,6 @@ import { Module } from 'vuex';
 import type { UserState, RootState } from './types';
 import girderRest from '../plugins/girder';
 
-
 const userModule: Module<UserState, RootState> = {
   namespaced: true,
   state: {

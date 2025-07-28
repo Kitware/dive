@@ -1,6 +1,6 @@
 import {
   reactive, Ref, toRefs,
-} from '@vue/composition-api';
+} from 'vue';
 import { throttle } from 'lodash';
 
 // https://en.wikipedia.org/wiki/Flick_(time)
@@ -21,10 +21,11 @@ export interface Time {
   flick: Readonly<Ref<number>>;
   frameRate: Readonly<Ref<number>>;
   originalFps: Readonly<Ref<number | null>>;
+  isPlaying: Readonly<Ref<boolean>>;
 }
 
 export type SetTimeFunc = (
-  { frame, flick }: { frame: number; flick: number }
+  { frame, flick, playing }: { frame: number; flick: number; playing?: boolean }
 ) => void;
 
 /**
@@ -38,6 +39,7 @@ export default function useTimeObserver() {
     flick: 0,
     frameRate: NaN,
     originalFps: null as number | null,
+    isPlaying: false,
   });
 
   function initialize({ frameRate, originalFps }: {
@@ -50,12 +52,15 @@ export default function useTimeObserver() {
     data.originalFps = originalFps;
   }
 
-  const updateTime: SetTimeFunc = throttle(({ frame, flick }: { frame: number; flick: number }) => {
+  const time: Time = toRefs(data);
+
+  const updateTime: SetTimeFunc = throttle(({ frame, flick, playing }: { frame: number; flick: number, playing?: boolean }) => {
     data.frame = frame;
     data.flick = flick;
+    if (playing !== undefined) {
+      data.isPlaying = playing;
+    }
   });
-
-  const time: Time = toRefs(data);
 
   return {
     initialize,

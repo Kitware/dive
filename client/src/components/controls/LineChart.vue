@@ -158,6 +158,7 @@ export default Vue.extend({
               .style('display', 'block');
             d3.select(this).style('stroke', 'cyan').style('stroke-width', 3);
             highlightedColor = d.color;
+            // eslint-disable-next-line @typescript-eslint/no-this-alias
             highlightedLine = this;
           }, 50);
         })

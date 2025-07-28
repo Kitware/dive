@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from bson.objectid import ObjectId
 from pydantic import BaseModel, Field, validator
@@ -60,14 +60,31 @@ class BaseAnnotation(BaseModel):
     attributes: Dict[str, Any] = Field(default_factory=lambda: {})
     meta: Optional[Dict[str, Any]]
 
-    def exceeds_thresholds(self, thresholds: Dict[str, float]) -> bool:
+    def exceeds_thresholds(self, thresholds: Dict[str, float], typeFilter: Set[str] = None) -> bool:
         defaultThresh = thresholds.get('default', 0)
-        return any(
-            [
-                confidence >= thresholds.get(field, defaultThresh)
-                for field, confidence in self.confidencePairs
-            ]
-        )
+
+        # Check if there is any confidence value that exceeds the threshold
+        exceeds_default_threshold = False
+        for field, confidence in self.confidencePairs:
+            if confidence >= thresholds.get(field, defaultThresh):
+                if (
+                    typeFilter and field in typeFilter
+                ):  # field is in the set and confidence > threshold
+                    exceeds_default_threshold = True
+                elif (
+                    typeFilter
+                ):  # if typeFilter has a set and the field isn't in it we return false
+                    exceeds_default_threshold = False
+                elif (
+                    not typeFilter
+                ):  # if no typeFilter we return true based on confidence > threshold
+                    exceeds_default_threshold = True
+            else:
+                exceeds_default_threshold = False
+            if exceeds_default_threshold:
+                return True
+
+        return False
 
     def __hash__(self):
         return self.id
@@ -217,6 +234,7 @@ class MetadataMutable(BaseModel):
     confidenceFilters: Optional[Dict[str, float]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
+    fps: Optional[float]
 
     @staticmethod
     def is_dive_configuration(value: dict):
@@ -258,6 +276,7 @@ class MediaResource(BaseModel):
 class DatasetSourceMedia(BaseModel):
     imageData: List[MediaResource]
     video: Optional[MediaResource]
+    sourceVideo: Optional[MediaResource]
 
 
 class PrivateQueueEnabledResponse(BaseModel):

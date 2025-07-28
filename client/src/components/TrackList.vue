@@ -1,11 +1,13 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, computed, Ref,
-} from '@vue/composition-api';
+  defineComponent, reactive, computed, Ref, ref,
+  watch,
+} from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 
+import { clientSettings } from 'dive-common/store/settings';
 import {
   useEditingMode,
   useHandler,
@@ -25,6 +27,8 @@ const TrackListHeaderHeight = 52;
 
 export default defineComponent({
   name: 'TrackList',
+
+  components: { TrackItem },
 
   props: {
     newTrackMode: {
@@ -49,8 +53,6 @@ export default defineComponent({
     },
   },
 
-  components: { TrackItem },
-
   setup(props) {
     const { prompt } = usePrompt();
     const readOnlyMode = useReadOnlyMode();
@@ -62,15 +64,39 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const { frame: frameRef } = useTime();
+    const { frame: frameRef, isPlaying } = useTime();
     const multiSelectList = useMultiSelectList();
     const {
-      trackSelectNext, trackSplit, removeTrack, trackAdd,
+      trackSplit, removeTrack, trackAdd, trackSelect,
     } = useHandler();
 
     const data = reactive({
       itemHeight: 70, // in pixelx
       settingsActive: false,
+    });
+
+    const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
+    watch(
+      () => clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame,
+      (newValue) => {
+        filterDetectionsByFrame.value = newValue;
+      },
+    );
+
+    const finalFilteredTracks = computed(() => {
+      if (filterDetectionsByFrame.value && !isPlaying.value) {
+        return filteredTracksRef.value.filter((track) => {
+          const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
+          if (possibleTrack) {
+            const [feature] = possibleTrack.getFeature(frameRef.value);
+            if (feature && feature.keyframe) {
+              return true;
+            }
+          }
+          return false;
+        });
+      }
+      return filteredTracksRef.value;
     });
 
     const virtualListItems = computed(() => {
@@ -79,7 +105,7 @@ export default defineComponent({
       const checkedTrackIds = checkedTrackIdsRef.value;
       const editingMode = editingModeRef.value;
       const allTypes = allTypesRef.value;
-      return filteredTracksRef.value.map((filtered) => ({
+      return finalFilteredTracks.value.map((filtered) => ({
         filteredTrack: filtered,
         selectedTrackId,
         checkedTrackIds,
@@ -99,13 +125,22 @@ export default defineComponent({
 
     const getAnnotation = (id: AnnotationId) => cameraStore.getAnyPossibleTrack(id);
 
+    watch(
+      () => filteredTracksRef.value,
+      (newValue) => {
+        if (newValue.length === 0) {
+          trackSelect(null, false);
+        }
+      },
+    );
+
     const virtualScroll = useVirtualScrollTo({
       itemHeight: data.itemHeight,
       getAnnotation,
-      filteredListRef: filteredTracksRef,
+      filteredListRef: finalFilteredTracks,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,
-      selectNext: trackSelectNext,
+      trackSelect,
     });
 
     function getItemProps(item: typeof virtualListItems.value[number]) {
@@ -191,14 +226,13 @@ export default defineComponent({
     });
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
-
     return {
       allTypes: allTypesRef,
       data,
       getItemProps,
       mouseTrap,
       newTrackColor,
-      filteredTracks: filteredTracksRef,
+      filteredTracks: finalFilteredTracks,
       readOnlyMode,
       trackAdd,
       virtualHeight,

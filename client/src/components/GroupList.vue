@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, reactive, computed,
-} from '@vue/composition-api';
+} from 'vue';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 
 import {
@@ -67,7 +67,7 @@ export default defineComponent({
         }
         return [];
       }),
-      selectNext: () => null,
+      trackSelect: () => null,
     });
 
     const virtualListItems = computed(() => {

@@ -73,7 +73,7 @@ DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipeli
     * Use ==Choose :material-folder:== to choose the base installation path, then click ==:material-content-save: Save==.
 * **Project Data Storage Path** defaults to a subfolder in your user workspace and should generally not be changed.
 * **Read only mode** disables the ability to save when using the annotator.
-* **Synchronize Recents** - The ==:material-sync: Synchronize Recents with Project Data== button is useful if data in the Project Data Storage Path gets out of sync with what appears in the ==:material-folder-open: Recents== list.
+* **Synchronize Library** - The ==:material-sync: Synchronize Library with Project Data== button is useful if data in the Project Data Storage Path gets out of sync with what appears in the ==:material-folder-open: Library== list.
 
 ### Data Storage Path
 

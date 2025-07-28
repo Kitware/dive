@@ -22,6 +22,7 @@ import {
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
+  Pipe,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -158,7 +159,6 @@ async function _acquireLock(dir: string, resource: string, lockname: 'meta' | 't
   return release;
 }
 
-
 async function _findCSVTrackFiles(searchPath: string) {
   const contents = await fs.readdir(searchPath);
   const csvFileCandidates = contents
@@ -269,9 +269,7 @@ async function loadMetadata(
     if (!projectMetaData.multiCam) {
       throw new Error(`Dataset: ${projectMetaData.name} is of type multiCam or stereo but contains no multiCam data`);
     }
-    multiCamMedia = getMultiCamUrls(
-      projectMetaData, projectDirData.basePath, makeMediaUrl,
-    );
+    multiCamMedia = getMultiCamUrls(projectMetaData, projectDirData.basePath, makeMediaUrl);
     /* TODO: Done temporarily before we support true display of items */
     const defaultDisplay = multiCamMedia.cameras[multiCamMedia.defaultDisplay];
     imageData = defaultDisplay.imageData;
@@ -347,7 +345,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+|.*[2,3]-cam.+/;
+  const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_gmm_.+|.*[2,3]-cam.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -482,6 +480,15 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   };
 }
 
+/**
+ * delete a trained pipeline
+ */
+async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
+  if (pipeline.type !== 'trained') throw new Error(`${pipeline.name} is not a trained pipeline`);
+
+  const parent = npath.parse(pipeline.pipe).dir;
+  await fs.remove(parent);
+}
 
 /**
  * _saveSerialized save pre-serialized tracks to disk
@@ -522,7 +529,7 @@ async function saveDetections(settings: Settings, datasetId: string, args: SaveD
   /* Update existing track file */
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  function _save<T>(type: 'tracks' | 'groups') {
+  function _save(type: 'tracks' | 'groups') {
     args[type].delete.forEach((id) => delete existing[type][id.toString()]);
     args[type].upsert.forEach((val: TrackData | GroupData) => {
       existing[type][val.id.toString()] = val;
@@ -561,7 +568,6 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
 }
-
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
@@ -605,7 +611,6 @@ async function saveAttributeTrackFilters(
   await saveMetadata(settings, datasetId, projectMetaData);
 }
 
-
 async function _ingestFilePath(
   settings: Settings,
   datasetId: string,
@@ -613,20 +618,21 @@ async function _ingestFilePath(
   imageMap?: Map<string, number>,
   additive = false,
   additivePrepend = '',
-): Promise<(DatasetMetaMutable & { fps?: number }) | null> {
+): Promise<[(DatasetMetaMutable & { fps?: number }), string[]] | null> {
   if (!fs.existsSync(path)) {
     return null;
   }
   if (fs.statSync(path).size === 0) {
     return null;
   }
+  let warnings: string[] = [];
   // Make a copy of the file in aux
   const projectInfo = getProjectDir(settings, datasetId);
   const newPath = npath.join(projectInfo.auxDirAbsPath, `imported_${npath.basename(path)}`);
   await fs.copy(path, newPath);
   // Attempt to process the file
   let annotations = dive.makeEmptyAnnotationFile();
-  const meta: DatasetMetaMutable & { fps?: number } = {};
+  const meta: DatasetMetaMutable & { fps?: number, execTime?: number } = {};
   let metadataConfig = false;
   if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
@@ -647,9 +653,11 @@ async function _ingestFilePath(
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
     const data = await viameSerializers.parseFile(path, imageMap);
-    annotations.tracks = data.tracks;
-    annotations.groups = data.groups;
-    meta.fps = data.fps;
+    annotations.tracks = data[0].tracks;
+    annotations.groups = data[0].groups;
+    meta.fps = data[0].fps;
+    meta.execTime = data[0].execTime;
+    [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
   }
@@ -687,7 +695,7 @@ async function _ingestFilePath(
     await _saveSerialized(settings, datasetId, annotations, true);
   }
 
-  return meta;
+  return [meta, warnings];
 }
 
 /**
@@ -714,17 +722,18 @@ async function ingestDataFiles(
 ): Promise<{
   processedFiles: string[];
   meta: DatasetMetaMutable & { fps?: number };
+  warnings: string[];
 }> {
   const processedFiles = []; // which files were processed to generate the detections
   const meta = {};
-
+  let outwarnings: string[] = [];
   for (let i = 0; i < absPaths.length; i += 1) {
     const path = absPaths[i];
     // eslint-disable-next-line no-await-in-loop
-    const newMeta = await _ingestFilePath(
-      settings, datasetId, path, imageMap, additive, additivePrepend,
-    );
-    if (newMeta !== null) {
+    const results = await _ingestFilePath(settings, datasetId, path, imageMap, additive, additivePrepend);
+    if (results !== null) {
+      const [newMeta, warnings] = results;
+      outwarnings = warnings;
       merge(meta, newMeta);
       processedFiles.push(path);
     }
@@ -737,15 +746,17 @@ async function ingestDataFiles(
       const path = cameraAndPath[i][1];
       const cameraDatasetId = `${datasetId}/${cameraName}`;
       // eslint-disable-next-line no-await-in-loop
-      const newMeta = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
-      if (newMeta !== null) {
+      const results = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
+      if (results !== null) {
+        const [newMeta, warnings] = results;
+        outwarnings = outwarnings.concat(warnings);
         merge(meta, newMeta);
         processedFiles.push(path);
       }
     }
   }
 
-  return { processedFiles, meta };
+  return { processedFiles, meta, warnings: outwarnings };
 }
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
@@ -824,7 +835,6 @@ async function checkDataset(
   return true;
 }
 
-
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
   let { trackFileAbsPath } = results;
@@ -836,6 +846,59 @@ async function findTrackandMetaFileinFolder(path: string) {
     }
   }
   return { trackFileAbsPath, metaFileAbsPath };
+}
+
+/**
+ * Attempt a media import on the provided path, which may or may not be a valid dataset.
+ */
+async function attemptMediaImport(path: string) {
+  try {
+    // Must await here, as otherwise the try/catch isn't correctly executed.
+    return await beginMediaImport(path);
+  } catch (e) {
+    console.warn(
+      `*** Failed to import at path "${path}", with message: "${(e as Error).message}".`
+      + ' This is expected if this file or directory does not contain a dataset.',
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * Recursively import all datasets in this directory, using a "breadth-first" approach.
+ * This function only recurses into a directory if the import of that directory fails.
+ */
+async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse[]> {
+  const children = await fs.readdir(path, { withFileTypes: true });
+  const results: {path: fs.Dirent, result: DesktopMediaImportResponse | undefined}[] = [];
+
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const dirent of children) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await attemptMediaImport(npath.resolve(path, dirent.name));
+    results.push({
+      path: dirent,
+      result,
+    });
+  }
+
+  // Filter successful imports
+  const importResults = results.filter((r) => r.result !== undefined).map((r) => r.result as DesktopMediaImportResponse);
+
+  // If the result was undefined and was a directory, recurse.
+  const toRecurse = results.filter((r) => r.result === undefined && r.path.isDirectory());
+
+  // Use a for-of loop, to run imports sequentially. If run concurrently, they can fail behind the scenes.
+  // eslint-disable-next-line no-restricted-syntax
+  for (const r of toRecurse) {
+    // eslint-disable-next-line no-await-in-loop
+    const results = await bulkMediaImport(npath.resolve(path, r.path.name));
+    importResults.push(...results);
+  }
+
+  return importResults;
 }
 
 /**
@@ -975,8 +1038,13 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
   const result = await ingestDataFiles(
-    settings, id, [path], undefined, validImageNamesMap(jsonMeta),
-    additive, additivePrepend,
+    settings,
+    id,
+    [path],
+    undefined,
+    validImageNamesMap(jsonMeta),
+    additive,
+    additivePrepend,
   );
   merge(jsonMeta, result.meta);
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
@@ -998,9 +1066,7 @@ async function _importTrackFile(
     jsonMeta.transcodedImageFiles.sort(strNumericCompare);
   }
   if (userTrackFileAbsPath) {
-    const processed = await ingestDataFiles(
-      settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta),
-    );
+    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta));
     merge(jsonMeta, processed.meta);
     if (processed.processedFiles.length === 0) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
@@ -1015,14 +1081,12 @@ async function _importTrackFile(
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-async function completeConversion(
-  settings: Settings, datasetId: string, transcodingJobKey: string,
-) {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  if (existing.transcodingJobKey === transcodingJobKey) {
-    existing.transcodingJobKey = undefined;
-    saveMetadata(settings, datasetId, existing);
+async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
+  await getValidatedProjectDir(settings, datasetId);
+  if (meta.transcodingJobKey === transcodingJobKey) {
+    // eslint-disable-next-line no-param-reassign
+    meta.transcodingJobKey = undefined;
+    saveMetadata(settings, datasetId, meta);
   }
 }
 
@@ -1098,7 +1162,7 @@ async function finalizeMediaImport(
         mediaList: srcDstList,
       },
       updater,
-      (jobKey) => completeConversion(settings, jsonMeta.id, jobKey),
+      (jobKey, meta) => completeConversion(settings, jsonMeta.id, jobKey, meta),
     );
     jsonMeta.transcodingJobKey = jobBase.key;
   }
@@ -1123,14 +1187,10 @@ async function finalizeMediaImport(
         multiCamTrackFile = args.multiCamTrackFiles[cameraName];
       }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(
-        settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile,
-      );
+      await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile);
     }
   }
-  const finalJsonMeta = await _importTrackFile(
-    settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath,
-  );
+  const finalJsonMeta = await _importTrackFile(settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath);
   if (args.metaFileAbsPath) {
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
@@ -1145,6 +1205,12 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  if (args.type === 'json') {
+    return dive.serializeFile(args.path, data, meta, args.typeFilter, {
+      excludeBelowThreshold: args.exclude,
+      header: true,
+    });
+  }
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
     excludeBelowThreshold: args.exclude,
     header: true,
@@ -1167,6 +1233,7 @@ export {
   ProjectsFolderName,
   JobsFolderName,
   autodiscoverData,
+  bulkMediaImport,
   beginMediaImport,
   dataFileImport,
   deleteDataset,
@@ -1175,6 +1242,7 @@ export {
   exportDataset,
   finalizeMediaImport,
   getPipelineList,
+  deleteTrainedPipeline,
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,

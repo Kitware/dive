@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, PropType, reactive, Ref, ref, watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
@@ -232,8 +232,8 @@ export default defineComponent({
             >
               <div style="word-break: break-word;">
                 {{
-                  error ? error :
-                  'Changes to Attribute Datatypes or Names do not effect \
+                  error ? error
+                  : 'Changes to Attribute Datatypes or Names do not effect \
                currently set attributes on tracks.'
                 }}
               </div>
@@ -245,8 +245,8 @@ export default defineComponent({
               <v-text-field
                 v-model="baseSettings.name"
                 label="Name"
-                :rules="[v => !!v || 'Name is required', v => !v.includes(' ') ||
-                  'No spaces', v => v !== 'userAttributes' || 'Reserved Name']"
+                :rules="[v => !!v || 'Name is required', v => !v.includes(' ')
+                  || 'No spaces', v => v !== 'userAttributes' || 'Reserved Name']"
                 required
               />
               <v-select
@@ -254,12 +254,12 @@ export default defineComponent({
                 :items="[
                   { text: 'Boolean', value: 'boolean' },
                   { text: 'Number', value: 'number' },
-                  { text: 'Text', value: 'text' }
+                  { text: 'Text', value: 'text' },
                 ]"
                 label="Datatype"
                 @change="typeChange"
               />
-              <div v-if="baseSettings.datatype=== 'number'">
+              <div v-if="baseSettings.datatype === 'number'">
                 <v-radio-group
                   :value="(baseSettings.editor && baseSettings.editor.type) || 'combo'"
                   row
@@ -297,11 +297,11 @@ export default defineComponent({
                     v-model.number="baseSettings.editor.range[0]"
                     dense
                     outlined
-                    :step="baseSettings.editor.range[0]> 1 ? 1 : 0.01"
+                    :step="baseSettings.editor.range[0] > 1 ? 1 : 0.01"
                     type="number"
                     label="Min"
                     :rules="[
-                      v => !isNaN(parseFloat(v))|| 'Number is required',
+                      v => !isNaN(parseFloat(v)) || 'Number is required',
                       v => baseSettings.editor
                         && baseSettings.editor.type === 'slider'
                         && baseSettings.editor.range
@@ -315,7 +315,7 @@ export default defineComponent({
                     v-model.number="baseSettings.editor.range[1]"
                     dense
                     outlined
-                    :step="baseSettings.editor.range[1]> 1 ? 1 : 0.01"
+                    :step="baseSettings.editor.range[1] > 1 ? 1 : 0.01"
                     type="number"
                     label="Max"
                     :rules="[

@@ -1,11 +1,7 @@
 /// <reference types="jest" />
 
-import Vue from 'vue';
-import CompositionApi from '@vue/composition-api';
 import { merge } from 'lodash';
 import Group, { GroupMembers } from './Group';
-
-Vue.use(CompositionApi);
 
 const member0: GroupMembers = { 0: { ranges: [[0, 10]] } };
 const member100: GroupMembers = { 100: { ranges: [[20, 30]] } };

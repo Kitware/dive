@@ -5,7 +5,6 @@ import type {
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 
-
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
@@ -40,6 +39,7 @@ export interface Camera {
   originalVideoFile: string;
   transcodedImageFiles: string[];
   transcodedVideoFile: string;
+  transcodedMisalign?: boolean;
   imageListPath?: string;
 }
 
@@ -90,6 +90,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // relative to project path
   transcodedVideoFile: string;
 
+  transcodedMisalign?: boolean;
+
   // ordered image filenames IF this is an image dataset
   // If paths are relative, they're relative to originalBasePath
   // If paths are absolute, originalBasePath will be '' (empty string)
@@ -120,6 +122,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   subType: SubType;
+
+  // execTime is athe execution time for desktop runs
+  execTime?: number
 }
 
 export type DesktopMetadata = DatasetMeta & JsonMeta;
@@ -146,6 +151,11 @@ export interface NvidiaSmiReply {
 /** TODO promote to apispec */
 export interface RunPipeline {
   datasetId: string;
+  pipeline: Pipe;
+}
+
+export interface ExportTrainedPipeline {
+  path: string;
   pipeline: Pipe;
 }
 
@@ -181,11 +191,11 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ConversionArgs;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -227,6 +237,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
+    type?: 'csv' | 'json';
   }
 
 export interface ExportConfigurationArgs {

@@ -1,4 +1,4 @@
-import { computed, ref, Ref } from '@vue/composition-api';
+import { computed, ref, Ref } from 'vue';
 import { cloneDeep } from 'lodash';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';

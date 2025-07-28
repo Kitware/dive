@@ -1,5 +1,6 @@
-import { computed, Ref, ref } from '@vue/composition-api';
+import { computed, Ref, ref } from 'vue';
 import { cloneDeep } from 'lodash';
+import { clientSettings } from 'dive-common/store/settings';
 import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
@@ -51,7 +52,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
            */
           enabledInGroupFilters = groups.some((group) => filteredGroupsSet.has(group.id));
         }
-        const confidencePairIndex = annotation.confidencePairs
+        let confidencePairIndex = annotation.confidencePairs
           .findIndex(([confkey, confval]) => {
             const confidenceThresh = Math.max(
               confidenceFiltersVal[confkey] || 0,
@@ -59,6 +60,18 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
             );
             return confval >= confidenceThresh && checkedSet.has(confkey);
           });
+        if (clientSettings.typeSettings.preventCascadeTypes) {
+          const [confkey, confval] = annotation.confidencePairs[0];
+          const confidenceThresh = Math.max(
+            confidenceFiltersVal[confkey] || 0,
+            confidenceFiltersVal.default,
+          );
+          if (checkedSet.has(confkey) && confval > confidenceThresh) {
+            confidencePairIndex = 0;
+          } else {
+            confidencePairIndex = -1;
+          }
+        }
         /* include annotations where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
         if (

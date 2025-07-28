@@ -3,7 +3,6 @@ import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { TrackData } from 'vue-media-annotator/track';
 import { Attributes } from 'vue-media-annotator/use/AttributeTypes';
 
-
 /**
  * Processes a list of tracks and returns a MultiTrackRecord and an attributes object to be used
  * @param tracks list of tracks to process for the attributes

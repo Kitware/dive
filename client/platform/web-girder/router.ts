@@ -4,6 +4,7 @@ import Router, { Route } from 'vue-router';
 import girderRest from './plugins/girder';
 import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
+import TrainedModels from './views/TrainedModels.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
 import AdminPage from './views/AdminPage.vue';
@@ -14,6 +15,7 @@ import Summary from './views/Summary.vue';
 
 Vue.use(Router);
 
+// eslint-disable-next-line @typescript-eslint/ban-types
 function beforeEnter(to: Route, from: Route, next: Function) {
   if (!girderRest.user) {
     next('/login');
@@ -22,12 +24,20 @@ function beforeEnter(to: Route, from: Route, next: Function) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/ban-types
 function adminGuard(to: Route, from: Route, next: Function) {
   if (!girderRest.user.admin) {
     next('/');
   } else {
     next();
   }
+}
+
+function toArray(data: string | (string | null)[]) {
+  if (data && typeof data === 'string') {
+    return [data];
+  }
+  return data;
 }
 
 const router = new Router({
@@ -41,14 +51,14 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: true,
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
       beforeEnter,
     },
     {
       path: '/viewer/:id/set/:set',
       name: 'set viewer',
       component: ViewerLoader,
-      props: true,
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
       beforeEnter,
     },
     {
@@ -80,6 +90,12 @@ const router = new Router({
           path: 'jobs',
           name: 'jobs',
           component: Jobs,
+          beforeEnter,
+        },
+        {
+          path: 'trained-models',
+          name: 'trained-models',
+          component: TrainedModels,
           beforeEnter,
         },
         {

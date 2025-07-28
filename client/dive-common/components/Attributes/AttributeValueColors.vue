@@ -2,7 +2,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, PropType, Ref,
-} from '@vue/composition-api';
+} from 'vue';
 import { useStore } from 'platform/web-girder/store/types';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { useCameraStore, useTrackStyleManager } from 'vue-media-annotator/provides';
@@ -22,7 +22,6 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const store = useStore();
     const user = (store.state.User.user?.login || '') as string;
-
 
     const predeterminedValues = ref(props.attribute.values || []);
 
@@ -128,7 +127,7 @@ export default defineComponent({
         <v-spacer />
       </v-row>
       <v-row
-        v-for="(val,key) in attributeColors"
+        v-for="(val, key) in attributeColors"
         :key="val"
         align="center"
         justify="center"

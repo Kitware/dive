@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref,
-} from '@vue/composition-api';
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
+} from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
@@ -13,6 +13,7 @@ import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useApi } from 'dive-common/apispec';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
+import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -63,6 +64,13 @@ export default defineComponent({
     ...context.getComponents(),
   },
 
+  // TODO: This will require an import from vue-router for Vue3 compatibility
+  async beforeRouteLeave(to, from, next) {
+    if (await this.viewerRef.navigateAwayGuard()) {
+      next();
+    }
+  },
+
   props: {
     id: {
       type: String,
@@ -76,18 +84,16 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
+    comparisonSets: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
   },
 
-  // TODO: This will require an import from vue-router for Vue3 compatibility
-  async beforeRouteLeave(to, from, next) {
-    if (await this.viewerRef.navigateAwayGuard()) {
-      next();
-    }
-  },
-
-  setup(props, ctx) {
+  setup(props) {
     const { loadMetadata } = useApi();
     const { prompt } = usePrompt();
+    const router = useRouter();
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
@@ -157,12 +163,12 @@ export default defineComponent({
 
     function routeRevision(revisionId: number, set?: string) {
       if (set && set !== 'default') {
-        ctx.root.$router.replace({
+        router.replace({
           name: 'revision set viewer',
           params: { id: props.id, revision: revisionId.toString(), set },
         });
       } else {
-        ctx.root.$router.replace({
+        router.replace({
           name: 'revision viewer',
           params: { id: props.id, revision: revisionId.toString() },
         });
@@ -171,19 +177,18 @@ export default defineComponent({
 
     function routeSet(set: string) {
       if (set === 'default') {
-        ctx.root.$router.replace({
+        router.replace({
           name: 'viewer',
           params: { id: props.id },
         });
       } else {
-        ctx.root.$router.replace({
+        router.replace({
           name: 'set viewer',
           params: { id: props.id, set },
         });
       }
       viewerRef.value.reloadAnnotations();
     }
-
 
     async function largeImageWarning() {
       const result = await prompt({
@@ -229,6 +234,7 @@ export default defineComponent({
     :revision="revisionNum"
     :current-set="set"
     :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
   >

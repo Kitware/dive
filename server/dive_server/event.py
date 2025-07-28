@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 from bson.objectid import ObjectId
@@ -15,16 +15,18 @@ from dive_utils.constants import (
     AssetstoreSourceMarker,
     AssetstoreSourcePathMarker,
     DatasetMarker,
-    DefaultVideoFPS,
     FPSMarker,
     ImageSequenceType,
     LargeImageType,
+    MarkForPostProcess,
     TypeMarker,
     VideoType,
     imageRegex,
     largeImageRegEx,
     videoRegex,
 )
+
+from . import crud_rpc
 
 
 def send_new_user_email(event):
@@ -45,7 +47,6 @@ def process_assetstore_import(event, meta: dict):
     info = event.info
     objectType = info.get("type")
     importPath = info.get("importPath")
-    now = datetime.now()
 
     if not importPath or not objectType or objectType != "item":
         return
@@ -59,45 +60,103 @@ def process_assetstore_import(event, meta: dict):
         }
     )
 
-    # TODO figure out what's going on here?
-
     if imageRegex.search(importPath):
         dataset_type = ImageSequenceType
-
-    elif videoRegex.search(importPath):
-        # Look for exisitng video dataset directory
+    elif largeImageRegEx.search(importPath):
+        dataset_type = LargeImageType
         parentFolder = Folder().findOne({"_id": item["folderId"]})
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']
+        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
         user = User().findOne({'_id': ObjectId(userId)})
-        foldername = f'Video {item["name"]}'
+        # Need to create a new DIVE Dataset Folder for each file if the Setting says we should
+        foldername = f'Large Image {item["name"]}'
+        # resuse existing folder if it already exists with same name
         dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
-        if dest['created'] < now:
-            # Remove the old item, replace it with the new one.
+        # resuse existing folder if it already exists with same name
+        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
+        now = datetime.now()
+        if now - dest['created'] > timedelta(hours=1):
+            # Remove the old  referenced item, replace it with the new one.
             oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})
             if oldItem is not None:
                 Item().remove(oldItem)
         Item().move(item, dest)
+
+    elif videoRegex.search(importPath):
+        # Look for existing video dataset directory
+        parentFolder = Folder().findOne({"_id": item["folderId"]})
+        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
+        user = User().findOne({'_id': ObjectId(userId)})
+        foldername = f'Video {item["name"]}'
+        # resuse existing folder if it already exists with same name
+        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
+        now = datetime.now()
+        if now - dest['created'] > timedelta(hours=1):
+            # Remove the old  referenced item, replace it with the new one.
+            oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})
+            if oldItem is not None:
+                if oldItem['meta'].get('codec', False):
+                    meta = {
+                        'source_video': oldItem['meta'].get('source_video', None),
+                        'transcoder': oldItem['meta'].get('ffmpeg', None),
+                        'originalFps': oldItem['meta'].get('originalFps', None),
+                        'originalFpsString': oldItem['meta'].get('originalFpsString', None),
+                        'codec': oldItem['meta'].get('codec', None),
+                    }
+                    item['meta'].update(meta)
+                    Item().save(item)
+                Item().remove(oldItem)
+        Item().move(item, dest)
+        # Set the dataset to Video Type
         dataset_type = VideoType
-    elif largeImageRegEx.search(importPath):
-        dataset_type = LargeImageType
 
     if dataset_type is not None:
         # Update metadata of parent folder
-        # FPS is hardcoded for now
         Item().save(item)
         folder = Folder().findOne({"_id": item["folderId"]})
         root, _ = os.path.split(importPath)
+        # if the parent folder is not marked as a DIVE Dataset, Mark it.
         if not asbool(fromMeta(folder, DatasetMarker)):
             folder["meta"].update(
                 {
-                    TypeMarker: dataset_type,
-                    FPSMarker: DefaultVideoFPS,
-                    DatasetMarker: True,
+                    TypeMarker: dataset_type,  # Sets to video
+                    FPSMarker: -1,  # auto calculate the FPS from import
                     AssetstoreSourcePathMarker: root,
+                    MarkForPostProcess: True,  # skip transcode or transcode if required
                     **meta,
                 }
             )
             Folder().save(folder)
+
+
+def convert_video_recursive(folder, user):
+    subFolders = list(Folder().childFolders(folder, 'folder', user))
+    for child in subFolders:
+        if child.get('meta', {}).get(MarkForPostProcess, False):
+            child['meta']['MarkForPostProcess'] = False
+            Folder().save(child)
+            crud_rpc.postprocess(user, child, False, True)
+        convert_video_recursive(child, user)
+
+
+class DIVES3Imports:
+    destinationId = None
+    destinationType = None
+
+    def process_s3_import_before(self, event):
+        self.destinationId = event.info.get('params', {}).get('destinationId')
+        self.destinationType = event.info.get('params', {}).get('destinationType')
+
+    def process_s3_import_after(self, event):
+        if self.destinationType == 'folder' and self.destinationId is not None:
+            # go through all sub folders and add a new script to convert
+            destinationFolder = Folder().findOne({"_id": ObjectId(self.destinationId)})
+            print(destinationFolder)
+            userId = destinationFolder['creatorId'] or destinationFolder['baseParentId']
+            user = User().findOne({'_id': ObjectId(userId)})
+            convert_video_recursive(destinationFolder, user)
+        self.destinationId = None
+        self.destinationType = None
 
 
 def process_fs_import(event):

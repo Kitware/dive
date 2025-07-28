@@ -1,16 +1,13 @@
-
 import { AnnotationSchema } from 'dive-common/apispec';
 import fs from 'fs-extra';
 import { keyBy } from 'lodash';
 import { AnnotationFileData } from 'platform/desktop/backend/serializers/viame';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
-
 import {
   TrackData, Feature,
 } from 'vue-media-annotator/track';
 import { RectBounds } from 'vue-media-annotator/utils';
-
 
 interface TrackJSON {
   begin: number;
@@ -127,8 +124,8 @@ function loadActivity(
   activity: NistActivity,
   baseFileName: string,
   fullFrameBounds: RectBounds = [0, 0, 1920, 1080],
-  currentLength: number,
-  activityPos: number,
+  currentLength: number = 0,
+  activityPos: number = 0,
 ): TrackData[] {
   const tracks: TrackJSON[] = [];
   Object.entries(activity.localization).forEach(([key, localization]) => {
@@ -231,8 +228,13 @@ function convertNisttoJSON(
       activityTypePos[activity.activity] = uniqueActivities;
       uniqueActivities += 1;
     }
-    const tracks = loadActivity(activity, baseFilename, fullFrameBounds,
-      trackData.length, activityTypePos[activity.activity]);
+    const tracks = loadActivity(
+      activity,
+      baseFilename,
+      fullFrameBounds,
+      trackData.length,
+      activityTypePos[activity.activity],
+    );
     if (tracks) {
       trackData = trackData.concat(tracks);
     }

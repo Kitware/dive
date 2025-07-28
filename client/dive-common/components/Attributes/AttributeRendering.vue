@@ -2,7 +2,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, PropType, watch, computed, reactive,
-} from '@vue/composition-api';
+} from 'vue';
 import { useTrackFilters, useTrackStyleManager } from 'vue-media-annotator/provides';
 import { Attribute, AttributeRendering } from 'vue-media-annotator/use/AttributeTypes';
 
@@ -371,7 +371,7 @@ export default defineComponent({
             />
             <div
               class="color-box mx-2 mt-5"
-              :class="{'edit-color-box': !displayNameSettings.displayColorAuto}"
+              :class="{ 'edit-color-box': !displayNameSettings.displayColorAuto }"
               :style="{
                 backgroundColor: computedDisplayColor,
               }"
@@ -418,7 +418,7 @@ export default defineComponent({
             />
             <div
               class="color-box mx-2 mt-5"
-              :class="{'edit-color-box': !valueSettings.valueColorAuto}"
+              :class="{ 'edit-color-box': !valueSettings.valueColorAuto }"
               :style="{
                 backgroundColor: computedValueColor,
               }"
@@ -531,7 +531,7 @@ export default defineComponent({
               <div
                 v-if="boxSettings.box"
                 class="color-box mx-2 mt-5"
-                :class="{'edit-color-box': !boxSettings.boxColorAuto}"
+                :class="{ 'edit-color-box': !boxSettings.boxColorAuto }"
                 :style="{
                   backgroundColor: computedBoxColor,
                 }"

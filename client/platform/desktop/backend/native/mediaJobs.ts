@@ -2,12 +2,12 @@ import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 
-
 import {
   Settings, DesktopJob,
   ConversionArgs,
   DesktopJobUpdater,
   FFProbeFrameResults,
+  JsonMeta,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
@@ -168,7 +168,7 @@ async function convertMedia(
   settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
-  onComplete?: (jobKey: string) => void,
+  onComplete?: (jobKey: string, meta: JsonMeta) => void,
   mediaIndex = 0,
   key = '',
   baseWorkDir = '',
@@ -227,13 +227,15 @@ async function convertMedia(
           jobWorkDir,
         );
         if (updatedFile !== args.mediaList[mediaIndex][1]) {
+          // eslint-disable-next-line no-param-reassign
+          args.meta.transcodedMisalign = true;
           //We need to copy over and replace the media File to the properly updated file.
           await fs.move(updatedFile, args.mediaList[mediaIndex][1], { overwrite: true });
         }
       }
 
       if (mediaIndex === args.mediaList.length - 1) {
-        if (onComplete) { onComplete(jobKey); }
+        if (onComplete) { onComplete(jobKey, args.meta); }
         updater({
           ...jobBase,
           body: [''],

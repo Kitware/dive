@@ -1,6 +1,5 @@
-
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 
 export default defineComponent({
   setup() {
@@ -47,7 +46,9 @@ export default defineComponent({
             {
               name: 'Toggle Interpolation', icon: 'mdi-keyboard', actions: ['I'], description: 'Toggle Interpolation On/Off',
             },
-
+            {
+              name: 'Toggle Interpolation All', icon: 'mdi-keyboard', actions: ['CTRL+I'], description: 'Toggle Interpolation On/Off for all Frames',
+            },
             {
               name: 'Split Track', icon: 'mdi-keyboard', actions: ['X'], description: 'Split Track',
             },
@@ -111,7 +112,7 @@ export default defineComponent({
         color="red"
         top
       >
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-row
             class="helpContextRow ma-0 align-center"
             v-on="on"
