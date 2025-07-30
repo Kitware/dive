@@ -433,7 +433,7 @@ export default defineComponent({
       );
     });
 
-    const Clicked = (trackId: number, editing: boolean) => {
+    const Clicked = (trackId: number, editing: boolean, modifiers: {ctrl: boolean} | null) => {
       // If the camera isn't selected yet we ignore the click
       if (selectedCamera.value !== props.camera) {
         return;
@@ -443,6 +443,9 @@ export default defineComponent({
         editAnnotationLayer.disable();
         handler.trackSelect(trackId, editing);
       }
+      if (modifiers && modifiers.ctrl) {
+        console.log('handing a ctrl click annotation');
+      }
     };
 
     //Sync of internal geoJS state with the application
@@ -451,8 +454,10 @@ export default defineComponent({
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
