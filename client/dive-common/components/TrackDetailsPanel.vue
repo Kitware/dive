@@ -17,6 +17,7 @@ import {
   useReadOnlyMode,
   useTrackStyleManager,
   useEditingGroupId,
+  useEditingMultiTrack,
   useGroupFilterControls,
   useCameraStore,
   useSelectedCamera,
@@ -70,6 +71,7 @@ export default defineComponent({
     const selectedCamera = useSelectedCamera();
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
+    const editingMultiTrack = useEditingMultiTrack();
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
@@ -97,6 +99,7 @@ export default defineComponent({
 
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
+        console.log(multiSelectList.value);
         return multiSelectList.value.map(
           (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
         );
@@ -233,6 +236,7 @@ export default defineComponent({
       selectedTrackList,
       multiSelectList,
       multiSelectInProgress,
+      editingMultiTrack,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -494,6 +498,11 @@ export default defineComponent({
         >
           <v-spacer />
           Abort (esc)
+        </v-btn>
+        <v-btn
+          v-if="editingMultiTrack"
+        >
+          Delete selected tracks
         </v-btn>
       </div>
       <confidence-subsection

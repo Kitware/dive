@@ -18,7 +18,7 @@ export default function useVirtualScrollTo({
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
-  trackSelect: (id: AnnotationId | null, edit: boolean) => void;
+  trackSelect: (id: AnnotationId | null, edit: boolean, modifiers: { ctrl: boolean } | null) => void;
 }) {
   const virtualList = ref(null as null | Vue);
 
@@ -62,23 +62,23 @@ export default function useVirtualScrollTo({
       const index = filteredListRef.value.findIndex((item) => item.annotation.id === selectedIdRef.value);
       if (index === -1 && direction === 'up') {
         const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
-        trackSelect(newId, false);
+        trackSelect(newId, false, null);
       } else if (index === -1 && direction === 'down') {
         const newId = filteredListRef.value[0].annotation.id;
-        trackSelect(newId, false);
+        trackSelect(newId, false, null);
       } else if (direction === 'up') {
         if (index > 0) {
-          trackSelect(filteredListRef.value[index - 1].annotation.id, false);
+          trackSelect(filteredListRef.value[index - 1].annotation.id, false, null);
         } else {
           const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
-          trackSelect(newId, false);
+          trackSelect(newId, false, null);
         }
       } else if (direction === 'down') {
         if (index === filteredListRef.value.length - 1) {
-          trackSelect(filteredListRef.value[0].annotation.id, false);
+          trackSelect(filteredListRef.value[0].annotation.id, false, null);
         } else {
           const newId = filteredListRef.value[index + 1].annotation.id;
-          trackSelect(newId, false);
+          trackSelect(newId, false, null);
         }
       }
       keyEvent.preventDefault();

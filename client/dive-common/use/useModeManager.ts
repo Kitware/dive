@@ -97,6 +97,9 @@ export default function useModeManager({
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
 
+  // boolean denoting whether or not multiple tracks are selected for delete/edit
+  const editingMultiTrack = ref(false);
+
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   const editingCanary = ref(false);
@@ -230,7 +233,11 @@ export default function useModeManager({
     _selectKey(key);
   }
 
-  function handleSelectTrack(trackId: TrackId | null, edit = false) {
+  function handleSelectTrack(
+    trackId: TrackId | null,
+    edit = false,
+    modifiers: { ctrl: boolean } | null = { ctrl: false },
+  ) {
     /**
      * If creating mode and editing and selectedTrackId is the same,
      * don't kick out of creating mode.  This happens when moving between
@@ -239,6 +246,23 @@ export default function useModeManager({
     if (!(creating && edit && trackId === selectedTrackId.value)) {
       creating = false;
     }
+
+    if (!modifiers?.ctrl && editingMultiTrack.value) {
+      editingMultiTrack.value = false;
+      multiSelectList.value = [];
+    }
+
+    if (trackId !== null && !edit && !creating && modifiers?.ctrl) {
+      if (!selectedTrackId.value) {
+        multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
+      } else {
+        multiSelectList.value = Array.from((new Set([selectedTrackId.value]).add(trackId)));
+        selectedTrackId.value = null;
+      }
+      editingMultiTrack.value = true;
+      return;
+    }
+
     /**
      * If merge is in progress, add selected tracks to the merge list
      */
@@ -751,6 +775,7 @@ export default function useModeManager({
     editingGroupId,
     editingMode,
     editingTrack,
+    editingMultiTrack,
     editingDetails,
     linkingTrack,
     linkingState,

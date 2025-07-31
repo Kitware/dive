@@ -129,7 +129,7 @@ export default defineComponent({
       () => filteredTracksRef.value,
       (newValue) => {
         if (newValue.length === 0) {
-          trackSelect(null, false);
+          trackSelect(null, false, null);
         }
       },
     );

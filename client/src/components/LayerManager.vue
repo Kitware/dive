@@ -441,16 +441,13 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        handler.trackSelect(trackId, editing);
-      }
-      if (modifiers && modifiers.ctrl) {
-        console.log('handing a ctrl click annotation');
+        handler.trackSelect(trackId, editing, modifiers);
       }
     };
 
     //Sync of internal geoJS state with the application
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      handler.trackSelect(selectedTrackIdRef.value, editing);
+      handler.trackSelect(selectedTrackIdRef.value, editing, null);
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);

@@ -82,6 +82,9 @@ const SelectedTrackIdSymbol = Symbol('selectedTrackId');
 const EditingGroupIdSymbol = Symbol('editingGroupId');
 type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
+const EditingMultiTrackSymbol = Symbol('editingMultiTrack');
+type EditingMultiTrackType = Readonly<Ref<boolean>>;
+
 const TimeSymbol = Symbol('time');
 type TimeType = Readonly<Time>;
 
@@ -117,7 +120,7 @@ export interface Handler {
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
-  trackSelect(AnnotationId: AnnotationId | null, edit: boolean): void;
+  trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers: { ctrl: boolean } | null): void;
   /* select next track in the list */
   trackSelectNext(delta: number): void;
   /* split track */
@@ -247,6 +250,7 @@ export interface State {
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
   editingGroupId: SelectedTrackIdType;
+  editingMultiTrack: EditingMultiTrackType;
   time: TimeType;
   trackFilters: TrackFilterControls;
   trackStyleManager: StyleManager;
@@ -312,6 +316,7 @@ function dummyState(): State {
     selectedKey: ref(''),
     selectedTrackId: ref(null),
     editingGroupId: ref(null),
+    editingMultiTrack: ref(false),
     time: {
       frame: ref(0),
       flick: ref(0),
@@ -357,6 +362,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
   provide(EditingGroupIdSymbol, state.editingGroupId);
+  provide(EditingMultiTrackSymbol, state.editingMultiTrack);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -460,6 +466,10 @@ function useEditingGroupId() {
   return use<SelectedTrackIdType>(EditingGroupIdSymbol);
 }
 
+function useEditingMultiTrack() {
+  return use<EditingMultiTrackType>(EditingMultiTrackSymbol);
+}
+
 function useTime() {
   return use<TimeType>(TimeSymbol);
 }
@@ -504,6 +514,7 @@ export {
   useSelectedKey,
   useSelectedTrackId,
   useEditingGroupId,
+  useEditingMultiTrack,
   useTime,
   useVisibleModes,
   useReadOnlyMode,
