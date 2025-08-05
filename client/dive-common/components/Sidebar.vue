@@ -4,12 +4,17 @@ import {
   defineComponent,
   reactive,
   toRef,
+  watch,
 } from 'vue';
 
 import { FilterList, TrackList } from 'vue-media-annotator/components';
 import {
   useCameraStore,
-  useHandler, useReadOnlyMode, useTrackFilters, useTrackStyleManager,
+  useHandler,
+  useReadOnlyMode,
+  useTrackFilters,
+  useTrackStyleManager,
+  useEditingMultiTrack,
 } from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -82,6 +87,13 @@ export default defineComponent({
         );
       }
       return trap;
+    });
+
+    const editingMultiTrack = useEditingMultiTrack();
+    watch(editingMultiTrack, () => {
+      if (editingMultiTrack.value) {
+        data.currentTab = 'attributes';
+      }
     });
 
     return {

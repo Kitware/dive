@@ -501,7 +501,14 @@ export default defineComponent({
         </v-btn>
         <v-btn
           v-if="editingMultiTrack"
+          color="error"
+          class="mx-2 mb-2 grow"
+          :disabled="readOnlyMode"
+          depressed
+          x-small
+          @click="() => console.log('Deleting selected tracks!')"
         >
+          <v-spacer />
           Delete selected tracks
         </v-btn>
       </div>
