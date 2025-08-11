@@ -506,8 +506,14 @@ export default defineComponent({
           :disabled="readOnlyMode"
           depressed
           x-small
-          @click="() => console.log('Deleting selected tracks!')"
+          @click="$emit('delete-selected-tracks')"
         >
+          <v-icon
+            class="pr-1"
+            small
+          >
+            mdi-delete
+          </v-icon>
           <v-spacer />
           Delete selected tracks
         </v-btn>

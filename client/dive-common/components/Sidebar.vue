@@ -50,7 +50,12 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
     const multiCam = cameraStore.camMap.value.size > 1;
-    const { toggleMerge, commitMerge, groupAdd } = useHandler();
+    const {
+      toggleMerge,
+      commitMerge,
+      groupAdd,
+      deleteSelectedTracks,
+    } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
     const typeSettings = toRef(clientSettings, 'typeSettings');
@@ -102,6 +107,7 @@ export default defineComponent({
       allTypesRef,
       commitMerge,
       groupAdd,
+      deleteSelectedTracks,
       mouseTrap,
       trackFilterControls,
       trackSettings,
@@ -182,6 +188,7 @@ export default defineComponent({
           @back="swapTabs"
           @commit-merge="commitMerge"
           @create-group="groupAdd"
+          @delete-selected-tracks="deleteSelectedTracks"
         />
       </v-slide-x-transition>
     </template>

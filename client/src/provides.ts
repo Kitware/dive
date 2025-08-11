@@ -164,6 +164,8 @@ export interface Handler {
   commitMerge(): void;
   /* Create new group */
   groupAdd(): void;
+  /* Delete all selected tracks */
+  deleteSelectedTracks(): void;
   /* Put UI into group editing mode */
   groupEdit(id: AnnotationId | null): void;
   /* Turn merge mode on and off */
@@ -212,6 +214,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
     groupAdd(...args) { handle('groupAdd', args); },
+    deleteSelectedTracks(...args) { handle('deleteSelectedTracks', args); },
     groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },

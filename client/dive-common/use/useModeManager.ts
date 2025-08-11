@@ -625,6 +625,10 @@ export default function useModeManager({
     });
     handleUnstageFromMerge(trackIds);
     selectTrack(previousOrNext, false);
+
+    if (!multiSelectList.value.length) {
+      editingMultiTrack.value = false;
+    }
   }
 
   /** Toggle editing mode for track */
@@ -745,6 +749,15 @@ export default function useModeManager({
   }
 
   /**
+   * Delete every track that is currently multi-selected.
+   */
+  function handleDeleteSelectedTracks() {
+    if (editingMultiTrack.value) {
+      handleRemoveTrack(multiSelectList.value);
+    }
+  }
+
+  /**
    * Group: Remove group ids and unselect everything.
    */
   function handleRemoveGroup(ids: AnnotationId[]) {
@@ -790,6 +803,7 @@ export default function useModeManager({
     handler: {
       commitMerge: handleCommitMerge,
       groupAdd: handleAddGroup,
+      deleteSelectedTracks: handleDeleteSelectedTracks,
       groupEdit: handleGroupEdit,
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
