@@ -49,13 +49,18 @@ export default defineComponent({
     const successMessage = computed(() => `Started training on ${props.selectedDatasetIds.length} dataset(s)`);
 
     const fineTuneModelList = computed(() => {
-      const modelList: string[] = [];
+      const modelList: {text: string, type: 'user' | 'system', name: string}[] = [];
       if (trainingConfigurations.value?.models) {
         Object.entries(trainingConfigurations.value.models)
           .forEach(([, value]) => {
-            modelList.push(value.name);
+            modelList.push({
+              text: `${value.name} - ${value.folderId ? 'User' : 'System'} Model`,
+              type: value.folderId ? 'user' : 'system',
+              name: value.name,
+            });
           });
       }
+      modelList.sort((a, b) => b.type.localeCompare(a.type));
       return modelList;
     });
     const selectedFineTuneObject = computed(() => {
@@ -71,6 +76,7 @@ export default defineComponent({
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
       trainingConfigurations.value = resp;
+      console.log(trainingConfigurations.value);
       selectedTrainingConfig.value = resp.training.default;
     });
 
@@ -190,6 +196,7 @@ export default defineComponent({
         <v-card
           v-if="trainingConfigurations"
           outlined
+          class="training-menu"
         >
           <v-card-title class="pb-1">
             Run Training
@@ -268,6 +275,8 @@ export default defineComponent({
               class="my-4"
               label="Fine Tune Model"
               :items="fineTuneModelList"
+              item-value="name"
+              item-text="text"
               hint="Model to Fine Tune"
               persistent-hint
             />
@@ -294,3 +303,10 @@ export default defineComponent({
     />
   </div>
 </template>
+
+<style lang="css" scoped>
+.training-menu {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+</style>
