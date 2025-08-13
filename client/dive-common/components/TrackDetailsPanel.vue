@@ -72,6 +72,7 @@ export default defineComponent({
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
     const editingMultiTrack = useEditingMultiTrack();
+    const multiTrackType: Ref<string> = ref('');
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
@@ -99,7 +100,6 @@ export default defineComponent({
 
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
-        console.log(multiSelectList.value);
         return multiSelectList.value.map(
           (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
         );
@@ -217,6 +217,12 @@ export default defineComponent({
       ];
     });
 
+    function updateSelectedTracksType() {
+      multiSelectList.value.forEach((trackId: number) => {
+        cameraStore.setTrackType(trackId, multiTrackType.value);
+      });
+    }
+
     return {
       selectedTrackIdRef,
       editingGroupIdRef,
@@ -237,6 +243,7 @@ export default defineComponent({
       multiSelectList,
       multiSelectInProgress,
       editingMultiTrack,
+      multiTrackType,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -252,6 +259,7 @@ export default defineComponent({
       removeGroup,
       toggleMerge,
       unstageFromMerge,
+      updateSelectedTracksType,
     };
   },
 });
@@ -516,6 +524,33 @@ export default defineComponent({
           </v-icon>
           <v-spacer />
           Delete selected tracks
+        </v-btn>
+        <div
+          v-if="editingMultiTrack"
+          class="d-flex justify-center align-center mb-2 mx-2"
+          width="100%"
+        >
+          <v-spacer />
+          <v-label class="mx-2">
+            Type:
+          </v-label>
+          <TypePicker
+            :value="multiTrackType"
+            :all-types="allGroupTypesRef"
+            :read-only-mode="readOnlyMode"
+            data-list-source="allGroupTypesOptions"
+          />
+        </div>
+        <v-btn
+          class="mx-2 mb-2"
+          :disabled="readOnlyMode"
+          color="primary"
+          depressed
+          x-small
+          @click="updateSelectedTracksType"
+        >
+          <v-spacer />
+          Update type for selected tracks
         </v-btn>
       </div>
       <confidence-subsection
