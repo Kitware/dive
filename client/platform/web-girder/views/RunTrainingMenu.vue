@@ -65,8 +65,8 @@ export default defineComponent({
     });
     const selectedFineTuneObject = computed(() => {
       if (selectedFineTune.value !== '' && trainingConfigurations.value?.models) {
-        const found = Object.entries(trainingConfigurations.value.models)
-          .find(([, value]) => value.name === selectedFineTune.value);
+        const found = Object.values(trainingConfigurations.value.models)
+          .find((model) => model.name === selectedFineTune.value);
         if (found) {
           return found[1];
         }
