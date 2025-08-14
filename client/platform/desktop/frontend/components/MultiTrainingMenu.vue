@@ -98,7 +98,7 @@ export default defineComponent({
       data.selectedTrainingConfig = configs.training.default;
     });
 
-    const trainingConfigurationModels = computed(() => {
+    const modelNames = computed(() => {
       if (data.trainingConfigurations.models) {
         const list = Object.entries(data.trainingConfigurations.models)
           .map(([, value]) => value.name);
@@ -226,7 +226,7 @@ export default defineComponent({
       nameRules,
       itemsPerPageOptions,
       clientSettings,
-      trainingConfigurationModels,
+      modelNames,
       models: {
         items: trainedModels,
         headers: trainedHeadersTmpl.concat({
@@ -357,7 +357,7 @@ export default defineComponent({
         <v-select
           v-if="data.fineTuneTraining"
           v-model="data.selectedFineTune"
-          :items="trainingConfigurationModels"
+          :items="modelNames"
           label="Fine Tune Model"
         />
       </div>

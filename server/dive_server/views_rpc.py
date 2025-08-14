@@ -85,7 +85,7 @@ class RpcResource(Resource):
         .jsonParam(
             "body",
             description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content.  Additionally and model used for fine-tune training.",
+             and labels.txt file content.  Optionally a model that can be used for fine tune training",
             paramType="body",
             schema={
                 "folderIds": List[str],

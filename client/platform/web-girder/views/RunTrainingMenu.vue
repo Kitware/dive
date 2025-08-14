@@ -65,18 +65,14 @@ export default defineComponent({
     });
     const selectedFineTuneObject = computed(() => {
       if (selectedFineTune.value !== '' && trainingConfigurations.value?.models) {
-        const found = Object.values(trainingConfigurations.value.models)
+        return Object.values(trainingConfigurations.value.models)
           .find((model) => model.name === selectedFineTune.value);
-        if (found) {
-          return found[1];
-        }
       }
       return undefined;
     });
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
       trainingConfigurations.value = resp;
-      console.log(trainingConfigurations.value);
       selectedTrainingConfig.value = resp.training.default;
     });
 
