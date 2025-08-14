@@ -7,6 +7,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
+import { MultiCamDesktop } from 'platform/desktop/constants';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -140,7 +141,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
-  calibrationFile?: Readonly<string>;
+  multiCam: Readonly<MultiCamDesktop | null>;
+  //calibrationFile?: Readonly<string>;
 }
 
 interface Api {
