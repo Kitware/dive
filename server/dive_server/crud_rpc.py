@@ -357,12 +357,7 @@ def run_training(
         )
     fineTuneModel = None
     if bodyParams.fineTuneModel:
-        fineTuneModel = {
-            'name': bodyParams.fineTuneModel.name,
-            'type': bodyParams.fineTuneModel.type,
-            'path': bodyParams.fineTuneModel.path,
-            'folderId': bodyParams.fineTuneModel.folderId,
-        }
+        fineTuneModel = bodyParams.fineTuneModel
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
