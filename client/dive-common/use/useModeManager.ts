@@ -109,7 +109,9 @@ export default function useModeManager({
   const multiSelectActive = computed(() => multiSelectList.value.length > 0);
 
   const _filteredTracks = computed(
-    () => trackFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
+    () => trackFilterControls.filteredAnnotations.value
+      .filter((annotation) => !multiSelectList.value.includes(annotation.annotation.id))
+      .map((filtered) => filtered.annotation),
   );
 
   const _filteredGroups = computed(
@@ -260,6 +262,7 @@ export default function useModeManager({
         selectedTrackId.value = null;
       }
       editingMultiTrack.value = true;
+      selectedTrackId.value = null;
       return;
     }
 
@@ -584,6 +587,9 @@ export default function useModeManager({
         if (group) group.removeMembers(trackIds);
       }
     }
+    if (editingMultiTrack.value) {
+      handleSelectTrack(null);
+    }
     /** Exit group editing mode if last track is removed */
     if (multiSelectList.value.length === 0) {
       handleEscapeMode();
@@ -751,9 +757,10 @@ export default function useModeManager({
   /**
    * Delete every track that is currently multi-selected.
    */
-  function handleDeleteSelectedTracks() {
+  async function handleDeleteSelectedTracks() {
     if (editingMultiTrack.value) {
-      handleRemoveTrack(multiSelectList.value);
+      await handleRemoveTrack(multiSelectList.value);
+      selectedTrackId.value = null;
     }
   }
 
