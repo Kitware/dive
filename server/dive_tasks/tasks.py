@@ -29,6 +29,7 @@ EMPTY_JOB_SCHEMA: AvailableJobSchema = {
         'configs': [],
         'default': None,
     },
+    'models': {},
 }
 
 # https://github.com/VIAME/VIAME/blob/master/cmake/download_viame_addons.csv
@@ -162,6 +163,7 @@ def upgrade_pipelines(
 
     # finally, crawl the new files and report results
     summary = discover_configs(conf.get_extracted_pipeline_path())
+    manager.write(str(summary))
     gc.put('dive_configuration/static_pipeline_configs', json=summary)
     # get a list of files in the zip directory for the installed configuration listing
     downloaded = []
@@ -355,6 +357,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     config = params['config']
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
+    model = params['model']
     force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
@@ -414,6 +417,20 @@ def train_pipeline(self: Task, params: TrainingJob):
                 labels_file.write(label_text)
             command.append("--labels")
             command.append(shlex.quote(str(labels_path)))
+
+        if model:
+            model_path = None
+            if model.get('folderId', False):
+                trained_pipeline_path = utils.make_directory(
+                    _working_directory_path / 'trained_pipeline'
+                )
+                gc.downloadFolderRecursive(model["folderId"], str(trained_pipeline_path))
+                model_path = trained_pipeline_path / model["name"]
+            elif model.get('path', False):
+                model_path = model['path']
+            if model_path:
+                command.append("--init-weights")
+                command.append(shlex.quote(str(model_path)))
 
         manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {

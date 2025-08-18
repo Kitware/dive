@@ -110,6 +110,12 @@ async function runTraining(
   config: string,
   annotatedFramesOnly: boolean,
   labelText?: string,
+  fineTuneModel?: {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  },
 ): Promise<DesktopJob> {
   const args: RunTraining = {
     datasetIds: folderIds,
@@ -117,6 +123,7 @@ async function runTraining(
     trainingConfig: config,
     annotatedFramesOnly,
     labelText,
+    fineTuneModel,
   };
   return ipcRenderer.invoke('run-training', args);
 }

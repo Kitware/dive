@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -10,7 +10,7 @@ from girder.models.token import Token
 
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, TypeMarker
-from dive_utils.types import PipelineDescription
+from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
 
@@ -85,9 +85,13 @@ class RpcResource(Resource):
         .jsonParam(
             "body",
             description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content",
+             and labels.txt file content.  Optionally a model that can be used for fine tune training",
             paramType="body",
-            schema={"folderIds": List[str], "labelText": str},
+            schema={
+                "folderIds": List[str],
+                "labelText": str,
+                "model": Optional[TrainingModelTuneArgs],
+            },
         )
         .param(
             "pipelineName",

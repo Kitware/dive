@@ -52,9 +52,14 @@ export default defineComponent({
       stagedItems: {} as Record<string, DatasetMeta>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
+      fineTuneTraining: false,
+      selectedFineTune: null as null | string,
       trainingConfigurations: {
-        configs: [],
-        default: '',
+        training: {
+          configs: [],
+          default: '',
+        },
+        models: {},
       } as TrainingConfigs,
       annotatedFramesOnly: false,
     });
@@ -90,7 +95,16 @@ export default defineComponent({
     onBeforeMount(async () => {
       const configs = await getTrainingConfigurations();
       data.trainingConfigurations = configs;
-      data.selectedTrainingConfig = configs.default;
+      data.selectedTrainingConfig = configs.training.default;
+    });
+
+    const modelNames = computed(() => {
+      if (data.trainingConfigurations.models) {
+        const list = Object.entries(data.trainingConfigurations.models)
+          .map(([, value]) => value.name);
+        return list;
+      }
+      return [];
     });
 
     function toggleStaged(meta: DatasetMeta) {
@@ -172,12 +186,20 @@ export default defineComponent({
     }
 
     async function runTrainingOnFolder() {
+      // Get the full data for fine tuning
+      let foundTrainingModel;
+      if (data.fineTuneTraining) {
+        foundTrainingModel = Object.values(data.trainingConfigurations.models)
+          .find((item) => item.name === data.selectedFineTune);
+      }
       try {
         await runTraining(
           stagedItems.value.map(({ id }) => id),
           data.trainingOutputName,
           data.selectedTrainingConfig,
           data.annotatedFramesOnly,
+          undefined,
+          foundTrainingModel,
         );
         router.push({ name: 'jobs' });
       } catch (err) {
@@ -204,6 +226,7 @@ export default defineComponent({
       nameRules,
       itemsPerPageOptions,
       clientSettings,
+      modelNames,
       models: {
         items: trainedModels,
         headers: trainedHeadersTmpl.concat({
@@ -255,7 +278,10 @@ export default defineComponent({
       <v-card-text>
         Add datasets to the staging area and choose a training configuration.
       </v-card-text>
-      <v-row class="mt-4 pt-0">
+      <v-row
+        class="mt-4 pt-0"
+        dense
+      >
         <v-col sm="5">
           <v-text-field
             v-model="data.trainingOutputName"
@@ -272,7 +298,7 @@ export default defineComponent({
             outlined
             dense
             label="Configuration File (Required)"
-            :items="data.trainingConfigurations.configs"
+            :items="data.trainingConfigurations.training.configs"
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
@@ -320,6 +346,20 @@ export default defineComponent({
         >
           Train on ({{ staged.items.value.length }}) Datasets
         </v-btn>
+      </div>
+      <div class="d-flex flex-row mt-7">
+        <v-checkbox
+          v-model="data.fineTuneTraining"
+          label="Fine Tuning"
+          hint="Fine tune an existing model"
+        />
+        <v-spacer />
+        <v-select
+          v-if="data.fineTuneTraining"
+          v-model="data.selectedFineTune"
+          :items="modelNames"
+          label="Fine Tune Model"
+        />
       </div>
     </div>
     <div>

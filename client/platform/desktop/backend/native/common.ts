@@ -423,14 +423,36 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   return ret;
 }
 
+// Function to recursively traverse a directory and collect files with specified extensions
+function getFilesWithExtensions(dir: string, extensions: string[], fileList: string[] = []) {
+  const files = fs.readdirSync(dir);
+
+  files.forEach((file) => {
+    const filePath = npath.join(dir, file);
+    const fileStat = fs.statSync(filePath);
+
+    if (fileStat.isDirectory()) {
+      fileList.concat(getFilesWithExtensions(filePath, extensions, fileList));
+    } else {
+      const fileExtension = npath.extname(file).toLowerCase();
+      if (extensions.includes(fileExtension)) {
+        fileList.push(filePath);
+      }
+    }
+  });
+
+  return fileList;
+}
+
 /**
  * get training configurations
  */
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const defaultTrainingConfiguration = 'train_detector_default.conf';
-  const allowedPatterns = /train_.*\.conf$/;
-  const disallowedPatterns = /.*(_nf|\.continue)\.viame_csv\.conf$|.*\.kw18\.conf$|.*\.habcam\.conf$|.*\.continue\.conf$/;
+  const defaultTrainingConfiguration = 'train_detector_default.viame_csv.conf';
+  const allowedPatterns = /\.viame_csv\.conf$/;
+  const disallowedPatterns = /.*(_nf|\.continue)\.viame_csv\.conf$/;
+  const allowedModelExtensions = ['.zip', '.pth', '.pt', '.py', '.weights', '.wt'];
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
@@ -439,9 +461,22 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   configs = configs
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+  // Get Model files in the pipeline directory
+  const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
+  const models: TrainingConfigs['models'] = {};
+  modelList.forEach((model) => {
+    models[npath.basename(model)] = {
+      name: npath.basename(model),
+      type: npath.extname(model),
+      path: model,
+    };
+  });
   return {
-    default: configs[0],
-    configs,
+    training: {
+      default: configs[0],
+      configs,
+    },
+    models,
   };
 }
 

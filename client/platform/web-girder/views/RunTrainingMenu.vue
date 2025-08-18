@@ -38,6 +38,8 @@ export default defineComponent({
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
     const annotatedFramesOnly = ref<boolean>(false);
+    const fineTuning = ref<boolean>(false);
+    const selectedFineTune = ref<string>('');
     const {
       request: _runTrainingRequest,
       reset: dismissJobDialog,
@@ -46,10 +48,32 @@ export default defineComponent({
 
     const successMessage = computed(() => `Started training on ${props.selectedDatasetIds.length} dataset(s)`);
 
+    const fineTuneModelList = computed(() => {
+      const modelList: {text: string, type: 'user' | 'system', name: string}[] = [];
+      if (trainingConfigurations.value?.models) {
+        Object.entries(trainingConfigurations.value.models)
+          .forEach(([, value]) => {
+            modelList.push({
+              text: `${value.name} - ${value.folderId ? 'User' : 'System'} Model`,
+              type: value.folderId ? 'user' : 'system',
+              name: value.name,
+            });
+          });
+      }
+      modelList.sort((a, b) => b.type.localeCompare(a.type));
+      return modelList;
+    });
+    const selectedFineTuneObject = computed(() => {
+      if (selectedFineTune.value !== '' && trainingConfigurations.value?.models) {
+        return Object.values(trainingConfigurations.value.models)
+          .find((model) => model.name === selectedFineTune.value);
+      }
+      return undefined;
+    });
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
       trainingConfigurations.value = resp;
-      selectedTrainingConfig.value = resp.default;
+      selectedTrainingConfig.value = resp.training.default;
     });
 
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
@@ -74,6 +98,7 @@ export default defineComponent({
             selectedTrainingConfig.value,
             annotatedFramesOnly.value,
             labelText.value,
+            selectedFineTuneObject.value,
           );
         }
         return runTraining(
@@ -81,6 +106,8 @@ export default defineComponent({
           outputPipelineName,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
+          undefined,
+          selectedFineTuneObject.value,
         );
       });
       menuOpen.value = false;
@@ -116,6 +143,10 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       simplifyTrainingName,
+      // Fine-Tuning
+      fineTuning,
+      fineTuneModelList,
+      selectedFineTune,
     };
   },
 });
@@ -161,6 +192,7 @@ export default defineComponent({
         <v-card
           v-if="trainingConfigurations"
           outlined
+          class="training-menu"
         >
           <v-card-title class="pb-1">
             Run Training
@@ -198,7 +230,7 @@ export default defineComponent({
               outlined
               class="my-4"
               label="Configuration File"
-              :items="trainingConfigurations.configs"
+              :items="trainingConfigurations.training.configs"
               :hint="selectedTrainingConfig"
               persistent-hint
             >
@@ -225,6 +257,25 @@ export default defineComponent({
               persistent-hint
               class="pt-0"
             />
+            <v-checkbox
+              v-model="fineTuning"
+              label="Fine Tune Model"
+              hint="Fine Tune an existing model"
+              persistent-hint
+              class="pt-0"
+            />
+            <v-select
+              v-if="fineTuning"
+              v-model="selectedFineTune"
+              outlined
+              class="my-4"
+              label="Fine Tune Model"
+              :items="fineTuneModelList"
+              item-value="name"
+              item-text="text"
+              hint="Model to Fine Tune"
+              persistent-hint
+            />
             <v-btn
               depressed
               block
@@ -248,3 +299,10 @@ export default defineComponent({
     />
   </div>
 </template>
+
+<style lang="css" scoped>
+.training-menu {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+</style>
