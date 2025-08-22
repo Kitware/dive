@@ -55,6 +55,8 @@ jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
+# .json or .csv file
+possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -111,6 +113,7 @@ FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
 ConfidenceFiltersMarker = "confidenceFilters"
+AnnotationFileFutureProcessMarker = "importAnnotationFile"
 
 # Other constants
 TrainedPipelineCategory = "trained"
