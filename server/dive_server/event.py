@@ -67,25 +67,6 @@ def process_assetstore_import(event, meta: dict):
         dataset_type = ImageSequenceType
     elif largeImageRegEx.search(importPath):
         dataset_type = LargeImageType
-        parentFolder = Folder().findOne({"_id": item["folderId"]})
-        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
-        userId = parentFolder['creatorId'] or parentFolder['baseParentId']
-        user = User().findOne({'_id': ObjectId(userId)})
-        # remove extension from item name
-        base_name = os.path.splitext(item['name'])[0]
-        # Need to create a new DIVE Dataset Folder for each file if the Setting says we should
-        foldername = base_name
-        # resuse existing folder if it already exists with same name
-        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
-        # resuse existing folder if it already exists with same name
-        dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
-        now = datetime.now()
-        if now - dest['created'] > timedelta(hours=1):
-            # Remove the old  referenced item, replace it with the new one.
-            oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})
-            if oldItem is not None:
-                Item().remove(oldItem)
-        Item().move(item, dest)
     elif videoRegex.search(importPath):
         # Look for existing video dataset directory
         parentFolder = Folder().findOne({"_id": item["folderId"]})
@@ -168,7 +149,7 @@ def process_dangling_annotation_files(folder, user):
         # check if the parent folder of the annotation item is of type image or large image
         parent_folder_id = item['folderId']
         parent_folder = Folder().findOne({'_id': parent_folder_id})
-        if parent_folder_id.get('meta', {}).get(TypeMarker, None) in [
+        if parent_folder.get('meta', {}).get(TypeMarker, None) in [
             ImageSequenceType,
             LargeImageType,
         ]:
@@ -177,13 +158,15 @@ def process_dangling_annotation_files(folder, user):
             continue
         # Check if the corresponding video folder exists
         base_name = os.path.splitext(item['name'])[0]
-        video_folder = Folder().findOne({'name': base_name, f'meta.{TypeMarker}': VideoType})
+        video_folder = Folder().findOne({'parentId': parent_folder_id, 'name': base_name, f'meta.{TypeMarker}': VideoType})
         if video_folder is not None:
             # Move the annotation file into the video folder
             item['meta'][AnnotationFileFutureProcessMarker] = False
             Item().save(item)
             Item().move(item, video_folder)
             continue
+    for child in Folder().childFolders(folder, 'folder', user):
+        process_dangling_annotation_files(child, user)
 
 
 def convert_video_recursive(folder, user):
