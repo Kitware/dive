@@ -114,7 +114,7 @@ export interface Handler {
   /* Save pending changes to persistence layer */
   save(set?: string): Promise<void>;
   /* Select and seek to track */
-  trackSeek(AnnotationId: AnnotationId): void;
+  trackSeek(AnnotationId: AnnotationId, modifiers?: { ctrl: boolean } | null): void;
   /* Seek Frame */
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */

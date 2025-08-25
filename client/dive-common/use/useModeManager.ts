@@ -253,10 +253,10 @@ export default function useModeManager({
     }
 
     if (trackId !== null && !edit && !creating && modifiers?.ctrl) {
-      if (!selectedTrackId.value) {
+      if (selectedTrackId.value === null) {
         multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
       } else {
-        multiSelectList.value = Array.from((new Set([selectedTrackId.value]).add(trackId)));
+        multiSelectList.value = Array.from((new Set([selectedTrackId.value])).add(trackId));
         selectedTrackId.value = null;
       }
       editingMultiTrack.value = true;
@@ -663,10 +663,10 @@ export default function useModeManager({
     }
   }
 
-  function handleTrackClick(trackId: TrackId) {
+  function handleTrackClick(trackId: TrackId, modifiers: { ctrl: boolean } | null = null) {
     const track = cameraStore.getTracksMerged(trackId);
     seekNearest(track);
-    handleSelectTrack(trackId, editingTrack.value);
+    handleSelectTrack(trackId, editingTrack.value, modifiers);
   }
 
   function handleSelectNext(delta: number) {

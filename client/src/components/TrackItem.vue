@@ -164,6 +164,11 @@ export default defineComponent({
       }
     }
 
+    function handleClicked(event: PointerEvent) {
+      const modifiers = event.ctrlKey ? { ctrl: true } : null;
+      handler.trackSeek(props.track.trackId, modifiers);
+    }
+
     return {
       /* data */
       feature,
@@ -186,6 +191,7 @@ export default defineComponent({
       toggleKeyframe,
       setTrackType,
       typeStyling,
+      handleClicked,
     };
   },
 });
@@ -227,7 +233,7 @@ export default defineComponent({
           <div
             class="trackNumber pl-0 pr-2"
             v-on="on"
-            @click.self="handler.trackSeek(track.trackId)"
+            @click.self="handleClicked"
           >
             {{ track.trackId }}
           </div>
