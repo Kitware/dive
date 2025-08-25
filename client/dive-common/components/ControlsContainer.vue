@@ -104,6 +104,10 @@ export default defineComponent({
       clientSettings.timelineCountSettings.defaultView = countView.value;
     };
 
+    function handleSelectTrack(trackId: number, modifiers: { ctrl: boolean } | null) {
+      emit('select-track', trackId, modifiers);
+    }
+
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectAggregateController().value;
@@ -127,6 +131,7 @@ export default defineComponent({
       countView,
       help,
       toggleCountView,
+      handleSelectTrack,
     };
   },
 });
@@ -429,7 +434,7 @@ export default defineComponent({
           :data="eventChartData"
           :client-width="clientWidth"
           :margin="margin"
-          @select-track="$emit('select-track', $event)"
+          @select-track="handleSelectTrack"
         />
         <event-chart
           v-if="currentView === 'Groups'"
