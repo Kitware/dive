@@ -31,6 +31,10 @@ export default defineComponent({
       type: String,
       default: 'allTypesOptions',
     },
+    updateOnInput: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
@@ -48,6 +52,12 @@ export default defineComponent({
     /* Update internal model if external prop changes */
     watch(toRef(props, 'value'), (val) => { data.trackTypeValue = val; });
 
+    watch(() => data.trackTypeValue, (val) => {
+      if (props.updateOnInput && !!val.trim()) {
+        emit('input', val);
+      }
+    });
+
     function focusType() {
       if (props.selected && typeInputBoxRef.value !== undefined) {
         data.skipOnFocus = true;
@@ -63,6 +73,9 @@ export default defineComponent({
     }
 
     function onBlur(e: KeyboardEvent) {
+      if (props.updateOnInput) {
+        return;
+      }
       if (data.trackTypeValue.trim() === '') {
         data.trackTypeValue = props.value;
       } else if (data.trackTypeValue !== props.value) {

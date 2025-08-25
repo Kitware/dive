@@ -72,7 +72,10 @@ export default defineComponent({
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
     const editingMultiTrack = useEditingMultiTrack();
-    const multiTrackType: Ref<string> = ref('');
+    const multiTrackType: Ref<string> = ref('unknown');
+    const updateMultiTrackType = (newValue: string) => {
+      multiTrackType.value = newValue;
+    };
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
@@ -244,6 +247,7 @@ export default defineComponent({
       multiSelectInProgress,
       editingMultiTrack,
       multiTrackType,
+      updateMultiTrackType,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -538,7 +542,10 @@ export default defineComponent({
             :value="multiTrackType"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
+            selected
+            update-on-input
             data-list-source="allGroupTypesOptions"
+            @input="updateMultiTrackType"
           />
         </div>
         <v-btn
