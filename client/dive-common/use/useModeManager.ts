@@ -109,9 +109,7 @@ export default function useModeManager({
   const multiSelectActive = computed(() => multiSelectList.value.length > 0);
 
   const _filteredTracks = computed(
-    () => trackFilterControls.filteredAnnotations.value
-      .filter((annotation) => !multiSelectList.value.includes(annotation.annotation.id))
-      .map((filtered) => filtered.annotation),
+    () => trackFilterControls.filteredAnnotations.value.map((filtered) => filtered.annotation),
   );
 
   const _filteredGroups = computed(
@@ -596,10 +594,15 @@ export default function useModeManager({
     }
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false, cameraName = '') {
+  async function handleRemoveTrack(
+    trackIds: TrackId[],
+    forcePromptDisable = false,
+    cameraName = '',
+    autoSelectNextTrack = true,
+  ) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
-    const previousOrNext = maybeNextTrackId !== null
+    let previousOrNext = maybeNextTrackId !== null
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
@@ -629,11 +632,15 @@ export default function useModeManager({
     trackIds.forEach((trackId) => {
       cameraStore.remove(trackId, cameraName);
     });
-    handleUnstageFromMerge(trackIds);
-    selectTrack(previousOrNext, false);
 
     if (!multiSelectList.value.length) {
       editingMultiTrack.value = false;
+      previousOrNext = null;
+    }
+
+    handleUnstageFromMerge(trackIds);
+    if (autoSelectNextTrack) {
+      selectTrack(previousOrNext, false);
     }
   }
 
@@ -759,7 +766,7 @@ export default function useModeManager({
    */
   async function handleDeleteSelectedTracks() {
     if (editingMultiTrack.value) {
-      await handleRemoveTrack(multiSelectList.value);
+      await handleRemoveTrack(multiSelectList.value, undefined, undefined, false);
       selectedTrackId.value = null;
     }
   }
