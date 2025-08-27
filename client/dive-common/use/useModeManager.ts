@@ -253,14 +253,21 @@ export default function useModeManager({
     }
 
     if (trackId !== null && !edit && !creating && modifiers?.ctrl) {
-      if (selectedTrackId.value === null) {
-        multiSelectList.value = Array.from((new Set(multiSelectList.value).add(trackId)));
+      const selected = new Set(multiSelectList.value);
+      if (selected.has(trackId) && editingMultiTrack.value) {
+        // If ctrl + click on an already-selected track, remove that track from the list.
+        selected.delete(trackId);
+        multiSelectList.value = Array.from(selected);
+      } else if (selectedTrackId.value === null) {
+        multiSelectList.value = Array.from(selected.add(trackId));
       } else {
         multiSelectList.value = Array.from((new Set([selectedTrackId.value])).add(trackId));
         selectedTrackId.value = null;
       }
-      editingMultiTrack.value = true;
-      selectedTrackId.value = null;
+      if (multiSelectList.value.length > 0) {
+        editingMultiTrack.value = true;
+        selectedTrackId.value = null;
+      }
       return;
     }
 
