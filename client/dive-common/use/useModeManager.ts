@@ -592,7 +592,7 @@ export default function useModeManager({
         if (group) group.removeMembers(trackIds);
       }
     }
-    if (editingMultiTrack.value) {
+    if (editingMultiTrack.value && !editingMultiTrack.value) {
       handleSelectTrack(null);
     }
     /** Exit group editing mode if last track is removed */
