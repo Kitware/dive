@@ -14,7 +14,12 @@ import {
   Timeline,
 } from 'vue-media-annotator/components';
 import { clientSettings } from 'dive-common/store/settings';
-import { useAttributesFilters, useCameraStore, useSelectedCamera } from '../../src/provides';
+import {
+  useHandler,
+  useAttributesFilters,
+  useCameraStore,
+  useSelectedCamera,
+} from '../../src/provides';
 
 export default defineComponent({
   components: {
@@ -47,6 +52,7 @@ export default defineComponent({
     },
   },
   setup(_, { emit }) {
+    const handler = useHandler();
     const currentView = ref('Detections');
     const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
     const cameraStore = useCameraStore();
@@ -104,8 +110,8 @@ export default defineComponent({
       clientSettings.timelineCountSettings.defaultView = countView.value;
     };
 
-    function handleSelectTrack(trackId: number, modifiers: { ctrl: boolean } | null) {
-      emit('select-track', trackId, modifiers);
+    function handleSelectTrack(trackId: number, modifiers?: { ctrl: boolean }) {
+      handler.trackSelect(trackId, false, modifiers);
     }
 
     const {

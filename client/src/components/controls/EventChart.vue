@@ -235,7 +235,7 @@ export default Vue.extend({
     },
     mousedown(e) {
       if (this.hoverTrack !== null) {
-        const modifiers = e.ctrlKey ? { ctrl: true } : null;
+        const modifiers = e.ctrlKey ? { ctrl: true } : undefined;
         this.$emit('select-track', this.hoverTrack, modifiers);
       }
     },

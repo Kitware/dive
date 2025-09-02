@@ -813,10 +813,6 @@ export default defineComponent({
       useAttributeFilters,
     );
 
-    function handleSelectTrack(trackId: number, modifiers?: { ctrl: boolean }) {
-      handler.trackSelect(trackId, undefined, modifiers);
-    }
-
     return {
       /* props */
       aggregateController,
@@ -866,7 +862,6 @@ export default defineComponent({
       save,
       saveThreshold,
       updateTime,
-      handleSelectTrack,
       // multicam
       multiCamList,
       defaultCamera,
@@ -1153,7 +1148,6 @@ export default defineComponent({
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType,
             }"
-            @select-track="handleSelectTrack"
           />
         </div>
         <div
