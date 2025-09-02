@@ -114,13 +114,13 @@ export interface Handler {
   /* Save pending changes to persistence layer */
   save(set?: string): Promise<void>;
   /* Select and seek to track */
-  trackSeek(AnnotationId: AnnotationId, modifiers?: { ctrl: boolean } | null): void;
+  trackSeek(AnnotationId: AnnotationId, modifiers?: { ctrl: boolean }): void;
   /* Seek Frame */
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
-  trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers: { ctrl: boolean } | null): void;
+  trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
   trackSelectNext(delta: number): void;
   /* split track */

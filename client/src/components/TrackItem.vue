@@ -165,7 +165,7 @@ export default defineComponent({
     }
 
     function handleClicked(event: PointerEvent) {
-      const modifiers = event.ctrlKey ? { ctrl: true } : null;
+      const modifiers = event.ctrlKey ? { ctrl: true } : undefined;
       handler.trackSeek(props.track.trackId, modifiers);
     }
 

@@ -813,7 +813,7 @@ export default defineComponent({
       useAttributeFilters,
     );
 
-    function handleSelectTrack(trackId: number, modifiers: { ctrl: boolean } | null) {
+    function handleSelectTrack(trackId: number, modifiers?: { ctrl: boolean }) {
       handler.trackSelect(trackId, undefined, modifiers);
     }
 

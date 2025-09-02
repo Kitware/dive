@@ -65,7 +65,7 @@ export default defineComponent({
         // Disable prompt for deleting trackk from camMap if there are other tracks on other cameras
         await handler.removeTrack([trackId], allTracks.length > 1, camera);
         if (allTracks.length === 1) {
-          handler.trackSelect(null, false, null);
+          handler.trackSelect(null, false);
         }
       } else {
         track.toggleKeyframe(frame.value);
@@ -77,7 +77,7 @@ export default defineComponent({
       const allTracks = cameraStore.getTrackAll(trackId);
       await handler.removeTrack([trackId], allTracks.length > 1, camera);
       if (allTracks.length === 1) {
-        handler.trackSelect(null, false, null);
+        handler.trackSelect(null, false);
       }
     };
     // To force it into edit/create mode we can select the camera while in
@@ -92,7 +92,7 @@ export default defineComponent({
     const startLinking = (camera: string) => {
       //We can't join the other track while in editing mode so we need to disable it
       if (inEditingMode.value) {
-        handler.trackSelect(selectedTrackId.value, false, null);
+        handler.trackSelect(selectedTrackId.value, false);
       }
       if (selectedCamera.value !== camera) {
         handler.selectCamera(camera, false);

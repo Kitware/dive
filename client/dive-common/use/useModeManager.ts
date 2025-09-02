@@ -236,7 +236,7 @@ export default function useModeManager({
   function handleSelectTrack(
     trackId: TrackId | null,
     edit = false,
-    modifiers: { ctrl: boolean } | null = { ctrl: false },
+    modifiers: { ctrl: boolean } = { ctrl: false },
   ) {
     /**
      * If creating mode and editing and selectedTrackId is the same,
@@ -670,7 +670,7 @@ export default function useModeManager({
     }
   }
 
-  function handleTrackClick(trackId: TrackId, modifiers: { ctrl: boolean } | null = null) {
+  function handleTrackClick(trackId: TrackId, modifiers?: { ctrl: boolean }) {
     const track = cameraStore.getTracksMerged(trackId);
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value, modifiers);
