@@ -32,6 +32,7 @@ import AttributeInput from 'dive-common/components/Attributes/AttributeInput.vue
 import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({
   components: {
@@ -232,6 +233,7 @@ export default defineComponent({
       editingGroup,
       readOnlyMode,
       multiCam,
+      clientSettings,
       /* Attributes */
       attributes,
       /* Editing */
@@ -542,6 +544,7 @@ export default defineComponent({
             :value="multiTrackType"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
+            :lock-types="clientSettings.typeSettings.lockTypes"
             selected
             update-on-input
             data-list-source="allGroupTypesOptions"
