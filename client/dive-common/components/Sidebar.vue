@@ -4,12 +4,17 @@ import {
   defineComponent,
   reactive,
   toRef,
+  watch,
 } from 'vue';
 
 import { FilterList, TrackList } from 'vue-media-annotator/components';
 import {
   useCameraStore,
-  useHandler, useReadOnlyMode, useTrackFilters, useTrackStyleManager,
+  useHandler,
+  useReadOnlyMode,
+  useTrackFilters,
+  useTrackStyleManager,
+  useEditingMultiTrack,
 } from 'vue-media-annotator/provides';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -45,7 +50,12 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
     const multiCam = cameraStore.camMap.value.size > 1;
-    const { toggleMerge, commitMerge, groupAdd } = useHandler();
+    const {
+      toggleMerge,
+      commitMerge,
+      groupAdd,
+      deleteSelectedTracks,
+    } = useHandler();
     const { visible } = usePrompt();
     const trackSettings = toRef(clientSettings, 'trackSettings');
     const typeSettings = toRef(clientSettings, 'typeSettings');
@@ -84,12 +94,26 @@ export default defineComponent({
       return trap;
     });
 
+    const editingMultiTrack = useEditingMultiTrack();
+    watch(editingMultiTrack, () => {
+      if (editingMultiTrack.value) {
+        data.currentTab = 'attributes';
+      }
+    });
+
+    async function handleDeleteSelectedTracks() {
+      await deleteSelectedTracks();
+      data.currentTab = 'attributes';
+      swapTabs();
+    }
+
     return {
       /* data */
       data,
       allTypesRef,
       commitMerge,
       groupAdd,
+      handleDeleteSelectedTracks,
       mouseTrap,
       trackFilterControls,
       trackSettings,
@@ -170,6 +194,7 @@ export default defineComponent({
           @back="swapTabs"
           @commit-merge="commitMerge"
           @create-group="groupAdd"
+          @delete-selected-tracks="handleDeleteSelectedTracks"
         />
       </v-slide-x-transition>
     </template>

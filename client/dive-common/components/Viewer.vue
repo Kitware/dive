@@ -227,6 +227,7 @@ export default defineComponent({
       multiSelectActive,
       selectedFeatureHandle,
       selectedTrackId,
+      editingMultiTrack,
       editingGroupId,
       handler,
       editingMode,
@@ -799,6 +800,7 @@ export default defineComponent({
         selectedCamera,
         selectedKey,
         selectedTrackId,
+        editingMultiTrack,
         editingGroupId,
         time,
         trackFilters,
@@ -1146,7 +1148,6 @@ export default defineComponent({
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType,
             }"
-            @select-track="handler.trackSelect"
           />
         </div>
         <div

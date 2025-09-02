@@ -18,7 +18,7 @@ export default function useVirtualScrollTo({
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
-  trackSelect: (id: AnnotationId | null, edit: boolean) => void;
+  trackSelect: (id: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }) => void;
 }) {
   const virtualList = ref(null as null | Vue);
 
