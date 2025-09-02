@@ -101,13 +101,19 @@ export default defineComponent({
       }
     });
 
+    async function handleDeleteSelectedTracks() {
+      await deleteSelectedTracks();
+      data.currentTab = 'attributes';
+      swapTabs();
+    }
+
     return {
       /* data */
       data,
       allTypesRef,
       commitMerge,
       groupAdd,
-      deleteSelectedTracks,
+      handleDeleteSelectedTracks,
       mouseTrap,
       trackFilterControls,
       trackSettings,
@@ -188,7 +194,7 @@ export default defineComponent({
           @back="swapTabs"
           @commit-merge="commitMerge"
           @create-group="groupAdd"
-          @delete-selected-tracks="deleteSelectedTracks"
+          @delete-selected-tracks="handleDeleteSelectedTracks"
         />
       </v-slide-x-transition>
     </template>
