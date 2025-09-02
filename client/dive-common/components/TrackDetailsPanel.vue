@@ -542,12 +542,11 @@ export default defineComponent({
           </v-label>
           <TypePicker
             :value="multiTrackType"
-            :all-types="allGroupTypesRef"
+            :all-types="allTypesRef"
             :read-only-mode="readOnlyMode"
             :lock-types="clientSettings.typeSettings.lockTypes"
             selected
             update-on-input
-            data-list-source="allGroupTypesOptions"
             @input="updateMultiTrackType"
           />
         </div>
