@@ -234,7 +234,7 @@ export default function useModeManager({
   }
 
   function handleSelectTrack(
-    trackId: TrackId | null,
+    trackId: AnnotationId | null,
     edit = false,
     modifiers: { ctrl: boolean } = { ctrl: false },
   ) {
