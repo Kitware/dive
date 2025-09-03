@@ -31,6 +31,10 @@ export default defineComponent({
       type: Boolean as PropType<boolean>,
       required: false,
     },
+    calibration: {
+      type: Boolean as PropType<boolean>,
+      required: false,
+    },
     dataType: {
       type: String as PropType<typeof VideoType | typeof ImageSequenceType>,
       default: ImageSequenceType,
@@ -187,7 +191,7 @@ export default defineComponent({
       }
     }
 
-    async function open(dstype: DatasetType | 'calibration' | 'text', folder: string | 'calibration') {
+    async function open(dstype: DatasetType | 'calibration' | 'text' | 'stereoConfiguration', folder: string | 'calibration' | 'stereoConfiguration') {
       const ret = await openFromDisk(dstype, dstype === 'image-sequence');
       if (!ret.canceled) {
         const path = ret.filePaths[0];
@@ -245,6 +249,7 @@ export default defineComponent({
           calibrationFile: calibrationFile.value,
           type: props.dataType,
         };
+
         emit('begin-multicam-import', args);
       } else if (importType.value === 'keyword') {
         const args: MultiCamImportKeywordArgs = {
@@ -271,6 +276,7 @@ export default defineComponent({
       defaultDisplay,
       displayKeys,
       importAnnotationFilesCheck,
+      // stereoConfigurationFile,
       //Methods
       open,
       prepForImport,
@@ -441,7 +447,7 @@ export default defineComponent({
             </v-radio-group>
           </div>
           <v-row
-            v-if="stereo"
+            v-if="stereo && !calibration"
             no-gutters
             class="align-center"
           >
@@ -491,7 +497,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!nextSteps || (stereo && !calibrationFile)"
+          :disabled="!nextSteps || (stereo && (!calibrationFile))"
           @click="prepForImport"
         >
           Begin Import

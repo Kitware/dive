@@ -7,6 +7,7 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import { useCameraStore } from '../../src/provides';
 
 export default defineComponent({
   name: 'TrackSettingsPanel',
@@ -30,12 +31,15 @@ export default defineComponent({
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
       prompt: 'Prompt user before deleting a track?',
+      stereoMatching: 'When manually adding detections, control whether to create a mirror feature in other cameras.',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
     const typeList = computed(() => ['unknown'].concat(props.allTypes));
+    const cameraStore = useCameraStore();
+    const multiCam = ref(cameraStore.camMap.value.size > 1);
 
     return {
       clientSettings,
@@ -43,6 +47,7 @@ export default defineComponent({
       help,
       modes,
       typeList,
+      multiCam,
     };
   },
 });
@@ -206,6 +211,38 @@ export default defineComponent({
                 </v-icon>
               </template>
               <span>{{ help.interpolate }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+
+        <v-row v-if="multiCam">
+          <v-col class="py-1">
+            <v-switch
+              v-model="
+                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Stereo Matching"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoMatching }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

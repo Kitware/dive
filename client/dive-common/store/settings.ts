@@ -19,6 +19,7 @@ interface AnnotationSettings {
         Track: {
           autoAdvanceFrame: boolean;
           interpolate: boolean;
+          stereoMatching: boolean;
         };
         Detection: {
           continuous: boolean;
@@ -56,6 +57,7 @@ const defaultSettings: AnnotationSettings = {
         Track: {
           autoAdvanceFrame: false,
           interpolate: false,
+          stereoMatching: false,
         },
         Detection: {
           continuous: false,

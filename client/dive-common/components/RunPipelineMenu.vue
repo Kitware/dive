@@ -161,6 +161,8 @@ export default defineComponent({
         case 'utility':
         case 'generate':
           return 'utilities';
+        case 'estimates':
+          return 'estimators';
         case 'transcode':
           return 'transcoders';
         default:

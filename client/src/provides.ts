@@ -19,6 +19,7 @@ import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
+import TrackViewerSettingsStore from './components/track_3d_viewer/TrackViewerSettingsStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -99,6 +100,7 @@ type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
+const TrackViewerSettingsStoreSymbol = Symbol('trackViewerSettingsStore');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -238,6 +240,7 @@ export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   cameraStore: CameraStore;
+  trackViewerSettingsStore: TrackViewerSettingsStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -271,6 +274,7 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
+  const trackViewerSettingsStore = new TrackViewerSettingsStore();
   const setTrackType = (
     id: AnnotationId,
     newType: string,
@@ -304,6 +308,7 @@ function dummyState(): State {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
+    trackViewerSettingsStore,
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -348,6 +353,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
+  provide(TrackViewerSettingsStoreSymbol, state.trackViewerSettingsStore);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -400,6 +406,9 @@ function useAttributesFilters() {
 
 function useCameraStore() {
   return use<CameraStore>(CameraStoreSymbol);
+}
+function useTrackViewerSettingsStore() {
+  return use<TrackViewerSettingsStore>(TrackViewerSettingsStoreSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -499,6 +508,7 @@ export {
   useAnnotatorPreferences,
   useAttributes,
   useCameraStore,
+  useTrackViewerSettingsStore,
   useDatasetId,
   useEditingMode,
   useHandler,

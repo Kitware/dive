@@ -24,6 +24,7 @@ const datasetModule: Module<DatasetState, RootState> = {
       const dsMeta = {
         ...metaStatic.data,
         ...media.data,
+        multiCam: null,
         videoUrl: media.data.video?.url,
       };
       // TODO remove when multi is supported in web

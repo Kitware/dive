@@ -46,6 +46,7 @@ export default defineComponent({
   setup() {
     const router = useRouter();
     const importMultiCamDialog = ref(false);
+    const calibration = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
     const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
@@ -116,8 +117,9 @@ export default defineComponent({
       importing.value = false;
     }
 
-    function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
+    function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'; calibration: boolean}) {
       stereo.value = args.stereo;
+      calibration.value = args.calibration;
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
     }
@@ -244,6 +246,7 @@ export default defineComponent({
       checkingMedia,
       clientSettings,
       itemsPerPageOptions,
+      calibration,
     };
   },
 });
@@ -272,6 +275,7 @@ export default defineComponent({
         :stereo="stereo"
         :data-type="multiCamOpenType"
         :import-media="importMedia"
+        :calibration="calibration"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
       />

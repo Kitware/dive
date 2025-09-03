@@ -63,6 +63,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         transcodedImageFiles: [],
         transcodedVideoFile: '',
       };
+
       if (args.type === 'video') {
         // Reset the base path to a folder for videos
         cameras[key].originalBasePath = npath.dirname(cameras[key].originalBasePath);
@@ -202,7 +203,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   }
 
   if (jsonMeta.multiCam?.cameras && jsonMeta.multiCam.cameras.left
-    && jsonMeta.multiCam.cameras.right && jsonMeta.multiCam.calibration) {
+    && jsonMeta.multiCam.cameras.right && (
+      jsonMeta.multiCam.calibration
+    )) {
     jsonMeta.subType = 'stereo';
   } else if (jsonMeta.multiCam) {
     jsonMeta.subType = 'multicam';

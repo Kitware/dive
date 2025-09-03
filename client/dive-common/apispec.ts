@@ -7,6 +7,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
+import { MultiCamDesktop } from 'platform/desktop/constants';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -92,7 +93,7 @@ export interface MultiCamImportFolderArgs {
     sourcePath: string;
     trackFile: string;
   }>; // path/track file per camera
-  calibrationFile?: string; // NPZ calibation matrix file
+  calibrationFile?: string; // NPZ calibation matrix file or kwivier *.conf file
   type: 'image-sequence' | 'video';
 }
 
@@ -103,7 +104,7 @@ export interface MultiCamImportKeywordArgs {
     glob: string;
     trackFile: string;
   }>; // glob pattern for base folder
-  calibrationFile?: string; // NPZ calibation matrix file
+  calibrationFile?: string; // NPZ calibation matrix file or kwiver *.conf file
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -148,6 +149,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  multiCam: Readonly<MultiCamDesktop | null>;
+  //calibrationFile?: Readonly<string>;
 }
 
 interface Api {
@@ -180,7 +183,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'stereoConfiguration', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

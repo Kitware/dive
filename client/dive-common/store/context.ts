@@ -6,6 +6,7 @@ import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 
 interface ContextState {
   last: string;
@@ -48,6 +49,10 @@ const componentMap: Record<string, ComponentMapItem> = {
   [AttributeTrackFilters.name]: {
     description: 'Attribute Track Filters',
     component: AttributeTrackFilters,
+  },
+  [TrackViewerSettings.name]: {
+    description: 'Track Viewer Settings',
+    component: TrackViewerSettings,
   },
 };
 

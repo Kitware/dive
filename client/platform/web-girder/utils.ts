@@ -36,7 +36,7 @@ function getRouteFromLocation(location: LocationType): string {
   return `/${location._modelType}/${location._id}`;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'zip'):
+async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'zip' | 'stereoConfiguration'):
 Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';

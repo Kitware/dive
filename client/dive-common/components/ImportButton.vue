@@ -49,7 +49,7 @@ export default defineComponent({
       offset-y
       offset-x
       nudge-left="180"
-      max-width="180"
+      max-width="250"
     >
       <template #activator="{ on }">
         <v-btn
@@ -112,6 +112,7 @@ export default defineComponent({
               <v-list-item-title>Image List</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
+
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: true, openType })"

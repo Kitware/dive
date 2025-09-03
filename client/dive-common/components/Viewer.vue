@@ -1,3 +1,4 @@
+<!-- eslint-disable max-len -->
 <script lang="ts">
 import {
   defineComponent, ref, toRef, computed, Ref,
@@ -30,7 +31,7 @@ import {
   useMediaController,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { getResponseError } from 'vue-media-annotator/utils';
+import { geojsonToBound, getResponseError } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -46,7 +47,12 @@ import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings'
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
-import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
+import { MarkChangesPendingFilter, TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
+import { isStereo3dReady } from 'vue-media-annotator/components/track_3d_viewer/misc';
+import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -69,6 +75,8 @@ export default defineComponent({
     UserGuideButton,
     EditorMenu,
     PrimaryAttributeTrackFilter,
+    TrackViewer,
+    TrackViewerSettings,
   },
 
   // TODO: remove this in vue 3
@@ -97,6 +105,11 @@ export default defineComponent({
   setup(props, { emit }) {
     const { prompt } = usePrompt();
     const loadError = ref('');
+
+    const showTrack3dViewer = ref(false);
+    const isStereoConfigMode = ref(false);
+    const hasStereo3dAttributes = ref(false);
+
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
@@ -180,6 +193,7 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const trackViewerSettingsStore = new TrackViewerSettingsStore();
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -532,12 +546,35 @@ export default defineComponent({
       selectCamera(camera, event?.button === 2);
       emit('change-camera', camera);
     };
+    const trackSettings = toRef(clientSettings, 'trackSettings');
+
+    function onTrackAdded(trackId: AnnotationId) {
+      if (!clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching) {
+        return;
+      }
+
+      const { frame } = aggregateController.value;
+      const trackType = trackSettings.value.newTrackSettings.type;
+
+      multiCamList.value.filter((camera) => camera !== selectedCamera.value)
+        .forEach((camera) => {
+          const trackStore = cameraStore.camMap.value.get(camera)?.trackStore;
+          if (!trackStore) {
+            return;
+          }
+          trackStore.add(frame.value, trackType, undefined, trackId);
+        });
+    }
+
     /** Trigger data load */
     const loadData = async () => {
       try {
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
+
+        isStereoConfigMode.value = meta.multiCam?.calibration != null;
+
         const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
@@ -554,6 +591,7 @@ export default defineComponent({
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
         groupStyleManager.populateTypeStyles(meta.customGroupStyling);
+
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
@@ -706,6 +744,18 @@ export default defineComponent({
             component: GroupSidebarVue,
           });
         }
+
+        if (meta.multiCam?.calibration) {
+          context.register({
+            component: TrackViewerSettings,
+            description: 'Track Viewer Settings',
+          });
+        } else {
+          context.unregister({
+            component: TrackViewerSettings,
+            description: 'Track Viewer Settings',
+          });
+        }
       } catch (err) {
         progress.loaded = false;
         console.error(err);
@@ -749,6 +799,9 @@ export default defineComponent({
       await nextTick();
       handleResize();
     });
+    watch(attributes, (attrs) => {
+      hasStereo3dAttributes.value = isStereo3dReady(attrs);
+    });
     onBeforeUnmount(() => {
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
@@ -780,12 +833,78 @@ export default defineComponent({
       timelineEnabled,
 
     };
+    function onGeometryAdded({
+      data, type, update, frameNumber,
+    }: {
+      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>;
+      type: EditAnnotationTypes;
+      update: {
+        updateLayers: (
+          frame: number,
+          editingTrack: false | EditAnnotationTypes,
+          selectedTrackId: AnnotationId | null,
+          multiSeletListRef: readonly AnnotationId[],
+          enabledTracks: readonly TrackWithContext[],
+          visibleModes: readonly VisibleAnnotationTypes[],
+          selectedKey: string,
+        ) => void;
+        editingModeRef: Ref<false | EditAnnotationTypes>;
+        selectedTrackIdRef: Ref<AnnotationId | null>;
+        multiSeletListRef: Ref<readonly AnnotationId[]>;
+        enabledTracksRef: Ref<readonly TrackWithContext[]>;
+        visibleModesRef: Ref<readonly VisibleAnnotationTypes[]>;
+        selectedKeyRef: Ref<string>;
+      };
+      frameNumber: number;
+    }) {
+      if (type !== 'rectangle' || !clientSettings.trackSettings.newTrackSettings.modeSettings.Track.stereoMatching) {
+        return;
+      }
+
+      const trackId = selectedTrackId.value;
+
+      if (!trackId) {
+        return;
+      }
+
+      const pairedTracks = cameraStore.getTrackAll(trackId);
+      const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+
+      pairedTracks.forEach((trackData) => {
+        trackData.setFeature({
+          frame: frameNumber,
+          bounds,
+          keyframe: true,
+          interpolate: false,
+        });
+        update.updateLayers(
+          frameNumber,
+          update.editingModeRef.value,
+          trackData.id,
+          update.multiSeletListRef.value,
+          update.enabledTracksRef.value,
+          update.visibleModesRef.value,
+          update.selectedKeyRef.value,
+        );
+        handler.newTrackSettingsAfterLogic(trackData, {
+          skipAdvanceNextFrame: true,
+          keepCreating: true,
+        });
+      });
+    }
+
+    // trigger resize of the annotator on track 3d viewer toggling
+    watch(showTrack3dViewer, async () => {
+      await nextTick();
+      onResize();
+    });
 
     provideAnnotator(
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
+        trackViewerSettingsStore,
         datasetId,
         editingMode,
         groupFilters,
@@ -876,6 +995,12 @@ export default defineComponent({
       selectedSet,
       displayComparisons,
       annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
+      onTrackAdded,
+      onGeometryAdded,
+      datasetId,
+      showTrack3dViewer,
+      isStereoConfigMode,
+      hasStereo3dAttributes,
     };
   },
 });
@@ -1008,6 +1133,22 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+
+        <template v-if="isStereoConfigMode">
+          <v-divider
+            vertical
+            class="mx-2"
+          />
+
+          <v-switch
+            v-model="showTrack3dViewer"
+            label="Track 3D Viewer"
+            color="primary"
+            :disabled="!hasStereo3dAttributes"
+            hide-details
+          />
+        </template>
+
         <v-divider
           vertical
           class="mx-2"
@@ -1073,6 +1214,7 @@ export default defineComponent({
         v-if="!sideBarCollapsed"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
+        @track-added="onTrackAdded"
       >
         <template>
           <v-divider />
@@ -1108,12 +1250,22 @@ export default defineComponent({
           ]"
           class="d-flex flex-column grow"
         >
-          <div class="d-flex grow">
+          <div
+            class="d-flex grow flex-wrap"
+            :style="{ 'max-height': `calc(100% - ${controlsHeight}px)` }"
+          >
+            <div
+              v-if="showTrack3dViewer"
+              :style="{ height: '50%', width: '100%', 'flex-basis': '100%' }"
+            >
+              <track-viewer :controls-height="controlsHeight" />
+            </div>
+
             <div
               v-for="camera in multiCamList"
               :key="camera"
               class="d-flex flex-column grow"
-              :style="{ height: `calc(100% - ${controlsHeight}px)` }"
+              :style="showTrack3dViewer ? { height: '50%' } : { height: '100%' }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
@@ -1138,7 +1290,10 @@ export default defineComponent({
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
-                <LayerManager :camera="camera" />
+                <LayerManager
+                  :camera="camera"
+                  @geometry-added="onGeometryAdded"
+                />
               </component>
             </div>
           </div>

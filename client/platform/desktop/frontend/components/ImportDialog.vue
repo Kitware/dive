@@ -10,6 +10,7 @@ import { DesktopMediaImportResponse } from 'platform/desktop/constants';
 import { locateDuplicates } from 'platform/desktop/frontend/store/dataset';
 import { useApi } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
+import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
 export default defineComponent({
   name: 'ImportDialog',
@@ -39,6 +40,23 @@ export default defineComponent({
       argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
     } else {
       argCopy.value.jsonMeta.fps = clientSettings.annotationFPS;
+    }
+
+    // Set default attributes for a stereo calibration configuration
+    if (argCopy.value.jsonMeta.multiCam?.calibration) {
+      argCopy.value.jsonMeta.attributes = {};
+
+      // Create x, y, z attributes
+      ['stereo3d_x', 'stereo3d_y', 'stereo3d_z'].forEach((attributeKey) => {
+        // ugly but necessary to avoid typescript error
+        (argCopy.value.jsonMeta.attributes as Record<string, Attribute>)[attributeKey] = {
+          belongs: 'detection',
+          datatype: 'number',
+          key: `detection_${attributeKey}`,
+          name: attributeKey,
+          values: [],
+        };
+      });
     }
 
     watch(toRef(props, 'importData'), (val) => {
