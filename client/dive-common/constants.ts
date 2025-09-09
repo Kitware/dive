@@ -53,7 +53,11 @@ const otherVideoTypes = [
 ];
 
 const calibrationFileTypes = [
+  'cam',
+  'json',
   'npz',
+  'yml',
+  'zip',
 ];
 
 const fileVideoTypes = [
