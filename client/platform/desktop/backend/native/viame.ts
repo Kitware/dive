@@ -157,6 +157,7 @@ async function runPipeline(
 
     if (meta.multiCam.calibration) {
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
+      command.push(`-s calibration_reader:file="${meta.multiCam.calibration}"`);
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
