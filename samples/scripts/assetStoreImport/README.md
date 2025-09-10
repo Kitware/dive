@@ -40,7 +40,7 @@ The script minIOConfig.py launches a MinIO server in Docker, creates a bucket, a
 Usage
 
 ```bash
-uv run --script MinIOConfig.py
+uv run --script minIOConfig.py
 ```
 
 - --data-dir (-d): Path to the folder containing the generated sample data (default: ./sample)  

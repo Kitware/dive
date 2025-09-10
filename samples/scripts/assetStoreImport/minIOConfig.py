@@ -147,7 +147,7 @@ def main(data_dir, api_port, console_port):
         click.echo("❌ Smoke test failed! Could not use new access key.")
 
     # remove the smoketest alias
-    mc_cmd("alias", "rm", alias_name)   
+    mc_cmd("alias", "rm", alias_name)
     # shutdown the client server
     subprocess.run(["docker", "stop", mc_container], check=True)
     subprocess.run(["docker", "rm", mc_container], check=True)
