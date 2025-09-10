@@ -204,7 +204,7 @@ def create_image_sequence_content(base_dir: Path, counter: dict, total: int):
     counter['count'] += 1
 
     # Generate annotation JSON for image sequence folder
-    annotation_file = seq_folder / seq_folder.with_suffix(".json")
+    annotation_file = seq_folder / (seq_folder.stem + ".json")
     generate_annotation_json(duration * 30, annotation_file)
 
 def create_folder_structure(base_dir: Path, depth: int, max_depth: int,

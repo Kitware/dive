@@ -449,8 +449,8 @@ function getFilesWithExtensions(dir: string, extensions: string[], fileList: str
  */
 async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const defaultTrainingConfiguration = 'train_detector_default.viame_csv.conf';
-  const allowedPatterns = /\.viame_csv\.conf$/;
+  const defaultTrainingConfiguration = 'train_detector_default.conf';
+  const allowedPatterns = /train_.*\.conf$/;
   const disallowedPatterns = /.*(_nf|\.continue)\.viame_csv\.conf$/;
   const allowedModelExtensions = ['.zip', '.pth', '.pt', '.py', '.weights', '.wt'];
   const exists = await fs.pathExists(pipelinePath);

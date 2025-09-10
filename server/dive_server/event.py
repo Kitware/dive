@@ -118,7 +118,8 @@ def process_assetstore_import(event, meta: dict):
                 AnnotationFileFutureProcessMarker: True,
             }
             item['meta'].update(meta)
-            item.save()
+
+            Item().save(item)
             # Mark the file for future processing to determine if it is a video or image sequence
             return
 
@@ -132,7 +133,7 @@ def process_assetstore_import(event, meta: dict):
             folder["meta"].update(
                 {
                     TypeMarker: dataset_type,  # Sets to video
-                    FPSMarker: -1,  # auto calculate the FPS from import
+                    FPSMarker: -1 if dataset_type == VideoType else 1,  # -1 for video and 1 for image sequence
                     AssetstoreSourcePathMarker: root,
                     MarkForPostProcess: True,  # skip transcode or transcode if required
                     **meta,
@@ -199,7 +200,7 @@ class DIVES3Imports:
             destinationCollection = Collection().findOne({"_id": ObjectId(self.destinationId)})
             userId = destinationCollection['creatorId'] or destinationCollection['baseParentId']
             user = User().findOne({'_id': ObjectId(userId)})
-            child_folders = Folder().childFolders(self.destinationId, 'collection')
+            child_folders = Folder().find({'parentId': ObjectId(self.destinationId)})
             for child in child_folders:
                 process_dangling_annotation_files(child, user)
                 convert_video_recursive(child, user)
