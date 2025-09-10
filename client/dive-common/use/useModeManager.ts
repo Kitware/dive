@@ -97,6 +97,9 @@ export default function useModeManager({
   // boolean whether or not selectedTrackId is also being edited.
   const editingTrack = ref(false);
 
+  // boolean denoting whether or not multiple tracks are selected for delete/edit
+  const editingMultiTrack = ref(false);
+
   // which type is currently being edited, if any
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   const editingCanary = ref(false);
@@ -230,7 +233,11 @@ export default function useModeManager({
     _selectKey(key);
   }
 
-  function handleSelectTrack(trackId: TrackId | null, edit = false) {
+  function handleSelectTrack(
+    trackId: AnnotationId | null,
+    edit = false,
+    modifiers: { ctrl: boolean } = { ctrl: false },
+  ) {
     /**
      * If creating mode and editing and selectedTrackId is the same,
      * don't kick out of creating mode.  This happens when moving between
@@ -239,6 +246,31 @@ export default function useModeManager({
     if (!(creating && edit && trackId === selectedTrackId.value)) {
       creating = false;
     }
+
+    if (!modifiers?.ctrl && editingMultiTrack.value) {
+      editingMultiTrack.value = false;
+      multiSelectList.value = [];
+    }
+
+    if (trackId !== null && !edit && !creating && modifiers?.ctrl) {
+      const selected = new Set(multiSelectList.value);
+      if (selected.has(trackId) && editingMultiTrack.value) {
+        // If ctrl + click on an already-selected track, remove that track from the list.
+        selected.delete(trackId);
+        multiSelectList.value = Array.from(selected);
+      } else if (selectedTrackId.value === null) {
+        multiSelectList.value = Array.from(selected.add(trackId));
+      } else {
+        multiSelectList.value = Array.from((new Set([selectedTrackId.value])).add(trackId));
+        selectedTrackId.value = null;
+      }
+      if (multiSelectList.value.length > 0) {
+        editingMultiTrack.value = true;
+        selectedTrackId.value = null;
+      }
+      return;
+    }
+
     /**
      * If merge is in progress, add selected tracks to the merge list
      */
@@ -560,16 +592,24 @@ export default function useModeManager({
         if (group) group.removeMembers(trackIds);
       }
     }
+    if (editingMultiTrack.value && !editingMultiTrack.value) {
+      handleSelectTrack(null);
+    }
     /** Exit group editing mode if last track is removed */
     if (multiSelectList.value.length === 0) {
       handleEscapeMode();
     }
   }
 
-  async function handleRemoveTrack(trackIds: TrackId[], forcePromptDisable = false, cameraName = '') {
+  async function handleRemoveTrack(
+    trackIds: TrackId[],
+    forcePromptDisable = false,
+    cameraName = '',
+    autoSelectNextTrack = true,
+  ) {
     /* Figure out next track ID */
     const maybeNextTrackId = selectNextTrack(1);
-    const previousOrNext = maybeNextTrackId !== null
+    let previousOrNext = maybeNextTrackId !== null
       ? maybeNextTrackId
       : selectNextTrack(-1);
     /* Delete track */
@@ -599,8 +639,16 @@ export default function useModeManager({
     trackIds.forEach((trackId) => {
       cameraStore.remove(trackId, cameraName);
     });
+
+    if (!multiSelectList.value.length) {
+      editingMultiTrack.value = false;
+      previousOrNext = null;
+    }
+
     handleUnstageFromMerge(trackIds);
-    selectTrack(previousOrNext, false);
+    if (autoSelectNextTrack) {
+      selectTrack(previousOrNext, false);
+    }
   }
 
   /** Toggle editing mode for track */
@@ -622,10 +670,10 @@ export default function useModeManager({
     }
   }
 
-  function handleTrackClick(trackId: TrackId) {
+  function handleTrackClick(trackId: TrackId, modifiers?: { ctrl: boolean }) {
     const track = cameraStore.getTracksMerged(trackId);
     seekNearest(track);
-    handleSelectTrack(trackId, editingTrack.value);
+    handleSelectTrack(trackId, editingTrack.value, modifiers);
   }
 
   function handleSelectNext(delta: number) {
@@ -721,6 +769,16 @@ export default function useModeManager({
   }
 
   /**
+   * Delete every track that is currently multi-selected.
+   */
+  async function handleDeleteSelectedTracks() {
+    if (editingMultiTrack.value) {
+      await handleRemoveTrack(multiSelectList.value, undefined, undefined, false);
+      selectedTrackId.value = null;
+    }
+  }
+
+  /**
    * Group: Remove group ids and unselect everything.
    */
   function handleRemoveGroup(ids: AnnotationId[]) {
@@ -751,6 +809,7 @@ export default function useModeManager({
     editingGroupId,
     editingMode,
     editingTrack,
+    editingMultiTrack,
     editingDetails,
     linkingTrack,
     linkingState,
@@ -765,6 +824,7 @@ export default function useModeManager({
     handler: {
       commitMerge: handleCommitMerge,
       groupAdd: handleAddGroup,
+      deleteSelectedTracks: handleDeleteSelectedTracks,
       groupEdit: handleGroupEdit,
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,

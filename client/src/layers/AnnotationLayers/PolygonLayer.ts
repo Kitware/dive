@@ -39,7 +39,11 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
          * */
         if (e.mouse.buttonsDown.left && !this.drawingOther) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-            this.bus.$emit('annotation-clicked', e.data.trackId, false);
+            if (e.mouse.modifiers.ctrl) {
+              this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
+            } else {
+              this.bus.$emit('annotation-clicked', e.data.trackId, false);
+            }
           }
         } else if (e.mouse.buttonsDown.right && !this.drawingOther) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {

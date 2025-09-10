@@ -17,6 +17,7 @@ import {
   useReadOnlyMode,
   useTrackStyleManager,
   useEditingGroupId,
+  useEditingMultiTrack,
   useGroupFilterControls,
   useCameraStore,
   useSelectedCamera,
@@ -31,6 +32,7 @@ import AttributeInput from 'dive-common/components/Attributes/AttributeInput.vue
 import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
 import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import { clientSettings } from 'dive-common/store/settings';
 
 export default defineComponent({
   components: {
@@ -70,6 +72,11 @@ export default defineComponent({
     const selectedCamera = useSelectedCamera();
     const { allTypes: allGroupTypesRef } = useGroupFilterControls();
     const multiSelectList = useMultiSelectList();
+    const editingMultiTrack = useEditingMultiTrack();
+    const multiTrackType: Ref<string> = ref('unknown');
+    const updateMultiTrackType = (newValue: string) => {
+      multiTrackType.value = newValue;
+    };
     const multiSelectInProgress = computed(() => multiSelectList.value.length > 0);
     const {
       trackSelectNext, trackSplit, removeTrack, unstageFromMerge,
@@ -214,12 +221,19 @@ export default defineComponent({
       ];
     });
 
+    function updateSelectedTracksType() {
+      multiSelectList.value.forEach((trackId: number) => {
+        cameraStore.setTrackType(trackId, multiTrackType.value);
+      });
+    }
+
     return {
       selectedTrackIdRef,
       editingGroupIdRef,
       editingGroup,
       readOnlyMode,
       multiCam,
+      clientSettings,
       /* Attributes */
       attributes,
       /* Editing */
@@ -233,6 +247,9 @@ export default defineComponent({
       selectedTrackList,
       multiSelectList,
       multiSelectInProgress,
+      editingMultiTrack,
+      multiTrackType,
+      updateMultiTrackType,
       /* Update functions */
       closeEditor,
       editAttribute,
@@ -248,6 +265,7 @@ export default defineComponent({
       removeGroup,
       toggleMerge,
       unstageFromMerge,
+      updateSelectedTracksType,
     };
   },
 });
@@ -494,6 +512,54 @@ export default defineComponent({
         >
           <v-spacer />
           Abort (esc)
+        </v-btn>
+        <v-btn
+          v-if="editingMultiTrack"
+          color="error"
+          class="mx-2 mb-2 grow"
+          :disabled="readOnlyMode"
+          depressed
+          x-small
+          @click="$emit('delete-selected-tracks')"
+        >
+          <v-icon
+            class="pr-1"
+            small
+          >
+            mdi-delete
+          </v-icon>
+          <v-spacer />
+          Delete selected tracks
+        </v-btn>
+        <div
+          v-if="editingMultiTrack"
+          class="d-flex justify-center align-center mb-2 mx-2"
+          width="100%"
+        >
+          <v-spacer />
+          <v-label class="mx-2">
+            Type:
+          </v-label>
+          <TypePicker
+            :value="multiTrackType"
+            :all-types="allTypesRef"
+            :read-only-mode="readOnlyMode"
+            :lock-types="clientSettings.typeSettings.lockTypes"
+            selected
+            update-on-input
+            @input="updateMultiTrackType"
+          />
+        </div>
+        <v-btn
+          class="mx-2 mb-2"
+          :disabled="readOnlyMode"
+          color="primary"
+          depressed
+          x-small
+          @click="updateSelectedTracksType"
+        >
+          <v-spacer />
+          Update type for selected tracks
         </v-btn>
       </div>
       <confidence-subsection

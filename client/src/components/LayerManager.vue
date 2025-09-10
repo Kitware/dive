@@ -433,7 +433,7 @@ export default defineComponent({
       );
     });
 
-    const Clicked = (trackId: number, editing: boolean) => {
+    const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // If the camera isn't selected yet we ignore the click
       if (selectedCamera.value !== props.camera) {
         return;
@@ -441,7 +441,7 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        handler.trackSelect(trackId, editing);
+        handler.trackSelect(trackId, editing, modifiers);
       }
     };
 
@@ -451,8 +451,10 @@ export default defineComponent({
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,

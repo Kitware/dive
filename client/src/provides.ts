@@ -82,6 +82,9 @@ const SelectedTrackIdSymbol = Symbol('selectedTrackId');
 const EditingGroupIdSymbol = Symbol('editingGroupId');
 type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 
+const EditingMultiTrackSymbol = Symbol('editingMultiTrack');
+type EditingMultiTrackType = Readonly<Ref<boolean>>;
+
 const TimeSymbol = Symbol('time');
 type TimeType = Readonly<Time>;
 
@@ -111,13 +114,13 @@ export interface Handler {
   /* Save pending changes to persistence layer */
   save(set?: string): Promise<void>;
   /* Select and seek to track */
-  trackSeek(AnnotationId: AnnotationId): void;
+  trackSeek(AnnotationId: AnnotationId, modifiers?: { ctrl: boolean }): void;
   /* Seek Frame */
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
   /* toggle selection mode for track */
-  trackSelect(AnnotationId: AnnotationId | null, edit: boolean): void;
+  trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
   trackSelectNext(delta: number): void;
   /* split track */
@@ -161,6 +164,8 @@ export interface Handler {
   commitMerge(): void;
   /* Create new group */
   groupAdd(): void;
+  /* Delete all selected tracks */
+  deleteSelectedTracks(): void;
   /* Put UI into group editing mode */
   groupEdit(id: AnnotationId | null): void;
   /* Turn merge mode on and off */
@@ -209,6 +214,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     toggleMerge(...args) { handle('toggleMerge', args); return []; },
     commitMerge(...args) { handle('commitMerge', args); },
     groupAdd(...args) { handle('groupAdd', args); },
+    deleteSelectedTracks(...args) { handle('deleteSelectedTracks', args); },
     groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
@@ -247,6 +253,7 @@ export interface State {
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
   editingGroupId: SelectedTrackIdType;
+  editingMultiTrack: EditingMultiTrackType;
   time: TimeType;
   trackFilters: TrackFilterControls;
   trackStyleManager: StyleManager;
@@ -312,6 +319,7 @@ function dummyState(): State {
     selectedKey: ref(''),
     selectedTrackId: ref(null),
     editingGroupId: ref(null),
+    editingMultiTrack: ref(false),
     time: {
       frame: ref(0),
       flick: ref(0),
@@ -357,6 +365,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(SelectedKeySymbol, state.selectedKey);
   provide(SelectedTrackIdSymbol, state.selectedTrackId);
   provide(EditingGroupIdSymbol, state.editingGroupId);
+  provide(EditingMultiTrackSymbol, state.editingMultiTrack);
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
@@ -460,6 +469,10 @@ function useEditingGroupId() {
   return use<SelectedTrackIdType>(EditingGroupIdSymbol);
 }
 
+function useEditingMultiTrack() {
+  return use<EditingMultiTrackType>(EditingMultiTrackSymbol);
+}
+
 function useTime() {
   return use<TimeType>(TimeSymbol);
 }
@@ -504,6 +517,7 @@ export {
   useSelectedKey,
   useSelectedTrackId,
   useEditingGroupId,
+  useEditingMultiTrack,
   useTime,
   useVisibleModes,
   useReadOnlyMode,
