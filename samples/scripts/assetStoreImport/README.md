@@ -4,16 +4,14 @@ This folder contains scripts to generate sample video and image sequence data, a
 
 Prerequisites
 
-- Python 3.8 or higher
+- UV installed for running scripts
 - ffmpeg installed and available in your PATH
 - docker installed and running
-- UV installed for running scripts
-- Python dependencies:
-pip install click faker
+- the DIVE docker compose web application up and running
 
 1. Generate Sample Data
 
-The script generateSampleData.py creates a folder structure containing either:
+The script generateSampleData.py creates a folder structure containing:
 
 - Videos: MP4 format, H.264 codec, random duration (5–30 seconds), 1280x720 resolution.
 - Image Sequences: Extracted frames from temporary videos, stored as sequential JPGs.
@@ -23,11 +21,10 @@ The script generateSampleData.py creates a folder structure containing either:
 
 Usage
 ```bash
-uv run --script generateSampleData.py --output ./sample --folders 3 --max-depth 2 --videos 2 --total 10
-# Or Default parameters work
-uv run --script generateSampleData.py
+uv run --script generateSampleData.py 
 
 ```
+- Most fields are optional and the default values should work well enough
 - --output (-o): Base output directory (default: ./sample)  
 - --folders (-f): Number of top-level folders (default: 3)  
 - --max-depth (-d): Maximum subfolder depth (default: 2)  
@@ -43,8 +40,6 @@ The script minIOConfig.py launches a MinIO server in Docker, creates a bucket, a
 Usage
 
 ```bash
-uv run --script minIOConfig.py --data-dir ./sample_data --api-port 9000 --console-port 9001
-# or Default parameters work as well
 uv run --script MinIOConfig.py
 ```
 
