@@ -93,6 +93,7 @@ def main(data_dir, api_port, console_port):
 
     minio_ip = get_container_ip(minio_container, "dive_default")
     # Helper function: run mc inside persistent container
+    
     def mc_cmd(*args, capture_output=False):
         result = subprocess.run(
             ["docker", "exec", mc_container, "mc", *args],
