@@ -75,6 +75,13 @@ If you have data in S3 or MinIO, you can mirror it in DIVE for annotation.
 * You should not make changes to folder contents once a folder has been mirrored into DIVE.  Adding or removing images in a particular folder may cause annotation alignment issues.
 * Adding entire new folders is supported, and will require a re-index of your S3 bucket.
 
+### S3/MinIO and Annotation Importing
+
+During the importing process annotations that are associated with image-sequences or video files can be automatically imported
+
+* **Video** - For video files the annotation file (CSV or JSON) needs to have the same name as the video with a changed extension. I.E.  video.mp4 will have either video.csv or video.json.  This will automatically import those annotations when the S3/GCP indexing/importing is done
+* **Image Sequence** - Image-Sequences should already be in their own folder.  The annotation file (CSV or JSON) needs to just be in the same file.  It shouldn't matter what the name of the file is during importing.
+
 ### Pub/Sub notifications
 
 Creating pub/sub notifications is **optional**, but will keep your mount point up-to-date automatically with new data added to the bucket.  In order to make use of this feature, your DIVE server must have a public static IP address or domain name.
