@@ -400,6 +400,13 @@ async function train(
     command.push(runTrainingArgs.fineTuneModel.path);
   }
 
+  if (runTrainingArgs.labelText) {
+    const labelsPath = `${jobWorkDir}/labels.txt`;
+    fs.writeFileSync(labelsPath, runTrainingArgs.labelText);
+    command.push('--labels');
+    command.push(labelsPath);
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,

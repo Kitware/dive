@@ -2,7 +2,14 @@
 import type { DataTableHeader } from 'vuetify';
 
 import {
-  computed, defineComponent, onBeforeMount, set, del, reactive, ref,
+  computed,
+  defineComponent,
+  onBeforeMount,
+  set,
+  del,
+  reactive,
+  ref,
+  watch,
 } from 'vue';
 import {
   DatasetMeta, Pipelines, TrainingConfigs, useApi, Pipe,
@@ -25,6 +32,22 @@ export default defineComponent({
     const router = useRouter();
 
     const unsortedPipelines = ref({} as Pipelines);
+    const labelFile = ref(null as File | null);
+    const labelText = ref('');
+
+    function clearLabelText() {
+      labelText.value = '';
+    }
+
+    watch(labelFile, () => {
+      if (labelFile.value) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          labelText.value = evt.target?.result as string;
+        };
+        reader.readAsText(labelFile.value);
+      }
+    });
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -198,7 +221,7 @@ export default defineComponent({
           data.trainingOutputName,
           data.selectedTrainingConfig,
           data.annotatedFramesOnly,
-          undefined,
+          labelText.value || undefined,
           foundTrainingModel,
         );
         router.push({ name: 'jobs' });
@@ -217,6 +240,8 @@ export default defineComponent({
 
     return {
       data,
+      labelFile,
+      clearLabelText,
       toggleStaged,
       deleteModel,
       exportModel,
@@ -310,6 +335,26 @@ export default defineComponent({
             </template>
           </v-select>
         </v-col>
+      </v-row>
+      <v-row
+        class="my-4 pt-0"
+        dense
+      >
+        <v-col sm="5">
+          <v-file-input
+            v-model="labelFile"
+            icon="mdi-folder-open"
+            label="Labels.txt mapping file (optional)"
+            hint="Combine or rename output classes using a labels.txt file"
+            persistant-hint
+            dense
+            outlined
+            hide-details
+            clearable
+            @click:clear="clearLabelText"
+          />
+        </v-col>
+        <v-spacer />
       </v-row>
       <v-data-table
         v-bind="{ headers: staged.headers, items: staged.items.value }"
