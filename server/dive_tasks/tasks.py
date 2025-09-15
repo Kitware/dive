@@ -357,7 +357,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     config = params['config']
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
-    model = params['model']
+    model = params.get('model', None)
     force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
