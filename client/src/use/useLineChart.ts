@@ -75,7 +75,7 @@ export default function useLineChart({
       const { annotation: track } = filtered;
       if (clientSettings.timelineCountSettings.defaultView === 'detections') {
         const trackObj = getTracksMerged(track.id);
-        const frames = trackObj.features.filter((item) => item.keyframe).map((item) => item.frame);
+        const frames = trackObj.features.filter((item) => item && item.keyframe).map((item) => item.frame);
         const segments = framesToSegments(frames);
         segments.forEach((segment) => {
           const ibegin = segment[0];

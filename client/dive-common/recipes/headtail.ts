@@ -161,7 +161,7 @@ export default class HeadTail implements Recipe {
         let geom = linestring.geometry;
         const head = track.getFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
         const tail = track.getFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
-        const currentFeature = track.features.find((item) => item.frame === frameNum);
+        const currentFeature = track.features.find((item) => item && item.frame === frameNum);
         let bounds: RectBounds | null = null;
         if (currentFeature && currentFeature.bounds) {
           bounds = currentFeature.bounds;

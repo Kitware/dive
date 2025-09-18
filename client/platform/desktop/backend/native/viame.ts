@@ -61,7 +61,7 @@ async function runPipeline(
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
   let requiresInput = false;
-  if ((/utility_|filter_|transcode_/g).test(pipeline.pipe)) {
+  if ((/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)) {
     requiresInput = true;
   }
   let groundTruthFileName;
