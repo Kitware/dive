@@ -8,7 +8,13 @@ import { clientSettings } from 'dive-common/store/settings';
 import { injectAggregateController } from '../annotators/useMediaController';
 
 export default defineComponent({
-  name: 'Control',
+  name: 'Controls',
+  props: {
+    isDefaultImage: {
+      type: Boolean as () => boolean,
+      required: true,
+    },
+  },
   setup() {
     const data = reactive({
       frame: 0,
@@ -289,14 +295,22 @@ export default defineComponent({
           >
             <v-icon>mdi-image-filter-center-focus</v-icon>
           </v-btn>
-          <v-btn
-            icon
-            small
-            title="Image Enhancements"
-            @click="toggleEnhancements"
+          <v-badge
+            :value="!isDefaultImage"
+            color="warning"
+            dot
+            overlap
+            bottom
           >
-            <v-icon>mdi-contrast-box</v-icon>
-          </v-btn>
+            <v-btn
+              icon
+              small
+              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+              @click="toggleEnhancements"
+            >
+              <v-icon>mdi-contrast-box</v-icon>
+            </v-btn>
+          </v-badge>
 
           <v-btn
             v-if="mediaController.cameras.value.length > 1"

@@ -2,6 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from 'vue';
+import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 
@@ -38,18 +39,22 @@ export default defineComponent({
       type: Function as PropType<(imageDataItem: ImageDataItem, img: HTMLImageElement) => void>,
       default: loadImageFunc,
     },
-    // Range is [0, inf.)
-    brightness: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
-    },
     camera: {
       type: String as PropType<string>,
       default: 'singleCam',
     },
-    intercept: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
+    imageEnhancementOutputs: {
+      type: Object as PropType<ImageEnhancementOutputs>,
+      default: () => ({
+        brightness: { slope: 1, intercept: 0 },
+        contrast: { slope: 1, intercept: 0.5 },
+        saturation: { values: 1 },
+        sharpen: { kernelMatrix: '0 -1 0 -1 5 -1 0 -1 0', divisor: 1 },
+      }),
+    },
+    isDefaultImage: {
+      type: Boolean as PropType<boolean>,
+      required: true,
     },
   },
   setup(props, { emit }) {
@@ -309,11 +314,20 @@ export default defineComponent({
     function unimplemented() {
       throw new Error('Method unimplemented!');
     }
-    const setBrightnessFilter = (on: boolean) => {
-      if (local.quadFeature !== undefined) {
-        local.quadFeature.layer().node().css('filter', on ? 'url(#brightness)' : '');
-      }
-    };
+    watch(
+      () => props.isDefaultImage,
+      () => {
+        if (local.quadFeature !== undefined) {
+          if (props.isDefaultImage) {
+            local.quadFeature.layer().node().css('filter', '');
+          } else {
+            local.quadFeature.layer().node().css('filter', 'url(#imageEhancements)');
+          }
+        }
+      },
+      { deep: true },
+    );
+
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(() => {
@@ -325,7 +339,7 @@ export default defineComponent({
         });
         // Set quadFeature and conditionally apply brightness filter
         local.quadFeature = quadFeatureLayer.createFeature('quad');
-        setBrightnessFilter(props.brightness !== undefined);
+        local.quadFeature.layer().node().css('filter', 'url(#imageEhancements)');
         data.ready = true;
         seek(0);
       });
@@ -356,7 +370,7 @@ export default defineComponent({
           });
           // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
-          setBrightnessFilter(props.brightness !== undefined);
+          local.quadFeature.layer().node().css('filter', 'url(#imageEhancements)');
           data.ready = true;
           seek(0);
         });
@@ -365,13 +379,6 @@ export default defineComponent({
     // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
       init();
-    });
-    // Watch brightness for change, only set filter if value
-    // is switching from number -> undefined, or vice versa.
-    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
-      if ((brightness === undefined) !== (oldBrightness === undefined)) {
-        setBrightnessFilter(brightness !== undefined);
-      }
     });
     return {
       data,
@@ -393,24 +400,57 @@ export default defineComponent({
       style="position: absolute; top: -1px; left: -1px"
     >
       <defs>
-        <filter id="brightness">
-          <feComponentTransfer color-interpolation-filters="sRGB">
+        <filter id="imageEhancements">
+          <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncG
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncB
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
           </feComponentTransfer>
+          <!-- Contrast -->
+          <feComponentTransfer id="feContrast">
+            <feFuncR
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncG
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncB
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+          </feComponentTransfer>
+          <!-- Saturation -->
+          <feColorMatrix
+            id="feSaturate"
+            type="saturate"
+            :values="imageEnhancementOutputs.saturation.values.toString()"
+          />
+          <!-- Sharpening -->
+          <feConvolveMatrix
+            id="feSharpen"
+            order="3"
+            :divisor="imageEnhancementOutputs.sharpen.divisor"
+            :kernelMatrix="imageEnhancementOutputs.sharpen.kernelMatrix"
+            edgeMode="duplicate"
+          />
+          <feComposite in2="SourceGraphic" operator="in" />
         </filter>
       </defs>
     </svg>
