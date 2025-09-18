@@ -3,7 +3,7 @@ import type { GirderModel } from '@girder/components/src';
 import { Pipe } from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
-  return girderRest.post<[GirderModel, string[]]>(`dive_rpc/postprocess/${folderId}`, null, {
+  return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
     params: {
       skipJobs, skipTranscoding, additive, additivePrepend, set,
     },
