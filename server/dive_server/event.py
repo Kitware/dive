@@ -2,15 +2,21 @@ from datetime import datetime, timedelta
 import os
 
 from bson.objectid import ObjectId
+import cherrypy
 from girder import logger
+from girder.api.rest import getApiUrl
 from girder.models.collection import Collection
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
+from girder.models.token import Token
 from girder.models.user import User
 from girder.settings import SettingKey
 from girder.utility.mail_utils import renderTemplate, sendMail
+from girder_jobs.models.job import Job
+from girder_worker.girder_plugin.utils import getWorkerApiUrl
 
+from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
@@ -28,8 +34,6 @@ from dive_utils.constants import (
     possibleAnnotationRegex,
     videoRegex,
 )
-
-from . import crud_rpc
 
 
 def send_new_user_email(event):
@@ -171,13 +175,34 @@ def process_dangling_annotation_files(folder, user):
 
 
 def convert_video_recursive(folder, user):
-    subFolders = list(Folder().childFolders(folder, 'folder', user))
-    for child in subFolders:
-        if child.get('meta', {}).get(MarkForPostProcess, False):
-            child['meta']['MarkForPostProcess'] = False
-            Folder().save(child)
-            crud_rpc.postprocess(user, child, False, True)
-        convert_video_recursive(child, user)
+    token = Token().createToken(user=user, days=2)
+
+    dive_batch_postprocess_task_params: DIVEBatchPostprocessTaskParams = {
+        "source_folder_id": str(folder['_id']),
+        "skipJobs": False,  # Allow jobs to run (transcoding, etc.)
+        "skipTranscoding": True,  # Skip transcoding if not needed
+        "additive": False,
+        "additivePrepend": '',
+        "userId": str(user['_id']),
+        "girderToken": str(token['_id']),
+        "girderApiUrl": getWorkerApiUrl(),
+    }
+    if not Setting().get('worker.api_url'):
+        Setting().set('worker.api_url', getApiUrl())
+    job = Job().createLocalJob(
+        module='dive_tasks.dive_batch_postprocess',
+        function='batchPostProcessingTaskLauncher',
+        kwargs={'params': dive_batch_postprocess_task_params, 'url': cherrypy.url()},
+        title='Batch process Dive Batch Postprocess',
+        type='DIVE Batch Postprocess',
+        user=user,
+        public=True,
+        asynchronous=True,
+    )
+    job = Job().save(job)
+    Job().scheduleJob(job)
+
+
 
 
 class DIVES3Imports:
