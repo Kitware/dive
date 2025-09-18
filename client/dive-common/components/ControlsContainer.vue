@@ -50,6 +50,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isDefaultImage: {
+      type: Boolean as PropType<boolean>,
+      required: true,
+    },
   },
   setup(_, { emit }) {
     const handler = useHandler();
@@ -148,7 +152,7 @@ export default defineComponent({
     dense
     style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
   >
-    <Controls>
+    <Controls :is-default-image="isDefaultImage">
       <template slot="timelineControls">
         <div style="min-width: 270px">
           <v-tooltip

@@ -165,8 +165,8 @@ export default defineComponent({
 
     const {
       imageEnhancements,
-      brightness,
-      intercept,
+      imageEnhancementOutputs,
+      isDefaultImage,
       setSVGFilters,
     } = useImageEnhancements();
 
@@ -852,8 +852,8 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
-      brightness,
-      intercept,
+      imageEnhancementOutputs,
+      isDefaultImage,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1131,8 +1131,8 @@ export default defineComponent({
                   frameRate,
                   originalFps,
                   camera,
-                  brightness,
-                  intercept,
+                  imageEnhancementOutputs,
+                  isDefaultImage,
                   getTiles,
                   getTileURL,
                 }"
@@ -1146,7 +1146,7 @@ export default defineComponent({
             ref="controlsRef"
             :collapsed.sync="controlsCollapsed"
             v-bind="{
-              lineChartData, eventChartData, groupChartData, datasetType,
+              lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
             }"
           />
         </div>
