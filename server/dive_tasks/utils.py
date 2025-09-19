@@ -277,6 +277,7 @@ def upload_exported_zipped_dataset(
         "customTypeStyling": meta.get("customTypeStyling", None),
         "customGroupStyling": meta.get("customGroupStyling", None),
         "confidenceFilters": meta.get("confidenceFilters", None),
+        "imageEnhancements": meta.get("imageEnhancements", None),
         "fps": meta["fps"],
         "version": meta["version"],
     }
