@@ -113,6 +113,7 @@ FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
 ConfidenceFiltersMarker = "confidenceFilters"
+ImageEnhancementsMarker = "imageEnhancements"
 AnnotationFileFutureProcessMarker = "importAnnotationFile"
 
 # Other constants

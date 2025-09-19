@@ -141,6 +141,7 @@ interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
+  imageEnhancments?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
 }
 ```

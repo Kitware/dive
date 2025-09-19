@@ -4,6 +4,7 @@ import type {
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
+import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 
 export const JsonMetaCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
@@ -116,6 +117,9 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   // confidence filter threshold for exporting
   confidenceFilters?: Record<string, number>;
+
+  // image enhancement settings
+  imageEnhancement?: ImageEnhancements;
 
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   multiCam: MultiCamDesktop | null;
