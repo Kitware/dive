@@ -555,6 +555,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
   }
+  if (args.imageEnhancements) {
+    existing.imageEnhancements = args.imageEnhancements;
+  }
   if (args.customTypeStyling) {
     existing.customTypeStyling = args.customTypeStyling;
   }
