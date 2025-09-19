@@ -250,6 +250,9 @@ export default defineComponent({
       // Force the first frame to load on slow networks.
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
+      if (!props.isDefaultImage) {
+        quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+      }
       data.ready = true;
       data.volume = video.volume;
       data.speed = video.playbackRate;
