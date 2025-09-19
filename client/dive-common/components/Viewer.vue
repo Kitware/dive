@@ -5,7 +5,7 @@ import {
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, debounce } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
 import {
@@ -167,6 +167,7 @@ export default defineComponent({
       imageEnhancements,
       imageEnhancementOutputs,
       isDefaultImage,
+      setImageEnhancements,
       setSVGFilters,
     } = useImageEnhancements();
 
@@ -430,6 +431,7 @@ export default defineComponent({
           customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
+          imageEnhancements: imageEnhancements.value,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
       } catch (err) {
@@ -453,6 +455,15 @@ export default defineComponent({
         confidenceFilters: trackFilters.confidenceFilters.value,
       });
     }
+
+    function saveImageEnhancements() {
+      saveMetadata(datasetId.value, {
+        imageEnhancements: imageEnhancements.value,
+      });
+    }
+    const debouncedSaveImageEnhancements = debounce(saveImageEnhancements, 1000, { trailing: true });
+
+    watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
 
     // Navigation Guards used by parent component
     async function warnBrowserExit(event: BeforeUnloadEvent) {
@@ -564,6 +575,9 @@ export default defineComponent({
           loadAttributes(meta.attributes);
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
+        if (meta.imageEnhancements) {
+          setImageEnhancements(meta.imageEnhancements);
+        }
         datasetName.value = meta.name;
         initTime({
           frameRate: meta.fps,
