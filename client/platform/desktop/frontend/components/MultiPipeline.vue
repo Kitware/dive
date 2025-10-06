@@ -7,15 +7,30 @@ import {
   watch,
 } from 'vue';
 import { DataTableHeader } from 'vuetify';
+import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
-import { itemsPerPageOptions } from 'dive-common/constants';
+import {
+  itemsPerPageOptions,
+  stereoPipelineMarker,
+  multiCamPipelineMarkers,
+  MultiType,
+} from 'dive-common/constants';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonMetaCache } from '../store/dataset';
 
-const { getPipelineList } = useApi();
+const { getPipelineList, runPipeline } = useApi();
+const { prompt } = usePrompt();
+const router = useRouter();
+
 const unsortedPipelines = ref({} as Pipelines);
 const selectedPipelineType: Ref<string | null> = ref(null);
-const pipelineTypes = computed(() => Object.keys(unsortedPipelines.value));
+const pipelineTypes = computed(() => (
+  // For now, exclude 2-cam and 3-cam pipeline types from
+  // bulk pipeline operations.
+  Object.keys(unsortedPipelines.value)
+    .filter((key) => !multiCamPipelineMarkers.includes(key))
+));
 const selectedPipeline: Ref<Pipe | null> = ref(null);
 const pipesForSelectedType = computed(() => {
   if (!selectedPipelineType.value) {
@@ -24,7 +39,6 @@ const pipesForSelectedType = computed(() => {
   return unsortedPipelines.value[selectedPipelineType.value].pipes;
 });
 watch(selectedPipelineType, () => {
-  // Clear the selected pipeline if the chosen type changes
   selectedPipeline.value = null;
 });
 
@@ -67,6 +81,13 @@ function getAvailableItems(): JsonMetaCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
   }
+  if (selectedPipelineType.value === stereoPipelineMarker) {
+    // Only allow stereo datasets to be included for bulk pipeline
+    // operations if the selected pipeline type is a measurement.
+    return Object.values(datasets.value).filter((dataset: JsonMetaCache) => (
+      dataset.type === MultiType && dataset.cameraNumber === 2
+    ));
+  }
   return Object.values(datasets.value);
 }
 const availableItems: Ref<JsonMetaCache[]> = ref([]);
@@ -84,8 +105,25 @@ function toggleStaged(item: JsonMetaCache) {
   }
 }
 
-function runPipelineForDatasets() {
-  console.log('Running pipeline...');
+async function runPipelineForDatasets() {
+  if (selectedPipeline.value !== null) {
+    const results = await Promise.allSettled(
+      stagedDatasetIds.value.map((datasetId: string) => runPipeline(datasetId, selectedPipeline.value!)),
+    );
+    const failed = results
+      .map((result, i) => ({ result, datasetId: stagedDatasetIds.value[i] }))
+      .filter(({ result }) => result.status === 'rejected');
+
+    if (failed.length > 0) {
+      prompt({
+        title: 'Pipeline Errors',
+        text: `Failed to run pipeline for ${failed.length} dataset${failed.length > 1 ? 's' : ''}.`,
+        positiveButton: 'OK',
+      });
+    } else {
+      router.push({ name: 'jobs' });
+    }
+  }
 }
 
 onBeforeMount(async () => {
@@ -125,6 +163,7 @@ onBeforeMount(async () => {
               v-model="selectedPipeline"
               :items="pipesForSelectedType"
               :disabled="!selectedPipelineType"
+              return-object
               item-text="name"
               outlined
               persistent-hint
