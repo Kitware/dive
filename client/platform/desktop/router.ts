@@ -6,6 +6,7 @@ import Recent from './frontend/components/Recent.vue';
 import Settings from './frontend/components/Settings.vue';
 import TrainingPage from './frontend/components/TrainingPage.vue';
 import ViewerLoader from './frontend/components/ViewerLoader.vue';
+import PipelinePage from './frontend/components/PipelinePage.vue';
 
 Vue.use(Router);
 
@@ -25,6 +26,11 @@ export default new Router({
       path: '/training',
       name: 'training',
       component: TrainingPage,
+    },
+    {
+      path: '/pipeline',
+      name: 'pipeline',
+      component: PipelinePage,
     },
     {
       path: '/jobs',
