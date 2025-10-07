@@ -569,7 +569,7 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
-) -> Tuple[types.GirderModel, Optional[List[str]]]:
+) -> dict:
     """
     Post-processing to be run after media/annotation import
 
@@ -581,11 +581,16 @@ def postprocess(
 
     In either case, the following may run synchronously:
         Conversion of CSV annotations into track JSON
+    Returns:
+        dict: Contains 'folder' (the processed folder) and 'job_ids' (list of created job IDs)
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
     # add default confidence filter threshold to folder metadata
     dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
+
+    # Track job IDs for batch processing
+    created_job_ids = []
 
     # Validate user-supplied metadata fields are present
     if fromMeta(dsFolder, constants.FPSMarker) is None:
@@ -625,7 +630,8 @@ def postprocess(
             newjob.job[constants.JOBCONST_DATASET_ID] = str(item["folderId"])
             newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
             Job().save(newjob.job)
-            return dsFolder
+            created_job_ids.append(newjob.job['_id'])
+            return {'folder': dsFolder, 'job_ids': created_job_ids}
 
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
@@ -649,6 +655,7 @@ def postprocess(
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
             Job().save(newjob.job)
+            created_job_ids.append(newjob.job['_id'])
 
         # transcode IMAGERY if necessary
         imageItems = Folder().childItems(
@@ -676,7 +683,8 @@ def postprocess(
             newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
             newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
             Job().save(newjob.job)
-
+            created_job_ids.append(newjob.job['_id'])
+            
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
         elif largeImageItems.count() > 0:
@@ -685,7 +693,7 @@ def postprocess(
         Folder().save(dsFolder)
 
     aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
-    return dsFolder, aggregate_warnings
+    return {'folder': dsFolder, 'warnings': aggregate_warnings, 'job_ids': created_job_ids}
 
 
 def convert_large_image(

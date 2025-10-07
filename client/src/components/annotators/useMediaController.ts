@@ -203,11 +203,15 @@ export function useMediaController() {
     });
 
     function setCursor(newCursor: string) {
-      state[camera].cursor = `${newCursor}`;
+      if (state[camera]) {
+        state[camera].cursor = `${newCursor}`;
+      }
     }
 
     function setImageCursor(newCursor: string) {
-      state[camera].imageCursor = `${newCursor}`;
+      if (state[camera]) {
+        state[camera].imageCursor = `${newCursor}`;
+      }
     }
 
     function centerOn(coords: { x: number; y: number; z: number }) {

@@ -105,8 +105,8 @@ export default defineComponent({
     const selectedTrackList = computed(() => {
       if (multiSelectList.value.length > 0) {
         return multiSelectList.value.map(
-          (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
-        );
+          (trackId) => cameraStore.getAnyPossibleTrack(trackId),
+        ).filter((t) => t !== undefined);
       }
       if (selectedTrackIdRef.value !== null) {
         return [cameraStore.getAnyTrack(selectedTrackIdRef.value)];

@@ -28,6 +28,9 @@ export default defineComponent({
       <v-tab :to="{ name: 'training' }">
         Training<v-icon>mdi-brain</v-icon>
       </v-tab>
+      <v-tab :to="{ name: 'pipeline' }">
+        Pipeline<v-icon>mdi-pipe</v-icon>
+      </v-tab>
       <v-tab :to="{ name: 'settings' }">
         Settings<v-icon>mdi-cog</v-icon>
       </v-tab>

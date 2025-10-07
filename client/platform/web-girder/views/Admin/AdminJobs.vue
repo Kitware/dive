@@ -35,7 +35,7 @@ export default defineComponent({
     const store = useStore();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
-    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training']);
+    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training', 'DIVE Batch Postprocess']);
     const jobStatusList: Ref<string[]> = ref(['Cancelled', 'Error', 'Inactive', 'Running', 'Cancelling', 'Success']);
     const filterStatus: Ref<string[]> = ref(['Running', 'Error', 'Inactive']);
     const filterTypes: Ref<string[]> = ref(jobTypes.value);

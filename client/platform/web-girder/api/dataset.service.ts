@@ -112,8 +112,8 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
     });
     if (uploadResponse.status === 200) {
       const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
-      if (final.data.length > 1) {
-        const warnings = final.data[1];
+      if (final.data.warnings !== undefined) {
+        const { warnings } = final.data;
         return warnings;
       }
 
