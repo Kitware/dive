@@ -66,10 +66,21 @@ export default function useImageEnhancements() {
     && imageEnhancements.value.saturation === 1
     && imageEnhancements.value.sharpen === 0
   ));
+
+  const setImageEnhancements = (enhancements: ImageEnhancements) => {
+    imageEnhancements.value = {
+      brightness: enhancements.brightness,
+      contrast: enhancements.contrast,
+      saturation: enhancements.saturation,
+      sharpen: enhancements.sharpen,
+    };
+  };
+
   return {
     imageEnhancements,
     imageEnhancementOutputs,
     isDefaultImage,
     setSVGFilters,
+    setImageEnhancements,
   };
 }

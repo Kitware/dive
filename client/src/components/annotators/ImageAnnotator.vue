@@ -370,9 +370,11 @@ export default defineComponent({
           });
           // Set quadFeature and conditionally apply brightness filter
           local.quadFeature = quadFeatureLayer.createFeature('quad');
-          local.quadFeature.layer().node().css('filter', 'url(#imageEhancements)');
           data.ready = true;
           seek(0);
+          if (!props.isDefaultImage) {
+            local.quadFeature.layer().node().css('filter', 'url(#imageEhancements)');
+          }
         });
       }
     }
