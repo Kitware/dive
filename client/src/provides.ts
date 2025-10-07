@@ -174,7 +174,9 @@ export interface Handler {
   unstageFromMerge(ids: AnnotationId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
-  setSVGFilters({ blackPoint, whitePoint }: {blackPoint?: number; whitePoint?: number}): void;
+  setSVGFilters({
+    brightness, contrast, saturation, sharpen,
+  }: {brightness?: number; contrast?: number; saturation?: number; sharpen?: number}): void;
   /* unlink Camera Track */
   unlinkCameraTrack(trackId: AnnotationId, camera: string): void;
   /* link Camera Track */
@@ -331,7 +333,12 @@ function dummyState(): State {
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
-    imageEnhancements: ref({}),
+    imageEnhancements: ref({
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      sharpen: 0,
+    }),
   };
 }
 

@@ -1,7 +1,8 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, PropType, toRef, watch,
+  defineComponent, onBeforeUnmount, PropType, watch,
 } from 'vue';
+import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 /**
@@ -56,9 +57,7 @@ function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
    * For videos with b frames or inconsistent frame widths, this
    * will only be an aggregate approximation
    */
-  const nextTrueFrameBoundary = (
-    roundOrFloor(requestedTrueVideoFrame) / originalFps
-  );
+  const nextTrueFrameBoundary = roundOrFloor(requestedTrueVideoFrame) / originalFps;
   /**
    * Return one tick over the appropriate boundary
    */
@@ -87,18 +86,22 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
-    // Range is [0, inf.)
-    brightness: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
-    },
     camera: {
       type: String as PropType<string>,
       default: 'singleCam',
     },
-    intercept: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
+    imageEnhancementOutputs: {
+      type: Object as PropType<ImageEnhancementOutputs>,
+      default: () => ({
+        brightness: { slope: 1, intercept: 0 },
+        contrast: { slope: 1, intercept: 0.5 },
+        saturation: { values: 1 },
+        sharpen: { kernelMatrix: '0 -1 0 -1 5 -1 0 -1 0', divisor: 1 },
+      }),
+    },
+    isDefaultImage: {
+      type: Boolean,
+      default: true,
     },
   },
   setup(props) {
@@ -114,7 +117,11 @@ export default defineComponent({
     } = cameraInitializer(props.camera, {
       // allow hoisting for these functions.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      seek, pause, play, setVolume, setSpeed,
+      seek,
+      pause,
+      play,
+      setVolume,
+      setSpeed,
     });
     function makeVideo() {
       const video = document.createElement('video');
@@ -138,7 +145,7 @@ export default defineComponent({
         data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
       } else {
         /** Else fall back to a reasonable default */
-        data.currentTime = (frame / props.frameRate) + OnePTSTick;
+        data.currentTime = frame / props.frameRate + OnePTSTick;
       }
       video.currentTime = data.currentTime;
       data.frame = requestedFrame;
@@ -190,11 +197,19 @@ export default defineComponent({
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let quadFeatureLayer = undefined as any;
-    const setBrightnessFilter = (on: boolean) => {
-      if (quadFeatureLayer !== undefined) {
-        quadFeatureLayer.node().css('filter', on ? 'url(#brightness)' : '');
-      }
-    };
+    watch(
+      () => props.isDefaultImage,
+      (newVal) => {
+        if (quadFeatureLayer !== undefined) {
+          if (newVal) {
+            quadFeatureLayer.node().css('filter', '');
+          } else {
+            quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+          }
+        }
+      },
+      { deep: true },
+    );
     /**
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
@@ -222,7 +237,6 @@ export default defineComponent({
         features: ['quad.video'],
         autoshareRenderer: false,
       });
-      setBrightnessFilter(props.brightness !== undefined);
       quadFeatureLayer
         .createFeature('quad')
         .data([
@@ -244,11 +258,6 @@ export default defineComponent({
     }
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
-    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
-      if ((brightness === undefined) !== (oldBrightness === undefined)) {
-        setBrightnessFilter(brightness !== undefined);
-      }
-    });
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
     }
@@ -267,41 +276,64 @@ export default defineComponent({
 </script>
 
 <template>
-  <div
-    class="video-annotator"
-    :style="{ cursor: data.cursor }"
-  >
-    <svg
-      width="0"
-      height="0"
-      style="position: absolute; top: -1px; left: -1px"
-    >
+  <div class="video-annotator" :style="{ cursor: data.cursor }">
+    <svg width="0" height="0" style="position: absolute; top: -1px; left: -1px">
       <defs>
-        <filter id="brightness">
-          <feComponentTransfer color-interpolation-filters="sRGB">
+        <filter id="imageEhancements">
+          <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncG
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncB
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
           </feComponentTransfer>
+          <!-- Contrast -->
+          <feComponentTransfer id="feContrast">
+            <feFuncR
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncG
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncB
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+          </feComponentTransfer>
+          <!-- Saturation -->
+          <feColorMatrix
+            id="feSaturate"
+            type="saturate"
+            :values="imageEnhancementOutputs.saturation.values.toString()"
+          />
+          <!-- Sharpening -->
+          <feConvolveMatrix
+            id="feSharpen"
+            order="3"
+            :divisor="imageEnhancementOutputs.sharpen.divisor"
+            :kernelMatrix="imageEnhancementOutputs.sharpen.kernelMatrix"
+            edgeMode="duplicate"
+          />
+          <feComposite in2="SourceGraphic" operator="in" />
         </filter>
       </defs>
     </svg>
-    <div
-      ref="imageCursorRef"
-      class="imageCursor"
-    >
+    <div ref="imageCursorRef" class="imageCursor">
       <v-icon> {{ data.imageCursor }} </v-icon>
     </div>
     <div
