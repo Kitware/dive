@@ -31,6 +31,8 @@ export interface Settings {
   };
 }
 
+export type JobArgs = RunPipeline | RunTraining | ExportTrainedPipeline;
+
 // Handles Importing and storing of multi camera data
 
 export interface Camera {
@@ -213,6 +215,22 @@ export interface DesktopJob {
   // endTime time of process exit
   endTime?: Date;
 }
+
+/**
+export interface QueuedDesktopJob {
+  key?: string;
+  command: string;
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
+  title: string;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
+  datasetIds: string[];
+  pid?: number;
+  workingDir: string;
+  exitCode?: number | null;
+  startTime?: Date;
+  endTime?: Date;
+}
+*/
 
 export interface DesktopMediaImportResponse extends MediaImportResponse {
   jsonMeta: JsonMeta;

@@ -17,9 +17,10 @@ import {
 } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
+import { queuePipeline } from 'platform/desktop/frontend/api';
 import { datasets, JsonMetaCache } from '../store/dataset';
 
-const { getPipelineList, runPipeline } = useApi();
+const { getPipelineList } = useApi();
 const { prompt } = usePrompt();
 const router = useRouter();
 
@@ -108,7 +109,7 @@ function toggleStaged(item: JsonMetaCache) {
 async function runPipelineForDatasets() {
   if (selectedPipeline.value !== null) {
     const results = await Promise.allSettled(
-      stagedDatasetIds.value.map((datasetId: string) => runPipeline(datasetId, selectedPipeline.value!)),
+      stagedDatasetIds.value.map((datasetId: string) => queuePipeline(datasetId, selectedPipeline.value!)),
     );
     const failed = results
       .map((result, i) => ({ result, datasetId: stagedDatasetIds.value[i] }))

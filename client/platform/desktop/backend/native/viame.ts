@@ -6,6 +6,7 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  // QueuedDesktopJob,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -214,6 +215,192 @@ async function runPipeline(
   return jobBase;
 }
 
+/**
+async function generateDesktopPipelineJob(
+  settings: Settings,
+  runPipelineArgs: RunPipeline,
+  updater: DesktopJobUpdater,
+  validateViamePath: (settings: Settings) => Promise<true | string>,
+  viameConstants: ViameConstants,
+  forceTranscodedVideo?: boolean,
+): QueuedDesktopJob {
+  const { datasetId, pipeline } = runPipelineArgs;
+
+  const isValid = await validateViamePath(settings);
+  if (isValid !== true) {
+    throw new Error(isValid);
+  }
+
+  let pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
+  if (runPipelineArgs.pipeline.type === 'trained') {
+    pipelinePath = pipeline.pipe;
+  }
+  const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
+  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+  const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
+
+  const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
+  let trackOutput = npath.join(jobWorkDir, 'track_output.csv');
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  //TODO: TEMPORARY FIX FOR DEMO PURPOSES
+  let requiresInput = false;
+  if ((/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)) {
+    requiresInput = true;
+  }
+  let groundTruthFileName;
+  if (requiresInput) {
+    // MultiCam ids have '/' in it to designate camera, replace to make a valid location
+    groundTruthFileName = `groundtruth_${meta.id.replace('/', '_')}.csv`;
+    const groundTruthFileStream = fs.createWriteStream(
+      npath.join(jobWorkDir, groundTruthFileName),
+    );
+    const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
+    await serialize(groundTruthFileStream, inputData, meta);
+    groundTruthFileStream.end();
+  }
+
+  let metaType = meta.type;
+
+  if (metaType === MultiType && meta.multiCam) {
+    metaType = meta.multiCam.cameras[meta.multiCam.defaultDisplay].type;
+  }
+
+  let command: string[] = [];
+  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+    || multiCamPipelineMarkers.includes(pipeline.type));
+
+  if (metaType === 'video') {
+    let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    if (meta.type === MultiType) {
+      videoAbsPath = getMultiCamVideoPath(meta, forceTranscodedVideo);
+    } else if ((meta.transcodedVideoFile && meta.transcodedMisalign) || forceTranscodedVideo) {
+      videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+    }
+    command = [
+      `${viameConstants.setupScriptAbs} &&`,
+      `"${viameConstants.kwiverExe}" runner`,
+      '-s "input:video_reader:type=vidl_ffmpeg"',
+      `-p "${pipelinePath}"`,
+      `-s downsampler:target_frame_rate=${meta.fps}`,
+    ];
+    if (!stereoOrMultiCam) {
+      command.push(`-s input:video_filename="${videoAbsPath}"`);
+      command.push(`-s detector_writer:file_name="${detectorOutput}"`);
+      command.push(`-s track_writer:file_name="${trackOutput}"`);
+    }
+  } else if (metaType === 'image-sequence') {
+    // Create frame image manifest
+    const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
+    // map image file names to absolute paths
+    let imageList = meta.originalImageFiles;
+    if (meta.type === MultiType) {
+      imageList = getMultiCamImageFiles(meta);
+    }
+    const fileData = imageList
+      .map((f) => npath.join(meta.originalBasePath, f))
+      .join('\n');
+    await fs.writeFile(manifestFile, fileData);
+    command = [
+      `${viameConstants.setupScriptAbs} &&`,
+      `"${viameConstants.kwiverExe}" runner`,
+      `-p "${pipelinePath}"`,
+    ];
+    if (!stereoOrMultiCam) {
+      command.push(`-s input:video_filename="${manifestFile}"`);
+      command.push(`-s detector_writer:file_name="${detectorOutput}"`);
+      command.push(`-s track_writer:file_name="${trackOutput}"`);
+    }
+  }
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
+    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
+    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+  }
+  if (runPipelineArgs.pipeline.type === 'transcode') {
+    command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
+  }
+
+  if (requiresInput && !stereoOrMultiCam) {
+    command.push(`-s detection_reader:file_name="${groundTruthFileName}"`);
+    command.push(`-s track_reader:file_name="${groundTruthFileName}"`);
+  }
+
+  let multiOutFiles: Record<string, string>;
+  if (meta.multiCam && stereoOrMultiCam) {
+    // eslint-disable-next-line max-len
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
+    Object.entries(argFilePair).forEach(([arg, file]) => {
+      command.push(`-s ${arg}="${file}"`);
+    });
+    multiOutFiles = {};
+    Object.entries(outFiles).forEach(([cameraName, fileName]) => {
+      multiOutFiles[cameraName] = npath.join(jobWorkDir, fileName);
+    });
+    trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.defaultDisplay]);
+
+    if (meta.multiCam.calibration) {
+      command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
+      command.push(`-s calibration_reader:file="${meta.multiCam.calibration}"`);
+    }
+  } else if (pipeline.type === stereoPipelineMarker) {
+    throw new Error('Attempting to run a multicam pipeline on non multicam data');
+  }
+  const queuedJob: QueuedDesktopJob = {
+    key: 'pipeline', // TODO make this a random thing
+    command: command.join(' '),
+    jobType: 'pipeline',
+    args: runPipelineArgs,
+    title: runPipelineArgs.pipeline.name,
+    workingDir: jobWorkDir,
+    datasetIds: [datasetId],
+  };
+  return queuedJob;
+}
+
+async function runDesktopPipelineJob(
+  queuedJob: QueuedDesktopJob,
+  viameConstants: ViameConstants,
+  updater: DesktopJobUpdater,
+) {
+  const { command, workingDir } = queuedJob;
+  const job = observeChild(spawn(command, {
+    shell: viameConstants.shell,
+    cwd: workingDir,
+  }));
+  fs.writeFile(npath.join(workingDir, DiveJobManifestName), JSON.stringify(queuedJob, null, 2));
+  const joblog = npath.join(workingDir, 'runlog.txt');
+  updater({
+    ...queuedJob,
+    startTime: new Date(),
+    body: [''],
+    exitCode: job.exitCode,
+    pid: job.pid,
+  });
+  job.stdout.on('data', jobFileEchoMiddleware(queuedJob as DesktopJob, updater, joblog));
+  job.stderr.on('data', jobFileEchoMiddleware(queuedJob as DesktopJob, updater, joblog));
+
+  job.on('exit', async (code) => {
+    if (code === 0) {
+      try {
+        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
+        if (newMeta) {
+          meta.attributes = newMeta.attributes;
+          await common.saveMetadata(settings, datasetId, meta);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    updater({
+      ...queuedJob,
+      body: [''],
+      exitCode: code,
+      endTime: new Date(),
+    });
+  });
+}
+*/
 /**
  * a node.js implementation of dive_tasks.tasks.export_trained_model
  */

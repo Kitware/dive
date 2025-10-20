@@ -22,6 +22,8 @@ import {
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
 
+import { pipelineJobQueue } from './store/jobs';
+
 /**
  * Native functions that run entirely in the renderer
  */
@@ -94,6 +96,14 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
     datasetId: itemId,
   };
   return ipcRenderer.invoke('run-pipeline', args);
+}
+
+function queuePipeline(itemId: string, pipeline: Pipe): void {
+  const args: RunPipeline = {
+    pipeline,
+    datasetId: itemId,
+  };
+  pipelineJobQueue.enqueue(args);
 }
 
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
@@ -260,4 +270,5 @@ export {
   importMultiCam,
   openLink,
   nvidiaSmi,
+  queuePipeline,
 };
