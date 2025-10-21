@@ -53,4 +53,8 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
     this.processingJob = null;
     await this.dequeue();
   }
+
+  length(): number {
+    return this.jobSpecs.length;
+  }
 }
