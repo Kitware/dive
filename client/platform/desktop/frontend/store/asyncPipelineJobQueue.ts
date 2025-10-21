@@ -3,6 +3,7 @@ import AsyncJobQueue from './asyncJobQueue';
 
 export default class PipelineJobQueue extends AsyncJobQueue<RunPipeline> {
   async beginJob(spec: RunPipeline) {
-    this.processingJob = await this.ipcRenderer.invoke('run-pipeline', spec);
+    const newJob = await this.ipcRenderer.invoke('run-pipeline', spec);
+    this.processingJobs.push(newJob);
   }
 }

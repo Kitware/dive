@@ -3,17 +3,23 @@ import { DesktopJob, DesktopJobUpdate, JobArgs } from 'platform/desktop/constant
 export default abstract class AsyncJobQueue<T extends JobArgs> {
   jobSpecs: T[];
 
-  processingJob: null | DesktopJob;
+  processingJobs: DesktopJob[];
 
-  waiting: boolean;
+  size: number;
+
+  // Represents jobs that have been selected to start, but haven't actually started yet
+  queued: number;
+
+  private dequeueing = false;
 
   ipcRenderer: Electron.IpcRenderer;
 
-  constructor(ipcRenderer: Electron.IpcRenderer) {
+  constructor(ipcRenderer: Electron.IpcRenderer, size: number = 1) {
     this.jobSpecs = [];
-    this.processingJob = null;
-    this.waiting = false;
+    this.processingJobs = [];
+    this.queued = 0;
     this.ipcRenderer = ipcRenderer;
+    this.size = size;
 
     this.init();
   }
@@ -30,27 +36,50 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
   }
 
   async dequeue() {
-    if (this.processingJob || this.waiting) return;
-    this.waiting = true;
-    const nextSpec = this.jobSpecs.shift();
-    if (!nextSpec) return;
+    if (this.dequeueing) return;
+    this.dequeueing = true;
+    try {
+      while (this.processingJobs.length + this.queued < this.size && this.jobSpecs.length > 0) {
+        this.queued += 1;
+        const nextSpec = this.jobSpecs.shift()!;
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await this.beginJob(nextSpec);
+        } finally {
+          this.queued -= 1;
+        }
+      }
+    } finally {
+      this.dequeueing = false;
+    }
+    /**
+     *
+      // Always return if at capacity (running this.count jobs)
+      if (this.processingJobs.length === this.size) return;
+      if (this.processingJobs.length + this.queued < this.size) {
+        this.queued += 1;
+        const nextSpec = this.jobSpecs.shift();
+        if (!nextSpec) return;
 
-    await this.beginJob(nextSpec);
-    this.waiting = false;
+        await this.beginJob(nextSpec);
+        this.queued -= 1;
+      }
+     */
   }
 
   abstract beginJob(spec: T): Promise<void>;
 
   processJob(update: DesktopJobUpdate) {
-    if (!this.processingJob) return;
-    if (update.key !== this.processingJob.key) return;
+    if (!this.processingJobs.length) return;
+    const updatedJob = this.processingJobs.find((job: DesktopJob) => job.key === update.key);
+    if (!updatedJob) return;
     if (update.endTime) {
-      this.finishJob();
+      this.finishJob(update.key);
     }
   }
 
-  async finishJob() {
-    this.processingJob = null;
+  async finishJob(finishedJobKey: string) {
+    this.processingJobs = this.processingJobs.filter((job) => job.key !== finishedJobKey);
     await this.dequeue();
   }
 
