@@ -8,7 +8,7 @@ import { DesktopJob } from 'platform/desktop/constants';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import { datasets } from '../store/dataset';
-import { recentHistory, truncateOutputAtLines, pipelineJobQueue } from '../store/jobs';
+import { recentHistory, truncateOutputAtLines, gpuJobQueue } from '../store/jobs';
 
 export default defineComponent({
   components: {
@@ -41,7 +41,7 @@ export default defineComponent({
       clockDriver,
       datasets,
       recentHistory,
-      pipelineJobQueue,
+      gpuJobQueue,
       moment,
       utc,
       visibleOutput,
@@ -232,16 +232,16 @@ export default defineComponent({
               </v-row>
             </v-card>
             <h1
-              v-if="pipelineJobQueue.length() > 0"
+              v-if="gpuJobQueue.length() > 0"
               class="text-h4 mb-4 font-weight-light"
             >
-              Upcoming Jobs ({{ pipelineJobQueue.length() }})
+              Upcoming Jobs ({{ gpuJobQueue.length() }})
             </h1>
             <v-card
-              v-for="jobSpec in pipelineJobQueue.jobSpecs"
-              :key="jobSpec.datasetId"
+              v-for="jobSpec in gpuJobQueue.jobSpecs"
+              :key="jobSpec.datasetId?"
             >
-              {{ jobSpec.datasetId }}
+              {{ jobSpec.datasetId? }}
             </v-card>
           </v-col>
         </v-row>

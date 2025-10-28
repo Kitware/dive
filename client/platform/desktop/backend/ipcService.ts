@@ -7,6 +7,7 @@ import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   DesktopMediaImportResponse,
   ExportTrainedPipeline,
+  MaxConcurrency,
 } from 'platform/desktop/constants';
 
 import linux from './native/linux';
@@ -114,12 +115,15 @@ export default function register() {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    const ret = await common.finalizeMediaImport(settings.get(), args, updater);
-    return ret;
+    return common.finalizeMediaImport(settings.get(), args, updater);
   });
 
   ipcMain.handle('validate-settings', async (_, s: Settings) => {
-    const ret = await currentPlatform.validateViamePath(s);
+    let ret = await currentPlatform.validateViamePath(s);
+    if (Math.floor(s.concurrency) > MaxConcurrency) {
+      const prefix = typeof ret === 'string' ? `${ret}, ` : '';
+      ret = `${prefix}Concurrency must not exceed ${MaxConcurrency}`;
+    }
     return ret;
   });
   ipcMain.handle('run-pipeline', async (event, args: RunPipeline) => {
@@ -139,5 +143,11 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+  ipcMain.handle('convert', async (event, args: ConversionArgs) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.convert(settings.get(), args, updater);
   });
 }

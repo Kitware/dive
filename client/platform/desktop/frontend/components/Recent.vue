@@ -88,8 +88,9 @@ export default defineComponent({
       const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
       pendingImportPayload.value = null;
 
-      imports.forEach(async (jsonMeta) => {
-        const recentsMeta = await api.loadMetadata(jsonMeta.id);
+      imports.forEach(async (conversionArgs) => {
+        // TODO queue conversion job
+        const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
       });
 
@@ -100,16 +101,17 @@ export default defineComponent({
     async function finalizeImport(args: DesktopMediaImportResponse) {
       importing.value = true;
       await request(async () => {
-        const jsonMeta = await api.finalizeImport(args);
+        const conversionArgs = await api.finalizeImport(args);
         pendingImportPayload.value = null; // close dialog
-        if (!jsonMeta.transcodingJobKey) {
+        if (!conversionArgs.meta.transcodingJobKey) {
           router.push({
             name: 'viewer',
-            params: { id: jsonMeta.id },
+            params: { id: conversionArgs.meta.id },
           });
         } else {
           // Display new data and await transcoding to complete
-          const recentsMeta = await api.loadMetadata(jsonMeta.id);
+          // TODO: queue conversion job
+          const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
         }
       });

@@ -38,6 +38,7 @@ import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, ProjectsFolderName, PipelinesFolderName,
+  ConversionArgs,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -1084,7 +1085,7 @@ async function _importTrackFile(
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
+export async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
   await getValidatedProjectDir(settings, datasetId);
   if (meta.transcodingJobKey === transcodingJobKey) {
     // eslint-disable-next-line no-param-reassign
@@ -1100,7 +1101,7 @@ async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
   updater: DesktopJobUpdater,
-) {
+): Promise<ConversionArgs> {
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
   const { type: datasetType } = jsonMeta;
@@ -1135,8 +1136,8 @@ async function finalizeMediaImport(
 
   //Now we will kick off any conversions that are necessary
   let jobBase = null;
+  const srcDstList: [string, string][] = [];
   if (mediaConvertList.length) {
-    const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     let destAbsPath = '';
     mediaConvertList.forEach((absPath) => {
@@ -1197,7 +1198,10 @@ async function finalizeMediaImport(
   if (args.metaFileAbsPath) {
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
-  return finalJsonMeta;
+  return {
+    meta: finalJsonMeta,
+    mediaList: srcDstList,
+  };
 }
 
 async function openLink(url: string) {

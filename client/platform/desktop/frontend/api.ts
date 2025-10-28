@@ -17,12 +17,12 @@ import {
   inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
 } from 'dive-common/constants';
 import {
-  DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
+  DesktopJob, DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
-  DesktopMediaImportResponse,
+  DesktopMediaImportResponse, ConversionArgs,
 } from 'platform/desktop/constants';
 
-import { pipelineJobQueue } from './store/jobs';
+import { gpuJobQueue } from './store/jobs';
 
 /**
  * Native functions that run entirely in the renderer
@@ -98,14 +98,6 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> 
   return ipcRenderer.invoke('run-pipeline', args);
 }
 
-function queuePipeline(itemId: string, pipeline: Pipe): void {
-  const args: RunPipeline = {
-    pipeline,
-    datasetId: itemId,
-  };
-  pipelineJobQueue.enqueue(args);
-}
-
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
   const args: ExportTrainedPipeline = {
     path,
@@ -136,6 +128,38 @@ async function runTraining(
     fineTuneModel,
   };
   return ipcRenderer.invoke('run-training', args);
+}
+
+function queueTraining(
+  folderIds: string[],
+  pipelineName: string,
+  config: string,
+  annotatedFramesOnly: boolean,
+  labelText?: string,
+  fineTuneModel?: {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  },
+): void {
+  const args: RunTraining = {
+    datasetIds: folderIds,
+    pipelineName,
+    trainingConfig: config,
+    annotatedFramesOnly,
+    labelText,
+    fineTuneModel,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+function queuePipeline(itemId: string, pipeline: Pipe): void {
+  const args: RunPipeline = {
+    pipeline,
+    datasetId: itemId,
+  };
+  gpuJobQueue.enqueue(args);
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
@@ -170,8 +194,13 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
   });
 }
 
-function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
+function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
+  // Have this return JsonMeta as well as everything needed to start a job?
   return ipcRenderer.invoke('finalize-import', args);
+}
+
+async function convert(args: ConversionArgs): Promise<DesktopJob> {
+  return ipcRenderer.invoke('convert', args);
 }
 
 async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
@@ -262,6 +291,7 @@ export {
   exportDataset,
   exportConfiguration,
   finalizeImport,
+  convert,
   importMedia,
   bulkImportMedia,
   deleteDataset,
@@ -271,4 +301,5 @@ export {
   openLink,
   nvidiaSmi,
   queuePipeline,
+  queueTraining,
 };

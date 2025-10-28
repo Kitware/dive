@@ -31,8 +31,6 @@ export interface Settings {
   };
 }
 
-export type JobArgs = RunPipeline | RunTraining | ExportTrainedPipeline;
-
 // Handles Importing and storing of multi camera data
 
 export interface Camera {
@@ -186,9 +184,31 @@ export interface RunTraining {
   };
 }
 
+export type JobArgs = RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
+
+export function isRunPipeline(spec: JobArgs): spec is RunPipeline {
+  return 'datasetId' in spec && 'pipeline' in spec;
+}
+
+export function isExportTrainedPipeline(spec: JobArgs): spec is ExportTrainedPipeline {
+  return 'path' in spec && 'pipeline' in spec;
+}
+
+export function isRunTraining(spec: JobArgs): spec is RunTraining {
+  return (
+    'datasetIds' in spec
+    && 'pipelineName' in spec
+    && 'trainingConfig' in spec
+  );
+}
+
 export interface ConversionArgs {
   meta: JsonMeta;
   mediaList: [string, string][];
+}
+
+export function isConversion(spec: JobArgs): spec is ConversionArgs {
+  return 'meta' in spec && 'mediaList' in spec;
 }
 
 export interface DesktopJob {

@@ -6,7 +6,7 @@ import {
   ref, Ref, set, computed,
 } from 'vue';
 import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
-import PipelineJobQueue from './asyncPipelineJobQueue';
+import AsyncGpuJobQueue from './asyncGpuJobQueue';
 
 interface DesktopJobHistory {
   job: DesktopJob;
@@ -67,8 +67,8 @@ function init() {
 
 init();
 
-const pipelineJobQueue = new PipelineJobQueue(ipcRenderer);
-pipelineJobQueue.init();
+const gpuJobQueue = new AsyncGpuJobQueue(ipcRenderer);
+gpuJobQueue.init();
 
 export {
   jobHistory,
@@ -76,5 +76,5 @@ export {
   runningJobs,
   setOrGetConversionJob,
   truncateOutputAtLines,
-  pipelineJobQueue,
+  gpuJobQueue,
 };
