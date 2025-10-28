@@ -71,12 +71,12 @@ uv run --script setup_minio.py -d ./sample
 uv run --script modify_bucket.py upload \
   --bucket dive-sample-data \
   --prefix new-sequence/ \
-  --local-path ./some/local/folder
+  --local-path ./newData
 
 uv run --script send_gcs_push.py \
   --server http://localhost:8010 \
   --bucket dive-sample-data \
-  --object "new-sequence/frame_0001.png"
+  --object "new-sequence/"
 ```
 
 Check the DIVE UI: new datasets should appear or update under the configured mount folder as the server processes the import triggered by the notification.
