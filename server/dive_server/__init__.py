@@ -60,7 +60,6 @@ class GirderPlugin(plugin.GirderPlugin):
         info['serverRoot'].mount(core_girder, '/girder', core_girder.config)
         del info['serverRoot'].apps['']
 
-        vue_root = '/opt/dive/clients/dive'
 
         conf = {
             '/': {
