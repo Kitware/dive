@@ -87,7 +87,7 @@ It's possible to split your web server and task runner between multiple nodes.  
 
 * Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
 * Clone the dive repository on both, and set up `.env` on both with the same configuration.
-* Be sure that `WORKER_API_URL` and `CELERY_BROKER_URL` in particular are uncommented and set to the IP or domain name of your web server.  This is how the worker will talk to the web server, so the web server must be network accessible from the worker.
+* Be sure that `GIRDER_WORKER_BACKEND` and `GIRDER_WORKER_BROKER` in particular are uncommented and set to the IP or domain name of your web server.  This is how the worker will talk to the web server, so the web server must be network accessible from the worker.
 
 ``` bash
 ## On the web server
@@ -153,8 +153,8 @@ This image contains both the backend and client.
 | GIRDER_MONGO_URI | `mongodb://mongo:27017/girder` | a mongodb connection string |
 | GIRDER_ADMIN_USER | `admin` | admin username |
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
-| CELERY_BROKER_URL | `amqp://guest:guest@default/` | rabbitmq connection string |
-| WORKER_API_URL | `http://girder:8080/api/v1` | Address for workers to reach web server |
+| GIRDER_WORKER_BROKER | `amqp://guest:guest@default/` | rabbitmq connection string |
+| GIRDER_WORKER_BACKEND | `http://girder:8080/api/v1` | Address for workers to reach web server |
 
 There is additional configuration for the RabbitMQ Management plugin. It only matters if you intend to allow individual users to configure private job runners in standalone mode, and can otherwise be ignored.
 
@@ -162,7 +162,7 @@ There is additional configuration for the RabbitMQ Management plugin. It only ma
 |----------|---------|-------------|
 | RABBITMQ_MANAGEMENT_USERNAME | `guest` | Management API username |
 | RABBITMQ_MANAGEMENT_PASSWORD | `guest` | Management API password |
-| RABBITMQ_MANAGEMENT_VHOST | `default` | Virtual host should match `CELERY_BROKER_URL` |
+| RABBITMQ_MANAGEMENT_VHOST | `default` | Virtual host should match `GIRDER_WORKER_BROKER` |
 | RABBITMQ_MANAGEMENT_URL | `http://rabbit:15672/` | Management API Url |
 
 You can also pass [girder configuration](https://girder.readthedocs.io/en/latest/) and [celery configuration](https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-broker_connection_timeout).
@@ -178,7 +178,7 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training`.  Ignored in standalone mode. |
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Lower this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
-| CELERY_BROKER_URL | `amqp://guest:guest@default/` | rabbitmq connection string. Ignored in standalone mode. |
+| GIRDER_WORKER_BROKER | `amqp://guest:guest@default/` | rabbitmq connection string. Ignored in standalone mode. |
 | KWIVER_DEFAULT_LOG_LEVEL | `warn` | kwiver log level |
 | DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |
 | DIVE_PASSWORD | null | Password for private queue processor. Providing this enables standalone mode. |
