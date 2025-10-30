@@ -14,11 +14,8 @@ import {
   RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
-  ConversionArgs,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
-import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
-import { completeConversion } from 'platform/desktop/backend/native/common';
 import * as viame from './viame';
 
 const DefaultSettings: Settings = {
@@ -114,19 +111,6 @@ async function train(
   });
 }
 
-async function convert(
-  settings: Settings,
-  conversionArgs: ConversionArgs,
-  updater: DesktopJobUpdater
-): Promise<DesktopJob> {
-  return convertMedia(
-    settings,
-    conversionArgs,
-    updater,
-    (jobKey, meta) => completeConversion(settings, conversionArgs.meta.id, jobKey, meta)
-  );
-}
-
 // Based on https://github.com/chrisallenlane/node-nvidia-smi
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
@@ -162,6 +146,5 @@ export default {
   runPipeline,
   exportTrainedPipeline,
   train,
-  convert,
   validateViamePath,
 };

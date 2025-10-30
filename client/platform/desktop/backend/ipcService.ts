@@ -7,8 +7,10 @@ import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   DesktopMediaImportResponse,
   ExportTrainedPipeline,
-  MaxConcurrency,
+  ConversionArgs,
+  DesktopJob,
 } from 'platform/desktop/constants';
+import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -118,12 +120,23 @@ export default function register() {
     return common.finalizeMediaImport(settings.get(), args, updater);
   });
 
+  ipcMain.handle('convert', async (event, args: ConversionArgs) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    const currentSettings: Settings = settings.get();
+    const job: DesktopJob = await convertMedia(
+      currentSettings,
+      args,
+      updater,
+      (jobKey, meta) => common.completeConversion(currentSettings, args.meta.id, jobKey, meta),
+      true,
+    );
+    return job;
+  });
+
   ipcMain.handle('validate-settings', async (_, s: Settings) => {
-    let ret = await currentPlatform.validateViamePath(s);
-    if (Math.floor(s.concurrency) > MaxConcurrency) {
-      const prefix = typeof ret === 'string' ? `${ret}, ` : '';
-      ret = `${prefix}Concurrency must not exceed ${MaxConcurrency}`;
-    }
+    const ret = await currentPlatform.validateViamePath(s);
     return ret;
   });
   ipcMain.handle('run-pipeline', async (event, args: RunPipeline) => {
@@ -143,11 +156,5 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
-  });
-  ipcMain.handle('convert', async (event, args: ConversionArgs) => {
-    const updater = (update: DesktopJobUpdate) => {
-      event.sender.send('job-update', update);
-    };
-    return currentPlatform.convert(settings.get(), args, updater);
   });
 }

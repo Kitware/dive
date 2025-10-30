@@ -89,7 +89,10 @@ export default defineComponent({
       pendingImportPayload.value = null;
 
       imports.forEach(async (conversionArgs) => {
-        // TODO queue conversion job
+        // Queue conversion job
+        if (conversionArgs.mediaList.length > 0) {
+          api.queueConversion(conversionArgs);
+        }
         const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
       });
@@ -102,15 +105,15 @@ export default defineComponent({
       importing.value = true;
       await request(async () => {
         const conversionArgs = await api.finalizeImport(args);
+        api.queueConversion(conversionArgs);
         pendingImportPayload.value = null; // close dialog
-        if (!conversionArgs.meta.transcodingJobKey) {
+        if (!conversionArgs.mediaList || conversionArgs.mediaList.length === 0) {
           router.push({
             name: 'viewer',
             params: { id: conversionArgs.meta.id },
           });
         } else {
           // Display new data and await transcoding to complete
-          // TODO: queue conversion job
           const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
         }

@@ -1159,15 +1159,6 @@ async function finalizeMediaImport(
       }
       srcDstList.push([absPath, destAbsPath]);
     });
-    jobBase = await convertMedia(
-      settings,
-      {
-        meta: jsonMeta,
-        mediaList: srcDstList,
-      },
-      updater,
-      (jobKey, meta) => completeConversion(settings, jsonMeta.id, jobKey, meta),
-    );
     jsonMeta.transcodingJobKey = jobBase.key;
   }
 

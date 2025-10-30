@@ -1,30 +1,24 @@
 import {
   ConversionArgs,
   ExportTrainedPipeline,
+  isConversion,
+  isExportTrainedPipeline,
   Settings,
-  DesktopJobUpdater,
+  DesktopJob,
   JsonMeta,
 } from 'platform/desktop/constants';
-import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import AsyncJobQueue from './asyncJobQueue';
 
 export default class AsyncCpuJobQueue extends AsyncJobQueue<ConversionArgs | ExportTrainedPipeline> {
-  async beginConversionJob(
-    spec: ConversionArgs,
-    settings: Settings,
-    updater: DesktopJobUpdater,
-    onComplete?: (jobKey: string, meta: JsonMeta) => void,
-    mediaIndex = 0,
-    key = '',
-    baseWorkDir = '',
-  ): JsonMeta {
-    const result = await this.ipcRenderer.invoke('finalize-import')
-    this.processingJobs.push(result.desk);
-    return
-  }
-
-  async beginJob(spec: ExportTrainedPipeline) {
-    const newJob = await this.ipcRenderer.invoke('export-trained-pipeline', spec);
+  async beginJob(spec: ConversionArgs | ExportTrainedPipeline) {
+    let newJob: DesktopJob;
+    if (isConversion(spec)) {
+      newJob = await this.ipcRenderer.invoke('convert', spec);
+    } else if (isExportTrainedPipeline(spec)) {
+      newJob = await this.ipcRenderer.invoke('export-trained-pipeline', spec);
+    } else {
+      throw new Error('CPU job type not able to be queued');
+    }
     this.processingJobs.push(newJob);
   }
 }

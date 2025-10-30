@@ -22,7 +22,7 @@ import {
   DesktopMediaImportResponse, ConversionArgs,
 } from 'platform/desktop/constants';
 
-import { gpuJobQueue } from './store/jobs';
+import { gpuJobQueue, cpuJobQueue } from './store/jobs';
 
 /**
  * Native functions that run entirely in the renderer
@@ -203,6 +203,14 @@ async function convert(args: ConversionArgs): Promise<DesktopJob> {
   return ipcRenderer.invoke('convert', args);
 }
 
+function queueConversion(args: ConversionArgs): void {
+  cpuJobQueue.enqueue(args);
+}
+
+function queueExportTrainedPipeline(args: ExportTrainedPipeline) {
+  cpuJobQueue.enqueue(args);
+}
+
 async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
   const location = await dialog.showSaveDialog({
     title: 'Export Dataset',
@@ -302,4 +310,6 @@ export {
   nvidiaSmi,
   queuePipeline,
   queueTraining,
+  queueConversion,
+  queueExportTrainedPipeline,
 };
