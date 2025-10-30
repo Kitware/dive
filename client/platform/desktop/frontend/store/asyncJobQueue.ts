@@ -52,19 +52,6 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
     } finally {
       this.dequeueing = false;
     }
-    /**
-     *
-      // Always return if at capacity (running this.count jobs)
-      if (this.processingJobs.length === this.size) return;
-      if (this.processingJobs.length + this.queued < this.size) {
-        this.queued += 1;
-        const nextSpec = this.jobSpecs.shift();
-        if (!nextSpec) return;
-
-        await this.beginJob(nextSpec);
-        this.queued -= 1;
-      }
-     */
   }
 
   abstract beginJob(spec: T): Promise<void>;

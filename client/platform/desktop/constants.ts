@@ -236,22 +236,6 @@ export interface DesktopJob {
   endTime?: Date;
 }
 
-/**
-export interface QueuedDesktopJob {
-  key?: string;
-  command: string;
-  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
-  title: string;
-  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
-  datasetIds: string[];
-  pid?: number;
-  workingDir: string;
-  exitCode?: number | null;
-  startTime?: Date;
-  endTime?: Date;
-}
-*/
-
 export interface DesktopMediaImportResponse extends MediaImportResponse {
   jsonMeta: JsonMeta;
   trackFileAbsPath: string;

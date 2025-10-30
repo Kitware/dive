@@ -30,7 +30,7 @@ import * as dive from 'platform/desktop/backend/serializers/dive';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
-import { checkMedia, convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
@@ -1100,7 +1100,6 @@ export async function completeConversion(settings: Settings, datasetId: string, 
 async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
-  updater: DesktopJobUpdater,
 ): Promise<ConversionArgs> {
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
@@ -1134,8 +1133,8 @@ async function finalizeMediaImport(
     }
   }
 
-  //Now we will kick off any conversions that are necessary
-  let jobBase = null;
+  // Determine which files, if any, need to be queued for conversion. Consumers
+  // of this function are responsible for starting the conversion.
   const srcDstList: [string, string][] = [];
   if (mediaConvertList.length) {
     const extension = datasetType === 'video' ? '.mp4' : '.png';
@@ -1159,7 +1158,6 @@ async function finalizeMediaImport(
       }
       srcDstList.push([absPath, destAbsPath]);
     });
-    jsonMeta.transcodingJobKey = jobBase.key;
   }
 
   //We need to create datasets for each of the multiCam folders as well

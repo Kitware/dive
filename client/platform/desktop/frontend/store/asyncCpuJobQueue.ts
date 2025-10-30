@@ -3,9 +3,7 @@ import {
   ExportTrainedPipeline,
   isConversion,
   isExportTrainedPipeline,
-  Settings,
   DesktopJob,
-  JsonMeta,
 } from 'platform/desktop/constants';
 import AsyncJobQueue from './asyncJobQueue';
 
