@@ -207,6 +207,7 @@ async function convertMedia(
     startTime: new Date(),
   };
   if (setTranscodingKey) {
+    // eslint-disable-next-line no-param-reassign
     args.meta.transcodingJobKey = jobBase.key;
   }
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
@@ -250,7 +251,7 @@ async function convertMedia(
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, onComplete, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, setTranscodingKey, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

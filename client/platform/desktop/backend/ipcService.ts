@@ -113,12 +113,7 @@ export default function register() {
     return ret;
   });
 
-  ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => {
-    const updater = (update: DesktopJobUpdate) => {
-      event.sender.send('job-update', update);
-    };
-    return common.finalizeMediaImport(settings.get(), args, updater);
-  });
+  ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
 
   ipcMain.handle('convert', async (event, args: ConversionArgs) => {
     const updater = (update: DesktopJobUpdate) => {

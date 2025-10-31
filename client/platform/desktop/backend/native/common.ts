@@ -35,10 +35,10 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
 import {
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName, PipelinesFolderName,
-  ConversionArgs,
+  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
+  PipelinesFolderName, ConversionArgs,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
