@@ -1,9 +1,20 @@
 <script lang="ts">
 import { shell } from 'electron';
 import moment, { utc } from 'moment';
-import { defineComponent, ref, onBeforeUnmount } from 'vue';
+import {
+  defineComponent,
+  ref,
+  onBeforeUnmount,
+  watch,
+} from 'vue';
 
-import { DesktopJob } from 'platform/desktop/constants';
+import {
+  DesktopJob,
+  isRunPipeline,
+  RunPipeline,
+  // isRunTraining,
+  RunTraining,
+} from 'platform/desktop/constants';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -37,11 +48,19 @@ export default defineComponent({
       if (job.workingDir) shell.openPath(job.workingDir);
     }
 
+    let queuedPipelineJobs: (RunPipeline | RunTraining)[] = [];
+    function updatePendingJobs() {
+      queuedPipelineJobs = gpuJobQueue.jobSpecs.filter((spec) => isRunPipeline(spec));
+    }
+
+    watch(recentHistory, updatePendingJobs);
+
     return {
       clockDriver,
       datasets,
       recentHistory,
       gpuJobQueue,
+      queuedPipelineJobs,
       moment,
       utc,
       visibleOutput,
@@ -238,10 +257,10 @@ export default defineComponent({
               Upcoming Jobs ({{ gpuJobQueue.length() }})
             </h1>
             <v-card
-              v-for="jobSpec in gpuJobQueue.jobSpecs"
-              :key="jobSpec.datasetId?"
+              v-for="jobSpec in queuedPipelineJobs"
+              :key="jobSpec.datasetId"
             >
-              {{ jobSpec.datasetId? }}
+              {{ jobSpec.datasetId }}
             </v-card>
           </v-col>
         </v-row>
