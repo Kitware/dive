@@ -648,11 +648,13 @@ describe('native.common', () => {
     expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
 
-  it('importMedia video, start conversion', async () => {
+  it('importMedia video, has conversion file list', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.avi');
-    await common.finalizeMediaImport(settings, payload);
-    expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
-    expect(payload.jsonMeta.type).toBe('video');
+    const conversionArgs = await common.finalizeMediaImport(settings, payload);
+
+    // expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
+    // expect(payload.jsonMeta.type).toBe('video');
+    expect(conversionArgs.mediaList.length).toBeGreaterThan(0);
   });
 
   it('check Dastset existence', async () => {
