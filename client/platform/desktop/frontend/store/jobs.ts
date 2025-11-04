@@ -6,8 +6,8 @@ import {
   ref, Ref, set, computed,
 } from 'vue';
 import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
-import AsyncGpuJobQueue from './asyncGpuJobQueue';
-import AsyncCpuJobQueue from './asyncCpuJobQueue';
+import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
+import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
 
 interface DesktopJobHistory {
   job: DesktopJob;
