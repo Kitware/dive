@@ -651,9 +651,6 @@ describe('native.common', () => {
   it('importMedia video, has conversion file list', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.avi');
     const conversionArgs = await common.finalizeMediaImport(settings, payload);
-
-    // expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
-    // expect(payload.jsonMeta.type).toBe('video');
     expect(conversionArgs.mediaList.length).toBeGreaterThan(0);
   });
 

@@ -2,12 +2,12 @@
 import { join } from 'path';
 import moment from 'moment';
 import {
-  computed, defineComponent, ref, Ref,
+  computed, defineComponent, ref, Ref, watch,
 } from 'vue';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import type { DesktopMediaImportResponse } from 'platform/desktop/constants';
+import { isConversion, DesktopMediaImportResponse, JobArgs } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -26,7 +26,7 @@ import {
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
 } from '../store/settings';
-import { setOrGetConversionJob } from '../store/jobs';
+import { setOrGetConversionJob, recentHistory, cpuJobQueue } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
@@ -107,7 +107,7 @@ export default defineComponent({
         const conversionArgs = await api.finalizeImport(args);
         api.queueConversion(conversionArgs);
         pendingImportPayload.value = null; // close dialog
-        if (!conversionArgs.mediaList || conversionArgs.mediaList.length === 0) {
+        if (conversionArgs.mediaList.length === 0) {
           router.push({
             name: 'viewer',
             params: { id: conversionArgs.meta.id },
@@ -120,6 +120,16 @@ export default defineComponent({
       });
       importing.value = false;
     }
+
+    const queuedConversionDatasetIds = ref([] as string[]);
+    watch(recentHistory, () => {
+      queuedConversionDatasetIds.value = [];
+      cpuJobQueue.jobSpecs.forEach((spec: JobArgs) => {
+        if (isConversion(spec)) {
+          queuedConversionDatasetIds.value.push(spec.meta.id);
+        }
+      });
+    });
 
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
@@ -249,6 +259,7 @@ export default defineComponent({
       checkingMedia,
       clientSettings,
       itemsPerPageOptions,
+      queuedConversionDatasetIds,
     };
   },
 });
@@ -469,6 +480,17 @@ export default defineComponent({
                         mdi-spin mdi-sync
                       </v-icon>
                     </span>
+                  </div>
+                  <div v-else-if="queuedConversionDatasetIds.includes(item.id)">
+                    <span class="primary--text text--darken-1 text-subtitle-1 pt-1">
+                      {{ item.name }}
+                    </span>
+                    <v-chip small>
+                      Awaiting Conversion
+                      <v-icon right>
+                        mdi-sync mdi-spin
+                      </v-icon>
+                    </v-chip>
                   </div>
                   <div
                     v-else
