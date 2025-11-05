@@ -5,16 +5,9 @@ import {
   defineComponent,
   ref,
   onBeforeUnmount,
-  watch,
 } from 'vue';
 
-import {
-  DesktopJob,
-  isRunPipeline,
-  RunPipeline,
-  // isRunTraining,
-  RunTraining,
-} from 'platform/desktop/constants';
+import { DesktopJob } from 'platform/desktop/constants';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -48,19 +41,11 @@ export default defineComponent({
       if (job.workingDir) shell.openPath(job.workingDir);
     }
 
-    let queuedPipelineJobs: (RunPipeline | RunTraining)[] = [];
-    function updatePendingJobs() {
-      queuedPipelineJobs = gpuJobQueue.jobSpecs.filter((spec) => isRunPipeline(spec));
-    }
-
-    watch(recentHistory, updatePendingJobs);
-
     return {
       clockDriver,
       datasets,
       recentHistory,
       gpuJobQueue,
-      queuedPipelineJobs,
       moment,
       utc,
       visibleOutput,
@@ -247,18 +232,6 @@ export default defineComponent({
                 </p>
               </v-card>
             </v-row>
-          </v-card>
-          <h1
-            v-if="gpuJobQueue.length() > 0"
-            class="text-h4 mb-4 font-weight-light"
-          >
-            Upcoming Jobs ({{ gpuJobQueue.length() }})
-          </h1>
-          <v-card
-            v-for="jobSpec in queuedPipelineJobs"
-            :key="jobSpec.datasetId"
-          >
-            {{ jobSpec.datasetId }}
           </v-card>
         </v-col>
       </v-row>
