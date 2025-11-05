@@ -6,7 +6,7 @@ import { Console } from 'console';
 
 import {
   AnnotationsCurrentVersion, DesktopJob,
-  DesktopJobUpdate, JsonMeta, RunTraining, Settings,
+  DesktopJobUpdate, JobType, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -695,6 +695,7 @@ describe('native.common', () => {
 
   it('processing good Trained Pipeline folder', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
       trainingConfig: 'trainingConfig',
@@ -715,6 +716,7 @@ describe('native.common', () => {
 
   it('processing bad Trained Pipeline folders', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedBadPipelineName',
       trainingConfig: 'trainingConfig',
@@ -730,6 +732,7 @@ describe('native.common', () => {
 
   it('getPipelineList lists pipelines with Trained pipelines', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
       trainingConfig: 'trainingConfig',

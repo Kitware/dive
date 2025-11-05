@@ -7,7 +7,7 @@ import {
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { isConversion, DesktopMediaImportResponse, JobArgs } from 'platform/desktop/constants';
+import { JobType, DesktopMediaImportResponse, Job } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -124,8 +124,8 @@ export default defineComponent({
     const queuedConversionDatasetIds = ref([] as string[]);
     watch(recentHistory, () => {
       queuedConversionDatasetIds.value = [];
-      cpuJobQueue.jobSpecs.forEach((spec: JobArgs) => {
-        if (isConversion(spec)) {
+      cpuJobQueue.jobSpecs.forEach((spec: Job) => {
+        if (spec.type === JobType.Conversion) {
           queuedConversionDatasetIds.value.push(spec.meta.id);
         }
       });

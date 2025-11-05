@@ -1,10 +1,7 @@
 <script lang="ts">
 import {
-  isConversion,
-  isExportTrainedPipeline,
-  isRunPipeline,
-  isRunTraining,
-  JobArgs,
+  Job,
+  JobType,
 } from 'platform/desktop/constants';
 import {
   defineComponent,
@@ -21,25 +18,25 @@ import { datasets } from '../store/dataset';
 
 export default defineComponent({
   setup() {
-    const queuedJobSpecs: Ref<JobArgs[]> = ref([]);
+    const queuedJobSpecs: Ref<Job[]> = ref([]);
     function updateQueuedJobSpecs() {
       queuedJobSpecs.value = [];
-      queuedGpuJobs.value.forEach((spec: JobArgs) => queuedJobSpecs.value.push(spec));
-      queuedCpuJobs.value.forEach((spec: JobArgs) => queuedJobSpecs.value.push(spec));
+      queuedGpuJobs.value.forEach((spec: Job) => queuedJobSpecs.value.push(spec));
+      queuedCpuJobs.value.forEach((spec: Job) => queuedJobSpecs.value.push(spec));
     }
     watch([() => queuedCpuJobs, () => queuedGpuJobs], updateQueuedJobSpecs, { deep: true });
 
-    function getQueuedJobTitle(jobSpec: JobArgs): string {
-      if (isConversion(jobSpec)) {
+    function getQueuedJobTitle(jobSpec: Job): string {
+      if (jobSpec.type === JobType.Conversion) {
         return `conversion: ${datasets.value[jobSpec.meta.id]?.name || jobSpec.meta.id}`;
       }
-      if (isRunPipeline(jobSpec)) {
+      if (jobSpec.type === JobType.RunPipeline) {
         return `pipeline: ${datasets.value[jobSpec.datasetId]?.name || jobSpec.datasetId}`;
       }
-      if (isExportTrainedPipeline(jobSpec)) {
+      if (jobSpec.type === JobType.ExportTrainedPipeline) {
         return `export trained pipeline: ${jobSpec.path}`;
       }
-      if (isRunTraining(jobSpec)) {
+      if (jobSpec.type === JobType.RunTraining) {
         const title = `training: ${datasets.value[jobSpec.datasetIds[0]]?.name || jobSpec.datasetIds[0]}`;
         if (jobSpec.datasetIds.length > 1) {
           return `${title} (and ${jobSpec.datasetIds.length - 1} more)`;
@@ -49,14 +46,14 @@ export default defineComponent({
       return 'queued job';
     }
 
-    function getJobDatasets(jobSpec: JobArgs): string[] {
-      if (isConversion(jobSpec)) {
+    function getJobDatasets(jobSpec: Job): string[] {
+      if (jobSpec.type === JobType.Conversion) {
         return [jobSpec.meta.id];
       }
-      if (isRunPipeline(jobSpec)) {
+      if (jobSpec.type === JobType.RunPipeline) {
         return [jobSpec.datasetId];
       }
-      if (isRunTraining(jobSpec)) {
+      if (jobSpec.type === JobType.RunTraining) {
         return jobSpec.datasetIds;
       }
       return [];
@@ -67,12 +64,11 @@ export default defineComponent({
     });
 
     return {
+      JobType,
       queuedJobSpecs,
       datasets,
       getQueuedJobTitle,
       getJobDatasets,
-      isRunPipeline,
-      isExportTrainedPipeline,
     };
   },
 });
@@ -98,7 +94,7 @@ export default defineComponent({
             </v-card-title>
             <v-card-text>
               <table class="key-value-table">
-                <tr v-if="isRunPipeline(jobSpec) || isExportTrainedPipeline(jobSpec)">
+                <tr v-if="jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.ExportTrainedPipeline">
                   <td>Pipe</td>
                   <td>{{ jobSpec.pipeline.name }}</td>
                 </tr>

@@ -19,7 +19,7 @@ import {
 import {
   DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
-  DesktopMediaImportResponse, ConversionArgs,
+  DesktopMediaImportResponse, ConversionArgs, JobType,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue } from './store/jobs';
@@ -92,6 +92,7 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
 
 async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
   const args: RunPipeline = {
+    type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
   };
@@ -100,6 +101,7 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
 
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
   const args: ExportTrainedPipeline = {
+    type: JobType.ExportTrainedPipeline,
     path,
     pipeline,
   };
@@ -120,6 +122,7 @@ async function runTraining(
   },
 ): Promise<void> {
   const args: RunTraining = {
+    type: JobType.RunTraining,
     datasetIds: folderIds,
     pipelineName,
     trainingConfig: config,

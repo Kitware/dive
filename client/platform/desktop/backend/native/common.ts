@@ -39,6 +39,7 @@ import {
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
+  JobType,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -1187,10 +1188,12 @@ async function finalizeMediaImport(
   if (args.metaFileAbsPath) {
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
-  return {
+  const conversionJobArgs: ConversionArgs = {
+    type: JobType.Conversion,
     meta: finalJsonMeta,
     mediaList: srcDstList,
   };
+  return conversionJobArgs;
 }
 
 async function openLink(url: string) {
