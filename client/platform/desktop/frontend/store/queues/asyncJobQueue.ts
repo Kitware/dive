@@ -32,7 +32,7 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
 
   async enqueue(jobSpec: T) {
     this.jobSpecs.push(jobSpec);
-    await this.dequeue();
+    this.dequeue();
   }
 
   async dequeue() {
