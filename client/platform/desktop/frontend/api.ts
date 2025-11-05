@@ -17,7 +17,7 @@ import {
   inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
 } from 'dive-common/constants';
 import {
-  DesktopJob, DesktopMetadata, NvidiaSmiReply,
+  DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse, ConversionArgs,
 } from 'platform/desktop/constants';
@@ -90,20 +90,20 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return ipcRenderer.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> {
+async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
   const args: RunPipeline = {
     pipeline,
     datasetId: itemId,
   };
-  return ipcRenderer.invoke('run-pipeline', args);
+  gpuJobQueue.enqueue(args);
 }
 
-async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
+async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
   const args: ExportTrainedPipeline = {
     path,
     pipeline,
   };
-  return ipcRenderer.invoke('export-trained-pipeline', args);
+  cpuJobQueue.enqueue(args);
 }
 
 async function runTraining(
@@ -118,7 +118,7 @@ async function runTraining(
     path?: string;
     folderId?: string;
   },
-): Promise<DesktopJob> {
+): Promise<void> {
   const args: RunTraining = {
     datasetIds: folderIds,
     pipelineName,
@@ -126,38 +126,6 @@ async function runTraining(
     annotatedFramesOnly,
     labelText,
     fineTuneModel,
-  };
-  return ipcRenderer.invoke('run-training', args);
-}
-
-function queueTraining(
-  folderIds: string[],
-  pipelineName: string,
-  config: string,
-  annotatedFramesOnly: boolean,
-  labelText?: string,
-  fineTuneModel?: {
-    name: string;
-    type: string;
-    path?: string;
-    folderId?: string;
-  },
-): void {
-  const args: RunTraining = {
-    datasetIds: folderIds,
-    pipelineName,
-    trainingConfig: config,
-    annotatedFramesOnly,
-    labelText,
-    fineTuneModel,
-  };
-  gpuJobQueue.enqueue(args);
-}
-
-function queuePipeline(itemId: string, pipeline: Pipe): void {
-  const args: RunPipeline = {
-    pipeline,
-    datasetId: itemId,
   };
   gpuJobQueue.enqueue(args);
 }
@@ -199,15 +167,7 @@ function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArg
   return ipcRenderer.invoke('finalize-import', args);
 }
 
-async function convert(args: ConversionArgs): Promise<DesktopJob> {
-  return ipcRenderer.invoke('convert', args);
-}
-
-function queueConversion(args: ConversionArgs): void {
-  cpuJobQueue.enqueue(args);
-}
-
-function queueExportTrainedPipeline(args: ExportTrainedPipeline) {
+async function convert(args: ConversionArgs): Promise<void> {
   cpuJobQueue.enqueue(args);
 }
 
@@ -308,8 +268,4 @@ export {
   importMultiCam,
   openLink,
   nvidiaSmi,
-  queuePipeline,
-  queueTraining,
-  queueConversion,
-  queueExportTrainedPipeline,
 };

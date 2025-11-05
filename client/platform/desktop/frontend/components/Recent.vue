@@ -91,7 +91,7 @@ export default defineComponent({
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
-          api.queueConversion(conversionArgs);
+          api.convert(conversionArgs);
         }
         const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
@@ -105,7 +105,7 @@ export default defineComponent({
       importing.value = true;
       await request(async () => {
         const conversionArgs = await api.finalizeImport(args);
-        api.queueConversion(conversionArgs);
+        api.convert(conversionArgs);
         pendingImportPayload.value = null; // close dialog
         if (conversionArgs.mediaList.length === 0) {
           router.push({
