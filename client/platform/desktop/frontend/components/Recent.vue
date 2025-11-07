@@ -26,7 +26,7 @@ import {
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
 } from '../store/settings';
-import { setOrGetConversionJob, recentHistory, cpuJobQueue } from '../store/jobs';
+import { setOrGetConversionJob, cpuJobQueue, queuedCpuJobs } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
@@ -122,14 +122,14 @@ export default defineComponent({
     }
 
     const queuedConversionDatasetIds = ref([] as string[]);
-    watch(recentHistory, () => {
+    watch(() => queuedCpuJobs, () => {
       queuedConversionDatasetIds.value = [];
       cpuJobQueue.jobSpecs.forEach((spec: Job) => {
         if (spec.type === JobType.Conversion) {
           queuedConversionDatasetIds.value.push(spec.meta.id);
         }
       });
-    });
+    }, { deep: true });
 
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
