@@ -100,8 +100,8 @@ async function init() {
 
 async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
-  ipcRenderer.send('update-settings', settings.value);
   settings.value = cloneDeep(s);
+  ipcRenderer.send('update-settings', settings.value);
 }
 
 async function acknowledgeVersion() {

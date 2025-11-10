@@ -30,14 +30,16 @@ import * as dive from 'platform/desktop/backend/serializers/dive';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
-import { checkMedia, convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
 } from 'dive-common/constants';
 import {
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata, DesktopJobUpdater,
+  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName, PipelinesFolderName,
+  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
+  PipelinesFolderName, ConversionArgs,
+  JobType,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -1084,7 +1086,7 @@ async function _importTrackFile(
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
+export async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
   await getValidatedProjectDir(settings, datasetId);
   if (meta.transcodingJobKey === transcodingJobKey) {
     // eslint-disable-next-line no-param-reassign
@@ -1099,8 +1101,7 @@ async function completeConversion(settings: Settings, datasetId: string, transco
 async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
-  updater: DesktopJobUpdater,
-) {
+): Promise<ConversionArgs> {
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
   const { type: datasetType } = jsonMeta;
@@ -1133,10 +1134,10 @@ async function finalizeMediaImport(
     }
   }
 
-  //Now we will kick off any conversions that are necessary
-  let jobBase = null;
+  // Determine which files, if any, need to be queued for conversion. Consumers
+  // of this function are responsible for starting the conversion.
+  const srcDstList: [string, string][] = [];
   if (mediaConvertList.length) {
-    const srcDstList: [string, string][] = [];
     const extension = datasetType === 'video' ? '.mp4' : '.png';
     let destAbsPath = '';
     mediaConvertList.forEach((absPath) => {
@@ -1158,16 +1159,6 @@ async function finalizeMediaImport(
       }
       srcDstList.push([absPath, destAbsPath]);
     });
-    jobBase = await convertMedia(
-      settings,
-      {
-        meta: jsonMeta,
-        mediaList: srcDstList,
-      },
-      updater,
-      (jobKey, meta) => completeConversion(settings, jsonMeta.id, jobKey, meta),
-    );
-    jsonMeta.transcodingJobKey = jobBase.key;
   }
 
   //We need to create datasets for each of the multiCam folders as well
@@ -1197,7 +1188,12 @@ async function finalizeMediaImport(
   if (args.metaFileAbsPath) {
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
-  return finalJsonMeta;
+  const conversionJobArgs: ConversionArgs = {
+    type: JobType.Conversion,
+    meta: finalJsonMeta,
+    mediaList: srcDstList,
+  };
+  return conversionJobArgs;
 }
 
 async function openLink(url: string) {
