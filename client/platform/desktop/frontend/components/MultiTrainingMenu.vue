@@ -26,7 +26,7 @@ import { datasets } from '../store/dataset';
 export default defineComponent({
   setup() {
     const {
-      getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, runTraining, exportTrainedPipeline,
+      runTraining, getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, exportTrainedPipeline,
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
@@ -216,7 +216,7 @@ export default defineComponent({
           .find((item) => item.name === data.selectedFineTune);
       }
       try {
-        await runTraining(
+        runTraining(
           stagedItems.value.map(({ id }) => id),
           data.trainingOutputName,
           data.selectedTrainingConfig,

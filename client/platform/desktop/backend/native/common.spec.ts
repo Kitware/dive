@@ -6,7 +6,7 @@ import { Console } from 'console';
 
 import {
   AnnotationsCurrentVersion, DesktopJob,
-  DesktopJobUpdate, JsonMeta, RunTraining, Settings,
+  DesktopJobUpdate, JobType, JsonMeta, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -484,7 +484,8 @@ describe('native.common', () => {
       '/home/user/data/imageLists/success/image1.png',
     ]);
     expect(payload.jsonMeta.name).toBe('success');
-    const final = await common.finalizeMediaImport(settings, payload, updater);
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
     expect(final.originalImageFiles.length).toBe(4);
     expect(final.name).toBe('success');
     expect(final.imageListPath).toBe('/home/user/data/imageLists/success/image_list.txt');
@@ -497,7 +498,8 @@ describe('native.common', () => {
     );
     expect(payload.jsonMeta.originalBasePath).toBe('');
     payload.globPattern = '2018*';
-    const final = await common.finalizeMediaImport(settings, payload, updater);
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
     const expectedImageFiles = [
       '/home/user/data/imageLists/successGlob/2018-image2.png',
       '/home/user/data/imageLists/successGlob/nested/2018-image1.png',
@@ -537,7 +539,8 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
-    const final = await common.finalizeMediaImport(settings, payload, updater);
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
     const annotations = await common.loadDetections(settings, final.id);
     expect(Object.keys(annotations.tracks)).toHaveLength(0);
 
@@ -562,7 +565,7 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = ''; //It returns null be default but users change it.
     payload.jsonMeta.fps = 12; // simulate user specify FPS action
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta.fps).toBe(12);
   });
@@ -571,7 +574,7 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = '/home/user/data/imageSuccessWithAnnotations/file1.csv';
     payload.jsonMeta.fps = 12; // simulate user specify FPS action
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta.fps).toBe(32);
   });
@@ -579,12 +582,12 @@ describe('native.common', () => {
   it('import with user selected FPS > originalFPS', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.mp4');
     payload.jsonMeta.fps = 50; // above 30
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const meta1 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta1.fps).toBe(30);
 
     payload.jsonMeta.fps = -1; // above 30
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const meta2 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta2.fps).toBe(1);
   });
@@ -600,7 +603,7 @@ describe('native.common', () => {
 
   it('importMedia empty json file success', async () => {
     const payload = await common.beginMediaImport('/home/user/data/annotationEmptySuccess/video1.mp4');
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const annotations = await common.loadDetections(settings, payload.jsonMeta.id);
     expect(annotations).toEqual(makeEmptyAnnotationFile());
   });
@@ -608,7 +611,7 @@ describe('native.common', () => {
   it('importMedia include meta.json file ', async () => {
     const payload = await common.beginMediaImport('/home/user/data/metaJsonIncluded/video1.mp4');
     expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
@@ -618,7 +621,7 @@ describe('native.common', () => {
   it('Export  meta.json file ', async () => {
     const payload = await common.beginMediaImport('/home/user/data/metaJsonIncluded/video1.mp4');
     expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
@@ -640,16 +643,15 @@ describe('native.common', () => {
   });
   it('import first CSV in list', async () => {
     const payload = await common.beginMediaImport('/home/user/data/multiCSV/video1.mp4');
-    await common.finalizeMediaImport(settings, payload, updater);
+    await common.finalizeMediaImport(settings, payload);
     const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
     expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
 
-  it('importMedia video, start conversion', async () => {
+  it('importMedia video, has conversion file list', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.avi');
-    await common.finalizeMediaImport(settings, payload, updater);
-    expect(payload.jsonMeta.transcodingJobKey).toBe('jobKey');
-    expect(payload.jsonMeta.type).toBe('video');
+    const conversionArgs = await common.finalizeMediaImport(settings, payload);
+    expect(conversionArgs.mediaList.length).toBeGreaterThan(0);
   });
 
   it('check Dastset existence', async () => {
@@ -693,6 +695,7 @@ describe('native.common', () => {
 
   it('processing good Trained Pipeline folder', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
       trainingConfig: 'trainingConfig',
@@ -713,6 +716,7 @@ describe('native.common', () => {
 
   it('processing bad Trained Pipeline folders', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedBadPipelineName',
       trainingConfig: 'trainingConfig',
@@ -728,6 +732,7 @@ describe('native.common', () => {
 
   it('getPipelineList lists pipelines with Trained pipelines', async () => {
     const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
       datasetIds: ['randomID'],
       pipelineName: 'trainedPipelineName',
       trainingConfig: 'trainingConfig',
@@ -771,7 +776,8 @@ describe('native.common', () => {
         '9.png',
       ]);
       // eslint-disable-next-line no-await-in-loop
-      const final = await common.finalizeMediaImport(settings, payload, updater);
+      const res = await common.finalizeMediaImport(settings, payload);
+      const final = res.meta;
       expect(final.attributes).toEqual(testData[num][2]);
       // eslint-disable-next-line no-await-in-loop
       const tracks = await common.loadDetections(settings, final.id);

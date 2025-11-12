@@ -169,6 +169,7 @@ async function convertMedia(
   args: ConversionArgs,
   updater: DesktopJobUpdater,
   onComplete?: (jobKey: string, meta: JsonMeta) => void,
+  setTranscodingKey = false,
   mediaIndex = 0,
   key = '',
   baseWorkDir = '',
@@ -205,7 +206,10 @@ async function convertMedia(
     exitCode: job.exitCode,
     startTime: new Date(),
   };
-
+  if (setTranscodingKey) {
+    // eslint-disable-next-line no-param-reassign
+    args.meta.transcodingJobKey = jobBase.key;
+  }
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
@@ -247,7 +251,7 @@ async function convertMedia(
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, onComplete, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, setTranscodingKey, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

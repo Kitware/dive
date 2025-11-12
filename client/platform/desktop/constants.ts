@@ -152,19 +152,33 @@ export interface NvidiaSmiReply {
   error: string;
 }
 
+export enum JobType {
+  Conversion,
+  ExportTrainedPipeline,
+  RunPipeline,
+  RunTraining,
+}
+
+export interface JobArgs {
+  type: JobType;
+}
+
 /** TODO promote to apispec */
-export interface RunPipeline {
+export interface RunPipeline extends JobArgs {
+  type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
 }
 
-export interface ExportTrainedPipeline {
+export interface ExportTrainedPipeline extends JobArgs {
+  type: JobType.ExportTrainedPipeline;
   path: string;
   pipeline: Pipe;
 }
 
 /** TODO promote to apispec */
-export interface RunTraining {
+export interface RunTraining extends JobArgs {
+  type: JobType.RunTraining;
   // datasets to run training on
   datasetIds: string[];
   // new pipeline name to be created
@@ -184,10 +198,13 @@ export interface RunTraining {
   };
 }
 
-export interface ConversionArgs {
+export interface ConversionArgs extends JobArgs {
+  type: JobType.Conversion;
   meta: JsonMeta;
   mediaList: [string, string][];
 }
+
+export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
 
 export interface DesktopJob {
   // key unique identifier for this job

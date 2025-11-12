@@ -17,10 +17,12 @@ import {
   inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
 } from 'dive-common/constants';
 import {
-  DesktopJob, DesktopMetadata, JsonMeta, NvidiaSmiReply,
+  DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
-  DesktopMediaImportResponse,
+  DesktopMediaImportResponse, ConversionArgs, JobType,
 } from 'platform/desktop/constants';
+
+import { gpuJobQueue, cpuJobQueue } from './store/jobs';
 
 /**
  * Native functions that run entirely in the renderer
@@ -88,20 +90,22 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return ipcRenderer.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe): Promise<DesktopJob> {
+async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
   const args: RunPipeline = {
+    type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
   };
-  return ipcRenderer.invoke('run-pipeline', args);
+  gpuJobQueue.enqueue(args);
 }
 
-async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<DesktopJob> {
+async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
   const args: ExportTrainedPipeline = {
+    type: JobType.ExportTrainedPipeline,
     path,
     pipeline,
   };
-  return ipcRenderer.invoke('export-trained-pipeline', args);
+  cpuJobQueue.enqueue(args);
 }
 
 async function runTraining(
@@ -116,8 +120,9 @@ async function runTraining(
     path?: string;
     folderId?: string;
   },
-): Promise<DesktopJob> {
+): Promise<void> {
   const args: RunTraining = {
+    type: JobType.RunTraining,
     datasetIds: folderIds,
     pipelineName,
     trainingConfig: config,
@@ -125,7 +130,7 @@ async function runTraining(
     labelText,
     fineTuneModel,
   };
-  return ipcRenderer.invoke('run-training', args);
+  gpuJobQueue.enqueue(args);
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
@@ -160,8 +165,13 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
   });
 }
 
-function finalizeImport(args: DesktopMediaImportResponse): Promise<JsonMeta> {
+function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
+  // Have this return JsonMeta as well as everything needed to start a job?
   return ipcRenderer.invoke('finalize-import', args);
+}
+
+async function convert(args: ConversionArgs): Promise<void> {
+  cpuJobQueue.enqueue(args);
 }
 
 async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
@@ -252,6 +262,7 @@ export {
   exportDataset,
   exportConfiguration,
   finalizeImport,
+  convert,
   importMedia,
   bulkImportMedia,
   deleteDataset,

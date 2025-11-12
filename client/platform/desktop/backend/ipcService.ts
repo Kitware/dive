@@ -7,7 +7,10 @@ import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   DesktopMediaImportResponse,
   ExportTrainedPipeline,
+  ConversionArgs,
+  DesktopJob,
 } from 'platform/desktop/constants';
+import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -110,12 +113,21 @@ export default function register() {
     return ret;
   });
 
-  ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => {
+  ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
+
+  ipcMain.handle('convert', async (event, args: ConversionArgs) => {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    const ret = await common.finalizeMediaImport(settings.get(), args, updater);
-    return ret;
+    const currentSettings: Settings = settings.get();
+    const job: DesktopJob = await convertMedia(
+      currentSettings,
+      args,
+      updater,
+      (jobKey, meta) => common.completeConversion(currentSettings, args.meta.id, jobKey, meta),
+      true,
+    );
+    return job;
   });
 
   ipcMain.handle('validate-settings', async (_, s: Settings) => {

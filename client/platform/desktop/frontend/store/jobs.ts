@@ -4,8 +4,11 @@
 import { ipcRenderer } from 'electron';
 import {
   ref, Ref, set, computed,
+  reactive,
 } from 'vue';
 import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
+import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
+import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
 
 interface DesktopJobHistory {
   job: DesktopJob;
@@ -66,10 +69,27 @@ function init() {
 
 init();
 
+const gpuJobQueue = new AsyncGpuJobQueue(ipcRenderer);
+gpuJobQueue.init();
+const reactiveGpuQueue = reactive(gpuJobQueue);
+
+const cpuJobQueue = new AsyncCpuJobQueue(ipcRenderer);
+cpuJobQueue.init();
+const reactiveCpuQueue = reactive(cpuJobQueue);
+
+const queuedCpuJobs = computed(() => reactiveCpuQueue.jobSpecs);
+const queuedGpuJobs = computed(() => reactiveGpuQueue.jobSpecs);
+
 export {
   jobHistory,
   recentHistory,
   runningJobs,
   setOrGetConversionJob,
   truncateOutputAtLines,
+  gpuJobQueue,
+  cpuJobQueue,
+  reactiveCpuQueue,
+  reactiveGpuQueue,
+  queuedCpuJobs,
+  queuedGpuJobs,
 };

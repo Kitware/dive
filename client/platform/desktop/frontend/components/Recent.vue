@@ -2,12 +2,12 @@
 import { join } from 'path';
 import moment from 'moment';
 import {
-  computed, defineComponent, ref, Ref,
+  computed, defineComponent, ref, Ref, watch,
 } from 'vue';
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import type { DesktopMediaImportResponse } from 'platform/desktop/constants';
+import { JobType, DesktopMediaImportResponse, Job } from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -26,7 +26,7 @@ import {
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
 } from '../store/settings';
-import { setOrGetConversionJob } from '../store/jobs';
+import { setOrGetConversionJob, cpuJobQueue, queuedCpuJobs } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
@@ -88,8 +88,12 @@ export default defineComponent({
       const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
       pendingImportPayload.value = null;
 
-      imports.forEach(async (jsonMeta) => {
-        const recentsMeta = await api.loadMetadata(jsonMeta.id);
+      imports.forEach(async (conversionArgs) => {
+        // Queue conversion job
+        if (conversionArgs.mediaList.length > 0) {
+          api.convert(conversionArgs);
+        }
+        const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
       });
 
@@ -100,21 +104,32 @@ export default defineComponent({
     async function finalizeImport(args: DesktopMediaImportResponse) {
       importing.value = true;
       await request(async () => {
-        const jsonMeta = await api.finalizeImport(args);
+        const conversionArgs = await api.finalizeImport(args);
+        api.convert(conversionArgs);
         pendingImportPayload.value = null; // close dialog
-        if (!jsonMeta.transcodingJobKey) {
+        if (conversionArgs.mediaList.length === 0) {
           router.push({
             name: 'viewer',
-            params: { id: jsonMeta.id },
+            params: { id: conversionArgs.meta.id },
           });
         } else {
           // Display new data and await transcoding to complete
-          const recentsMeta = await api.loadMetadata(jsonMeta.id);
+          const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
         }
       });
       importing.value = false;
     }
+
+    const queuedConversionDatasetIds = ref([] as string[]);
+    watch(() => queuedCpuJobs, () => {
+      queuedConversionDatasetIds.value = [];
+      cpuJobQueue.jobSpecs.forEach((spec: Job) => {
+        if (spec.type === JobType.Conversion) {
+          queuedConversionDatasetIds.value.push(spec.meta.id);
+        }
+      });
+    }, { deep: true });
 
     function openMultiCamDialog(args: {stereo: boolean; openType: 'image-sequence' | 'video'}) {
       stereo.value = args.stereo;
@@ -244,6 +259,7 @@ export default defineComponent({
       checkingMedia,
       clientSettings,
       itemsPerPageOptions,
+      queuedConversionDatasetIds,
     };
   },
 });
@@ -464,6 +480,17 @@ export default defineComponent({
                         mdi-spin mdi-sync
                       </v-icon>
                     </span>
+                  </div>
+                  <div v-else-if="queuedConversionDatasetIds.includes(item.id)">
+                    <span class="primary--text text--darken-1 text-subtitle-1 pt-1">
+                      {{ item.name }}
+                    </span>
+                    <v-chip small>
+                      Awaiting Conversion
+                      <v-icon right>
+                        mdi-sync mdi-spin
+                      </v-icon>
+                    </v-chip>
                   </div>
                   <div
                     v-else
