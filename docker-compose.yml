@@ -48,7 +48,13 @@ services:
     volumes:
       # Use env config path, default to docker volume
       - ${MONGO_DB_PATH:-mongo_db}:/data/db
-
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    
   girder:
     build:
       context: .
@@ -74,6 +80,8 @@ services:
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
       - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
@@ -122,6 +130,9 @@ services:
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_MONGO_URI=mongodb://mongodb:27017/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -141,7 +152,9 @@ services:
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
 
+
 volumes:
   addons:
   mongo_db:
   girder_assetstore:
+  redis_data:

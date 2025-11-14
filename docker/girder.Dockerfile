@@ -16,8 +16,9 @@ from node:20 as girder-client-builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y git
 # make sure I clone 
+ARG CACHEBUST=2
 RUN git clone https://github.com/girder/girder.git
-RUN cd girder/girder && git checkout v4-integration && cd web && npm install && npx vite build --base=/girder/
+RUN cd girder/girder && git checkout plugin-client-path-fix && cd web && npm install && npx vite build --base=/girder/
 
 
 
