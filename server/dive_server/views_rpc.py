@@ -53,7 +53,7 @@ class RpcResource(Resource):
     )
     def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
         return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
-    
+
     @access.user
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")
@@ -77,7 +77,9 @@ class RpcResource(Resource):
         )
     )
     def export_pipeline_onnx(self, modelFolderId, exportFolderId):
-        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
+        return crud_rpc.export_trained_pipeline(
+            self.getCurrentUser(), modelFolderId, exportFolderId
+        )
 
     @access.user
     @autoDescribeRoute(

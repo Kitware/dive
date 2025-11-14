@@ -1,7 +1,7 @@
+import logging
 from typing import Optional
 import uuid
 
-from girder import logger
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -12,6 +12,8 @@ from pyrabbit2 import Client as PyRabbitClient
 
 from .constants import UserQueueMarker
 from .models import Settings, UserQueueModel
+
+logger = logging.getLogger(__name__)
 
 
 class RabbitUserQueue(Resource):
