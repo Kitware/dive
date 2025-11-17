@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
+import logging
 import os
 
 from bson.objectid import ObjectId
 import cherrypy
-from girder import logger
 from girder.api.rest import getApiUrl
 from girder.models.collection import Collection
 from girder.models.folder import Folder
@@ -14,7 +14,7 @@ from girder.models.user import User
 from girder.settings import SettingKey
 from girder.utility.mail_utils import renderTemplate, sendMail
 from girder_jobs.models.job import Job
-from girder_worker.girder_plugin.utils import getWorkerApiUrl
+from girder_plugin_worker.utils import getWorkerApiUrl
 
 from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
 from dive_utils import asbool, fromMeta
@@ -34,6 +34,8 @@ from dive_utils.constants import (
     possibleAnnotationRegex,
     videoRegex,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def send_new_user_email(event):
@@ -137,7 +139,9 @@ def process_assetstore_import(event, meta: dict):
             folder["meta"].update(
                 {
                     TypeMarker: dataset_type,  # Sets to video
-                    FPSMarker: -1 if dataset_type == VideoType else 1,  # -1 for video and 1 for image sequence
+                    FPSMarker: (
+                        -1 if dataset_type == VideoType else 1
+                    ),  # -1 for video and 1 for image sequence
                     AssetstoreSourcePathMarker: root,
                     MarkForPostProcess: True,  # skip transcode or transcode if required
                     **meta,
@@ -163,7 +167,9 @@ def process_dangling_annotation_files(folder, user):
             continue
         # Check if the corresponding video folder exists
         base_name = os.path.splitext(item['name'])[0]
-        video_folder = Folder().findOne({'parentId': parent_folder_id, 'name': base_name, f'meta.{TypeMarker}': VideoType})
+        video_folder = Folder().findOne(
+            {'parentId': parent_folder_id, 'name': base_name, f'meta.{TypeMarker}': VideoType}
+        )
         if video_folder is not None:
             # Move the annotation file into the video folder
             item['meta'][AnnotationFileFutureProcessMarker] = False
@@ -201,8 +207,6 @@ def convert_video_recursive(folder, user):
     )
     job = Job().save(job)
     Job().scheduleJob(job)
-
-
 
 
 class DIVES3Imports:
