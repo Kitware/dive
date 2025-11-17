@@ -23,6 +23,9 @@ export default defineComponent({
     const brandData = toRef(store.state.Brand, 'brandData');
     const girderRest = useGirderRest();
     function onLogin() {
+      if (girderRest.token) {
+        window.localStorage.setItem('girderToken', girderRest.token);
+      }
       router.push('/');
     }
     girderRest.$on('login', onLogin);
