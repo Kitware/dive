@@ -161,11 +161,16 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    function routeRevision(revisionId: number, set?: string) {
-      if (set && set !== 'default') {
+    function routeRevision(revisionId: number | undefined, set?: string) {
+      if (set && set !== 'default' && revisionId !== undefined) {
         router.replace({
           name: 'revision set viewer',
           params: { id: props.id, revision: revisionId.toString(), set },
+        });
+      } else if (revisionId === undefined) {
+        router.replace({
+          name: 'viewer',
+          params: { id: props.id },
         });
       } else {
         router.replace({
