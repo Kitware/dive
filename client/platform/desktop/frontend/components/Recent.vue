@@ -105,7 +105,6 @@ export default defineComponent({
       importing.value = true;
       await request(async () => {
         const conversionArgs = await api.finalizeImport(args);
-        api.convert(conversionArgs);
         pendingImportPayload.value = null; // close dialog
         if (conversionArgs.mediaList.length === 0) {
           router.push({
@@ -113,6 +112,8 @@ export default defineComponent({
             params: { id: conversionArgs.meta.id },
           });
         } else {
+          // Queue conversion job
+          api.convert(conversionArgs);
           // Display new data and await transcoding to complete
           const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
