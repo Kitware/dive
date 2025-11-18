@@ -200,7 +200,7 @@ export default defineComponent({
       }
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
-          const track = trackStore?.get(trackId);
+          const track = trackStore?.getPossible(trackId);
           if (track === undefined) {
             // Track may be located in another Camera
             // TODO: Find a better way to represent tracks outside of cameras
