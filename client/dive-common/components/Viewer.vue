@@ -733,10 +733,10 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
-      mediaControllerClear();
-      cameraStore.clearAll();
-      discardChanges();
       progress.loaded = false;
+      discardChanges();
+      cameraStore.clearAll();
+      mediaControllerClear();
       await loadData();
       displayComparisons.value = props.comparisonSets.length
         ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
