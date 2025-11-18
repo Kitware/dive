@@ -330,7 +330,13 @@ export default defineComponent({
 
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
-      imgInternal.onloadPromise.then(() => {
+      imgInternal.onloadPromise.then(async () => {
+        try {
+          await imgInternal.image.decode();
+        } catch (error) {
+          emit('large-image-warning', true);
+          return;
+        }
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],

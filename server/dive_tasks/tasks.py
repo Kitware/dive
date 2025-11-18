@@ -677,7 +677,7 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     ]
     for item in items_to_convert:
         # Assumes 1 file per item
-        gc.post(f'/item/{item["_id"]}/tiles')
+        gc.post(f'item/{item["_id"]}/tiles')
     gc.addMetadataToFolder(
         str(folderId),
         {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.
