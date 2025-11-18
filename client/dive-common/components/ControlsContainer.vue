@@ -58,7 +58,7 @@ export default defineComponent({
   setup(_, { emit }) {
     const handler = useHandler();
     const currentView = ref('Detections');
-    const ticks = ref([0.25, 0.5, 0.75, 1.0, 2.0, 4.0, 8.0]);
+    const ticks = ref([0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0]);
     const cameraStore = useCameraStore();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
     const selectedCamera = useSelectedCamera();
@@ -319,7 +319,6 @@ export default defineComponent({
               open-on-hover
               close-delay="500"
               open-delay="250"
-              rounded="pill"
             >
               <template #activator="{ on }">
                 <v-icon
@@ -328,7 +327,7 @@ export default defineComponent({
                 > {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
                 </v-icon>
               </template>
-              <v-card style="overflow:hidden; width:30px">
+              <v-card style="overflow:hidden; width:60px;">
                 <v-slider
                   :value="volume"
                   min="0"
@@ -337,6 +336,10 @@ export default defineComponent({
                   vertical
                   @change="setVolume"
                 />
+                <v-row dense align="center">
+                  <b class="ma-auto">{{ volume * 100 }}%</b>
+                </v-row>
+
               </v-card>
             </v-menu>
           </span>
@@ -366,20 +369,22 @@ export default defineComponent({
                   </v-icon>
                 </v-badge>
               </template>
-              <v-card style="overflow:hidden; width:90px;">
+              <v-card style="overflow:hidden; width:60px;">
                 <v-slider
                   :value="ticks.indexOf(speed)"
                   min="0"
-                  max="6"
+                  :max="ticks.length - 1"
                   step="1"
-                  :tick-labels="ticks"
                   ticks="always"
                   :tick-size="4"
                   style="font-size:0.75em;"
                   vertical
-                  @change="setSpeed(ticks[$event])"
+                  hide-details
+                  @input="setSpeed(ticks[$event])"
                 />
-
+                <v-row dense align="center">
+                  <b class="ma-auto">{{ speed }}x</b>
+                </v-row>
               </v-card>
             </v-menu>
           </span>
