@@ -648,7 +648,7 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
             command = ["ffmpeg", "-i", str(item_path), str(new_item_path)]
             utils.stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
-            gc.delete(f"item/{item['_id']}")
+            gc.delete(f"item/{str(item['_id'])}")
 
         gc.addMetadataToFolder(
             str(folderId),
@@ -677,7 +677,12 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     ]
     for item in items_to_convert:
         # Assumes 1 file per item
-        gc.post(f'item/{item["_id"]}/tiles')
+        try:
+            gc.get(f'item/{str(item["_id"])}/tiles')
+            manager.write(f'Skipping {item["name"]}, already a large image\n')
+            continue
+        except Exception:
+            gc.post(f'item/{str(item["_id"])}/tiles')
     gc.addMetadataToFolder(
         str(folderId),
         {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.
