@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import zipfile
 
 from GPUtil import getGPUs
-from girder_client import GirderClient
+from girder_client import GirderClient, HttpError
 from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
@@ -648,7 +648,7 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
             command = ["ffmpeg", "-i", str(item_path), str(new_item_path)]
             utils.stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
-            gc.delete(f"item/{item['_id']}")
+            gc.delete(f"item/{str(item['_id'])}")
 
         gc.addMetadataToFolder(
             str(folderId),
@@ -677,7 +677,25 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     ]
     for item in items_to_convert:
         # Assumes 1 file per item
-        gc.post(f'/item/{item["_id"]}/tiles')
+        try:
+            # Does it already have tiles?
+            gc.get(f'item/{item["_id"]}/tiles')
+            manager.write(f'Skipping {item["name"]}, already a large image\n')
+            continue
+        except HttpError as e:
+            # Safely parse JSON if possible
+            message = ""
+            try:
+                message = e.response.json().get("message", "")
+            except Exception:
+                pass  # non-JSON response, leave message empty
+            # This is the Girder message when no large image exists
+            if e.status == 400 and message == "No large image file in this item.":
+                manager.write(f'Converting {item["name"]} to large image\n')
+                gc.post(f'item/{item["_id"]}/tiles')
+            else:
+                # Re-raise unexpected errors to fail the job
+                raise
     gc.addMetadataToFolder(
         str(folderId),
         {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.

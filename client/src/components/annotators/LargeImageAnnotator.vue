@@ -370,7 +370,7 @@ export default defineComponent({
             resp2.tileWidth,
             resp2.tileHeight,
           );
-          local.nextLayer = geoViewer.value.createLayer('osm', newParams.layer);
+          local.nextLayer = geoViewer.value.createLayer('osm', { ...localParams, ...newParams.layer });
           local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
           local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
           local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
