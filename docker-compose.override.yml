@@ -20,3 +20,7 @@ services:
   girder_worker_default:
     volumes:
       - ./server:/opt/dive/src
+
+  localworker:
+    volumes:
+      - ./server:/opt/dive/src
