@@ -1,11 +1,14 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, watch, ref,
+  defineComponent, reactive, watch, ref, computed,
+  PropType,
 } from 'vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
+import { DatasetType } from 'dive-common/apispec';
 import { injectAggregateController } from '../annotators/useMediaController';
+import { useTime, useTrackFilters } from '../../provides';
 
 export default defineComponent({
   name: 'Controls',
@@ -14,15 +17,24 @@ export default defineComponent({
       type: Boolean as () => boolean,
       required: true,
     },
+    datasetType: {
+      type: String as PropType<DatasetType>,
+      required: true,
+    },
+
   },
-  setup() {
+  setup(props) {
     const data = reactive({
       frame: 0,
       dragging: false,
     });
     const mediaController = injectAggregateController().value;
+    const isVideo = computed(() => props.datasetType === 'video');
+    const { frameRate } = useTime();
     const { visible } = usePrompt();
+    const trackFilters = useTrackFilters();
     const activeLockedCamera = ref(false);
+    const activeTimeFilter = ref(false);
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
@@ -57,8 +69,43 @@ export default defineComponent({
       multBoundsVal.value = !!clientSettings.annotatorPreferences.lockedCamera.multiBounds;
     }, { deep: true, immediate: true });
 
+    const timeFilterActive = computed(() => trackFilters.timeFilters.value !== null);
+    const timeFilterMin = computed(() => trackFilters.timeFilters.value?.[0] ?? 0);
+    const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? mediaController.maxFrame.value);
+
+    function toggleTimeFilter() {
+      if (trackFilters.timeFilters.value === null) {
+        trackFilters.setTimeFilters([0, mediaController.maxFrame.value]);
+      } else {
+        trackFilters.setTimeFilters(null);
+      }
+    }
+
+    function updateTimeFilterMin(value: number) {
+      const current = trackFilters.timeFilters.value;
+      if (current) {
+        trackFilters.setTimeFilters([value, current[1]]);
+      }
+    }
+
+    function updateTimeFilterMax(value: number) {
+      const current = trackFilters.timeFilters.value;
+      if (current) {
+        trackFilters.setTimeFilters([current[0], value]);
+      }
+    }
+
+    function formatTimestamp(frame: number) {
+      if (!isVideo.value || !frameRate.value) {
+        return null;
+      }
+      const seconds = frame / frameRate.value;
+      return new Date(seconds * 1000).toISOString().substr(11, 8);
+    }
+
     return {
       activeLockedCamera,
+      activeTimeFilter,
       data,
       mediaController,
       dragHandler,
@@ -69,6 +116,15 @@ export default defineComponent({
       clientSettings,
       transitionVal,
       multBoundsVal,
+      trackFilters,
+      timeFilterActive,
+      timeFilterMin,
+      timeFilterMax,
+      toggleTimeFilter,
+      updateTimeFilterMin,
+      updateTimeFilterMax,
+      isVideo,
+      formatTimestamp,
     };
   },
 });
@@ -157,6 +213,97 @@ export default defineComponent({
           class="pl-1 py-1 shrink d-flex"
           align="right"
         >
+          <v-menu
+            v-model="activeTimeFilter"
+            :nudge-left="28"
+            left
+            top
+            :close-on-content-click="false"
+            open-on-hover
+            open-delay="750"
+            close-delay="500"
+          >
+            <template #activator="{ on, attrs }">
+              <v-btn
+                icon
+                small
+                :color="timeFilterActive ? 'primary' : 'default'"
+                title="Filter tracks by time range"
+                v-bind="attrs"
+                v-on="on"
+                @click="toggleTimeFilter"
+              >
+                <v-icon v-bind="attrs" v-on="on">
+                  {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+                </v-icon>
+              </v-btn>
+            </template>
+            <v-card
+              outlined
+              class="pa-2 pr-4"
+              color="blue-grey darken-3"
+              style="overflow-y: none"
+            >
+              <v-card-title>
+                Time Filter Settings
+              </v-card-title>
+              <v-card-text>
+                <v-row class="align-center" dense>
+                  <v-col>
+                    <div class="text-caption mb-2">
+                      Filter tracks to only show those that intersect with this time range.
+                    </div>
+                  </v-col>
+                </v-row>
+                <div v-if="timeFilterActive">
+                  <v-row class="align-center" dense>
+                    <v-col>
+                      Min Frame:
+                    </v-col>
+                    <v-col v-if="isVideo">
+                      {{ formatTimestamp(timeFilterMin) }}
+                    </v-col>
+                    <v-col>
+                      <v-slider
+                        :value="timeFilterMin"
+                        :min="0"
+                        :max="mediaController.maxFrame.value"
+                        step="1"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="updateTimeFilterMin"
+                      />
+                    </v-col>
+                  </v-row>
+                  <v-row class="align-center" dense>
+                    <v-col>
+                      Max Frame:
+                    </v-col>
+                    <v-col v-if="isVideo">
+                      {{ formatTimestamp(timeFilterMax) }}
+                    </v-col>
+
+                    <v-col>
+                      <v-slider
+                        :value="timeFilterMax"
+                        :min="0"
+                        :max="mediaController.maxFrame.value"
+                        step="1"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="updateTimeFilterMax"
+                      />
+                    </v-col>
+                  </v-row>
+                </div>
+                <div v-else>
+                  <p>Click the filter icon to enable time filtering</p>
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-menu>
           <v-menu
             v-model="activeLockedCamera"
             :nudge-left="28"
