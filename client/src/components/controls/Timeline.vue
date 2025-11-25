@@ -262,7 +262,9 @@ export default defineComponent({
     function onwheel(e: WheelEvent) {
       const extend = Math.round((endFrame.value - startFrame.value) * 0.2)
         * Math.sign(e.deltaY);
-      const ratio = (e.layerX - (timelineEl.value?.offsetLeft || 0)) / clientWidth.value;
+      const timelineRect = timelineEl.value?.getBoundingClientRect();
+      const xRelativeToTimeline = timelineRect ? e.clientX - timelineRect.left : 0;
+      const ratio = (xRelativeToTimeline - margin.value) / clientWidth.value;
       let newStartFrame = startFrame.value - extend * ratio;
       let newEndFrame = endFrame.value + extend * (1 - ratio);
       newStartFrame = Math.max(0, newStartFrame);
