@@ -152,7 +152,7 @@ export default defineComponent({
     dense
     style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
   >
-    <Controls :is-default-image="isDefaultImage">
+    <Controls :is-default-image="isDefaultImage" :dataset-type="datasetType">
       <template slot="timelineControls">
         <div style="min-width: 270px">
           <v-tooltip
@@ -419,6 +419,7 @@ export default defineComponent({
       :max-frame="maxFrame"
       :frame="frame"
       :display="!collapsed"
+      :dataset-type="datasetType"
       @seek="seek"
     >
       <template

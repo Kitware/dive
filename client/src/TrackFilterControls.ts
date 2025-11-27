@@ -43,6 +43,12 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       const resultsArr: AnnotationWithContext<Track>[] = [];
       const resultsIds: Set<AnnotationId> = new Set();
       params.sorted.value.forEach((annotation) => {
+        if (this.timeFilters.value !== null) {
+          const [startTime, endTime] = this.timeFilters.value;
+          if (annotation.begin > endTime || annotation.end < startTime) {
+            return;
+          }
+        }
         let enabledInGroupFilters = true;
         const groups = params.lookupGroups(annotation.id);
         if (groups.length) {

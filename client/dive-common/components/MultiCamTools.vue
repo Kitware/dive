@@ -142,7 +142,9 @@ export default defineComponent({
           </v-row>
           <v-divider />
           <v-row align="center" justify="space-between" class="mt-4 mb-2">
-            <h3 class="mb-0">Detection:</h3>
+            <h3 class="mb-0">
+              Detection:
+            </h3>
             <div class="d-flex gap-2">
               <tooltip-btn
                 icon="mdi-star"
@@ -168,7 +170,9 @@ export default defineComponent({
           <v-divider class="my-2" />
 
           <v-row align="center" justify="space-between" class="mt-2 mb-4">
-            <h3 class="mb-0">Track:</h3>
+            <h3 class="mb-0">
+              Track:
+            </h3>
             <div class="d-flex gap-2">
               <tooltip-btn
                 color="error"
