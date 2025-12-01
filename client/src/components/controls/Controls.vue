@@ -7,6 +7,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
 import { DatasetType } from 'dive-common/apispec';
+import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
 import { useTime, useTrackFilters } from '../../provides';
 
@@ -99,8 +100,7 @@ export default defineComponent({
       if (!isVideo.value || !frameRate.value) {
         return null;
       }
-      const seconds = frame / frameRate.value;
-      return new Date(seconds * 1000).toISOString().substr(11, 8);
+      return frameToTimestamp(frame, frameRate.value);
     }
 
     return {

@@ -156,6 +156,19 @@ function withinBounds(coord: [number, number], bounds: RectBounds) {
   return (x > bounds[0] && x < bounds[2] && y > bounds[1] && y < bounds[3]);
 }
 
+function frameToTimestamp(frame: number, frameRate: number): string | null {
+  const ms = (frame / frameRate) * 1000;
+  const date = new Date(ms);
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'UTC', // important!
+  }).format(date);
+}
+
 export {
   getResponseError,
   boundToGeojson,
@@ -167,4 +180,5 @@ export {
   reOrderBounds,
   reOrdergeoJSON,
   withinBounds,
+  frameToTimestamp,
 };

@@ -5,6 +5,7 @@ import {
   ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, PropType,
 } from 'vue';
 import { DatasetType } from 'dive-common/apispec';
+import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { useTrackFilters, useTime } from '../../provides';
 
 type TimeFilterType = 'start' | 'end' | null;
@@ -208,7 +209,7 @@ export default defineComponent({
       return text;
     });
 
-    function initialize() {
+    function initD3Timeline() {
       if (!workarea.value) {
         return;
       }
@@ -256,7 +257,7 @@ export default defineComponent({
       if (resizeTimer.value) {
         clearTimeout(resizeTimer.value);
       }
-      resizeTimer.value = setTimeout(initialize, 200);
+      resizeTimer.value = setTimeout(initD3Timeline, 200);
     }
 
     function onwheel(e: WheelEvent) {
@@ -447,8 +448,7 @@ export default defineComponent({
       if (!isVideo.value || !frameRate.value) {
         return null;
       }
-      const seconds = frame / frameRate.value;
-      return new Date(seconds * 1000).toISOString().substr(11, 8);
+      return frameToTimestamp(frame, frameRate.value);
     }
 
     // Watchers
@@ -496,13 +496,13 @@ export default defineComponent({
       if (!val) {
         clientHeight.value = 0;
       } else {
-        initialize();
+        initD3Timeline();
       }
     });
 
     // Lifecycle
     onMounted(() => {
-      initialize();
+      initD3Timeline();
       // Initialize endFrame from maxFrame prop
       endFrame.value = props.maxFrame;
       init.value = !!props.maxFrame || 1;
