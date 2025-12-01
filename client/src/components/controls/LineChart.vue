@@ -80,6 +80,7 @@ export default Vue.extend({
         .select('svg')
         .remove();
       let tooltipTimeoutHandle = null;
+      d3.select('.tooltip').remove();
       const tooltip = d3
         .select(this.$el)
         .append('div')
