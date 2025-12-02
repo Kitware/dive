@@ -719,3 +719,10 @@ def convert_large_image(
         newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
         newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
         Job().save(newjob.job)
+        Notification().createNotification(
+            type='job_status',
+            data=newjob.job,
+            user=user,
+            expires=datetime.now() + timedelta(seconds=30),
+        )
+
