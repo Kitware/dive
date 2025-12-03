@@ -185,6 +185,8 @@ export default defineComponent({
       try {
         await api.checkDataset(recent.id);
       } catch (e) {
+        const recentsMeta = await api.loadMetadata(recent.id);
+        setRecents(recentsMeta);
         await prompt({
           title: 'Error Loading Data',
           text: [
@@ -481,6 +483,26 @@ export default defineComponent({
                         mdi-spin mdi-sync
                       </v-icon>
                     </span>
+                  </div>
+                  <div v-else-if="item.error">
+                    <span
+                      class="error--text text-subtitle-1 pt-1 link"
+                      @click="preloadCheck(item)"
+                    >
+                      {{ item.name }}
+                    </span>
+                    <v-tooltip bottom>
+                      <template #activator="{ on, attrs }">
+                        <v-icon
+                          v-bind="attrs"
+                          color="error"
+                          v-on="on"
+                        >
+                          mdi-alert-circle
+                        </v-icon>
+                      </template>
+                      <span>{{ item.error }}</span>
+                    </v-tooltip>
                   </div>
                   <div v-else-if="queuedConversionDatasetIds.includes(item.id)">
                     <span class="primary--text text--darken-1 text-subtitle-1 pt-1">

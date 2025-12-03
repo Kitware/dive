@@ -17,6 +17,7 @@ export interface JsonMetaCache {
   id: string;
   fps: number;
   name: string;
+  error?: string
   createdAt: string;
   accessedAt: string;
   originalBasePath: string;
@@ -60,6 +61,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     imageListPath: meta.imageListPath,
     transcodedVideoFile: meta.transcodedVideoFile,
     subType: meta.subType,
+    error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
