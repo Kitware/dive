@@ -125,6 +125,12 @@ export default function register() {
       args,
       updater,
       (jobKey, meta) => common.completeConversion(currentSettings, args.meta.id, jobKey, meta),
+      (_jobKey, meta, errorMessage) => common.failConversion(
+        currentSettings,
+        args.meta.id,
+        meta,
+        errorMessage,
+      ),
       true,
     );
     return job;

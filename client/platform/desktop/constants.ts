@@ -109,6 +109,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // key that ran transcoding
   transcodingJobKey?: string;
 
+  error?: string;
+
   // attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
 
