@@ -6,7 +6,7 @@ x-worker: &base-worker
   build:
     context: .
     dockerfile: docker/girder_worker.Dockerfile
-  image: kitware/viame-worker:${TAG:-latest}
+  image: kitware/viame-worker:${TAG:-girder-5}
   volumes:
     - addons:/tmp/addons:ro # readonly
   labels:
@@ -48,12 +48,33 @@ services:
     volumes:
       # Use env config path, default to docker volume
       - ${MONGO_DB_PATH:-mongo_db}:/data/db
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
+  localworker:
+    build:
+      context: .
+      dockerfile: docker/girder.Dockerfile
+    image: kitware/viame-web:${TAG:-girder-5}
+    depends_on:
+      - mongo
+    entrypoint: celery -A girder_worker.app worker -Q local
+    environment:
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+      - "C_FORCE_ROOT=1"
+    
   girder:
     build:
       context: .
       dockerfile: docker/girder.Dockerfile
-    image: kitware/viame-web:${TAG:-latest}
+    image: kitware/viame-web:${TAG:-girder-5}
     init: true
     command: ["--mode", "production"]
     depends_on:
@@ -70,8 +91,12 @@ services:
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER:-admin}"
       - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS:-letmein}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
-      - "WORKER_API_URL=${WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
       - "RABBITMQ_MANAGEMENT_PASSWORD=${RABBITMQ_MANAGEMENT_PASSWORD:-guest}"
@@ -98,7 +123,9 @@ services:
     environment:
       - "WORKER_WATCHING_QUEUES=celery"
       - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-3}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
 
   girder_worker_pipelines:
     # Merge base-worker object with this config
@@ -115,7 +142,12 @@ services:
       - "WORKER_WATCHING_QUEUES=pipelines"
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_MONGO_URI=mongodb://mongodb:27017/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -131,9 +163,13 @@ services:
       - "WORKER_WATCHING_QUEUES=training"
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
-      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+
 
 volumes:
   addons:
   mongo_db:
   girder_assetstore:
+  redis_data:
