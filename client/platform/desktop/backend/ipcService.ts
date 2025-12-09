@@ -11,6 +11,7 @@ import {
   DesktopJob,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { closeChildById } from 'platform/desktop/backend/native/processManager';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -65,6 +66,8 @@ export default function register() {
     const ret = await common.autodiscoverData(settings.get());
     return ret;
   });
+
+  ipcMain.handle('cancel-job', async (_, pid: number) => closeChildById(pid));
 
   /**
    * Platform-dependent methods

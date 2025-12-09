@@ -200,6 +200,10 @@ async function exportConfiguration(id: string): Promise<string> {
   return '';
 }
 
+async function cancelJob(pid: number): Promise<void> {
+  return ipcRenderer.invoke('cancel-job', pid);
+}
+
 /**
  * REST api for larger-body messages
  */
@@ -271,4 +275,5 @@ export {
   importMultiCam,
   openLink,
   nvidiaSmi,
+  cancelJob,
 };
