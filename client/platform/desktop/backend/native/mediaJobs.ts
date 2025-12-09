@@ -169,6 +169,7 @@ async function convertMedia(
   args: ConversionArgs,
   updater: DesktopJobUpdater,
   onComplete?: (jobKey: string, meta: JsonMeta) => void,
+  onFail?: (jobKey: string, meta: JsonMeta, errorMessage: string) => void,
   setTranscodingKey = false,
   mediaIndex = 0,
   key = '',
@@ -224,6 +225,9 @@ async function convertMedia(
         exitCode: code,
         endTime: new Date(),
       });
+      // Update meta to reflect error
+      // eslint-disable-next-line no-param-reassign
+      onFail?.(jobKey, args.meta, `Transcoding job failed with exit code ${code}`);
     } else {
       if (args.meta.type === 'video' || multiType === 'video') {
         const updatedFile = await checkAndFixFrameAlignment(
@@ -251,7 +255,7 @@ async function convertMedia(
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, onComplete, setTranscodingKey, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, onFail, setTranscodingKey, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

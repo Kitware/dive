@@ -569,6 +569,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.attributes) {
     existing.attributes = args.attributes;
   }
+  if (args.error) {
+    existing.error = args.error;
+  }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
@@ -837,6 +840,9 @@ async function checkDataset(
       throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
     }
   }
+  if (projectMetaData.error && projectMetaData.error !== '') {
+    throw new Error(`Dataset ${projectMetaData.name} contains error: ${projectMetaData.error}`);
+  }
   return true;
 }
 
@@ -1093,6 +1099,13 @@ export async function completeConversion(settings: Settings, datasetId: string, 
     meta.transcodingJobKey = undefined;
     saveMetadata(settings, datasetId, meta);
   }
+}
+
+export async function failConversion(settings: Settings, datasetId: string, meta: JsonMeta, errorMessage: string) {
+  await getValidatedProjectDir(settings, datasetId);
+  // eslint-disable-next-line no-param-reassign
+  meta.error = errorMessage;
+  saveMetadata(settings, datasetId, meta);
 }
 
 /**
