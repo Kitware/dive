@@ -6,7 +6,16 @@ import {
   ref, Ref, set, computed,
   reactive,
 } from 'vue';
-import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
+import {
+  ConversionArgs,
+  DesktopJob,
+  DesktopJobUpdate,
+  ExportTrainedPipeline,
+  JobArgs,
+  JobType,
+  RunPipeline,
+  RunTraining,
+} from 'platform/desktop/constants';
 import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
 import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
 
@@ -80,6 +89,21 @@ const reactiveCpuQueue = reactive(cpuJobQueue);
 const queuedCpuJobs = computed(() => reactiveCpuQueue.jobSpecs);
 const queuedGpuJobs = computed(() => reactiveGpuQueue.jobSpecs);
 
+function removeJobFromQueue(jobArgs: JobArgs) {
+  switch (jobArgs.type) {
+    case JobType.Conversion:
+    case JobType.ExportTrainedPipeline:
+      cpuJobQueue.removeJobFromQueue(jobArgs as ConversionArgs | ExportTrainedPipeline);
+      break;
+    case JobType.RunPipeline:
+    case JobType.RunTraining:
+      gpuJobQueue.removeJobFromQueue(jobArgs as RunPipeline | RunTraining);
+      break;
+    default:
+      break;
+  }
+}
+
 export {
   jobHistory,
   recentHistory,
@@ -92,4 +116,5 @@ export {
   reactiveGpuQueue,
   queuedCpuJobs,
   queuedGpuJobs,
+  removeJobFromQueue,
 };
