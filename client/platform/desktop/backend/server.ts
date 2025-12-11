@@ -211,6 +211,8 @@ function fail(
   err: { status?: number; statusMessage?: string },
   req: express.Request,
   res: express.Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  next: express.NextFunction,
 ) {
   res.status(err.status || 500).json({ message: err.statusMessage || err });
 }
