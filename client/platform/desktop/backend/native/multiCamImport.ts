@@ -202,7 +202,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   }
 
   if (jsonMeta.multiCam?.cameras && jsonMeta.multiCam.cameras.left
-    && jsonMeta.multiCam.cameras.right && jsonMeta.multiCam.calibration) {
+    && jsonMeta.multiCam.cameras.right) {
     jsonMeta.subType = 'stereo';
   } else if (jsonMeta.multiCam) {
     jsonMeta.subType = 'multicam';
