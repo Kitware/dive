@@ -491,7 +491,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!nextSteps || (stereo && !calibrationFile)"
+          :disabled="!nextSteps"
           @click="prepForImport"
         >
           Begin Import
