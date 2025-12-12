@@ -13,6 +13,8 @@ import {
 import {
   queuedCpuJobs,
   queuedGpuJobs,
+  removeJobFromQueue,
+  // removeJobFromQueue,
 } from 'platform/desktop/frontend/store/jobs';
 import { datasets } from '../store/dataset';
 
@@ -69,6 +71,7 @@ export default defineComponent({
       datasets,
       getQueuedJobTitle,
       getJobDatasets,
+      removeJobFromQueue,
     };
   },
 });
@@ -86,36 +89,56 @@ export default defineComponent({
             v-for="jobSpec, index in queuedJobSpecs"
             :key="index"
           >
-            <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
-              <v-icon class="pr-4">
-                mdi-timer-sand
-              </v-icon>
-              {{ getQueuedJobTitle(jobSpec) }}
-            </v-card-title>
-            <v-card-text>
-              <table class="key-value-table">
-                <tr v-if="jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.ExportTrainedPipeline">
-                  <td>Pipe</td>
-                  <td>{{ jobSpec.pipeline.name }}</td>
-                </tr>
-                <tr v-if="getJobDatasets(jobSpec).length > 0">
-                  <td>Datasets</td>
-                  <td>
-                    <span
-                      v-for="dataset in getJobDatasets(jobSpec)"
-                      :key="dataset"
-                    >
-                      <router-link
-                        class="mr-1"
-                        :to="{ name: 'viewer', params: { id: dataset } }"
-                      >
-                        {{ datasets[dataset].name }}
-                      </router-link>
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </v-card-text>
+            <v-row>
+              <v-col cols="9">
+                <v-card-title class="primary--text text--lighten-3 text-decoration-none pt-0">
+                  <v-icon class="pr-4">
+                    mdi-timer-sand
+                  </v-icon>
+                  {{ getQueuedJobTitle(jobSpec) }}
+                </v-card-title>
+                <v-card-text>
+                  <table class="key-value-table">
+                    <tr v-if="jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.ExportTrainedPipeline">
+                      <td>Pipe</td>
+                      <td>{{ jobSpec.pipeline.name }}</td>
+                    </tr>
+                    <tr v-if="getJobDatasets(jobSpec).length > 0">
+                      <td>Datasets</td>
+                      <td>
+                        <span
+                          v-for="dataset in getJobDatasets(jobSpec)"
+                          :key="dataset"
+                        >
+                          <router-link
+                            class="mr-1"
+                            :to="{ name: 'viewer', params: { id: dataset } }"
+                          >
+                            {{ datasets[dataset].name }}
+                          </router-link>
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
+                </v-card-text>
+              </v-col>
+              <v-col cols="3">
+                <v-btn
+                  text
+                  small
+                  class="mb-2 error--text text--lighten-3 tet-decoration-none"
+                  @click="removeJobFromQueue(jobSpec)"
+                >
+                  <v-icon
+                    color="error lighten-3"
+                    class="pr-2"
+                  >
+                    mdi-cancel
+                  </v-icon>
+                  Cancel Job
+                </v-btn>
+              </v-col>
+            </v-row>
           </v-card>
         </v-col>
       </v-row>

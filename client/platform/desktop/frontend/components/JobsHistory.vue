@@ -8,6 +8,7 @@ import {
 } from 'vue';
 
 import { DesktopJob } from 'platform/desktop/constants';
+import { cancelJob } from 'platform/desktop/frontend/api';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -41,6 +42,12 @@ export default defineComponent({
       if (job.workingDir) shell.openPath(job.workingDir);
     }
 
+    async function cancelInProgressJob(job: DesktopJob): Promise<void> {
+      if (job.exitCode === null) {
+        cancelJob(job.pid);
+      }
+    }
+
     return {
       clockDriver,
       datasets,
@@ -53,6 +60,7 @@ export default defineComponent({
       /* methods */
       openPath,
       toggleVisibleOutput,
+      cancelInProgressJob,
     };
   },
 });
@@ -182,6 +190,22 @@ export default defineComponent({
                         .format("HH:mm:ss")
                     }}
                   </span>
+                </div>
+                <div v-if="job.job.exitCode === null">
+                  <v-btn
+                    text
+                    small
+                    class="mb-2 error--text text--lighten-3 text-decoration-none"
+                    @click="cancelInProgressJob(job.job)"
+                  >
+                    <v-icon
+                      color="error lighten-3"
+                      class="pr-2"
+                    >
+                      mdi-cancel
+                    </v-icon>
+                    Cancel Job
+                  </v-btn>
                 </div>
                 <v-btn
                   text
