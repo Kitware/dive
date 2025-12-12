@@ -54,7 +54,7 @@
     "vue": "^2.7.16",
     "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
-    "vuetify": "^2.7.1",
+    "vuetify": "^3.0.0",
     "vuex": "^3.0.1"
   },
   "devDependencies": {
