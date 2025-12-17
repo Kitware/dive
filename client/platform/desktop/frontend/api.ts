@@ -20,6 +20,7 @@ import {
   DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
+  DesktopJob,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue } from './store/jobs';
@@ -200,8 +201,8 @@ async function exportConfiguration(id: string): Promise<string> {
   return '';
 }
 
-async function cancelJob(pid: number): Promise<void> {
-  return ipcRenderer.invoke('cancel-job', pid);
+async function cancelJob(job: DesktopJob): Promise<void> {
+  return ipcRenderer.invoke('cancel-job', job);
 }
 
 /**
