@@ -130,8 +130,13 @@ async function runPipeline(
   }
 
   if (runPipelineArgs.pipeline.type === 'filter') {
-    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
-    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+    // Create a subdirectory within the working directory to store output images
+    const outputDirectoryName = npath.join(jobWorkDir, 'output');
+    if (!fs.existsSync(outputDirectoryName)) {
+      await fs.mkdir(outputDirectoryName);
+    }
+    command.push(`-s kwa_writer:output_directory="${outputDirectoryName}"`);
+    command.push(`-s image_writer:file_name_prefix="${outputDirectoryName}/"`);
   }
   if (runPipelineArgs.pipeline.type === 'transcode') {
     command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
