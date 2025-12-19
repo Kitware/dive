@@ -54,8 +54,6 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
     }
   }
 
-  abstract beginJob(spec: T): Promise<void>;
-
   processJob(update: DesktopJobUpdate) {
     if (!this.processingJobs.length) return;
     const updatedJob = this.processingJobs.find((job: DesktopJob) => job.key === update.key);
@@ -73,4 +71,8 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
   length(): number {
     return this.jobSpecs.length;
   }
+
+  abstract beginJob(spec: T): Promise<void>;
+
+  abstract removeJobFromQueue(spec: T): void;
 }

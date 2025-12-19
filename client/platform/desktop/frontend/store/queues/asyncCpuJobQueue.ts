@@ -18,4 +18,20 @@ export default class AsyncCpuJobQueue extends AsyncJobQueue<ConversionArgs | Exp
     }
     this.processingJobs.push(newJob);
   }
+
+  removeJobFromQueue(removeSpec: ConversionArgs | ExportTrainedPipeline): void {
+    let removeSpecIndex = -1;
+    if (removeSpec.type === JobType.Conversion) {
+      removeSpecIndex = this.jobSpecs.findIndex((spec: ConversionArgs | ExportTrainedPipeline) => (
+        spec.type === JobType.Conversion
+        && spec.meta.id === removeSpec.meta.id));
+    } else if (removeSpec.type === JobType.ExportTrainedPipeline) {
+      removeSpecIndex = this.jobSpecs.findIndex((spec: ConversionArgs | ExportTrainedPipeline) => (spec.type === JobType.ExportTrainedPipeline
+        && (spec.path !== removeSpec.path && spec.pipeline.pipe !== removeSpec.pipeline.pipe)
+      ));
+    }
+    if (removeSpecIndex !== -1) {
+      this.jobSpecs.splice(removeSpecIndex, 1);
+    }
+  }
 }

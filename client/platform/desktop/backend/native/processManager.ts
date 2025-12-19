@@ -40,6 +40,22 @@ function close(child: ChildProcess): Promise<void> {
 }
 
 /**
+ * Close the child process with the given pid. If no such child
+ * is found, return an empty promise.
+ *
+ * @param pid The process ID of the observed child to close.
+ * @returns an empty promise
+ */
+function closeChildById(pid: number): Promise<void> {
+  const child = children.find((child: ChildProcess) => child.pid === pid);
+  if (child) {
+    return close(child);
+  }
+  // If pid not found, no-op
+  return Promise.resolve();
+}
+
+/**
  * Stop all remaining child processes
  */
 function closeAll() {
@@ -50,5 +66,6 @@ function closeAll() {
 export {
   observeChild,
   close,
+  closeChildById,
   closeAll,
 };

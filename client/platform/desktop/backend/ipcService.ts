@@ -11,6 +11,8 @@ import {
   DesktopJob,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { closeChildById } from 'platform/desktop/backend/native/processManager';
+import { updateJobFilesOnCancel } from 'platform/desktop/backend/native/utils';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -64,6 +66,17 @@ export default function register() {
   ipcMain.handle('autodiscover-data', async () => {
     const ret = await common.autodiscoverData(settings.get());
     return ret;
+  });
+
+  ipcMain.handle('cancel-job', async (event, job: DesktopJob) => {
+    event.sender.send('cancel-job', {
+      ...job, exitCode: -1, endTime: new Date(), cancelledJob: true,
+    });
+    // Update manifest and log file if working directory is available
+    if (job.workingDir) {
+      await updateJobFilesOnCancel(job.workingDir);
+    }
+    closeChildById(job.pid);
   });
 
   /**
