@@ -57,7 +57,7 @@ export function updateHistory(args: DesktopJobUpdate) {
   // Only update cancelledJob if explicitly set to true (preserve true once set)
   if (args.cancelledJob === true) {
     existing.job.cancelledJob = true;
-    existing.job.exitCode = -1;
+    existing.job.exitCode = 143; // SIGTERM
   }
   if (args.endTime !== undefined) {
     existing.job.endTime = args.endTime;
@@ -90,7 +90,7 @@ function init() {
   });
   ipcRenderer.on('cancel-job', (event, args: DesktopJob) => {
     updateHistory({
-      ...args, body: ['Job cancelled by user'], exitCode: -1, endTime: new Date(), cancelledJob: true,
+      ...args, body: ['Job cancelled by user'], exitCode: 143, endTime: new Date(), cancelledJob: true,
     });
   });
 }
