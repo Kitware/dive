@@ -43,8 +43,8 @@ export default defineComponent({
     }
 
     async function cancelInProgressJob(job: DesktopJob): Promise<void> {
-      if (job.exitCode === null) {
-        cancelJob(job.pid);
+      if (job.exitCode === null && !job.cancelledJob) {
+        await cancelJob(job);
       }
     }
 
@@ -77,7 +77,7 @@ export default defineComponent({
           </h1>
           <v-card
             v-for="job in recentHistory.slice().reverse()"
-            :key="job.job.key"
+            :key="`${job.job.key}_${job.job.exitCode}_${job.job.cancelledJob}`"
             class=" mb-4"
             min-width="100%"
           >
@@ -102,6 +102,12 @@ export default defineComponent({
                     color="success"
                   >
                     mdi-check-circle
+                  </v-icon>
+                  <v-icon
+                    v-else-if="job.job.cancelledJob"
+                    color="warning"
+                  >
+                    mdi-cancel
                   </v-icon>
                   <v-icon
                     v-else

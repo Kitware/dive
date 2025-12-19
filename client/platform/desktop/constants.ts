@@ -231,6 +231,8 @@ export interface DesktopJob {
   startTime: Date;
   // endTime time of process exit
   endTime?: Date;
+  // cancelledJob
+  cancelledJob?: boolean;
 }
 
 export interface DesktopMediaImportResponse extends MediaImportResponse {
