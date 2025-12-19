@@ -100,6 +100,16 @@ async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
   gpuJobQueue.enqueue(args);
 }
 
+async function runPipelineWithOutput(itemId: string, pipeline: Pipe, outputDatasetName: string): Promise<void> {
+  const args: RunPipeline = {
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId: itemId,
+    outputDatasetName,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
   const args: ExportTrainedPipeline = {
     type: JobType.ExportTrainedPipeline,
@@ -287,4 +297,5 @@ export {
   cancelJob,
   getLastCalibration,
   saveCalibration,
+  runPipelineWithOutput,
 };

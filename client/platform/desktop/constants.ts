@@ -171,6 +171,7 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  outputDatasetName?: string;
 }
 
 export interface ExportTrainedPipeline extends JobArgs {

@@ -10,6 +10,7 @@ import {
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
+import sendToRenderer from 'platform/desktop/background';
 
 import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
 import * as common from './common';
@@ -129,12 +130,22 @@ async function runPipeline(
     }
   }
 
+  const DIVE_OUTPUT_PROJECT_DIR = 'DIVE_Jobs_Output';
+  const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
+  const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
+  const outputDir = `${npath.join(settings.dataPath, DIVE_OUTPUT_PROJECT_DIR, outputDirName)}`;
   if (runPipelineArgs.pipeline.type === 'filter') {
-    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
-    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+    if (outputDir !== jobWorkDir) {
+      await fs.mkdir(outputDir, { recursive: true });
+    }
+    command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
+    command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
   }
+
+  let transcodedFilename: string;
   if (runPipelineArgs.pipeline.type === 'transcode') {
-    command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
+    transcodedFilename = npath.join(jobWorkDir, `${datasetId}.mp4`);
+    command.push(`-s video_writer:video_filename="${transcodedFilename}"`);
   }
 
   if (requiresInput && !stereoOrMultiCam) {
@@ -223,6 +234,33 @@ async function runPipeline(
       endTime: new Date(),
     });
   });
+
+  if (['filter', 'transcode'].includes(runPipelineArgs.pipeline.type)) {
+    job.on('exit', async (code) => {
+      const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+      if (runPipelineArgs.pipeline.type === 'transcode') {
+        // TODO: work must be done to find the video file
+        return;
+      }
+      if (code === 0) {
+        // Ingest the output into a new dataset
+        updater({
+          ...jobBase,
+          body: ['Creating dataset from output...'],
+          exitCode: code,
+          endTime: new Date(),
+        });
+        // transcodedFilename will only be assigned for transcode pipelines
+        const importSource = transcodedFilename || outputDir;
+        if (importSource) {
+          const importPayload = await common.beginMediaImport(importSource);
+          importPayload.jsonMeta.name = datasetName;
+          const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+          sendToRenderer('filter-complete', conversionJobArgs.meta);
+        }
+      }
+    });
+  }
 
   return jobBase;
 }
