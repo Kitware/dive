@@ -21,7 +21,13 @@ from dive_tasks.frame_alignment import check_and_fix_frame_alignment
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
+from dive_utils.types import (
+    AvailableJobSchema,
+    ExportTrainedPipelineJob,
+    GirderModel,
+    PipelineJob,
+    TrainingJob,
+)
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -319,7 +325,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             "kwiver runner",
             f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
             f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
-            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}",
         ]
 
         manager.updateStatus(JobStatus.RUNNING)
