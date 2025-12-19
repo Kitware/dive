@@ -13,6 +13,7 @@ import {
   itemsPerPageOptions,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -77,6 +78,16 @@ const stagedDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
     width: 80,
   },
 ]);
+const createNewDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
+  {
+    text: 'Output Dataset Name',
+    value: 'output',
+    sortable: false,
+  },
+]);
+function computeOutputDatasetName(item: JsonMetaCache) {
+  return `Output of "${selectedPipeline.value?.name}" for ${item.name}`;
+}
 function getAvailableItems(): JsonMetaCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
@@ -178,7 +189,10 @@ onBeforeMount(async () => {
         <v-card-title>Datasets staged for selected pipeline</v-card-title>
         <v-data-table
           dense
-          v-bind="{ headers: stagedDatasetHeaders, items: stagedDatasets }"
+          v-bind="{
+            headers: pipelineCreatesDatasetMarkers.includes(selectedPipelineType || '') ? createNewDatasetHeaders : stagedDatasetHeaders,
+            items: stagedDatasets,
+          }"
           :items-per-page.sync="clientSettings.rowsPerPage"
           hide-default-footer
           :hide-default-header="stagedDatasets.length === 0"
@@ -192,6 +206,9 @@ onBeforeMount(async () => {
             >
               <v-icon>mdi-minus</v-icon>
             </v-btn>
+          </template>
+          <template #[`item.output`]="{ item }">
+            <b>{{ computeOutputDatasetName(item) }}</b>
           </template>
         </v-data-table>
       </div>
