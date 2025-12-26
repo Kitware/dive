@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import {
   useDatasetId,
   useTrackFilters,
@@ -30,10 +30,13 @@ export default defineComponent({
       saveThreshold();
     }
 
+    const showAllAnnotationsRef = computed(() => trackFilters.showAllAnnotations.value);
+
     return {
       checkedTypesRef: trackFilters.checkedTypes,
       confidenceFiltersRef: trackFilters.confidenceFilters,
       typeStylingRef: useTrackStyleManager().typeStyling,
+      showAllAnnotationsRef,
       resetThresholds,
       saveThreshold,
     };
@@ -48,6 +51,7 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
+      :disabled="showAllAnnotationsRef"
       :confidence.sync="confidenceFiltersRef.default"
       text="Base Confidence Threshold"
       @end="saveThreshold"
@@ -59,6 +63,7 @@ export default defineComponent({
       class="slidercontainer"
     >
       <ConfidenceFilter
+        :disabled="showAllAnnotationsRef"
         :confidence.sync="confidenceFiltersRef[type]"
         :text="type"
         :color="typeStylingRef.color(type)"

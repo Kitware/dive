@@ -83,6 +83,8 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
 
+  showAllAnnotations: Ref<boolean>;
+
   constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.sorted.value.map((t) => t.id));
 
@@ -101,6 +103,8 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.removeTypes = params.removeTypes;
 
     this.markChangesPending = params.markChangesPending;
+
+    this.showAllAnnotations = ref(false);
 
     this.allTypes = computed(() => {
       const typeSet = new Set<string>();

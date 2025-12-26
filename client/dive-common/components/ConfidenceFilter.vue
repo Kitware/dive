@@ -21,6 +21,10 @@ export default defineComponent({
       type: String,
       default: null,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     function _updateConfidence(event: InputEvent & {target: {value: string}}) {
@@ -61,6 +65,7 @@ export default defineComponent({
     <input
       type="range"
       style="width: 100%"
+      :disabled="disabled"
       :min="min"
       :max="1"
       :step="0.01"
