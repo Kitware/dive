@@ -23,6 +23,7 @@ import {
   useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
+import type Track from 'src/track';
 import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
@@ -106,12 +107,22 @@ export default defineComponent({
       if (multiSelectList.value.length > 0) {
         return multiSelectList.value.map(
           (trackId) => cameraStore.getAnyPossibleTrack(trackId),
-        ).filter((t) => t !== undefined);
+        ).filter((t): t is Track => t !== undefined);
       }
       if (selectedTrackIdRef.value !== null) {
-        return [cameraStore.getAnyTrack(selectedTrackIdRef.value)];
+        const track = cameraStore.getAnyTrack(selectedTrackIdRef.value);
+        return track ? [track] : [];
       }
       return [];
+    });
+
+    const isUserModified = computed(() => {
+      if (selectedTrackList.value.length === 1) {
+        const track = selectedTrackList.value[0];
+        const [feature] = track.getFeature(frameRef.value);
+        return feature?.attributes?.userModified === true;
+      }
+      return false;
     });
 
     function setEditIndividual(attribute: Attribute | null) {
@@ -227,6 +238,14 @@ export default defineComponent({
       });
     }
 
+    function setTrackType(type: string) {
+      const track = selectedTrackList.value[0];
+      // Find the confidence value for this type in the track's confidence pairs
+      const existingPair = track.confidencePairs.find(([t]) => t === type);
+      const confidenceVal = existingPair ? existingPair[1] : 1;
+      track.setType(type, confidenceVal);
+    }
+
     return {
       selectedTrackIdRef,
       editingGroupIdRef,
@@ -245,6 +264,7 @@ export default defineComponent({
       frameRef,
       /* Selected */
       selectedTrackList,
+      isUserModified,
       multiSelectList,
       multiSelectInProgress,
       editingMultiTrack,
@@ -266,6 +286,7 @@ export default defineComponent({
       toggleMerge,
       unstageFromMerge,
       updateSelectedTracksType,
+      setTrackType,
     };
   },
 });
@@ -569,7 +590,8 @@ export default defineComponent({
           flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
         "
         :disabled="selectedTrackList.length > 1"
-        @set-type="selectedTrackList[0].setType($event)"
+        :user-modified="isUserModified"
+        @set-type="setTrackType($event)"
       />
       <attribute-subsection
         v-if="!multiSelectInProgress"

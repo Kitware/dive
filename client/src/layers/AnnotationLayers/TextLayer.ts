@@ -50,14 +50,16 @@ function defaultFormatter(
       const [type, confidence] = confidencePairs[i];
 
       let text = '';
+      const userModified = annotation.features?.attributes?.userModified === true;
+      const modifiedIndicator = userModified ? ' ✏️' : '';
       if (typeStyling) {
         const { showLabel, showConfidence } = typeStyling.labelSettings(type);
         if (showLabel && !showConfidence) {
-          text = type;
+          text = type + modifiedIndicator;
         } else if (showConfidence && !showLabel) {
-          text = `${confidence.toFixed(2)}`;
+          text = `${confidence.toFixed(2)}${modifiedIndicator}`;
         } else if (showConfidence && showLabel) {
-          text = `${type}: ${confidence.toFixed(2)}`;
+          text = `${type}: ${confidence.toFixed(2)}${modifiedIndicator}`;
         }
       }
       arr.push({

@@ -400,7 +400,10 @@ export default function useModeManager({
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         // Determines if we are creating a new Detection
-        const { interpolate } = track.canInterpolate(frameNum);
+        const { interpolate, features } = track.canInterpolate(frameNum);
+        const [real] = features;
+        // If there's already a keyframe at this frame, we're editing an existing annotation
+        const isEditingExisting = real !== null && real.keyframe;
 
         track.setFeature({
           frame: frameNum,
@@ -409,6 +412,10 @@ export default function useModeManager({
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         });
+        // Mark as user-modified if editing existing annotation (as detection attribute)
+        if (isEditingExisting) {
+          track.setFeatureAttribute(frameNum, 'userModified', true);
+        }
         newTrackSettingsAfterLogic(track);
       }
     }
@@ -507,6 +514,9 @@ export default function useModeManager({
         }
         // Update the state of the track in the trackstore.
         if (somethingChanged) {
+          // If there's already a keyframe at this frame, we're editing an existing annotation
+          const isEditingExisting = real !== null && real.keyframe;
+
           track.setFeature({
             frame: frameNum,
             flick: flickNum,
@@ -521,6 +531,11 @@ export default function useModeManager({
               properties: { key: key_ },
             })),
           ));
+
+          // Mark as user-modified if editing existing annotation (as detection attribute)
+          if (isEditingExisting) {
+            track.setFeatureAttribute(frameNum, 'userModified', true);
+          }
 
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing
