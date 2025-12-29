@@ -43,7 +43,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       const resultsArr: AnnotationWithContext<Track>[] = [];
       const resultsIds: Set<AnnotationId> = new Set();
       params.sorted.value.forEach((annotation) => {
-        if (this.timeFilters.value !== null && !this.showAllAnnotations.value) {
+        if (this.timeFilters.value !== null && !this.disableAnnotationFilters.value) {
           const [startTime, endTime] = this.timeFilters.value;
           if (annotation.begin > endTime || annotation.end < startTime) {
             return;
@@ -78,7 +78,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
             confidencePairIndex = -1;
           }
         }
-        if (this.showAllAnnotations.value) {
+        if (this.disableAnnotationFilters.value) {
           confidencePairIndex = 0;
         }
         /* include annotations where at least 1 confidence pair is above
@@ -88,7 +88,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           && enabledInGroupFilters && !resultsIds.has(annotation.id)
         ) {
           let addValue = true;
-          if (!this.showAllAnnotations.value && this.attributeFilters.value.length > 0 && params.getTrack !== undefined
+          if (!this.disableAnnotationFilters.value && this.attributeFilters.value.length > 0 && params.getTrack !== undefined
             && this.enabledFilters.value.length > 0) {
             addValue = trackIdPassesFilter(
               annotation.id,

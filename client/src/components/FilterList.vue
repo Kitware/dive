@@ -278,11 +278,11 @@ export default defineComponent({
 
     const showMaxFrameButton = computed(() => clientSettings.typeSettings.maxCountButton);
 
-    const showAllAnnotations = computed({
-      get: () => props.filterControls.showAllAnnotations.value,
+    const disableAnnotationFilters = computed({
+      get: () => props.filterControls.disableAnnotationFilters.value,
       set: (val: boolean) => {
         // eslint-disable-next-line no-param-reassign
-        props.filterControls.showAllAnnotations.value = val;
+        props.filterControls.disableAnnotationFilters.value = val;
       },
     });
 
@@ -301,7 +301,7 @@ export default defineComponent({
       virtualTypes,
       readOnlyMode,
       filteredTracksRef,
-      showAllAnnotations,
+      disableAnnotationFilters,
       /* methods */
       clickDelete,
       clickEdit,
@@ -331,7 +331,7 @@ export default defineComponent({
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
-            :disabled="showAllAnnotations"
+            :disabled="disableAnnotationFilters"
             dense
             shrink
             hide-details
@@ -347,9 +347,9 @@ export default defineComponent({
               <v-icon
                 small
                 class="mr-1 hover-show-child"
-                :color="showAllAnnotations ? 'primary' : ''"
+                :color="disableAnnotationFilters ? 'primary' : ''"
                 v-on="on"
-                @click="showAllAnnotations = !showAllAnnotations"
+                @click="disableAnnotationFilters = !disableAnnotationFilters"
               >
                 mdi-filter-off-outline
               </v-icon>
@@ -423,7 +423,7 @@ export default defineComponent({
             :confidence-filter-num="item.confidenceFilterNum"
             :width="width"
             :display-max-button="showMaxFrameButton"
-            :disabled="showAllAnnotations"
+            :disabled="disableAnnotationFilters"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"

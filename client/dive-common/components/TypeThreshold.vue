@@ -30,13 +30,13 @@ export default defineComponent({
       saveThreshold();
     }
 
-    const showAllAnnotationsRef = computed(() => trackFilters.showAllAnnotations.value);
+    const disableAnnotationFiltersRef = computed(() => trackFilters.disableAnnotationFilters.value);
 
     return {
       checkedTypesRef: trackFilters.checkedTypes,
       confidenceFiltersRef: trackFilters.confidenceFilters,
       typeStylingRef: useTrackStyleManager().typeStyling,
-      showAllAnnotationsRef,
+      disableAnnotationFiltersRef,
       resetThresholds,
       saveThreshold,
     };
@@ -51,7 +51,7 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
-      :disabled="showAllAnnotationsRef"
+      :disabled="disableAnnotationFiltersRef"
       :confidence.sync="confidenceFiltersRef.default"
       text="Base Confidence Threshold"
       @end="saveThreshold"
@@ -63,7 +63,7 @@ export default defineComponent({
       class="slidercontainer"
     >
       <ConfidenceFilter
-        :disabled="showAllAnnotationsRef"
+        :disabled="disableAnnotationFiltersRef"
         :confidence.sync="confidenceFiltersRef[type]"
         :text="type"
         :color="typeStylingRef.color(type)"
