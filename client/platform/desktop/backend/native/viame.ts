@@ -130,13 +130,8 @@ async function runPipeline(
   }
 
   if (runPipelineArgs.pipeline.type === 'filter') {
-    // Create a subdirectory within the working directory to store output images
-    const outputDirectoryName = npath.join(jobWorkDir, 'output');
-    if (!fs.existsSync(outputDirectoryName)) {
-      await fs.mkdir(outputDirectoryName);
-    }
-    command.push(`-s kwa_writer:output_directory="${outputDirectoryName}"`);
-    command.push(`-s image_writer:file_name_prefix="${outputDirectoryName}/"`);
+    command.push(`-s kwa_writer:output_directory="${jobWorkDir}/"`);
+    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
   }
   if (runPipelineArgs.pipeline.type === 'transcode') {
     command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
@@ -215,6 +210,24 @@ async function runPipeline(
       endTime: new Date(),
     });
   });
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
+    job.on('exit', async (code) => {
+      console.log('IN THE ASYNC EXIT HANDLER');
+      if (code === 0) {
+        // Ingest the output into a new dataset
+        updater({
+          ...jobBase,
+          body: ['Creating dataset from output...'],
+          exitCode: code,
+          endTime: new Date(),
+        });
+        const importPayload = await common.beginMediaImport(jobWorkDir);
+        const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+        console.log('conversion args: ', conversionJobArgs.mediaList.join(', '));
+      }
+    });
+  }
 
   return jobBase;
 }
