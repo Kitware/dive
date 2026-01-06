@@ -916,6 +916,7 @@ async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse
  * Begin a dataset import.
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
+  console.log('BEGINNING MEDIA IMPORT');
   let datasetType: DatasetType;
 
   const exists = fs.existsSync(path);
@@ -938,6 +939,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   }
 
   const dsName = npath.parse(path).name;
+  console.log('MEDIA IMPORT INFO: ', dsName, datasetType);
 
   const _defaultFps = datasetType === 'video' ? 5 : 1;
   const jsonMeta: JsonMeta = {
@@ -996,6 +998,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     }
   } else if (datasetType === 'image-sequence') {
     const found = await findImagesInFolder(path);
+    console.log('FOUND IMAGES: ', found.imageNames.join(', '));
     if (found.imagePaths.length === 0) {
       throw new Error(`no images found in ${path}`);
     }
@@ -1115,6 +1118,7 @@ async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
 ): Promise<ConversionArgs> {
+  console.log('FINALIZING MEDIA IMPORT');
   const { jsonMeta, globPattern } = args;
   let { mediaConvertList } = args;
   const { type: datasetType } = jsonMeta;
@@ -1199,6 +1203,8 @@ async function finalizeMediaImport(
   }
   const finalJsonMeta = await _importTrackFile(settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath);
   if (args.metaFileAbsPath) {
+    // not getting hit
+    console.log('IMPORTING DATA FILES');
     await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
   }
   const conversionJobArgs: ConversionArgs = {

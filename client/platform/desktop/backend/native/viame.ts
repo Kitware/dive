@@ -130,7 +130,7 @@ async function runPipeline(
   }
 
   if (runPipelineArgs.pipeline.type === 'filter') {
-    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
+    command.push(`-s kwa_writer:output_directory="${jobWorkDir}/"`);
     command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
   }
   if (runPipelineArgs.pipeline.type === 'transcode') {
@@ -210,6 +210,24 @@ async function runPipeline(
       endTime: new Date(),
     });
   });
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
+    job.on('exit', async (code) => {
+      console.log('IN THE ASYNC EXIT HANDLER');
+      if (code === 0) {
+        // Ingest the output into a new dataset
+        updater({
+          ...jobBase,
+          body: ['Creating dataset from output...'],
+          exitCode: code,
+          endTime: new Date(),
+        });
+        const importPayload = await common.beginMediaImport(jobWorkDir);
+        const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+        console.log('conversion args: ', conversionJobArgs.mediaList.join(', '));
+      }
+    });
+  }
 
   return jobBase;
 }
