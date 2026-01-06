@@ -58,6 +58,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const readOnlyMode = useReadOnlyMode();
@@ -402,6 +406,7 @@ export default defineComponent({
               :input-value="true"
               :color="typeStylingRef.color(track.confidencePairs[0][0])"
               :lock-types="lockTypes"
+              :disabled="disabled"
               class="grow"
               @seek="$emit('track-seek', $event)"
             />
@@ -445,7 +450,7 @@ export default defineComponent({
           v-if="!multiSelectInProgress && !multiCam"
           color="primary lighten-1"
           class="mx-2 mb-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || disabled"
           depressed
           x-small
           @click="$emit('toggle-merge')"
@@ -463,7 +468,7 @@ export default defineComponent({
           v-if="!multiSelectInProgress && !multiCam"
           color="primary darken-1"
           class="mx-2 mb-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || disabled"
           depressed
           x-small
           @click="$emit('create-group')"
@@ -482,7 +487,7 @@ export default defineComponent({
           color="primary lighten-1"
           x-small
           depressed
-          :disabled="multiSelectList.length < 2"
+          :disabled="multiSelectList.length < 2 || readOnlyMode || disabled"
           class="mx-2 mb-2 grow"
           @click="$emit('commit-merge')"
         >
@@ -505,7 +510,7 @@ export default defineComponent({
           v-if="multiSelectInProgress && (editingGroupIdRef === null)"
           color="error"
           class="mx-2 mb-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || disabled"
           depressed
           x-small
           @click="$emit('toggle-merge')"
@@ -517,7 +522,7 @@ export default defineComponent({
           v-if="editingMultiTrack"
           color="error"
           class="mx-2 mb-2 grow"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || disabled"
           depressed
           x-small
           @click="$emit('delete-selected-tracks')"
@@ -552,7 +557,7 @@ export default defineComponent({
         </div>
         <v-btn
           class="mx-2 mb-2"
-          :disabled="readOnlyMode"
+          :disabled="readOnlyMode || disabled"
           color="primary"
           depressed
           x-small

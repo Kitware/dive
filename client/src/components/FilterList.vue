@@ -278,6 +278,14 @@ export default defineComponent({
 
     const showMaxFrameButton = computed(() => clientSettings.typeSettings.maxCountButton);
 
+    const disableAnnotationFilters = computed({
+      get: () => props.filterControls.disableAnnotationFilters.value,
+      set: (val: boolean) => {
+        // eslint-disable-next-line no-param-reassign
+        props.filterControls.disableAnnotationFilters.value = val;
+      },
+    });
+
     return {
       data,
       headCheckState,
@@ -293,6 +301,7 @@ export default defineComponent({
       virtualTypes,
       readOnlyMode,
       filteredTracksRef,
+      disableAnnotationFilters,
       /* methods */
       clickDelete,
       clickEdit,
@@ -322,6 +331,7 @@ export default defineComponent({
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
+            :disabled="disableAnnotationFilters"
             dense
             shrink
             hide-details
@@ -329,6 +339,23 @@ export default defineComponent({
             class="my-1 type-checkbox mt-0"
             @change="headCheckClicked"
           />
+          <v-tooltip
+            open-delay="100"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                class="mr-1 hover-show-child"
+                :color="disableAnnotationFilters ? 'primary' : ''"
+                v-on="on"
+                @click="disableAnnotationFilters = !disableAnnotationFilters"
+              >
+                mdi-filter-off-outline
+              </v-icon>
+            </template>
+            <span>Disable Filters and Show All Annotations</span>
+          </v-tooltip>
           <v-tooltip
             open-delay="100"
             bottom
@@ -396,6 +423,7 @@ export default defineComponent({
             :confidence-filter-num="item.confidenceFilterNum"
             :width="width"
             :display-max-button="showMaxFrameButton"
+            :disabled="disableAnnotationFilters"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"

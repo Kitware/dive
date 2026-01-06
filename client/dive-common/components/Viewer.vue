@@ -827,6 +827,10 @@ export default defineComponent({
       useAttributeFilters,
     );
 
+    const disableAnnotationFilters = computed(() => (
+      trackFilters.disableAnnotationFilters.value
+    ));
+
     return {
       /* props */
       aggregateController,
@@ -868,6 +872,7 @@ export default defineComponent({
       readonlyState,
       imageEnhancementOutputs,
       isDefaultImage,
+      disableAnnotationFilters,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1097,6 +1102,7 @@ export default defineComponent({
             v-if="context.state.active !== 'TypeThreshold'"
             class="ma-2 mb-0"
             :confidence.sync="confidenceFilters.default"
+            :disabled="disableAnnotationFilters"
             @end="saveThreshold"
           >
             <a
