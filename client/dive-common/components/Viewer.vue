@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, defineAsyncComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType, set as VueSet,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
@@ -38,8 +38,6 @@ import {
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
-// NativeVideoAnnotator uses electron APIs, import directly to avoid lib build issues
-import NativeVideoAnnotator from 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
@@ -100,6 +98,12 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+
+// NativeVideoAnnotator uses electron APIs - only load in desktop app
+// The webpackIgnore comment prevents bundling in web builds
+const NativeVideoAnnotator = defineAsyncComponent(
+  () => import(/* webpackIgnore: true */ 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue'),
+);
 
 export interface ImageDataItem {
   url: string;
