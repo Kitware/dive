@@ -25,6 +25,8 @@ const DefaultSettings: Settings = {
   viamePath: '/opt/noaa/viame',
   // read only mode flag
   readonlyMode: false,
+  // Use native video playback (no transcoding) - off by default
+  nativeVideoPlayback: false,
   // Path to a user data folder
   dataPath: npath.join(os.homedir(), 'VIAME_DATA'),
   // environment overrides

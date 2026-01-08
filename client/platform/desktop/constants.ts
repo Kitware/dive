@@ -29,6 +29,10 @@ export interface Settings {
   dataPath: string;
   // readonly flag
   readonlyMode: boolean;
+  // Use native video playback (frame extraction) instead of transcoding
+  // This saves disk space and allows faster initial access at the cost of
+  // potentially slower playback performance
+  nativeVideoPlayback: boolean;
   // overrides of user-provided settings
   overrides: {
     // externally force the VIAME path
@@ -131,6 +135,11 @@ export interface JsonConfig extends DatasetConfigMutable {
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
   transcodingJobKey?: string;
+
+  // If true, use native video playback (frame extraction) instead of transcoded video
+  // This saves disk space and allows faster initial access at the cost of
+  // potentially slower playback performance
+  useNativePlayback?: boolean;
 
   error?: string;
 
@@ -282,6 +291,8 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
+  // Use native playback (frame extraction) instead of transcoding
+  useNativePlayback: boolean;
   /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
   configFileAbsPath?: string;
   /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */

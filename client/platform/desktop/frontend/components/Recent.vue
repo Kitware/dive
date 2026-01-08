@@ -26,6 +26,7 @@ import {
   JsonConfigCache, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
+  settings,
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
 } from '../store/settings';
 import { setOrGetConversionJob, cpuJobQueue, queuedCpuJobs } from '../store/jobs';
@@ -108,7 +109,15 @@ export default defineComponent({
     async function finalizeBulkImport(argsArray: DesktopMediaImportResponse[]) {
       importing.value = true;
 
-      const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
+      const argsWithSettings = argsArray.map((args) => ({
+        ...args,
+        useNativePlayback: args.jsonConfig.type === 'video'
+          && (settings.value?.nativeVideoPlayback ?? false),
+      }));
+
+      const imports = await request(async () => Promise.all(
+        argsWithSettings.map((args) => api.finalizeImport(args)),
+      ));
       pendingImportPayload.value = null;
 
       await presentImportWarnings(imports);
@@ -129,7 +138,12 @@ export default defineComponent({
     async function finalizeImport(args: DesktopMediaImportResponse) {
       importing.value = true;
       await request(async () => {
-        const conversionArgs = await api.finalizeImport(args);
+        const argsWithSettings: DesktopMediaImportResponse = {
+          ...args,
+          useNativePlayback: args.jsonConfig.type === 'video'
+            && (settings.value?.nativeVideoPlayback ?? false),
+        };
+        const conversionArgs = await api.finalizeImport(argsWithSettings);
         await presentImportWarnings([conversionArgs]);
         pendingImportPayload.value = null; // close dialog
         if (conversionArgs.mediaList.length === 0) {

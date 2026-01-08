@@ -13,6 +13,7 @@ const settings: Settings = {
   dataPath: '/home/user/viamedata',
   viamePath: '/opt/viame',
   readonlyMode: false,
+  nativeVideoPlayback: false,
   overrides: {},
 };
 

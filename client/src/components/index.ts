@@ -4,6 +4,7 @@
 
 import ImageAnnotator from './annotators/ImageAnnotator.vue';
 import VideoAnnotator from './annotators/VideoAnnotator.vue';
+import NativeVideoAnnotator from './annotators/NativeVideoAnnotator.vue';
 import LargeImageAnnotator from './annotators/LargeImageAnnotator.vue';
 import AnnotatorImageCursor from './annotators/AnnotatorImageCursor.vue';
 
@@ -35,6 +36,7 @@ export {
   AnnotatorImageCursor,
   ImageAnnotator,
   VideoAnnotator,
+  NativeVideoAnnotator,
   LargeImageAnnotator,
   /* Controls */
   Controls,
