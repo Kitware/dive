@@ -544,6 +544,7 @@ export default class Track extends BaseAnnotation {
   static fromJSON(json: TrackData, set?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
+      if (f === null || f === undefined) return;
       sparseFeatures[f.frame] = {
         keyframe: true,
         ...f,

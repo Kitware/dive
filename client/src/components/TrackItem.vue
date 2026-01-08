@@ -86,6 +86,7 @@ export default defineComponent({
     const editConfidenceValue = ref('');
     const editNotesValue = ref('');
     const localNotesDisplay = ref('');
+    const localConfidenceDisplay = ref<number | null>(null);
     const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
     const confidenceInputRef = ref<HTMLInputElement | null>(null);
     const notesInputRef = ref<HTMLInputElement | null>(null);
@@ -141,7 +142,14 @@ export default defineComponent({
 
     /* Get the top confidence value for display in compact mode */
     const topConfidence = computed(() => {
-      if (props.track.confidencePairs && props.track.confidencePairs.length > 0) {
+      // Use local display value if set, otherwise read from track
+      if (localConfidenceDisplay.value !== null) {
+        return localConfidenceDisplay.value;
+      }
+      // Access revision.value to create reactive dependency
+      if (props.track.revision.value !== undefined
+          && props.track.confidencePairs
+          && props.track.confidencePairs.length > 0) {
         return props.track.confidencePairs[0][1];
       }
       return null;
@@ -255,6 +263,8 @@ export default defineComponent({
       const val = parseFloat(editConfidenceValue.value);
       if (!Number.isNaN(val) && val >= 0 && val <= 1) {
         props.track.setType(props.trackType, val);
+        // Update local display immediately for UI responsiveness
+        localConfidenceDisplay.value = val;
       }
       editingConfidence.value = false;
     }
