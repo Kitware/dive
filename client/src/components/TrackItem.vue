@@ -81,10 +81,14 @@ export default defineComponent({
     /* Compact mode editing state */
     const editingType = ref(false);
     const editingConfidence = ref(false);
+    const editingNotes = ref(false);
     const editTypeValue = ref('');
     const editConfidenceValue = ref('');
+    const editNotesValue = ref('');
+    const localNotesDisplay = ref('');
     const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
     const confidenceInputRef = ref<HTMLInputElement | null>(null);
+    const notesInputRef = ref<HTMLInputElement | null>(null);
     /**
      * Use of revision is safe because it will only create a
      * dependency when track is selected.  DO NOT use this computed
@@ -141,6 +145,23 @@ export default defineComponent({
         return props.track.confidencePairs[0][1];
       }
       return null;
+    });
+
+    /* Get the notes value from the track's first keyframe */
+    const currentNotes = computed(() => {
+      // Use local display value if set, otherwise read from track
+      if (localNotesDisplay.value) {
+        return localNotesDisplay.value;
+      }
+      // Access revision.value to create reactive dependency
+      if (props.track.revision.value !== undefined) {
+        // Use track.begin frame for notes (first keyframe)
+        const feature = props.track.features[props.track.begin];
+        if (feature && feature.notes && feature.notes.length > 0) {
+          return feature.notes.join(', ');
+        }
+      }
+      return '';
     });
 
     function toggleKeyframe() {
@@ -242,6 +263,30 @@ export default defineComponent({
       editingConfidence.value = false;
     }
 
+    function startEditNotes(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editNotesValue.value = currentNotes.value;
+      editingNotes.value = true;
+      nextTick(() => {
+        notesInputRef.value?.focus();
+        notesInputRef.value?.select();
+      });
+    }
+
+    function saveNotes() {
+      const newNotes = editNotesValue.value.trim();
+      // Save notes to the track's first keyframe (track.begin)
+      props.track.setFeatureNotes(props.track.begin, newNotes);
+      // Update local display immediately for UI responsiveness
+      localNotesDisplay.value = newNotes;
+      editingNotes.value = false;
+    }
+
+    function cancelEditNotes() {
+      editingNotes.value = false;
+    }
+
     return {
       /* data */
       feature,
@@ -257,10 +302,15 @@ export default defineComponent({
       /* compact editing */
       editingType,
       editingConfidence,
+      editingNotes,
       editTypeValue,
       editConfidenceValue,
+      editNotesValue,
+      localNotesDisplay,
       typeInputRef,
       confidenceInputRef,
+      notesInputRef,
+      currentNotes,
       /* methods */
       gotoNext,
       gotoPrevious,
@@ -279,6 +329,9 @@ export default defineComponent({
       startEditConfidence,
       saveConfidence,
       cancelEditConfidence,
+      startEditNotes,
+      saveNotes,
+      cancelEditNotes,
     };
   },
 });
@@ -363,6 +416,25 @@ export default defineComponent({
     <!-- Start and end frame columns -->
     <span class="track-frame-start">{{ track.begin }}</span>
     <span class="track-frame-end">{{ track.end }}</span>
+    <!-- Notes field -->
+    <input
+      v-if="editingNotes"
+      ref="notesInputRef"
+      v-model="editNotesValue"
+      type="text"
+      class="compact-notes-input"
+      placeholder="Add notes..."
+      @blur="saveNotes"
+      @keydown.enter="saveNotes"
+      @keydown.escape="cancelEditNotes"
+      @click.stop
+    >
+    <span
+      v-else
+      class="track-notes-compact text-truncate"
+      :class="{ editable: !readOnlyMode, 'has-notes': currentNotes }"
+      @click="startEditNotes"
+    >{{ currentNotes || '...' }}</span>
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
@@ -638,6 +710,46 @@ export default defineComponent({
 
   .track-frame-end {
     margin-right: 8px;
+  }
+
+  .track-notes-compact {
+    font-size: 11px;
+    color: #666;
+    flex-grow: 1;
+    min-width: 60px;
+    max-width: 200px;
+    padding: 1px 4px;
+    margin-left: 12px;
+
+    &.has-notes {
+      color: #aaa;
+    }
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .compact-notes-input {
+    font-size: 11px;
+    flex-grow: 1;
+    min-width: 60px;
+    max-width: 200px;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    margin-left: 12px;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
   }
 
   .track-type-compact {
