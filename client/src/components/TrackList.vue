@@ -257,53 +257,65 @@ export default defineComponent({
     <!-- Compact header for bottom layout -->
     <div
       v-if="compact"
-      class="compact-header d-flex align-center px-2 py-1"
+      class="compact-header d-flex flex-column px-2 py-1"
     >
-      <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
-      <v-spacer />
-      <v-tooltip
-        open-delay="100"
-        bottom
-      >
-        <template #activator="{ on }">
-          <v-btn
-            :disabled="filteredTracks.length === 0 || readOnlyMode"
-            icon
-            x-small
-            v-on="on"
-            @click="multiDelete()"
-          >
-            <v-icon
+      <div class="d-flex align-center">
+        <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
+        <v-spacer />
+        <v-tooltip
+          open-delay="100"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-btn
+              :disabled="filteredTracks.length === 0 || readOnlyMode"
+              icon
               x-small
-              color="error"
+              v-on="on"
+              @click="multiDelete()"
             >
-              mdi-delete
-            </v-icon>
-          </v-btn>
-        </template>
-        <span>Delete visible items</span>
-      </v-tooltip>
-      <v-tooltip
-        open-delay="200"
-        bottom
-        max-width="200"
-      >
-        <template #activator="{ on }">
-          <v-btn
-            :disabled="readOnlyMode"
-            outlined
-            x-small
-            :color="newTrackColor"
-            v-on="on"
-            @click="trackAdd()"
-          >
-            <v-icon x-small>
-              mdi-plus
-            </v-icon>
-          </v-btn>
-        </template>
-        <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
-      </v-tooltip>
+              <v-icon
+                x-small
+                color="error"
+              >
+                mdi-delete
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Delete visible items</span>
+        </v-tooltip>
+        <v-tooltip
+          open-delay="200"
+          bottom
+          max-width="200"
+        >
+          <template #activator="{ on }">
+            <v-btn
+              :disabled="readOnlyMode"
+              outlined
+              x-small
+              :color="newTrackColor"
+              v-on="on"
+              @click="trackAdd()"
+            >
+              <v-icon x-small>
+                mdi-plus
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
+        </v-tooltip>
+      </div>
+      <!-- Column headers row -->
+      <div class="compact-column-headers d-flex align-center px-1 mt-1">
+        <span class="col-header col-id">ID</span>
+        <span class="col-header col-type">Type</span>
+        <span class="col-header col-conf">Conf</span>
+        <span class="col-header col-start">Start</span>
+        <span class="col-header col-end">End</span>
+        <v-spacer />
+        <span class="col-header col-actions">Actions</span>
+      </div>
     </div>
     <!-- Standard header -->
     <v-subheader
@@ -436,6 +448,38 @@ export default defineComponent({
 .compact-header-text {
   font-size: 14px;
   font-weight: 600;
+}
+.compact-column-headers {
+  .col-header {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .col-id {
+    min-width: 46px;
+  }
+  .col-type {
+    min-width: 80px;
+  }
+  .col-conf {
+    min-width: 40px;
+    text-align: right;
+    margin-right: 8px;
+  }
+  .col-start {
+    min-width: 45px;
+    text-align: right;
+  }
+  .col-end {
+    min-width: 45px;
+    text-align: right;
+    margin-right: 8px;
+  }
+  .col-actions {
+    min-width: 100px;
+    text-align: right;
+  }
 }
 .tracks {
   overflow-y: auto;

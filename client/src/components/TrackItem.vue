@@ -360,6 +360,9 @@ export default defineComponent({
     >
       {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
     </span>
+    <!-- Start and end frame columns -->
+    <span class="track-frame-start">{{ track.begin }}</span>
+    <span class="track-frame-end">{{ track.end }}</span>
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
@@ -391,6 +394,14 @@ export default defineComponent({
         size="x-small"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
+      />
+      <tooltip-btn
+        icon="mdi-delete"
+        color="error"
+        tooltip-text="Delete track"
+        size="x-small"
+        :disabled="merging || readOnlyMode"
+        @click="handler.removeTrack([track.trackId])"
       />
     </div>
     <span
@@ -616,6 +627,19 @@ export default defineComponent({
     min-width: 30px;
   }
 
+  .track-frame-start,
+  .track-frame-end {
+    font-size: 11px;
+    color: #888;
+    min-width: 45px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .track-frame-end {
+    margin-right: 8px;
+  }
+
   .track-type-compact {
     font-size: 12px;
     color: #aaa;
@@ -635,13 +659,14 @@ export default defineComponent({
   .track-confidence-compact {
     font-size: 11px;
     color: #888;
-    width: 36px;
-    min-width: 36px;
+    width: 40px;
+    min-width: 40px;
     flex-shrink: 0;
     text-align: right;
     background-color: #333;
     padding: 1px 4px;
     border-radius: 3px;
+    margin-right: 8px;
 
     &.editable {
       cursor: text;

@@ -43,6 +43,8 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
+import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
@@ -81,6 +83,8 @@ export default defineComponent({
     TypeSettingsPanel,
     TrackSettingsPanel,
     TrackDetailsPanel,
+    ConfidenceSubsection,
+    AttributeSubsection,
   },
 
   // TODO: remove this in vue 3
@@ -871,6 +875,14 @@ export default defineComponent({
       trackFilters.disableAnnotationFilters.value
     ));
 
+    // For bottom panel details view
+    const selectedTrackForDetails = computed(() => {
+      if (selectedTrackId.value !== null) {
+        return cameraStore.getAnyTrack(selectedTrackId.value);
+      }
+      return null;
+    });
+
     return {
       /* props */
       aggregateController,
@@ -920,6 +932,8 @@ export default defineComponent({
       disableAnnotationFilters,
       trackStyleManager,
       visible,
+      selectedTrackForDetails,
+      attributes,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1438,16 +1452,30 @@ export default defineComponent({
               </div>
             </template>
 
-            <!-- Track details view -->
+            <!-- Track details view (simplified for bottom mode) -->
             <template v-else>
               <div class="flex-grow-1 bottom-details-panel" style="overflow-y: auto; overflow-x: hidden;">
-                <TrackDetailsPanel
-                  :lock-types="clientSettings.typeSettings.lockTypes"
-                  :hotkeys-disabled="readonlyState"
-                  :width="300"
-                  :disabled="disableAnnotationFilters"
-                  @track-seek="aggregateController.seek($event)"
-                />
+                <div v-if="selectedTrackForDetails" class="pa-2">
+                  <!-- Type classifications -->
+                  <ConfidenceSubsection
+                    :confidence-pairs="selectedTrackForDetails.confidencePairs"
+                    :disabled="false"
+                    @set-type="selectedTrackForDetails.setType($event)"
+                  />
+                  <!-- Track attributes -->
+                  <AttributeSubsection
+                    mode="Track"
+                    :attributes="attributes"
+                  />
+                  <!-- Detection attributes -->
+                  <AttributeSubsection
+                    mode="Detection"
+                    :attributes="attributes"
+                  />
+                </div>
+                <div v-else class="pa-3 text-caption grey--text">
+                  No track selected. Select a track to view its type classifications and attributes.
+                </div>
               </div>
             </template>
           </div>
