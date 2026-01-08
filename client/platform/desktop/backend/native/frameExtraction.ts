@@ -134,16 +134,16 @@ async function extractFrame(
   // Calculate timestamp from frame number
   const timestamp = frameNumber / fps;
 
-  // Extract frame using ffmpeg
-  // Use -ss before -i for fast seeking to nearest keyframe
-  // Then use accurate seeking with filter
+  // Use -ss AFTER -i for frame-accurate seeking.
+  // This is slower (decodes from start) but guarantees correct frames.
+  // The -noaccurate_seek flag is NOT used, ensuring precise positioning.
   const args = [
-    '-ss', timestamp.toFixed(6),
     '-i', videoPath,
+    '-ss', timestamp.toFixed(6),
     '-vframes', '1',
     '-f', 'image2pipe',
     '-vcodec', 'mjpeg',
-    '-q:v', '2', // High quality JPEG
+    '-q:v', '2',
     '-',
   ];
 
