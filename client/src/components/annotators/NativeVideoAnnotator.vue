@@ -72,9 +72,8 @@ export default defineComponent({
       setSpeed,
     });
 
-    // Canvas for rendering frames
+    // Canvas for dimension tracking
     const frameCanvas = document.createElement('canvas');
-    const frameCtx = frameCanvas.getContext('2d');
 
     // Video info loaded from backend
     const videoInfo = ref<{
@@ -166,26 +165,29 @@ export default defineComponent({
     }
 
     /**
-     * Render a frame to the canvas
+     * Render a frame to the quad feature
      */
     async function renderFrame(frameNumber: number) {
       try {
         const img = await loadFrame(frameNumber);
 
+        // Update canvas dimensions if needed
         if (frameCanvas.width !== img.width || frameCanvas.height !== img.height) {
           frameCanvas.width = img.width;
           frameCanvas.height = img.height;
         }
 
-        if (frameCtx) {
-          frameCtx.drawImage(img, 0, 0);
-        }
-
-        // Update the geojs quad feature
-        if (geoViewer.value) {
-          geoViewer.value.scheduleAnimationFrame(() => {
-            geoViewer.value.draw();
-          });
+        // Update the geojs quad feature with the new image
+        if (quadFeature) {
+          quadFeature
+            .data([
+              {
+                ul: { x: 0, y: 0 },
+                lr: { x: img.width, y: img.height },
+                image: img,
+              },
+            ])
+            .draw();
         }
       } catch (err) {
         console.error(`Failed to render frame ${frameNumber}:`, err);
@@ -287,6 +289,8 @@ export default defineComponent({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let quadFeatureLayer = undefined as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let quadFeature = undefined as any;
 
     watch(
       () => props.isDefaultImage,
@@ -327,14 +331,15 @@ export default defineComponent({
       // Initialize geojs viewer
       initializeViewer(width, height);
 
-      // Create quad feature layer with the canvas as the source
+      // Create quad feature layer for rendering frames
       quadFeatureLayer = geoViewer.value.createLayer('feature', {
         features: ['quad'],
         autoshareRenderer: false,
+        renderer: 'canvas',
       });
 
-      quadFeatureLayer
-        .createFeature('quad')
+      quadFeature = quadFeatureLayer.createFeature('quad');
+      quadFeature
         .data([
           {
             ul: { x: 0, y: 0 },
