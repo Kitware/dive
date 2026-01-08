@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, defineAsyncComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
@@ -29,8 +29,6 @@ import {
   LayerManager,
   useMediaController,
 } from 'vue-media-annotator/components';
-// NativeVideoAnnotator uses electron APIs, import directly to avoid lib build issues
-import NativeVideoAnnotator from 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
 
@@ -52,6 +50,12 @@ import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
+
+// NativeVideoAnnotator uses electron APIs - only load in desktop app
+// The webpackIgnore comment prevents bundling in web builds
+const NativeVideoAnnotator = defineAsyncComponent(
+  () => import(/* webpackIgnore: true */ 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue'),
+);
 
 export interface ImageDataItem {
   url: string;

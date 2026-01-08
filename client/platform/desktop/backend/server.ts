@@ -183,7 +183,9 @@ apirouter.get('/frame', async (req, res, next) => {
 
 /* PREFETCH frames for native video playback */
 apirouter.post('/prefetch-frames', async (req, res, next) => {
-  const { path, centerFrame, fps, range } = req.body;
+  const {
+    path, centerFrame, fps, range,
+  } = req.body;
   if (!path || typeof path !== 'string') {
     return next({
       status: 400,
