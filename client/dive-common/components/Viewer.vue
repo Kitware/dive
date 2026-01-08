@@ -30,6 +30,7 @@ import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides'
 import {
   ImageAnnotator,
   VideoAnnotator,
+  NativeVideoAnnotator,
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
@@ -114,6 +115,7 @@ export default defineComponent({
     Sidebar,
     LayerManager,
     VideoAnnotator,
+    NativeVideoAnnotator,
     ImageAnnotator,
     LargeImageAnnotator,
     ConfidenceFilter,
@@ -205,6 +207,7 @@ export default defineComponent({
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
+    const nativeVideoPath: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
@@ -1801,6 +1804,9 @@ export default defineComponent({
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
+          if (subCameraMeta.nativeVideoPath) {
+            nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
+          }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           const {
@@ -2333,7 +2339,7 @@ export default defineComponent({
         return 'image-annotator';
       }
       if (type === 'video') {
-        return 'video-annotator';
+        return nativeVideoPath.value[camera] ? 'native-video-annotator' : 'video-annotator';
       }
       return 'large-image-annotator';
     }
@@ -2412,6 +2418,7 @@ export default defineComponent({
       selectedKey,
       trackFilters,
       videoUrl,
+      nativeVideoPath,
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
@@ -2820,13 +2827,14 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
+                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
@@ -2917,13 +2925,14 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
+                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
