@@ -25,6 +25,7 @@ import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
   ImageAnnotator,
   VideoAnnotator,
+  NativeVideoAnnotator,
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
@@ -63,6 +64,7 @@ export default defineComponent({
     Sidebar,
     LayerManager,
     VideoAnnotator,
+    NativeVideoAnnotator,
     ImageAnnotator,
     LargeImageAnnotator,
     ConfidenceFilter,
@@ -119,6 +121,7 @@ export default defineComponent({
     const datasetName = ref('');
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
+    const nativeVideoPath: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
     } = useApi();
@@ -597,6 +600,9 @@ export default defineComponent({
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
+          if (subCameraMeta.nativeVideoPath) {
+            nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
+          }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           // eslint-disable-next-line no-await-in-loop
@@ -865,6 +871,7 @@ export default defineComponent({
       selectedKey,
       trackFilters,
       videoUrl,
+      nativeVideoPath,
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
@@ -1139,14 +1146,17 @@ export default defineComponent({
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                  : datasetType === 'video'
+                    ? (nativeVideoPath[camera] ? 'native-video-annotator' : 'video-annotator')
+                    : 'large-image-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
+                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime,
                   frameRate,
                   originalFps,

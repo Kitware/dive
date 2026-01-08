@@ -262,6 +262,7 @@ async function loadMetadata(
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
   let videoUrl = '';
+  let nativeVideoPath: string | undefined;
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
   const { subType } = projectMetaData;
@@ -277,8 +278,21 @@ async function loadMetadata(
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
   } else if (projectMetaData.type === 'video') {
-    /* If the video has been transcoded, use that video */
-    if (projectMetaData.transcodedVideoFile) {
+    // Get the original video path for native playback
+    const originalVideoPath = npath.join(
+      projectMetaData.originalBasePath,
+      projectMetaData.originalVideoFile,
+    );
+
+    /* If using native playback (no transcoding), provide the native video path */
+    if (projectMetaData.useNativePlayback) {
+      // For native playback, we pass the file path directly (not a URL)
+      // The frontend will use the frame extraction API
+      nativeVideoPath = originalVideoPath;
+      // Still provide videoUrl as empty - frontend will use nativeVideoPath instead
+      videoUrl = '';
+    } else if (projectMetaData.transcodedVideoFile) {
+      /* If the video has been transcoded, use that video */
       const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
       videoUrl = makeMediaUrl(video);
     } else {
@@ -307,6 +321,7 @@ async function loadMetadata(
   return {
     ...projectMetaData,
     videoUrl,
+    nativeVideoPath,
     imageData,
     multiCamMedia,
     subType,
@@ -1021,6 +1036,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     mediaConvertList,
     trackFileAbsPath,
     forceMediaTranscode: false,
+    useNativePlayback: false,
     multiCamTrackFiles: null,
     metaFileAbsPath,
   };
@@ -1142,7 +1158,13 @@ async function finalizeMediaImport(
     jsonMeta.fps = (
       Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps))
     );
-    if (args.forceMediaTranscode) {
+
+    // If using native playback, skip conversion entirely
+    if (args.useNativePlayback) {
+      jsonMeta.useNativePlayback = true;
+      // Clear any conversion list for videos when using native playback
+      mediaConvertList = [];
+    } else if (args.forceMediaTranscode) {
       mediaConvertList.push(npath.join(jsonMeta.originalBasePath, jsonMeta.originalVideoFile));
     }
   }

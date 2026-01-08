@@ -12,6 +12,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 
 import settings from './state/settings';
 import * as common from './native/common';
+import * as frameExtraction from './native/frameExtraction';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -121,6 +122,83 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     next(err);
   }
   return null;
+});
+
+/* GET video info for native playback */
+apirouter.get('/video-info', async (req, res, next) => {
+  const { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  try {
+    const info = await frameExtraction.getVideoInfo(path.toString());
+    return res.json(info);
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to get video info: ${err}`,
+    });
+  }
+});
+
+/* EXTRACT frame for native video playback */
+apirouter.get('/frame', async (req, res, next) => {
+  const { path, frame, fps } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  const frameNum = parseInt(frame as string, 10);
+  const fpsNum = parseFloat(fps as string);
+  if (Number.isNaN(frameNum) || frameNum < 0) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid frame number: ${frame}`,
+    });
+  }
+  if (Number.isNaN(fpsNum) || fpsNum <= 0) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid fps: ${fps}`,
+    });
+  }
+  try {
+    const frameData = await frameExtraction.extractFrame(path.toString(), frameNum, fpsNum);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Length', frameData.length);
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    return res.send(frameData);
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to extract frame: ${err}`,
+    });
+  }
+});
+
+/* PREFETCH frames for native video playback */
+apirouter.post('/prefetch-frames', async (req, res, next) => {
+  const { path, centerFrame, fps, range } = req.body;
+  if (!path || typeof path !== 'string') {
+    return next({
+      status: 400,
+      statusMessage: 'Invalid path',
+    });
+  }
+  try {
+    await frameExtraction.prefetchFrames(path, centerFrame, fps, range);
+    return res.json({ success: true });
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to prefetch frames: ${err}`,
+    });
+  }
 });
 
 /* STREAM media */
