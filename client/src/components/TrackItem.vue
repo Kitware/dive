@@ -697,7 +697,7 @@ export default defineComponent({
   }
 
   .trackNumber-compact {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
     margin-right: 8px;
     min-width: 30px;
@@ -705,7 +705,7 @@ export default defineComponent({
 
   .track-frame-start,
   .track-frame-end {
-    font-size: 11px;
+    font-size: 14px;
     color: #888;
     min-width: 45px;
     flex-shrink: 0;
@@ -717,7 +717,7 @@ export default defineComponent({
   }
 
   .track-notes-compact {
-    font-size: 11px;
+    font-size: 14px;
     color: #666;
     flex-grow: 1;
     min-width: 60px;
@@ -739,7 +739,7 @@ export default defineComponent({
   }
 
   .compact-notes-input {
-    font-size: 11px;
+    font-size: 14px;
     flex-grow: 1;
     min-width: 60px;
     max-width: 200px;
@@ -757,7 +757,7 @@ export default defineComponent({
   }
 
   .track-type-compact {
-    font-size: 12px;
+    font-size: 14px;
     color: #aaa;
     width: 80px;
     min-width: 80px;
@@ -773,7 +773,7 @@ export default defineComponent({
   }
 
   .track-confidence-compact {
-    font-size: 11px;
+    font-size: 14px;
     color: #888;
     width: 40px;
     min-width: 40px;
@@ -794,7 +794,7 @@ export default defineComponent({
   }
 
   .compact-type-input {
-    font-size: 12px;
+    font-size: 14px;
     width: 80px;
     min-width: 80px;
     flex-shrink: 0;
@@ -816,7 +816,7 @@ export default defineComponent({
   }
 
   .compact-confidence-input {
-    font-size: 11px;
+    font-size: 14px;
     width: 46px;
     min-width: 46px;
     flex-shrink: 0;

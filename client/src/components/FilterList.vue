@@ -395,7 +395,6 @@ export default defineComponent({
             </template>
             <span>Delete visible items</span>
           </v-tooltip>
-          <v-spacer />
         </v-col>
       </v-row>
     </v-container>
