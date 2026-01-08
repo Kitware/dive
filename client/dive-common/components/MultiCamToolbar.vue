@@ -72,6 +72,14 @@ export default defineComponent({
       (cam) => !cameraTrackInfo.value[cam]?.hasTrack,
     ));
 
+    // Can unlink when current camera has track and multiple cameras have the track
+    const canUnlink = computed(
+      () => currentCameraHasTrack.value && camerasWithTrack.value > 1,
+    );
+
+    // Can link when there are cameras without the track
+    const canLink = computed(() => linkableCameras.value.length > 0);
+
     // The opposite camera (first camera that isn't the currently selected one)
     const oppositeCamera = computed(() => cameras.value.find(
       (cam) => cam !== selectedCamera.value,
@@ -148,6 +156,8 @@ export default defineComponent({
       currentCameraHasTrack,
       currentCameraHasDetection,
       linkableCameras,
+      canUnlink,
+      canLink,
       oppositeCamera,
       deleteDetection,
       deleteTrackFromCamera,
@@ -181,9 +191,10 @@ export default defineComponent({
       <span>Edit detection on {{ oppositeCamera }} (e)</span>
     </v-tooltip>
 
-    <!-- Link to another camera -->
+    <!-- Link/Unlink button - switches between modes -->
+    <!-- Link mode: when there are cameras without the track -->
     <v-menu
-      v-if="linkableCameras.length > 0"
+      v-if="canLink"
       offset-y
     >
       <template #activator="{ on, attrs }">
@@ -213,17 +224,17 @@ export default defineComponent({
         </v-list-item>
       </v-list>
     </v-menu>
-
-    <!-- Unlink current camera -->
+    <!-- Unlink mode: when current camera has track and multiple cameras have it -->
     <v-tooltip
-      v-if="currentCameraHasTrack && camerasWithTrack > 1"
+      v-else
       bottom
     >
       <template #activator="{ on }">
         <v-btn
           small
           class="mx-1 mode-button"
-          color="warning"
+          :color="canUnlink ? 'warning' : undefined"
+          :disabled="!canUnlink"
           v-on="on"
           @click="unlinkCurrentCamera"
         >
@@ -234,14 +245,12 @@ export default defineComponent({
     </v-tooltip>
 
     <!-- Delete detection from current camera -->
-    <v-tooltip
-      v-if="currentCameraHasDetection"
-      bottom
-    >
+    <v-tooltip bottom>
       <template #activator="{ on }">
         <v-btn
           small
           class="mx-1 mode-button"
+          :disabled="!currentCameraHasDetection"
           v-on="on"
           @click="deleteDetection"
         >
@@ -252,15 +261,13 @@ export default defineComponent({
     </v-tooltip>
 
     <!-- Delete track from current camera -->
-    <v-tooltip
-      v-if="currentCameraHasTrack"
-      bottom
-    >
+    <v-tooltip bottom>
       <template #activator="{ on }">
         <v-btn
           small
           class="mx-1 mode-button"
-          color="error"
+          :color="currentCameraHasTrack ? 'error' : undefined"
+          :disabled="!currentCameraHasTrack"
           v-on="on"
           @click="deleteTrackFromCamera"
         >
