@@ -434,8 +434,8 @@ export default defineComponent({
   min-height: 28px;
 }
 .compact-header-text {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
 }
 .tracks {
   overflow-y: auto;
