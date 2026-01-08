@@ -71,6 +71,11 @@ export default defineComponent({
       (cam) => !cameraTrackInfo.value[cam]?.hasTrack,
     ));
 
+    // The opposite camera (first camera that isn't the currently selected one)
+    const oppositeCamera = computed(() => cameras.value.find(
+      (cam) => cam !== selectedCamera.value,
+    ));
+
     // Delete detection from current camera/frame
     const deleteDetection = async () => {
       if (selectedTrackId.value === null || !selectedCamera.value) return;
@@ -121,6 +126,13 @@ export default defineComponent({
       handler.selectCamera(camera, true);
     };
 
+    // Edit on the opposite camera
+    const editOnOppositeCamera = () => {
+      if (oppositeCamera.value) {
+        editOnCamera(oppositeCamera.value);
+      }
+    };
+
     return {
       selectedTrackId,
       selectedCamera,
@@ -130,11 +142,13 @@ export default defineComponent({
       currentCameraHasTrack,
       currentCameraHasDetection,
       linkableCameras,
+      oppositeCamera,
       deleteDetection,
       deleteTrackFromCamera,
       unlinkCurrentCamera,
       startLinkingToCamera,
       editOnCamera,
+      editOnOppositeCamera,
     };
   },
 });
@@ -145,46 +159,20 @@ export default defineComponent({
     v-if="selectedTrackId !== null && cameras.length > 1"
     class="d-flex align-center multicam-toolbar"
   >
-    <!-- Edit/Add detection on other cameras -->
-    <v-menu offset-y>
-      <template #activator="{ on, attrs }">
-        <v-tooltip bottom>
-          <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="attrs"
-              small
-              class="mx-1 mode-button"
-              v-on="{ ...on, ...tooltipOn }"
-            >
-              <v-icon>mdi-pencil-plus</v-icon>
-            </v-btn>
-          </template>
-          <span>Edit detection on camera</span>
-        </v-tooltip>
-      </template>
-      <v-list dense>
-        <v-list-item
-          v-for="camera in cameras"
-          :key="camera"
-          @click="editOnCamera(camera)"
+    <!-- Edit/Add detection on opposite camera -->
+    <v-tooltip bottom>
+      <template #activator="{ on }">
+        <v-btn
+          small
+          class="mx-1 mode-button"
+          v-on="on"
+          @click="editOnOppositeCamera"
         >
-          <v-list-item-icon class="mr-2">
-            <v-icon
-              small
-              :color="cameraTrackInfo[camera]?.hasDetection ? 'success' : (cameraTrackInfo[camera]?.hasTrack ? 'warning' : 'grey')"
-            >
-              {{ cameraTrackInfo[camera]?.hasDetection ? 'mdi-check-circle' : (cameraTrackInfo[camera]?.hasTrack ? 'mdi-circle-outline' : 'mdi-plus-circle-outline') }}
-            </v-icon>
-          </v-list-item-icon>
-          <v-list-item-content>
-            <v-list-item-title>
-              {{ camera }}
-              <span v-if="camera === selectedCamera" class="text-caption">(current)</span>
-            </v-list-item-title>
-          </v-list-item-content>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+          <v-icon>mdi-pencil-plus</v-icon>
+        </v-btn>
+      </template>
+      <span>Edit detection on {{ oppositeCamera }}</span>
+    </v-tooltip>
 
     <!-- Link to another camera -->
     <v-menu
