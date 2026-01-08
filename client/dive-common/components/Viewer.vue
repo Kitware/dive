@@ -1139,6 +1139,7 @@ export default defineComponent({
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
           ]"
           class="d-flex flex-column grow"
         >

@@ -10,6 +10,7 @@ import {
   useEditingMode,
 } from 'vue-media-annotator/provides';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { Mousetrap } from 'vue-media-annotator/types';
 
 export default defineComponent({
   name: 'MultiCamToolbar',
@@ -133,7 +134,12 @@ export default defineComponent({
       }
     };
 
+    const mousetrap: Mousetrap[] = [
+      { bind: 'e', handler: editOnOppositeCamera },
+    ];
+
     return {
+      mousetrap,
       selectedTrackId,
       selectedCamera,
       cameras,
@@ -157,6 +163,7 @@ export default defineComponent({
 <template>
   <div
     v-if="selectedTrackId !== null && cameras.length > 1"
+    v-mousetrap="mousetrap"
     class="d-flex align-center multicam-toolbar"
   >
     <!-- Edit/Add detection on opposite camera -->
@@ -171,7 +178,7 @@ export default defineComponent({
           <v-icon>mdi-pencil-plus</v-icon>
         </v-btn>
       </template>
-      <span>Edit detection on {{ oppositeCamera }}</span>
+      <span>Edit detection on {{ oppositeCamera }} (e)</span>
     </v-tooltip>
 
     <!-- Link to another camera -->
