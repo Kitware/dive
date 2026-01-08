@@ -162,6 +162,8 @@ export default defineComponent({
       if (sidebarMode.value === 'left') {
         sidebarMode.value = 'bottom';
         clientSettings.layoutSettings.sidebarPosition = 'bottom';
+        // Close the Advanced Tools panel when switching to bottom mode
+        context.resetActive();
       } else if (sidebarMode.value === 'bottom') {
         sidebarMode.value = 'collapsed';
         // Keep setting as 'bottom' when collapsed (collapsed is a temporary state)
