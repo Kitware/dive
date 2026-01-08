@@ -417,9 +417,15 @@ export default defineComponent({
     >
       {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
     </span>
-    <!-- Start and end frame columns -->
-    <span class="track-frame-start">{{ track.begin }}</span>
-    <span class="track-frame-end">{{ track.end }}</span>
+    <!-- Start and end frame columns (clickable to seek) -->
+    <span
+      class="track-frame-start clickable"
+      @click.stop="$emit('seek', track.begin)"
+    >{{ track.begin }}</span>
+    <span
+      class="track-frame-end clickable"
+      @click.stop="$emit('seek', track.end)"
+    >{{ track.end }}</span>
     <!-- Notes field -->
     <input
       v-if="editingNotes"
@@ -710,6 +716,14 @@ export default defineComponent({
     min-width: 45px;
     flex-shrink: 0;
     text-align: right;
+
+    &.clickable {
+      cursor: pointer;
+      &:hover {
+        color: #80c6e8;
+        text-decoration: underline;
+      }
+    }
   }
 
   .track-frame-end {
