@@ -25,11 +25,12 @@ import { provideAnnotator } from 'vue-media-annotator/provides';
 import {
   ImageAnnotator,
   VideoAnnotator,
-  NativeVideoAnnotator,
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
 } from 'vue-media-annotator/components';
+// NativeVideoAnnotator uses electron APIs, import directly to avoid lib build issues
+import NativeVideoAnnotator from 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
 
