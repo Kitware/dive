@@ -55,6 +55,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    compact: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -75,7 +79,7 @@ export default defineComponent({
     } = useHandler();
 
     const data = reactive({
-      itemHeight: 70, // in pixelx
+      itemHeight: props.compact ? 50 : 70, // in pixels
       settingsActive: false,
     });
 
@@ -250,7 +254,62 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader px-2">
+    <!-- Compact header for bottom layout -->
+    <div
+      v-if="compact"
+      class="compact-header d-flex align-center px-2 py-1"
+    >
+      <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
+      <v-spacer />
+      <v-tooltip
+        open-delay="100"
+        bottom
+      >
+        <template #activator="{ on }">
+          <v-btn
+            :disabled="filteredTracks.length === 0 || readOnlyMode"
+            icon
+            x-small
+            v-on="on"
+            @click="multiDelete()"
+          >
+            <v-icon
+              x-small
+              color="error"
+            >
+              mdi-delete
+            </v-icon>
+          </v-btn>
+        </template>
+        <span>Delete visible items</span>
+      </v-tooltip>
+      <v-tooltip
+        open-delay="200"
+        bottom
+        max-width="200"
+      >
+        <template #activator="{ on }">
+          <v-btn
+            :disabled="readOnlyMode"
+            outlined
+            x-small
+            :color="newTrackColor"
+            v-on="on"
+            @click="trackAdd()"
+          >
+            <v-icon x-small>
+              mdi-plus
+            </v-icon>
+          </v-btn>
+        </template>
+        <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
+      </v-tooltip>
+    </div>
+    <!-- Standard header -->
+    <v-subheader
+      v-else
+      class="flex-grow-1 trackHeader px-2"
+    >
       <v-container class="py-2">
         <v-row align="center">
           Tracks ({{ filteredTracks.length }})
@@ -342,7 +401,7 @@ export default defineComponent({
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="mouseTrap"
-      class="tracks"
+      :class="compact ? 'tracks-compact' : 'tracks'"
       :items="virtualListItems"
       :item-height="data.itemHeight"
       :height="virtualHeight"
@@ -353,6 +412,7 @@ export default defineComponent({
           v-bind="getItemProps(item)"
           :lock-types="lockTypes"
           :disabled="disabled"
+          :compact="compact"
           @seek="$emit('track-seek', $event)"
         />
       </template>
@@ -367,6 +427,16 @@ export default defineComponent({
 .trackHeader{
   height: auto;
 }
+.compact-header {
+  background-color: #262626;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+.compact-header-text {
+  font-size: 12px;
+  font-weight: 500;
+}
 .tracks {
   overflow-y: auto;
   overflow-x: hidden;
@@ -375,6 +445,26 @@ export default defineComponent({
     label {
       white-space: pre-wrap;
     }
+  }
+}
+
+.tracks-compact {
+  overflow-y: scroll;
+  overflow-x: hidden;
+
+  /* Always show scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #666;
   }
 }
 </style>

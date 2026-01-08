@@ -54,6 +54,10 @@ export default defineComponent({
       type: Boolean as PropType<boolean>,
       required: true,
     },
+    bottomLayout: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(_, { emit }) {
     const handler = useHandler();
@@ -150,7 +154,9 @@ export default defineComponent({
 <template>
   <v-col
     dense
-    style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
+    :style="bottomLayout
+      ? 'position: relative; padding: 0px; margin: 0px; width: 100%;'
+      : 'position: absolute; bottom: 0px; padding: 0px; margin: 0px;'"
   >
     <Controls :is-default-image="isDefaultImage" :dataset-type="datasetType">
       <template slot="timelineControls">

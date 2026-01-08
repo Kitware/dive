@@ -48,6 +48,9 @@ interface AnnotationSettings {
   multiCamSettings: {
     showToolbar: boolean;
   };
+  layoutSettings: {
+    sidebarPosition: 'left' | 'bottom';
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -104,6 +107,9 @@ const defaultSettings: AnnotationSettings = {
   },
   multiCamSettings: {
     showToolbar: true,
+  },
+  layoutSettings: {
+    sidebarPosition: 'left',
   },
 };
 
