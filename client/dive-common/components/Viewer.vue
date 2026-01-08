@@ -1364,7 +1364,6 @@ export default defineComponent({
               width: '44%',
               'min-width': '0',
               overflow: 'hidden',
-              'border-left': '1px solid #555',
             }"
           >
             <TrackList
@@ -1394,7 +1393,6 @@ export default defineComponent({
               width: '28%',
               'min-width': '0',
               overflow: 'hidden',
-              'border-left': '1px solid #555',
             }"
           >
             <!-- Header with toggle button -->
@@ -1539,6 +1537,9 @@ html {
 
 .bottom-panel-section {
   background-color: #1e1e1e;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin: 4px;
 }
 
 .confidence-row-bottom {
