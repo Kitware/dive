@@ -201,6 +201,68 @@ apirouter.post('/prefetch-frames', async (req, res, next) => {
   }
 });
 
+/* EXTRACT batch of consecutive frames for native video playback */
+apirouter.get('/frames-batch', async (req, res, next) => {
+  const {
+    path, startFrame, count, fps, originalFps,
+  } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  const startFrameNum = parseInt(startFrame as string, 10);
+  const countNum = parseInt(count as string, 10);
+  const fpsNum = parseFloat(fps as string);
+  const originalFpsNum = originalFps ? parseFloat(originalFps as string) : undefined;
+  if (Number.isNaN(startFrameNum) || startFrameNum < 0) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid startFrame: ${startFrame}`,
+    });
+  }
+  if (Number.isNaN(countNum) || countNum < 1 || countNum > 30) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid count (must be 1-30): ${count}`,
+    });
+  }
+  if (Number.isNaN(fpsNum) || fpsNum <= 0) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid fps: ${fps}`,
+    });
+  }
+  if (originalFpsNum !== undefined && (Number.isNaN(originalFpsNum) || originalFpsNum <= 0)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid originalFps: ${originalFps}`,
+    });
+  }
+  try {
+    const framesMap = await frameExtraction.extractFrameBatch(
+      path.toString(),
+      startFrameNum,
+      countNum,
+      fpsNum,
+      originalFpsNum,
+    );
+    // Return as JSON with base64-encoded frame data
+    const framesObj: Record<number, string> = {};
+    framesMap.forEach((data, frameNum) => {
+      framesObj[frameNum] = data.toString('base64');
+    });
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.json({ frames: framesObj });
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to extract frames batch: ${err}`,
+    });
+  }
+});
+
 /* STREAM media */
 apirouter.get('/media', (req, res, next) => {
   let { path } = req.query;

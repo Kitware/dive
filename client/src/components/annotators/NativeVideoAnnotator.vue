@@ -128,8 +128,9 @@ export default defineComponent({
      * Get the URL for a specific frame
      */
     function getFrameUrl(frameNumber: number): string {
-      const fps = videoInfo.value?.fps || props.originalFps || props.frameRate;
-      return `${baseApiUrl}/frame?path=${encodeURIComponent(props.nativeVideoPath)}&frame=${frameNumber}&fps=${fps}`;
+      // Use annotation frame rate since frameNumber is an annotation frame number.
+      // timestamp = frameNumber / annotationFps gives the correct time in the video.
+      return `${baseApiUrl}/frame?path=${encodeURIComponent(props.nativeVideoPath)}&frame=${frameNumber}&fps=${props.frameRate}`;
     }
 
     /**
@@ -165,6 +166,96 @@ export default defineComponent({
     }
 
     /**
+     * Load a batch of consecutive frames in a single request.
+     * More efficient than loading frames individually.
+     * When originalFps differs from frameRate, uses FFmpeg select filter for efficiency.
+     */
+    async function loadFrameBatch(
+      startFrame: number,
+      count: number,
+    ): Promise<Map<number, HTMLImageElement>> {
+      const result = new Map<number, HTMLImageElement>();
+      const framesToFetch: number[] = [];
+
+      // Check which frames we need to fetch
+      for (let i = 0; i < count; i += 1) {
+        const frameNum = startFrame + i;
+        if (frameNum >= 0 && frameNum <= data.maxFrame) {
+          const cached = frameCache.get(frameNum);
+          if (cached) {
+            result.set(frameNum, cached);
+          } else {
+            framesToFetch.push(frameNum);
+          }
+        }
+      }
+
+      // If all frames are cached, return early
+      if (framesToFetch.length === 0) {
+        return result;
+      }
+
+      const actualStart = framesToFetch[0];
+      const actualCount = framesToFetch[framesToFetch.length - 1] - actualStart + 1;
+
+      // fps = annotation frame rate (for calculating timestamp from annotation frame number)
+      // originalFps = video's native fps (for select filter when downsampling)
+      const videoFps = videoInfo.value?.fps || props.originalFps;
+
+      // Build URL - pass annotation frameRate and optionally the video's originalFps
+      let url = `${baseApiUrl}/frames-batch?path=${encodeURIComponent(props.nativeVideoPath)}&startFrame=${actualStart}&count=${actualCount}&fps=${props.frameRate}`;
+      if (videoFps && videoFps > props.frameRate) {
+        url += `&originalFps=${videoFps}`;
+      }
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch frame batch: ${response.statusText}`);
+        }
+
+        const json = await response.json();
+        const { frames } = json as { frames: Record<string, string> };
+
+        // Convert base64 frames to images and cache them
+        const loadPromises = Object.entries(frames).map(
+          ([frameNumStr, base64Data]) => new Promise<void>((resolve) => {
+            const frameNum = parseInt(frameNumStr, 10);
+            const img = new Image();
+            img.onload = () => {
+              // Add to cache
+              if (frameCache.size >= MAX_CACHE_SIZE) {
+                const firstKey = frameCache.keys().next().value;
+                if (firstKey !== undefined) {
+                  frameCache.delete(firstKey);
+                }
+              }
+              frameCache.set(frameNum, img);
+              result.set(frameNum, img);
+              resolve();
+            };
+            img.onerror = () => {
+              resolve(); // Don't fail the whole batch
+            };
+            img.src = `data:image/jpeg;base64,${base64Data}`;
+          }),
+        );
+
+        await Promise.all(loadPromises);
+      } catch (err) {
+        console.error('Failed to load frame batch:', err);
+        // Fall back to individual loading for any missing frames
+        await Promise.all(
+          framesToFetch
+            .filter((f) => !result.has(f))
+            .map((f) => loadFrame(f).then((img) => result.set(f, img)).catch(() => {})),
+        );
+      }
+
+      return result;
+    }
+
+    /**
      * Render a frame to the quad feature
      */
     async function renderFrame(frameNumber: number) {
@@ -195,16 +286,17 @@ export default defineComponent({
     }
 
     /**
-     * Prefetch frames around the current frame for smoother navigation
+     * Prefetch frames around the current frame for smoother navigation.
+     * Uses batch loading for efficiency.
      */
     function prefetchFrames(centerFrame: number, range: number = 3) {
-      for (let i = -range; i <= range; i += 1) {
-        const frame = centerFrame + i;
-        if (frame >= 0 && frame <= data.maxFrame && !frameCache.has(frame)) {
-          // Load in background, don't await
-          loadFrame(frame).catch(() => {});
-        }
-      }
+      // Calculate the range of frames to prefetch
+      const startFrame = Math.max(0, centerFrame - range);
+      const endFrame = Math.min(data.maxFrame, centerFrame + range);
+      const count = endFrame - startFrame + 1;
+
+      // Use batch loading in background
+      loadFrameBatch(startFrame, count).catch(() => {});
     }
 
     /**
@@ -252,6 +344,10 @@ export default defineComponent({
       data.playing = true;
       props.updateTime(data);
 
+      // Pre-load the next batch of frames before starting playback
+      const PREFETCH_BATCH_SIZE = 15;
+      await loadFrameBatch(data.frame, PREFETCH_BATCH_SIZE);
+
       // Calculate frame interval based on desired framerate
       // We use a slower rate to account for frame extraction time
       const targetInterval = Math.max(100, 1000 / props.frameRate);
@@ -271,7 +367,9 @@ export default defineComponent({
         data.syncedFrame = nextFrame;
 
         await renderFrame(nextFrame);
-        prefetchFrames(nextFrame, 5);
+
+        // Prefetch ahead during playback using batch loading
+        prefetchFrames(nextFrame, PREFETCH_BATCH_SIZE);
 
         props.updateTime(data);
       }, targetInterval);

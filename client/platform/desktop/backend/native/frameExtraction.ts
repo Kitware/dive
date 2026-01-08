@@ -183,6 +183,194 @@ async function extractFrame(
 }
 
 /**
+ * Split an MJPEG stream buffer into individual JPEG frames.
+ * JPEG images start with FFD8 and end with FFD9.
+ */
+function splitMjpegBuffer(buffer: Buffer): Buffer[] {
+  const frames: Buffer[] = [];
+  let start = 0;
+
+  while (start < buffer.length - 1) {
+    // Find JPEG start marker (FFD8)
+    let jpegStart = -1;
+    for (let i = start; i < buffer.length - 1; i += 1) {
+      if (buffer[i] === 0xFF && buffer[i + 1] === 0xD8) {
+        jpegStart = i;
+        break;
+      }
+    }
+    if (jpegStart === -1) break;
+
+    // Find JPEG end marker (FFD9)
+    let jpegEnd = -1;
+    for (let i = jpegStart + 2; i < buffer.length - 1; i += 1) {
+      if (buffer[i] === 0xFF && buffer[i + 1] === 0xD9) {
+        jpegEnd = i + 2; // Include the marker
+        break;
+      }
+    }
+    if (jpegEnd === -1) break;
+
+    frames.push(buffer.subarray(jpegStart, jpegEnd));
+    start = jpegEnd;
+  }
+
+  return frames;
+}
+
+/**
+ * Map an annotation frame number to the actual video frame number.
+ * This handles downsampling where annotationFps < originalFps.
+ */
+function mapAnnotationFrameToVideoFrame(
+  annotationFrame: number,
+  annotationFps: number,
+  originalFps: number,
+): number {
+  if (annotationFps >= originalFps) {
+    return annotationFrame;
+  }
+  // When downsampled, annotation frame N corresponds to video frame at time N/annotationFps
+  // Video frame at that time = (N / annotationFps) * originalFps
+  const timeInSeconds = annotationFrame / annotationFps;
+  return Math.round(timeInSeconds * originalFps);
+}
+
+/**
+ * Extract multiple consecutive frames in a single FFmpeg call.
+ * This is more efficient than extracting frames one at a time.
+ * Returns a Map of annotation frame number to JPEG buffer.
+ *
+ * @param videoPath - Path to the video file
+ * @param startFrame - Starting annotation frame number
+ * @param count - Number of annotation frames to extract
+ * @param fps - Annotation frame rate
+ * @param originalFps - Original video frame rate (if different from fps, uses select filter)
+ */
+async function extractFrameBatch(
+  videoPath: string,
+  startFrame: number,
+  count: number,
+  fps: number,
+  originalFps?: number,
+): Promise<Map<number, Buffer>> {
+  const cache = getFrameCache(videoPath);
+  const result = new Map<number, Buffer>();
+
+  // Check which frames we already have cached
+  const framesToExtract: number[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const frameNum = startFrame + i;
+    const cached = cache.frames.get(frameNum);
+    if (cached) {
+      cached.timestamp = Date.now();
+      result.set(frameNum, cached.data);
+    } else {
+      framesToExtract.push(frameNum);
+    }
+  }
+
+  // If all frames are cached, return early
+  if (framesToExtract.length === 0) {
+    return result;
+  }
+
+  const firstMissing = framesToExtract[0];
+  const lastMissing = framesToExtract[framesToExtract.length - 1];
+
+  // Determine if we need to use the select filter (for downsampled videos)
+  const useSelectFilter = originalFps && originalFps > fps;
+
+  let args: string[];
+
+  if (useSelectFilter && originalFps) {
+    // Use select filter to extract specific video frames for downsampled videos.
+    // Map annotation frames to actual video frame numbers.
+    const videoFrames = framesToExtract.map(
+      (f) => mapAnnotationFrameToVideoFrame(f, fps, originalFps),
+    );
+
+    // Build select filter expression: select='eq(n,X)+eq(n,Y)+eq(n,Z)'
+    // We don't use -ss seeking here because the frame counter 'n' in the
+    // select filter is relative to the seek position, not absolute.
+    // By reading from the start, 'n' corresponds to actual video frame numbers.
+    const selectExpr = videoFrames.map((vf) => `eq(n\\,${vf})`).join('+');
+
+    args = [
+      '-i', videoPath,
+      '-vf', `select='${selectExpr}'`,
+      '-vsync', 'vfr',
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg',
+      '-q:v', '2',
+      '-',
+    ];
+  } else {
+    // For non-downsampled videos, extract consecutive frames using accurate seeking.
+    // Use -ss AFTER -i for frame-accurate positioning.
+    const extractCount = lastMissing - firstMissing + 1;
+    const timestamp = firstMissing / fps;
+
+    args = [
+      '-i', videoPath,
+      '-ss', timestamp.toFixed(6),
+      '-vframes', extractCount.toString(),
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg',
+      '-q:v', '2',
+      '-',
+    ];
+  }
+
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn(ffmpegPath, args);
+    const chunks: Buffer[] = [];
+
+    ffmpeg.stdout.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    ffmpeg.stderr.on('data', () => {
+      // Ignore stderr output
+    });
+
+    ffmpeg.on('close', (code) => {
+      if (code === 0 && chunks.length > 0) {
+        const buffer = Buffer.concat(chunks);
+        const frames = splitMjpegBuffer(buffer);
+
+        // Map extracted frames to their annotation frame numbers and cache them
+        const now = Date.now();
+        frames.forEach((frameData, index) => {
+          // When using select filter, frames come out in order of framesToExtract
+          // When not using select filter, frames are consecutive from firstMissing
+          const frameNum = useSelectFilter
+            ? framesToExtract[index]
+            : firstMissing + index;
+
+          if (frameNum !== undefined && frameNum <= lastMissing) {
+            result.set(frameNum, frameData);
+            cache.frames.set(frameNum, {
+              data: frameData,
+              timestamp: now,
+            });
+          }
+        });
+
+        evictOldEntries(cache);
+        resolve(result);
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+/**
  * Process frames in batches with limited concurrency
  */
 async function processBatches(
@@ -249,6 +437,7 @@ function getCacheStats(videoPath: string): { cachedFrames: number; maxSize: numb
 
 export {
   extractFrame,
+  extractFrameBatch,
   prefetchFrames,
   getVideoInfo,
   clearCache,
