@@ -2,6 +2,7 @@
 import {
   defineComponent, onBeforeUnmount, PropType, ref, watch,
 } from 'vue';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer } from 'electron';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
@@ -89,7 +90,6 @@ export default defineComponent({
     let playbackInterval: number | null = null;
 
     // Frame loading
-    const currentFrameImage = new Image();
     const frameCache = new Map<number, HTMLImageElement>();
     const MAX_CACHE_SIZE = 50;
 
