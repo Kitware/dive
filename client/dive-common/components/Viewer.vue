@@ -30,7 +30,6 @@ import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides'
 import {
   ImageAnnotator,
   VideoAnnotator,
-  NativeVideoAnnotator,
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
@@ -39,6 +38,8 @@ import {
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
+// NativeVideoAnnotator uses electron APIs, import directly to avoid lib build issues
+import NativeVideoAnnotator from 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
