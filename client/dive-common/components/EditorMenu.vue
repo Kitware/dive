@@ -319,8 +319,9 @@ export default defineComponent({
         </v-btn>
       </template>
       <slot name="delete-controls" />
+      <slot name="multicam-controls-left" />
       <v-spacer />
-      <slot name="multicam-controls" />
+      <slot name="multicam-controls-right" />
       <v-spacer />
       <annotation-visibility-menu
         :visible-modes="visibleModes"

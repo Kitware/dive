@@ -1013,8 +1013,14 @@ export default defineComponent({
             />
           </template>
           <template
+            v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
+            slot="multicam-controls-left"
+          >
+            <multi-cam-toolbar />
+          </template>
+          <template
             v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls"
+            slot="multicam-controls-right"
           >
             <multi-cam-toolbar />
           </template>
