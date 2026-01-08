@@ -25,6 +25,9 @@ import TrackItem from './TrackItem.vue';
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
 
+type SortKey = 'id' | 'start' | 'end' | 'confidence' | 'type' | 'notes';
+type SortDirection = 'asc' | 'desc';
+
 export default defineComponent({
   name: 'TrackList',
 
@@ -83,6 +86,9 @@ export default defineComponent({
       settingsActive: false,
     });
 
+    const sortKey = ref<SortKey>('id');
+    const sortDirection = ref<SortDirection>('asc');
+
     const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
     watch(
       () => clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame,
@@ -92,8 +98,9 @@ export default defineComponent({
     );
 
     const finalFilteredTracks = computed(() => {
+      let tracks = filteredTracksRef.value;
       if (filterDetectionsByFrame.value && !isPlaying.value) {
-        return filteredTracksRef.value.filter((track) => {
+        tracks = tracks.filter((track) => {
           const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
           if (possibleTrack) {
             const [feature] = possibleTrack.getFeature(frameRef.value);
@@ -104,7 +111,75 @@ export default defineComponent({
           return false;
         });
       }
-      return filteredTracksRef.value;
+
+      // Helper to get notes from a track's first keyframe
+      function getTrackNotes(track: ReturnType<typeof cameraStore.getTracksMerged>): string {
+        // Try direct access first (most common case)
+        const directFeature = track.features[track.begin];
+        if (directFeature && directFeature.notes && directFeature.notes.length > 0) {
+          return directFeature.notes.join(', ');
+        }
+        // If no feature at begin or no notes, try to get the first available feature
+        const [real, lower, upper] = track.getFeature(track.begin);
+        const fallbackFeature = real || lower || upper;
+        if (fallbackFeature && fallbackFeature.notes && fallbackFeature.notes.length > 0) {
+          return fallbackFeature.notes.join(', ');
+        }
+        return '';
+      }
+
+      // Apply sorting
+      const sorted = [...tracks];
+      const direction = sortDirection.value === 'asc' ? 1 : -1;
+
+      sorted.sort((a, b) => {
+        let trackA;
+        let trackB;
+        try {
+          trackA = cameraStore.getTracksMerged(a.annotation.id);
+          trackB = cameraStore.getTracksMerged(b.annotation.id);
+        } catch {
+          return 0;
+        }
+
+        switch (sortKey.value) {
+          case 'id':
+            return (trackA.trackId - trackB.trackId) * direction;
+          case 'start':
+            return (trackA.begin - trackB.begin) * direction;
+          case 'end':
+            return (trackA.end - trackB.end) * direction;
+          case 'confidence': {
+            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
+            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            return (confA - confB) * direction;
+          }
+          case 'type': {
+            const typeA = trackA.getType(a.context.confidencePairIndex)[0];
+            const typeB = trackB.getType(b.context.confidencePairIndex)[0];
+            const typeCompare = typeA.localeCompare(typeB);
+            if (typeCompare !== 0) return typeCompare * direction;
+            // Secondary sort by confidence within same type
+            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
+            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            return (confA - confB) * direction;
+          }
+          case 'notes': {
+            const notesA = getTrackNotes(trackA);
+            const notesB = getTrackNotes(trackB);
+            const emptyA = notesA === '';
+            const emptyB = notesB === '';
+            // Empty notes go last in ascending, first in descending
+            if (emptyA && !emptyB) return direction;
+            if (!emptyA && emptyB) return -direction;
+            if (emptyA && emptyB) return 0;
+            return notesA.localeCompare(notesB) * direction;
+          }
+          default:
+            return 0;
+        }
+      });
+      return sorted;
     });
 
     const virtualListItems = computed(() => {
@@ -234,6 +309,23 @@ export default defineComponent({
     });
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
+
+    function handleSort(key: SortKey) {
+      if (sortKey.value === key) {
+        // Toggle direction between desc and asc
+        sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc';
+      } else {
+        // New sort key starts with descending
+        sortKey.value = key;
+        sortDirection.value = 'desc';
+      }
+    }
+
+    const sortIcon = computed(() => (key: SortKey) => {
+      if (sortKey.value !== key) return '';
+      return sortDirection.value === 'asc' ? 'mdi-chevron-up' : 'mdi-chevron-down';
+    });
+
     return {
       allTypes: allTypesRef,
       data,
@@ -247,6 +339,10 @@ export default defineComponent({
       virtualListItems,
       virtualList: virtualScroll.virtualList,
       multiDelete,
+      sortKey,
+      sortDirection,
+      handleSort,
+      sortIcon,
     };
   },
 });
@@ -309,12 +405,72 @@ export default defineComponent({
       <!-- Column headers row -->
       <div class="compact-column-headers d-flex align-center px-1 mt-1">
         <span class="col-spacer" />
-        <span class="col-header col-id">ID</span>
-        <span class="col-header col-type">Type</span>
-        <span class="col-header col-conf">Conf</span>
-        <span class="col-header col-start">Start</span>
-        <span class="col-header col-end">End</span>
-        <span class="col-header col-notes">Notes</span>
+        <span
+          class="col-header col-id sortable"
+          :class="{ active: sortKey === 'id' }"
+          @click="handleSort('id')"
+        >
+          ID
+          <v-icon
+            v-if="sortIcon('id')"
+            x-small
+          >{{ sortIcon('id') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-type sortable"
+          :class="{ active: sortKey === 'type' }"
+          @click="handleSort('type')"
+        >
+          Type
+          <v-icon
+            v-if="sortIcon('type')"
+            x-small
+          >{{ sortIcon('type') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-conf sortable"
+          :class="{ active: sortKey === 'confidence' }"
+          @click="handleSort('confidence')"
+        >
+          Conf
+          <v-icon
+            v-if="sortIcon('confidence')"
+            x-small
+          >{{ sortIcon('confidence') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-start sortable"
+          :class="{ active: sortKey === 'start' }"
+          @click="handleSort('start')"
+        >
+          Start
+          <v-icon
+            v-if="sortIcon('start')"
+            x-small
+          >{{ sortIcon('start') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-end sortable"
+          :class="{ active: sortKey === 'end' }"
+          @click="handleSort('end')"
+        >
+          End
+          <v-icon
+            v-if="sortIcon('end')"
+            x-small
+          >{{ sortIcon('end') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-notes sortable"
+          :class="{ active: sortKey === 'notes' }"
+          @click="handleSort('notes')"
+        >
+          Notes
+          <v-icon
+            v-if="sortIcon('notes')"
+            x-small
+          >{{ sortIcon('notes') }}</v-icon>
+        </span>
         <v-spacer />
         <span class="col-header col-actions">Actions</span>
       </div>
@@ -457,6 +613,24 @@ export default defineComponent({
     color: #888;
     text-transform: uppercase;
     font-weight: 500;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        color: #fff;
+      }
+
+      &.active {
+        color: #80c6e8;
+      }
+
+      .v-icon {
+        vertical-align: middle;
+        margin-left: 1px;
+      }
+    }
   }
   .col-spacer {
     /* Matches color box: 10px + 6px margin */
