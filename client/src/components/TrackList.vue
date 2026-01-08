@@ -308,11 +308,13 @@ export default defineComponent({
       </div>
       <!-- Column headers row -->
       <div class="compact-column-headers d-flex align-center px-1 mt-1">
+        <span class="col-spacer" />
         <span class="col-header col-id">ID</span>
         <span class="col-header col-type">Type</span>
         <span class="col-header col-conf">Conf</span>
         <span class="col-header col-start">Start</span>
         <span class="col-header col-end">End</span>
+        <span class="col-header col-notes">Notes</span>
         <v-spacer />
         <span class="col-header col-actions">Actions</span>
       </div>
@@ -456,25 +458,38 @@ export default defineComponent({
     text-transform: uppercase;
     font-weight: 500;
   }
+  .col-spacer {
+    /* Matches color box: 10px + 6px margin */
+    min-width: 16px;
+  }
   .col-id {
-    min-width: 46px;
+    /* Matches trackNumber-compact: 30px + 8px margin */
+    min-width: 38px;
   }
   .col-type {
+    /* Matches track-type-compact: 80px */
     min-width: 80px;
   }
   .col-conf {
-    min-width: 40px;
-    text-align: right;
-    margin-right: 8px;
+    /* Matches track-confidence-compact: 40px + 8px margin */
+    min-width: 48px;
+    text-align: center;
   }
   .col-start {
+    /* Matches track-frame-start: 45px */
     min-width: 45px;
     text-align: right;
   }
   .col-end {
+    /* Matches track-frame-end: 45px + 8px margin */
     min-width: 45px;
     text-align: right;
     margin-right: 8px;
+  }
+  .col-notes {
+    flex-grow: 1;
+    min-width: 60px;
+    margin-left: 12px;
   }
   .col-actions {
     min-width: 100px;
