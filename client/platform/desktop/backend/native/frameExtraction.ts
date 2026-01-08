@@ -3,7 +3,6 @@
  * Extracts frames on-demand using FFmpeg without requiring
  * full video transcoding.
  */
-import npath from 'path';
 import { spawn } from 'child_process';
 import { getBinaryPath, spawnResult } from './utils';
 
@@ -184,6 +183,20 @@ async function extractFrame(
 }
 
 /**
+ * Process frames in batches with limited concurrency
+ */
+async function processBatches(
+  batches: number[][],
+  videoPath: string,
+  fps: number,
+): Promise<void> {
+  if (batches.length === 0) return;
+  const [batch, ...remaining] = batches;
+  await Promise.all(batch.map((frame) => extractFrame(videoPath, frame, fps).catch(() => null)));
+  await processBatches(remaining, videoPath, fps);
+}
+
+/**
  * Pre-extract multiple frames around a given frame (for smoother playback)
  */
 async function prefetchFrames(
@@ -205,10 +218,11 @@ async function prefetchFrames(
 
   // Fetch in parallel (limited concurrency)
   const concurrency = 3;
+  const batches: number[][] = [];
   for (let i = 0; i < framesToFetch.length; i += concurrency) {
-    const batch = framesToFetch.slice(i, i + concurrency);
-    await Promise.all(batch.map((frame) => extractFrame(videoPath, frame, fps).catch(() => null)));
+    batches.push(framesToFetch.slice(i, i + concurrency));
   }
+  await processBatches(batches, videoPath, fps);
 }
 
 /**
