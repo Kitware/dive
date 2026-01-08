@@ -162,6 +162,7 @@ export default defineComponent({
       <template slot="timelineControls">
         <div style="min-width: 270px">
           <v-tooltip
+            v-if="!bottomLayout"
             open-delay="200"
             bottom
           >
