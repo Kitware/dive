@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref,
+  defineComponent, computed, PropType, ref, nextTick,
 } from 'vue';
 import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
@@ -61,6 +61,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    compact: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
@@ -73,6 +77,14 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const { typeStyling } = useTrackStyleManager();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
+
+    /* Compact mode editing state */
+    const editingType = ref(false);
+    const editingConfidence = ref(false);
+    const editTypeValue = ref('');
+    const editConfidenceValue = ref('');
+    const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
+    const confidenceInputRef = ref<HTMLInputElement | null>(null);
     /**
      * Use of revision is safe because it will only create a
      * dependency when track is selected.  DO NOT use this computed
@@ -122,6 +134,14 @@ export default defineComponent({
     const keyframeDisabled = computed(() => (
       !feature.value.real && !feature.value.shouldInterpolate)
       || (props.track.length === 1 && frameRef.value === props.track.begin));
+
+    /* Get the top confidence value for display in compact mode */
+    const topConfidence = computed(() => {
+      if (props.track.confidencePairs && props.track.confidencePairs.length > 0) {
+        return props.track.confidencePairs[0][1];
+      }
+      return null;
+    });
 
     function toggleKeyframe() {
       if (!keyframeDisabled.value) {
@@ -173,6 +193,55 @@ export default defineComponent({
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
+    /* Compact mode inline editing */
+    function startEditType(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editTypeValue.value = props.trackType;
+      editingType.value = true;
+      nextTick(() => {
+        typeInputRef.value?.focus();
+        if (typeInputRef.value instanceof HTMLInputElement) {
+          typeInputRef.value.select();
+        }
+      });
+    }
+
+    function saveType() {
+      if (editTypeValue.value.trim() && editTypeValue.value !== props.trackType) {
+        const confidence = topConfidence.value !== null ? topConfidence.value : 1;
+        props.track.setType(editTypeValue.value.trim(), confidence, props.trackType);
+      }
+      editingType.value = false;
+    }
+
+    function cancelEditType() {
+      editingType.value = false;
+    }
+
+    function startEditConfidence(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editConfidenceValue.value = topConfidence.value !== null ? topConfidence.value.toFixed(2) : '1.00';
+      editingConfidence.value = true;
+      nextTick(() => {
+        confidenceInputRef.value?.focus();
+        confidenceInputRef.value?.select();
+      });
+    }
+
+    function saveConfidence() {
+      const val = parseFloat(editConfidenceValue.value);
+      if (!Number.isNaN(val) && val >= 0 && val <= 1) {
+        props.track.setType(props.trackType, val);
+      }
+      editingConfidence.value = false;
+    }
+
+    function cancelEditConfidence() {
+      editingConfidence.value = false;
+    }
+
     return {
       /* data */
       feature,
@@ -184,6 +253,14 @@ export default defineComponent({
       trackFilters,
       readOnlyMode,
       multiCam,
+      topConfidence,
+      /* compact editing */
+      editingType,
+      editingConfidence,
+      editTypeValue,
+      editConfidenceValue,
+      typeInputRef,
+      confidenceInputRef,
       /* methods */
       gotoNext,
       gotoPrevious,
@@ -196,13 +273,140 @@ export default defineComponent({
       setTrackType,
       typeStyling,
       handleClicked,
+      startEditType,
+      saveType,
+      cancelEditType,
+      startEditConfidence,
+      saveConfidence,
+      cancelEditConfidence,
     };
   },
 });
 </script>
 
 <template>
+  <!-- Compact layout for bottom sidebar -->
   <div
+    v-if="compact"
+    class="track-item-compact d-flex align-center hover-show-parent px-1"
+    :style="style"
+    @click="handleClicked"
+  >
+    <div
+      class="type-color-box-compact"
+      :style="{ backgroundColor: color }"
+    />
+    <div class="trackNumber-compact">
+      {{ track.trackId }}
+    </div>
+    <!-- Editable type field -->
+    <select
+      v-if="editingType && lockTypes"
+      ref="typeInputRef"
+      v-model="editTypeValue"
+      class="compact-type-input compact-select-input"
+      @blur="saveType"
+      @change="saveType"
+      @keydown.enter="saveType"
+      @keydown.escape="cancelEditType"
+      @click.stop
+    >
+      <option
+        v-for="item in allTypes"
+        :key="item"
+        :value="item"
+      >
+        {{ item }}
+      </option>
+    </select>
+    <input
+      v-else-if="editingType"
+      ref="typeInputRef"
+      v-model="editTypeValue"
+      type="text"
+      list="allTypesOptions"
+      class="compact-type-input"
+      @blur="saveType"
+      @keydown.enter="saveType"
+      @keydown.escape="cancelEditType"
+      @click.stop
+    >
+    <span
+      v-else
+      class="track-type-compact text-truncate"
+      :class="{ editable: !readOnlyMode && !lockTypes }"
+      @click="startEditType"
+    >{{ trackType }}</span>
+    <!-- Editable confidence field -->
+    <input
+      v-if="editingConfidence"
+      ref="confidenceInputRef"
+      v-model="editConfidenceValue"
+      type="number"
+      step="0.01"
+      min="0"
+      max="1"
+      class="compact-confidence-input"
+      @blur="saveConfidence"
+      @keydown.enter="saveConfidence"
+      @keydown.escape="cancelEditConfidence"
+      @click.stop
+    >
+    <span
+      v-else
+      class="track-confidence-compact"
+      :class="{ editable: !readOnlyMode }"
+      @click="startEditConfidence"
+    >
+      {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
+    </span>
+    <v-spacer />
+    <!-- Compact action buttons -->
+    <div class="compact-actions d-flex">
+      <tooltip-btn
+        v-if="isTrack"
+        icon="mdi-chevron-double-left"
+        tooltip-text="Seek to start"
+        size="x-small"
+        @click="$emit('seek', track.begin)"
+      />
+      <tooltip-btn
+        v-if="isTrack"
+        icon="mdi-chevron-double-right"
+        tooltip-text="Seek to end"
+        size="x-small"
+        @click="$emit('seek', track.end)"
+      />
+      <tooltip-btn
+        v-if="!isTrack"
+        icon="mdi-map-marker"
+        tooltip-text="Seek to detection"
+        size="x-small"
+        @click="$emit('seek', track.begin)"
+      />
+      <tooltip-btn
+        v-if="!merging"
+        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
+        tooltip-text="Toggle edit mode"
+        size="x-small"
+        :disabled="!inputValue || readOnlyMode"
+        @click="handler.trackEdit(track.trackId)"
+      />
+    </div>
+    <span
+      v-show="false"
+      v-mousetrap="[
+        { bind: 'k', handler: toggleKeyframe },
+        { bind: 'i', handler: toggleInterpolation },
+        { bind: 'ctrl+i', handler: toggleAllInterpolation },
+        { bind: 'home', handler: () => $emit('seek', track.begin) },
+        { bind: 'end', handler: () => $emit('seek', track.end) },
+      ]"
+    />
+  </div>
+  <!-- Standard layout -->
+  <div
+    v-else
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
   >
@@ -383,6 +587,121 @@ export default defineComponent({
     max-width: 15px;
     min-height: 15px;
     max-height: 15px;
+  }
+}
+
+.track-item-compact {
+  border-radius: inherit;
+  height: 50px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #2a2a2a;
+  }
+
+  .type-color-box-compact {
+    min-width: 10px;
+    max-width: 10px;
+    min-height: 10px;
+    max-height: 10px;
+    margin-right: 6px;
+    border-radius: 2px;
+  }
+
+  .trackNumber-compact {
+    font-size: 13px;
+    font-weight: bold;
+    margin-right: 8px;
+    min-width: 30px;
+  }
+
+  .track-type-compact {
+    font-size: 12px;
+    color: #aaa;
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .track-confidence-compact {
+    font-size: 11px;
+    color: #888;
+    width: 36px;
+    min-width: 36px;
+    flex-shrink: 0;
+    text-align: right;
+    background-color: #333;
+    padding: 1px 4px;
+    border-radius: 3px;
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        background-color: #444;
+      }
+    }
+  }
+
+  .compact-type-input {
+    font-size: 12px;
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
+  }
+
+  .compact-select-input {
+    appearance: menulist;
+    background-color: #333;
+  }
+
+  .compact-confidence-input {
+    font-size: 11px;
+    width: 46px;
+    min-width: 46px;
+    flex-shrink: 0;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    text-align: right;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
+
+    /* Hide spinner buttons */
+    -moz-appearance: textfield;
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  .compact-actions {
+    flex-shrink: 0;
   }
 }
 </style>

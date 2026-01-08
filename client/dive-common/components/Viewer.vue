@@ -137,7 +137,30 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
-    const sideBarCollapsed = ref(false);
+    // Sidebar mode: 'left', 'bottom', or 'collapsed'
+    const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
+    const cycleSidebarMode = () => {
+      if (sidebarMode.value === 'left') {
+        sidebarMode.value = 'bottom';
+        clientSettings.layoutSettings.sidebarPosition = 'bottom';
+      } else if (sidebarMode.value === 'bottom') {
+        sidebarMode.value = 'collapsed';
+        // Keep setting as 'bottom' when collapsed (collapsed is a temporary state)
+      } else {
+        sidebarMode.value = 'left';
+        clientSettings.layoutSettings.sidebarPosition = 'left';
+      }
+    };
+    const sidebarModeIcon = computed(() => {
+      if (sidebarMode.value === 'left') return 'mdi-page-layout-sidebar-left';
+      if (sidebarMode.value === 'bottom') return 'mdi-page-layout-footer';
+      return 'mdi-checkbox-blank-outline';
+    });
+    const sidebarModeTooltip = computed(() => {
+      if (sidebarMode.value === 'left') return 'Sidebar: Left (click to cycle)';
+      if (sidebarMode.value === 'bottom') return 'Sidebar: Bottom (click to cycle)';
+      return 'Sidebar: Hidden (click to cycle)';
+    });
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -761,7 +784,7 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sideBarCollapsed], async () => {
+    watch([controlsCollapsed, sidebarMode], async () => {
       await nextTick();
       handleResize();
     });
@@ -841,7 +864,10 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
-      sideBarCollapsed,
+      sidebarMode,
+      cycleSidebarMode,
+      sidebarModeIcon,
+      sidebarModeTooltip,
       colorBy,
       clientSettings,
       datasetName,
@@ -982,12 +1008,12 @@ export default defineComponent({
           <template #activator="{ on }">
             <v-icon
               v-on="on"
-              @click="sideBarCollapsed = !sideBarCollapsed"
+              @click="cycleSidebarMode"
             >
-              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+              {{ sidebarModeIcon }}
             </v-icon>
           </template>
-          <span>Collapse Side Panel</span>
+          <span>{{ sidebarModeTooltip }}</span>
         </v-tooltip>
 
         <EditorMenu
@@ -1097,13 +1123,14 @@ export default defineComponent({
       </v-tooltip>
     </v-app-bar>
 
+    <!-- Left sidebar layout -->
     <v-row
+      v-if="sidebarMode === 'left'"
       no-gutters
       class="fill-height"
       style="min-width: 700px;"
     >
       <sidebar
-        v-if="!sideBarCollapsed"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
@@ -1216,6 +1243,124 @@ export default defineComponent({
       </v-col>
       <slot name="right-sidebar" />
     </v-row>
+
+    <!-- Bottom sidebar layout or collapsed -->
+    <div
+      v-else
+      class="d-flex flex-column fill-height"
+      style="min-width: 700px;"
+    >
+      <div
+        v-if="progress.loaded"
+        v-mousetrap="[
+          { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+          { bind: 'r', handler: () => aggregateController.resetZoom() },
+          { bind: 'esc', handler: () => handler.trackAbort() },
+          { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
+        ]"
+        class="d-flex flex-column grow"
+        style="min-height: 0;"
+      >
+        <!-- Video/annotator area -->
+        <div class="d-flex grow" style="min-height: 0;">
+          <div
+            v-for="camera in multiCamList"
+            :key="camera"
+            class="d-flex flex-column grow"
+            @mousedown.left="changeCamera(camera, $event)"
+            @mouseup.right="changeCamera(camera, $event)"
+          >
+            <component
+              :is="datasetType === 'image-sequence' ? 'image-annotator'
+                : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+              v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+              ref="subPlaybackComponent"
+              class="fill-height"
+              :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
+              v-bind="{
+                imageData: imageData[camera],
+                videoUrl: videoUrl[camera],
+                updateTime,
+                frameRate,
+                originalFps,
+                camera,
+                imageEnhancementOutputs,
+                isDefaultImage,
+                getTiles,
+                getTileURL,
+              }"
+              @large-image-warning="$emit('large-image-warning', true)"
+            >
+              <LayerManager :camera="camera" />
+            </component>
+          </div>
+        </div>
+        <!-- Bottom panel: sidebar and timeline side by side -->
+        <div
+          class="d-flex flex-shrink-0"
+          :style="{
+            'border-top': '1px solid #444',
+            height: sidebarMode === 'bottom' ? '260px' : 'auto',
+          }"
+        >
+          <sidebar
+            v-if="sidebarMode === 'bottom'"
+            horizontal
+            :width="450"
+            :enable-slot="false"
+            @import-types="trackFilters.importTypes($event)"
+            @track-seek="aggregateController.seek($event)"
+          />
+          <div
+            class="d-flex flex-column"
+            :style="{
+              'flex-grow': '1',
+              'min-width': '0',
+              overflow: 'hidden',
+              'border-left': sidebarMode === 'bottom' ? '1px solid #555' : 'none',
+            }"
+          >
+            <ControlsContainer
+              ref="controlsRef"
+              bottom-layout
+              :collapsed.sync="controlsCollapsed"
+              v-bind="{
+                lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
+              }"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        v-else
+        class="d-flex justify-center align-center fill-height"
+      >
+        <v-alert
+          v-if="loadError"
+          type="error"
+          prominent
+          max-width="60%"
+        >
+          <p class="ma-2">
+            {{ loadError }}
+          </p>
+        </v-alert>
+        <v-progress-circular
+          v-else
+          :indeterminate="progressValue === 0"
+          :value="progressValue"
+          size="100"
+          width="15"
+          color="light-blue"
+          class="main-progress-linear"
+          rotate="-90"
+        >
+          <span v-if="progressValue === 0">Loading</span>
+          <span v-else>{{ progressValue }}%</span>
+        </v-progress-circular>
+      </div>
+      <slot name="right-sidebar" />
+    </div>
   </v-main>
 </template>
 
