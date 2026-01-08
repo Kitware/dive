@@ -439,12 +439,20 @@ export default defineComponent({
       @keydown.escape="cancelEditNotes"
       @click.stop
     >
-    <span
+    <div
       v-else
-      class="track-notes-compact text-truncate"
-      :class="{ editable: !readOnlyMode, 'has-notes': currentNotes }"
-      @click="startEditNotes"
-    >{{ currentNotes || '...' }}</span>
+      class="track-notes-wrapper"
+    >
+      <span
+        class="track-notes-edit-zone"
+        :class="{ editable: !readOnlyMode }"
+        @click="startEditNotes"
+      />
+      <span
+        class="track-notes-compact text-truncate"
+        :class="{ 'has-notes': currentNotes }"
+      >{{ currentNotes || '...' }}</span>
+    </div>
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
@@ -730,25 +738,44 @@ export default defineComponent({
     margin-right: 8px;
   }
 
+  .track-notes-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 60px;
+    max-width: 200px;
+    margin-left: 12px;
+  }
+
+  .track-notes-edit-zone {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 33%;
+    min-width: 20px;
+    max-width: 60px;
+    z-index: 1;
+
+    &.editable {
+      cursor: text;
+      &:hover ~ .track-notes-compact {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
   .track-notes-compact {
     font-size: 14px;
     color: #666;
     flex-grow: 1;
-    min-width: 60px;
-    max-width: 200px;
     padding: 1px 4px;
-    margin-left: 12px;
+    pointer-events: none;
 
     &.has-notes {
       color: #aaa;
-    }
-
-    &.editable {
-      cursor: text;
-      &:hover {
-        color: #fff;
-        text-decoration: underline;
-      }
     }
   }
 
