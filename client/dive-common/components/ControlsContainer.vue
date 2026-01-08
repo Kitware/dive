@@ -401,6 +401,7 @@ export default defineComponent({
           />
         </span>
         <v-tooltip
+          v-if="!bottomLayout"
           open-delay="200"
           bottom
         >

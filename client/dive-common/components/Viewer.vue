@@ -28,6 +28,8 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  TrackList,
+  FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -38,6 +40,8 @@ import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
+import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
@@ -71,6 +75,10 @@ export default defineComponent({
     EditorMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
+    TrackList,
+    FilterList,
+    TypeSettingsPanel,
+    TrackSettingsPanel,
   },
 
   // TODO: remove this in vue 3
@@ -97,7 +105,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const { prompt } = usePrompt();
+    const { prompt, visible } = usePrompt();
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -901,6 +909,8 @@ export default defineComponent({
       imageEnhancementOutputs,
       isDefaultImage,
       disableAnnotationFilters,
+      trackStyleManager,
+      visible,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1295,7 +1305,7 @@ export default defineComponent({
             </component>
           </div>
         </div>
-        <!-- Bottom panel: sidebar and timeline side by side -->
+        <!-- Bottom panel: timeline, track list, and type filters side by side -->
         <div
           class="d-flex flex-shrink-0"
           :style="{
@@ -1303,21 +1313,13 @@ export default defineComponent({
             height: sidebarMode === 'bottom' ? '260px' : 'auto',
           }"
         >
-          <sidebar
-            v-if="sidebarMode === 'bottom'"
-            horizontal
-            :width="450"
-            :enable-slot="false"
-            @import-types="trackFilters.importTypes($event)"
-            @track-seek="aggregateController.seek($event)"
-          />
+          <!-- Left 1/3: Timeline and controls -->
           <div
-            class="d-flex flex-column"
+            class="d-flex flex-column bottom-panel-section"
             :style="{
-              'flex-grow': '1',
+              width: sidebarMode === 'bottom' ? '33.33%' : '100%',
               'min-width': '0',
               overflow: 'hidden',
-              'border-left': sidebarMode === 'bottom' ? '1px solid #555' : 'none',
             }"
           >
             <ControlsContainer
@@ -1328,6 +1330,77 @@ export default defineComponent({
                 lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
               }"
             />
+          </div>
+
+          <!-- Middle 1/3: Track list -->
+          <div
+            v-if="sidebarMode === 'bottom'"
+            class="d-flex flex-column bottom-panel-section"
+            :style="{
+              width: '33.33%',
+              'min-width': '0',
+              overflow: 'hidden',
+              'border-left': '1px solid #555',
+            }"
+          >
+            <TrackList
+              class="fill-height"
+              compact
+              :new-track-mode="clientSettings.trackSettings.newTrackSettings.mode"
+              :new-track-type="clientSettings.trackSettings.newTrackSettings.type"
+              :lock-types="clientSettings.typeSettings.lockTypes"
+              :hotkeys-disabled="visible() || readonlyState"
+              :height="220"
+              :disabled="disableAnnotationFilters"
+              @track-seek="aggregateController.seek($event)"
+            >
+              <template slot="settings">
+                <TrackSettingsPanel
+                  :all-types="trackFilters.allTypes"
+                />
+              </template>
+            </TrackList>
+          </div>
+
+          <!-- Right 1/3: Confidence slider and type filters -->
+          <div
+            v-if="sidebarMode === 'bottom'"
+            class="d-flex flex-column bottom-panel-section"
+            :style="{
+              width: '33.33%',
+              'min-width': '0',
+              overflow: 'hidden',
+              'border-left': '1px solid #555',
+            }"
+          >
+            <!-- Confidence slider at top -->
+            <div class="confidence-row-bottom px-2 py-1">
+              <ConfidenceFilter
+                :confidence.sync="confidenceFilters.default"
+                :disabled="disableAnnotationFilters"
+                text="Confidence"
+                @end="saveThreshold"
+              />
+            </div>
+            <!-- Type filters below -->
+            <div class="flex-grow-1" style="overflow-y: auto; overflow-x: hidden;">
+              <FilterList
+                :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
+                :height="180"
+                :width="300"
+                :style-manager="trackStyleManager"
+                :filter-controls="trackFilters"
+                :disabled="disableAnnotationFilters"
+                class="fill-height"
+              >
+                <template #settings>
+                  <TypeSettingsPanel
+                    :all-types="trackFilters.allTypes"
+                    @import-types="trackFilters.importTypes($event)"
+                  />
+                </template>
+              </FilterList>
+            </div>
           </div>
         </div>
       </div>
@@ -1385,6 +1458,16 @@ html {
 
 .text-xs-center {
   text-align: center !important;
+}
+
+.bottom-panel-section {
+  background-color: #1e1e1e;
+}
+
+.confidence-row-bottom {
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
 }
 
 </style>
