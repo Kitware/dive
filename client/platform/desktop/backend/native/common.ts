@@ -278,14 +278,13 @@ async function loadMetadata(
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
   } else if (projectMetaData.type === 'video') {
-    // Get the original video path for native playback
-    const originalVideoPath = npath.join(
-      projectMetaData.originalBasePath,
-      projectMetaData.originalVideoFile,
-    );
-
     /* If using native playback (no transcoding), provide the native video path */
     if (projectMetaData.useNativePlayback) {
+      // Get the original video path for native playback
+      const originalVideoPath = npath.join(
+        projectMetaData.originalBasePath,
+        projectMetaData.originalVideoFile,
+      );
       // For native playback, we pass the file path directly (not a URL)
       // The frontend will use the frame extraction API
       nativeVideoPath = originalVideoPath;
