@@ -885,6 +885,30 @@ export default defineComponent({
       return null;
     });
 
+    // Determine if confidence should be shown first (multiple types) or last (0-1 types)
+    const showConfidenceFirst = computed(() => {
+      if (selectedTrackForDetails.value) {
+        return selectedTrackForDetails.value.confidencePairs.length > 1;
+      }
+      return false;
+    });
+
+    // Check if track has any track-level attributes set
+    const hasTrackAttributes = computed(() => {
+      if (selectedTrackForDetails.value && selectedTrackForDetails.value.attributes) {
+        const attrs = selectedTrackForDetails.value.attributes;
+        // Check if any non-userAttributes keys exist with values
+        return Object.keys(attrs).some(
+          (key) => key !== 'userAttributes' && attrs[key] !== undefined,
+        );
+      }
+      return false;
+    });
+
+    // Determine attribute order: true = track first, false = detection first
+    // If track has attributes, show track first; otherwise show detection first
+    const showTrackAttributesFirst = computed(() => hasTrackAttributes.value);
+
     return {
       /* props */
       aggregateController,
@@ -935,6 +959,8 @@ export default defineComponent({
       trackStyleManager,
       visible,
       selectedTrackForDetails,
+      showConfidenceFirst,
+      showTrackAttributesFirst,
       attributes,
       /* large image methods */
       getTiles,
@@ -1456,21 +1482,40 @@ export default defineComponent({
             <template v-else>
               <div class="flex-grow-1 bottom-details-panel" style="overflow-y: auto; overflow-x: hidden;">
                 <div v-if="selectedTrackForDetails" class="pa-2">
-                  <!-- Type classifications -->
+                  <!-- Type classifications (first if multiple types) -->
                   <ConfidenceSubsection
+                    v-if="showConfidenceFirst"
                     :confidence-pairs="selectedTrackForDetails.confidencePairs"
                     :disabled="false"
                     @set-type="selectedTrackForDetails.setType($event)"
                   />
-                  <!-- Track attributes -->
-                  <AttributeSubsection
-                    mode="Track"
-                    :attributes="attributes"
-                  />
-                  <!-- Detection attributes -->
-                  <AttributeSubsection
-                    mode="Detection"
-                    :attributes="attributes"
+                  <!-- Attributes: Track first if has values, otherwise Detection first -->
+                  <template v-if="showTrackAttributesFirst">
+                    <AttributeSubsection
+                      mode="Track"
+                      :attributes="attributes"
+                    />
+                    <AttributeSubsection
+                      mode="Detection"
+                      :attributes="attributes"
+                    />
+                  </template>
+                  <template v-else>
+                    <AttributeSubsection
+                      mode="Detection"
+                      :attributes="attributes"
+                    />
+                    <AttributeSubsection
+                      mode="Track"
+                      :attributes="attributes"
+                    />
+                  </template>
+                  <!-- Type classifications (last if 0-1 types) -->
+                  <ConfidenceSubsection
+                    v-if="!showConfidenceFirst"
+                    :confidence-pairs="selectedTrackForDetails.confidencePairs"
+                    :disabled="false"
+                    @set-type="selectedTrackForDetails.setType($event)"
                   />
                 </div>
                 <div v-else class="pa-3 text-caption grey--text">
