@@ -165,6 +165,24 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col>
+              <v-switch
+                v-model="localSettings.nativeVideoPlayback"
+                color="primary"
+                label="Native video playback (experimental)"
+                hide-details
+                class="my-0"
+              />
+              <div class="text-caption grey--text mt-1">
+                When enabled, videos will be played using on-demand frame extraction instead of
+                being transcoded to MP4. This saves disk space and allows faster initial access,
+                but playback may be slower for smooth video review.
+                Best for frame-by-frame annotation work.
+              </div>
+            </v-col>
+          </v-row>
         </v-card-text>
 
         <v-card-text>
