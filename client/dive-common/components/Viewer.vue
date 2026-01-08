@@ -42,6 +42,7 @@ import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
+import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
@@ -79,6 +80,7 @@ export default defineComponent({
     FilterList,
     TypeSettingsPanel,
     TrackSettingsPanel,
+    TrackDetailsPanel,
   },
 
   // TODO: remove this in vue 3
@@ -147,6 +149,11 @@ export default defineComponent({
     const controlsCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
+    // Right panel view in bottom mode: 'filters' or 'details'
+    const bottomRightPanelView = ref<'filters' | 'details'>('filters');
+    const toggleBottomRightPanel = () => {
+      bottomRightPanelView.value = bottomRightPanelView.value === 'filters' ? 'details' : 'filters';
+    };
     const cycleSidebarMode = () => {
       if (sidebarMode.value === 'left') {
         sidebarMode.value = 'bottom';
@@ -876,6 +883,8 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      bottomRightPanelView,
+      toggleBottomRightPanel,
       colorBy,
       clientSettings,
       datasetName,
@@ -1082,6 +1091,7 @@ export default defineComponent({
           class="mx-2"
         />
         <v-tooltip
+          v-if="sidebarMode !== 'bottom'"
           bottom
         >
           <template #activator="{ on }">
@@ -1313,11 +1323,11 @@ export default defineComponent({
             height: sidebarMode === 'bottom' ? '260px' : 'auto',
           }"
         >
-          <!-- Left 1/3: Timeline and controls -->
+          <!-- Left: Timeline and controls -->
           <div
             class="d-flex flex-column bottom-panel-section"
             :style="{
-              width: sidebarMode === 'bottom' ? '33.33%' : '100%',
+              width: sidebarMode === 'bottom' ? '28%' : '100%',
               'min-width': '0',
               overflow: 'hidden',
             }"
@@ -1332,12 +1342,12 @@ export default defineComponent({
             />
           </div>
 
-          <!-- Middle 1/3: Track list -->
+          <!-- Middle: Track list -->
           <div
             v-if="sidebarMode === 'bottom'"
             class="d-flex flex-column bottom-panel-section"
             :style="{
-              width: '33.33%',
+              width: '44%',
               'min-width': '0',
               overflow: 'hidden',
               'border-left': '1px solid #555',
@@ -1362,45 +1372,84 @@ export default defineComponent({
             </TrackList>
           </div>
 
-          <!-- Right 1/3: Confidence slider and type filters -->
+          <!-- Right: Type filters/confidence OR Track details -->
           <div
             v-if="sidebarMode === 'bottom'"
             class="d-flex flex-column bottom-panel-section"
             :style="{
-              width: '33.33%',
+              width: '28%',
               'min-width': '0',
               overflow: 'hidden',
               'border-left': '1px solid #555',
             }"
           >
-            <!-- Confidence slider at top -->
-            <div class="confidence-row-bottom px-2 py-1">
-              <ConfidenceFilter
-                :confidence.sync="confidenceFilters.default"
-                :disabled="disableAnnotationFilters"
-                text="Confidence"
-                @end="saveThreshold"
-              />
-            </div>
-            <!-- Type filters below -->
-            <div class="flex-grow-1" style="overflow-y: auto; overflow-x: hidden;">
-              <FilterList
-                :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
-                :height="180"
-                :width="300"
-                :style-manager="trackStyleManager"
-                :filter-controls="trackFilters"
-                :disabled="disableAnnotationFilters"
-                class="fill-height"
-              >
-                <template #settings>
-                  <TypeSettingsPanel
-                    :all-types="trackFilters.allTypes"
-                    @import-types="trackFilters.importTypes($event)"
-                  />
+            <!-- Header with toggle button -->
+            <div class="right-panel-header d-flex align-center px-2 py-1">
+              <span class="right-panel-title">
+                {{ bottomRightPanelView === 'filters' ? 'Type Filters' : 'Track Details' }}
+              </span>
+              <v-spacer />
+              <v-tooltip bottom>
+                <template #activator="{ on }">
+                  <v-btn
+                    icon
+                    x-small
+                    v-on="on"
+                    @click="toggleBottomRightPanel"
+                  >
+                    <v-icon small>
+                      {{ bottomRightPanelView === 'filters' ? 'mdi-card-text' : 'mdi-filter-variant' }}
+                    </v-icon>
+                  </v-btn>
                 </template>
-              </FilterList>
+                <span>{{ bottomRightPanelView === 'filters' ? 'Switch to Track Details' : 'Switch to Type Filters' }}</span>
+              </v-tooltip>
             </div>
+
+            <!-- Filters view -->
+            <template v-if="bottomRightPanelView === 'filters'">
+              <!-- Type filters -->
+              <div class="flex-grow-1 bottom-filter-list" style="overflow-y: auto; overflow-x: hidden;">
+                <FilterList
+                  :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
+                  :height="130"
+                  :width="300"
+                  :style-manager="trackStyleManager"
+                  :filter-controls="trackFilters"
+                  :disabled="disableAnnotationFilters"
+                  class="fill-height"
+                >
+                  <template #settings>
+                    <TypeSettingsPanel
+                      :all-types="trackFilters.allTypes"
+                      @import-types="trackFilters.importTypes($event)"
+                    />
+                  </template>
+                </FilterList>
+              </div>
+              <!-- Confidence slider at bottom -->
+              <div class="confidence-row-bottom px-2 py-1">
+                <ConfidenceFilter
+                  :confidence.sync="confidenceFilters.default"
+                  :disabled="disableAnnotationFilters"
+                  text="Confidence"
+                  @end="saveThreshold"
+                />
+              </div>
+            </template>
+
+            <!-- Track details view -->
+            <template v-else>
+              <div class="flex-grow-1 bottom-details-panel" style="overflow-y: auto; overflow-x: hidden;">
+                <TrackDetailsPanel
+                  :lock-types="clientSettings.typeSettings.lockTypes"
+                  :hotkeys-disabled="readonlyState"
+                  :width="300"
+                  :disabled="disableAnnotationFilters"
+                  @track-seek="aggregateController.seek($event)"
+                />
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -1465,9 +1514,40 @@ html {
 }
 
 .confidence-row-bottom {
-  background-color: #1e1e1e;
+  background-color: #262626;
+  border-top: 1px solid #444;
+  flex-shrink: 0;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+
+  /* Match title styling with Tracks header */
+  .text-body-2 {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: white !important;
+  }
+}
+
+.bottom-filter-list {
+  /* Match title styling with Tracks header */
+  #type-header b {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+  }
+}
+
+.right-panel-header {
+  background-color: #262626;
   border-bottom: 1px solid #444;
   flex-shrink: 0;
+  min-height: 28px;
+}
+
+.right-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
 }
 
 </style>
