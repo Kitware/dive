@@ -243,7 +243,9 @@ export default Vue.extend({
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
       <slot name="delete-controls" />
+      <slot name="multicam-controls-left" />
       <v-spacer />
+      <slot name="multicam-controls-right" />
       <span class="pb-1">
         <span class="mr-1 px-3 py-1">
           <v-icon class="pr-1">

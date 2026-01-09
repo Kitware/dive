@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref,
+  defineComponent, computed, PropType, ref, nextTick,
 } from 'vue';
 import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
@@ -61,6 +61,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    compact: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
@@ -73,6 +77,18 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const { typeStyling } = useTrackStyleManager();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
+
+    /* Compact mode editing state */
+    const editingType = ref(false);
+    const editingConfidence = ref(false);
+    const editingNotes = ref(false);
+    const editTypeValue = ref('');
+    const editConfidenceValue = ref('');
+    const editNotesValue = ref('');
+    const localNotesDisplay = ref('');
+    const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
+    const confidenceInputRef = ref<HTMLInputElement | null>(null);
+    const notesInputRef = ref<HTMLInputElement | null>(null);
     /**
      * Use of revision is safe because it will only create a
      * dependency when track is selected.  DO NOT use this computed
@@ -122,6 +138,34 @@ export default defineComponent({
     const keyframeDisabled = computed(() => (
       !feature.value.real && !feature.value.shouldInterpolate)
       || (props.track.length === 1 && frameRef.value === props.track.begin));
+
+    /* Get the top confidence value for display in compact mode */
+    const topConfidence = computed(() => {
+      // Access revision.value to create reactive dependency
+      if (props.track.revision.value !== undefined
+          && props.track.confidencePairs
+          && props.track.confidencePairs.length > 0) {
+        return props.track.confidencePairs[0][1];
+      }
+      return null;
+    });
+
+    /* Get the notes value from the track's first keyframe */
+    const currentNotes = computed(() => {
+      // Use local display value if set, otherwise read from track
+      if (localNotesDisplay.value) {
+        return localNotesDisplay.value;
+      }
+      // Access revision.value to create reactive dependency
+      if (props.track.revision.value !== undefined) {
+        // Use track.begin frame for notes (first keyframe)
+        const feature = props.track.features[props.track.begin];
+        if (feature && feature.notes && feature.notes.length > 0) {
+          return feature.notes.join(', ');
+        }
+      }
+      return '';
+    });
 
     function toggleKeyframe() {
       if (!keyframeDisabled.value) {
@@ -173,6 +217,80 @@ export default defineComponent({
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
+    /* Compact mode inline editing */
+    function startEditType(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editTypeValue.value = props.trackType;
+      editingType.value = true;
+      nextTick(() => {
+        typeInputRef.value?.focus();
+        if (typeInputRef.value instanceof HTMLInputElement) {
+          typeInputRef.value.select();
+        }
+      });
+    }
+
+    function saveType() {
+      if (editTypeValue.value.trim() && editTypeValue.value !== props.trackType) {
+        const confidence = topConfidence.value !== null ? topConfidence.value : 1;
+        props.track.setType(editTypeValue.value.trim(), confidence, props.trackType);
+      }
+      editingType.value = false;
+    }
+
+    function cancelEditType() {
+      editingType.value = false;
+    }
+
+    function startEditConfidence(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editConfidenceValue.value = topConfidence.value !== null ? topConfidence.value.toFixed(2) : '1.00';
+      editingConfidence.value = true;
+      nextTick(() => {
+        confidenceInputRef.value?.focus();
+        confidenceInputRef.value?.select();
+      });
+    }
+
+    function saveConfidence() {
+      const val = parseFloat(editConfidenceValue.value);
+      if (!Number.isNaN(val) && val >= 0 && val <= 1) {
+        // Use cameraStore.setTrackType to update across all cameras
+        cameraStore.setTrackType(props.track.id, props.trackType, val);
+      }
+      editingConfidence.value = false;
+    }
+
+    function cancelEditConfidence() {
+      editingConfidence.value = false;
+    }
+
+    function startEditNotes(event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editNotesValue.value = currentNotes.value;
+      editingNotes.value = true;
+      nextTick(() => {
+        notesInputRef.value?.focus();
+        notesInputRef.value?.select();
+      });
+    }
+
+    function saveNotes() {
+      const newNotes = editNotesValue.value.trim();
+      // Save notes to the track's first keyframe (track.begin)
+      props.track.setFeatureNotes(props.track.begin, newNotes);
+      // Update local display immediately for UI responsiveness
+      localNotesDisplay.value = newNotes;
+      editingNotes.value = false;
+    }
+
+    function cancelEditNotes() {
+      editingNotes.value = false;
+    }
+
     return {
       /* data */
       feature,
@@ -184,6 +302,19 @@ export default defineComponent({
       trackFilters,
       readOnlyMode,
       multiCam,
+      topConfidence,
+      /* compact editing */
+      editingType,
+      editingConfidence,
+      editingNotes,
+      editTypeValue,
+      editConfidenceValue,
+      editNotesValue,
+      localNotesDisplay,
+      typeInputRef,
+      confidenceInputRef,
+      notesInputRef,
+      currentNotes,
       /* methods */
       gotoNext,
       gotoPrevious,
@@ -196,13 +327,187 @@ export default defineComponent({
       setTrackType,
       typeStyling,
       handleClicked,
+      startEditType,
+      saveType,
+      cancelEditType,
+      startEditConfidence,
+      saveConfidence,
+      cancelEditConfidence,
+      startEditNotes,
+      saveNotes,
+      cancelEditNotes,
     };
   },
 });
 </script>
 
 <template>
+  <!-- Compact layout for bottom sidebar -->
   <div
+    v-if="compact"
+    class="track-item-compact d-flex align-center hover-show-parent px-1"
+    :style="style"
+    @click="handleClicked"
+  >
+    <div
+      class="type-color-box-compact"
+      :style="{ backgroundColor: color }"
+    />
+    <div class="trackNumber-compact">
+      {{ track.trackId }}
+    </div>
+    <!-- Editable type field -->
+    <select
+      v-if="editingType && lockTypes"
+      ref="typeInputRef"
+      v-model="editTypeValue"
+      class="compact-type-input compact-select-input"
+      @blur="saveType"
+      @change="saveType"
+      @keydown.enter="saveType"
+      @keydown.escape="cancelEditType"
+      @click.stop
+    >
+      <option
+        v-for="item in allTypes"
+        :key="item"
+        :value="item"
+      >
+        {{ item }}
+      </option>
+    </select>
+    <input
+      v-else-if="editingType"
+      ref="typeInputRef"
+      v-model="editTypeValue"
+      type="text"
+      list="allTypesOptions"
+      class="compact-type-input"
+      @blur="saveType"
+      @keydown.enter="saveType"
+      @keydown.escape="cancelEditType"
+      @click.stop
+    >
+    <span
+      v-else
+      class="track-type-compact text-truncate"
+      :class="{ editable: !readOnlyMode && !lockTypes }"
+      @click="startEditType"
+    >{{ trackType }}</span>
+    <!-- Editable confidence field -->
+    <input
+      v-if="editingConfidence"
+      ref="confidenceInputRef"
+      v-model="editConfidenceValue"
+      type="number"
+      step="0.01"
+      min="0"
+      max="1"
+      class="compact-confidence-input"
+      @blur="saveConfidence"
+      @keydown.enter="saveConfidence"
+      @keydown.escape="cancelEditConfidence"
+      @click.stop
+    >
+    <span
+      v-else
+      class="track-confidence-compact"
+      :class="{ editable: !readOnlyMode }"
+      @click="startEditConfidence"
+    >
+      {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
+    </span>
+    <!-- Start and end frame columns (clickable to seek) -->
+    <span
+      class="track-frame-start clickable"
+      @click.stop="$emit('seek', track.begin)"
+    >{{ track.begin }}</span>
+    <span
+      class="track-frame-end clickable"
+      @click.stop="$emit('seek', track.end)"
+    >{{ track.end }}</span>
+    <!-- Notes field -->
+    <input
+      v-if="editingNotes"
+      ref="notesInputRef"
+      v-model="editNotesValue"
+      type="text"
+      class="compact-notes-input"
+      placeholder="Add notes..."
+      @blur="saveNotes"
+      @keydown.enter="saveNotes"
+      @keydown.escape="cancelEditNotes"
+      @click.stop
+    >
+    <div
+      v-else
+      class="track-notes-wrapper"
+    >
+      <span
+        class="track-notes-edit-zone"
+        :class="{ editable: !readOnlyMode }"
+        @click="startEditNotes"
+      />
+      <span
+        class="track-notes-compact text-truncate"
+        :class="{ 'has-notes': currentNotes }"
+      >{{ currentNotes || '...' }}</span>
+    </div>
+    <v-spacer />
+    <!-- Compact action buttons -->
+    <div class="compact-actions d-flex">
+      <tooltip-btn
+        v-if="isTrack"
+        icon="mdi-chevron-double-left"
+        tooltip-text="Seek to start"
+        size="x-small"
+        @click="$emit('seek', track.begin)"
+      />
+      <tooltip-btn
+        v-if="isTrack"
+        icon="mdi-chevron-double-right"
+        tooltip-text="Seek to end"
+        size="x-small"
+        @click="$emit('seek', track.end)"
+      />
+      <tooltip-btn
+        v-if="!isTrack"
+        icon="mdi-map-marker"
+        tooltip-text="Seek to detection"
+        size="x-small"
+        @click="$emit('seek', track.begin)"
+      />
+      <tooltip-btn
+        v-if="!merging"
+        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
+        tooltip-text="Toggle edit mode"
+        size="x-small"
+        :disabled="!inputValue || readOnlyMode"
+        @click="handler.trackEdit(track.trackId)"
+      />
+      <tooltip-btn
+        icon="mdi-delete"
+        color="error"
+        tooltip-text="Delete track"
+        size="x-small"
+        :disabled="merging || readOnlyMode"
+        @click="handler.removeTrack([track.trackId])"
+      />
+    </div>
+    <span
+      v-show="false"
+      v-mousetrap="[
+        { bind: 'k', handler: toggleKeyframe },
+        { bind: 'i', handler: toggleInterpolation },
+        { bind: 'ctrl+i', handler: toggleAllInterpolation },
+        { bind: 'home', handler: () => $emit('seek', track.begin) },
+        { bind: 'end', handler: () => $emit('seek', track.end) },
+      ]"
+    />
+  </div>
+  <!-- Standard layout -->
+  <div
+    v-else
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
     :style="style"
   >
@@ -383,6 +688,202 @@ export default defineComponent({
     max-width: 15px;
     min-height: 15px;
     max-height: 15px;
+  }
+}
+
+.track-item-compact {
+  border-radius: inherit;
+  height: 50px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #2a2a2a;
+  }
+
+  .type-color-box-compact {
+    min-width: 10px;
+    max-width: 10px;
+    min-height: 10px;
+    max-height: 10px;
+    margin-right: 6px;
+    border-radius: 2px;
+  }
+
+  .trackNumber-compact {
+    font-size: 14px;
+    font-weight: bold;
+    margin-right: 8px;
+    min-width: 30px;
+  }
+
+  .track-frame-start,
+  .track-frame-end {
+    font-size: 14px;
+    color: #888;
+    min-width: 45px;
+    flex-shrink: 0;
+    text-align: right;
+
+    &.clickable {
+      cursor: pointer;
+      &:hover {
+        color: #80c6e8;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .track-frame-end {
+    margin-right: 8px;
+  }
+
+  .track-notes-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    min-width: 60px;
+    max-width: 200px;
+    margin-left: 12px;
+  }
+
+  .track-notes-edit-zone {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 33%;
+    min-width: 20px;
+    max-width: 60px;
+    z-index: 1;
+
+    &.editable {
+      cursor: text;
+      &:hover ~ .track-notes-compact {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .track-notes-compact {
+    font-size: 14px;
+    color: #666;
+    flex-grow: 1;
+    padding: 1px 4px;
+    pointer-events: none;
+
+    &.has-notes {
+      color: #aaa;
+    }
+  }
+
+  .compact-notes-input {
+    font-size: 14px;
+    flex-grow: 1;
+    min-width: 60px;
+    max-width: 200px;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    margin-left: 12px;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
+  }
+
+  .track-type-compact {
+    font-size: 14px;
+    color: #aaa;
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .track-confidence-compact {
+    font-size: 14px;
+    color: #888;
+    width: 40px;
+    min-width: 40px;
+    flex-shrink: 0;
+    text-align: right;
+    background-color: #333;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-right: 8px;
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        background-color: #444;
+      }
+    }
+  }
+
+  .compact-type-input {
+    font-size: 14px;
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
+  }
+
+  .compact-select-input {
+    appearance: menulist;
+    background-color: #333;
+  }
+
+  .compact-confidence-input {
+    font-size: 14px;
+    width: 46px;
+    min-width: 46px;
+    flex-shrink: 0;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    text-align: right;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
+
+    /* Hide spinner buttons */
+    -moz-appearance: textfield;
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  .compact-actions {
+    flex-shrink: 0;
   }
 }
 </style>

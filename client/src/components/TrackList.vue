@@ -25,6 +25,9 @@ import TrackItem from './TrackItem.vue';
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
 
+type SortKey = 'id' | 'start' | 'end' | 'confidence' | 'type' | 'notes';
+type SortDirection = 'asc' | 'desc';
+
 export default defineComponent({
   name: 'TrackList',
 
@@ -55,6 +58,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    compact: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -75,9 +82,12 @@ export default defineComponent({
     } = useHandler();
 
     const data = reactive({
-      itemHeight: 70, // in pixelx
+      itemHeight: props.compact ? 50 : 70, // in pixels
       settingsActive: false,
     });
+
+    const sortKey = ref<SortKey>('id');
+    const sortDirection = ref<SortDirection>('asc');
 
     const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
     watch(
@@ -88,8 +98,9 @@ export default defineComponent({
     );
 
     const finalFilteredTracks = computed(() => {
+      let tracks = filteredTracksRef.value;
       if (filterDetectionsByFrame.value && !isPlaying.value) {
-        return filteredTracksRef.value.filter((track) => {
+        tracks = tracks.filter((track) => {
           const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
           if (possibleTrack) {
             const [feature] = possibleTrack.getFeature(frameRef.value);
@@ -100,7 +111,75 @@ export default defineComponent({
           return false;
         });
       }
-      return filteredTracksRef.value;
+
+      // Helper to get notes from a track's first keyframe
+      function getTrackNotes(track: ReturnType<typeof cameraStore.getTracksMerged>): string {
+        // Try direct access first (most common case)
+        const directFeature = track.features[track.begin];
+        if (directFeature && directFeature.notes && directFeature.notes.length > 0) {
+          return directFeature.notes.join(', ');
+        }
+        // If no feature at begin or no notes, try to get the first available feature
+        const [real, lower, upper] = track.getFeature(track.begin);
+        const fallbackFeature = real || lower || upper;
+        if (fallbackFeature && fallbackFeature.notes && fallbackFeature.notes.length > 0) {
+          return fallbackFeature.notes.join(', ');
+        }
+        return '';
+      }
+
+      // Apply sorting
+      const sorted = [...tracks];
+      const direction = sortDirection.value === 'asc' ? 1 : -1;
+
+      sorted.sort((a, b) => {
+        let trackA;
+        let trackB;
+        try {
+          trackA = cameraStore.getTracksMerged(a.annotation.id);
+          trackB = cameraStore.getTracksMerged(b.annotation.id);
+        } catch {
+          return 0;
+        }
+
+        switch (sortKey.value) {
+          case 'id':
+            return (trackA.trackId - trackB.trackId) * direction;
+          case 'start':
+            return (trackA.begin - trackB.begin) * direction;
+          case 'end':
+            return (trackA.end - trackB.end) * direction;
+          case 'confidence': {
+            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
+            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            return (confA - confB) * direction;
+          }
+          case 'type': {
+            const typeA = trackA.getType(a.context.confidencePairIndex)[0];
+            const typeB = trackB.getType(b.context.confidencePairIndex)[0];
+            const typeCompare = typeA.localeCompare(typeB);
+            if (typeCompare !== 0) return typeCompare * direction;
+            // Secondary sort by confidence within same type
+            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
+            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            return (confA - confB) * direction;
+          }
+          case 'notes': {
+            const notesA = getTrackNotes(trackA);
+            const notesB = getTrackNotes(trackB);
+            const emptyA = notesA === '';
+            const emptyB = notesB === '';
+            // Empty notes go last in ascending, first in descending
+            if (emptyA && !emptyB) return direction;
+            if (!emptyA && emptyB) return -direction;
+            if (emptyA && emptyB) return 0;
+            return notesA.localeCompare(notesB) * direction;
+          }
+          default:
+            return 0;
+        }
+      });
+      return sorted;
     });
 
     const virtualListItems = computed(() => {
@@ -230,6 +309,23 @@ export default defineComponent({
     });
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
+
+    function handleSort(key: SortKey) {
+      if (sortKey.value === key) {
+        // Toggle direction between desc and asc
+        sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc';
+      } else {
+        // New sort key starts with descending
+        sortKey.value = key;
+        sortDirection.value = 'desc';
+      }
+    }
+
+    const sortIcon = computed(() => (key: SortKey) => {
+      if (sortKey.value !== key) return '';
+      return sortDirection.value === 'asc' ? 'mdi-chevron-up' : 'mdi-chevron-down';
+    });
+
     return {
       allTypes: allTypesRef,
       data,
@@ -243,6 +339,10 @@ export default defineComponent({
       virtualListItems,
       virtualList: virtualScroll.virtualList,
       multiDelete,
+      sortKey,
+      sortDirection,
+      handleSort,
+      sortIcon,
     };
   },
 });
@@ -250,7 +350,136 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader px-2">
+    <!-- Compact header for bottom layout -->
+    <div
+      v-if="compact"
+      class="compact-header d-flex flex-column px-2 py-1"
+    >
+      <div class="d-flex align-center">
+        <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
+        <v-spacer />
+        <v-tooltip
+          open-delay="100"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-btn
+              :disabled="filteredTracks.length === 0 || readOnlyMode"
+              icon
+              x-small
+              v-on="on"
+              @click="multiDelete()"
+            >
+              <v-icon
+                x-small
+                color="error"
+              >
+                mdi-delete
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Delete visible items</span>
+        </v-tooltip>
+        <v-tooltip
+          open-delay="200"
+          bottom
+          max-width="200"
+        >
+          <template #activator="{ on }">
+            <v-btn
+              :disabled="readOnlyMode"
+              outlined
+              x-small
+              :color="newTrackColor"
+              v-on="on"
+              @click="trackAdd()"
+            >
+              <v-icon x-small>
+                mdi-plus
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
+        </v-tooltip>
+      </div>
+      <!-- Column headers row -->
+      <div class="compact-column-headers d-flex align-center px-1 mt-1">
+        <span class="col-spacer" />
+        <span
+          class="col-header col-id sortable"
+          :class="{ active: sortKey === 'id' }"
+          @click="handleSort('id')"
+        >
+          ID
+          <v-icon
+            v-if="sortIcon('id')"
+            x-small
+          >{{ sortIcon('id') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-type sortable"
+          :class="{ active: sortKey === 'type' }"
+          @click="handleSort('type')"
+        >
+          Type
+          <v-icon
+            v-if="sortIcon('type')"
+            x-small
+          >{{ sortIcon('type') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-conf sortable"
+          :class="{ active: sortKey === 'confidence' }"
+          @click="handleSort('confidence')"
+        >
+          Conf
+          <v-icon
+            v-if="sortIcon('confidence')"
+            x-small
+          >{{ sortIcon('confidence') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-start sortable"
+          :class="{ active: sortKey === 'start' }"
+          @click="handleSort('start')"
+        >
+          Start
+          <v-icon
+            v-if="sortIcon('start')"
+            x-small
+          >{{ sortIcon('start') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-end sortable"
+          :class="{ active: sortKey === 'end' }"
+          @click="handleSort('end')"
+        >
+          End
+          <v-icon
+            v-if="sortIcon('end')"
+            x-small
+          >{{ sortIcon('end') }}</v-icon>
+        </span>
+        <span
+          class="col-header col-notes sortable"
+          :class="{ active: sortKey === 'notes' }"
+          @click="handleSort('notes')"
+        >
+          Notes
+          <v-icon
+            v-if="sortIcon('notes')"
+            x-small
+          >{{ sortIcon('notes') }}</v-icon>
+        </span>
+        <v-spacer />
+        <span class="col-header col-actions">Actions</span>
+      </div>
+    </div>
+    <!-- Standard header -->
+    <v-subheader
+      v-else
+      class="flex-grow-1 trackHeader px-2"
+    >
       <v-container class="py-2">
         <v-row align="center">
           Tracks ({{ filteredTracks.length }})
@@ -342,7 +571,7 @@ export default defineComponent({
     <v-virtual-scroll
       ref="virtualList"
       v-mousetrap="mouseTrap"
-      class="tracks"
+      :class="compact ? 'tracks-compact' : 'tracks'"
       :items="virtualListItems"
       :item-height="data.itemHeight"
       :height="virtualHeight"
@@ -353,6 +582,7 @@ export default defineComponent({
           v-bind="getItemProps(item)"
           :lock-types="lockTypes"
           :disabled="disabled"
+          :compact="compact"
           @seek="$emit('track-seek', $event)"
         />
       </template>
@@ -367,6 +597,79 @@ export default defineComponent({
 .trackHeader{
   height: auto;
 }
+.compact-header {
+  background-color: #262626;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+.compact-header-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+.compact-column-headers {
+  .col-header {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    font-weight: 500;
+
+    &.sortable {
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        color: #fff;
+      }
+
+      &.active {
+        color: #80c6e8;
+      }
+
+      .v-icon {
+        vertical-align: middle;
+        margin-left: 1px;
+      }
+    }
+  }
+  .col-spacer {
+    /* Matches color box: 10px + 6px margin */
+    min-width: 16px;
+  }
+  .col-id {
+    /* Matches trackNumber-compact: 30px + 8px margin */
+    min-width: 38px;
+  }
+  .col-type {
+    /* Matches track-type-compact: 80px */
+    min-width: 80px;
+  }
+  .col-conf {
+    /* Matches track-confidence-compact: 40px + 8px margin */
+    min-width: 48px;
+    text-align: center;
+  }
+  .col-start {
+    /* Matches track-frame-start: 45px */
+    min-width: 45px;
+    text-align: right;
+  }
+  .col-end {
+    /* Matches track-frame-end: 45px + 8px margin */
+    min-width: 45px;
+    text-align: right;
+    margin-right: 8px;
+  }
+  .col-notes {
+    flex-grow: 1;
+    min-width: 60px;
+    margin-left: 12px;
+  }
+  .col-actions {
+    min-width: 100px;
+    text-align: right;
+  }
+}
 .tracks {
   overflow-y: auto;
   overflow-x: hidden;
@@ -375,6 +678,26 @@ export default defineComponent({
     label {
       white-space: pre-wrap;
     }
+  }
+}
+
+.tracks-compact {
+  overflow-y: scroll;
+  overflow-x: hidden;
+
+  /* Always show scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #666;
   }
 }
 </style>
