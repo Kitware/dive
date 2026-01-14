@@ -62,6 +62,10 @@ export interface SegmentationPredictionResult {
   polygon: [number, number][];
   bounds: [number, number, number, number] | null;
   frameNum: number;
+  /** RLE-encoded full-resolution mask for display */
+  rleMask?: [number, number][];
+  /** Mask dimensions [height, width] */
+  maskShape?: [number, number];
 }
 
 /** Data stored per frame for multi-frame segmentation */
@@ -71,6 +75,8 @@ interface FrameSegmentationData {
   polygon: [number, number][] | null;
   bounds: [number, number, number, number] | null;
   lowResMask: number[][] | null;
+  rleMask: [number, number][] | null;
+  maskShape: [number, number] | null;
 }
 
 /** Result containing all frames for multi-frame confirmation */
@@ -122,6 +128,12 @@ export default class SegmentationPointClick implements Recipe {
   /** Pending bounds from async prediction */
   private pendingBounds: [number, number, number, number] | null = null;
 
+  /** Pending RLE mask from async prediction (for display) */
+  private pendingRleMask: [number, number][] | null = null;
+
+  /** Pending mask shape from async prediction */
+  private pendingMaskShape: [number, number] | null = null;
+
   /** Whether a prediction is currently in progress */
   private isPredicting: boolean = false;
 
@@ -160,6 +172,8 @@ export default class SegmentationPointClick implements Recipe {
     this.lastLowResMask = null;
     this.pendingPolygon = null;
     this.pendingBounds = null;
+    this.pendingRleMask = null;
+    this.pendingMaskShape = null;
     this.isPredicting = false;
     this.frameData.clear();
     // Clear visual feedback for points
@@ -175,6 +189,8 @@ export default class SegmentationPointClick implements Recipe {
     this.lastLowResMask = null;
     this.pendingPolygon = null;
     this.pendingBounds = null;
+    this.pendingRleMask = null;
+    this.pendingMaskShape = null;
     this.frameData.delete(this.currentFrame);
     // Clear visual feedback for points
     this.bus.$emit('points-updated', { points: [], labels: [], frameNum: this.currentFrame });
@@ -184,13 +200,15 @@ export default class SegmentationPointClick implements Recipe {
    * Save current frame's data to frameData map
    */
   private saveCurrentFrameData(): void {
-    if (this.points.length > 0 || this.pendingPolygon) {
+    if (this.points.length > 0 || this.pendingPolygon || this.pendingRleMask) {
       this.frameData.set(this.currentFrame, {
         points: [...this.points],
         labels: [...this.pointLabels],
         polygon: this.pendingPolygon ? [...this.pendingPolygon] : null,
         bounds: this.pendingBounds ? [...this.pendingBounds] as [number, number, number, number] : null,
         lowResMask: this.lastLowResMask,
+        rleMask: this.pendingRleMask ? [...this.pendingRleMask] : null,
+        maskShape: this.pendingMaskShape ? [...this.pendingMaskShape] as [number, number] : null,
       });
     }
   }
@@ -206,12 +224,16 @@ export default class SegmentationPointClick implements Recipe {
       this.pendingPolygon = data.polygon ? [...data.polygon] : null;
       this.pendingBounds = data.bounds ? [...data.bounds] as [number, number, number, number] : null;
       this.lastLowResMask = data.lowResMask;
+      this.pendingRleMask = data.rleMask ? [...data.rleMask] : null;
+      this.pendingMaskShape = data.maskShape ? [...data.maskShape] as [number, number] : null;
     } else {
       this.points = [];
       this.pointLabels = [];
       this.pendingPolygon = null;
       this.pendingBounds = null;
       this.lastLowResMask = null;
+      this.pendingRleMask = null;
+      this.pendingMaskShape = null;
     }
   }
 
@@ -240,12 +262,14 @@ export default class SegmentationPointClick implements Recipe {
       frameNum: newFrame,
     });
 
-    // If new frame has a pending polygon, emit it
-    if (this.pendingPolygon) {
+    // If new frame has a pending prediction (polygon or mask), emit it
+    if (this.pendingPolygon || this.pendingRleMask) {
       this.bus.$emit('prediction-ready', {
-        polygon: this.pendingPolygon,
+        polygon: this.pendingPolygon || [],
         bounds: this.pendingBounds,
         frameNum: newFrame,
+        rleMask: this.pendingRleMask || undefined,
+        maskShape: this.pendingMaskShape || undefined,
       } as SegmentationPredictionResult);
     }
   }
@@ -282,14 +306,19 @@ export default class SegmentationPointClick implements Recipe {
         this.pendingPolygon = response.polygon;
         this.pendingBounds = response.bounds ?? null;
         this.lastLowResMask = response.lowResMask ?? null;
+        this.pendingRleMask = response.rleMask ?? null;
+        this.pendingMaskShape = response.maskShape ?? null;
 
         // Emit event to notify that prediction is ready
         // Include frameNum so listeners can update the correct frame
+        // Includes mask data for display during editing
         this.bus.$emit('prediction-ready', {
           polygon: response.polygon,
           bounds: response.bounds,
           score: response.score,
           frameNum,
+          rleMask: response.rleMask,
+          maskShape: response.maskShape,
         } as SegmentationPredictionResult & { score?: number });
       } else {
         // Prediction returned an error - handle point rejection

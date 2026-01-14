@@ -55,6 +55,9 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 const MultiSelectSymbol = Symbol('multiSelect');
 type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
 
+const SegmentationPointsSymbol = Symbol('segmentationPoints');
+type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[] }>>;
+
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
@@ -263,6 +266,7 @@ export interface State {
   annotationSet: AnnotationSetType;
   annotationSets: AnnotationSetsType;
   comparisonSets: ComparisonSetsType;
+  segmentationPoints: SegmentationPointsType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -329,6 +333,7 @@ function dummyState(): State {
     comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
+    segmentationPoints: ref({ points: [], labels: [] }),
     selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
@@ -378,6 +383,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotationSetSymbol, state.annotationSet);
   provide(AnnotationSetsSymbol, state.annotationSets);
   provide(ComparisonSetsSymbol, state.comparisonSets);
+  provide(SegmentationPointsSymbol, state.segmentationPoints);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -510,6 +516,10 @@ function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
+function useSegmentationPoints() {
+  return use<SegmentationPointsType>(SegmentationPointsSymbol);
+}
+
 export {
   dummyHandler,
   dummyState,
@@ -542,4 +552,5 @@ export {
   useReadOnlyMode,
   useImageEnhancements,
   useAttributesFilters,
+  useSegmentationPoints,
 };

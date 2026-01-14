@@ -37,6 +37,7 @@ import { getResponseError } from 'vue-media-annotator/utils';
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
@@ -217,9 +218,11 @@ export default defineComponent({
       setSVGFilters,
     } = useImageEnhancements();
 
+    const segmentationRecipe = new SegmentationPointClick();
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
+      segmentationRecipe,
     ];
 
     const vuetify = inject('vuetify') as Vuetify;
@@ -283,6 +286,7 @@ export default defineComponent({
       selectedKey,
       selectedCamera,
       editingTrack,
+      segmentationPoints,
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
@@ -857,6 +861,7 @@ export default defineComponent({
         annotationSet: toRef(props, 'currentSet'),
         annotationSets: sets,
         comparisonSets: toRef(props, 'comparisonSets'),
+        segmentationPoints,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -942,6 +947,7 @@ export default defineComponent({
       saveInProgress,
       playbackComponent,
       recipes,
+      segmentationRecipe,
       selectedFeatureHandle,
       selectedTrackId,
       editingGroupId,
