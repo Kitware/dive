@@ -238,6 +238,8 @@ export interface SegmentationPredictResponse {
   lowResMask?: number[][];
   /** Mask dimensions [height, width] */
   maskShape?: [number, number];
+  /** RLE-encoded full-resolution mask for display: [[value, count], ...] */
+  rleMask?: [number, number][];
 }
 
 export interface SegmentationStatusResponse {

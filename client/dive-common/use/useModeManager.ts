@@ -16,6 +16,10 @@ import { clientSettings } from 'dive-common/store/settings';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
+import SegmentationPointClick, {
+  SegmentationPredictionResult,
+  MultiFrameSegmentationResult,
+} from 'dive-common/recipes/segmentationpointclick';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -840,11 +844,171 @@ export default function useModeManager({
     handleGroupEdit(previousOrNext);
   }
 
+  /**
+   * Segmentation prompt points for visualization (green=foreground, red=background)
+   */
+  const segmentationPoints: Ref<{ points: [number, number][]; labels: number[] }> = ref({
+    points: [],
+    labels: [],
+  });
+
+  /**
+   * Handle segmentation points update - update visual display of prompt points
+   */
+  function handleSegmentationPointsUpdated(data: { points: [number, number][]; labels: number[] }) {
+    segmentationPoints.value = {
+      points: [...data.points],
+      labels: [...data.labels],
+    };
+  }
+
+  /**
+   * Handle segmentation prediction ready - update visual display with pending polygon/mask.
+   * This is called when the segmentation model returns a prediction.
+   * During editing, we show the polygon preview but don't commit it yet.
+   */
+  function handleSegmentationPredictionReady(result: SegmentationPredictionResult) {
+    if (selectedTrackId.value === null) {
+      return;
+    }
+
+    const { frame } = aggregateController.value;
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    if (!track) {
+      return;
+    }
+
+    // Create polygon geometry from prediction result
+    if (result.polygon && result.polygon.length >= 3) {
+      const bounds = result.bounds || [
+        Math.min(...result.polygon.map((p) => p[0])),
+        Math.min(...result.polygon.map((p) => p[1])),
+        Math.max(...result.polygon.map((p) => p[0])),
+        Math.max(...result.polygon.map((p) => p[1])),
+      ] as [number, number, number, number];
+
+      // Close polygon if not already closed
+      const closedPolygon = [...result.polygon];
+      const first = closedPolygon[0];
+      const last = closedPolygon[closedPolygon.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        closedPolygon.push([...first] as [number, number]);
+      }
+
+      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [closedPolygon],
+        },
+        properties: { key: '' },
+      }];
+
+      // Update the track's feature with the preview polygon
+      // Use frame number from the result if provided, otherwise current frame
+      const targetFrame = result.frameNum ?? frame.value;
+      const { interpolate } = track.canInterpolate(targetFrame);
+
+      track.setFeature({
+        frame: targetFrame,
+        flick: 0,
+        bounds,
+        keyframe: true,
+        interpolate,
+      }, polygonGeometry);
+
+      _nudgeEditingCanary();
+    }
+  }
+
+  /**
+   * Handle segmentation prediction confirmed - commit the polygon to the track.
+   * This is called when the user confirms the segmentation (right-click or Enter).
+   */
+  function handleSegmentationPredictionConfirmed(result: SegmentationPredictionResult) {
+    handleSegmentationPredictionReady(result);
+  }
+
+  /**
+   * Handle multi-frame segmentation confirmation.
+   * Commits polygons for all frames that have valid predictions.
+   */
+  function handleSegmentationConfirmedMulti(result: MultiFrameSegmentationResult) {
+    if (selectedTrackId.value === null) {
+      return;
+    }
+
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    if (!track) {
+      return;
+    }
+
+    // Apply each frame's prediction to the track
+    result.frames.forEach((frameResult, frameNum) => {
+      if (frameResult.polygon && frameResult.polygon.length >= 3) {
+        const bounds = frameResult.bounds || [
+          Math.min(...frameResult.polygon.map((p) => p[0])),
+          Math.min(...frameResult.polygon.map((p) => p[1])),
+          Math.max(...frameResult.polygon.map((p) => p[0])),
+          Math.max(...frameResult.polygon.map((p) => p[1])),
+        ] as [number, number, number, number];
+
+        // Close polygon if not already closed
+        const closedPolygon = [...frameResult.polygon];
+        const first = closedPolygon[0];
+        const last = closedPolygon[closedPolygon.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+          closedPolygon.push([...first] as [number, number]);
+        }
+
+        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [closedPolygon],
+          },
+          properties: { key: '' },
+        }];
+
+        const { interpolate } = track.canInterpolate(frameNum);
+
+        track.setFeature({
+          frame: frameNum,
+          flick: 0,
+          bounds,
+          keyframe: true,
+          interpolate,
+        }, polygonGeometry);
+      }
+    });
+
+    _nudgeEditingCanary();
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
+
+  /* Subscribe to segmentation recipe events */
+  recipes.forEach((r) => {
+    if (r instanceof SegmentationPointClick) {
+      r.bus.$on('points-updated', handleSegmentationPointsUpdated);
+      r.bus.$on('prediction-ready', handleSegmentationPredictionReady);
+      r.bus.$on('prediction-confirmed', handleSegmentationPredictionConfirmed);
+      r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
+    }
+  });
+
   /* Unsubscribe before unmount */
   onBeforeUnmount(() => {
     recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
+    recipes.forEach((r) => {
+      if (r instanceof SegmentationPointClick) {
+        r.bus.$off('points-updated', handleSegmentationPointsUpdated);
+        r.bus.$off('prediction-ready', handleSegmentationPredictionReady);
+        r.bus.$off('prediction-confirmed', handleSegmentationPredictionConfirmed);
+        r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
+      }
+    });
   });
 
   return {
@@ -864,6 +1028,7 @@ export default function useModeManager({
     selectedKey,
     selectedCamera,
     selectNextTrack,
+    segmentationPoints,
     handler: {
       commitMerge: handleCommitMerge,
       confirmRecipe: handleConfirmRecipe,

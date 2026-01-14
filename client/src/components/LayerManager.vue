@@ -39,7 +39,9 @@ import {
   useSelectedCamera,
   useAttributes,
   useComparisonSets,
+  useSegmentationPoints,
 } from '../provides';
+import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -151,6 +153,19 @@ export default defineComponent({
       typeStyling: typeStylingRef,
       type: 'rectangle',
     });
+
+    // Segmentation points layer for displaying prompt points during point-click segmentation
+    const segmentationPointsRef = useSegmentationPoints();
+    const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
+
+    // Watch for segmentation points updates
+    watch(segmentationPointsRef, (newPoints) => {
+      if (newPoints.points.length > 0) {
+        segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
+      } else {
+        segmentationPointsLayer.clear();
+      }
+    }, { deep: true });
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
