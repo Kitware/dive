@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 
 from girder.api import access
@@ -13,6 +14,9 @@ from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, T
 from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
+from .sam2_service import get_sam2_service
+
+logger = logging.getLogger(__name__)
 
 
 class RpcResource(Resource):
@@ -29,6 +33,10 @@ class RpcResource(Resource):
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
         self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
         self.route("POST", ("batch_postprocess", ":id"), self.batch_postprocess)
+
+        # SAM2 Interactive Segmentation
+        self.route("POST", ("sam2_predict",), self.sam2_predict)
+        self.route("GET", ("sam2_status",), self.sam2_status)
 
     @access.user
     @autoDescribeRoute(
@@ -303,3 +311,152 @@ class RpcResource(Resource):
             subFolder['meta']['MarkForPostProcess'] = False
             Folder().save(subFolder)
             crud_rpc.postprocess(self.getCurrentUser(), subFolder, skipJobs, skipTranscoding)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Run SAM2 point-based segmentation")
+        .modelParam(
+            "folderId",
+            description="Dataset folder ID",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .param(
+            "frameNumber",
+            description="Frame number to segment",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+        .jsonParam(
+            "body",
+            description="JSON object with point prompts",
+            paramType="body",
+            schema={
+                "points": List[List[float]],
+                "pointLabels": List[int],
+                "maskInput": Optional[List[List[float]]],
+                "multimaskOutput": Optional[bool],
+            },
+        )
+    )
+    def sam2_predict(self, folder, frameNumber, body):
+        """
+        Run SAM2 prediction with point prompts.
+
+        Query params:
+            folderId: Dataset folder ID
+            frameNumber: Frame number to segment
+
+        Request body:
+            points: List of [x, y] point coordinates
+            pointLabels: List of labels (1=foreground, 0=background)
+            maskInput: Optional low-res mask for refinement
+            multimaskOutput: Whether to return multiple masks (default: false)
+
+        Returns:
+            polygon: List of [x, y] coordinate pairs
+            bounds: [x_min, y_min, x_max, y_max]
+            score: Quality score from SAM2
+            lowResMask: Low-res mask for subsequent refinement
+        """
+        from dive_utils import fromMeta
+        from dive_utils.constants import TypeMarker, ImageSequenceType, VideoType
+        from girder.models.file import File
+        from girder.models.item import Item
+        import os
+
+        sam2 = get_sam2_service()
+
+        if not sam2.is_available():
+            return {
+                "success": False,
+                "error": "SAM2 is not available. Enable VIAME_ENABLE_PYTORCH-SAM2 in your build.",
+            }
+
+        try:
+            # Get dataset type and resolve image path
+            dataset_type = fromMeta(folder, TypeMarker)
+            image_path = None
+
+            if dataset_type == ImageSequenceType:
+                # Find image items in the folder, sorted by name
+                items = list(Item().find(
+                    {"folderId": folder["_id"]},
+                    sort=[("name", 1)]
+                ))
+
+                # Filter to only image items
+                image_items = [
+                    item for item in items
+                    if item.get("name", "").lower().endswith(
+                        ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
+                    )
+                ]
+
+                if frameNumber < 0 or frameNumber >= len(image_items):
+                    return {
+                        "success": False,
+                        "error": f"Frame {frameNumber} out of range (0-{len(image_items)-1})",
+                    }
+
+                image_item = image_items[frameNumber]
+                files = list(File().find({"itemId": image_item["_id"]}))
+                if not files:
+                    return {
+                        "success": False,
+                        "error": f"No file found for frame {frameNumber}",
+                    }
+
+                # Get the file path from Girder's assetstore
+                file_doc = files[0]
+                assetstore = File().getAssetstoreAdapter(file_doc)
+                image_path = assetstore.fullPath(file_doc)
+
+            elif dataset_type == VideoType:
+                # For video, we would need to extract a frame
+                # This requires ffmpeg and is more complex
+                return {
+                    "success": False,
+                    "error": "SAM2 for video datasets is not yet supported. Use image sequences.",
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unsupported dataset type: {dataset_type}",
+                }
+
+            if not image_path or not os.path.exists(image_path):
+                return {
+                    "success": False,
+                    "error": f"Image file not found: {image_path}",
+                }
+
+            # Run SAM2 prediction
+            result = sam2.predict(
+                image_path=image_path,
+                points=body.get("points", []),
+                point_labels=body.get("pointLabels", []),
+                mask_input=body.get("maskInput"),
+                multimask_output=body.get("multimaskOutput", False),
+            )
+            return result
+
+        except Exception as e:
+            logger.exception("SAM2 prediction failed")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(Description("Get SAM2 service status"))
+    def sam2_status(self):
+        """Check if SAM2 service is available and loaded."""
+        sam2 = get_sam2_service()
+        return {
+            "available": sam2.is_available(),
+            "loaded": sam2.is_loaded(),
+        }

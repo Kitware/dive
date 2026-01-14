@@ -2,7 +2,7 @@ import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import Track, { TrackId, TrackSupportedFeature } from 'vue-media-annotator/track';
 import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
@@ -414,6 +414,37 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Set a feature on a track with proper interpolation handling.
+   * This is used by segmentation and other modes that need to set features
+   * while respecting track settings and interpolation logic.
+   */
+  function handleSetTrackFeature(
+    frameNum: number,
+    bounds: RectBounds,
+    geometry: GeoJSON.Feature<TrackSupportedFeature>[],
+    runAfterLogic: boolean = true,
+  ) {
+    if (selectedTrackId.value !== null) {
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      if (track) {
+        const { interpolate } = track.canInterpolate(frameNum);
+
+        track.setFeature({
+          frame: frameNum,
+          flick: 0,
+          bounds,
+          keyframe: true,
+          interpolate: _shouldInterpolate(interpolate),
+        }, geometry);
+
+        if (runAfterLogic) {
+          newTrackSettingsAfterLogic(track);
+        }
+      }
+    }
+  }
+
   function handleUpdateGeoJSON(
     eventType: 'in-progress' | 'editing',
     frameNum: number,
@@ -704,6 +735,18 @@ export default function useModeManager({
   }
 
   /**
+   * Confirm the current annotation for any active recipe that supports it.
+   * Called when right-click is used in Point mode to lock the annotation.
+   */
+  function handleConfirmRecipe() {
+    recipes.forEach((r) => {
+      if (r.active.value && r.confirm) {
+        r.confirm();
+      }
+    });
+  }
+
+  /**
    * Merge: Enabled whenever there are candidates in the merge list
    */
   function handleToggleMerge(): TrackId[] {
@@ -823,6 +866,7 @@ export default function useModeManager({
     selectNextTrack,
     handler: {
       commitMerge: handleCommitMerge,
+      confirmRecipe: handleConfirmRecipe,
       groupAdd: handleAddGroup,
       deleteSelectedTracks: handleDeleteSelectedTracks,
       groupEdit: handleGroupEdit,
@@ -833,6 +877,7 @@ export default function useModeManager({
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
       trackSelectNext: handleSelectNext,
+      setTrackFeature: handleSetTrackFeature,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
       removeTrack: handleRemoveTrack,

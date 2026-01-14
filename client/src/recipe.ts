@@ -52,6 +52,8 @@ interface Recipe {
   activate: () => unknown;
   mousetrap: () => Mousetrap[];
   deactivate: () => void;
+  /** Optional method to confirm/lock the current annotation (e.g., for segmentation) */
+  confirm?: () => void;
 }
 
 export default Recipe;

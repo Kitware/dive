@@ -449,6 +449,10 @@ export default defineComponent({
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
       handler.trackSelect(selectedTrackIdRef.value, editing);
     });
+    // Handle right-click to confirm/lock annotation in Point mode (segmentation)
+    editAnnotationLayer.bus.$on('confirm-annotation', () => {
+      handler.confirmRecipe();
+    });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);

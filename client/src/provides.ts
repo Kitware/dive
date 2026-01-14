@@ -8,6 +8,7 @@ import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import type { AnnotationId, StringKeyObject } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
+import type { TrackSupportedFeature } from './track';
 import type {
   Attribute,
   AttributeFilter,
@@ -119,6 +120,8 @@ export interface Handler {
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
+  /* Confirm/lock the current annotation for active recipes */
+  confirmRecipe(): void;
   /* toggle selection mode for track */
   trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
@@ -132,6 +135,13 @@ export interface Handler {
     frameNum: number,
     flickNum: number,
     bounds: RectBounds,
+  ): void;
+  /* Set a feature on the selected track with proper interpolation handling */
+  setTrackFeature(
+    frameNum: number,
+    bounds: RectBounds,
+    geometry: GeoJSON.Feature<TrackSupportedFeature>[],
+    runAfterLogic?: boolean,
   ): void;
   /* update geojson for track */
   updateGeoJSON(
@@ -199,11 +209,13 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackSeek(...args) { handle('trackSeek', args); },
     seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
+    confirmRecipe(...args) { handle('confirmRecipe', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
+    setTrackFeature(...args) { handle('setTrackFeature', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
     removeTrack(...args) { handle('removeTrack', args); },
     removeGroup(...args) { handle('removeGroup', args); },
