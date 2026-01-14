@@ -5,6 +5,7 @@ import Vue, { PropType } from 'vue';
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 
 interface ButtonData {
   id: string;
@@ -67,6 +68,13 @@ export default Vue.extend({
           LineString: 'Click endpoints to select for deletion.',
         },
       },
+      // Text query state
+      textQueryDialogOpen: false,
+      textQueryInput: '',
+      textQueryLoading: false,
+      textQueryThreshold: 0.3,
+      textQueryInitializing: false,
+      textQueryServiceError: '',
     };
   },
   computed: {
@@ -144,7 +152,22 @@ export default Vue.extend({
       ];
     },
     mousetrap(): Mousetrap[] {
-      return flatten(this.editButtons.map((b) => b.mousetrap || []));
+      return [
+        ...flatten(this.editButtons.map((b) => b.mousetrap || [])),
+        {
+          bind: 't',
+          handler: () => this.openTextQueryDialog(),
+        },
+      ];
+    },
+    /**
+     * Get the active segmentation recipe if one exists and is active
+     */
+    activeSegmentationRecipe(): SegmentationPointClick | null {
+      const segRecipe = this.recipes.find(
+        (r) => r instanceof SegmentationPointClick && r.active.value,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe || null;
     },
     editingHeader() {
       if (this.groupEditActive) {
@@ -189,6 +212,47 @@ export default Vue.extend({
           visible: this.visibleModes.concat([mode]),
         });
       }
+    },
+
+    openTextQueryDialog() {
+      this.textQueryDialogOpen = true;
+      this.textQueryInput = '';
+      this.textQueryServiceError = '';
+      this.textQueryInitializing = true;
+      // Emit event to initialize the text query service
+      this.$emit('text-query-init');
+    },
+
+    closeTextQueryDialog() {
+      this.textQueryDialogOpen = false;
+      this.textQueryInput = '';
+      this.textQueryServiceError = '';
+      this.textQueryInitializing = false;
+    },
+
+    /**
+     * Called by parent when text query service initialization completes
+     */
+    onTextQueryServiceReady(success: boolean, error?: string) {
+      this.textQueryInitializing = false;
+      if (!success) {
+        this.textQueryServiceError = error || 'Text query service is not available';
+      }
+    },
+
+    async submitTextQuery() {
+      if (!this.textQueryInput.trim()) {
+        return;
+      }
+
+      this.textQueryLoading = true;
+      // Emit event to parent to handle text query
+      this.$emit('text-query', {
+        text: this.textQueryInput.trim(),
+        boxThreshold: this.textQueryThreshold,
+      });
+      this.closeTextQueryDialog();
+      this.textQueryLoading = false;
     },
   },
 });
@@ -242,7 +306,52 @@ export default Vue.extend({
         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
         <v-icon>{{ button.icon }}</v-icon>
       </v-btn>
-      <slot name="delete-controls" />
+      <!-- Text Query button -->
+      <v-btn
+        outlined
+        class="mx-1"
+        small
+        @click="openTextQueryDialog"
+      >
+        <pre>T:</pre>
+        <v-icon>mdi-text-search</v-icon>
+      </v-btn>
+      <!-- Segmentation Confirm/Reset buttons -->
+      <template v-if="activeSegmentationRecipe">
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-btn
+          color="success"
+          class="mx-1"
+          small
+          :disabled="!activeSegmentationRecipe.hasPendingPrediction()"
+          @click="activeSegmentationRecipe.confirmPrediction()"
+        >
+          <v-icon left>
+            mdi-check
+          </v-icon>
+          Confirm
+        </v-btn>
+        <v-btn
+          color="error"
+          class="mx-1"
+          small
+          :disabled="!activeSegmentationRecipe.hasPoints()"
+          @click="activeSegmentationRecipe.resetPoints()"
+        >
+          <v-icon left>
+            mdi-close
+          </v-icon>
+          Reset
+        </v-btn>
+      </template>
+      <!-- Hide delete controls when in segmentation mode -->
+      <slot
+        v-if="!activeSegmentationRecipe"
+        name="delete-controls"
+      />
       <slot name="multicam-controls-left" />
       <v-spacer />
       <slot name="multicam-controls-right" />
@@ -315,6 +424,96 @@ export default Vue.extend({
         </v-menu>
       </span>
     </div>
+
+    <!-- Text Query Dialog -->
+    <v-dialog
+      v-model="textQueryDialogOpen"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          <v-icon left>
+            mdi-text-search
+          </v-icon>
+          Text Query
+        </v-card-title>
+        <v-card-text>
+          <!-- Loading state while initializing service -->
+          <div
+            v-if="textQueryInitializing"
+            class="text-center py-4"
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              size="48"
+            />
+            <p class="text-body-2 mt-3">
+              Loading text query model...
+            </p>
+          </div>
+          <!-- Error state if service failed to initialize -->
+          <div
+            v-else-if="textQueryServiceError"
+            class="text-center py-4"
+          >
+            <v-icon
+              color="error"
+              size="48"
+            >
+              mdi-alert-circle
+            </v-icon>
+            <p class="text-body-2 mt-3 error--text">
+              {{ textQueryServiceError }}
+            </p>
+          </div>
+          <!-- Normal input form when service is ready -->
+          <template v-else>
+            <p class="text-body-2 mb-3">
+              Enter a description of objects to find in the current frame.
+            </p>
+            <v-text-field
+              v-model="textQueryInput"
+              label="Object description"
+              placeholder="e.g., fish swimming near coral"
+              outlined
+              dense
+              autofocus
+              :disabled="textQueryLoading"
+              @keyup.enter="submitTextQuery"
+            />
+            <v-slider
+              v-model="textQueryThreshold"
+              label="Confidence threshold"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              thumb-label
+              :disabled="textQueryLoading"
+            />
+          </template>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            :disabled="textQueryLoading"
+            @click="closeTextQueryDialog"
+          >
+            {{ textQueryServiceError ? 'Close' : 'Cancel' }}
+          </v-btn>
+          <v-btn
+            v-if="!textQueryInitializing && !textQueryServiceError"
+            color="primary"
+            :loading="textQueryLoading"
+            :disabled="!textQueryInput.trim() || textQueryLoading"
+            @click="submitTextQuery"
+          >
+            Search
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-row>
 </template>
 

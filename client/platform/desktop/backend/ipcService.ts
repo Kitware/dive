@@ -20,6 +20,11 @@ import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
 import settings from './state/settings';
 import { listen } from './server';
+import {
+  getSegmentationServiceManager,
+  shutdownSegmentationService,
+  SegmentationPredictRequest,
+} from './native/segmentation';
 
 // defaults to linux if win32 doesn't exist
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
@@ -170,5 +175,100 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+
+  /**
+   * Interactive Segmentation Service
+   */
+
+  ipcMain.handle('segmentation-initialize', async () => {
+    const segService = getSegmentationServiceManager();
+    await segService.initialize(settings.get());
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
+    const segService = getSegmentationServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.predict(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-set-image', async (_, imagePath: string) => {
+    const segService = getSegmentationServiceManager();
+
+    if (!segService.isReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    await segService.setImage(imagePath);
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-clear-image', async () => {
+    const segService = getSegmentationServiceManager();
+
+    if (segService.isReady()) {
+      await segService.clearImage();
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-shutdown', async () => {
+    await shutdownSegmentationService();
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-is-ready', () => {
+    const segService = getSegmentationServiceManager();
+    return { ready: segService.isReady() };
+  });
+
+  ipcMain.handle('segmentation-text-query', async (_, args: {
+    imagePath: string;
+    text: string;
+    boxThreshold?: number;
+    maxDetections?: number;
+    boxes?: [number, number, number, number][];
+    points?: [number, number][];
+    pointLabels?: number[];
+  }) => {
+    const segService = getSegmentationServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.textQuery(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-refine', async (_, args: {
+    imagePath: string;
+    detections: {
+      box: [number, number, number, number];
+      polygon?: [number, number][];
+      score: number;
+      label: string;
+    }[];
+    points?: [number, number][];
+    pointLabels?: number[];
+    refineMasks?: boolean;
+  }) => {
+    const segService = getSegmentationServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.refineDetections(args);
+    return response;
   });
 }

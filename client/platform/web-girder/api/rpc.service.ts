@@ -1,6 +1,8 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
-import { Pipe } from 'dive-common/apispec';
+import {
+  Pipe, SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+} from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
@@ -56,6 +58,45 @@ function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
 
+/**
+ * Interactive Segmentation API
+ */
+
+async function segmentationPredict(
+  folderId: string,
+  frameNumber: number,
+  request: SegmentationPredictRequest,
+): Promise<SegmentationPredictResponse> {
+  const { data } = await girderRest.post<SegmentationPredictResponse>('dive_rpc/sam2_predict', {
+    points: request.points,
+    pointLabels: request.pointLabels,
+    maskInput: request.maskInput,
+    multimaskOutput: request.multimaskOutput,
+  }, {
+    params: {
+      folderId,
+      frameNumber,
+    },
+  });
+  return data;
+}
+
+async function segmentationStatus(): Promise<SegmentationStatusResponse> {
+  const { data } = await girderRest.get<SegmentationStatusResponse>('dive_rpc/sam2_status');
+  return data;
+}
+
+/**
+ * Initialize segmentation service by checking availability.
+ * Throws an error if segmentation is not available on the server.
+ */
+async function segmentationInitialize(): Promise<void> {
+  const status = await segmentationStatus();
+  if (!status.available) {
+    throw new Error('Unable to load segmentation module');
+  }
+}
+
 export {
   convertLargeImage,
   postProcess,
@@ -63,4 +104,7 @@ export {
   runTraining,
   deleteTrainedPipeline,
   exportTrainedPipeline,
+  segmentationPredict,
+  segmentationStatus,
+  segmentationInitialize,
 };
