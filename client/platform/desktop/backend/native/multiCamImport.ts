@@ -132,7 +132,11 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
               throw new Error('User chose image file for video import option');
             } else if (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype)) {
               const checkMediaResult = await checkMedia(video);
-              if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
+              // Skip transcoding if Electron can play the codec natively and no misalignment issues
+              // Still transcode non-websafe container formats (like AVI, MOV) that Electron can't handle
+              const needsContainerTranscode = otherVideoTypes.includes(mimetype)
+                && !['video/mp4', 'video/webm', 'video/ogg'].includes(mimetype);
+              if (checkMediaResult.requiresTranscode || needsContainerTranscode) {
                 mediaConvertList.push(video);
               }
               if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[cameraName] !== undefined) {

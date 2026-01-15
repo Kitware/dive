@@ -13,6 +13,36 @@ export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
 export const PipelinesFolderName = 'DIVE_Pipelines';
 
+// Large image support constants
+export const LARGE_IMAGE_THRESHOLD = 8192; // WebGL texture limit
+export const DEFAULT_TILE_SIZE = 256;
+export const TILE_CACHE_SIZE_MB = 256;
+
+// Codecs that Electron/Chromium can play natively without transcoding
+export const ELECTRON_PLAYABLE_CODECS = [
+  'h264',
+  'vp8',
+  'vp9',
+  'av1',
+  'theora',
+];
+
+export interface MediaInfo {
+  width: number;
+  height: number;
+  format: string;
+  fileSize: number;
+}
+
+export interface TileMetadata {
+  sizeX: number;
+  sizeY: number;
+  tileWidth: number;
+  tileHeight: number;
+  levels: number;
+  isLargeImage: boolean;
+}
+
 export interface Settings {
   // version a schema version
   version: number;

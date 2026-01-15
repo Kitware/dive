@@ -85,6 +85,9 @@ const updater = (update: DesktopJobUpdate) => undefined;
 jest.mock('./mediaJobs', () => ({
   checkMedia: jest.fn((file: string) => Promise.resolve({
     websafe: file.includes('mp4'),
+    electronPlayable: file.includes('mp4') || file.includes('webm'),
+    codec: file.includes('mp4') ? 'h264' : 'unknown',
+    requiresTranscode: !file.includes('mp4') && !file.includes('webm'),
     originalFpsString: '30/1',
     originalFps: 30,
     videoDimensions: { width: 1920, height: 1080 },

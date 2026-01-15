@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'net';
 import http from 'http';
+import { spawn } from 'child_process';
 
 import cors from 'cors';
 import mime from 'mime-types';
@@ -12,6 +13,59 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 
 import settings from './state/settings';
 import * as common from './native/common';
+import { getBinaryPath } from './native/utils';
+
+const ffprobePath = getBinaryPath('ffmpeg-ffprobe-static/ffprobe');
+
+interface MediaInfoResult {
+  width: number;
+  height: number;
+  format: string;
+  fileSize: number;
+}
+
+async function getImageDimensions(filePath: string): Promise<MediaInfoResult> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-v', 'quiet',
+      '-print_format', 'json',
+      '-show_streams',
+      '-show_format',
+      filePath,
+    ];
+    const proc = spawn(ffprobePath, args);
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
+        return;
+      }
+      try {
+        const result = JSON.parse(stdout);
+        const videoStream = result.streams?.find(
+          (s: { codec_type?: string }) => s.codec_type === 'video',
+        );
+        if (!videoStream) {
+          reject(new Error('No video/image stream found'));
+          return;
+        }
+        resolve({
+          width: videoStream.width || 0,
+          height: videoStream.height || 0,
+          format: result.format?.format_name || 'unknown',
+          fileSize: parseInt(result.format?.size || '0', 10),
+        });
+      } catch (e) {
+        reject(new Error(`Failed to parse ffprobe output: ${e}`));
+      }
+    });
+  });
+}
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -121,6 +175,35 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     next(err);
   }
   return null;
+});
+
+/* GET media info (dimensions without loading full file) */
+apirouter.get('/media/info', async (req, res, next) => {
+  let { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  path = path.toString();
+
+  try {
+    const filestat = fs.statSync(path);
+    if (!filestat.isFile()) {
+      return next({
+        status: 404,
+        statusMessage: `Invalid file for path: ${path}`,
+      });
+    }
+    const info = await getImageDimensions(path);
+    return res.json(info);
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to get media info: ${err}`,
+    });
+  }
 });
 
 /* STREAM media */

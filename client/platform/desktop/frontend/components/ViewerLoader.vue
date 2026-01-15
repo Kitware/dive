@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, watch,
+  computed, defineComponent, ref, watch, onMounted,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -10,9 +10,12 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import DesktopLargeImageAnnotator from './DesktopLargeImageAnnotator.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
+import { getMediaInfo, getServerBaseUrl } from '../api';
+import { LARGE_IMAGE_THRESHOLD } from 'platform/desktop/constants';
 
 const buttonOptions = {
   outlined: true,
@@ -32,6 +35,7 @@ export default defineComponent({
     SidebarContext,
     Viewer,
     ImportAnnotations,
+    DesktopLargeImageAnnotator,
     ...context.getComponents(),
   },
   props: {
@@ -47,6 +51,50 @@ export default defineComponent({
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
     const selectedCamera = ref('');
+    const isLargeImageDataset = ref(false);
+    const serverBaseUrl = ref('');
+    const largeImageChecked = ref(false);
+
+    // Check if dataset contains large images
+    async function checkForLargeImages() {
+      const dataset = datasets.value[props.id];
+      if (!dataset || dataset.type !== 'image-sequence') {
+        largeImageChecked.value = true;
+        return;
+      }
+
+      try {
+        serverBaseUrl.value = await getServerBaseUrl();
+
+        // Check first image dimensions
+        const imageData = dataset.imageData;
+        if (imageData && imageData.length > 0) {
+          const firstImage = imageData[0];
+          // Extract path from URL
+          const url = new URL(firstImage.url);
+          const imagePath = url.searchParams.get('path');
+          if (imagePath) {
+            const info = await getMediaInfo(imagePath);
+            if (info.width > LARGE_IMAGE_THRESHOLD || info.height > LARGE_IMAGE_THRESHOLD) {
+              isLargeImageDataset.value = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to check for large images:', e);
+      }
+      largeImageChecked.value = true;
+    }
+
+    onMounted(() => {
+      checkForLargeImages();
+    });
+
+    watch(() => props.id, () => {
+      isLargeImageDataset.value = false;
+      largeImageChecked.value = false;
+      checkForLargeImages();
+    });
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
       const currentJob = current.find((item) => item.job.datasetIds.reduce((prev, datasetId) => (datasetId.includes(props.id) ? datasetId : prev), ''));
@@ -120,67 +168,162 @@ export default defineComponent({
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
+      isLargeImageDataset,
+      serverBaseUrl,
+      largeImageChecked,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer
-    :id.sync="id"
-    ref="viewerRef"
-    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
-    @change-camera="changeCamera"
-    @large-image-warning="largeImageWarning()"
-  >
-    <template #title>
-      <v-tabs
-        icons-and-text
-        hide-slider
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="{ name: 'recent' }">
-          Library
-          <v-icon>mdi-folder-open</v-icon>
-        </v-tab>
-        <job-tab />
-        <v-tab :to="{ name: 'training' }">
-          Training<v-icon>mdi-brain</v-icon>
-        </v-tab>
-        <v-tab :to="{ name: 'settings' }">
-          Settings<v-icon>mdi-cog</v-icon>
-        </v-tab>
-      </v-tabs>
-    </template>
-    <template #title-right>
-      <RunPipelineMenu
-        :selected-dataset-ids="[modifiedId]"
-        :sub-type-list="subTypeList"
-        :camera-numbers="camNumbers"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="readOnlyMode"
-        v-bind="{ buttonOptions, menuOptions }"
-      />
-      <ImportAnnotations
-        :dataset-id="modifiedId"
-        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
-        block-on-unsaved
-      />
-      <Export
-        v-if="datasets[id]"
-        :id="modifiedId"
-        :button-options="buttonOptions"
-      />
-    </template>
-    <template #right-sidebar>
-      <SidebarContext>
-        <template #default="{ name, subCategory }">
-          <component
-            :is="name"
-            :sub-category="subCategory"
-          />
-        </template>
-      </SidebarContext>
-    </template>
-  </Viewer>
+  <div>
+    <!-- Loading state while checking for large images -->
+    <v-progress-circular
+      v-if="!largeImageChecked"
+      indeterminate
+      color="primary"
+      class="d-flex justify-center align-center"
+      style="margin: auto; margin-top: 200px;"
+    />
+
+    <!-- Standard Viewer for non-large images -->
+    <Viewer
+      v-else-if="!isLargeImageDataset"
+      :id.sync="id"
+      ref="viewerRef"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      @change-camera="changeCamera"
+      @large-image-warning="largeImageWarning()"
+    >
+      <template #title>
+        <v-tabs
+          icons-and-text
+          hide-slider
+          style="flex-basis:0; flex-grow:0;"
+        >
+          <v-tab :to="{ name: 'recent' }">
+            Library
+            <v-icon>mdi-folder-open</v-icon>
+          </v-tab>
+          <job-tab />
+          <v-tab :to="{ name: 'training' }">
+            Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'settings' }">
+            Settings<v-icon>mdi-cog</v-icon>
+          </v-tab>
+        </v-tabs>
+      </template>
+      <template #title-right>
+        <RunPipelineMenu
+          :selected-dataset-ids="[modifiedId]"
+          :sub-type-list="subTypeList"
+          :camera-numbers="camNumbers"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="readOnlyMode"
+          v-bind="{ buttonOptions, menuOptions }"
+        />
+        <ImportAnnotations
+          :dataset-id="modifiedId"
+          v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
+          block-on-unsaved
+        />
+        <Export
+          v-if="datasets[id]"
+          :id="modifiedId"
+          :button-options="buttonOptions"
+        />
+      </template>
+      <template #right-sidebar>
+        <SidebarContext>
+          <template #default="{ name, subCategory }">
+            <component
+              :is="name"
+              :sub-category="subCategory"
+            />
+          </template>
+        </SidebarContext>
+      </template>
+    </Viewer>
+
+    <!-- Large image viewer using client-side tiling -->
+    <Viewer
+      v-else
+      :id.sync="id"
+      ref="viewerRef"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :use-custom-annotator="true"
+      @change-camera="changeCamera"
+    >
+      <template #title>
+        <v-tabs
+          icons-and-text
+          hide-slider
+          style="flex-basis:0; flex-grow:0;"
+        >
+          <v-tab :to="{ name: 'recent' }">
+            Library
+            <v-icon>mdi-folder-open</v-icon>
+          </v-tab>
+          <job-tab />
+          <v-tab :to="{ name: 'training' }">
+            Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'settings' }">
+            Settings<v-icon>mdi-cog</v-icon>
+          </v-tab>
+        </v-tabs>
+        <v-chip
+          small
+          color="info"
+          class="ml-2"
+        >
+          Large Image Mode
+        </v-chip>
+      </template>
+      <template #custom-annotator="slotProps">
+        <DesktopLargeImageAnnotator
+          :image-data="slotProps.imageData"
+          :frame-rate="slotProps.frameRate"
+          :update-time="slotProps.updateTime"
+          :camera="slotProps.camera"
+          :image-enhancement-outputs="slotProps.imageEnhancementOutputs"
+          :is-default-image="slotProps.isDefaultImage"
+          :base-url="serverBaseUrl"
+          class="fill-height"
+        />
+      </template>
+      <template #title-right>
+        <RunPipelineMenu
+          :selected-dataset-ids="[modifiedId]"
+          :sub-type-list="subTypeList"
+          :camera-numbers="camNumbers"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="readOnlyMode"
+          v-bind="{ buttonOptions, menuOptions }"
+        />
+        <ImportAnnotations
+          :dataset-id="modifiedId"
+          v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
+          block-on-unsaved
+        />
+        <Export
+          v-if="datasets[id]"
+          :id="modifiedId"
+          :button-options="buttonOptions"
+        />
+      </template>
+      <template #right-sidebar>
+        <SidebarContext>
+          <template #default="{ name, subCategory }">
+            <component
+              :is="name"
+              :sub-category="subCategory"
+            />
+          </template>
+        </SidebarContext>
+      </template>
+    </Viewer>
+  </div>
 </template>

@@ -53,10 +53,22 @@ interface FFProbeResults {
 
 interface CheckMediaResults {
   websafe: boolean;
+  electronPlayable: boolean; // Can Electron play this codec natively?
+  codec: string; // Detected codec name
+  requiresTranscode: boolean; // Whether transcoding is needed for playback
   originalFpsString: string;
   originalFps: number;
   videoDimensions: { width: number; height: number };
 }
+
+// Codecs that Electron/Chromium can play natively without transcoding
+const ELECTRON_PLAYABLE_CODECS = [
+  'h264',
+  'vp8',
+  'vp9',
+  'av1',
+  'theora',
+];
 
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
@@ -145,6 +157,7 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
     const originalFpsString = videoStream[0].avg_frame_rate;
     const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
+    const codec = videoStream[0].codec_name || 'unknown';
     const websafe = videoStream
       .filter((el) => el.codec_name === 'h264')
       .filter((el) => el.sample_aspect_ratio === '1:1');
@@ -154,8 +167,19 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
     };
     const misAligned = await checkFrameMisalignment(file);
 
+    // Check if Electron can play this codec natively
+    const electronPlayable = ELECTRON_PLAYABLE_CODECS.includes(codec.toLowerCase());
+
+    // Transcoding is needed if:
+    // 1. Not websafe AND not electron-playable, OR
+    // 2. Has frame misalignment issues
+    const requiresTranscode = (!websafe.length && !electronPlayable) || misAligned;
+
     return {
       websafe: !!websafe.length && !misAligned,
+      electronPlayable,
+      codec,
+      requiresTranscode,
       originalFps,
       originalFpsString,
       videoDimensions,

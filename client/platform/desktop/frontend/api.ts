@@ -20,7 +20,7 @@ import {
   DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
-  DesktopJob,
+  DesktopJob, MediaInfo, LARGE_IMAGE_THRESHOLD,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue } from './store/jobs';
@@ -249,6 +249,37 @@ async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFil
   return client.post(`dataset/${id}/attribute_track_filters`, args);
 }
 
+/**
+ * Get media info (dimensions) for an image file without loading the full image
+ */
+async function getMediaInfo(filePath: string): Promise<MediaInfo> {
+  const client = await getClient();
+  const { data } = await client.get<MediaInfo>('media/info', {
+    params: { path: filePath },
+  });
+  return data;
+}
+
+/**
+ * Check if an image is considered "large" based on its dimensions
+ */
+async function isLargeImage(filePath: string): Promise<boolean> {
+  try {
+    const info = await getMediaInfo(filePath);
+    return info.width > LARGE_IMAGE_THRESHOLD || info.height > LARGE_IMAGE_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the base URL for the desktop server
+ */
+async function getServerBaseUrl(): Promise<string> {
+  const addr = await ipcRenderer.invoke('server-info');
+  return `http://${addr.address}:${addr.port}`;
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -277,4 +308,8 @@ export {
   openLink,
   nvidiaSmi,
   cancelJob,
+  /* Large image support APIs */
+  getMediaInfo,
+  isLargeImage,
+  getServerBaseUrl,
 };
