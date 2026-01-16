@@ -93,6 +93,11 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    // Desktop large image support - use custom annotator from slot
+    useCustomAnnotator: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const { prompt } = usePrompt();
@@ -1137,10 +1142,33 @@ export default defineComponent({
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
             >
+              <!-- Custom annotator slot for desktop large images -->
+              <div
+                v-if="useCustomAnnotator && (imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                class="fill-height"
+                :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
+              >
+                <slot
+                  name="custom-annotator"
+                  v-bind="{
+                    imageData: imageData[camera],
+                    videoUrl: videoUrl[camera],
+                    updateTime,
+                    frameRate,
+                    originalFps,
+                    camera,
+                    imageEnhancementOutputs,
+                    isDefaultImage,
+                  }"
+                >
+                  <LayerManager :camera="camera" />
+                </slot>
+              </div>
+              <!-- Default annotator selection -->
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
                   : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                v-else-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"

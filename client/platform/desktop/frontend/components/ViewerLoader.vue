@@ -8,6 +8,7 @@ import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { getServerBaseUrl } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DesktopLargeImageAnnotator from './DesktopLargeImageAnnotator.vue';
@@ -49,10 +50,23 @@ export default defineComponent({
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
     const selectedCamera = ref('');
-    // Large image detection is currently disabled - always use standard viewer
+
+    // Large image support - currently detection is disabled
+    // Set to true to skip async check and show viewer immediately
     const isLargeImageDataset = ref(false);
     const serverBaseUrl = ref('');
-    const largeImageChecked = ref(true); // Skip async check since detection is disabled
+    const largeImageChecked = ref(true);
+
+    // Enable large image mode manually for testing
+    async function enableLargeImageMode() {
+      try {
+        serverBaseUrl.value = await getServerBaseUrl();
+        isLargeImageDataset.value = true;
+      } catch (e) {
+        console.error('Failed to enable large image mode:', e);
+      }
+    }
+
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
       const currentJob = current.find((item) => item.job.datasetIds.reduce((prev, datasetId) => (datasetId.includes(props.id) ? datasetId : prev), ''));
@@ -129,6 +143,7 @@ export default defineComponent({
       isLargeImageDataset,
       serverBaseUrl,
       largeImageChecked,
+      enableLargeImageMode,
     };
   },
 });
