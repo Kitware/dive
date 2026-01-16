@@ -1,7 +1,6 @@
 <script lang="ts">
-import npath from 'path';
 import {
-  computed, defineComponent, ref, watch, onMounted,
+  computed, defineComponent, ref, watch,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -9,7 +8,6 @@ import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { getServerBaseUrl } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DesktopLargeImageAnnotator from './DesktopLargeImageAnnotator.vue';
@@ -51,39 +49,10 @@ export default defineComponent({
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
     const selectedCamera = ref('');
+    // Large image detection is currently disabled - always use standard viewer
     const isLargeImageDataset = ref(false);
     const serverBaseUrl = ref('');
-    const largeImageChecked = ref(false);
-
-    // Check if dataset contains large images
-    // TODO: Large image detection is currently disabled due to timing issues
-    // with loadMetadata call. For now, always use standard viewer.
-    async function checkForLargeImages() {
-      const dataset = datasets.value[props.id];
-      if (!dataset || dataset.type !== 'image-sequence') {
-        largeImageChecked.value = true;
-        return;
-      }
-
-      try {
-        serverBaseUrl.value = await getServerBaseUrl();
-        // Large image detection disabled - would need to call loadMetadata here
-        // but that may conflict with Viewer's own data loading
-      } catch (e) {
-        console.error('Failed to check for large images:', e);
-      }
-      largeImageChecked.value = true;
-    }
-
-    onMounted(() => {
-      checkForLargeImages();
-    });
-
-    watch(() => props.id, () => {
-      isLargeImageDataset.value = false;
-      largeImageChecked.value = false;
-      checkForLargeImages();
-    });
+    const largeImageChecked = ref(true); // Skip async check since detection is disabled
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
       const currentJob = current.find((item) => item.job.datasetIds.reduce((prev, datasetId) => (datasetId.includes(props.id) ? datasetId : prev), ''));
