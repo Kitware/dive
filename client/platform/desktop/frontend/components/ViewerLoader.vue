@@ -12,6 +12,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
+  runTextQueryPipeline,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -360,6 +361,32 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Handle text query on all frames - runs as a pipeline job
+     */
+    async function handleTextQueryAllFrames(params: {
+      text: string;
+      boxThreshold: number;
+    }) {
+      const { text, boxThreshold } = params;
+
+      try {
+        await runTextQueryPipeline(props.id, text, boxThreshold);
+        await prompt({
+          title: 'Text Query Pipeline Started',
+          text: [
+            `A pipeline job has been started to search for "${text}" in all frames.`,
+            'You will be notified when the job completes.',
+          ],
+        });
+      } catch (error) {
+        await prompt({
+          title: 'Text Query Pipeline Error',
+          text: [`Failed to start text query pipeline: ${error}`],
+        });
+      }
+    }
+
     return {
       datasets,
       viewerRef,
@@ -375,6 +402,7 @@ export default defineComponent({
       largeImageWarning,
       handleTextQuerySubmit,
       handleTextQueryInit,
+      handleTextQueryAllFrames,
     };
   },
 });
@@ -389,6 +417,7 @@ export default defineComponent({
     @large-image-warning="largeImageWarning()"
     @text-query-submit="handleTextQuerySubmit"
     @text-query-init="handleTextQueryInit"
+    @text-query-all-frames="handleTextQueryAllFrames"
   >
     <template #title>
       <v-tabs

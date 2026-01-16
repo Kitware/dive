@@ -75,6 +75,7 @@ export default Vue.extend({
       textQueryThreshold: 0.3,
       textQueryInitializing: false,
       textQueryServiceError: '',
+      textQueryAllFrames: false,
     };
   },
   computed: {
@@ -218,6 +219,7 @@ export default Vue.extend({
       this.textQueryDialogOpen = true;
       this.textQueryInput = '';
       this.textQueryServiceError = '';
+      this.textQueryAllFrames = false;
       this.textQueryInitializing = true;
       // Emit event to initialize the text query service
       this.$emit('text-query-init');
@@ -228,6 +230,7 @@ export default Vue.extend({
       this.textQueryInput = '';
       this.textQueryServiceError = '';
       this.textQueryInitializing = false;
+      this.textQueryAllFrames = false;
     },
 
     /**
@@ -246,11 +249,21 @@ export default Vue.extend({
       }
 
       this.textQueryLoading = true;
-      // Emit event to parent to handle text query
-      this.$emit('text-query', {
-        text: this.textQueryInput.trim(),
-        boxThreshold: this.textQueryThreshold,
-      });
+
+      if (this.textQueryAllFrames) {
+        // Emit event to run text query pipeline on all frames
+        this.$emit('text-query-all-frames', {
+          text: this.textQueryInput.trim(),
+          boxThreshold: this.textQueryThreshold,
+        });
+      } else {
+        // Emit event to parent to handle text query on current frame
+        this.$emit('text-query', {
+          text: this.textQueryInput.trim(),
+          boxThreshold: this.textQueryThreshold,
+        });
+      }
+
       this.closeTextQueryDialog();
       this.textQueryLoading = false;
     },
@@ -489,6 +502,13 @@ export default Vue.extend({
               max="0.9"
               step="0.05"
               thumb-label
+              :disabled="textQueryLoading"
+            />
+            <v-checkbox
+              v-model="textQueryAllFrames"
+              label="Apply to all frames"
+              hint="Run across all frames instead of only the current (this will run as a job)"
+              persistent-hint
               :disabled="textQueryLoading"
             />
           </template>

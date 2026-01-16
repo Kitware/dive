@@ -152,6 +152,7 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+    const editorMenuRef = ref();
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
     // Right panel view in bottom mode: 'filters' or 'details'
@@ -914,6 +915,33 @@ export default defineComponent({
     // If track has attributes, show track first; otherwise show detection first
     const showTrackAttributesFirst = computed(() => hasTrackAttributes.value);
 
+    /**
+     * Text query event handlers - forwarded to parent
+     */
+    function handleTextQueryInit() {
+      emit('text-query-init');
+    }
+
+    function handleTextQuery(params: { text: string; boxThreshold: number }) {
+      emit('text-query-submit', {
+        ...params,
+        frameNum: time.frame.value,
+      });
+    }
+
+    function handleTextQueryAllFrames(params: { text: string; boxThreshold: number }) {
+      emit('text-query-all-frames', params);
+    }
+
+    /**
+     * Called by parent when text query service initialization completes
+     */
+    function onTextQueryServiceReady(success: boolean, error?: string) {
+      if (editorMenuRef.value) {
+        editorMenuRef.value.onTextQueryServiceReady(success, error);
+      }
+    }
+
     return {
       /* props */
       aggregateController,
@@ -922,6 +950,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      editorMenuRef,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -990,6 +1019,11 @@ export default defineComponent({
       selectedSet,
       displayComparisons,
       annotationSetColor: trackStyleManager.typeStyling.value.annotationSetColor,
+      // Text query handlers
+      handleTextQueryInit,
+      handleTextQuery,
+      handleTextQueryAllFrames,
+      onTextQueryServiceReady,
     };
   },
 });
@@ -1084,6 +1118,7 @@ export default defineComponent({
         </v-tooltip>
 
         <EditorMenu
+          ref="editorMenuRef"
           v-bind="{
             editingMode,
             visibleModes,
@@ -1096,6 +1131,9 @@ export default defineComponent({
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @text-query-init="handleTextQueryInit"
+          @text-query="handleTextQuery"
+          @text-query-all-frames="handleTextQueryAllFrames"
         >
           <template slot="delete-controls">
             <delete-controls
