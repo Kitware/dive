@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 
 from girder import events, plugin
@@ -12,15 +13,20 @@ from girder_jobs.models.job import Job
 
 from dive_utils import constants
 
-from .client_webroot import ClientWebroot
 from .crud_annotation import GroupItem, RevisionLogItem, TrackItem
 from .event import DIVES3Imports, process_fs_import, process_s3_import, send_new_user_email
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
-from .views_override import countJobs, use_private_queue, list_shared_folders, get_root_path_or_relative
+from .views_override import (
+    countJobs,
+    get_root_path_or_relative,
+    list_shared_folders,
+    use_private_queue,
+)
 from .views_rpc import RpcResource
 
+logger = logging.getLogger(__name__)
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
@@ -38,7 +44,9 @@ class GirderPlugin(plugin.GirderPlugin):
         info['apiRoot'].job.route("GET", ("queued",), countJobs)
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
         info["apiRoot"].folder.route("GET", ("shared-folders",), list_shared_folders)
-        info["apiRoot"].folder.route("GET", (":id", "rootpath_or_relative"), get_root_path_or_relative)
+        info["apiRoot"].folder.route(
+            "GET", (":id", "rootpath_or_relative"), get_root_path_or_relative
+        )
         User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
 
         # Expose Job dataset assocation
@@ -47,12 +55,20 @@ class GirderPlugin(plugin.GirderPlugin):
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'
         mail_utils.addTemplateDirectory(str(DIVE_MAIL_TEMPLATES))
 
-        # Relocate Girder
-        info["serverRoot"], info["serverRoot"].girder = (
-            ClientWebroot(),
-            info["serverRoot"],
-        )
-        info["serverRoot"].api = info["serverRoot"].girder.api
+        core_girder = info['serverRoot'].apps['']
+        core_girder.script_name = '/girder'
+        info['serverRoot'].mount(core_girder, '/girder', core_girder.config)
+        del info['serverRoot'].apps['']
+
+
+        conf = {
+            '/': {
+                'tools.staticdir.on': True,
+                'tools.staticdir.dir': '/opt/dive/clients/dive',
+                'tools.staticdir.index': 'index.html',
+            },
+        }
+        info['serverRoot'].mount(None, '', conf)
 
         diveS3Import = DIVES3Imports()
         events.bind(
@@ -81,15 +97,3 @@ class GirderPlugin(plugin.GirderPlugin):
             'send_new_user_email',
             send_new_user_email,
         )
-
-        # Create dependency on worker
-        plugin.getPlugin('worker').load(info)
-        Setting().set(
-            'worker.api_url',
-            os.environ.get('WORKER_API_URL', 'http://girder:8080/api/v1'),
-        )
-
-        broker_url = os.environ.get('CELERY_BROKER_URL', None)
-        if broker_url is None:
-            raise RuntimeError('CELERY_BROKER_URL must be set')
-        Setting().set('worker.broker', broker_url)

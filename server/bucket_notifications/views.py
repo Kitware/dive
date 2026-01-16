@@ -1,7 +1,7 @@
+import logging
 import os
 
 from bson.objectid import ObjectId
-from girder import logger
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
@@ -15,6 +15,8 @@ from dive_utils.types import AssetstoreModel, GirderModel
 
 from .constants import AssetstoreRuleMarker
 from .models import GCSNotificationRecord, GCSPushNotificationPayload, NotificationRouterRule
+
+logger = logging.getLogger(__name__)
 
 
 class BucketNotification(Resource):

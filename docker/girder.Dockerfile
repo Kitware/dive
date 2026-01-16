@@ -1,7 +1,7 @@
 # ========================
 # == CLIENT BUILD STAGE ==
 # ========================
-FROM node:18 as client-builder
+FROM node:20 as client-builder
 WORKDIR /app
 
 # Install dependencies
@@ -11,6 +11,16 @@ RUN yarn install --frozen-lockfile --network-timeout 300000
 COPY .git/ /app/.git/
 COPY client/ /app/
 RUN yarn build:web
+
+from node:20 as girder-client-builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y git
+# make sure I clone 
+ARG CACHEBUST=2
+RUN git clone https://github.com/girder/girder.git
+RUN cd girder/girder && git checkout plugin-client-path-fix && cd web && npm install && npx vite build --base=/girder/
+
+
 
 # ========================
 # == SERVER BUILD STAGE ==
@@ -22,7 +32,7 @@ WORKDIR /opt/dive/src
 
 # https://cryptography.io/en/latest/installation/#debian-ubuntu
 RUN apt-get update
-RUN apt-get install -y build-essential libssl-dev libffi-dev python3-libtiff libgdal-dev python3-dev cargo npm
+RUN apt-get install -y build-essential libssl-dev libffi-dev python3-libtiff libgdal-dev python3-dev cargo
 # Recommended poetry install https://python-poetry.org/docs/master/#installation
 RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.3 POETRY_HOME=/opt/dive/poetry python -
 ENV PATH="/opt/dive/poetry/bin:$PATH"
@@ -40,19 +50,6 @@ RUN poetry config virtualenvs.create false
 # Install dependencies only
 RUN poetry install --no-root --extras "large-image"
 # Build girder client, including plugins like worker/jobs
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-
-# Default node version
-RUN . ~/.bashrc && \
-    nvm install 14 && \
-    nvm alias default 14 && \
-    nvm use default && \
-    ln -s $(dirname `which npm`) /usr/local/node
-
-ENV PATH="/usr/local/node:$PATH"
-
-RUN girder build
-
 # Copy full source code and install
 COPY server/ /opt/dive/src/
 RUN poetry install --only main --extras "large-image"
@@ -71,8 +68,9 @@ COPY --from=server-builder /opt/dive/local/venv /opt/dive/local/venv
 # Copy the source code of the editable module
 COPY --from=server-builder /opt/dive/src /opt/dive/src
 # Copy the client code into the static source location
-COPY --from=client-builder /app/dist/ /opt/dive/local/venv/share/girder/static/viame/
+COPY --from=client-builder /app/dist/ /opt/dive/clients/dive
+COPY --from=girder-client-builder /app/girder/girder/web/dist/ /opt/dive/clients/girder
 # Install startup scripts
 COPY docker/entrypoint_server.sh docker/server_setup.py /
-
+RUN export GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder
 ENTRYPOINT [ "/entrypoint_server.sh" ]
