@@ -123,7 +123,7 @@ export class SegmentationServiceManager extends EventEmitter {
       const command = [
         `. "${viameSetup}"`,
         '&&',
-        'python -m viame.pytorch.sam2_interactive',
+        'python -m viame.pytorch.sam3_interactive',
         `--viame-path "${settings.viamePath}"`,
         '--device cuda',
       ].join(' ');
@@ -155,7 +155,7 @@ export class SegmentationServiceManager extends EventEmitter {
           if (message) {
             console.log(`[Segmentation] ${message}`);
             // Detect successful initialization
-            if (message.includes('SAM2 model initialized successfully')) {
+            if (message.includes('SAM3 model initialized successfully')) {
               resolve();
             }
           }
