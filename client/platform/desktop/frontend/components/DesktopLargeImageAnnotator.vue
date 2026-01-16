@@ -2,12 +2,12 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch, onMounted,
 } from 'vue';
-import geo, { GeoViewer } from 'geojs';
+import geo from 'geojs';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import { injectCameraInitializer } from 'vue-media-annotator/components/annotators/useMediaController';
+import { TileMetadata } from 'platform/desktop/constants';
 import { ClientTileService, getClientTileService } from '../services/ClientTileService';
-import { DEFAULT_TILE_SIZE, TileMetadata } from 'platform/desktop/constants';
 
 export interface DesktopLargeImageDataItem {
   url: string;
@@ -70,11 +70,12 @@ export default defineComponent({
     });
 
     let tileService: ClientTileService;
-    let local = {
-      currentLayer: null as ReturnType<GeoViewer['createLayer']> | null,
-      nextLayer: null as ReturnType<GeoViewer['createLayer']> | null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let local: { currentLayer: any; nextLayer: any; nextLayerFrame: number; metadata: TileMetadata | null; lastFrame: number } = {
+      currentLayer: null,
+      nextLayer: null,
       nextLayerFrame: -1,
-      metadata: null as TileMetadata | null,
+      metadata: null,
       lastFrame: -1,
     };
 
@@ -91,43 +92,6 @@ export default defineComponent({
       const imagePath = url.searchParams.get('path') || imageItem.path || '';
       const imageId = `frame-${frame}`;
       return tileService.getTiles(imageId, imagePath);
-    }
-
-    function createTileLayer(
-      metadata: TileMetadata,
-      frame: number,
-    ): ReturnType<GeoViewer['createLayer']> {
-      const imageId = `frame-${frame}`;
-      const params = geo.util.pixelCoordinateParams(
-        container.value,
-        metadata.sizeX,
-        metadata.sizeY,
-        metadata.tileWidth,
-        metadata.tileHeight,
-      );
-
-      // Create async tile URL function
-      const tileUrlFunc = async (level: number, x: number, y: number): Promise<string> => {
-        try {
-          return await tileService.getTile(imageId, level, x, y);
-        } catch (e) {
-          console.error('Tile load error:', e);
-          return '';
-        }
-      };
-
-      // For GeoJS, we need to create a custom tile layer
-      // Use quad feature layer with async loading instead of OSM
-      const layerParams = {
-        ...params.layer,
-        autoshareRenderer: false,
-        renderer: metadata.tileWidth > 8192 || metadata.tileHeight > 8192 ? 'canvas' : undefined,
-        url: tileUrlFunc,
-        useCredentials: false,
-      };
-
-      const layer = geoViewer.value.createLayer('osm', layerParams);
-      return layer;
     }
 
     async function setupCurrentFrame(frame: number) {

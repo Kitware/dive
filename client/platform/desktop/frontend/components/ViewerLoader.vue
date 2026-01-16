@@ -1,4 +1,5 @@
 <script lang="ts">
+import npath from 'path';
 import {
   computed, defineComponent, ref, watch, onMounted,
 } from 'vue';
@@ -8,14 +9,14 @@ import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { LARGE_IMAGE_THRESHOLD } from 'platform/desktop/constants';
+import { getMediaInfo, getServerBaseUrl, loadMetadata } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DesktopLargeImageAnnotator from './DesktopLargeImageAnnotator.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
-import { getMediaInfo, getServerBaseUrl } from '../api';
-import { LARGE_IMAGE_THRESHOLD } from 'platform/desktop/constants';
 
 const buttonOptions = {
   outlined: true,
@@ -66,18 +67,19 @@ export default defineComponent({
       try {
         serverBaseUrl.value = await getServerBaseUrl();
 
+        // Load full metadata to get image file paths
+        const meta = await loadMetadata(props.id);
+        const { originalBasePath, originalImageFiles } = meta;
+
         // Check first image dimensions
-        const imageData = dataset.imageData;
-        if (imageData && imageData.length > 0) {
-          const firstImage = imageData[0];
-          // Extract path from URL
-          const url = new URL(firstImage.url);
-          const imagePath = url.searchParams.get('path');
-          if (imagePath) {
-            const info = await getMediaInfo(imagePath);
-            if (info.width > LARGE_IMAGE_THRESHOLD || info.height > LARGE_IMAGE_THRESHOLD) {
-              isLargeImageDataset.value = true;
-            }
+        if (originalImageFiles && originalImageFiles.length > 0) {
+          const firstImageFile = originalImageFiles[0];
+          const imagePath = npath.isAbsolute(firstImageFile)
+            ? firstImageFile
+            : npath.join(originalBasePath, firstImageFile);
+          const info = await getMediaInfo(imagePath);
+          if (info.width > LARGE_IMAGE_THRESHOLD || info.height > LARGE_IMAGE_THRESHOLD) {
+            isLargeImageDataset.value = true;
           }
         }
       } catch (e) {

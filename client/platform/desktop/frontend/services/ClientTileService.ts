@@ -23,29 +23,22 @@ interface PendingTileRequest {
   reject: (error: Error) => void;
 }
 
-interface WorkerMessage {
-  type: 'init' | 'tile' | 'ready' | 'error';
-  imageId: string;
-  level?: number;
-  x?: number;
-  y?: number;
-  tile?: ImageBitmap;
-  metadata?: TileMetadata;
-  error?: string;
-}
-
 export class ClientTileService {
   private worker: Worker | null = null;
+
   private imageCache: Map<string, {
     bitmap: ImageBitmap;
     metadata: TileMetadata;
   }> = new Map();
 
   private tileCache: Map<string, TileCacheEntry> = new Map();
+
   private tileCacheSize = 0;
+
   private maxCacheSize = TILE_CACHE_SIZE_MB * 1024 * 1024;
 
   private pendingRequests: Map<string, PendingTileRequest> = new Map();
+
   private initPromises: Map<string, Promise<TileMetadata>> = new Map();
 
   private baseUrl: string;
@@ -142,7 +135,7 @@ export class ClientTileService {
     }
 
     const { bitmap, metadata } = imageData;
-    const scale = Math.pow(2, metadata.levels - level);
+    const scale = 2 ** (metadata.levels - level);
     const tileSize = DEFAULT_TILE_SIZE;
 
     // Calculate source region
@@ -153,7 +146,7 @@ export class ClientTileService {
 
     if (srcWidth <= 0 || srcHeight <= 0) {
       // Return transparent tile for out-of-bounds
-      return this.createEmptyTile(cacheKey, tileSize);
+      return this.createEmptyTile(tileSize);
     }
 
     // Create tile using OffscreenCanvas
@@ -170,8 +163,14 @@ export class ClientTileService {
     // Draw scaled portion of image
     ctx.drawImage(
       bitmap,
-      srcX, srcY, srcWidth, srcHeight,
-      0, 0, dstWidth, dstHeight,
+      srcX,
+      srcY,
+      srcWidth,
+      srcHeight,
+      0,
+      0,
+      dstWidth,
+      dstHeight,
     );
 
     // Convert to blob URL
@@ -226,7 +225,8 @@ export class ClientTileService {
     };
   }
 
-  private createEmptyTile(cacheKey: string, tileSize: number): string {
+  // eslint-disable-next-line class-methods-use-this
+  private createEmptyTile(tileSize: number): string {
     const canvas = new OffscreenCanvas(tileSize, tileSize);
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -257,12 +257,12 @@ export class ClientTileService {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
 
-    for (const [key, entry] of this.tileCache.entries()) {
+    Array.from(this.tileCache.entries()).forEach(([key, entry]) => {
       if (entry.lastAccess < oldestTime) {
         oldestTime = entry.lastAccess;
         oldestKey = key;
       }
-    }
+    });
 
     if (oldestKey) {
       const entry = this.tileCache.get(oldestKey);
@@ -279,13 +279,13 @@ export class ClientTileService {
    */
   clearImageCache(imageId: string): void {
     // Clear tile cache for this image
-    for (const [key, entry] of this.tileCache.entries()) {
+    Array.from(this.tileCache.entries()).forEach(([key, entry]) => {
       if (key.startsWith(`${imageId}-`)) {
         URL.revokeObjectURL(entry.blobUrl);
         this.tileCacheSize -= entry.size;
         this.tileCache.delete(key);
       }
-    }
+    });
 
     // Clear image bitmap
     const imageData = this.imageCache.get(imageId);
@@ -300,16 +300,16 @@ export class ClientTileService {
    */
   clearAll(): void {
     // Revoke all blob URLs
-    for (const entry of this.tileCache.values()) {
+    Array.from(this.tileCache.values()).forEach((entry) => {
       URL.revokeObjectURL(entry.blobUrl);
-    }
+    });
     this.tileCache.clear();
     this.tileCacheSize = 0;
 
     // Close all bitmaps
-    for (const imageData of this.imageCache.values()) {
+    Array.from(this.imageCache.values()).forEach((imageData) => {
       imageData.bitmap.close();
-    }
+    });
     this.imageCache.clear();
   }
 
