@@ -9,8 +9,7 @@ import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { LARGE_IMAGE_THRESHOLD } from 'platform/desktop/constants';
-import { getMediaInfo, getServerBaseUrl, loadMetadata } from 'platform/desktop/frontend/api';
+import { getServerBaseUrl } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DesktopLargeImageAnnotator from './DesktopLargeImageAnnotator.vue';
@@ -57,6 +56,8 @@ export default defineComponent({
     const largeImageChecked = ref(false);
 
     // Check if dataset contains large images
+    // TODO: Large image detection is currently disabled due to timing issues
+    // with loadMetadata call. For now, always use standard viewer.
     async function checkForLargeImages() {
       const dataset = datasets.value[props.id];
       if (!dataset || dataset.type !== 'image-sequence') {
@@ -66,22 +67,8 @@ export default defineComponent({
 
       try {
         serverBaseUrl.value = await getServerBaseUrl();
-
-        // Load full metadata to get image file paths
-        const meta = await loadMetadata(props.id);
-        const { originalBasePath, originalImageFiles } = meta;
-
-        // Check first image dimensions
-        if (originalImageFiles && originalImageFiles.length > 0) {
-          const firstImageFile = originalImageFiles[0];
-          const imagePath = npath.isAbsolute(firstImageFile)
-            ? firstImageFile
-            : npath.join(originalBasePath, firstImageFile);
-          const info = await getMediaInfo(imagePath);
-          if (info.width > LARGE_IMAGE_THRESHOLD || info.height > LARGE_IMAGE_THRESHOLD) {
-            isLargeImageDataset.value = true;
-          }
-        }
+        // Large image detection disabled - would need to call loadMetadata here
+        // but that may conflict with Viewer's own data loading
       } catch (e) {
         console.error('Failed to check for large images:', e);
       }
