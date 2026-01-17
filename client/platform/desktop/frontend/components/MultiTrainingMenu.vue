@@ -324,14 +324,33 @@ export default defineComponent({
             dense
             label="Configuration File (Required)"
             :items="data.trainingConfigurations.training.configs"
+            item-text="name"
+            item-value="name"
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template #item="row">
-              {{ simplifyTrainingName(row.item) }}
+            <template #item="{ item, on, attrs }">
+              <v-tooltip
+                left
+                :disabled="!item.description"
+                max-width="300"
+                content-class="training-config-tooltip"
+              >
+                <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                  <v-list-item
+                    v-bind="{ ...attrs, ...tooltipAttrs }"
+                    v-on="{ ...on, ...tooltipOn }"
+                  >
+                    <v-list-item-content>
+                      <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
+                    </v-list-item-content>
+                  </v-list-item>
+                </template>
+                <span>{{ item.description }}</span>
+              </v-tooltip>
             </template>
             <template #selection="{ item }">
-              {{ simplifyTrainingName(item) }}
+              {{ simplifyTrainingName(item.name) }}
             </template>
           </v-select>
         </v-col>
@@ -490,5 +509,10 @@ export default defineComponent({
   .disabled-row {
     color: #444444;
   }
+}
+
+.training-config-tooltip.v-tooltip__content {
+  background: #3a3a3a !important;
+  opacity: 1 !important;
 }
 </style>

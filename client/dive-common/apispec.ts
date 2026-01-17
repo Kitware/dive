@@ -46,9 +46,14 @@ interface Category {
   pipes: Pipe[];
 }
 
+interface TrainingConfig {
+  name: string;
+  description?: string;
+}
+
 interface TrainingConfigs {
   training: {
-    configs: string[];
+    configs: TrainingConfig[];
     default: string;
   };
   models: Record<string, {
@@ -229,6 +234,7 @@ export {
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
+  TrainingConfig,
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,

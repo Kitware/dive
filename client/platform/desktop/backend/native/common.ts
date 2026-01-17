@@ -17,7 +17,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
@@ -531,10 +531,18 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
   }
-  let configs = await fs.readdir(pipelinePath);
-  configs = configs
+  let configNames = await fs.readdir(pipelinePath);
+  configNames = configNames
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+
+  // Process all configs and extract descriptions in parallel
+  const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
+    const configFilePath = npath.join(pipelinePath, name);
+    const description = await extractPipeDescription(configFilePath);
+    return { name, description };
+  }));
+
   // Get Model files in the pipeline directory
   const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
   const models: TrainingConfigs['models'] = {};
@@ -547,7 +555,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   });
   return {
     training: {
-      default: configs[0],
+      default: configNames[0],
       configs,
     },
     models,
