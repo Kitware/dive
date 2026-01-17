@@ -35,6 +35,7 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
+  description?: string;
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
