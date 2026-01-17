@@ -169,6 +169,126 @@ function frameToTimestamp(frame: number, frameRate: number): string | null {
   }).format(date);
 }
 
+/**
+ * Calculate rotation angle in radians from a rotated rectangle polygon
+ * Returns the angle of the first edge (from first to second point) relative to horizontal
+ */
+function calculateRotationFromPolygon(coords: GeoJSON.Position[]): number {
+  if (coords.length < 2) {
+    return 0;
+  }
+  // Get the first edge vector (from first point to second point)
+  const dx = coords[1][0] - coords[0][0];
+  const dy = coords[1][1] - coords[0][1];
+  // Calculate angle using atan2
+  return Math.atan2(dy, dx);
+}
+
+/**
+ * Check if a rectangle is axis-aligned (not rotated)
+ * Returns true if edges are parallel to axes (within a small threshold)
+ */
+function isAxisAligned(coords: GeoJSON.Position[]): boolean {
+  if (coords.length < 4) {
+    return true;
+  }
+  const threshold = 0.001; // Small threshold for floating point comparison
+
+  // Check if first edge is horizontal or vertical
+  const dx1 = coords[1][0] - coords[0][0];
+  const dy1 = coords[1][1] - coords[0][1];
+  const isHorizontal = Math.abs(dy1) < threshold;
+  const isVertical = Math.abs(dx1) < threshold;
+
+  // Check if second edge is perpendicular to first
+  const dx2 = coords[2][0] - coords[1][0];
+  const dy2 = coords[2][1] - coords[1][1];
+  const isPerpendicular = Math.abs(dx1 * dx2 + dy1 * dy2) < threshold;
+
+  return (isHorizontal || isVertical) && isPerpendicular;
+}
+
+/**
+ * Convert a rotated rectangle polygon to an axis-aligned bounding box
+ * Returns the bounding box and rotation angle in radians
+ * If the rectangle is rotated, it calculates the original axis-aligned bbox
+ * by unrotating the rectangle, not by taking min/max of rotated coordinates
+ */
+function rotatedPolygonToAxisAlignedBbox(
+  coords: GeoJSON.Position[],
+): { bounds: RectBounds; rotation: number } {
+  if (coords.length < 4) {
+    // Fallback to simple bounding box calculation
+    let x1 = Infinity;
+    let y1 = Infinity;
+    let x2 = -Infinity;
+    let y2 = -Infinity;
+    coords.forEach((coord) => {
+      x1 = Math.min(x1, coord[0]);
+      y1 = Math.min(y1, coord[1]);
+      x2 = Math.max(x2, coord[0]);
+      y2 = Math.max(y2, coord[1]);
+    });
+    return { bounds: [x1, y1, x2, y2], rotation: 0 };
+  }
+
+  // Check if rectangle is already axis-aligned
+  if (isAxisAligned(coords)) {
+    // Already axis-aligned, just calculate bounds
+    let x1 = Infinity;
+    let y1 = Infinity;
+    let x2 = -Infinity;
+    let y2 = -Infinity;
+    coords.forEach((coord) => {
+      x1 = Math.min(x1, coord[0]);
+      y1 = Math.min(y1, coord[1]);
+      x2 = Math.max(x2, coord[0]);
+      y2 = Math.max(y2, coord[1]);
+    });
+    return { bounds: [x1, y1, x2, y2], rotation: 0 };
+  }
+
+  // Rectangle is rotated - calculate original axis-aligned bbox by unrotating
+  const rotation = calculateRotationFromPolygon(coords);
+
+  // Calculate center of the rotated rectangle
+  let centerX = 0;
+  let centerY = 0;
+  const numPoints = Math.min(4, coords.length - 1); // Exclude duplicate last point
+  for (let i = 0; i < numPoints; i += 1) {
+    centerX += coords[i][0];
+    centerY += coords[i][1];
+  }
+  centerX /= numPoints;
+  centerY /= numPoints;
+
+  // Unrotate all points by -rotation around center
+  const cos = Math.cos(-rotation);
+  const sin = Math.sin(-rotation);
+  const unrotatedPoints: GeoJSON.Position[] = [];
+  for (let i = 0; i < numPoints; i += 1) {
+    const x = coords[i][0] - centerX;
+    const y = coords[i][1] - centerY;
+    const unrotatedX = x * cos - y * sin;
+    const unrotatedY = x * sin + y * cos;
+    unrotatedPoints.push([unrotatedX + centerX, unrotatedY + centerY]);
+  }
+
+  // Calculate axis-aligned bounding box from unrotated points
+  let x1 = Infinity;
+  let y1 = Infinity;
+  let x2 = -Infinity;
+  let y2 = -Infinity;
+  unrotatedPoints.forEach((coord) => {
+    x1 = Math.min(x1, coord[0]);
+    y1 = Math.min(y1, coord[1]);
+    x2 = Math.max(x2, coord[0]);
+    y2 = Math.max(y2, coord[1]);
+  });
+
+  return { bounds: [x1, y1, x2, y2], rotation };
+}
+
 export {
   getResponseError,
   boundToGeojson,
@@ -181,4 +301,7 @@ export {
   reOrdergeoJSON,
   withinBounds,
   frameToTimestamp,
+  calculateRotationFromPolygon,
+  isAxisAligned,
+  rotatedPolygonToAxisAlignedBbox,
 };
