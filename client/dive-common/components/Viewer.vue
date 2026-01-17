@@ -49,6 +49,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 
 export interface ImageDataItem {
@@ -68,6 +69,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
+    MultiCamToolbar,
     PrimaryAttributeTrackFilter,
   },
 
@@ -1010,6 +1012,12 @@ export default defineComponent({
               @delete-annotation="handler.removeAnnotation"
             />
           </template>
+          <template
+            v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
+            slot="multicam-controls"
+          >
+            <multi-cam-toolbar />
+          </template>
         </EditorMenu>
         <v-select
           v-if="multiCamList.length > 1"
@@ -1125,6 +1133,7 @@ export default defineComponent({
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
           ]"
           class="d-flex flex-column grow"
         >
