@@ -51,7 +51,9 @@ function defaultFormatter(
 
       let text = '';
       const userModified = annotation.features?.attributes?.userModified === true;
-      const modifiedIndicator = userModified ? ' ✏️' : '';
+      const userCreated = annotation.track.attributes?.userCreated === true;
+      // Show pencil icon if detection is userModified OR if track is userCreated
+      const modifiedIndicator = (userModified || userCreated) ? ' ✏️' : '';
       if (typeStyling) {
         const { showLabel, showConfidence } = typeStyling.labelSettings(type);
         if (showLabel && !showConfidence) {

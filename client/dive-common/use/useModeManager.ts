@@ -413,7 +413,8 @@ export default function useModeManager({
           interpolate: _shouldInterpolate(interpolate),
         });
         // Mark as user-modified if editing existing annotation (as detection attribute)
-        if (isEditingExisting) {
+        // Skip if track is userCreated (user-created tracks don't need userModified on every detection)
+        if (isEditingExisting && track.attributes?.userCreated !== true) {
           track.setFeatureAttribute(frameNum, 'userModified', true);
         }
         newTrackSettingsAfterLogic(track);
@@ -533,7 +534,8 @@ export default function useModeManager({
           ));
 
           // Mark as user-modified if editing existing annotation (as detection attribute)
-          if (isEditingExisting) {
+          // Skip if track is userCreated (user-created tracks don't need userModified on every detection)
+          if (isEditingExisting && track.attributes?.userCreated !== true) {
             track.setFeatureAttribute(frameNum, 'userModified', true);
           }
 
