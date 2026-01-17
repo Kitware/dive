@@ -197,6 +197,9 @@ interface Api {
    string;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
+  // Desktop-only calibration persistence functions
+  getLastCalibration?(): Promise<string | null>;
+  saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
 }
 const ApiSymbol = Symbol('api');
 
