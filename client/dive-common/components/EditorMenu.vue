@@ -1,10 +1,18 @@
 <script lang="ts">
+import {
+  computed,
+  defineComponent,
+  PropType,
+  ref,
+  watch,
+} from 'vue';
 import { flatten } from 'lodash';
-import Vue, { PropType } from 'vue';
 
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
+
+import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
 
 interface ButtonData {
   id: string;
@@ -12,11 +20,15 @@ interface ButtonData {
   type?: VisibleAnnotationTypes;
   active: boolean;
   mousetrap?: Mousetrap[];
+  description: string;
   click: () => void;
 }
 
-export default Vue.extend({
+export default defineComponent({
   name: 'EditorMenu',
+  components: {
+    AnnotationVisibilityMenu,
+  },
   props: {
     editingTrack: {
       type: Boolean,
@@ -51,47 +63,61 @@ export default Vue.extend({
       default: () => ({ before: 20, after: 10 }),
     },
   },
-  data() {
-    return {
-      toolTipForce: false,
-      toolTimeTimeout: 0,
-      modeToolTips: {
-        Creating: {
-          rectangle: 'Drag to draw rectangle. Press ESC to exit.',
-          Polygon: 'Click to place vertices. Right click to close.',
-          LineString: 'Click to place head/tail points.',
-        },
-        Editing: {
-          rectangle: 'Drag vertices to resize the rectangle',
-          Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
-          LineString: 'Click endpoints to select for deletion.',
-        },
+  emits: ['set-annotation-state', 'update:tail-settings'],
+  setup(props, { emit }) {
+    const toolTimeTimeout = ref<number | null>(null);
+    const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
+
+    // Load from localStorage or default to true
+    const loadExpandedState = (): boolean => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored !== null ? stored === 'true' : true;
+    };
+
+    const isEditButtonsExpanded = ref(loadExpandedState());
+
+    // Save to localStorage when state changes
+    watch(isEditButtonsExpanded, (value) => {
+      localStorage.setItem(STORAGE_KEY, String(value));
+    });
+
+    const modeToolTips = {
+      Creating: {
+        rectangle: 'Drag to draw rectangle. Press ESC to exit.',
+        Polygon: 'Click to place vertices. Right click to close.',
+        LineString: 'Click to place head/tail points.',
+      },
+      Editing: {
+        rectangle: 'Drag vertices to resize the rectangle',
+        Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
+        LineString: 'Click endpoints to select for deletion.',
       },
     };
-  },
-  computed: {
-    editButtons(): ButtonData[] {
-      const em = this.editingMode;
+
+    const editButtons = computed((): ButtonData[] => {
+      const em = props.editingMode;
       return [
         {
           id: 'rectangle',
           icon: 'mdi-vector-square',
-          active: this.editingTrack && em === 'rectangle',
+          active: props.editingTrack && em === 'rectangle',
+          description: 'Rectangle',
           mousetrap: [{
             bind: '1',
             handler: () => {
-              this.$emit('set-annotation-state', { editing: 'rectangle' });
+              emit('set-annotation-state', { editing: 'rectangle' });
             },
           }],
           click: () => {
-            this.$emit('set-annotation-state', { editing: 'rectangle' });
+            emit('set-annotation-state', { editing: 'rectangle' });
           },
         },
         /* Include recipes as editing modes if they're toggleable */
-        ...this.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
+        ...props.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
-          active: this.editingTrack && r.active.value,
+          active: props.editingTrack && r.active.value,
+          description: r.name,
           click: () => r.activate(),
           mousetrap: [
             {
@@ -102,94 +128,69 @@ export default Vue.extend({
           ],
         })),
       ];
-    },
-    viewButtons(): ButtonData[] {
-      /* Only geometry primitives can be visible types right now */
-      return [
-        {
-          id: 'rectangle',
-          type: 'rectangle',
-          icon: 'mdi-vector-square',
-          active: this.isVisible('rectangle'),
-          click: () => this.toggleVisible('rectangle'),
-        },
-        {
-          id: 'Polygon',
-          type: 'Polygon',
-          icon: 'mdi-vector-polygon',
-          active: this.isVisible('Polygon'),
-          click: () => this.toggleVisible('Polygon'),
-        },
-        {
-          id: 'LineString',
-          type: 'LineString',
-          active: this.isVisible('LineString'),
-          icon: 'mdi-vector-line',
-          click: () => this.toggleVisible('LineString'),
-        },
-        {
-          id: 'text',
-          type: 'text',
-          active: this.isVisible('text'),
-          icon: 'mdi-format-text',
-          click: () => this.toggleVisible('text'),
-        },
-        {
-          id: 'tooltip',
-          type: 'tooltip',
-          active: this.isVisible('tooltip'),
-          icon: 'mdi-tooltip-text-outline',
-          click: () => this.toggleVisible('tooltip'),
-        },
-      ];
-    },
-    mousetrap(): Mousetrap[] {
-      return flatten(this.editButtons.map((b) => b.mousetrap || []));
-    },
-    editingHeader() {
-      if (this.groupEditActive) {
+    });
+
+    const mousetrap = computed((): Mousetrap[] => flatten(editButtons.value.map((b) => b.mousetrap || [])));
+
+    const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
+
+    const toggleEditButtonsExpanded = () => {
+      isEditButtonsExpanded.value = !isEditButtonsExpanded.value;
+    };
+
+    const editButtonsMenuKey = computed(() => `${props.editingMode}-${editButtons.value.length}-${activeEditButton.value?.id || ''}`);
+
+    const editingHeader = computed(() => {
+      if (props.groupEditActive) {
         return { text: 'Group Edit Mode', icon: 'mdi-group', color: 'primary' };
       }
-      if (this.multiSelectActive) {
+      if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
       }
-      if (this.editingDetails !== 'disabled') {
+      if (props.editingDetails !== 'disabled') {
         return {
-          text: `${this.editingDetails} ${this.editingMode} `,
-          icon: this.editingDetails === 'Creating' ? 'mdi-pencil-plus' : 'mdi-pencil',
-          color: this.editingDetails === 'Creating' ? 'success' : 'primary',
+          text: `${props.editingDetails} ${props.editingMode} `,
+          icon: props.editingDetails === 'Creating' ? 'mdi-pencil-plus' : 'mdi-pencil',
+          color: props.editingDetails === 'Creating' ? 'success' : 'primary',
         };
       }
       return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
-    },
-  },
-  watch: {
-    editingDetails() {
-      clearTimeout(this.toolTimeTimeout);
-      if (this.editingDetails !== 'disabled') {
-        this.toolTipForce = true;
-        this.toolTimeTimeout = setTimeout(() => { this.toolTipForce = false; }, 2000) as unknown as number;
-      } else {
-        this.toolTipForce = false;
-      }
-    },
-  },
-  methods: {
-    isVisible(mode: VisibleAnnotationTypes) {
-      return this.visibleModes.includes(mode);
-    },
+    });
 
-    toggleVisible(mode: VisibleAnnotationTypes) {
-      if (this.isVisible(mode)) {
-        this.$emit('set-annotation-state', {
-          visible: this.visibleModes.filter((m) => m !== mode),
-        });
-      } else {
-        this.$emit('set-annotation-state', {
-          visible: this.visibleModes.concat([mode]),
-        });
+    const editingTooltip = computed(() => {
+      if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
+        return '';
       }
-    },
+      const tips = modeToolTips[props.editingDetails];
+      if (!tips) {
+        return '';
+      }
+      const mode = props.editingMode as keyof typeof modeToolTips.Creating;
+      return tips[mode] || '';
+    });
+
+    watch(() => props.editingDetails, () => {
+      if (toolTimeTimeout.value !== null) {
+        clearTimeout(toolTimeTimeout.value);
+      }
+      if (props.editingDetails !== 'disabled') {
+        toolTimeTimeout.value = setTimeout(() => {
+          // Tooltip timeout handler - can be extended if needed
+        }, 2000) as unknown as number;
+      }
+    });
+
+    return {
+      modeToolTips,
+      editButtons,
+      mousetrap,
+      editingHeader,
+      editingTooltip,
+      isEditButtonsExpanded,
+      toggleEditButtonsExpanded,
+      activeEditButton,
+      editButtonsMenuKey,
+    };
   },
 });
 </script>
@@ -222,98 +223,111 @@ export default Vue.extend({
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
             </span>
-            <span v-else-if="editingDetails !== 'disabled'">
-              {{ modeToolTips[editingDetails][editingMode] }}
+            <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
+              {{ editingTooltip }}
             </span>
             <span v-else>Right click on an annotation to edit</span>
           </div>
         </div>
       </div>
-      <v-btn
-        v-for="button in editButtons"
-        :key="button.id + 'view'"
-        :disabled="!editingMode"
-        :outlined="!button.active"
-        :color="button.active ? editingHeader.color : ''"
-        class="mx-1"
-        small
-        @click="button.click"
+      <!-- Collapsed mode for edit buttons -->
+      <v-menu
+        v-if="!isEditButtonsExpanded"
+        :key="editButtonsMenuKey"
+        offset-y
+        :close-on-content-click="false"
       >
-        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
-      <slot name="delete-controls" />
-      <slot name="multicam-controls-left" />
-      <v-spacer />
-      <slot name="multicam-controls-right" />
-      <span class="pb-1">
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            :disabled="!editingMode"
+            :outlined="!activeEditButton?.active"
+            :color="activeEditButton?.active ? editingHeader.color : ''"
+            class="mx-1"
+            small
+            v-on="on"
+          >
+            <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
+            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-btn
+              icon
+              x-small
+              class="ml-1 expand-toggle"
+              @click.stop="toggleEditButtonsExpanded"
+            >
+              <v-icon small>
+                mdi-chevron-right
+              </v-icon>
+            </v-btn>
+          </v-btn>
+        </template>
+        <v-list dense>
+          <v-list-item
+            v-for="button in editButtons"
+            :key="`${button.id}-menu`"
+          >
+            <v-list-item-icon>
+              <v-btn
+                :disabled="!editingMode"
+                :outlined="!button.active"
+                :color="button.active ? editingHeader.color : ''"
+                class="mx-1"
+                small
+                @click="button.click"
+              >
+                <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                <v-icon>{{ button.icon }}</v-icon>
+              </v-btn>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>{{ button.id }}</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+        </v-list>
+      </v-menu>
+
+      <!-- Expanded mode for edit buttons -->
+      <template v-else>
         <span class="mr-1 px-3 py-1">
           <v-icon class="pr-1">
-            mdi-eye
+            mdi-pencil
           </v-icon>
           <span class="text-subtitle-2">
-            Visibility
+            Edit Types
           </span>
+          <v-btn
+            icon
+            x-small
+            class="ml-1 expand-toggle"
+            @click="toggleEditButtonsExpanded"
+          >
+            <v-icon small>mdi-chevron-left</v-icon>
+          </v-btn>
         </span>
         <v-btn
-          v-for="button in viewButtons"
-          :key="button.id"
-          :color="button.active ? 'grey darken-2' : ''"
-          class="mx-1 mode-button"
+          v-for="button in editButtons"
+          :key="button.id + 'view'"
+          :disabled="!editingMode"
+          :outlined="!button.active"
+          :color="button.active ? editingHeader.color : ''"
+          class="mx-1"
           small
           @click="button.click"
         >
+          <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
           <v-icon>{{ button.icon }}</v-icon>
         </v-btn>
-        <v-menu
-          open-on-hover
-          bottom
-          offset-y
-          :close-on-content-click="false"
-        >
-          <template #activator="{ on, attrs }">
-            <v-btn
-              v-bind="attrs"
-              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
-              class="mx-1 mode-button"
-              small
-              v-on="on"
-              @click="toggleVisible('TrackTail')"
-            >
-              <v-icon>mdi-navigation</v-icon>
-            </v-btn>
-          </template>
-          <v-card
-            class="pa-4 flex-column d-flex"
-            outlined
-          >
-            <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
-            <input
-              id="frames-before"
-              type="range"
-              name="frames-before"
-              class="tail-slider-width"
-              label
-              min="0"
-              max="100"
-              :value="tailSettings.before"
-              @input="$emit('update:tail-settings', { ...tailSettings, before: Number.parseFloat($event.target.value) })"
-            >
-            <div class="py-2" />
-            <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
-            <input
-              id="frames-after"
-              type="range"
-              name="frames-after"
-              class="tail-slider-width"
-              min="0"
-              max="100"
-              :value="tailSettings.after"
-              @input="$emit('update:tail-settings', { ...tailSettings, after: Number.parseFloat($event.target.value) })"
-            >
-          </v-card>
-        </v-menu>
-      </span>
+      </template>
+      <slot name="delete-controls" />
+      <v-spacer />
+      <slot name="multicam-controls" />
+      <v-spacer />
+      <annotation-visibility-menu
+        :visible-modes="visibleModes"
+        :tail-settings="tailSettings"
+        @set-annotation-state="$emit('set-annotation-state', $event)"
+        @update:tail-settings="$emit('update:tail-settings', $event)"
+      />
     </div>
   </v-row>
 </template>
@@ -332,7 +346,11 @@ export default Vue.extend({
 .mode-button{
   border: 1px solid grey;
 }
-.tail-slider-width {
-  width: 240px;
+.expand-toggle {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.expand-toggle:hover {
+  opacity: 1;
 }
 </style>
