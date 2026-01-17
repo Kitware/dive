@@ -465,8 +465,10 @@ export default defineComponent({
     ) => {
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+        // Extract rotation from properties if it exists
+        const rotation = data.properties?.rotation as number | undefined;
         cb();
-        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds);
+        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
       } else {
         handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
       }

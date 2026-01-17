@@ -395,7 +395,7 @@ export default function useModeManager({
     creating = newCreatingValue;
   }
 
-  function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
+  function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds, rotation?: number) {
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
@@ -409,6 +409,18 @@ export default function useModeManager({
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         });
+
+        // Save rotation as detection attribute if provided
+        if (rotation !== undefined && rotation !== null) {
+          track.setFeatureAttribute(frameNum, 'rotation', rotation);
+        } else {
+          // Remove rotation attribute if rotation is 0 or undefined
+          const feature = track.features[frameNum];
+          if (feature && feature.attributes && 'rotation' in feature.attributes) {
+            track.setFeatureAttribute(frameNum, 'rotation', undefined);
+          }
+        }
+
         newTrackSettingsAfterLogic(track);
       }
     }
