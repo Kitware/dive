@@ -163,6 +163,13 @@ async function runPipeline(
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 
+  // Add any custom pipeline parameters
+  if (runPipelineArgs.pipelineParams) {
+    Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
+      command.push(`-s ${key}="${value}"`);
+    });
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,

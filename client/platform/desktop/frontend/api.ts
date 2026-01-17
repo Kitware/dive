@@ -249,6 +249,38 @@ async function refineDetections(request: RefineDetectionsRequest): Promise<Refin
 }
 
 /**
+ * Run text query pipeline on all frames
+ * Launches the utility_text_query_sam3.pipe pipeline with the query string as input
+ */
+async function runTextQueryPipeline(
+  datasetId: string,
+  queryText: string,
+  threshold?: number,
+): Promise<void> {
+  const pipeline: Pipe = {
+    name: 'Text Query (SAM3)',
+    pipe: 'utility_text_query_sam3.pipe',
+    type: 'utility',
+  };
+
+  const pipelineParams: Record<string, string> = {
+    'track_refiner:refiner:sam3:text_query': queryText,
+  };
+
+  if (threshold !== undefined) {
+    pipelineParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
+  }
+
+  const args: RunPipeline = {
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId,
+    pipelineParams,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+/**
  * REST api for larger-body messages
  */
 
@@ -335,10 +367,10 @@ export {
   segmentationClearImage,
   segmentationShutdown,
   segmentationIsReady,
-  /* Calibration APIs */
-  textQuery,
   refineDetections,
-
+  runTextQueryPipeline,
+  textQuery,
+  /* Calibration APIs */
   getLastCalibration,
   saveCalibration,
 };
