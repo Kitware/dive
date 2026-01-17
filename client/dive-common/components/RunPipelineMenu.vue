@@ -314,15 +314,27 @@ export default defineComponent({
                   outlined
                   style="overflow-y: auto; max-height: 85vh"
                 >
-                  <v-list-item
+                  <v-tooltip
                     v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
-                    @click="runPipelineOnSelectedItem(pipeline)"
+                    left
+                    :disabled="!pipeline.description"
+                    max-width="300"
+                    content-class="pipeline-description-tooltip"
                   >
-                    <v-list-item-title class="font-weight-regular">
-                      {{ pipeline.name }}
-                    </v-list-item-title>
-                  </v-list-item>
+                    <template #activator="{ on, attrs }">
+                      <v-list-item
+                        v-bind="attrs"
+                        v-on="on"
+                        @click="runPipelineOnSelectedItem(pipeline)"
+                      >
+                        <v-list-item-title class="font-weight-regular">
+                          {{ pipeline.name }}
+                        </v-list-item-title>
+                      </v-list-item>
+                    </template>
+                    <span>{{ pipeline.description }}</span>
+                  </v-tooltip>
                 </v-list>
               </v-menu>
             </v-col>
@@ -339,3 +351,10 @@ export default defineComponent({
     />
   </div>
 </template>
+
+<style>
+.pipeline-description-tooltip.v-tooltip__content {
+  background: #3a3a3a !important;
+  opacity: 1 !important;
+}
+</style>

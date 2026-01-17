@@ -34,22 +34,82 @@ DisallowedStaticPipelines = (
 )
 
 
+def extract_pipe_description(pipe_path: Path) -> Optional[str]:
+    """
+    Extract description from a .pipe file header.
+    Looks for "# Description: " in the first 5 lines of the file.
+    Description can span multiple lines and ends when:
+    - A line starting with "# " followed by "=" is found (e.g., "# ===")
+    - A line starting with "#" followed by only whitespace is found
+    - A non-comment line is found
+    """
+    try:
+        with open(pipe_path, 'r', encoding='utf-8') as f:
+            lines = [line.rstrip('\n\r') for line in f.readlines()]
+
+        # Find the Description: field within the first 5 lines
+        header_lines = lines[:5]
+        desc_start_index = -1
+        for i, line in enumerate(header_lines):
+            if re.match(r'^#\s*Description:\s*', line, re.IGNORECASE):
+                desc_start_index = i
+                break
+
+        if desc_start_index == -1:
+            return None
+
+        # Extract the initial description text
+        desc_match = re.match(r'^#\s*Description:\s*(.*)$', header_lines[desc_start_index], re.IGNORECASE)
+        if not desc_match:
+            return None
+
+        description = desc_match.group(1).strip()
+
+        # Continue reading from the line after Description: was found
+        for line in lines[desc_start_index + 1:]:
+            # End conditions:
+            # 1. Line starting with "# " followed by "=" (e.g., "# ===")
+            if re.match(r'^#\s*=', line):
+                break
+            # 2. Line starting with "#" followed by only whitespace
+            if re.match(r'^#\s*$', line):
+                break
+            # 3. Non-comment line (not starting with #)
+            if not line.startswith('#'):
+                break
+
+            # Continue reading multi-line description
+            continued_text = re.sub(r'^#\s*', '', line).strip()
+            if continued_text:
+                description += ' ' + continued_text
+
+        return description if description else None
+    except Exception:
+        return None
+
+
 def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipedict: Dict[str, PipelineCategory] = {}
 
     pipelist = [
-        path.name
+        path
         for path in search_path.glob("./*.pipe")
         if re.match(AllowedStaticPipelines, path.name)
         and not re.match(DisallowedStaticPipelines, path.name)
     ]
 
-    for pipe in pipelist:
+    for pipe_path in pipelist:
+        pipe = pipe_path.name
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+
+        # Extract description from the pipe file
+        description = extract_pipe_description(pipe_path)
+
         pipe_info: PipelineDescription = {
             "name": " ".join(nameparts),
             "type": pipe_type,
             "pipe": pipe,
+            "description": description,
             "folderId": None,
         }
         print(f"Discovered pipe {pipe_info}")
