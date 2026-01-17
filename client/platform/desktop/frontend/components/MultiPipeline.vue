@@ -273,7 +273,8 @@ onBeforeMount(async () => {
 </template>
 
 <style>
-.pipeline-description-tooltip {
+.pipeline-description-tooltip.v-tooltip__content {
+  background: #3a3a3a !important;
   opacity: 1 !important;
 }
 </style>
