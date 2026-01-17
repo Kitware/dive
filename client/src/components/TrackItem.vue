@@ -57,6 +57,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
@@ -219,6 +223,7 @@ export default defineComponent({
         class="my-0 ml-1 pt-0"
         dense
         hide-details
+        :disabled="disabled"
         :input-value="inputValue"
         :color="color"
         @change="trackFilters.updateCheckedId(track.trackId, $event)"

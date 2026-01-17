@@ -44,7 +44,10 @@ interface AnnotationSettings {
   timelineCountSettings: {
     totalCount: boolean;
     defaultView: 'tracks' | 'detections';
-  }
+  };
+  multiCamSettings: {
+    showToolbar: boolean;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -99,7 +102,9 @@ const defaultSettings: AnnotationSettings = {
     totalCount: true,
     defaultView: 'tracks',
   },
-
+  multiCamSettings: {
+    showToolbar: true,
+  },
 };
 
 // Utility to safely load from localStorage

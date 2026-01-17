@@ -51,6 +51,10 @@ export default defineComponent({
       type: Number,
       default: 420,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -348,6 +352,7 @@ export default defineComponent({
         <track-item
           v-bind="getItemProps(item)"
           :lock-types="lockTypes"
+          :disabled="disabled"
           @seek="$emit('track-seek', $event)"
         />
       </template>

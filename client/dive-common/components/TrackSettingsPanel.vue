@@ -32,6 +32,7 @@ export default defineComponent({
       prompt: 'Prompt user before deleting a track?',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
+      showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -319,6 +320,45 @@ export default defineComponent({
               </v-icon>
             </template>
             <span>{{ help.filterTracksByFrame }}</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+      <v-divider class="my-2" />
+      <div class="subheading">
+        Multi-Camera Settings
+      </div>
+      <v-row
+        align="end"
+        dense
+      >
+        <v-col class="py-1">
+          <v-switch
+            v-model="clientSettings.multiCamSettings.showToolbar"
+            class="my-0 ml-1 pt-0"
+            dense
+            label="Show Toolbar"
+            hide-details
+          />
+        </v-col>
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
+          <v-tooltip
+            open-delay="200"
+            max-width="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+              >
+                mdi-help
+              </v-icon>
+            </template>
+            <span>{{ help.showMultiCamToolbar }}</span>
           </v-tooltip>
         </v-col>
       </v-row>
