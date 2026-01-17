@@ -29,8 +29,12 @@ export default defineComponent({
       type: Object as PropType<{ before: number; after: number }>,
       required: true,
     },
+    showUserCreatedIcon: {
+      type: Boolean,
+      default: true,
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings'],
+  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
   setup(props, { emit }) {
     const STORAGE_KEY = 'annotationVisibilityMenu.expanded';
 
@@ -116,6 +120,10 @@ export default defineComponent({
       emit('update:tail-settings', settings);
     };
 
+    const toggleShowUserCreatedIcon = () => {
+      emit('update:show-user-created-icon', !props.showUserCreatedIcon);
+    };
+
     return {
       isExpanded,
       viewButtons,
@@ -123,6 +131,7 @@ export default defineComponent({
       toggleVisible,
       toggleExpanded,
       updateTailSettings,
+      toggleShowUserCreatedIcon,
     };
   },
 });
@@ -166,6 +175,7 @@ export default defineComponent({
               :color="button.active ? 'grey darken-2' : ''"
               class="mx-1 mode-button"
               small
+              @click.stop
               @click="button.click"
             >
               <v-icon>{{ button.icon }}</v-icon>
@@ -173,6 +183,16 @@ export default defineComponent({
           </v-list-item-icon>
           <v-list-item-content>
             <v-list-item-title>{{ button.description }}</v-list-item-title>
+            <v-checkbox
+              v-if="button.id === 'text'"
+              :input-value="showUserCreatedIcon"
+              label="Show user created icon"
+              dense
+              hide-details
+              class="mt-0"
+              @click.stop
+              @change="toggleShowUserCreatedIcon"
+            />
           </v-list-item-content>
         </v-list-item>
         <v-list-item>
@@ -246,16 +266,53 @@ export default defineComponent({
           <v-icon small>mdi-chevron-left</v-icon>
         </v-btn>
       </span>
-      <v-btn
+      <template
         v-for="button in viewButtons"
-        :key="`${button.id}-view`"
-        :color="button.active ? 'grey darken-2' : ''"
-        class="mx-1 mode-button"
-        small
-        @click="button.click"
       >
-        <v-icon>{{ button.icon }}</v-icon>
-      </v-btn>
+        <v-menu
+          v-if="button.id === 'text'"
+          open-on-hover
+          bottom
+          offset-y
+          :close-on-content-click="false"
+          :key="`${button.id}-view`"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :color="button.active ? 'grey darken-2' : ''"
+              class="mx-1 mode-button"
+              small
+              v-on="on"
+              @click="button.click"
+            >
+              <v-icon>{{ button.icon }}</v-icon>
+            </v-btn>
+          </template>
+          <v-card
+            class="pa-4 flex-column d-flex"
+            outlined
+          >
+            <v-checkbox
+              :input-value="showUserCreatedIcon"
+              label="Show user created icon"
+              dense
+              hide-details
+              @change="toggleShowUserCreatedIcon"
+            />
+          </v-card>
+        </v-menu>
+        <v-btn
+          v-else
+          :color="button.active ? 'grey darken-2' : ''"
+          :key="`${button.id}-view-button`"
+          class="mx-1 mode-button"
+          small
+          @click="button.click"
+        >
+          <v-icon>{{ button.icon }}</v-icon>
+        </v-btn>
+      </template>
       <v-menu
         open-on-hover
         bottom

@@ -62,8 +62,12 @@ export default defineComponent({
       type: Object as PropType<{ before: number; after: number }>,
       default: () => ({ before: 20, after: 10 }),
     },
+    showUserCreatedIcon: {
+      type: Boolean,
+      default: true,
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings'],
+  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -325,8 +329,10 @@ export default defineComponent({
       <annotation-visibility-menu
         :visible-modes="visibleModes"
         :tail-settings="tailSettings"
+        :show-user-created-icon="showUserCreatedIcon"
         @set-annotation-state="$emit('set-annotation-state', $event)"
         @update:tail-settings="$emit('update:tail-settings', $event)"
+        @update:show-user-created-icon="$emit('update:show-user-created-icon', $event)"
       />
     </div>
   </v-row>
