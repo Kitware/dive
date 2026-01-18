@@ -466,7 +466,7 @@ export default defineComponent({
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         // Extract rotation from properties if it exists
-        const rotation = isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
+        const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
           ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
           : undefined;
         cb();
