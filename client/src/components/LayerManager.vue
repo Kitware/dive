@@ -467,7 +467,7 @@ export default defineComponent({
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         // Extract rotation from properties if it exists
         const rotation = isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
-          ? data.properties[ROTATION_ATTRIBUTE_NAME]
+          ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
           : undefined;
         cb();
         handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);

@@ -10,6 +10,28 @@ export const ROTATION_THRESHOLD = 0.001;
 /** Attribute name for storing rotation in detection attributes */
 export const ROTATION_ATTRIBUTE_NAME = 'rotation';
 
+// Reserved attribute names - these cannot be used by users when creating attributes
+/** Reserved detection attribute names */
+export const RESERVED_DETECTION_ATTRIBUTES = ['rotation', 'userModified'] as const;
+/** Reserved track attribute names */
+export const RESERVED_TRACK_ATTRIBUTES = ['userCreated'] as const;
+
+/**
+ * Check if an attribute name is reserved for the given attribute type
+ * @param name - Attribute name to check
+ * @param belongs - Whether this is a 'track' or 'detection' attribute
+ * @returns True if the name is reserved
+ */
+export function isReservedAttributeName(
+  name: string,
+  belongs: 'track' | 'detection',
+): boolean {
+  if (belongs === 'detection') {
+    return RESERVED_DETECTION_ATTRIBUTES.includes(name as typeof RESERVED_DETECTION_ATTRIBUTES[number]);
+  }
+  return RESERVED_TRACK_ATTRIBUTES.includes(name as typeof RESERVED_TRACK_ATTRIBUTES[number]);
+}
+
 /*
  * updateSubset keeps a subset up to date when its superset
  * changes.  Takes the old and new array values of the superset,

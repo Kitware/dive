@@ -4,6 +4,7 @@ import {
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
+import { isReservedAttributeName } from '../utils';
 import { LineChartData } from './useLineChart';
 import {
   Attribute, AttributeFilter, AttributeKeyFilter,
@@ -64,6 +65,16 @@ export default function UseAttributes(
 
   function setAttribute({ data, oldAttribute }:
      {data: Attribute; oldAttribute?: Attribute }, updateAllTracks = false) {
+    // Validate that the attribute name is not reserved
+    if (isReservedAttributeName(data.name, data.belongs)) {
+      const reservedList = data.belongs === 'detection'
+        ? ['rotation', 'userModified']
+        : ['userCreated'];
+      throw new Error(
+        `Attribute name "${data.name}" is reserved. Reserved ${data.belongs} attributes: ${reservedList.join(', ')}`,
+      );
+    }
+
     if (oldAttribute && data.key !== oldAttribute.key) {
       // Name change should delete the old attribute and create a new one with the updated id
       VueDel(attributes.value, oldAttribute.key);
