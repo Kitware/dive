@@ -2,7 +2,12 @@
 import geo, { GeoEvent } from 'geojs';
 
 import { cloneDeep } from 'lodash';
-import { boundToGeojson } from '../../utils';
+import {
+  boundToGeojson,
+  applyRotationToPolygon,
+  getRotationFromAttributes,
+  hasSignificantRotation,
+} from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import LineLayer from './LineLayer';
@@ -114,11 +119,11 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         }
 
         // Get rotation from attributes if it exists
-        const rotation = track.features.attributes?.rotation as number | undefined;
+        const rotation = getRotationFromAttributes(track.features.attributes);
 
         // Apply rotation to polygon if rotation exists
-        if (rotation !== undefined && rotation !== null && Math.abs(rotation) > 0.001) {
-          polygon = this.applyRotationToPolygon(polygon, track.features.bounds, rotation);
+        if (hasSignificantRotation(rotation)) {
+          polygon = applyRotationToPolygon(polygon, track.features.bounds, rotation!);
         }
 
         const dashed = !!(track.set && comparisonSets?.includes(track.set));
@@ -146,65 +151,6 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       }
     });
     return arr;
-  }
-
-  /**
-   * Apply rotation to an axis-aligned bounding box polygon
-   * @param polygon - The axis-aligned polygon
-   * @param bounds - The bounding box [x1, y1, x2, y2]
-   * @param rotation - Rotation angle in radians
-   * @returns Rotated polygon
-   */
-  applyRotationToPolygon(
-    polygon: GeoJSON.Polygon,
-    bounds: [number, number, number, number],
-    rotation: number,
-  ): GeoJSON.Polygon {
-    // Calculate center of the bounding box
-    const centerX = (bounds[0] + bounds[2]) / 2;
-    const centerY = (bounds[1] + bounds[3]) / 2;
-
-    // Calculate width and height
-    const width = bounds[2] - bounds[0];
-    const height = bounds[3] - bounds[1];
-
-    // Half dimensions
-    const halfWidth = width / 2;
-    const halfHeight = height / 2;
-
-    // Rotation matrix components
-    const cos = Math.cos(rotation);
-    const sin = Math.sin(rotation);
-
-    // Transform the four corners
-    const corners = [
-      [-halfWidth, -halfHeight], // bottom-left (relative to center)
-      [-halfWidth, halfHeight], // top-left
-      [halfWidth, halfHeight], // top-right
-      [halfWidth, -halfHeight], // bottom-right
-    ];
-
-    const rotatedCorners = corners.map(([x, y]) => {
-      // Apply rotation
-      const rotatedX = x * cos - y * sin;
-      const rotatedY = x * sin + y * cos;
-      // Translate back to world coordinates
-      return [rotatedX + centerX, rotatedY + centerY] as [number, number];
-    });
-
-    // Return polygon with rotated corners (close the polygon)
-    return {
-      type: 'Polygon',
-      coordinates: [
-        [
-          rotatedCorners[0],
-          rotatedCorners[1],
-          rotatedCorners[2],
-          rotatedCorners[3],
-          rotatedCorners[0], // Close the polygon
-        ],
-      ],
-    };
   }
 
   redraw() {

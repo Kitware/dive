@@ -3,7 +3,12 @@ import {
 } from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
+import {
+  RectBounds,
+  updateBounds,
+  validateRotation,
+  ROTATION_ATTRIBUTE_NAME,
+} from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
@@ -411,13 +416,14 @@ export default function useModeManager({
         });
 
         // Save rotation as detection attribute if provided
-        if (rotation !== undefined && rotation !== null) {
-          track.setFeatureAttribute(frameNum, 'rotation', rotation);
+        const normalizedRotation = validateRotation(rotation);
+        if (normalizedRotation !== undefined) {
+          track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, normalizedRotation);
         } else {
           // Remove rotation attribute if rotation is 0 or undefined
           const feature = track.features[frameNum];
-          if (feature && feature.attributes && 'rotation' in feature.attributes) {
-            track.setFeatureAttribute(frameNum, 'rotation', undefined);
+          if (feature && feature.attributes && ROTATION_ATTRIBUTE_NAME in feature.attributes) {
+            track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, undefined);
           }
         }
 
