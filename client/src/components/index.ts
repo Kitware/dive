@@ -7,6 +7,7 @@
 import ImageAnnotator from './annotators/ImageAnnotator.vue';
 import VideoAnnotator from './annotators/VideoAnnotator.vue';
 import LargeImageAnnotator from './annotators/LargeImageAnnotator.vue';
+// NativeVideoAnnotator is not exported - it depends on electron and is only for desktop app
 
 import Controls from './controls/Controls.vue';
 import EventChart from './controls/EventChart.vue';
