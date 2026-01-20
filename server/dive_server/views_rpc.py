@@ -15,6 +15,7 @@ from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
 from .sam2_service import get_sam2_service
+from .sam3_service import get_sam3_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,11 @@ class RpcResource(Resource):
         # SAM2 Interactive Segmentation
         self.route("POST", ("sam2_predict",), self.sam2_predict)
         self.route("GET", ("sam2_status",), self.sam2_status)
+
+        # SAM3 Interactive Segmentation (uses transformers, supports text queries)
+        self.route("POST", ("sam3_predict",), self.sam3_predict)
+        self.route("POST", ("sam3_text_query",), self.sam3_text_query)
+        self.route("GET", ("sam3_status",), self.sam3_status)
 
     @access.user
     @autoDescribeRoute(
@@ -346,6 +352,8 @@ class RpcResource(Resource):
         """
         Run SAM2 prediction with point prompts.
 
+        Falls back to SAM3 (transformers) if SAM2 (Meta's sam2 module) is not available.
+
         Query params:
             folderId: Dataset folder ID
             frameNumber: Frame number to segment
@@ -369,12 +377,19 @@ class RpcResource(Resource):
         import os
 
         sam2 = get_sam2_service()
+        sam3 = get_sam3_service()
 
+        # Determine which backend to use
+        use_sam3_fallback = False
         if not sam2.is_available():
-            return {
-                "success": False,
-                "error": "SAM2 is not available. Enable VIAME_ENABLE_PYTORCH-SAM2 in your build.",
-            }
+            if sam3.is_available():
+                use_sam3_fallback = True
+                logger.info("SAM2 not available, using SAM3 (transformers) as fallback")
+            else:
+                return {
+                    "success": False,
+                    "error": "SAM2 is not available and SAM3 fallback also unavailable.",
+                }
 
         try:
             # Get dataset type and resolve image path
@@ -434,18 +449,26 @@ class RpcResource(Resource):
                     "error": f"Image file not found: {image_path}",
                 }
 
-            # Run SAM2 prediction
-            result = sam2.predict(
-                image_path=image_path,
-                points=body.get("points", []),
-                point_labels=body.get("pointLabels", []),
-                mask_input=body.get("maskInput"),
-                multimask_output=body.get("multimaskOutput", False),
-            )
+            # Run prediction with appropriate backend
+            if use_sam3_fallback:
+                result = sam3.predict(
+                    image_path=image_path,
+                    points=body.get("points", []),
+                    point_labels=body.get("pointLabels", []),
+                    multimask_output=body.get("multimaskOutput", False),
+                )
+            else:
+                result = sam2.predict(
+                    image_path=image_path,
+                    points=body.get("points", []),
+                    point_labels=body.get("pointLabels", []),
+                    mask_input=body.get("maskInput"),
+                    multimask_output=body.get("multimaskOutput", False),
+                )
             return result
 
         except Exception as e:
-            logger.exception("SAM2 prediction failed")
+            logger.exception("SAM2/SAM3 prediction failed")
             return {
                 "success": False,
                 "error": str(e),
@@ -454,9 +477,308 @@ class RpcResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get SAM2 service status"))
     def sam2_status(self):
-        """Check if SAM2 service is available and loaded."""
+        """Check if SAM2 service is available and loaded.
+
+        Falls back to SAM3 (transformers) if SAM2 (Meta's sam2 module) is not available.
+        """
         sam2 = get_sam2_service()
+        sam3 = get_sam3_service()
+
+        # Check if either SAM2 or SAM3 is available
+        sam2_available = sam2.is_available()
+        sam3_available = sam3.is_available()
+
         return {
-            "available": sam2.is_available(),
-            "loaded": sam2.is_loaded(),
+            "available": sam2_available or sam3_available,
+            "loaded": sam2.is_loaded() or sam3.is_loaded(),
+            "backend": "sam2" if sam2_available else ("sam3" if sam3_available else None),
+        }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Run SAM3 point-based segmentation (uses transformers)")
+        .modelParam(
+            "folderId",
+            description="Dataset folder ID",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .param(
+            "frameNumber",
+            description="Frame number to segment",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+        .jsonParam(
+            "body",
+            description="JSON object with point prompts",
+            paramType="body",
+            schema={
+                "points": List[List[float]],
+                "pointLabels": List[int],
+                "multimaskOutput": Optional[bool],
+            },
+        )
+    )
+    def sam3_predict(self, folder, frameNumber, body):
+        """
+        Run SAM3 prediction with point prompts using transformers.
+
+        This endpoint uses HuggingFace transformers for model loading,
+        which doesn't require Meta's sam2 module.
+
+        Query params:
+            folderId: Dataset folder ID
+            frameNumber: Frame number to segment
+
+        Request body:
+            points: List of [x, y] point coordinates
+            pointLabels: List of labels (1=foreground, 0=background)
+            multimaskOutput: Whether to return multiple masks (default: false)
+
+        Returns:
+            polygon: List of [x, y] coordinate pairs
+            bounds: [x_min, y_min, x_max, y_max]
+            score: Quality score from SAM3
+        """
+        from dive_utils import fromMeta
+        from dive_utils.constants import TypeMarker, ImageSequenceType, VideoType
+        from girder.models.file import File
+        from girder.models.item import Item
+        import os
+
+        sam3 = get_sam3_service()
+
+        if not sam3.is_available():
+            return {
+                "success": False,
+                "error": "SAM3 (transformers) is not available. Install transformers library.",
+            }
+
+        try:
+            # Get dataset type and resolve image path
+            dataset_type = fromMeta(folder, TypeMarker)
+            image_path = None
+
+            if dataset_type == ImageSequenceType:
+                # Find image items in the folder, sorted by name
+                items = list(Item().find(
+                    {"folderId": folder["_id"]},
+                    sort=[("name", 1)]
+                ))
+
+                # Filter to only image items
+                image_items = [
+                    item for item in items
+                    if item.get("name", "").lower().endswith(
+                        ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
+                    )
+                ]
+
+                if frameNumber < 0 or frameNumber >= len(image_items):
+                    return {
+                        "success": False,
+                        "error": f"Frame {frameNumber} out of range (0-{len(image_items)-1})",
+                    }
+
+                image_item = image_items[frameNumber]
+                files = list(File().find({"itemId": image_item["_id"]}))
+                if not files:
+                    return {
+                        "success": False,
+                        "error": f"No file found for frame {frameNumber}",
+                    }
+
+                # Get the file path from Girder's assetstore
+                file_doc = files[0]
+                assetstore = File().getAssetstoreAdapter(file_doc)
+                image_path = assetstore.fullPath(file_doc)
+
+            elif dataset_type == VideoType:
+                return {
+                    "success": False,
+                    "error": "SAM3 for video datasets is not yet supported. Use image sequences.",
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unsupported dataset type: {dataset_type}",
+                }
+
+            if not image_path or not os.path.exists(image_path):
+                return {
+                    "success": False,
+                    "error": f"Image file not found: {image_path}",
+                }
+
+            # Run SAM3 prediction
+            result = sam3.predict(
+                image_path=image_path,
+                points=body.get("points", []),
+                point_labels=body.get("pointLabels", []),
+                multimask_output=body.get("multimaskOutput", False),
+            )
+            return result
+
+        except Exception as e:
+            logger.exception("SAM3 prediction failed")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Run SAM3 text-based object detection and segmentation")
+        .modelParam(
+            "folderId",
+            description="Dataset folder ID",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .param(
+            "frameNumber",
+            description="Frame number to query",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+        .jsonParam(
+            "body",
+            description="JSON object with text query parameters",
+            paramType="body",
+            schema={
+                "text": str,
+                "boxThreshold": Optional[float],
+                "textThreshold": Optional[float],
+                "maxDetections": Optional[int],
+            },
+        )
+    )
+    def sam3_text_query(self, folder, frameNumber, body):
+        """
+        Detect objects using text query and segment them.
+
+        Uses Grounding DINO for text-based detection and SAM3 for segmentation.
+
+        Query params:
+            folderId: Dataset folder ID
+            frameNumber: Frame number to query
+
+        Request body:
+            text: Text describing objects to find (e.g., "fish", "coral reef")
+            boxThreshold: Detection confidence threshold (default: 0.3)
+            textThreshold: Text matching threshold (default: 0.25)
+            maxDetections: Maximum detections to return (default: 10)
+
+        Returns:
+            detections: List of objects, each with polygon, bounds, score, label
+        """
+        from dive_utils import fromMeta
+        from dive_utils.constants import TypeMarker, ImageSequenceType, VideoType
+        from girder.models.file import File
+        from girder.models.item import Item
+        import os
+
+        sam3 = get_sam3_service()
+
+        if not sam3.is_available():
+            return {
+                "success": False,
+                "error": "SAM3 (transformers) is not available.",
+            }
+
+        if not sam3.is_grounding_available():
+            return {
+                "success": False,
+                "error": "Grounding DINO not available for text queries.",
+            }
+
+        try:
+            # Get dataset type and resolve image path
+            dataset_type = fromMeta(folder, TypeMarker)
+            image_path = None
+
+            if dataset_type == ImageSequenceType:
+                items = list(Item().find(
+                    {"folderId": folder["_id"]},
+                    sort=[("name", 1)]
+                ))
+
+                image_items = [
+                    item for item in items
+                    if item.get("name", "").lower().endswith(
+                        ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
+                    )
+                ]
+
+                if frameNumber < 0 or frameNumber >= len(image_items):
+                    return {
+                        "success": False,
+                        "error": f"Frame {frameNumber} out of range (0-{len(image_items)-1})",
+                    }
+
+                image_item = image_items[frameNumber]
+                files = list(File().find({"itemId": image_item["_id"]}))
+                if not files:
+                    return {
+                        "success": False,
+                        "error": f"No file found for frame {frameNumber}",
+                    }
+
+                file_doc = files[0]
+                assetstore = File().getAssetstoreAdapter(file_doc)
+                image_path = assetstore.fullPath(file_doc)
+
+            elif dataset_type == VideoType:
+                return {
+                    "success": False,
+                    "error": "Text query for video datasets is not yet supported.",
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unsupported dataset type: {dataset_type}",
+                }
+
+            if not image_path or not os.path.exists(image_path):
+                return {
+                    "success": False,
+                    "error": f"Image file not found: {image_path}",
+                }
+
+            # Run text query
+            result = sam3.text_query(
+                image_path=image_path,
+                text=body.get("text", "object"),
+                box_threshold=body.get("boxThreshold", 0.3),
+                text_threshold=body.get("textThreshold", 0.25),
+                max_detections=body.get("maxDetections", 10),
+            )
+            return result
+
+        except Exception as e:
+            logger.exception("SAM3 text query failed")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(Description("Get SAM3 service status"))
+    def sam3_status(self):
+        """Check if SAM3 service is available and loaded."""
+        sam3 = get_sam3_service()
+        backend_info = sam3.get_backend_info()
+        return {
+            "available": sam3.is_available(),
+            "loaded": sam3.is_loaded(),
+            "grounding_available": sam3.is_grounding_available(),
+            "backend": backend_info.get('backend'),
+            "local_models": backend_info.get('local_models'),
         }
