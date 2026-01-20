@@ -2,6 +2,7 @@ import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
 import {
   Pipe, SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  TextQueryRequest, TextQueryResponse,
 } from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
@@ -97,6 +98,36 @@ async function segmentationInitialize(): Promise<void> {
   }
 }
 
+/**
+ * Text Query API (SAM3 with Grounding DINO)
+ */
+
+async function textQuery(
+  folderId: string,
+  frameNumber: number,
+  request: Omit<TextQueryRequest, 'imagePath'>,
+): Promise<TextQueryResponse> {
+  const { data } = await girderRest.post<TextQueryResponse>('dive_rpc/sam3_text_query', {
+    text: request.text,
+    boxThreshold: request.boxThreshold,
+    maxDetections: request.maxDetections,
+  }, {
+    params: {
+      folderId,
+      frameNumber,
+    },
+  });
+  return data;
+}
+
+async function textQueryStatus(): Promise<{ available: boolean; grounding_available: boolean }> {
+  const { data } = await girderRest.get<{ available: boolean; loaded: boolean; grounding_available: boolean }>('dive_rpc/sam3_status');
+  return {
+    available: data.available,
+    grounding_available: data.grounding_available,
+  };
+}
+
 export {
   convertLargeImage,
   postProcess,
@@ -107,4 +138,6 @@ export {
   segmentationPredict,
   segmentationStatus,
   segmentationInitialize,
+  textQuery,
+  textQueryStatus,
 };
