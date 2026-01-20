@@ -56,7 +56,7 @@ const MultiSelectSymbol = Symbol('multiSelect');
 type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
 
 const SegmentationPointsSymbol = Symbol('segmentationPoints');
-type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[] }>>;
+type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[]; frameNum: number }>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -333,7 +333,7 @@ function dummyState(): State {
     comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
-    segmentationPoints: ref({ points: [], labels: [] }),
+    segmentationPoints: ref({ points: [], labels: [], frameNum: -1 }),
     selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),

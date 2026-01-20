@@ -158,9 +158,10 @@ export default defineComponent({
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
 
-    // Watch for segmentation points updates
-    watch(segmentationPointsRef, (newPoints) => {
-      if (newPoints.points.length > 0) {
+    // Watch for segmentation points updates - only show points for current frame
+    watch([segmentationPointsRef, frameNumberRef], ([newPoints, currentFrame]) => {
+      // Only display points if they belong to the current frame
+      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame) {
         segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
       } else {
         segmentationPointsLayer.clear();

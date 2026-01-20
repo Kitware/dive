@@ -847,18 +847,20 @@ export default function useModeManager({
   /**
    * Segmentation prompt points for visualization (green=foreground, red=background)
    */
-  const segmentationPoints: Ref<{ points: [number, number][]; labels: number[] }> = ref({
+  const segmentationPoints: Ref<{ points: [number, number][]; labels: number[]; frameNum: number }> = ref({
     points: [],
     labels: [],
+    frameNum: -1,
   });
 
   /**
    * Handle segmentation points update - update visual display of prompt points
    */
-  function handleSegmentationPointsUpdated(data: { points: [number, number][]; labels: number[] }) {
+  function handleSegmentationPointsUpdated(data: { points: [number, number][]; labels: number[]; frameNum: number }) {
     segmentationPoints.value = {
       points: [...data.points],
       labels: [...data.labels],
+      frameNum: data.frameNum,
     };
   }
 
