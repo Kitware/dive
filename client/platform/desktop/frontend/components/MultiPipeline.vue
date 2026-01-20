@@ -9,7 +9,6 @@ import {
 import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
-import { runPipelineWithOutput } from 'platform/desktop/frontend/api';
 import {
   itemsPerPageOptions,
   stereoPipelineMarker,
@@ -133,7 +132,9 @@ async function runPipelineForDatasets() {
           if (!datasetMeta) {
             throw new Error(`Attempted to run pipeline on nonexistant dataset ${datasetId}`);
           }
-          return runPipelineWithOutput(datasetId, selectedPipeline.value!, computeOutputDatasetName(datasetMeta));
+          return runPipeline(datasetId, selectedPipeline.value!, {
+            outputDatasetName: computeOutputDatasetName(datasetMeta),
+          });
         }
         return runPipeline(datasetId, selectedPipeline.value!);
       }),

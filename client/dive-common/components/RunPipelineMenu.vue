@@ -1,6 +1,11 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount,
+  defineComponent,
+  computed,
+  PropType,
+  ref,
+  Ref,
+  onBeforeMount,
 } from 'vue';
 import {
   Pipelines,
@@ -10,14 +15,25 @@ import {
   DatasetType,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import { stereoPipelineMarker, multiCamPipelineMarkers, LargeImageType } from 'dive-common/constants';
+import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
+import {
+  stereoPipelineMarker,
+  multiCamPipelineMarkers,
+  LargeImageType,
+  pipelineCreatesDatasetMarkers,
+} from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+
+type MenuState = 'idle' | 'configuring';
 
 export default defineComponent({
   name: 'RunPipelineMenu',
 
-  components: { JobLaunchDialog },
+  components: {
+    JobLaunchDialog,
+    JobConfigFilterTranscodeDialog,
+  },
 
   props: {
     selectedDatasetIds: {
@@ -68,6 +84,14 @@ export default defineComponent({
       reset: dismissLaunchDialog,
       state: jobState,
     } = useRequest();
+
+    const menuState: Ref<MenuState> = ref('idle');
+    const configuring = computed(() => menuState.value === 'configuring');
+    const selectedPipeline: Ref<Pipe | null> = ref(null);
+    const selectedPipelineName = computed(() => (selectedPipeline.value ? selectedPipeline.value.name : ''));
+    function cancelConfig() {
+      menuState.value = 'idle';
+    }
 
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
 
@@ -124,7 +148,10 @@ export default defineComponent({
       return false;
     });
 
-    async function runPipelineOnSelectedItem(pipeline: Pipe) {
+    async function _runPipelineOnSelectedItemInner(
+      pipeline: Pipe,
+      additionalConfigById?: Record<string, Record<string, string> | undefined>,
+    ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
       }
@@ -150,8 +177,44 @@ export default defineComponent({
       }
       selectedPipe.value = pipeline;
       await _runPipelineRequest(() => Promise.all(
-        datasetIds.map((id) => runPipeline(id, pipeline)),
+        datasetIds.map((id) => {
+          const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
+          return runPipeline(id, pipeline, additionalConfig);
+        }),
       ));
+    }
+
+    async function runPipelineOnSelectedItem(pipeline: Pipe) {
+      if (!pipelineCreatesDatasetMarkers.includes(pipeline.type)) {
+        _runPipelineOnSelectedItemInner(pipeline);
+      } else {
+        // If a pipeline creates datasets, open the configuration dialog
+        // to allow users to name that dataset
+        // This is relevant for filter and transcode pipeline types
+        selectedPipeline.value = pipeline;
+        menuState.value = 'configuring'; // force the dialog open
+      }
+    }
+
+    /**
+     * Handle a user confirming additional configuration for filter
+     * or transcode pipelines, which create new datasets.
+     *
+     * @param outputNameMap Map selected dataset IDs to the name
+     * of the resultant dataset created by the pipeline
+     */
+    async function exitPipelineConfig(outputNameMap: Record<string, string>) {
+      menuState.value = 'idle'; // close the dialog
+      const additionalConfigById: Record<string, Record<string, string>> = {};
+      Object.keys(outputNameMap).forEach((id: string) => {
+        additionalConfigById[id] = {
+          outputDatasetName: outputNameMap[id],
+        };
+      });
+      if (selectedPipeline.value) {
+        _runPipelineOnSelectedItemInner(selectedPipeline.value, additionalConfigById);
+      }
+      selectedPipeline.value = null; // reset selected pipeline state
     }
 
     function pipeTypeDisplay(pipeType: string) {
@@ -179,6 +242,12 @@ export default defineComponent({
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
       singlePipelineValue,
+      selectedPipeline,
+      selectedPipelineName,
+      configuring,
+      cancelConfig,
+      menuState,
+      exitPipelineConfig,
     };
   },
 });
@@ -336,6 +405,14 @@ export default defineComponent({
       :error="jobState.error"
       :message="successMessage"
       @close="dismissLaunchDialog"
+    />
+    <JobConfigFilterTranscodeDialog
+      :value="menuState === 'configuring'"
+      :dataset-name="'foo'"
+      :pipeline-name="selectedPipelineName"
+      :selected-dataset-ids="selectedDatasetIds"
+      @cancel="cancelConfig"
+      @submit="exitPipelineConfig"
     />
   </div>
 </template>
