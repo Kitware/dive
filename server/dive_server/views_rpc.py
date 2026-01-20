@@ -352,8 +352,6 @@ class RpcResource(Resource):
         """
         Run SAM2 prediction with point prompts.
 
-        Falls back to SAM3 (transformers) if SAM2 (Meta's sam2 module) is not available.
-
         Query params:
             folderId: Dataset folder ID
             frameNumber: Frame number to segment
@@ -377,19 +375,12 @@ class RpcResource(Resource):
         import os
 
         sam2 = get_sam2_service()
-        sam3 = get_sam3_service()
 
-        # Determine which backend to use
-        use_sam3_fallback = False
         if not sam2.is_available():
-            if sam3.is_available():
-                use_sam3_fallback = True
-                logger.info("SAM2 not available, using SAM3 (transformers) as fallback")
-            else:
-                return {
-                    "success": False,
-                    "error": "SAM2 is not available and SAM3 fallback also unavailable.",
-                }
+            return {
+                "success": False,
+                "error": "SAM2 is not available. Enable VIAME_ENABLE_PYTORCH-SAM2 in your build.",
+            }
 
         try:
             # Get dataset type and resolve image path
@@ -449,26 +440,18 @@ class RpcResource(Resource):
                     "error": f"Image file not found: {image_path}",
                 }
 
-            # Run prediction with appropriate backend
-            if use_sam3_fallback:
-                result = sam3.predict(
-                    image_path=image_path,
-                    points=body.get("points", []),
-                    point_labels=body.get("pointLabels", []),
-                    multimask_output=body.get("multimaskOutput", False),
-                )
-            else:
-                result = sam2.predict(
-                    image_path=image_path,
-                    points=body.get("points", []),
-                    point_labels=body.get("pointLabels", []),
-                    mask_input=body.get("maskInput"),
-                    multimask_output=body.get("multimaskOutput", False),
-                )
+            # Run SAM2 prediction
+            result = sam2.predict(
+                image_path=image_path,
+                points=body.get("points", []),
+                point_labels=body.get("pointLabels", []),
+                mask_input=body.get("maskInput"),
+                multimask_output=body.get("multimaskOutput", False),
+            )
             return result
 
         except Exception as e:
-            logger.exception("SAM2/SAM3 prediction failed")
+            logger.exception("SAM2 prediction failed")
             return {
                 "success": False,
                 "error": str(e),
@@ -477,21 +460,11 @@ class RpcResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get SAM2 service status"))
     def sam2_status(self):
-        """Check if SAM2 service is available and loaded.
-
-        Falls back to SAM3 (transformers) if SAM2 (Meta's sam2 module) is not available.
-        """
+        """Check if SAM2 service is available and loaded."""
         sam2 = get_sam2_service()
-        sam3 = get_sam3_service()
-
-        # Check if either SAM2 or SAM3 is available
-        sam2_available = sam2.is_available()
-        sam3_available = sam3.is_available()
-
         return {
-            "available": sam2_available or sam3_available,
-            "loaded": sam2.is_loaded() or sam3.is_loaded(),
-            "backend": "sam2" if sam2_available else ("sam3" if sam3_available else None),
+            "available": sam2.is_available(),
+            "loaded": sam2.is_loaded(),
         }
 
     @access.user

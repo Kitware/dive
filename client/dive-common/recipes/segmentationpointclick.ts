@@ -156,6 +156,12 @@ export default class SegmentationPointClick implements Recipe {
    * Must be called before using the recipe.
    */
   initialize(options: SegmentationRecipeOptions): void {
+    // eslint-disable-next-line no-console
+    console.log('[SegmentationRecipe] Initializing with options:', {
+      hasPredictFn: !!options.predictFn,
+      hasGetImagePath: !!options.getImagePath,
+      hasInitializeServiceFn: !!options.initializeServiceFn,
+    });
     this.predictFn = options.predictFn;
     this.getImagePath = options.getImagePath;
     this.initializeServiceFn = options.initializeServiceFn || null;
@@ -292,6 +298,13 @@ export default class SegmentationPointClick implements Recipe {
 
     try {
       const imagePath = this.getImagePath(frameNum);
+      // eslint-disable-next-line no-console
+      console.log(`[SegmentationRecipe] makePrediction frame=${frameNum}, imagePath="${imagePath}"`);
+
+      if (!imagePath) {
+        throw new Error(`No image path available for frame ${frameNum}`);
+      }
+
       const request: SegmentationPredictRequest = {
         imagePath,
         points: this.points,
