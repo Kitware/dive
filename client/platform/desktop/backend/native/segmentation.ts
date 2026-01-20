@@ -120,10 +120,11 @@ export class SegmentationServiceManager extends EventEmitter {
 
       // Build the command to run the segmentation service via Python module import
       // This avoids absolute path issues and uses the installed viame.pytorch module
+      // Using sam2_interactive for point-click magic wand segmentation
       const command = [
         `. "${viameSetup}"`,
         '&&',
-        'python -m viame.pytorch.sam3_interactive',
+        'python -m viame.pytorch.sam2_interactive',
         `--viame-path "${settings.viamePath}"`,
         '--device cuda',
       ].join(' ');
@@ -155,7 +156,7 @@ export class SegmentationServiceManager extends EventEmitter {
           if (message) {
             console.log(`[Segmentation] ${message}`);
             // Detect successful initialization
-            if (message.includes('SAM3 model initialized successfully')) {
+            if (message.includes('SAM2 model initialized successfully') || message.includes('SAM3 model initialized successfully')) {
               resolve();
             }
           }
@@ -234,6 +235,12 @@ export class SegmentationServiceManager extends EventEmitter {
     if (!this.process?.stdin) {
       throw new Error('Segmentation service stdin is not available');
     }
+
+    if (!request.imagePath) {
+      throw new Error('imagePath is required for segmentation prediction');
+    }
+
+    console.log(`[Segmentation] Sending predict request for image: ${request.imagePath}`);
 
     const id = this.generateRequestId();
     const fullRequest = {
