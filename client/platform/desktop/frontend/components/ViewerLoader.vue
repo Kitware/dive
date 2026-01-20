@@ -13,7 +13,9 @@ import { SegmentationPredictRequest } from 'dive-common/apispec';
 import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
   runTextQueryPipeline,
+  stereoEnable, stereoDisable,
 } from 'platform/desktop/frontend/api';
+import { clientSettings } from 'dive-common/store/settings';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import { datasets } from '../store/dataset';
@@ -387,6 +389,57 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Stereo Interactive Mode
+     * When enabled, loads the Foundation Stereo model for disparity-based annotation transfer
+     */
+    const stereoLoadingDialog = ref(false);
+    const stereoLoadingMessage = ref('');
+    const stereoLoadingError = ref('');
+    let stereoEnabled = false;
+
+    // Watch for stereo mode toggle changes
+    watch(
+      () => clientSettings.stereoSettings.interactiveModeEnabled,
+      async (enabled) => {
+        if (enabled && !stereoEnabled) {
+          // User is trying to enable - show loading dialog and initialize
+          stereoLoadingDialog.value = true;
+          stereoLoadingMessage.value = 'Loading Foundation Stereo model...';
+          stereoLoadingError.value = '';
+
+          try {
+            const result = await stereoEnable();
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to enable stereo service');
+            }
+            stereoEnabled = true;
+            stereoLoadingDialog.value = false;
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            stereoLoadingError.value = errorMessage;
+            stereoLoadingMessage.value = '';
+            // Reset the toggle since we failed
+            clientSettings.stereoSettings.interactiveModeEnabled = false;
+          }
+        } else if (!enabled && stereoEnabled) {
+          // User is disabling
+          try {
+            await stereoDisable();
+          } catch (err) {
+            console.error('Failed to disable stereo service:', err);
+          }
+          stereoEnabled = false;
+        }
+      },
+    );
+
+    function closeStereoLoadingDialog() {
+      stereoLoadingDialog.value = false;
+      stereoLoadingError.value = '';
+      stereoLoadingMessage.value = '';
+    }
+
     return {
       datasets,
       viewerRef,
@@ -403,70 +456,131 @@ export default defineComponent({
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      // Stereo loading dialog
+      stereoLoadingDialog,
+      stereoLoadingMessage,
+      stereoLoadingError,
+      closeStereoLoadingDialog,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer
-    :id.sync="id"
-    ref="viewerRef"
-    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
-    @change-camera="changeCamera"
-    @large-image-warning="largeImageWarning()"
-    @text-query-submit="handleTextQuerySubmit"
-    @text-query-init="handleTextQueryInit"
-    @text-query-all-frames="handleTextQueryAllFrames"
-  >
-    <template #title>
-      <v-tabs
-        icons-and-text
-        hide-slider
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="{ name: 'recent' }">
-          Library
-          <v-icon>mdi-folder-open</v-icon>
-        </v-tab>
-        <job-tab />
-        <v-tab :to="{ name: 'training' }">
-          Training<v-icon>mdi-brain</v-icon>
-        </v-tab>
-        <v-tab :to="{ name: 'settings' }">
-          Settings<v-icon>mdi-cog</v-icon>
-        </v-tab>
-      </v-tabs>
-    </template>
-    <template #title-right>
-      <RunPipelineMenu
-        :selected-dataset-ids="[modifiedId]"
-        :sub-type-list="subTypeList"
-        :camera-numbers="camNumbers"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="readOnlyMode"
-        v-bind="{ buttonOptions, menuOptions }"
-      />
-      <ImportAnnotations
-        :dataset-id="modifiedId"
-        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
-        block-on-unsaved
-      />
-      <Export
-        v-if="datasets[id]"
-        :id="modifiedId"
-        :button-options="buttonOptions"
-      />
-    </template>
-    <template #right-sidebar>
-      <SidebarContext>
-        <template #default="{ name, subCategory }">
-          <component
-            :is="name"
-            :sub-category="subCategory"
-          />
-        </template>
-      </SidebarContext>
-    </template>
-  </Viewer>
+  <div class="viewer-loader-wrapper">
+    <Viewer
+      :id.sync="id"
+      ref="viewerRef"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      @change-camera="changeCamera"
+      @large-image-warning="largeImageWarning()"
+      @text-query-submit="handleTextQuerySubmit"
+      @text-query-init="handleTextQueryInit"
+      @text-query-all-frames="handleTextQueryAllFrames"
+    >
+      <template #title>
+        <v-tabs
+          icons-and-text
+          hide-slider
+          style="flex-basis:0; flex-grow:0;"
+        >
+          <v-tab :to="{ name: 'recent' }">
+            Library
+            <v-icon>mdi-folder-open</v-icon>
+          </v-tab>
+          <job-tab />
+          <v-tab :to="{ name: 'training' }">
+            Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'settings' }">
+            Settings<v-icon>mdi-cog</v-icon>
+          </v-tab>
+        </v-tabs>
+      </template>
+      <template #title-right>
+        <RunPipelineMenu
+          :selected-dataset-ids="[modifiedId]"
+          :sub-type-list="subTypeList"
+          :camera-numbers="camNumbers"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="readOnlyMode"
+          v-bind="{ buttonOptions, menuOptions }"
+        />
+        <ImportAnnotations
+          :dataset-id="modifiedId"
+          v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
+          block-on-unsaved
+        />
+        <Export
+          v-if="datasets[id]"
+          :id="modifiedId"
+          :button-options="buttonOptions"
+        />
+      </template>
+      <template #right-sidebar>
+        <SidebarContext>
+          <template #default="{ name, subCategory }">
+            <component
+              :is="name"
+              :sub-category="subCategory"
+            />
+          </template>
+        </SidebarContext>
+      </template>
+    </Viewer>
+
+    <!-- Stereo Loading Dialog -->
+    <v-dialog
+      :value="stereoLoadingDialog"
+      persistent
+      max-width="400"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          Stereo Interactive Mode
+        </v-card-title>
+        <v-card-text>
+          <!-- Loading state -->
+          <div
+            v-if="stereoLoadingMessage"
+            class="d-flex flex-column align-center py-4"
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              size="48"
+              class="mb-4"
+            />
+            <span>{{ stereoLoadingMessage }}</span>
+          </div>
+          <!-- Error state -->
+          <v-alert
+            v-if="stereoLoadingError"
+            type="error"
+            class="mb-0"
+          >
+            {{ stereoLoadingError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions v-if="stereoLoadingError">
+          <v-spacer />
+          <v-btn
+            text
+            @click="closeStereoLoadingDialog"
+          >
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
+
+<style scoped>
+.viewer-loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+</style>

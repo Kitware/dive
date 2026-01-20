@@ -15,6 +15,7 @@ from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
 from .sam2_service import get_sam2_service
+from .stereo_service import get_stereo_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,14 @@ class RpcResource(Resource):
         # SAM2 Interactive Segmentation
         self.route("POST", ("sam2_predict",), self.sam2_predict)
         self.route("GET", ("sam2_status",), self.sam2_status)
+
+        # Foundation Stereo Interactive Service
+        self.route("POST", ("stereo_enable",), self.stereo_enable)
+        self.route("POST", ("stereo_disable",), self.stereo_disable)
+        self.route("POST", ("stereo_set_frame",), self.stereo_set_frame)
+        self.route("POST", ("stereo_transfer_line",), self.stereo_transfer_line)
+        self.route("POST", ("stereo_transfer_points",), self.stereo_transfer_points)
+        self.route("GET", ("stereo_status",), self.stereo_status)
 
     @access.user
     @autoDescribeRoute(
@@ -459,4 +468,312 @@ class RpcResource(Resource):
         return {
             "available": sam2.is_available(),
             "loaded": sam2.is_loaded(),
+        }
+
+    # ============== Foundation Stereo Interactive Endpoints ==============
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Enable Foundation Stereo interactive service")
+        .modelParam(
+            "folderId",
+            description="Dataset folder ID (for loading calibration)",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def stereo_enable(self, folder):
+        """
+        Enable the Foundation Stereo service for interactive stereo annotation.
+
+        This loads the model and prepares for proactive disparity computation.
+        The calibration matrix is loaded from the dataset if available.
+        """
+        import os
+        import json
+        from girder.models.item import Item
+        from girder.models.file import File
+
+        stereo = get_stereo_service()
+
+        if not stereo.is_available():
+            return {
+                "success": False,
+                "error": "Foundation Stereo is not available. Enable VIAME_ENABLE_PYTORCH-FOUNDATION-STEREO in your build.",
+            }
+
+        try:
+            # Try to load calibration from the dataset
+            calibration = None
+            items = list(Item().find({"folderId": folder["_id"]}))
+            for item in items:
+                if item.get("name", "").lower() in ["calibration.json", "calibration_matrices.json"]:
+                    files = list(File().find({"itemId": item["_id"]}))
+                    if files:
+                        assetstore = File().getAssetstoreAdapter(files[0])
+                        cal_path = assetstore.fullPath(files[0])
+                        if os.path.exists(cal_path):
+                            with open(cal_path, 'r') as f:
+                                calibration = json.load(f)
+                            logger.info(f"Loaded calibration from {cal_path}")
+                            break
+
+            result = stereo.enable(calibration)
+            return result
+
+        except Exception as e:
+            logger.exception("Failed to enable Foundation Stereo")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(Description("Disable Foundation Stereo interactive service"))
+    def stereo_disable(self):
+        """Disable the Foundation Stereo service and free resources."""
+        stereo = get_stereo_service()
+        return stereo.disable()
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Set current stereo frame for disparity computation")
+        .modelParam(
+            "folderId",
+            description="Dataset folder ID",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+        .param(
+            "frameNumber",
+            description="Frame number to compute disparity for",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+    )
+    def stereo_set_frame(self, folder, frameNumber):
+        """
+        Set the current frame and start computing disparity proactively.
+
+        This should be called when the user navigates to a new frame in stereo mode.
+        The disparity computation starts immediately in the background, so it's
+        ready when the user draws annotations.
+
+        For stereo datasets, this expects a folder structure where images are
+        organized as left/right pairs (e.g., sorted by name with left images
+        in the first half and right in the second half, or by naming convention).
+        """
+        import os
+        from dive_utils import fromMeta
+        from dive_utils.constants import TypeMarker, ImageSequenceType
+        from girder.models.item import Item
+        from girder.models.file import File
+
+        stereo = get_stereo_service()
+
+        if not stereo.is_enabled():
+            return {
+                "success": False,
+                "error": "Stereo service not enabled. Call stereo_enable first.",
+            }
+
+        try:
+            dataset_type = fromMeta(folder, TypeMarker)
+            if dataset_type != ImageSequenceType:
+                return {
+                    "success": False,
+                    "error": f"Stereo mode only supports image sequences, got: {dataset_type}",
+                }
+
+            # Get all image items sorted by name
+            items = list(Item().find(
+                {"folderId": folder["_id"]},
+                sort=[("name", 1)]
+            ))
+
+            image_items = [
+                item for item in items
+                if item.get("name", "").lower().endswith(
+                    ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
+                )
+            ]
+
+            # For stereo, we expect pairs - either by convention or structure
+            # Common conventions:
+            # 1. First half = left, second half = right
+            # 2. Names ending in _L/_R or _left/_right
+            # 3. Alternating left/right
+
+            num_images = len(image_items)
+
+            # Try to detect naming convention
+            left_images = []
+            right_images = []
+
+            for item in image_items:
+                name = item.get("name", "").lower()
+                if "_l." in name or "_left." in name or "/left/" in name or "left_" in name:
+                    left_images.append(item)
+                elif "_r." in name or "_right." in name or "/right/" in name or "right_" in name:
+                    right_images.append(item)
+
+            # If no naming convention detected, assume first half is left
+            if not left_images or not right_images:
+                half = num_images // 2
+                left_images = image_items[:half]
+                right_images = image_items[half:]
+
+            if frameNumber < 0 or frameNumber >= len(left_images):
+                return {
+                    "success": False,
+                    "error": f"Frame {frameNumber} out of range (0-{len(left_images)-1})",
+                }
+
+            if frameNumber >= len(right_images):
+                return {
+                    "success": False,
+                    "error": f"No matching right image for frame {frameNumber}",
+                }
+
+            # Get file paths
+            left_item = left_images[frameNumber]
+            right_item = right_images[frameNumber]
+
+            left_files = list(File().find({"itemId": left_item["_id"]}))
+            right_files = list(File().find({"itemId": right_item["_id"]}))
+
+            if not left_files or not right_files:
+                return {
+                    "success": False,
+                    "error": "Could not find image files for the stereo pair",
+                }
+
+            left_assetstore = File().getAssetstoreAdapter(left_files[0])
+            right_assetstore = File().getAssetstoreAdapter(right_files[0])
+
+            left_path = left_assetstore.fullPath(left_files[0])
+            right_path = right_assetstore.fullPath(right_files[0])
+
+            if not os.path.exists(left_path):
+                return {"success": False, "error": f"Left image not found: {left_path}"}
+            if not os.path.exists(right_path):
+                return {"success": False, "error": f"Right image not found: {right_path}"}
+
+            result = stereo.set_frame(left_path, right_path)
+            result["left_image"] = left_item.get("name")
+            result["right_image"] = right_item.get("name")
+            return result
+
+        except Exception as e:
+            logger.exception("Failed to set stereo frame")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Transfer a line from left to right image using disparity")
+        .jsonParam(
+            "body",
+            description="JSON object with line points",
+            paramType="body",
+            schema={
+                "line": List[List[float]],  # [[x1, y1], [x2, y2]]
+            },
+        )
+    )
+    def stereo_transfer_line(self, body):
+        """
+        Transfer a line from the left stereo image to the right image.
+
+        Given a line defined by two points on the left image, computes the
+        corresponding points on the right image using the disparity map.
+
+        Request body:
+            line: List of two [x, y] points defining the line
+
+        Returns:
+            transferred_line: The line points on the right image
+            original_line: The input line
+            depth_info: Optional depth information if calibration is available
+        """
+        stereo = get_stereo_service()
+
+        try:
+            line = body.get("line")
+            if not line:
+                return {"success": False, "error": "line is required"}
+
+            return stereo.transfer_line(line)
+
+        except Exception as e:
+            logger.exception("Failed to transfer line")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Transfer points from left to right image using disparity")
+        .jsonParam(
+            "body",
+            description="JSON object with points",
+            paramType="body",
+            schema={
+                "points": List[List[float]],  # [[x1, y1], [x2, y2], ...]
+            },
+        )
+    )
+    def stereo_transfer_points(self, body):
+        """
+        Transfer multiple points from the left stereo image to the right image.
+
+        Request body:
+            points: List of [x, y] points
+
+        Returns:
+            transferred_points: The points on the right image
+            original_points: The input points
+            disparity_values: Disparity value at each point
+        """
+        stereo = get_stereo_service()
+
+        try:
+            points = body.get("points")
+            if not points:
+                return {"success": False, "error": "points is required"}
+
+            return stereo.transfer_points(points)
+
+        except Exception as e:
+            logger.exception("Failed to transfer points")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    @access.user
+    @autoDescribeRoute(Description("Get Foundation Stereo service status"))
+    def stereo_status(self):
+        """
+        Get the current status of the Foundation Stereo service.
+
+        Returns:
+            enabled: Whether the service is enabled
+            disparity_ready: Whether disparity is computed for current frame
+            computing: Whether disparity is currently being computed
+            has_calibration: Whether calibration data is loaded
+            model_loaded: Whether the model is loaded
+        """
+        stereo = get_stereo_service()
+        return {
+            "available": stereo.is_available(),
+            **stereo.get_status(),
         }

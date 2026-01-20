@@ -51,6 +51,13 @@ interface AnnotationSettings {
   layoutSettings: {
     sidebarPosition: 'left' | 'bottom';
   };
+  stereoSettings: {
+    interactiveModeEnabled: boolean;
+    /** Loading state - not persisted, set by ViewerLoader */
+    loading: boolean;
+    /** Loading message to display */
+    loadingMessage: string;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -111,6 +118,11 @@ const defaultSettings: AnnotationSettings = {
   layoutSettings: {
     sidebarPosition: 'left',
   },
+  stereoSettings: {
+    interactiveModeEnabled: false,
+    loading: false,
+    loadingMessage: '',
+  },
 };
 
 // Utility to safely load from localStorage
@@ -127,10 +139,21 @@ function loadStoredSettings(): Partial<AnnotationSettings> {
 }
 
 // Utility to safely save to localStorage
+// Note: stereoSettings is excluded from persistence as it should reset each session
 function saveSettings() {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+      // Clone settings and exclude stereoSettings from persistence
+      const settingsToSave = {
+        ...clientSettings,
+        stereoSettings: {
+          // Only persist non-transient settings (none currently)
+          interactiveModeEnabled: false, // Always false on reload
+          loading: false,
+          loadingMessage: '',
+        },
+      };
+      localStorage.setItem('Settings', JSON.stringify(settingsToSave));
     }
   } catch (e) {
     console.warn('Failed to save settings to localStorage:', e);

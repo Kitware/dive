@@ -125,6 +125,7 @@ export default defineComponent({
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
+    const subType: Ref<'stereo' | 'multicam' | null> = ref(null);
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode
     || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
@@ -621,6 +622,8 @@ export default defineComponent({
             throw new Error('Multicamera dataset without default camera specified.');
           }
         }
+        /* Set subType for stereo/multicam detection */
+        subType.value = (meta.subType as 'stereo' | 'multicam' | null) || null;
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
         groupStyleManager.populateTypeStyles(meta.customGroupStyling);
@@ -1022,6 +1025,7 @@ export default defineComponent({
       defaultCamera,
       selectedCamera,
       changeCamera,
+      subType,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -1467,6 +1471,7 @@ export default defineComponent({
               <template slot="settings">
                 <TrackSettingsPanel
                   :all-types="trackFilters.allTypes"
+                  :is-stereo-dataset="subType === 'stereo'"
                 />
               </template>
             </TrackList>

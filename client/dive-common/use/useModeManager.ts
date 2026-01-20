@@ -57,6 +57,14 @@ interface SetAnnotationStateArgs {
  *
  * Mostly allows us to inject additional logic into transitions.
  */
+/** Callback type for stereo line completion */
+export interface StereoLineCompleteParams {
+  camera: string;
+  line: [[number, number], [number, number]];
+  trackId: number;
+  frameNum: number;
+}
+
 export default function useModeManager({
   cameraStore,
   trackFilterControls,
@@ -64,6 +72,7 @@ export default function useModeManager({
   aggregateController,
   readonlyState,
   recipes,
+  onStereoLineComplete,
 }: {
     cameraStore: CameraStore;
     trackFilterControls: TrackFilterControls;
@@ -71,6 +80,8 @@ export default function useModeManager({
     aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
+    /** Optional callback when a LineString is completed (for stereo mode) */
+    onStereoLineComplete?: (params: StereoLineCompleteParams) => void;
 }) {
   let creating = false;
   const { prompt } = usePrompt();
@@ -562,6 +573,25 @@ export default function useModeManager({
           // Or none of the recieps reported that they were unfinished.
           if (eventType === 'editing' || update.done.every((v) => v !== false)) {
             newTrackSettingsAfterLogic(track);
+
+            // Call stereo line completion callback if this is a LineString
+            if (
+              onStereoLineComplete
+              && clientSettings.stereoSettings.interactiveModeEnabled
+              && data.geometry.type === 'LineString'
+              && data.geometry.coordinates.length >= 2
+            ) {
+              const coords = data.geometry.coordinates as [number, number][];
+              // Only transfer lines with exactly 2 points (head-tail style)
+              if (coords.length === 2) {
+                onStereoLineComplete({
+                  camera: selectedCamera.value,
+                  line: [coords[0], coords[1]] as [[number, number], [number, number]],
+                  trackId: selectedTrackId.value as number,
+                  frameNum,
+                });
+              }
+            }
           }
         }
       } else {

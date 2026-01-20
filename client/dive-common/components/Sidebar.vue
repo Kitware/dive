@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  PropType,
   reactive,
   toRef,
   watch,
@@ -49,11 +50,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    subType: {
+      type: String as PropType<'stereo' | 'multicam' | null>,
+      default: null,
+    },
   },
 
-  setup() {
+  setup(props) {
     const allTypesRef = useTrackFilters().allTypes;
     const readOnlyMode = useReadOnlyMode();
+    const isStereoDataset = computed(() => props.subType === 'stereo');
     const cameraStore = useCameraStore();
     const multiCam = cameraStore.camMap.value.size > 1;
     const {
@@ -155,6 +161,7 @@ export default defineComponent({
       visible,
       horizontalTabIcon,
       horizontalTabTooltip,
+      isStereoDataset,
       /* methods */
       doToggleMerge,
       swapTabs,
@@ -219,6 +226,7 @@ export default defineComponent({
             <template slot="settings">
               <TrackSettingsPanel
                 :all-types="allTypesRef"
+                :is-stereo-dataset="isStereoDataset"
               />
             </template>
           </TrackList>
@@ -294,6 +302,7 @@ export default defineComponent({
           <template slot="settings">
             <TrackSettingsPanel
               :all-types="allTypesRef"
+              :is-stereo-dataset="isStereoDataset"
             />
           </template>
         </TrackList>

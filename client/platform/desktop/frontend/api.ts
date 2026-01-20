@@ -249,6 +249,137 @@ async function refineDetections(request: RefineDetectionsRequest): Promise<Refin
 }
 
 /**
+ * Interactive Stereo API
+ * Provides disparity-based annotation transfer for stereo imagery
+ */
+
+interface StereoCalibration {
+  fx_left: number;
+  fy_left?: number;
+  cx_left: number;
+  cy_left: number;
+  T: [number, number, number];
+}
+
+interface StereoEnableResponse {
+  success: boolean;
+  error?: string;
+}
+
+interface StereoSetFrameRequest {
+  leftImagePath: string;
+  rightImagePath: string;
+}
+
+interface StereoSetFrameResponse {
+  success: boolean;
+  error?: string;
+  disparityReady: boolean;
+  message?: string;
+}
+
+interface StereoStatusResponse {
+  success: boolean;
+  enabled: boolean;
+  disparityReady: boolean;
+  computing?: boolean;
+  hasCalibration: boolean;
+}
+
+interface StereoTransferLineRequest {
+  line: [[number, number], [number, number]];
+}
+
+interface StereoTransferLineResponse {
+  success: boolean;
+  error?: string;
+  transferredLine?: [[number, number], [number, number]];
+  originalLine?: [[number, number], [number, number]];
+  depthInfo?: {
+    depthPoint1: number | null;
+    depthPoint2: number | null;
+    disparityPoint1: number;
+    disparityPoint2: number;
+  };
+}
+
+interface StereoTransferPointsRequest {
+  points: [number, number][];
+}
+
+interface StereoTransferPointsResponse {
+  success: boolean;
+  error?: string;
+  transferredPoints?: [number, number][];
+  originalPoints?: [number, number][];
+  disparityValues?: number[];
+}
+
+async function stereoEnable(calibration?: StereoCalibration): Promise<StereoEnableResponse> {
+  return ipcRenderer.invoke('stereo-enable', { calibration });
+}
+
+async function stereoDisable(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('stereo-disable');
+}
+
+async function stereoSetFrame(request: StereoSetFrameRequest): Promise<StereoSetFrameResponse> {
+  return ipcRenderer.invoke('stereo-set-frame', request);
+}
+
+async function stereoGetStatus(): Promise<StereoStatusResponse> {
+  return ipcRenderer.invoke('stereo-get-status');
+}
+
+async function stereoTransferLine(request: StereoTransferLineRequest): Promise<StereoTransferLineResponse> {
+  return ipcRenderer.invoke('stereo-transfer-line', request);
+}
+
+async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
+  return ipcRenderer.invoke('stereo-transfer-points', request);
+}
+
+async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('stereo-set-calibration', calibration);
+}
+
+async function stereoIsEnabled(): Promise<{ enabled: boolean }> {
+  return ipcRenderer.invoke('stereo-is-enabled');
+}
+
+/** Callback type for disparity ready events */
+type StereoDisparityReadyCallback = (data: { left_path?: string; success: boolean }) => void;
+type StereoDisparityErrorCallback = (data: { error?: string }) => void;
+
+/**
+ * Listen for disparity_ready events from the stereo service
+ * Returns a function to remove the listener
+ */
+function onStereoDisparityReady(callback: StereoDisparityReadyCallback): () => void {
+  const handler = (_: unknown, data: { left_path?: string; success: boolean }) => {
+    callback(data);
+  };
+  ipcRenderer.on('stereo-disparity-ready', handler);
+  return () => {
+    ipcRenderer.removeListener('stereo-disparity-ready', handler);
+  };
+}
+
+/**
+ * Listen for disparity_error events from the stereo service
+ * Returns a function to remove the listener
+ */
+function onStereoDisparityError(callback: StereoDisparityErrorCallback): () => void {
+  const handler = (_: unknown, data: { error?: string }) => {
+    callback(data);
+  };
+  ipcRenderer.on('stereo-disparity-error', handler);
+  return () => {
+    ipcRenderer.removeListener('stereo-disparity-error', handler);
+  };
+}
+
+/**
  * Run text query pipeline on all frames
  * Launches the utility_text_query_sam3.pipe pipeline with the query string as input
  */
@@ -373,4 +504,15 @@ export {
   /* Calibration APIs */
   getLastCalibration,
   saveCalibration,
+  /* Stereo APIs */
+  stereoEnable,
+  stereoDisable,
+  stereoSetFrame,
+  stereoGetStatus,
+  stereoTransferLine,
+  stereoTransferPoints,
+  stereoSetCalibration,
+  stereoIsEnabled,
+  onStereoDisparityReady,
+  onStereoDisparityError,
 };
