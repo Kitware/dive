@@ -750,6 +750,10 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
+    // Update segmentation recipe when frame changes to show only current frame's points
+    watch(() => time.frame.value, (newFrame) => {
+      segmentationRecipe.handleFrameChange(newFrame);
+    });
 
     function handleResize() {
       if (controlsRef.value) {
