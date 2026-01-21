@@ -28,6 +28,8 @@ interface Recipe {
   icon: Ref<string>;
   active: Ref<boolean>;
   toggleable: Ref<boolean>;
+  /** Whether the recipe is currently loading (e.g., initializing models) */
+  loading?: Ref<boolean>;
   bus: Vue;
   update: (
     mode: 'in-progress' | 'editing',

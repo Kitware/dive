@@ -19,6 +19,7 @@ interface ButtonData {
   icon: string;
   type?: VisibleAnnotationTypes;
   active: boolean;
+  loading?: boolean;
   mousetrap?: Mousetrap[];
   description: string;
   click: () => void;
@@ -117,6 +118,7 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
+          loading: r.loading?.value ?? false,
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -240,7 +242,7 @@ export default defineComponent({
         <template #activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
-            :disabled="!editingMode"
+            :disabled="!editingMode || activeEditButton?.loading"
             :outlined="!activeEditButton?.active"
             :color="activeEditButton?.active ? editingHeader.color : ''"
             class="mx-1"
@@ -248,7 +250,7 @@ export default defineComponent({
             v-on="on"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">{{ activeEditButton?.icon }}</v-icon>
             <v-btn
               icon
               x-small
@@ -268,7 +270,7 @@ export default defineComponent({
           >
             <v-list-item-icon>
               <v-btn
-                :disabled="!editingMode"
+                :disabled="!editingMode || button.loading"
                 :outlined="!button.active"
                 :color="button.active ? editingHeader.color : ''"
                 class="mx-1"
@@ -276,7 +278,7 @@ export default defineComponent({
                 @click="button.click"
               >
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon>{{ button.icon }}</v-icon>
+                <v-icon :class="{ 'mdi-spin': button.loading }">{{ button.icon }}</v-icon>
               </v-btn>
             </v-list-item-icon>
             <v-list-item-content>
@@ -307,7 +309,7 @@ export default defineComponent({
         <v-btn
           v-for="button in editButtons"
           :key="button.id + 'view'"
-          :disabled="!editingMode"
+          :disabled="!editingMode || button.loading"
           :outlined="!button.active"
           :color="button.active ? editingHeader.color : ''"
           class="mx-1"
@@ -315,7 +317,7 @@ export default defineComponent({
           @click="button.click"
         >
           <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
+          <v-icon :class="{ 'mdi-spin': button.loading }">{{ button.icon }}</v-icon>
         </v-btn>
       </template>
       <slot name="delete-controls" />
