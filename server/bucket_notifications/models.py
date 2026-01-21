@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 from dive_server.crud import PydanticAccessControlModel
 
@@ -33,4 +34,5 @@ class GCSNotificationRecord(PydanticAccessControlModel):
 
 
 class NotificationRouterRule(BaseModel):
-    folderId: str
+    folderId: Optional[str] = None
+    collectionId: Optional[str] = None

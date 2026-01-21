@@ -1,5 +1,5 @@
 import os
-
+import json 
 from bson.objectid import ObjectId
 from girder import logger
 from girder.api import access
@@ -9,12 +9,14 @@ from girder.constants import SortDir
 from girder.exceptions import RestException
 from girder.models.assetstore import Assetstore
 from girder.models.folder import Folder
+from girder.models.collection import Collection
 from girder.models.user import User
 
 from dive_utils.types import AssetstoreModel, GirderModel
-
+from typing import Literal
 from .constants import AssetstoreRuleMarker
 from .models import GCSNotificationRecord, GCSPushNotificationPayload, NotificationRouterRule
+from dive_server.event import process_dangling_annotation_files, convert_video_recursive
 
 
 class BucketNotification(Resource):
@@ -27,7 +29,7 @@ class BucketNotification(Resource):
         self.route("POST", ('gcs',), self.gcs_save_record)
 
     @staticmethod
-    def processNotification(store: AssetstoreModel, rootFolder: GirderModel, importPath: str):
+    def processNotification(store: AssetstoreModel, rootFolder: GirderModel, importPath: str, importDestType: Literal['folder', 'collection'] = 'folder'):
         """
         Import at proper location
         """
@@ -74,12 +76,31 @@ class BucketNotification(Resource):
         Assetstore().importData(
             store,
             target,
-            'folder',
+            importDestType,
             {'importPath': realImportPath},
             None,
             owner,
             force_recursive=False,
         )
+        # Now need to post process the import to import the new data
+        if importDestType == 'folder':
+            # go through all sub folders and add a new script to convert
+            destinationFolder = Folder().findOne({"_id": ObjectId(target['_id'])})
+            userId = destinationFolder['creatorId'] or destinationFolder['baseParentId']
+            user = User().findOne({'_id': ObjectId(userId)})
+            process_dangling_annotation_files(destinationFolder, user)
+            convert_video_recursive(destinationFolder, user)
+        if importDestType == 'collection':
+            logger.info(f'Processing collection import after for destination id {target["_id"]}')
+            destinationCollection = Collection().findOne({"_id": ObjectId(target['_id'])})
+            userId = destinationCollection['creatorId'] or destinationCollection['baseParentId']
+            user = User().findOne({'_id': ObjectId(userId)})
+            child_folders = Folder().find({'parentId': ObjectId(target['_id'])})
+            logger.info(f'Processing {child_folders.count()} child folders for collection import after for destination id {target["_id"]}')
+            for child in child_folders:
+                logger.info(f'Processing child folder {child["name"]} for collection import after for destination id {target["_id"]}')
+                process_dangling_annotation_files(child, user)
+                convert_video_recursive(child, user)
 
     @access.admin
     @autoDescribeRoute(
@@ -117,15 +138,22 @@ class BucketNotification(Resource):
                         AssetstoreRuleMarker: {'$exists': True},
                         'bucket': payload.message.attributes.bucketId,
                         # The only viable GSC Service string
-                        'service': 'https://storage.googleapis.com',
+                        #'service': 'https://storage.googleapis.com',
                     }
                 )
                 if store is not None:
                     rule = NotificationRouterRule(**store[AssetstoreRuleMarker])
-                    mountRoot = Folder().findOne({'_id': ObjectId(rule.folderId)})
-                    BucketNotification.processNotification(
-                        store, mountRoot, payload.message.attributes.objectId
-                    )
+                    logger.info(f'Processing notification for bucket {payload.message.attributes.bucketId} with rule {json.dumps(rule.dict())}')
+                    if rule.folderId is not None:
+                        mountRoot = Folder().findOne({'_id': ObjectId(rule.folderId)})
+                    elif rule.collectionId is not None:
+                        mountRoot = Collection().findOne({'_id': ObjectId(rule.collectionId)})
+                    else:
+                        logger.warning(f'No mount root found for bucket {payload.message.attributes.bucketId}')
+                        return
+                    BucketNotification.processNotification(store, mountRoot, payload.message.attributes.objectId, importDestType='folder' if rule.folderId is not None else 'collection')
+                else:
+                    logger.warning(f'No store found for bucket {payload.message.attributes.bucketId}')
         except Exception as err:
             # exceptions must be swallowed to prevent pub/sub queue backups
             # message loss is always easily recoverable by running a manual
