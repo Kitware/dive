@@ -99,7 +99,7 @@ async function segmentationInitialize(): Promise<void> {
 }
 
 /**
- * Text Query API (SAM3 with Grounding DINO)
+ * Text Query API for open-vocabulary detection/segmentation
  */
 
 async function textQuery(

@@ -118,13 +118,11 @@ export class SegmentationServiceManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       const viameSetup = npath.join(settings.viamePath, 'setup_viame.sh');
 
-      // Build the command to run the segmentation service via Python module import
-      // This avoids absolute path issues and uses the installed viame.pytorch module
-      // Using sam2_interactive for point-click magic wand segmentation
+      // Build the command to run the interactive segmentation service
       const command = [
         `. "${viameSetup}"`,
         '&&',
-        'python -m viame.pytorch.sam2_interactive',
+        'python -m viame.core.interactive_segmentation',
         `--viame-path "${settings.viamePath}"`,
         '--device cuda',
       ].join(' ');
@@ -156,7 +154,7 @@ export class SegmentationServiceManager extends EventEmitter {
           if (message) {
             console.log(`[Segmentation] ${message}`);
             // Detect successful initialization
-            if (message.includes('SAM2 model initialized successfully') || message.includes('SAM3 model initialized successfully')) {
+            if (message.includes('model initialized successfully')) {
               resolve();
             }
           }
@@ -239,8 +237,6 @@ export class SegmentationServiceManager extends EventEmitter {
     if (!request.imagePath) {
       throw new Error('imagePath is required for segmentation prediction');
     }
-
-    console.log(`[Segmentation] Sending predict request for image: ${request.imagePath}`);
 
     const id = this.generateRequestId();
     const fullRequest = {

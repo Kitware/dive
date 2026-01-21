@@ -14,8 +14,7 @@ from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, T
 from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
-from .sam2_service import get_sam2_service
-from .sam3_service import get_sam3_service
+from .vital_segmentation_service import get_vital_segmentation_service
 
 logger = logging.getLogger(__name__)
 
@@ -374,9 +373,9 @@ class RpcResource(Resource):
         from girder.models.item import Item
         import os
 
-        sam2 = get_sam2_service()
+        service = get_vital_segmentation_service()
 
-        if not sam2.is_available():
+        if not service.is_available():
             return {
                 "success": False,
                 "error": "SAM2 is not available. Enable VIAME_ENABLE_PYTORCH-SAM2 in your build.",
@@ -440,8 +439,8 @@ class RpcResource(Resource):
                     "error": f"Image file not found: {image_path}",
                 }
 
-            # Run SAM2 prediction
-            result = sam2.predict(
+            # Run segmentation prediction
+            result = service.predict(
                 image_path=image_path,
                 points=body.get("points", []),
                 point_labels=body.get("pointLabels", []),
@@ -451,7 +450,7 @@ class RpcResource(Resource):
             return result
 
         except Exception as e:
-            logger.exception("SAM2 prediction failed")
+            logger.exception("Segmentation prediction failed")
             return {
                 "success": False,
                 "error": str(e),
@@ -460,11 +459,13 @@ class RpcResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get SAM2 service status"))
     def sam2_status(self):
-        """Check if SAM2 service is available and loaded."""
-        sam2 = get_sam2_service()
+        """Check if segmentation service is available and loaded."""
+        service = get_vital_segmentation_service()
+        backend_info = service.get_backend_info()
         return {
-            "available": sam2.is_available(),
-            "loaded": sam2.is_loaded(),
+            "available": service.is_available(),
+            "loaded": service.is_loaded(),
+            "backend": backend_info.get('backend'),
         }
 
     @access.user
@@ -523,12 +524,12 @@ class RpcResource(Resource):
         from girder.models.item import Item
         import os
 
-        sam3 = get_sam3_service()
+        service = get_vital_segmentation_service()
 
-        if not sam3.is_available():
+        if not service.is_available():
             return {
                 "success": False,
-                "error": "SAM3 (transformers) is not available. Install transformers library.",
+                "error": "Segmentation service is not available.",
             }
 
         try:
@@ -587,8 +588,8 @@ class RpcResource(Resource):
                     "error": f"Image file not found: {image_path}",
                 }
 
-            # Run SAM3 prediction
-            result = sam3.predict(
+            # Run segmentation prediction
+            result = service.predict(
                 image_path=image_path,
                 points=body.get("points", []),
                 point_labels=body.get("pointLabels", []),
@@ -597,7 +598,7 @@ class RpcResource(Resource):
             return result
 
         except Exception as e:
-            logger.exception("SAM3 prediction failed")
+            logger.exception("Segmentation prediction failed")
             return {
                 "success": False,
                 "error": str(e),
@@ -658,18 +659,18 @@ class RpcResource(Resource):
         from girder.models.item import Item
         import os
 
-        sam3 = get_sam3_service()
+        service = get_vital_segmentation_service()
 
-        if not sam3.is_available():
+        if not service.is_available():
             return {
                 "success": False,
-                "error": "SAM3 (transformers) is not available.",
+                "error": "Segmentation service is not available.",
             }
 
-        if not sam3.is_grounding_available():
+        if not service.is_text_query_available():
             return {
                 "success": False,
-                "error": "Grounding DINO not available for text queries.",
+                "error": "Text query not available (requires SAM3 backend).",
             }
 
         try:
@@ -726,7 +727,7 @@ class RpcResource(Resource):
                 }
 
             # Run text query
-            result = sam3.text_query(
+            result = service.text_query(
                 image_path=image_path,
                 text=body.get("text", "object"),
                 box_threshold=body.get("boxThreshold", 0.3),
@@ -736,7 +737,7 @@ class RpcResource(Resource):
             return result
 
         except Exception as e:
-            logger.exception("SAM3 text query failed")
+            logger.exception("Text query failed")
             return {
                 "success": False,
                 "error": str(e),
@@ -745,13 +746,14 @@ class RpcResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get SAM3 service status"))
     def sam3_status(self):
-        """Check if SAM3 service is available and loaded."""
-        sam3 = get_sam3_service()
-        backend_info = sam3.get_backend_info()
+        """Check if segmentation service is available and loaded."""
+        service = get_vital_segmentation_service()
+        backend_info = service.get_backend_info()
         return {
-            "available": sam3.is_available(),
-            "loaded": sam3.is_loaded(),
-            "grounding_available": sam3.is_grounding_available(),
+            "available": service.is_available(),
+            "loaded": service.is_loaded(),
+            "text_query_available": service.is_text_query_available(),
             "backend": backend_info.get('backend'),
-            "local_models": backend_info.get('local_models'),
+            "checkpoint": backend_info.get('checkpoint'),
+            "device": backend_info.get('device'),
         }

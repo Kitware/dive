@@ -12,6 +12,7 @@ interface ButtonData {
   icon: string;
   type?: VisibleAnnotationTypes;
   active: boolean;
+  loading?: boolean;
   mousetrap?: Mousetrap[];
   click: () => void;
 }
@@ -101,6 +102,7 @@ export default Vue.extend({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: this.editingTrack && r.active.value,
+          loading: r.loading?.value ?? false,
           click: () => r.activate(),
           mousetrap: [
             {
@@ -309,7 +311,7 @@ export default Vue.extend({
       <v-btn
         v-for="button in editButtons"
         :key="button.id + 'view'"
-        :disabled="!editingMode"
+        :disabled="!editingMode || button.loading"
         :outlined="!button.active"
         :color="button.active ? editingHeader.color : ''"
         class="mx-1"
@@ -317,7 +319,9 @@ export default Vue.extend({
         @click="button.click"
       >
         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-        <v-icon>{{ button.icon }}</v-icon>
+        <v-icon :class="{ 'mdi-spin': button.loading }">
+          {{ button.icon }}
+        </v-icon>
       </v-btn>
       <!-- Text Query button -->
       <v-btn

@@ -252,7 +252,7 @@ export interface SegmentationStatusResponse {
 }
 
 /**
- * Text Query Types for SAM3 open-vocabulary detection/segmentation
+ * Text Query Types for open-vocabulary detection/segmentation
  */
 
 /** A single detection returned from a text query */

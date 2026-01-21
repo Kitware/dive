@@ -143,12 +143,16 @@ export default class SegmentationPointClick implements Recipe {
   /** Per-frame segmentation data for multi-frame support */
   private frameData: Map<number, FrameSegmentationData> = new Map();
 
+  /** Whether the recipe is currently loading (initializing the service) */
+  loading: Ref<boolean>;
+
   constructor() {
     this.bus = new Vue();
     this.active = ref(false);
     this.name = 'Segment';
     this.toggleable = ref(true);
     this.icon = ref('mdi-auto-fix');
+    this.loading = ref(false);
   }
 
   /**
@@ -156,12 +160,6 @@ export default class SegmentationPointClick implements Recipe {
    * Must be called before using the recipe.
    */
   initialize(options: SegmentationRecipeOptions): void {
-    // eslint-disable-next-line no-console
-    console.log('[SegmentationRecipe] Initializing with options:', {
-      hasPredictFn: !!options.predictFn,
-      hasGetImagePath: !!options.getImagePath,
-      hasInitializeServiceFn: !!options.initializeServiceFn,
-    });
     this.predictFn = options.predictFn;
     this.getImagePath = options.getImagePath;
     this.initializeServiceFn = options.initializeServiceFn || null;
@@ -298,8 +296,6 @@ export default class SegmentationPointClick implements Recipe {
 
     try {
       const imagePath = this.getImagePath(frameNum);
-      // eslint-disable-next-line no-console
-      console.log(`[SegmentationRecipe] makePrediction frame=${frameNum}, imagePath="${imagePath}"`);
 
       if (!imagePath) {
         throw new Error(`No image path available for frame ${frameNum}`);
@@ -542,16 +538,19 @@ export default class SegmentationPointClick implements Recipe {
     // If we have an initialization function and haven't initialized yet, do it now
     if (this.initializeServiceFn && !this.serviceInitialized) {
       // Show loading state
+      this.loading.value = true;
       this.icon.value = 'mdi-loading';
 
       this.initializeServiceFn()
         .then(() => {
           this.serviceInitialized = true;
+          this.loading.value = false;
           this.completeActivation();
         })
         .catch((error) => {
           const errorMessage = error instanceof Error ? error.message : 'Unable to load segmentation module';
           this.bus.$emit('prediction-error', errorMessage);
+          this.loading.value = false;
           this.icon.value = 'mdi-auto-fix';
           // Don't activate - stay in previous mode
         });

@@ -128,33 +128,21 @@ export default defineComponent({
         const { originalBasePath, originalImageFiles, type } = meta;
 
         // Create image path getter based on dataset type
-        console.log('[Segmentation] Creating getImagePath with', {
-          originalBasePath,
-          originalImageFilesLength: originalImageFiles?.length,
-          type,
-        });
         const getImagePath = (frameNum: number): string => {
-          console.log(`[Segmentation] getImagePath called for frame ${frameNum}`);
           if (type === 'video') {
             // For video, we need to extract frames - this is more complex
             // For now, return the video path (segmentation would need frame extraction)
-            const videoPath = npath.join(originalBasePath, meta.originalVideoFile);
-            console.log(`[Segmentation] Video path: ${videoPath}`);
-            return videoPath;
+            return npath.join(originalBasePath, meta.originalVideoFile);
           }
           // For image sequences, return the image file path
           if (originalImageFiles && originalImageFiles[frameNum]) {
             const imagePath = originalImageFiles[frameNum];
             // Handle both relative and absolute paths
             if (npath.isAbsolute(imagePath)) {
-              console.log(`[Segmentation] Absolute image path: ${imagePath}`);
               return imagePath;
             }
-            const fullPath = npath.join(originalBasePath, imagePath);
-            console.log(`[Segmentation] Joined image path: ${fullPath}`);
-            return fullPath;
+            return npath.join(originalBasePath, imagePath);
           }
-          console.log(`[Segmentation] No image found for frame ${frameNum}, originalImageFiles:`, originalImageFiles ? `array of ${originalImageFiles.length}` : 'undefined');
           return '';
         };
 
