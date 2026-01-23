@@ -274,8 +274,8 @@ export default defineComponent({
           open-on-hover
           bottom
           offset-y
-          :close-on-content-click="false"
           :key="`${button.id}-view`"
+          :close-on-content-click="false"
         >
           <template #activator="{ on, attrs }">
             <v-btn
