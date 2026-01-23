@@ -304,8 +304,8 @@ export default defineComponent({
         </v-menu>
         <v-btn
           v-else
-          :color="button.active ? 'grey darken-2' : ''"
           :key="`${button.id}-view-button`"
+          :color="button.active ? 'grey darken-2' : ''"
           class="mx-1 mode-button"
           small
           @click="button.click"
