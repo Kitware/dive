@@ -62,6 +62,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    fps: {
+      type: Number,
+      default: null,
+    },
   },
 
   setup(props) {
@@ -84,6 +88,7 @@ export default defineComponent({
     const data = reactive({
       itemHeight: props.compact ? 50 : 70, // in pixels
       settingsActive: false,
+      columnSettingsActive: false,
     });
 
     const sortKey = ref<SortKey>('id');
@@ -310,6 +315,10 @@ export default defineComponent({
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
 
+    const columnVisibility = computed(
+      () => clientSettings.trackSettings.trackListSettings.columnVisibility,
+    );
+
     function handleSort(key: SortKey) {
       if (sortKey.value === key) {
         // Toggle direction between desc and asc
@@ -343,6 +352,7 @@ export default defineComponent({
       sortDirection,
       handleSort,
       sortIcon,
+      columnVisibility,
     };
   },
 });
@@ -382,6 +392,32 @@ export default defineComponent({
           <slot
             v-if="data.settingsActive"
             name="settings"
+          />
+        </v-menu>
+        <v-menu
+          v-model="data.columnSettingsActive"
+          :close-on-content-click="false"
+          :nudge-bottom="28"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              icon
+              x-small
+              class="mr-2"
+              v-bind="attrs"
+              v-on="on"
+            >
+              <v-icon
+                x-small
+                :color="data.columnSettingsActive ? 'accent' : 'default'"
+              >
+                mdi-view-column
+              </v-icon>
+            </v-btn>
+          </template>
+          <slot
+            v-if="data.columnSettingsActive"
+            name="column-settings"
           />
         </v-menu>
         <v-tooltip
@@ -466,6 +502,7 @@ export default defineComponent({
           >{{ sortIcon('confidence') }}</v-icon>
         </span>
         <span
+          v-if="columnVisibility?.startFrame"
           class="col-header col-start sortable"
           :class="{ active: sortKey === 'start' }"
           @click="handleSort('start')"
@@ -477,6 +514,7 @@ export default defineComponent({
           >{{ sortIcon('start') }}</v-icon>
         </span>
         <span
+          v-if="columnVisibility?.endFrame"
           class="col-header col-end sortable"
           :class="{ active: sortKey === 'end' }"
           @click="handleSort('end')"
@@ -488,6 +526,19 @@ export default defineComponent({
           >{{ sortIcon('end') }}</v-icon>
         </span>
         <span
+          v-if="columnVisibility?.startTimestamp"
+          class="col-header col-timestamp"
+        >
+          Start Time
+        </span>
+        <span
+          v-if="columnVisibility?.endTimestamp"
+          class="col-header col-timestamp"
+        >
+          End Time
+        </span>
+        <span
+          v-if="columnVisibility?.notes"
           class="col-header col-notes sortable"
           :class="{ active: sortKey === 'notes' }"
           @click="handleSort('notes')"
@@ -497,6 +548,13 @@ export default defineComponent({
             v-if="sortIcon('notes')"
             x-small
           >{{ sortIcon('notes') }}</v-icon>
+        </span>
+        <span
+          v-for="attrKey in columnVisibility?.attributeColumns || []"
+          :key="attrKey"
+          class="col-header col-attribute"
+        >
+          {{ attrKey.split('_').pop() }}
         </span>
         <v-spacer />
         <span class="col-header col-actions">Actions</span>
@@ -610,6 +668,8 @@ export default defineComponent({
           :lock-types="lockTypes"
           :disabled="disabled"
           :compact="compact"
+          :column-visibility="columnVisibility"
+          :fps="fps"
           @seek="$emit('track-seek', $event)"
         />
       </template>
@@ -685,6 +745,17 @@ export default defineComponent({
     /* Matches track-frame-end: 45px + 8px margin */
     min-width: 45px;
     text-align: right;
+    margin-right: 8px;
+  }
+  .col-timestamp {
+    min-width: 70px;
+    text-align: right;
+    margin-right: 8px;
+  }
+  .col-attribute {
+    min-width: 60px;
+    max-width: 100px;
+    text-align: left;
     margin-right: 8px;
   }
   .col-notes {

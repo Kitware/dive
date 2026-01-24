@@ -42,6 +42,7 @@ import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
+import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
 import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
@@ -82,6 +83,7 @@ export default defineComponent({
     FilterList,
     TypeSettingsPanel,
     TrackSettingsPanel,
+    TrackListColumnSettings,
     TrackDetailsPanel,
     ConfidenceSubsection,
     AttributeSubsection,
@@ -1403,12 +1405,19 @@ export default defineComponent({
               :lock-types="clientSettings.typeSettings.lockTypes"
               :hotkeys-disabled="visible() || readonlyState"
               :height="220"
+              :fps="frameRate"
               :disabled="disableAnnotationFilters"
               @track-seek="aggregateController.seek($event)"
             >
               <template slot="settings">
                 <TrackSettingsPanel
                   :all-types="trackFilters.allTypes"
+                />
+              </template>
+              <template slot="column-settings">
+                <TrackListColumnSettings
+                  :attributes="attributes"
+                  :fps="frameRate"
                 />
               </template>
             </TrackList>

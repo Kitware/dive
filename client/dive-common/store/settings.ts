@@ -2,6 +2,15 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
+interface ColumnVisibilitySettings {
+  startFrame: boolean;
+  endFrame: boolean;
+  startTimestamp: boolean;
+  endTimestamp: boolean;
+  notes: boolean;
+  attributeColumns: string[]; // Array of attribute keys to show as columns
+}
+
 interface AnnotationSettings {
   typeSettings: {
     trackSortDir: 'a-z' | 'count' | 'frame count';
@@ -31,6 +40,7 @@ interface AnnotationSettings {
     trackListSettings: {
       autoZoom?: boolean;
       filterDetectionsByFrame?: boolean;
+      columnVisibility?: ColumnVisibilitySettings;
     }
   };
   groupSettings: {
@@ -74,6 +84,14 @@ const defaultSettings: AnnotationSettings = {
     trackListSettings: {
       autoZoom: false,
       filterDetectionsByFrame: false,
+      columnVisibility: {
+        startFrame: true,
+        endFrame: true,
+        startTimestamp: false,
+        endTimestamp: false,
+        notes: true,
+        attributeColumns: [],
+      },
     },
   },
   groupSettings: {
@@ -156,4 +174,5 @@ watch(clientSettings, saveSettings, { deep: true });
 export {
   clientSettings,
   AnnotationSettings,
+  ColumnVisibilitySettings,
 };

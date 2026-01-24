@@ -3,6 +3,7 @@ import {
   defineComponent, computed, PropType, ref, nextTick, watch,
 } from 'vue';
 import context from 'dive-common/store/context';
+import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import TooltipBtn from './TooltipButton.vue';
 import TypePicker from './TypePicker.vue';
 import {
@@ -64,6 +65,14 @@ export default defineComponent({
     compact: {
       type: Boolean,
       default: false,
+    },
+    columnVisibility: {
+      type: Object as PropType<ColumnVisibilitySettings>,
+      default: null,
+    },
+    fps: {
+      type: Number,
+      default: null,
     },
   },
 
@@ -171,6 +180,50 @@ export default defineComponent({
       }
       return '';
     });
+
+    /* Format frame number as timestamp */
+    const formatTimestamp = (frame: number) => {
+      if (!props.fps || props.fps <= 0) return '';
+      const totalSeconds = frame / props.fps;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = Math.floor(totalSeconds % 60);
+      const ms = Math.floor((totalSeconds % 1) * 1000);
+      if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      return `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0').slice(0, 2)}`;
+    };
+
+    const startTimestamp = computed(() => formatTimestamp(props.track.begin));
+    const endTimestamp = computed(() => formatTimestamp(props.track.end));
+
+    /* Get attribute value for display */
+    const getAttributeValue = (attrKey: string) => {
+      // Access revision.value for reactivity
+      if (props.track.revision.value === undefined) return '';
+
+      // Check if it's a track-level attribute (prefixed with track_)
+      if (attrKey.startsWith('track_')) {
+        const name = attrKey.replace('track_', '');
+        const val = props.track.attributes[name];
+        if (val !== undefined && val !== null) {
+          return String(val);
+        }
+      }
+      // Check if it's a detection-level attribute (prefixed with detection_)
+      if (attrKey.startsWith('detection_')) {
+        const name = attrKey.replace('detection_', '');
+        const feature = props.track.features[props.track.begin];
+        if (feature && feature.attributes) {
+          const val = feature.attributes[name];
+          if (val !== undefined && val !== null) {
+            return String(val);
+          }
+        }
+      }
+      return '';
+    };
 
     function toggleKeyframe() {
       if (!keyframeDisabled.value) {
@@ -320,6 +373,9 @@ export default defineComponent({
       confidenceInputRef,
       notesInputRef,
       currentNotes,
+      startTimestamp,
+      endTimestamp,
+      getAttributeValue,
       /* methods */
       gotoNext,
       gotoPrevious,
@@ -422,42 +478,63 @@ export default defineComponent({
     >
       {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
     </span>
-    <!-- Start and end frame columns (clickable to seek) -->
+    <!-- Start frame column (clickable to seek) -->
     <span
+      v-if="!columnVisibility || columnVisibility.startFrame"
       class="track-frame-start clickable"
       @click.stop="$emit('seek', track.begin)"
     >{{ track.begin }}</span>
+    <!-- End frame column (clickable to seek) -->
     <span
+      v-if="!columnVisibility || columnVisibility.endFrame"
       class="track-frame-end clickable"
       @click.stop="$emit('seek', track.end)"
     >{{ track.end }}</span>
+    <!-- Start timestamp column -->
+    <span
+      v-if="columnVisibility?.startTimestamp"
+      class="track-timestamp"
+    >{{ startTimestamp }}</span>
+    <!-- End timestamp column -->
+    <span
+      v-if="columnVisibility?.endTimestamp"
+      class="track-timestamp"
+    >{{ endTimestamp }}</span>
     <!-- Notes field -->
-    <input
-      v-if="editingNotes"
-      ref="notesInputRef"
-      v-model="editNotesValue"
-      type="text"
-      class="compact-notes-input"
-      placeholder="Add notes..."
-      @blur="saveNotes"
-      @keydown.enter="saveNotes"
-      @keydown.escape="cancelEditNotes"
-      @click.stop
-    >
-    <div
-      v-else
-      class="track-notes-wrapper"
-    >
-      <span
-        class="track-notes-edit-zone"
-        :class="{ editable: !readOnlyMode }"
-        @click="startEditNotes"
-      />
-      <span
-        class="track-notes-compact text-truncate"
-        :class="{ 'has-notes': currentNotes }"
-      >{{ currentNotes || '...' }}</span>
-    </div>
+    <template v-if="!columnVisibility || columnVisibility.notes">
+      <input
+        v-if="editingNotes"
+        ref="notesInputRef"
+        v-model="editNotesValue"
+        type="text"
+        class="compact-notes-input"
+        placeholder="Add notes..."
+        @blur="saveNotes"
+        @keydown.enter="saveNotes"
+        @keydown.escape="cancelEditNotes"
+        @click.stop
+      >
+      <div
+        v-else
+        class="track-notes-wrapper"
+      >
+        <span
+          class="track-notes-edit-zone"
+          :class="{ editable: !readOnlyMode }"
+          @click="startEditNotes"
+        />
+        <span
+          class="track-notes-compact text-truncate"
+          :class="{ 'has-notes': currentNotes }"
+        >{{ currentNotes || '...' }}</span>
+      </div>
+    </template>
+    <!-- Attribute columns -->
+    <span
+      v-for="attrKey in columnVisibility?.attributeColumns || []"
+      :key="attrKey"
+      class="track-attribute text-truncate"
+    >{{ getAttributeValue(attrKey) || '-' }}</span>
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
@@ -740,6 +817,25 @@ export default defineComponent({
   }
 
   .track-frame-end {
+    margin-right: 8px;
+  }
+
+  .track-timestamp {
+    font-size: 12px;
+    color: #888;
+    min-width: 70px;
+    flex-shrink: 0;
+    text-align: right;
+    margin-right: 8px;
+  }
+
+  .track-attribute {
+    font-size: 12px;
+    color: #888;
+    min-width: 60px;
+    max-width: 100px;
+    flex-shrink: 0;
+    text-align: left;
     margin-right: 8px;
   }
 
