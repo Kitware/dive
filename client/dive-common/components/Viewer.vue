@@ -1130,7 +1130,10 @@ export default defineComponent({
           vertical
           class="mx-2"
         />
-        <v-tooltip bottom>
+        <v-tooltip
+          bottom
+          :z-index="20"
+        >
           <template #activator="{ on }">
             <v-icon
               v-on="on"
