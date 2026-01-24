@@ -46,7 +46,9 @@ import TrackListColumnSettings from 'dive-common/components/TrackListColumnSetti
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
 import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
+import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import { useModeManager, useSave } from 'dive-common/use';
@@ -87,6 +89,7 @@ export default defineComponent({
     TrackDetailsPanel,
     ConfidenceSubsection,
     AttributeSubsection,
+    AttributeEditor,
   },
 
   // TODO: remove this in vue 3
@@ -909,6 +912,84 @@ export default defineComponent({
     // If track has attributes, show track first; otherwise show detection first
     const showTrackAttributesFirst = computed(() => hasTrackAttributes.value);
 
+    // Attribute editing state for bottom panel
+    const editIndividual: Ref<Attribute | null> = ref(null);
+    const editingAttribute: Ref<Attribute | null> = ref(null);
+    const editingError: Ref<string | null> = ref(null);
+
+    function setEditIndividual(attribute: Attribute | null) {
+      editIndividual.value = attribute;
+    }
+
+    function resetEditIndividual(event: MouseEvent) {
+      if (editIndividual.value) {
+        const path = event.composedPath() as HTMLElement[];
+        const inputs = ['INPUT', 'SELECT'];
+        if (
+          path.find(
+            (item: HTMLElement) => (item.classList && item.classList.contains('v-input'))
+              || inputs.includes(item.nodeName),
+          )
+        ) {
+          return;
+        }
+        editIndividual.value = null;
+      }
+    }
+
+    function addAttribute(type: 'Track' | 'Detection') {
+      const belongs = type.toLowerCase() as 'track' | 'detection';
+      editingAttribute.value = {
+        belongs,
+        datatype: 'text',
+        name: `New${type}Attribute`,
+        key: '',
+      };
+    }
+
+    function editAttribute(attribute: Attribute) {
+      editingAttribute.value = attribute;
+    }
+
+    async function closeAttributeEditor() {
+      editingAttribute.value = null;
+      editingError.value = null;
+    }
+
+    async function saveAttributeHandler({ data, oldAttribute, close }: {
+      oldAttribute?: Attribute;
+      data: Attribute;
+      close: boolean;
+    }) {
+      editingError.value = null;
+      if (!oldAttribute && attributes.value.some((attribute) => (
+        attribute.name === data.name
+        && attribute.belongs === data.belongs))) {
+        editingError.value = 'Attribute with that name exists';
+        return;
+      }
+      try {
+        await setAttribute({ data, oldAttribute });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value && close) {
+        closeAttributeEditor();
+      }
+    }
+
+    async function deleteAttributeHandler(data: Attribute) {
+      editingError.value = null;
+      try {
+        await deleteAttribute({ data });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value) {
+        closeAttributeEditor();
+      }
+    }
+
     return {
       /* props */
       aggregateController,
@@ -962,6 +1043,17 @@ export default defineComponent({
       showConfidenceFirst,
       showTrackAttributesFirst,
       attributes,
+      /* Attribute editing for bottom panel */
+      editIndividual,
+      editingAttribute,
+      editingError,
+      setEditIndividual,
+      resetEditIndividual,
+      addAttribute,
+      editAttribute,
+      closeAttributeEditor,
+      saveAttributeHandler,
+      deleteAttributeHandler,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1490,7 +1582,11 @@ export default defineComponent({
 
             <!-- Track details view (simplified for bottom mode) -->
             <template v-else>
-              <div class="flex-grow-1 bottom-details-panel" style="overflow-y: auto; overflow-x: hidden;">
+              <div
+                class="flex-grow-1 bottom-details-panel"
+                style="overflow-y: auto; overflow-x: hidden;"
+                @click="resetEditIndividual"
+              >
                 <div v-if="selectedTrackForDetails" class="pa-2">
                   <!-- Type classifications (first if multiple types) -->
                   <ConfidenceSubsection
@@ -1504,20 +1600,36 @@ export default defineComponent({
                     <AttributeSubsection
                       mode="Track"
                       :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
                     />
                     <AttributeSubsection
                       mode="Detection"
                       :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
                     />
                   </template>
                   <template v-else>
                     <AttributeSubsection
                       mode="Detection"
                       :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
                     />
                     <AttributeSubsection
                       mode="Track"
                       :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
                     />
                   </template>
                   <!-- Type classifications (last if 0-1 types) -->
@@ -1569,6 +1681,22 @@ export default defineComponent({
         :sidebar-mode="sidebarMode"
       />
     </div>
+    <!-- Attribute editor dialog for bottom panel -->
+    <v-dialog
+      :value="editingAttribute != null"
+      max-width="550"
+      @click:outside="closeAttributeEditor"
+      @keydown.esc.stop="closeAttributeEditor"
+    >
+      <AttributeEditor
+        v-if="editingAttribute != null"
+        :selected-attribute="editingAttribute"
+        :error="editingError"
+        @close="closeAttributeEditor"
+        @save="saveAttributeHandler"
+        @delete="deleteAttributeHandler"
+      />
+    </v-dialog>
   </v-main>
 </template>
 
