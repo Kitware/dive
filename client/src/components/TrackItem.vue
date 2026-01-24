@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, nextTick,
+  defineComponent, computed, PropType, ref, nextTick, watch,
 } from 'vue';
 import context from 'dive-common/store/context';
 import TooltipBtn from './TooltipButton.vue';
@@ -89,6 +89,11 @@ export default defineComponent({
     const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
     const confidenceInputRef = ref<HTMLInputElement | null>(null);
     const notesInputRef = ref<HTMLInputElement | null>(null);
+
+    // Reset local notes display when track changes (component recycling in virtual scroll)
+    watch(() => props.track.id, () => {
+      localNotesDisplay.value = '';
+    });
     /**
      * Use of revision is safe because it will only create a
      * dependency when track is selected.  DO NOT use this computed
