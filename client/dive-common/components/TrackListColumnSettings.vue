@@ -109,17 +109,6 @@ export default defineComponent({
       Timestamps require FPS metadata
     </div>
 
-    <div class="text-caption grey--text mt-2 mb-1">
-      Other Columns
-    </div>
-    <v-checkbox
-      v-model="columnVisibility.notes"
-      dense
-      hide-details
-      label="Notes"
-      class="my-0 py-0"
-    />
-
     <!-- Attribute columns -->
     <template v-if="trackAttributes.length > 0">
       <v-divider class="my-2" />
@@ -161,6 +150,17 @@ export default defineComponent({
         No attributes defined in this dataset
       </div>
     </template>
+
+    <div class="text-caption grey--text mt-2 mb-1">
+      Other Columns
+    </div>
+    <v-checkbox
+      v-model="columnVisibility.notes"
+      dense
+      hide-details
+      label="Notes"
+      class="my-0 py-0"
+    />
   </v-card>
 </template>
 

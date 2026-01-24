@@ -500,6 +500,12 @@ export default defineComponent({
       v-if="columnVisibility?.endTimestamp"
       class="track-timestamp"
     >{{ endTimestamp }}</span>
+    <!-- Attribute columns -->
+    <span
+      v-for="attrKey in columnVisibility?.attributeColumns || []"
+      :key="attrKey"
+      class="track-attribute text-truncate"
+    >{{ getAttributeValue(attrKey) || '-' }}</span>
     <!-- Notes field -->
     <template v-if="!columnVisibility || columnVisibility.notes">
       <input
@@ -529,12 +535,6 @@ export default defineComponent({
         >{{ currentNotes || '...' }}</span>
       </div>
     </template>
-    <!-- Attribute columns -->
-    <span
-      v-for="attrKey in columnVisibility?.attributeColumns || []"
-      :key="attrKey"
-      class="track-attribute text-truncate"
-    >{{ getAttributeValue(attrKey) || '-' }}</span>
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">

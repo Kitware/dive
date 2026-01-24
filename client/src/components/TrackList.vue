@@ -25,7 +25,7 @@ import TrackItem from './TrackItem.vue';
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
 
-type SortKey = 'id' | 'start' | 'end' | 'confidence' | 'type' | 'notes';
+type SortKey = 'id' | 'start' | 'end' | 'startTime' | 'endTime' | 'confidence' | 'type' | 'notes' | string;
 type SortDirection = 'asc' | 'desc';
 
 export default defineComponent({
@@ -133,6 +133,30 @@ export default defineComponent({
         return '';
       }
 
+      // Helper to get attribute value from a track
+      function getTrackAttributeValue(
+        track: ReturnType<typeof cameraStore.getTracksMerged>,
+        attrKey: string,
+      ): string | number | undefined {
+        // Check if it's a track attribute (track_*) or detection attribute (detection_*)
+        const isTrackAttr = attrKey.startsWith('track_');
+        const actualKey = attrKey.replace(/^(track_|detection_)/, '');
+
+        if (isTrackAttr) {
+          // Track-level attribute
+          if (track.attributes && track.attributes[actualKey] !== undefined) {
+            return track.attributes[actualKey] as string | number;
+          }
+        } else {
+          // Detection-level attribute - get from first keyframe
+          const feature = track.features[track.begin];
+          if (feature && feature.attributes && feature.attributes[actualKey] !== undefined) {
+            return feature.attributes[actualKey] as string | number;
+          }
+        }
+        return undefined;
+      }
+
       // Apply sorting
       const sorted = [...tracks];
       const direction = sortDirection.value === 'asc' ? 1 : -1;
@@ -147,12 +171,34 @@ export default defineComponent({
           return 0;
         }
 
-        switch (sortKey.value) {
+        const key = sortKey.value;
+
+        // Check if sorting by an attribute column
+        if (key.startsWith('track_') || key.startsWith('detection_')) {
+          const valA = getTrackAttributeValue(trackA, key);
+          const valB = getTrackAttributeValue(trackB, key);
+          const emptyA = valA === undefined || valA === '';
+          const emptyB = valB === undefined || valB === '';
+          // Empty values go last in ascending, first in descending
+          if (emptyA && !emptyB) return direction;
+          if (!emptyA && emptyB) return -direction;
+          if (emptyA && emptyB) return 0;
+          // Numeric comparison if both are numbers
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            return (valA - valB) * direction;
+          }
+          // String comparison otherwise
+          return String(valA).localeCompare(String(valB)) * direction;
+        }
+
+        switch (key) {
           case 'id':
             return (trackA.trackId - trackB.trackId) * direction;
           case 'start':
+          case 'startTime':
             return (trackA.begin - trackB.begin) * direction;
           case 'end':
+          case 'endTime':
             return (trackA.end - trackB.end) * direction;
           case 'confidence': {
             const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
@@ -527,15 +573,40 @@ export default defineComponent({
         </span>
         <span
           v-if="columnVisibility?.startTimestamp"
-          class="col-header col-timestamp"
+          class="col-header col-timestamp sortable"
+          :class="{ active: sortKey === 'startTime' }"
+          @click="handleSort('startTime')"
         >
           Start Time
+          <v-icon
+            v-if="sortIcon('startTime')"
+            x-small
+          >{{ sortIcon('startTime') }}</v-icon>
         </span>
         <span
           v-if="columnVisibility?.endTimestamp"
-          class="col-header col-timestamp"
+          class="col-header col-timestamp sortable"
+          :class="{ active: sortKey === 'endTime' }"
+          @click="handleSort('endTime')"
         >
           End Time
+          <v-icon
+            v-if="sortIcon('endTime')"
+            x-small
+          >{{ sortIcon('endTime') }}</v-icon>
+        </span>
+        <span
+          v-for="attrKey in columnVisibility?.attributeColumns || []"
+          :key="attrKey"
+          class="col-header col-attribute sortable"
+          :class="{ active: sortKey === attrKey }"
+          @click="handleSort(attrKey)"
+        >
+          {{ attrKey.split('_').pop() }}
+          <v-icon
+            v-if="sortIcon(attrKey)"
+            x-small
+          >{{ sortIcon(attrKey) }}</v-icon>
         </span>
         <span
           v-if="columnVisibility?.notes"
@@ -548,13 +619,6 @@ export default defineComponent({
             v-if="sortIcon('notes')"
             x-small
           >{{ sortIcon('notes') }}</v-icon>
-        </span>
-        <span
-          v-for="attrKey in columnVisibility?.attributeColumns || []"
-          :key="attrKey"
-          class="col-header col-attribute"
-        >
-          {{ attrKey.split('_').pop() }}
         </span>
         <v-spacer />
         <span class="col-header col-actions">Actions</span>
