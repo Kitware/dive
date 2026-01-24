@@ -196,6 +196,18 @@ export default defineComponent({
               />
             </v-col>
           </v-row>
+          <v-row>
+            <v-col>
+              <v-switch
+                v-model="clientSettings.autoSaveSettings.enabled"
+                color="primary"
+                label="Auto-save annotations"
+                hint="Automatically save annotation changes after a short delay. Changes are batched to reduce server requests."
+                persistent-hint
+                class="my-0"
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
 
         <v-card-title>Platform support</v-card-title>

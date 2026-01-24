@@ -1108,7 +1108,7 @@ export default defineComponent({
                 @click="save(currentSet)"
               >
                 <v-icon>
-                  mdi-content-save
+                  {{ clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save' }}
                 </v-icon>
               </v-btn>
             </div>
