@@ -369,32 +369,6 @@ export default defineComponent({
         <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
         <v-spacer />
         <v-menu
-          v-model="data.settingsActive"
-          :close-on-content-click="false"
-          :nudge-bottom="28"
-        >
-          <template #activator="{ on, attrs }">
-            <v-btn
-              icon
-              x-small
-              class="mr-2"
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-icon
-                x-small
-                :color="data.settingsActive ? 'accent' : 'default'"
-              >
-                mdi-cog
-              </v-icon>
-            </v-btn>
-          </template>
-          <slot
-            v-if="data.settingsActive"
-            name="settings"
-          />
-        </v-menu>
-        <v-menu
           v-model="data.columnSettingsActive"
           :close-on-content-click="false"
           :nudge-bottom="28"
@@ -418,6 +392,32 @@ export default defineComponent({
           <slot
             v-if="data.columnSettingsActive"
             name="column-settings"
+          />
+        </v-menu>
+        <v-menu
+          v-model="data.settingsActive"
+          :close-on-content-click="false"
+          :nudge-bottom="28"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              icon
+              x-small
+              class="mr-2"
+              v-bind="attrs"
+              v-on="on"
+            >
+              <v-icon
+                x-small
+                :color="data.settingsActive ? 'accent' : 'default'"
+              >
+                mdi-cog
+              </v-icon>
+            </v-btn>
+          </template>
+          <slot
+            v-if="data.settingsActive"
+            name="settings"
           />
         </v-menu>
         <v-tooltip
