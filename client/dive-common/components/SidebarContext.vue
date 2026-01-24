@@ -8,13 +8,36 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
+    bottomMode: {
+      type: Boolean,
+      default: false,
+    },
   },
-  setup() {
+  setup(props) {
     const options = computed(() => Object.entries(context.componentMap).map(([value, entry]) => ({
       text: entry.description,
       value,
     })));
-    return { context, options };
+    const sidebarStyle = computed(() => {
+      if (props.bottomMode) {
+        // In bottom mode, use fixed positioning to overlay on the right side
+        // Position above the bottom bar (260px) and below the top bar + visibility controls (~112px)
+        return {
+          position: 'fixed',
+          top: '112px',
+          right: '0',
+          height: 'calc(100vh - 112px - 260px)',
+          overflowY: 'hidden',
+          zIndex: 10,
+        };
+      }
+      return {
+        height: 'calc(100vh - 112px)',
+        overflowY: 'hidden',
+        zIndex: 1,
+      };
+    });
+    return { context, options, sidebarStyle };
   },
 });
 </script>
@@ -26,8 +49,8 @@ export default defineComponent({
       :width="width"
       tile
       outlined
-      class="d-flex flex-column sidebar"
-      style="z-index:1;"
+      class="d-flex flex-column"
+      :style="sidebarStyle"
     >
       <div class="d-flex align-center mx-1">
         <v-select
@@ -62,10 +85,6 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
-.sidebar {
-  height: calc(100vh - 112px);
-  overflow-y: hidden;
-}
 .sidebar-content {
   overflow-y: auto;
 }

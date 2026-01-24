@@ -162,8 +162,6 @@ export default defineComponent({
       if (sidebarMode.value === 'left') {
         sidebarMode.value = 'bottom';
         clientSettings.layoutSettings.sidebarPosition = 'bottom';
-        // Close the Advanced Tools panel when switching to bottom mode
-        context.resetActive();
       } else if (sidebarMode.value === 'bottom') {
         sidebarMode.value = 'collapsed';
         // Keep setting as 'bottom' when collapsed (collapsed is a temporary state)
@@ -1132,10 +1130,7 @@ export default defineComponent({
           vertical
           class="mx-2"
         />
-        <v-tooltip
-          v-if="sidebarMode !== 'bottom'"
-          bottom
-        >
+        <v-tooltip bottom>
           <template #activator="{ on }">
             <v-icon
               v-on="on"
@@ -1303,7 +1298,10 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
-      <slot name="right-sidebar" />
+      <slot
+        name="right-sidebar"
+        :sidebar-mode="sidebarMode"
+      />
     </v-row>
 
     <!-- Bottom sidebar layout or collapsed -->
@@ -1554,7 +1552,10 @@ export default defineComponent({
           <span v-else>{{ progressValue }}%</span>
         </v-progress-circular>
       </div>
-      <slot name="right-sidebar" />
+      <slot
+        name="right-sidebar"
+        :sidebar-mode="sidebarMode"
+      />
     </div>
   </v-main>
 </template>
