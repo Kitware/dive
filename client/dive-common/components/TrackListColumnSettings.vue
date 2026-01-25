@@ -73,8 +73,27 @@ export default defineComponent({
       Column Visibility
     </div>
 
-    <!-- Built-in columns -->
+    <!-- Core columns -->
     <div class="text-caption grey--text mb-1">
+      Core Columns
+    </div>
+    <v-checkbox
+      v-model="columnVisibility.type"
+      dense
+      hide-details
+      label="Type"
+      class="my-0 py-0"
+    />
+    <v-checkbox
+      v-model="columnVisibility.confidence"
+      dense
+      hide-details
+      label="Confidence"
+      class="my-0 py-0"
+    />
+
+    <!-- Frame columns -->
+    <div class="text-caption grey--text mt-2 mb-1">
       Frame Columns
     </div>
     <v-checkbox

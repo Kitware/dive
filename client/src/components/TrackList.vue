@@ -526,6 +526,7 @@ export default defineComponent({
           >{{ sortIcon('id') }}</v-icon>
         </span>
         <span
+          v-if="columnVisibility?.type !== false"
           class="col-header col-type sortable"
           :class="{ active: sortKey === 'type' }"
           @click="handleSort('type')"
@@ -537,6 +538,7 @@ export default defineComponent({
           >{{ sortIcon('type') }}</v-icon>
         </span>
         <span
+          v-if="columnVisibility?.confidence !== false"
           class="col-header col-conf sortable"
           :class="{ active: sortKey === 'confidence' }"
           @click="handleSort('confidence')"

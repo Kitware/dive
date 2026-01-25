@@ -473,66 +473,70 @@ export default defineComponent({
       {{ track.trackId }}
     </div>
     <!-- Editable type field -->
-    <select
-      v-if="editingType && lockTypes"
-      ref="typeInputRef"
-      v-model="editTypeValue"
-      class="compact-type-input compact-select-input"
-      @blur="saveType"
-      @change="saveType"
-      @keydown.enter="saveType"
-      @keydown.escape="cancelEditType"
-      @click.stop
-    >
-      <option
-        v-for="item in allTypes"
-        :key="item"
-        :value="item"
+    <template v-if="!columnVisibility || columnVisibility.type !== false">
+      <select
+        v-if="editingType && lockTypes"
+        ref="typeInputRef"
+        v-model="editTypeValue"
+        class="compact-type-input compact-select-input"
+        @blur="saveType"
+        @change="saveType"
+        @keydown.enter="saveType"
+        @keydown.escape="cancelEditType"
+        @click.stop
       >
-        {{ item }}
-      </option>
-    </select>
-    <input
-      v-else-if="editingType"
-      ref="typeInputRef"
-      v-model="editTypeValue"
-      type="text"
-      list="allTypesOptions"
-      class="compact-type-input"
-      @blur="saveType"
-      @keydown.enter="saveType"
-      @keydown.escape="cancelEditType"
-      @click.stop
-    >
-    <span
-      v-else
-      class="track-type-compact text-truncate"
-      :class="{ editable: !readOnlyMode && !lockTypes }"
-      @click="startEditType"
-    >{{ trackType }}</span>
+        <option
+          v-for="item in allTypes"
+          :key="item"
+          :value="item"
+        >
+          {{ item }}
+        </option>
+      </select>
+      <input
+        v-else-if="editingType"
+        ref="typeInputRef"
+        v-model="editTypeValue"
+        type="text"
+        list="allTypesOptions"
+        class="compact-type-input"
+        @blur="saveType"
+        @keydown.enter="saveType"
+        @keydown.escape="cancelEditType"
+        @click.stop
+      >
+      <span
+        v-else
+        class="track-type-compact text-truncate"
+        :class="{ editable: !readOnlyMode && !lockTypes }"
+        @click="startEditType"
+      >{{ trackType }}</span>
+    </template>
     <!-- Editable confidence field -->
-    <input
-      v-if="editingConfidence"
-      ref="confidenceInputRef"
-      v-model="editConfidenceValue"
-      type="number"
-      step="0.01"
-      min="0"
-      max="1"
-      class="compact-confidence-input"
-      @blur="saveConfidence"
-      @keydown.enter="saveConfidence"
-      @keydown.escape="cancelEditConfidence"
-      @click.stop
-    >
-    <span
-      v-else
-      class="track-confidence-compact"
-      :class="{ editable: !readOnlyMode }"
-      @click="startEditConfidence"
-    >
-      {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
-    </span>
+    <template v-if="!columnVisibility || columnVisibility.confidence !== false">
+      <input
+        v-if="editingConfidence"
+        ref="confidenceInputRef"
+        v-model="editConfidenceValue"
+        type="number"
+        step="0.01"
+        min="0"
+        max="1"
+        class="compact-confidence-input"
+        @blur="saveConfidence"
+        @keydown.enter="saveConfidence"
+        @keydown.escape="cancelEditConfidence"
+        @click.stop
+      >
+      <span
+        v-else
+        class="track-confidence-compact"
+        :class="{ editable: !readOnlyMode }"
+        @click="startEditConfidence"
+      >
+        {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
+      </span>
+    </template>
     <!-- Start frame column (clickable to seek) -->
     <span
       v-if="!columnVisibility || columnVisibility.startFrame"

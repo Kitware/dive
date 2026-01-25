@@ -3,6 +3,8 @@ import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
 interface ColumnVisibilitySettings {
+  type: boolean;
+  confidence: boolean;
   startFrame: boolean;
   endFrame: boolean;
   startTimestamp: boolean;
@@ -85,6 +87,8 @@ const defaultSettings: AnnotationSettings = {
       autoZoom: false,
       filterDetectionsByFrame: false,
       columnVisibility: {
+        type: true,
+        confidence: true,
         startFrame: true,
         endFrame: true,
         startTimestamp: false,
