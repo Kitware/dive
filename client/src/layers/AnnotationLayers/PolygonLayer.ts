@@ -36,26 +36,36 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
       .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
         /**
          * Handle clicking on individual annotations, if DrawingOther is true we use the
-         * Rectangle type if only the polygon is visible we use the polygon bounds
+         * Rectangle type for track selection. However, polygon key events are always
+         * emitted so that multi-polygon selection works regardless of drawingOther.
          * */
-        if (e.mouse.buttonsDown.left && !this.drawingOther) {
-          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-            if (e.mouse.modifiers.ctrl) {
-              this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
-            } else {
-              // Emit polygon selection event with the polygon key
-              const polygonKey = e.data.polygonKey || '';
-              this.bus.$emit('polygon-clicked', e.data.trackId, polygonKey);
-              this.bus.$emit('annotation-clicked', e.data.trackId, false);
-            }
-          } else if (e.data.selected) {
+        if (e.mouse.buttonsDown.left) {
+          // Always emit polygon-clicked for multi-polygon support, regardless of drawingOther
+          const polygonKey = e.data.polygonKey || '';
+          if (e.data.selected) {
             // Already selected track - user may be selecting a different polygon
-            const polygonKey = e.data.polygonKey || '';
             this.bus.$emit('polygon-clicked', e.data.trackId, polygonKey);
           }
-        } else if (e.mouse.buttonsDown.right && !this.drawingOther) {
-          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-            this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+          // Track-level events only when not drawingOther (rectangle layer handles those)
+          if (!this.drawingOther) {
+            if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+              if (e.mouse.modifiers.ctrl) {
+                this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
+              } else {
+                this.bus.$emit('polygon-clicked', e.data.trackId, polygonKey);
+                this.bus.$emit('annotation-clicked', e.data.trackId, false);
+              }
+            }
+          }
+        } else if (e.mouse.buttonsDown.right) {
+          // Always emit polygon key for right-click so the correct polygon can be selected
+          const polygonKey = e.data.polygonKey || '';
+          this.bus.$emit('polygon-right-clicked', e.data.trackId, polygonKey);
+          // Track-level events only when not drawingOther
+          if (!this.drawingOther) {
+            if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+              this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+            }
           }
         }
       });

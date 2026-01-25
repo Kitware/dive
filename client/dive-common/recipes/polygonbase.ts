@@ -161,12 +161,20 @@ export default class PolygonBoundsExpand implements Recipe {
         }
 
         // Standard case: save polygon with the given key
+        // Calculate bounds from ALL polygons in the detection, not just the edited one
+        const allPolygons = track.getPolygonFeatures(frameNum);
+        const otherPolygons: GeoJSON.Polygon[] = allPolygons
+          .filter((p) => p.key !== (key || ''))
+          .map((p) => p.geometry);
+
         return {
           data: {
             [key || '']: data,
           },
-          union: [],
+          // Use union with other polygons to ensure bounds encompass all
+          union: otherPolygons,
           done: true,
+          // The edited polygon replaces the base bounds
           unionWithoutBounds: [poly],
         };
       }
