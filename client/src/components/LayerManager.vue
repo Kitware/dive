@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, watch, PropType, Ref, ref, computed, toRef, onMounted, nextTick,
+  defineComponent, watch, PropType, Ref, ref, computed, toRef,
 } from 'vue';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -393,19 +393,18 @@ export default defineComponent({
     }
 
     /**
-     * Defer layer initialization to onMounted to ensure the GeoJS viewer
-     * is fully ready. Use nextTick + requestAnimationFrame to give GeoJS
-     * time to complete its internal canvas/WebGL setup.
+     * Watch for the GeoJS viewer to be ready before initializing layers.
+     * The annotator sets ready=true only after initializeViewer() completes,
+     * which guarantees geoViewerRef.value is properly initialized.
      * This fixes a race condition where layers were created before GeoJS
      * was fully initialized, causing annotations to not display on first load.
      * See: https://github.com/Kitware/dive/issues/365
      */
-    onMounted(() => {
-      nextTick(() => {
-        // Use requestAnimationFrame to ensure GeoJS has completed its render cycle
-        requestAnimationFrame(() => {
+    watch(
+      () => annotator.ready.value,
+      (ready) => {
+        if (ready && !layersInitialized.value) {
           initializeLayers();
-          // Call updateLayers twice as GeoJS sometimes needs this for proper initialization
           updateLayers(
             frameNumberRef.value,
             editingModeRef.value,
@@ -416,22 +415,10 @@ export default defineComponent({
             selectedKeyRef.value,
             props.colorBy,
           );
-          // Second call to ensure GeoJS layers are properly rendered
-          requestAnimationFrame(() => {
-            updateLayers(
-              frameNumberRef.value,
-              editingModeRef.value,
-              selectedTrackIdRef.value,
-              multiSeletListRef.value,
-              enabledTracksRef.value,
-              visibleModesRef.value,
-              selectedKeyRef.value,
-              props.colorBy,
-            );
-          });
-        });
-      });
-    });
+        }
+      },
+      { immediate: true },
+    );
 
     /** Shallow watch */
     watch(
