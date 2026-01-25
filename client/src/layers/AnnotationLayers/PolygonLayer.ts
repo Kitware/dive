@@ -10,6 +10,7 @@ interface PolyGeoJSData{
   editing: boolean | string;
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
+  polygonKey: string;
   set?: string;
 }
 
@@ -42,8 +43,15 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
             if (e.mouse.modifiers.ctrl) {
               this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
             } else {
+              // Emit polygon selection event with the polygon key
+              const polygonKey = e.data.polygonKey || '';
+              this.bus.$emit('polygon-clicked', e.data.trackId, polygonKey);
               this.bus.$emit('annotation-clicked', e.data.trackId, false);
             }
+          } else if (e.data.selected) {
+            // Already selected track - user may be selecting a different polygon
+            const polygonKey = e.data.polygonKey || '';
+            this.bus.$emit('polygon-clicked', e.data.trackId, polygonKey);
           }
         } else if (e.mouse.buttonsDown.right && !this.drawingOther) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
@@ -106,12 +114,14 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           frameData.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'Polygon') {
               const polygon = feature.geometry;
+              const polygonKey = feature.properties?.key || '';
               const annotation: PolyGeoJSData = {
                 trackId: frameData.track.id,
                 selected: frameData.selected,
                 editing: frameData.editing,
                 styleType: frameData.styleType,
                 polygon,
+                polygonKey,
                 set: frameData.set,
               };
               arr.push(annotation);
@@ -126,7 +136,17 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
   redraw() {
     this.featureLayer
       .data(this.formattedData)
-      .polygon((d: PolyGeoJSData) => d.polygon.coordinates[0])
+      .polygon((d: PolyGeoJSData) => {
+        // GeoJS expects outer ring as array of points for simple polygons
+        // For polygons with holes, return object with outer/inner properties
+        if (d.polygon.coordinates.length > 1) {
+          return {
+            outer: d.polygon.coordinates[0],
+            inner: d.polygon.coordinates.slice(1),
+          };
+        }
+        return d.polygon.coordinates[0];
+      })
       .draw();
   }
 

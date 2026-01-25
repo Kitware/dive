@@ -58,6 +58,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   selectedKey?: string;
 
+  selectedPolygonIndex: number;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
@@ -74,6 +76,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.skipNextExternalUpdate = false;
     this._mode = 'editing';
     this.selectedKey = '';
+    this.selectedPolygonIndex = 0;
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
@@ -323,23 +326,50 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * retrieves geoJSON data based on the key and type
-   * @param frameData
+   * @param track
+   * @param polygonIndex optional index to get a specific polygon when multiple exist
    */
-  getGeoJSONData(track: FrameDataTrack) {
-    let geoJSONData;
+  getGeoJSONData(
+    track: FrameDataTrack,
+    polygonIndex?: number,
+  ): GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined {
+    let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
     if (track && track.features && track.features.geometry) {
+      const matchingFeatures: (GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString)[] = [];
       track.features.geometry.features.forEach((feature) => {
         if (feature.geometry
             && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
-          if (feature.properties && feature.properties.key !== 'undefined') {
-            if (feature.properties.key === this.selectedKey) {
-              geoJSONData = feature.geometry;
-            }
+          // Get the feature key, defaulting to '' for undefined/null keys
+          const featureKey = feature.properties?.key ?? '';
+          if (featureKey === this.selectedKey) {
+            matchingFeatures.push(
+              feature.geometry as GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString,
+            );
           }
         }
       });
+      // If polygonIndex is specified and valid, use it; otherwise use first match
+      if (polygonIndex !== undefined && polygonIndex >= 0 && polygonIndex < matchingFeatures.length) {
+        geoJSONData = matchingFeatures[polygonIndex];
+      } else if (matchingFeatures.length > 0) {
+        [geoJSONData] = matchingFeatures;
+      }
     }
     return geoJSONData;
+  }
+
+  /**
+   * Set which polygon index to edit when multiple polygons exist
+   */
+  setPolygonIndex(index: number) {
+    this.selectedPolygonIndex = index;
+  }
+
+  /**
+   * Get the currently selected polygon index
+   */
+  getPolygonIndex() {
+    return this.selectedPolygonIndex;
   }
 
   /** overrides default function to disable and clear anotations before drawing again */

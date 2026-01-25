@@ -26,6 +26,15 @@ export default Vue.extend({
       }
       return false;
     },
+    isPolygonMode(): boolean {
+      return this.editingMode === 'Polygon';
+    },
+    editModeIcon(): string {
+      if (this.editingMode === 'Polygon') return 'mdi-vector-polygon';
+      if (this.editingMode === 'LineString') return 'mdi-vector-line';
+      if (this.editingMode === 'rectangle') return 'mdi-vector-square';
+      return 'mdi-shape';
+    },
   },
 
   methods: {
@@ -39,33 +48,104 @@ export default Vue.extend({
         this.$emit('delete-annotation');
       }
     },
+    addHole() {
+      this.$emit('add-hole');
+    },
+    addPolygon() {
+      this.$emit('add-polygon');
+    },
   },
 });
 </script>
 
 <template>
-  <span class="mx-1">
-    <v-btn
-      v-if="!disabled"
-      color="error"
-      depressed
-      small
-      @click="deleteSelected"
+  <span class="mx-1 d-flex align-center">
+    <!-- Add Hole button - shown in polygon edit mode -->
+    <v-tooltip
+      v-if="isPolygonMode"
+      bottom
     >
-      <pre class="mr-1 text-body-2">del</pre>
-      <span v-if="selectedFeatureHandle >= 0">
-        point {{ selectedFeatureHandle }}
-      </span>
-      <span v-else-if="editingMode">
-        {{ editingMode }}
-      </span>
-      <span v-else>unselected</span>
-      <v-icon
-        small
-        class="ml-2"
-      >
-        mdi-delete
-      </v-icon>
-    </v-btn>
+      <template #activator="{ on, attrs }">
+        <v-btn
+          v-bind="attrs"
+          color="primary"
+          depressed
+          small
+          class="mr-1"
+          v-on="on"
+          @click="addHole"
+        >
+          <v-icon small>
+            mdi-vector-polygon
+          </v-icon>
+          <v-icon
+            x-small
+            class="ml-n1"
+          >
+            mdi-minus-circle-outline
+          </v-icon>
+        </v-btn>
+      </template>
+      <span>Add hole to polygon</span>
+    </v-tooltip>
+
+    <!-- Add Polygon button - shown in polygon edit mode -->
+    <v-tooltip
+      v-if="isPolygonMode"
+      bottom
+    >
+      <template #activator="{ on, attrs }">
+        <v-btn
+          v-bind="attrs"
+          color="primary"
+          depressed
+          small
+          class="mr-1"
+          v-on="on"
+          @click="addPolygon"
+        >
+          <v-icon small>
+            mdi-vector-polygon
+          </v-icon>
+          <v-icon
+            x-small
+            class="ml-n1"
+          >
+            mdi-plus-circle-outline
+          </v-icon>
+        </v-btn>
+      </template>
+      <span>Add another polygon</span>
+    </v-tooltip>
+
+    <!-- Delete button -->
+    <v-tooltip
+      v-if="!disabled"
+      bottom
+    >
+      <template #activator="{ on, attrs }">
+        <v-btn
+          v-bind="attrs"
+          color="error"
+          depressed
+          small
+          v-on="on"
+          @click="deleteSelected"
+        >
+          <span class="mr-1 text-body-2 font-weight-bold">DEL</span>
+          <span v-if="selectedFeatureHandle >= 0">
+            pt{{ selectedFeatureHandle }}
+          </span>
+          <v-icon
+            v-else
+            small
+          >
+            {{ editModeIcon }}
+          </v-icon>
+        </v-btn>
+      </template>
+      <span v-if="selectedFeatureHandle >= 0">Delete point {{ selectedFeatureHandle }}</span>
+      <span v-else-if="editingMode">Delete {{ editingMode }}</span>
+    </v-tooltip>
   </span>
 </template>

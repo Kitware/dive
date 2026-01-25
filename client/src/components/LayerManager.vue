@@ -386,6 +386,7 @@ export default defineComponent({
         typeStylingRef,
         toRef(props, 'colorBy'),
         selectedCamera,
+        selectedKeyRef,
       ],
       () => {
         updateLayers(
@@ -455,6 +456,10 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    // Handle polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      handler.selectFeatureHandle(-1, polygonKey);
+    });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,

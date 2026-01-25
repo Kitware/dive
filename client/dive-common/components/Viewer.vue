@@ -1010,6 +1010,8 @@ export default defineComponent({
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
+              @add-hole="handler.addHole"
+              @add-polygon="handler.addPolygon"
             />
           </template>
           <template

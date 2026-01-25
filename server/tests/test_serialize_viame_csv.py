@@ -192,6 +192,129 @@ test_tuple: List[Tuple[dict, list, list]] = [
         ],
         [],
     ),
+    # Testing multi-polygon with different keys
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["fish", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [100, 100, 500, 500],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": ""},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [[[100, 100], [200, 100], [200, 200], [100, 200]]],
+                                    },
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "1"},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [[[300, 300], [400, 300], [400, 400], [300, 400]]],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(poly) 100 100 200 100 200 200 100 200,(poly:1) 300 300 400 300 400 400 300 400",
+            "",
+        ],
+        [],
+    ),
+    # Testing polygon with hole
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["object", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [100, 100, 500, 500],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": ""},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[100, 100], [500, 100], [500, 500], [100, 500]],
+                                            [[200, 200], [400, 200], [400, 400], [200, 400]],
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,object,1.0,(poly) 100 100 500 100 500 500 100 500,(poly:hole:0) 200 200 400 200 400 400 200 400",
+            "",
+        ],
+        [],
+    ),
+    # Testing keyed polygon with hole
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["region", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [0, 0, 1000, 1000],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "2"},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[0, 0], [1000, 0], [1000, 1000], [0, 1000]],
+                                            [[100, 100], [200, 100], [200, 200], [100, 200]],
+                                            [[300, 300], [400, 300], [400, 400], [300, 400]],
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,0,0,1000,1000,1.0,-1,region,1.0,(poly:2) 0 0 1000 0 1000 1000 0 1000,(poly:2:hole:0) 100 100 200 100 200 200 100 200,(poly:2:hole:1) 300 300 400 300 400 400 300 400",
+            "",
+        ],
+        [],
+    ),
     # Testing type filter
     (
         {

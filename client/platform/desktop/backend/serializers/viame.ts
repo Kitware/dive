@@ -26,7 +26,8 @@ const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
-const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Extended polygon format: (poly[:key][:hole[:index]]) coordinates
+const PolyRegex = /^\(poly(?::([^:)]+))?(?::hole(?::(\d+))?)?\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
@@ -151,6 +152,28 @@ function _createGeoJsonFeature(
   return geoFeature;
 }
 
+/**
+ * Find an existing polygon feature by key and add a hole to it.
+ * @param geoFeatureCollection the feature collection to search
+ * @param coords hole coordinates
+ * @param key polygon key to find
+ */
+function _addHoleToPolygon(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+  coords: number[][],
+  key = '',
+) {
+  const matchingFeature = geoFeatureCollection.features.find(
+    (feature) => feature.geometry.type === 'Polygon' && feature.properties?.key === key,
+  );
+  if (matchingFeature) {
+    // Add hole as additional ring to the polygon coordinates
+    (matchingFeature.geometry.coordinates as number[][][]).push(coords);
+    return true;
+  }
+  return false;
+}
+
 function _parseRow(row: string[]) {
   // Create empty feature collection
   const geoFeatureCollection:
@@ -206,11 +229,14 @@ function _parseRow(row: string[]) {
       trackAttributes[trackattr[1]] = _deduceType(trackattr[2]);
     }
 
-    /* Polygon */
+    /* Polygon - extended format: (poly[:key][:hole[:index]]) coordinates */
     const poly = getCaptureGroups(PolyRegex, value);
     if (poly !== null) {
+      const polyKey = poly[1] || '';
+      const isHole = value.includes(':hole');
+      const coordString = poly[3];
       const coords: number[][] = [];
-      const polyList = poly[2].split(' ');
+      const polyList = coordString.split(' ');
       polyList.forEach((coord, j) => {
         if (j % 2 === 0) {
           // Filter out ODDs
@@ -219,7 +245,12 @@ function _parseRow(row: string[]) {
           }
         }
       });
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords));
+      if (isHole) {
+        // Add as hole to existing polygon with matching key
+        _addHoleToPolygon(geoFeatureCollection, coords, polyKey);
+      } else {
+        geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords, polyKey));
+      }
     }
   });
 
@@ -603,8 +634,31 @@ async function serialize(
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
               feature.geometry.features.forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
-                  const coordinates = flattenDeep(geoJSONFeature.geometry.coordinates[0]);
-                  row.push(`${PolyToken} ${coordinates.map(Math.round).join(' ')}`);
+                  const polyKey = geoJSONFeature.properties?.key || '';
+                  const allRings = geoJSONFeature.geometry.coordinates as number[][][];
+
+                  // Write outer ring (first ring)
+                  if (allRings.length > 0) {
+                    const outerCoords = flattenDeep(allRings[0]);
+                    // Use legacy format for default key with no holes
+                    if (polyKey === '' && allRings.length === 1) {
+                      row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
+                    } else if (polyKey === '') {
+                      row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
+                    } else {
+                      row.push(`(poly:${polyKey}) ${outerCoords.map(Math.round).join(' ')}`);
+                    }
+
+                    // Write holes (additional rings)
+                    for (let holeIdx = 0; holeIdx < allRings.length - 1; holeIdx += 1) {
+                      const holeCoords = flattenDeep(allRings[holeIdx + 1]);
+                      if (polyKey === '') {
+                        row.push(`(poly:hole:${holeIdx}) ${holeCoords.map(Math.round).join(' ')}`);
+                      } else {
+                        row.push(`(poly:${polyKey}:hole:${holeIdx}) ${holeCoords.map(Math.round).join(' ')}`);
+                      }
+                    }
+                  }
                 } else if (geoJSONFeature.geometry.type === 'Point') {
                   if (geoJSONFeature.properties) {
                     const kpname = geoJSONFeature.properties.key;
@@ -614,7 +668,6 @@ async function serialize(
                     );
                   }
                 }
-                /* TODO support for multiple GeoJSON Objects of the same type */
               });
             }
             stringify.write(row);
