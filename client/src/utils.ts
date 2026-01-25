@@ -198,18 +198,58 @@ function frameToTimestamp(frame: number, frameRate: number): string | null {
 }
 
 /**
- * Calculate rotation angle in radians from a rotated rectangle polygon
- * Returns the angle of the first edge (from first to second point) relative to horizontal
+ * Compute the centroid of a GeoJSON coordinate array.
+ * For closed polygons (first point equals last), the duplicate is excluded.
+ *
+ * @param coords - GeoJSON Position array
+ * @returns [x, y] centroid or null if empty
  */
-function calculateRotationFromPolygon(coords: GeoJSON.Position[]): number {
-  if (coords.length < 2) {
-    return 0;
+function getCentroid(coords: GeoJSON.Position[]): [number, number] | null {
+  if (coords.length === 0) return null;
+  let pts = coords;
+  if (
+    coords.length > 1
+    && coords[0][0] === coords[coords.length - 1][0]
+    && coords[0][1] === coords[coords.length - 1][1]
+  ) {
+    pts = coords.slice(0, -1);
   }
-  // Get the first edge vector (from first point to second point)
-  const dx = coords[1][0] - coords[0][0];
-  const dy = coords[1][1] - coords[0][1];
-  // Calculate angle using atan2
-  return Math.atan2(dy, dx);
+  const [sx, sy] = pts.reduce(
+    (acc, p) => [acc[0] + p[0], acc[1] + p[1]],
+    [0, 0],
+  );
+  return [sx / pts.length, sy / pts.length];
+}
+
+/**
+ * Given two GeoJSON coordinate arrays, compute the centroid of each and the
+ * rotation (in radians) from the first array's orientation to the second's.
+ *
+ * The orientation of each array is taken as the angle from its centroid to
+ * its first point. The returned value is the angle you would rotate the first
+ * shape to align with the second (counter‑clockwise positive).
+ *
+ * @param coordsA - First coordinate array
+ * @param coordsB - Second coordinate array
+ * @returns Rotation in radians (coordsB angle minus coordsA angle), or 0 if
+ *   either array is empty or centroids cannot be computed
+ */
+export function getRotationBetweenCoordinateArrays(
+  coordsA: GeoJSON.Position[],
+  coordsB: GeoJSON.Position[],
+): number {
+  const centerA = getCentroid(coordsA);
+  const centerB = getCentroid(coordsB);
+  if (!centerA || !centerB) return 0;
+
+  const dxA = coordsA[0][0] - centerA[0];
+  const dyA = coordsA[0][1] - centerA[1];
+  const dxB = coordsB[0][0] - centerB[0];
+  const dyB = coordsB[0][1] - centerB[1];
+
+  const angleA = Math.atan2(dyA, dxA);
+  const angleB = Math.atan2(dyB, dxB);
+  return angleB - angleA;
 }
 
 /**
@@ -233,136 +273,6 @@ function isAxisAligned(coords: GeoJSON.Position[]): boolean {
   const isPerpendicular = Math.abs(dx1 * dx2 + dy1 * dy2) < ROTATION_THRESHOLD;
 
   return (isHorizontal || isVertical) && isPerpendicular;
-}
-
-/**
- * Convert a rotated rectangle polygon to an axis-aligned bounding box.
- *
- * This function handles the conversion between the display representation
- * (rotated polygon) and the storage representation (axis-aligned bbox + rotation).
- *
- * The rotation is calculated from the first edge of the polygon.
- * The resulting bbox is the smallest axis-aligned rectangle that would
- * contain the original rotated rectangle when unrotated.
- *
- * @param coords - Polygon coordinates (should be 4-5 points for a rectangle)
- * @returns Object containing:
- *   - bounds: Axis-aligned bounding box [x1, y1, x2, y2]
- *   - rotation: Rotation angle in radians (0 if axis-aligned)
- *
- * @example
- * // Rotated rectangle at 45 degrees
- * const coords = [[0,0], [0,10], [10,10], [10,0], [0,0]];
- * const { bounds, rotation } = rotatedPolygonToAxisAlignedBbox(coords);
- * // bounds: [0, 0, 10, 10] (or similar)
- * // rotation: ~0.785 (45 degrees in radians)
- */
-function rotatedPolygonToAxisAlignedBbox(
-  coords: GeoJSON.Position[],
-): { bounds: RectBounds; rotation: number } {
-  try {
-    if (coords.length < 4) {
-      // Fallback to simple bounding box calculation
-      let x1 = Infinity;
-      let y1 = Infinity;
-      let x2 = -Infinity;
-      let y2 = -Infinity;
-      coords.forEach((coord) => {
-        x1 = Math.min(x1, coord[0]);
-        y1 = Math.min(y1, coord[1]);
-        x2 = Math.max(x2, coord[0]);
-        y2 = Math.max(y2, coord[1]);
-      });
-      return { bounds: [x1, y1, x2, y2], rotation: 0 };
-    }
-
-    // Validate that we have a proper rectangle (4 distinct corners + optional closing point)
-    const distinctPoints = coords.slice(0, Math.min(4, coords.length));
-    if (distinctPoints.length < 4) {
-      // Fallback to simple bbox
-      let x1 = Infinity;
-      let y1 = Infinity;
-      let x2 = -Infinity;
-      let y2 = -Infinity;
-      distinctPoints.forEach((coord) => {
-        x1 = Math.min(x1, coord[0]);
-        y1 = Math.min(y1, coord[1]);
-        x2 = Math.max(x2, coord[0]);
-        y2 = Math.max(y2, coord[1]);
-      });
-      return { bounds: [x1, y1, x2, y2], rotation: 0 };
-    }
-
-    // Check if rectangle is already axis-aligned
-    if (isAxisAligned(coords)) {
-      // Already axis-aligned, just calculate bounds
-      let x1 = Infinity;
-      let y1 = Infinity;
-      let x2 = -Infinity;
-      let y2 = -Infinity;
-      coords.forEach((coord) => {
-        x1 = Math.min(x1, coord[0]);
-        y1 = Math.min(y1, coord[1]);
-        x2 = Math.max(x2, coord[0]);
-        y2 = Math.max(y2, coord[1]);
-      });
-      return { bounds: [x1, y1, x2, y2], rotation: 0 };
-    }
-
-    // Rectangle is rotated - calculate original axis-aligned bbox by unrotating
-    const rotation = calculateRotationFromPolygon(coords);
-
-    // Calculate center of the rotated rectangle
-    let centerX = 0;
-    let centerY = 0;
-    const numPoints = Math.min(4, coords.length - 1); // Exclude duplicate last point
-    for (let i = 0; i < numPoints; i += 1) {
-      centerX += coords[i][0];
-      centerY += coords[i][1];
-    }
-    centerX /= numPoints;
-    centerY /= numPoints;
-
-    // Unrotate all points by -rotation around center
-    const cos = Math.cos(-rotation);
-    const sin = Math.sin(-rotation);
-    const unrotatedPoints: GeoJSON.Position[] = [];
-    for (let i = 0; i < numPoints; i += 1) {
-      const x = coords[i][0] - centerX;
-      const y = coords[i][1] - centerY;
-      const unrotatedX = x * cos - y * sin;
-      const unrotatedY = x * sin + y * cos;
-      unrotatedPoints.push([unrotatedX + centerX, unrotatedY + centerY]);
-    }
-
-    // Calculate axis-aligned bounding box from unrotated points
-    let x1 = Infinity;
-    let y1 = Infinity;
-    let x2 = -Infinity;
-    let y2 = -Infinity;
-    unrotatedPoints.forEach((coord) => {
-      x1 = Math.min(x1, coord[0]);
-      y1 = Math.min(y1, coord[1]);
-      x2 = Math.max(x2, coord[0]);
-      y2 = Math.max(y2, coord[1]);
-    });
-
-    return { bounds: [x1, y1, x2, y2], rotation };
-  } catch (error) {
-    console.error('Error converting rotated polygon to bbox:', error);
-    // Fallback to simple bbox calculation
-    let x1 = Infinity;
-    let y1 = Infinity;
-    let x2 = -Infinity;
-    let y2 = -Infinity;
-    coords.forEach((coord) => {
-      x1 = Math.min(x1, coord[0]);
-      y1 = Math.min(y1, coord[1]);
-      x2 = Math.max(x2, coord[0]);
-      y2 = Math.max(y2, coord[1]);
-    });
-    return { bounds: [x1, y1, x2, y2], rotation: 0 };
-  }
 }
 
 /**
@@ -426,74 +336,81 @@ export function hasSignificantRotation(rotation: number | undefined | null): boo
 }
 
 /**
- * Apply rotation to an axis-aligned bounding box polygon.
+ * Get a small arrow LineString at the midpoint of the right edge of a rotated bbox,
+ * pointing outward. Used to indicate rotation direction. Returns null if rotation
+ * is not significant.
  *
- * Coordinate System:
- * - Assumes image coordinates where (0,0) is top-left
- * - Y-axis increases downward
- * - Rotation is counter-clockwise in radians (matching GeoJS convention)
- * - Bounds format: [x1, y1, x2, y2] where (x1,y1) is top-left, (x2,y2) is bottom-right
+ * The "right" edge is the edge at +halfWidth in local bbox coords (the vertical
+ * edge at max X when rotation is 0), so the arrow stays on that side for any rotation.
  *
- * @param polygon - The axis-aligned polygon
- * @param bounds - The bounding box [x1, y1, x2, y2] in image coordinates
- * @param rotation - Rotation angle in radians (counter-clockwise)
- * @returns Rotated polygon
+ * @param bounds - Axis-aligned bbox [x1, y1, x2, y2]
+ * @param rotation - Rotation in radians (counter-clockwise)
+ * @returns GeoJSON LineString (chevron) or null if rotation is not significant
  */
-export function applyRotationToPolygon(
-  polygon: GeoJSON.Polygon,
+function getRotationArrowLine(
   bounds: RectBounds,
   rotation: number,
-): GeoJSON.Polygon {
-  // Calculate center of the bounding box
-  const centerX = (bounds[0] + bounds[2]) / 2;
-  const centerY = (bounds[1] + bounds[3]) / 2;
+): GeoJSON.LineString | null {
+  if (!hasSignificantRotation(rotation)) return null;
 
-  // Calculate width and height
+  const centerX = bounds[0] + (bounds[2] - bounds[0]) / 2;
+  const centerY = bounds[1] + (bounds[3] - bounds[1]) / 2;
+  const center = [centerX, centerY];
   const width = bounds[2] - bounds[0];
   const height = bounds[3] - bounds[1];
 
-  // Half dimensions
-  const halfWidth = width / 2;
-  const halfHeight = height / 2;
+  const rightMidPoint = [bounds[2], center[1]];
 
-  // Rotation matrix components
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-
-  // Transform the four corners
-  const corners = [
-    [-halfWidth, -halfHeight], // bottom-left (relative to center)
-    [-halfWidth, halfHeight], // top-left
-    [halfWidth, halfHeight], // top-right
-    [halfWidth, -halfHeight], // bottom-right
+  // draw a small arrow on the right edge of the bounding box
+  // the arrow is pointing outward from the right edge
+  // the arrow is a triangle with a base and a tip
+  const arrowLength = Math.min(width, height) * 0.12;
+  const arrowTopBase = [
+    rightMidPoint[0] + 5,
+    rightMidPoint[1] + arrowLength * 0.5,
+  ];
+  const arrowTip = [
+    rightMidPoint[0] + arrowLength,
+    rightMidPoint[1],
+  ];
+  const arrowBottomBase = [
+    rightMidPoint[0] + 5,
+    rightMidPoint[1] - arrowLength * 0.5,
   ];
 
-  const rotatedCorners = corners.map(([x, y]) => {
-    // Apply rotation
-    const rotatedX = x * cos - y * sin;
-    const rotatedY = x * sin + y * cos;
-    // Translate back to world coordinates
-    return [rotatedX + centerX, rotatedY + centerY] as [number, number];
-  });
+  const arrowRightCoordinates = [
+    arrowTopBase,
+    arrowTip,
+    arrowBottomBase,
+  ];
+  const rotatedArrowCoordinates = arrowRightCoordinates.map((pt) => rotatedPointAboutCenter(center as [number, number], pt as [number, number], rotation)) as GeoJSON.Position[];
 
-  // Return polygon with rotated corners (close the polygon)
   return {
-    type: 'Polygon',
-    coordinates: [
-      [
-        rotatedCorners[0],
-        rotatedCorners[1],
-        rotatedCorners[2],
-        rotatedCorners[3],
-        rotatedCorners[0], // Close the polygon
-      ],
-    ],
+    type: 'LineString',
+    coordinates: rotatedArrowCoordinates,
   };
+}
+
+function rotatedPointAboutCenter(center: [number, number], point: [number, number], rotation: number): [number, number] {
+  const x = point[0] - center[0];
+  const y = point[1] - center[1];
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return [x * cos - y * sin + center[0], x * sin + y * cos + center[1]];
+}
+
+function rotateGeoJSONCoordinates(coordinates: GeoJSON.Position[], rotation: number): GeoJSON.Position[] {
+  const center = getCentroid(coordinates);
+  if (!center) return coordinates;
+  return coordinates.map((coord) => rotatedPointAboutCenter(center, [coord[0], coord[1]], rotation)) as GeoJSON.Position[];
 }
 
 export {
   getResponseError,
   boundToGeojson,
+  getRotationArrowLine,
+  rotatedPointAboutCenter,
+  rotateGeoJSONCoordinates,
   // findBounds,
   updateBounds,
   geojsonToBound,
@@ -503,7 +420,5 @@ export {
   reOrdergeoJSON,
   withinBounds,
   frameToTimestamp,
-  calculateRotationFromPolygon,
   isAxisAligned,
-  rotatedPolygonToAxisAlignedBbox,
 };

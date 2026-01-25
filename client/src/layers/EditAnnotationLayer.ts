@@ -3,11 +3,13 @@ import geo, { GeoEvent } from 'geojs';
 import {
   boundToGeojson,
   reOrdergeoJSON,
-  rotatedPolygonToAxisAlignedBbox,
-  applyRotationToPolygon,
   getRotationFromAttributes,
+  getRotationArrowLine,
   hasSignificantRotation,
   ROTATION_ATTRIBUTE_NAME,
+  RectBounds,
+  getRotationBetweenCoordinateArrays,
+  rotateGeoJSONCoordinates,
 } from '../utils';
 import { FrameDataTrack } from './LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
@@ -77,6 +79,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  arrowFeatureLayer: any;
+
+  unrotatedGeoJSONCoords: GeoJSON.Position[] | null;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.skipNextExternalUpdate = false;
@@ -88,6 +95,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.shapeInProgress = null;
     this.disableModeSync = false;
     this.leftButtonCheckTimeout = -1;
+    this.unrotatedGeoJSONCoords = null;
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
@@ -151,6 +159,18 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.disableModeSync = false;
       });
       this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
+
+      const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
+      this.arrowFeatureLayer = arrowLayer.createFeature('line');
+      this.arrowFeatureLayer.style({
+        position: (p: [number, number]) => ({ x: p[0], y: p[1] }),
+        stroke: true,
+        fill: false,
+        strokeColor: () => (this.styleType ? this.typeStyling.value.color(this.styleType) : this.stateStyling.selected.color),
+        strokeWidth: () => (this.styleType ? this.typeStyling.value.strokeWidth(this.styleType) : this.stateStyling.selected.strokeWidth),
+        strokeOpacity: () => (this.styleType ? this.typeStyling.value.opacity(this.styleType) : this.stateStyling.selected.opacity),
+        strokeOffset: 0,
+      });
     }
   }
 
@@ -322,6 +342,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.skipNextExternalUpdate = false;
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
+      if (this.arrowFeatureLayer) {
+        this.arrowFeatureLayer.data([]).draw();
+      }
       this.shapeInProgress = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
@@ -390,16 +413,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
         if (this.type === 'rectangle') {
           geoJSONData = boundToGeojson(track.features.bounds);
+          this.unrotatedGeoJSONCoords = geoJSONData.coordinates[0] as GeoJSON.Position[];
 
           // Restore rotation if it exists
           const rotation = getRotationFromAttributes(track.features.attributes);
           if (hasSignificantRotation(rotation)) {
             // Apply rotation to restore the rotated rectangle for editing
-            geoJSONData = applyRotationToPolygon(
-              geoJSONData,
-              track.features.bounds,
-              rotation || 0,
-            );
+            const updatedCoords = rotateGeoJSONCoordinates(geoJSONData.coordinates[0], rotation ?? 0);
+            geoJSONData.coordinates[0] = updatedCoords;
           }
         } else {
           // TODO: this assumes only one polygon
@@ -455,29 +476,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
-        if (this.type === 'rectangle') {
-          const coords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
-          const rotationInfo = rotatedPolygonToAxisAlignedBbox(coords);
-          const isRotated = hasSignificantRotation(rotationInfo.rotation);
 
-          // Convert to axis-aligned for storage
-          const axisAlignedCoords = [
-            [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-            [rotationInfo.bounds[0], rotationInfo.bounds[1]],
-            [rotationInfo.bounds[2], rotationInfo.bounds[1]],
-            [rotationInfo.bounds[2], rotationInfo.bounds[3]],
-            [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-          ];
-          geoJSONData[0].geometry.coordinates[0] = axisAlignedCoords;
-
-          // Store rotation if significant
-          if (isRotated) {
-            geoJSONData[0].properties = {
-              ...geoJSONData[0].properties,
-              [ROTATION_ATTRIBUTE_NAME]: rotationInfo.rotation,
-            };
-          }
-        }
+        this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
@@ -509,20 +509,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon|GeoJSON.LineString> = (
             e.annotation.geojson()
           );
+          const rotationBetween = getRotationBetweenCoordinateArrays(
+            this.unrotatedGeoJSONCoords || [],
+            newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
+          );
           if (this.formattedData.length > 0) {
             if (this.type === 'rectangle') {
               const coords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
-
-              // Calculate rotation info once and reuse
-              const rotationInfo = rotatedPolygonToAxisAlignedBbox(coords);
-              const isRotated = hasSignificantRotation(rotationInfo.rotation);
-
-              // During editing, keep the rotated polygon as-is so corners don't snap
-              // Only reorder if not rotated
-              if (!isRotated) {
-                // No rotation, use reordered coordinates
-                newGeojson.geometry.coordinates[0] = reOrdergeoJSON(coords);
-              }
               // If rotated, keep the rotated coordinates for editing
 
               // The corners need to update for the indexes to update
@@ -539,24 +532,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
                 .value.interactor().retriggerMouseMove(), 0);
 
               // For rectangles, convert to axis-aligned bounds with rotation when saving
-              if (isRotated) {
-                // Convert to axis-aligned for storage, but keep rotation in properties
-                const axisAlignedCoords = [
-                  [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-                  [rotationInfo.bounds[0], rotationInfo.bounds[1]],
-                  [rotationInfo.bounds[2], rotationInfo.bounds[1]],
-                  [rotationInfo.bounds[2], rotationInfo.bounds[3]],
-                  [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-                ];
-                newGeojson.geometry.coordinates[0] = axisAlignedCoords;
-                newGeojson.properties = {
-                  ...newGeojson.properties,
-                  [ROTATION_ATTRIBUTE_NAME]: rotationInfo.rotation,
-                };
-              } else {
-                // No rotation, ensure coordinates are properly ordered
-                newGeojson.geometry.coordinates[0] = reOrdergeoJSON(coords);
-              }
+              // Convert to axis-aligned for storage, but keep rotation in properties
+              const axisAlignedCoords = rotateGeoJSONCoordinates(coords, 0 - rotationBetween);
+              newGeojson.properties = {
+                ...newGeojson.properties,
+                [ROTATION_ATTRIBUTE_NAME]: rotationBetween,
+              };
+              newGeojson.geometry.coordinates[0] = reOrdergeoJSON(axisAlignedCoords);
             }
 
             // update existing feature
@@ -572,27 +554,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             // For rectangles, convert to axis-aligned bounds with rotation when saving
             if (this.type === 'rectangle') {
               const coords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
-              const rotationInfo = rotatedPolygonToAxisAlignedBbox(coords);
-              const isRotated = hasSignificantRotation(rotationInfo.rotation);
 
-              if (isRotated) {
-                // Convert to axis-aligned for storage, but keep rotation in properties
-                const axisAlignedCoords = [
-                  [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-                  [rotationInfo.bounds[0], rotationInfo.bounds[1]],
-                  [rotationInfo.bounds[2], rotationInfo.bounds[1]],
-                  [rotationInfo.bounds[2], rotationInfo.bounds[3]],
-                  [rotationInfo.bounds[0], rotationInfo.bounds[3]],
-                ];
-                newGeojson.geometry.coordinates[0] = axisAlignedCoords;
-                newGeojson.properties = {
-                  ...(newGeojson.properties || {}),
-                  [ROTATION_ATTRIBUTE_NAME]: rotationInfo.rotation,
-                };
-              } else {
-                // No rotation, ensure coordinates are properly ordered
-                newGeojson.geometry.coordinates[0] = reOrdergeoJSON(coords);
-              }
+              // Convert to axis-aligned for storage, but keep rotation in properties
+              newGeojson.properties = {
+                ...(newGeojson.properties || {}),
+                [ROTATION_ATTRIBUTE_NAME]: rotationBetween,
+              };
+              newGeojson.geometry.coordinates[0] = rotateGeoJSONCoordinates(coords, 0 - (rotationBetween ?? 0));
             }
 
             this.formattedData = [{
@@ -625,6 +593,34 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   redraw() {
     this.applyStylesToAnnotations();
     this.featureLayer.draw();
+
+    if (this.arrowFeatureLayer) {
+      if (this.type === 'rectangle') {
+        const ann = this.featureLayer.annotations()[0];
+        if (ann) {
+          const g = ann.geojson();
+          if (g && g.geometry && g.geometry.type === 'Polygon') {
+            const coords = (g.geometry as GeoJSON.Polygon).coordinates[0];
+            const rotation = getRotationFromAttributes(g.properties as Record<string, unknown>);
+            const unrotated = rotateGeoJSONCoordinates(coords, 0 - (rotation ?? 0));
+            // create RectBounds from unrotated coordinates
+            const bounds: RectBounds = [Math.min(unrotated[0][0], unrotated[2][0]), Math.min(unrotated[0][1], unrotated[2][1]), Math.max(unrotated[0][0], unrotated[2][0]), Math.max(unrotated[0][1], unrotated[2][1])];
+            const arrow = getRotationArrowLine(bounds, rotation ?? 0);
+            if (arrow) {
+              this.arrowFeatureLayer.data([{ c: arrow.coordinates }]).line((d: { c: GeoJSON.Position[] }) => d.c).draw();
+            } else {
+              this.arrowFeatureLayer.data([]).draw();
+            }
+          } else {
+            this.arrowFeatureLayer.data([]).draw();
+          }
+        } else {
+          this.arrowFeatureLayer.data([]).draw();
+        }
+      } else {
+        this.arrowFeatureLayer.data([]).draw();
+      }
+    }
 
     return null;
   }

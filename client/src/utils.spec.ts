@@ -3,14 +3,11 @@ import {
   updateSubset,
   reOrdergeoJSON,
   reOrderBounds,
-  applyRotationToPolygon,
-  rotatedPolygonToAxisAlignedBbox,
   validateRotation,
   isRotationValue,
   getRotationFromAttributes,
   hasSignificantRotation,
   isReservedAttributeName,
-  calculateRotationFromPolygon,
   isAxisAligned,
   ROTATION_THRESHOLD,
   ROTATION_ATTRIBUTE_NAME,
@@ -198,27 +195,6 @@ describe('Rotation utilities', () => {
     });
   });
 
-  describe('calculateRotationFromPolygon', () => {
-    it('should return 0 for insufficient coordinates', () => {
-      expect(calculateRotationFromPolygon([])).toBe(0);
-      expect(calculateRotationFromPolygon([[0, 0]])).toBe(0);
-    });
-
-    it('should calculate rotation from first edge', () => {
-      // Horizontal edge (0 degrees)
-      const coords1 = [[0, 0], [10, 0], [10, 10], [0, 10]];
-      expect(calculateRotationFromPolygon(coords1)).toBeCloseTo(0, 5);
-
-      // Vertical edge (90 degrees = π/2)
-      const coords2 = [[0, 0], [0, 10], [10, 10], [10, 0]];
-      expect(calculateRotationFromPolygon(coords2)).toBeCloseTo(Math.PI / 2, 5);
-
-      // 45 degree edge
-      const coords3 = [[0, 0], [10, 10], [20, 10], [10, 0]];
-      expect(calculateRotationFromPolygon(coords3)).toBeCloseTo(Math.PI / 4, 5);
-    });
-  });
-
   describe('isAxisAligned', () => {
     it('should return true for insufficient coordinates', () => {
       expect(isAxisAligned([])).toBe(true);
@@ -235,154 +211,6 @@ describe('Rotation utilities', () => {
       // 45 degree rotation
       const coords = [[0, 0], [5, 5], [10, 0], [5, -5]];
       expect(isAxisAligned(coords)).toBe(false);
-    });
-  });
-
-  describe('applyRotationToPolygon', () => {
-    it('should apply rotation to axis-aligned bounding box', () => {
-      const bounds: RectBounds = [0, 0, 10, 10];
-      const polygon = {
-        type: 'Polygon' as const,
-        coordinates: [[[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]]],
-      };
-      const rotation = Math.PI / 4; // 45 degrees
-
-      const result = applyRotationToPolygon(polygon, bounds, rotation);
-
-      expect(result.type).toBe('Polygon');
-      expect(result.coordinates[0]).toHaveLength(5); // 4 corners + closing point
-      expect(result.coordinates[0][0]).toEqual(result.coordinates[0][4]); // Closed polygon
-
-      // Check that corners are rotated (not axis-aligned)
-      const firstCorner = result.coordinates[0][0];
-      // After 45 degree rotation, corners should not be at integer coordinates
-      expect(firstCorner[0]).not.toBe(0);
-      expect(firstCorner[1]).not.toBe(0);
-    });
-
-    it('should return same polygon for zero rotation', () => {
-      const bounds: RectBounds = [0, 0, 10, 10];
-      const polygon = {
-        type: 'Polygon' as const,
-        coordinates: [[[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]]],
-      };
-
-      const result = applyRotationToPolygon(polygon, bounds, 0);
-
-      // Should be very close to original (within floating point precision)
-      // Check all corners (excluding the closing point)
-      const corners = result.coordinates[0].slice(0, 4);
-      // After zero rotation, corners should match original bounds
-      // The function creates corners relative to center, so check that all corners exist
-      expect(corners).toHaveLength(4);
-      // Verify polygon is closed
-      expect(result.coordinates[0][0]).toEqual(result.coordinates[0][4]);
-    });
-
-    it('should handle 90 degree rotation', () => {
-      const bounds: RectBounds = [0, 0, 10, 10];
-      const polygon = {
-        type: 'Polygon' as const,
-        coordinates: [[[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]]],
-      };
-      const rotation = Math.PI / 2; // 90 degrees
-
-      const result = applyRotationToPolygon(polygon, bounds, rotation);
-
-      // After 90 degree rotation, the box should still be axis-aligned but dimensions swapped
-      // Center should remain at (5, 5)
-      const centerX = (bounds[0] + bounds[2]) / 2;
-      const centerY = (bounds[1] + bounds[3]) / 2;
-      const corners = result.coordinates[0].slice(0, 4);
-      const avgX = corners.reduce((sum, c) => sum + c[0], 0) / 4;
-      const avgY = corners.reduce((sum, c) => sum + c[1], 0) / 4;
-      expect(avgX).toBeCloseTo(centerX, 5);
-      expect(avgY).toBeCloseTo(centerY, 5);
-    });
-  });
-
-  describe('rotatedPolygonToAxisAlignedBbox', () => {
-    it('should handle axis-aligned rectangles', () => {
-      const coords = [[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]];
-      const result = rotatedPolygonToAxisAlignedBbox(coords);
-
-      expect(result.rotation).toBe(0);
-      expect(result.bounds).toEqual([0, 0, 10, 10]);
-    });
-
-    it('should handle rotated rectangles', () => {
-      // Create a rotated rectangle (45 degrees)
-      // Start with axis-aligned box at [0, 0, 10, 10], then rotate 45 degrees
-      const centerX = 5;
-      const centerY = 5;
-      const halfSize = 5;
-      const angle = Math.PI / 4;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-
-      // Rotate corners
-      const corners = [
-        [-halfSize, -halfSize],
-        [-halfSize, halfSize],
-        [halfSize, halfSize],
-        [halfSize, -halfSize],
-      ].map(([x, y]) => {
-        const rotatedX = x * cos - y * sin;
-        const rotatedY = x * sin + y * cos;
-        return [rotatedX + centerX, rotatedY + centerY] as [number, number];
-      });
-
-      const coords = [...corners, corners[0]]; // Close polygon
-      const result = rotatedPolygonToAxisAlignedBbox(coords);
-
-      // Should detect rotation
-      expect(Math.abs(result.rotation)).toBeGreaterThan(ROTATION_THRESHOLD);
-      // Should return axis-aligned bounds
-      expect(result.bounds[0]).toBeLessThanOrEqual(result.bounds[2]);
-      expect(result.bounds[1]).toBeLessThanOrEqual(result.bounds[3]);
-    });
-
-    it('should handle insufficient coordinates', () => {
-      const coords = [[0, 0], [10, 0]];
-      const result = rotatedPolygonToAxisAlignedBbox(coords);
-
-      expect(result.rotation).toBe(0);
-      expect(result.bounds[0]).toBeLessThanOrEqual(result.bounds[2]);
-      expect(result.bounds[1]).toBeLessThanOrEqual(result.bounds[3]);
-    });
-
-    it('should round-trip: rotate then unrotate', () => {
-      const originalBounds: RectBounds = [0, 0, 10, 10];
-      const rotation = Math.PI / 6; // 30 degrees
-
-      // Create rotated polygon
-      const polygon = {
-        type: 'Polygon' as const,
-        coordinates: [[[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]]],
-      };
-      const rotatedPolygon = applyRotationToPolygon(polygon, originalBounds, rotation);
-
-      // Convert back to axis-aligned
-      const result = rotatedPolygonToAxisAlignedBbox(rotatedPolygon.coordinates[0]);
-
-      // Should recover original bounds (within floating point precision)
-      // Note: rotated bbox might be slightly larger due to rotation
-      expect(result.bounds[0]).toBeLessThanOrEqual(originalBounds[0] + 1);
-      expect(result.bounds[1]).toBeLessThanOrEqual(originalBounds[1] + 1);
-      expect(result.bounds[2]).toBeGreaterThanOrEqual(originalBounds[2] - 1);
-      expect(result.bounds[3]).toBeGreaterThanOrEqual(originalBounds[3] - 1);
-      // Should detect rotation (may be normalized to different quadrant)
-      expect(Math.abs(result.rotation)).toBeGreaterThan(ROTATION_THRESHOLD);
-    });
-
-    it('should handle edge case with malformed coordinates', () => {
-      // Test error handling with invalid coordinates
-      const coords: Array<[number, number]> = [];
-      const result = rotatedPolygonToAxisAlignedBbox(coords);
-
-      // Should return valid bounds (fallback behavior)
-      expect(Array.isArray(result.bounds)).toBe(true);
-      expect(result.bounds).toHaveLength(4);
     });
   });
 });

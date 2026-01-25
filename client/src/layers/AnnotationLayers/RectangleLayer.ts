@@ -4,9 +4,10 @@ import geo, { GeoEvent } from 'geojs';
 import { cloneDeep } from 'lodash';
 import {
   boundToGeojson,
-  applyRotationToPolygon,
   getRotationFromAttributes,
+  getRotationArrowLine,
   hasSignificantRotation,
+  rotateGeoJSONCoordinates,
 } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
@@ -22,12 +23,17 @@ interface RectGeoJSData{
   set?: string;
   dashed?: boolean;
   rotation?: number;
+  /** Small arrow on the right-edge midpoint when rotation is significant */
+  rotationArrow?: GeoJSON.LineString | null;
 }
 
 export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
   drawingOther: boolean; //drawing another type of annotation at the same time?
 
   hoverOn: boolean; //to turn over annnotations on
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  arrowFeatureLayer: any;
 
   constructor(params: BaseLayerParams) {
     super(params);
@@ -39,7 +45,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
 
   initialize() {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
-      features: ['polygon'],
+      features: ['polygon', 'line'],
     });
     this.featureLayer = layer
       .createFeature('polygon', { selectionAPI: true })
@@ -72,7 +78,29 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         this.bus.$emit('annotation-clicked', null, false);
       }
     });
+    this.arrowFeatureLayer = layer.createFeature('line');
     super.initialize();
+    this.arrowFeatureLayer.style({
+      position: (p: [number, number]) => ({ x: p[0], y: p[1] }),
+      stroke: true,
+      fill: false,
+      strokeColor: (_p: [number, number], _i: number, data: RectGeoJSData) => {
+        if (data.selected) return this.stateStyling.selected.color;
+        if (data.styleType) return this.typeStyling.value.color(data.styleType[0]);
+        return this.typeStyling.value.color('');
+      },
+      strokeWidth: (_p: [number, number], _i: number, data: RectGeoJSData) => {
+        if (data.selected) return this.stateStyling.selected.strokeWidth;
+        if (data.styleType) return this.typeStyling.value.strokeWidth(data.styleType[0]);
+        return this.stateStyling.standard.strokeWidth;
+      },
+      strokeOpacity: (_p: [number, number], _i: number, data: RectGeoJSData) => {
+        if (data.selected) return this.stateStyling.selected.opacity;
+        if (data.styleType) return this.typeStyling.value.opacity(data.styleType[0]);
+        return this.stateStyling.standard.opacity;
+      },
+      strokeOffset: 0,
+    });
   }
 
   hoverAnnotations(e: GeoEvent) {
@@ -123,7 +151,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
 
         // Apply rotation to polygon if rotation exists
         if (hasSignificantRotation(rotation)) {
-          polygon = applyRotationToPolygon(polygon, track.features.bounds, rotation!);
+          const updatedCoords = rotateGeoJSONCoordinates(polygon.coordinates[0], rotation ?? 0);
+          polygon.coordinates[0] = updatedCoords;
         }
 
         const dashed = !!(track.set && comparisonSets?.includes(track.set));
@@ -135,7 +164,6 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           temp.coordinates[0] = LineLayer.dashLine(temp.coordinates[0], dashSize);
           polygon = temp;
         }
-
         const annotation: RectGeoJSData = {
           trackId: track.track.id,
           selected: track.selected,
@@ -146,6 +174,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           set: track.set,
           dashed,
           rotation,
+          rotationArrow: getRotationArrowLine(track.features.bounds, rotation || 0),
         };
         arr.push(annotation);
       }
@@ -158,10 +187,18 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       .data(this.formattedData)
       .polygon((d: RectGeoJSData) => d.polygon.coordinates[0])
       .draw();
+    const arrowData = this.formattedData.filter((d) => d.rotationArrow);
+    this.arrowFeatureLayer
+      .data(arrowData)
+      .line((d: RectGeoJSData) => d.rotationArrow!.coordinates)
+      .draw();
   }
 
   disable() {
     this.featureLayer
+      .data([])
+      .draw();
+    this.arrowFeatureLayer
       .data([])
       .draw();
   }
