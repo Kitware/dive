@@ -153,9 +153,9 @@ export default class PolygonBoundsExpand implements Recipe {
             data: {
               [useKey]: [newFeature],
             },
-            union: [],
+            union: [poly], // Use union to EXPAND bounds, not replace them
             done: true,
-            unionWithoutBounds: [poly],
+            unionWithoutBounds: [],
             newSelectedKey: '', // Reset to default polygon for future edits
           };
         }

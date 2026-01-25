@@ -123,6 +123,35 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
           const newIndex = this.hoverHandleIndex;
+          // If not hovering over an edit handle and not on the edit polygon,
+          // emit event so other layers can handle the click (e.g., selecting different polygon)
+          if (newIndex < 0 && this.type === 'Polygon') {
+            const annotations = this.featureLayer.annotations();
+            if (annotations.length > 0) {
+              const annotation = annotations[0];
+              const geojson = annotation.geojson();
+              if (geojson && geojson.geometry && geojson.geometry.type === 'Polygon') {
+                const coords = geojson.geometry.coordinates[0] as [number, number][];
+                const point: [number, number] = [e.geo.x, e.geo.y];
+                // Ray casting algorithm to check if point is inside polygon
+                let inside = false;
+                for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+                  const xi = coords[i][0];
+                  const yi = coords[i][1];
+                  const xj = coords[j][0];
+                  const yj = coords[j][1];
+                  const intersect = ((yi > point[1]) !== (yj > point[1]))
+                    && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+                  if (intersect) inside = !inside;
+                }
+                if (!inside) {
+                  // Click is outside the current edit polygon - emit passthrough event
+                  this.bus.$emit('click-outside-edit', e.geo);
+                  return;
+                }
+              }
+            }
+          }
           // Click features like a toggle: unselect if it's clicked twice.
           if (newIndex === this.selectedHandleIndex) {
             this.selectedHandleIndex = -1;
