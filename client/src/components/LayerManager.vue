@@ -457,6 +457,10 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     // Handle right-click polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
       // Set the polygon key for the right-clicked polygon
       handler.selectFeatureHandle(-1, polygonKey);
       // Force layer update to load the selected polygon
@@ -478,6 +482,10 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     // Handle polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
       handler.selectFeatureHandle(-1, polygonKey);
       // Force layer update to load the newly selected polygon
       // Use nextTick to ensure the selectedKey ref has been updated

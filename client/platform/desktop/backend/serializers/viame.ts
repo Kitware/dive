@@ -26,8 +26,10 @@ const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
-// Extended polygon format: (poly[:key][:hole[:index]]) coordinates
-const PolyRegex = /^\(poly(?::([^:)]+))?(?::hole(?::(\d+))?)?\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Polygon format: (poly) coordinates
+const PolyRegex = /^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Hole format: (hole) coordinates
+const HoleRegex = /^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
@@ -119,6 +121,18 @@ function _deduceType(value: string): boolean | number | string {
     return float;
   }
   return value;
+}
+
+/**
+ * Get the next available polygon key for a feature collection.
+ */
+function _getNextPolygonKey(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+): string {
+  const polygonCount = geoFeatureCollection.features.filter(
+    (f) => f.geometry.type === 'Polygon',
+  ).length;
+  return polygonCount > 0 ? String(polygonCount) : '';
 }
 
 /**
@@ -229,12 +243,11 @@ function _parseRow(row: string[]) {
       trackAttributes[trackattr[1]] = _deduceType(trackattr[2]);
     }
 
-    /* Polygon - extended format: (poly[:key][:hole[:index]]) coordinates */
+    /* Polygon - format: (poly) coordinates
+     * Multiple (poly) entries create separate polygons with auto-generated keys */
     const poly = getCaptureGroups(PolyRegex, value);
     if (poly !== null) {
-      const polyKey = poly[1] || '';
-      const isHole = value.includes(':hole');
-      const coordString = poly[3];
+      const coordString = poly[1];
       const coords: number[][] = [];
       const polyList = coordString.split(' ');
       polyList.forEach((coord, j) => {
@@ -245,11 +258,31 @@ function _parseRow(row: string[]) {
           }
         }
       });
-      if (isHole) {
-        // Add as hole to existing polygon with matching key
-        _addHoleToPolygon(geoFeatureCollection, coords, polyKey);
-      } else {
-        geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords, polyKey));
+      // Create new polygon with auto-generated key
+      const newKey = _getNextPolygonKey(geoFeatureCollection);
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords, newKey));
+    }
+
+    /* Hole - format: (hole) coordinates
+     * Added to the most recent polygon */
+    const hole = getCaptureGroups(HoleRegex, value);
+    if (hole !== null) {
+      const coordString = hole[1];
+      const coords: number[][] = [];
+      const polyList = coordString.split(' ');
+      polyList.forEach((coord, j) => {
+        if (j % 2 === 0) {
+          // Filter out ODDs
+          if (polyList[j + 1]) {
+            coords.push([parseFloat(coord), parseFloat(polyList[j + 1])]);
+          }
+        }
+      });
+      // Add as hole to the most recent polygon
+      const polygons = geoFeatureCollection.features.filter((f) => f.geometry.type === 'Polygon');
+      if (polygons.length > 0) {
+        const lastPolyKey = polygons[polygons.length - 1].properties?.key || '';
+        _addHoleToPolygon(geoFeatureCollection, coords, lastPolyKey);
       }
     }
   });
@@ -634,29 +667,17 @@ async function serialize(
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
               feature.geometry.features.forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
-                  const polyKey = geoJSONFeature.properties?.key || '';
                   const allRings = geoJSONFeature.geometry.coordinates as number[][][];
 
                   // Write outer ring (first ring)
                   if (allRings.length > 0) {
                     const outerCoords = flattenDeep(allRings[0]);
-                    // Use legacy format for default key with no holes
-                    if (polyKey === '' && allRings.length === 1) {
-                      row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
-                    } else if (polyKey === '') {
-                      row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
-                    } else {
-                      row.push(`(poly:${polyKey}) ${outerCoords.map(Math.round).join(' ')}`);
-                    }
+                    row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
 
                     // Write holes (additional rings)
                     for (let holeIdx = 0; holeIdx < allRings.length - 1; holeIdx += 1) {
                       const holeCoords = flattenDeep(allRings[holeIdx + 1]);
-                      if (polyKey === '') {
-                        row.push(`(poly:hole:${holeIdx}) ${holeCoords.map(Math.round).join(' ')}`);
-                      } else {
-                        row.push(`(poly:${polyKey}:hole:${holeIdx}) ${holeCoords.map(Math.round).join(' ')}`);
-                      }
+                      row.push(`(hole) ${holeCoords.map(Math.round).join(' ')}`);
                     }
                   }
                 } else if (geoJSONFeature.geometry.type === 'Point') {
