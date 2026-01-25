@@ -98,10 +98,17 @@ export default defineComponent({
     const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
     const confidenceInputRef = ref<HTMLInputElement | null>(null);
     const notesInputRef = ref<HTMLInputElement | null>(null);
+    // Attribute editing state
+    const editingAttributeKey = ref<string | null>(null);
+    const editAttributeValue = ref('');
+    const attributeInputRef = ref<HTMLInputElement | null>(null);
+    const localAttributeDisplay = ref<Record<string, string>>({});
 
-    // Reset local notes display when track changes (component recycling in virtual scroll)
+    // Reset local displays when track changes (component recycling in virtual scroll)
     watch(() => props.track.id, () => {
       localNotesDisplay.value = '';
+      localAttributeDisplay.value = {};
+      editingAttributeKey.value = null;
     });
     /**
      * Use of revision is safe because it will only create a
@@ -200,6 +207,11 @@ export default defineComponent({
 
     /* Get attribute value for display */
     const getAttributeValue = (attrKey: string) => {
+      // Use local display value if set (for immediate UI feedback)
+      if (localAttributeDisplay.value[attrKey]) {
+        return localAttributeDisplay.value[attrKey];
+      }
+
       // Access revision.value for reactivity
       if (props.track.revision.value === undefined) return '';
 
@@ -349,6 +361,42 @@ export default defineComponent({
       editingNotes.value = false;
     }
 
+    function startEditAttribute(attrKey: string, event: MouseEvent) {
+      if (readOnlyMode.value) return;
+      event.stopPropagation();
+      editAttributeValue.value = getAttributeValue(attrKey);
+      editingAttributeKey.value = attrKey;
+      nextTick(() => {
+        attributeInputRef.value?.focus();
+        attributeInputRef.value?.select();
+      });
+    }
+
+    function saveAttribute() {
+      const attrKey = editingAttributeKey.value;
+      if (!attrKey) return;
+
+      const newValue = editAttributeValue.value.trim();
+      const isTrackAttr = attrKey.startsWith('track_');
+      const actualKey = attrKey.replace(/^(track_|detection_)/, '');
+
+      if (isTrackAttr) {
+        // Set track-level attribute
+        props.track.setAttribute(actualKey, newValue || undefined);
+      } else {
+        // Set detection-level attribute on first keyframe
+        props.track.setFeatureAttribute(props.track.begin, actualKey, newValue || undefined);
+      }
+
+      // Update local display immediately for UI responsiveness
+      localAttributeDisplay.value[attrKey] = newValue;
+      editingAttributeKey.value = null;
+    }
+
+    function cancelEditAttribute() {
+      editingAttributeKey.value = null;
+    }
+
     return {
       /* data */
       feature,
@@ -376,6 +424,13 @@ export default defineComponent({
       startTimestamp,
       endTimestamp,
       getAttributeValue,
+      /* attribute editing */
+      editingAttributeKey,
+      editAttributeValue,
+      attributeInputRef,
+      startEditAttribute,
+      saveAttribute,
+      cancelEditAttribute,
       /* methods */
       gotoNext,
       gotoPrevious,
@@ -490,22 +545,42 @@ export default defineComponent({
       class="track-frame-end clickable"
       @click.stop="$emit('seek', track.end)"
     >{{ track.end }}</span>
-    <!-- Start timestamp column -->
+    <!-- Start timestamp column (clickable to seek) -->
     <span
       v-if="columnVisibility?.startTimestamp"
-      class="track-timestamp"
+      class="track-timestamp clickable"
+      @click.stop="$emit('seek', track.begin)"
     >{{ startTimestamp }}</span>
-    <!-- End timestamp column -->
+    <!-- End timestamp column (clickable to seek) -->
     <span
       v-if="columnVisibility?.endTimestamp"
-      class="track-timestamp"
+      class="track-timestamp clickable"
+      @click.stop="$emit('seek', track.end)"
     >{{ endTimestamp }}</span>
-    <!-- Attribute columns -->
-    <span
+    <!-- Attribute columns (editable) -->
+    <template
       v-for="attrKey in columnVisibility?.attributeColumns || []"
-      :key="attrKey"
-      class="track-attribute text-truncate"
-    >{{ getAttributeValue(attrKey) || '-' }}</span>
+    >
+      <input
+        v-if="editingAttributeKey === attrKey"
+        :key="attrKey + '-input'"
+        ref="attributeInputRef"
+        v-model="editAttributeValue"
+        type="text"
+        class="compact-attribute-input"
+        @blur="saveAttribute"
+        @keydown.enter="saveAttribute"
+        @keydown.escape="cancelEditAttribute"
+        @click.stop
+      >
+      <span
+        v-else
+        :key="attrKey"
+        class="track-attribute text-truncate"
+        :class="{ editable: !readOnlyMode }"
+        @click="startEditAttribute(attrKey, $event)"
+      >{{ getAttributeValue(attrKey) || '-' }}</span>
+    </template>
     <!-- Notes field -->
     <template v-if="!columnVisibility || columnVisibility.notes">
       <input
@@ -538,27 +613,6 @@ export default defineComponent({
     <v-spacer />
     <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
-      <tooltip-btn
-        v-if="isTrack"
-        icon="mdi-chevron-double-left"
-        tooltip-text="Seek to start"
-        size="x-small"
-        @click="$emit('seek', track.begin)"
-      />
-      <tooltip-btn
-        v-if="isTrack"
-        icon="mdi-chevron-double-right"
-        tooltip-text="Seek to end"
-        size="x-small"
-        @click="$emit('seek', track.end)"
-      />
-      <tooltip-btn
-        v-if="!isTrack"
-        icon="mdi-map-marker"
-        tooltip-text="Seek to detection"
-        size="x-small"
-        @click="$emit('seek', track.begin)"
-      />
       <tooltip-btn
         v-if="!merging"
         :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
@@ -829,6 +883,16 @@ export default defineComponent({
     margin-right: 8px;
   }
 
+  .track-timestamp {
+    &.clickable {
+      cursor: pointer;
+      &:hover {
+        color: #80c6e8;
+        text-decoration: underline;
+      }
+    }
+  }
+
   .track-attribute {
     font-size: 12px;
     color: #888;
@@ -837,6 +901,32 @@ export default defineComponent({
     flex-shrink: 0;
     text-align: left;
     margin-right: 8px;
+
+    &.editable {
+      cursor: text;
+      &:hover {
+        color: #fff;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .compact-attribute-input {
+    font-size: 12px;
+    min-width: 60px;
+    max-width: 100px;
+    flex-shrink: 0;
+    background-color: #333;
+    border: 1px solid #666;
+    border-radius: 3px;
+    color: #fff;
+    padding: 1px 4px;
+    margin-right: 8px;
+    outline: none;
+
+    &:focus {
+      border-color: #888;
+    }
   }
 
   .track-notes-wrapper {

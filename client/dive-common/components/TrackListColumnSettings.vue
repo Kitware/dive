@@ -29,6 +29,14 @@ export default defineComponent({
     const trackAttributes = computed(() => props.attributes.filter((a) => a.belongs === 'track'));
     const detectionAttributes = computed(() => props.attributes.filter((a) => a.belongs === 'detection'));
 
+    // Find orphaned columns (enabled but no longer in dataset)
+    const orphanedColumns = computed(() => {
+      if (!columnVisibility.value) return [];
+      const enabledKeys = columnVisibility.value.attributeColumns;
+      const existingKeys = props.attributes.map((a) => a.key);
+      return enabledKeys.filter((key) => !existingKeys.includes(key));
+    });
+
     const isAttributeEnabled = (key: string) => columnVisibility.value?.attributeColumns.includes(key) ?? false;
 
     const toggleAttribute = (key: string) => {
@@ -46,6 +54,7 @@ export default defineComponent({
       columnVisibility,
       trackAttributes,
       detectionAttributes,
+      orphanedColumns,
       isAttributeEnabled,
       toggleAttribute,
     };
@@ -149,6 +158,27 @@ export default defineComponent({
       <div class="text-caption grey--text">
         No attributes defined in this dataset
       </div>
+    </template>
+
+    <!-- Orphaned columns (enabled but no longer in dataset) -->
+    <template v-if="orphanedColumns.length > 0">
+      <v-divider class="my-2" />
+      <div class="text-caption orange--text mb-1">
+        Orphaned Columns
+      </div>
+      <div class="text-caption grey--text mb-1" style="font-size: 10px;">
+        Previously enabled but not in current dataset
+      </div>
+      <v-checkbox
+        v-for="key in orphanedColumns"
+        :key="key"
+        :input-value="true"
+        dense
+        hide-details
+        :label="key.split('_').pop()"
+        class="my-0 py-0"
+        @change="toggleAttribute(key)"
+      />
     </template>
 
     <div class="text-caption grey--text mt-2 mb-1">
