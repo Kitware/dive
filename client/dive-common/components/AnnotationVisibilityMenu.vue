@@ -186,7 +186,7 @@ export default defineComponent({
             <v-checkbox
               v-if="button.id === 'text'"
               :input-value="showUserCreatedIcon"
-              label="Show user created icon"
+              label="Show user created/modified icons"
               dense
               hide-details
               class="mt-0"
@@ -295,7 +295,7 @@ export default defineComponent({
           >
             <v-checkbox
               :input-value="showUserCreatedIcon"
-              label="Show user created icon"
+              label="Show user created/modified icons"
               dense
               hide-details
               @change="toggleShowUserCreatedIcon"
