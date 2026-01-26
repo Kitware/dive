@@ -113,6 +113,9 @@ export default class SegmentationPointClick implements Recipe {
   /** Whether the service has been successfully initialized */
   private serviceInitialized: boolean = false;
 
+  /** Whether activation is pending (waiting for async init to complete) */
+  private pendingActivation: boolean = false;
+
   /** Accumulated points for current frame's segmentation */
   private points: [number, number][] = [];
 
@@ -540,14 +543,22 @@ export default class SegmentationPointClick implements Recipe {
       // Show loading state
       this.loading.value = true;
       this.icon.value = 'mdi-loading';
+      // Track that we're waiting for initialization
+      this.pendingActivation = true;
 
       this.initializeServiceFn()
         .then(() => {
           this.serviceInitialized = true;
           this.loading.value = false;
-          this.completeActivation();
+          // Only complete activation if we weren't deactivated during async wait
+          // (e.g., user switched to polygon mode while waiting)
+          if (this.pendingActivation) {
+            this.pendingActivation = false;
+            this.completeActivation();
+          }
         })
         .catch((error) => {
+          this.pendingActivation = false;
           const errorMessage = error instanceof Error ? error.message : 'Unable to load segmentation module';
           this.bus.$emit('prediction-error', errorMessage);
           this.loading.value = false;
@@ -581,6 +592,9 @@ export default class SegmentationPointClick implements Recipe {
    */
   deactivate(): void {
     this.active.value = false;
+    // Cancel any pending activation from async init
+    this.pendingActivation = false;
+    this.loading.value = false;
     this.reset();
     this.icon.value = 'mdi-auto-fix';
 
