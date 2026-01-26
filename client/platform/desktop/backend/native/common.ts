@@ -39,7 +39,7 @@ import {
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType,
+  JobType, LastCalibrationFileName,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -1241,6 +1241,68 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
   return args.path;
 }
 
+/**
+ * Get path to last_calibration.json if it exists
+ * @returns path to last calibration file or null if it doesn't exist
+ */
+async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
+  const calibrationPath = npath.join(settings.dataPath, LastCalibrationFileName);
+  if (await fs.pathExists(calibrationPath)) {
+    return calibrationPath;
+  }
+  return null;
+}
+
+/**
+ * Save a calibration file as the last used calibration
+ * @param settings app settings
+ * @param sourcePath path to the source calibration file
+ * @returns path to the saved calibration file
+ */
+async function saveLastCalibration(settings: Settings, sourcePath: string): Promise<string> {
+  const destPath = npath.join(settings.dataPath, LastCalibrationFileName);
+  await fs.copy(sourcePath, destPath, { overwrite: true });
+  return destPath;
+}
+
+/**
+ * Apply calibration to all stereo datasets that don't already have calibration set
+ * @param settings app settings
+ * @param calibrationPath path to the calibration file to apply
+ * @returns list of dataset IDs that were updated
+ */
+async function applyCalibrationToUncalibratedStereoDatasets(
+  settings: Settings,
+  calibrationPath: string,
+): Promise<string[]> {
+  const datasets = await autodiscoverData(settings);
+  const updatedIds: string[] = [];
+
+  for (let i = 0; i < datasets.length; i += 1) {
+    const meta = datasets[i];
+    // Check if this is a stereo dataset without calibration
+    if (meta.subType === 'stereo' && meta.multiCam && !meta.multiCam.calibration) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
+        // eslint-disable-next-line no-await-in-loop
+        const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+        if (fullMeta.multiCam) {
+          fullMeta.multiCam.calibration = calibrationPath;
+          // eslint-disable-next-line no-await-in-loop
+          await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
+          updatedIds.push(meta.id);
+        }
+      } catch (err) {
+        // Skip datasets that fail to update
+        console.error(`Failed to update calibration for dataset ${meta.id}:`, err);
+      }
+    }
+  }
+
+  return updatedIds;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1271,4 +1333,7 @@ export {
   saveAttributeTrackFilters,
   findImagesInFolder,
   findTrackandMetaFileinFolder,
+  getLastCalibrationPath,
+  saveLastCalibration,
+  applyCalibrationToUncalibratedStereoDatasets,
 };
