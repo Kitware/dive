@@ -310,7 +310,10 @@ export default class Track extends BaseAnnotation {
     geometry.forEach((geo) => {
       const i = fg.features
         .findIndex((item) => {
-          const keyMatch = !geo.properties?.key || item.properties?.key === geo.properties?.key;
+          // Compare keys directly, treating undefined/null as empty string
+          const geoKey = geo.properties?.key ?? '';
+          const itemKey = item.properties?.key ?? '';
+          const keyMatch = geoKey === itemKey;
           const typeMatch = item.geometry.type === geo.geometry.type;
           return keyMatch && typeMatch;
         });
@@ -348,7 +351,9 @@ export default class Track extends BaseAnnotation {
       return [];
     }
     return feature.geometry.features.filter((item) => {
-      const matchesKey = !key || item.properties?.key === key;
+      // Check key match: undefined means match all, otherwise compare (treating undefined/null as '')
+      const matchesKey = key === undefined
+        || (item.properties?.key ?? '') === key;
       const matchesType = !type || item.geometry.type === type;
       return matchesKey && matchesType;
     });
@@ -361,7 +366,9 @@ export default class Track extends BaseAnnotation {
       return false;
     }
     const index = feature.geometry.features.findIndex((item) => {
-      const matchesKey = !key || item.properties?.key === key;
+      // Check key match: undefined means match all, otherwise compare (treating undefined/null as '')
+      const matchesKey = key === undefined
+        || (item.properties?.key ?? '') === key;
       const matchesType = !type || item.geometry.type === type;
       return matchesKey && matchesType;
     });
@@ -371,6 +378,116 @@ export default class Track extends BaseAnnotation {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Get all polygon features for a frame
+   * @returns Array of polygon GeoJSON features with their keys
+   */
+  getPolygonFeatures(frame: number): Array<{
+    key: string;
+    geometry: GeoJSON.Polygon;
+    hasHoles: boolean;
+    holeCount: number;
+  }> {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return [];
+    }
+    const polygons: Array<{
+      key: string;
+      geometry: GeoJSON.Polygon;
+      hasHoles: boolean;
+      holeCount: number;
+    }> = [];
+    feature.geometry.features.forEach((item) => {
+      if (item.geometry.type === 'Polygon') {
+        const coords = item.geometry.coordinates as GeoJSON.Position[][];
+        polygons.push({
+          key: item.properties?.key || '',
+          geometry: item.geometry,
+          hasHoles: coords.length > 1,
+          holeCount: Math.max(0, coords.length - 1),
+        });
+      }
+    });
+    return polygons;
+  }
+
+  /**
+   * Add a hole to an existing polygon
+   * @param frame frame number
+   * @param key polygon key to add hole to
+   * @param holeCoords coordinates of the hole (array of [x,y] positions)
+   * @returns true if hole was added successfully
+   */
+  addHoleToPolygon(frame: number, key: string, holeCoords: GeoJSON.Position[]): boolean {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return false;
+    }
+    const polygonFeature = feature.geometry.features.find(
+      (item) => item.geometry.type === 'Polygon' && item.properties?.key === key,
+    );
+    if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
+      (polygonFeature.geometry.coordinates as GeoJSON.Position[][]).push(holeCoords);
+      this.notify('feature', feature);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Remove a hole from a polygon
+   * @param frame frame number
+   * @param key polygon key
+   * @param holeIndex index of the hole to remove (0 = first hole, which is coordinates[1])
+   * @returns true if hole was removed successfully
+   */
+  removeHoleFromPolygon(frame: number, key: string, holeIndex: number): boolean {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return false;
+    }
+    const polygonFeature = feature.geometry.features.find(
+      (item) => item.geometry.type === 'Polygon' && item.properties?.key === key,
+    );
+    if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
+      const coords = polygonFeature.geometry.coordinates as GeoJSON.Position[][];
+      // holeIndex 0 corresponds to coords[1], holeIndex 1 to coords[2], etc.
+      const actualIndex = holeIndex + 1;
+      if (actualIndex > 0 && actualIndex < coords.length) {
+        coords.splice(actualIndex, 1);
+        this.notify('feature', feature);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get the next available polygon key for this frame
+   * @param frame frame number
+   * @returns next available key (e.g., "1", "2", etc.)
+   */
+  getNextPolygonKey(frame: number): string {
+    const polygons = this.getPolygonFeatures(frame);
+    if (polygons.length === 0) {
+      return '';
+    }
+    // Find the highest numeric key and increment
+    let maxKey = 0;
+    polygons.forEach((p) => {
+      if (p.key === '') {
+        maxKey = Math.max(maxKey, 0);
+      } else {
+        const numKey = parseInt(p.key, 10);
+        if (!Number.isNaN(numKey)) {
+          maxKey = Math.max(maxKey, numKey);
+        }
+      }
+    });
+    return String(maxKey + 1);
   }
 
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {

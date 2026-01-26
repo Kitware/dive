@@ -402,6 +402,7 @@ export default defineComponent({
         typeStylingRef,
         toRef(props, 'colorBy'),
         selectedCamera,
+        selectedKeyRef,
       ],
       () => {
         updateLayers(
@@ -474,7 +475,53 @@ export default defineComponent({
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    // Handle right-click polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
+      // Set the polygon key for the right-clicked polygon
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the selected polygon
+      // This is especially important when already editing the same track
+      // since annotation-right-clicked won't be emitted in that case
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    // Handle polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the newly selected polygon
+      // Use nextTick to ensure the selectedKey ref has been updated
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
@@ -506,8 +553,59 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on(
       'update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+      (index: number, _type: EditAnnotationTypes, key?: string) => {
+        // When deselecting (index -1), don't change the key - it may have been
+        // set by polygon-right-clicked/polygon-clicked for multi-polygon selection
+        if (index >= 0 && key !== undefined) {
+          handler.selectFeatureHandle(index, key);
+        } else {
+          // Just update the handle index, preserve the current key
+          handler.selectFeatureHandle(index, selectedKeyRef.value);
+        }
+      },
     );
+    // Handle clicks outside the edit polygon to allow selecting other polygons
+    editAnnotationLayer.bus.$on('click-outside-edit', (geo: { x: number; y: number }) => {
+      // Check which polygon was clicked by iterating through formatted data
+      const point: [number, number] = [geo.x, geo.y];
+      const polygonData = polyAnnotationLayer.formattedData;
+
+      // Find the polygon that contains the click point
+      const clickedPolygon = polygonData.find((data) => {
+        const coords = data.polygon.coordinates[0] as [number, number][];
+        // Ray casting algorithm
+        let inside = false;
+        for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+          const xi = coords[i][0];
+          const yi = coords[i][1];
+          const xj = coords[j][0];
+          const yj = coords[j][1];
+          const intersect = ((yi > point[1]) !== (yj > point[1]))
+            && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      });
+
+      if (clickedPolygon) {
+        const polygonKey = clickedPolygon.polygonKey || '';
+        // Select the clicked polygon
+        handler.selectFeatureHandle(-1, polygonKey);
+        // Force layer update to load the newly selected polygon
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
+    });
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

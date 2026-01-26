@@ -156,7 +156,12 @@ export default function useModeManager({
             } if (annotationModes.editing === 'rectangle') {
               return 'Editing';
             }
-            return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
+            // Check if there's a geometry matching both the type AND the selectedKey
+            const matchingGeometry = feature.geometry?.features.filter(
+              (item) => item.geometry.type === annotationModes.editing
+                && item.properties?.key === selectedKey.value,
+            );
+            return (matchingGeometry?.length ? 'Editing' : 'Creating');
           }
           return 'Creating';
         }
@@ -987,6 +992,40 @@ export default function useModeManager({
     _nudgeEditingCanary();
   }
 
+  /**
+   * Set up polygon recipe for adding a hole to an existing polygon.
+   * The recipe emits an activate event that triggers creation mode.
+   */
+  function handleAddHole() {
+    if (selectedTrackId.value === null) return;
+
+    const polygonRecipe = recipes.find((r) => r.name === 'PolygonBase');
+    if (polygonRecipe && 'setAddingHole' in polygonRecipe) {
+      // This will emit 'activate' event which triggers handleSetAnnotationState
+      (polygonRecipe as { setAddingHole: () => void }).setAddingHole();
+    }
+  }
+
+  /**
+   * Set up polygon recipe for adding a new separate polygon.
+   * The recipe emits an activate event that triggers creation mode.
+   */
+  function handleAddPolygon() {
+    if (selectedTrackId.value === null) return;
+
+    const polygonRecipe = recipes.find((r) => r.name === 'PolygonBase');
+    if (polygonRecipe && 'setAddingPolygon' in polygonRecipe) {
+      // Get next available key for the new polygon
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      if (track) {
+        const { frame } = aggregateController.value;
+        const newKey = track.getNextPolygonKey(frame.value);
+        // This will emit 'activate' event which triggers handleSetAnnotationState
+        (polygonRecipe as { setAddingPolygon: (key: string) => void }).setAddingPolygon(newKey);
+      }
+    }
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
 
@@ -1057,6 +1096,8 @@ export default function useModeManager({
       startLinking: handleStartLinking,
       stopLinking: handleStopLinking,
       seekFrame,
+      addHole: handleAddHole,
+      addPolygon: handleAddPolygon,
     },
   };
 }

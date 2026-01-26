@@ -80,11 +80,28 @@ def _deduceType(value: Any) -> Union[bool, float, str, None]:
         return value
 
 
-def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key=''):
+def get_next_polygon_key(features: Dict[str, Any]) -> str:
+    """Get the next available polygon key for a feature."""
+    if "geometry" not in features or not features["geometry"]["features"]:
+        return ''
+    # Count existing polygons to determine the next key
+    polygon_count = sum(
+        1 for f in features["geometry"]["features"]
+        if f["geometry"]["type"] == "Polygon"
+    )
+    return str(polygon_count) if polygon_count > 0 else ''
+
+
+def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
-    else:  # check for existing type/key pairs
+
+    # For polygons with auto_key, always create a new feature with a unique key
+    if type == 'Polygon' and auto_key:
+        key = get_next_polygon_key(features)
+    elif not auto_key:
+        # Check for existing type/key pairs (for non-polygon or explicit key)
         if features["geometry"]["features"]:
             for subfeature in features["geometry"]["features"]:
                 if (
@@ -93,18 +110,34 @@ def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any]
                 ):
                     feature = subfeature
                     break
+
     if "geometry" not in feature:
         feature = {
             "type": "Feature",
             "properties": {"key": key},
             "geometry": {"type": type},
         }
+        features['geometry']['features'].append(feature)
     if type == 'Polygon':
         feature["geometry"]['coordinates'] = [coords]
     elif type in ["LineString", "Point"]:
         feature['geometry']['coordinates'] = coords
 
-    features['geometry']['features'].append(feature)
+    return key  # Return the key used (useful for auto-generated keys)
+
+
+def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
+    """Add a hole to an existing polygon feature with the given key."""
+    if "geometry" not in features or not features["geometry"]["features"]:
+        return
+    for subfeature in features["geometry"]["features"]:
+        if (
+            subfeature["geometry"]["type"] == 'Polygon'
+            and subfeature["properties"]["key"] == key
+        ):
+            # Add hole as additional ring to the polygon coordinates
+            subfeature["geometry"]["coordinates"].append(coords)
+            break
 
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
@@ -148,12 +181,32 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         if trk_regex:
             track_attributes[trk_regex[1]] = _deduceType(trk_regex[2])
 
-        # (poly) x1 y1 x2 y2 ...
-        poly_regex = re.match(r"^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
+        # (poly) x1 y1 x2 y2 ... - polygon (multiple allowed, auto-keyed internally)
+        # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
+        poly_regex = re.match(
+            r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
+            row[j]
+        )
         if poly_regex:
-            temp = [float(x) for x in poly_regex[2].split()]
-            coords = list(zip(temp[::2], temp[1::2]))
-            create_geoJSONFeature(features, 'Polygon', coords)
+            temp = [float(x) for x in poly_regex.group(1).split()]
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
+            # Create new polygon with auto-generated key
+            create_geoJSONFeature(features, 'Polygon', coords, auto_key=True)
+
+        # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
+        hole_regex = re.match(
+            r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
+            row[j]
+        )
+        if hole_regex:
+            temp = [float(x) for x in hole_regex.group(1).split()]
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
+            # Add hole to the most recent polygon (last one added)
+            if "geometry" in features and features["geometry"]["features"]:
+                polygons = [f for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"]
+                if polygons:
+                    last_poly_key = polygons[-1]["properties"]["key"]
+                    add_hole_to_polygon(features, coords, last_poly_key)
 
     if len(head_tail) == 2:
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
@@ -558,25 +611,35 @@ def export_tracks_as_csv(
                     if feature.geometry and "FeatureCollection" == feature.geometry.type:
                         for geoJSONFeature in feature.geometry.features:
                             if 'Polygon' == geoJSONFeature.geometry.type:
-                                # Coordinates need to be flattened out from their list of tuples
-                                coordinates = [
-                                    item
-                                    for sublist in geoJSONFeature.geometry.coordinates[
-                                        0
-                                    ]  # type: ignore
-                                    for item in sublist  # type: ignore
-                                ]
-                                columns.append(
-                                    f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
-                                )
+                                all_rings = geoJSONFeature.geometry.coordinates  # type: ignore
+
+                                # Write outer ring (first ring)
+                                if len(all_rings) > 0:
+                                    outer_coords = [
+                                        item
+                                        for sublist in all_rings[0]
+                                        for item in sublist  # type: ignore
+                                    ]
+                                    columns.append(
+                                        f"(poly) {' '.join(map(lambda x: str(round(x)), outer_coords))}"
+                                    )
+
+                                    # Write holes (additional rings)
+                                    for hole_ring in all_rings[1:]:
+                                        hole_coords = [
+                                            item
+                                            for sublist in hole_ring
+                                            for item in sublist  # type: ignore
+                                        ]
+                                        columns.append(
+                                            f"(hole) {' '.join(map(lambda x: str(round(x)), hole_coords))}"
+                                        )
                             if 'Point' == geoJSONFeature.geometry.type:
                                 coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
                                 columns.append(
                                     f"(kp) {geoJSONFeature.properties['key']} "
                                     f"{round(coordinates[0])} {round(coordinates[1])}"
                                 )
-                            # TODO: support for multiple GeoJSON Objects of the same type
-                            # once the CSV supports it
 
                     writer.writerow(columns)
                     yield csvFile.getvalue()
