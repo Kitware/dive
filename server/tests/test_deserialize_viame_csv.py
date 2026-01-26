@@ -16,7 +16,10 @@ def test_read_viame_csv(
     expected_attributes: Dict[str, dict],
 ):
     (converted, attributes, warnings, fps) = viame.load_csv_as_tracks_and_attributes(input)
-    assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
-        expected_tracks, sort_keys=True
-    )
+    actual_json = json.dumps(converted['tracks'], sort_keys=True)
+    expected_json = json.dumps(expected_tracks, sort_keys=True)
+    if actual_json != expected_json:
+        print(f"\n=== ACTUAL ===\n{actual_json}")
+        print(f"\n=== EXPECTED ===\n{expected_json}")
+    assert actual_json == expected_json
     assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)
