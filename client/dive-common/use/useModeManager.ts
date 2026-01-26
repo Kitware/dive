@@ -987,6 +987,16 @@ export default function useModeManager({
     _nudgeEditingCanary();
   }
 
+  /**
+   * Handle segmentation prediction error - show error dialog to user
+   */
+  function handleSegmentationPredictionError(errorMessage: string) {
+    prompt({
+      title: 'Segmentation Error',
+      text: [errorMessage],
+    });
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
 
@@ -997,6 +1007,7 @@ export default function useModeManager({
       r.bus.$on('prediction-ready', handleSegmentationPredictionReady);
       r.bus.$on('prediction-confirmed', handleSegmentationPredictionConfirmed);
       r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
+      r.bus.$on('prediction-error', handleSegmentationPredictionError);
     }
   });
 
@@ -1009,6 +1020,7 @@ export default function useModeManager({
         r.bus.$off('prediction-ready', handleSegmentationPredictionReady);
         r.bus.$off('prediction-confirmed', handleSegmentationPredictionConfirmed);
         r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
+        r.bus.$off('prediction-error', handleSegmentationPredictionError);
       }
     });
   });
