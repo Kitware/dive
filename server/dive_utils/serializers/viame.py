@@ -140,13 +140,14 @@ def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
             break
 
 
-def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
+def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
     """
     Parse a single CSV line into its composite track and detection parts
     """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}
+    notes: List[str] = []
     confidence_pairs: List[Tuple[str, float]] = [
         (row[i], float(row[i + 1]))
         for i in range(9, len(row), 2)
@@ -208,6 +209,11 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
                     last_poly_key = polygons[-1]["properties"]["key"]
                     add_hole_to_polygon(features, coords, last_poly_key)
 
+        # (note) text
+        note_regex = re.match(r"^\(note\)\s*(.+)", row[j])
+        if note_regex:
+            notes.append(note_regex[1])
+
     if len(head_tail) == 2:
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
@@ -222,11 +228,11 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         # add a dummy pair with a default type
         sorted_confidence_pairs.append(('unknown', confidence))
 
-    return features, attributes, track_attributes, sorted_confidence_pairs
+    return features, attributes, track_attributes, sorted_confidence_pairs, notes
 
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
-    head_tail_feature, attributes, track_attributes, confidence_pairs = _parse_row(row)
+    head_tail_feature, attributes, track_attributes, confidence_pairs, notes = _parse_row(row)
     _, _, frame, bounds, fishLength = row_info(row)
 
     feature = Feature(
@@ -234,6 +240,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
         bounds=bounds,
         attributes=attributes or None,
         fishLength=fishLength if fishLength > 0 else None,
+        notes=notes if notes else None,
         **head_tail_feature,
     )
 

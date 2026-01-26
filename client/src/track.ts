@@ -27,6 +27,7 @@ export interface Feature {
   attributes?: StringKeyObject & { userAttributes?: StringKeyObject };
   head?: [number, number];
   tail?: [number, number];
+  notes?: string[];
 }
 
 /** TrackData is the json schema for Track transport */
@@ -490,6 +491,23 @@ export default class Track extends BaseAnnotation {
     return String(maxKey + 1);
   }
 
+  setFeatureNotes(frame: number, notes: string) {
+    const notesArray = notes.trim() ? [notes.trim()] : undefined;
+    // Try exact frame first (most common case - using track.begin)
+    if (this.features[frame]) {
+      this.features[frame].notes = notesArray;
+      this.notify('feature', this.features[frame]);
+      return;
+    }
+    // Otherwise find the nearest keyframe (prefer previous/lower)
+    const [, lower, upper] = this.getFeature(frame);
+    const targetFeature = lower || upper;
+    if (targetFeature) {
+      targetFeature.notes = notesArray;
+      this.notify('feature', targetFeature);
+    }
+  }
+
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
     if (this.features[frame]) {
       if (user !== null) {
@@ -643,6 +661,7 @@ export default class Track extends BaseAnnotation {
   static fromJSON(json: TrackData, set?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
+      if (f === null || f === undefined) return;
       sparseFeatures[f.frame] = {
         keyframe: true,
         ...f,

@@ -51,6 +51,7 @@ class Feature(BaseModel):
     fishLength: Optional[float] = None
     interpolate: Optional[bool] = None
     keyframe: Optional[bool] = None
+    notes: Optional[List[str]] = None
 
 
 class BaseAnnotation(BaseModel):
