@@ -17,7 +17,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
@@ -65,6 +65,70 @@ const YAMLFileName = /^.*\.ya?ml$/i;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
+
+/**
+ * Extract description from a .pipe file header.
+ * Looks for "# Description: " in the first 5 lines of the file.
+ * Description can span multiple lines and ends when:
+ * - A line starting with "# " followed by "=" is found (e.g., "# ===")
+ * - A line starting with "#" followed by only whitespace is found
+ * - A non-comment line is found
+ */
+async function extractPipeDescription(filePath: string): Promise<string | undefined> {
+  try {
+    const lines = await readLines(filePath);
+    let description = '';
+    let inDescription = false;
+    let descriptionStartLine = -1;
+
+    // Find the Description: field within the first 5 lines
+    const headerLines = lines.slice(0, 5);
+    const descStartIndex = headerLines.findIndex((line) => /^#\s*Description:\s*/i.test(line));
+
+    if (descStartIndex === -1) {
+      return undefined;
+    }
+
+    // Extract the initial description text
+    const descMatch = headerLines[descStartIndex].match(/^#\s*Description:\s*(.*)$/i);
+    if (descMatch) {
+      description = descMatch[1].trim();
+      inDescription = true;
+      descriptionStartLine = descStartIndex;
+    }
+
+    // Continue reading from the line after Description: was found
+    if (inDescription) {
+      const remainingLines = lines.slice(descriptionStartLine + 1);
+      remainingLines.some((line) => {
+        // End conditions:
+        // 1. Line starting with "# " followed by "=" (e.g., "# ===")
+        if (/^#\s*=/.test(line)) {
+          return true; // stop iteration
+        }
+        // 2. Line starting with "#" followed by only whitespace
+        if (/^#\s*$/.test(line)) {
+          return true; // stop iteration
+        }
+        // 3. Non-comment line (not starting with #)
+        if (!line.startsWith('#')) {
+          return true; // stop iteration
+        }
+
+        // Continue reading multi-line description
+        const continuedText = line.replace(/^#\s*/, '').trim();
+        if (continuedText) {
+          description += ` ${continuedText}`;
+        }
+        return false; // continue iteration
+      });
+    }
+
+    return description || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -356,7 +420,9 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
-  pipes.forEach((p) => {
+
+  // Process all pipes and extract descriptions in parallel
+  await Promise.all(pipes.map(async (p) => {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
@@ -365,10 +431,16 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }
+
+    // Extract description from the pipe file
+    const pipeFilePath = npath.join(pipelinePath, p);
+    const description = await extractPipeDescription(pipeFilePath);
+
     const pipeInfo = {
       name: pipeName,
       type: pipeType,
       pipe: p,
+      description,
     };
     if (pipeType in ret) {
       ret[pipeType].pipes.push(pipeInfo);
@@ -378,7 +450,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
         description: '',
       };
     }
-  });
+  }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
   const allowedTrainedPatterns = new RegExp([
@@ -459,10 +531,18 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
   }
-  let configs = await fs.readdir(pipelinePath);
-  configs = configs
+  let configNames = await fs.readdir(pipelinePath);
+  configNames = configNames
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+
+  // Process all configs and extract descriptions in parallel
+  const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
+    const configFilePath = npath.join(pipelinePath, name);
+    const description = await extractPipeDescription(configFilePath);
+    return { name, description };
+  }));
+
   // Get Model files in the pipeline directory
   const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
   const models: TrainingConfigs['models'] = {};
@@ -475,7 +555,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   });
   return {
     training: {
-      default: configs[0],
+      default: configNames[0],
       configs,
     },
     models,
