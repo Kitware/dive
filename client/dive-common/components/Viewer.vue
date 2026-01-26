@@ -157,6 +157,18 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+    const editorMenuRef = ref();
+
+    /**
+     * Forward text query service ready status to EditorMenu
+     * Called by ViewerLoader when text query service initialization completes
+     */
+    function onTextQueryServiceReady(success: boolean, error?: string) {
+      if (editorMenuRef.value?.onTextQueryServiceReady) {
+        editorMenuRef.value.onTextQueryServiceReady(success, error);
+      }
+    }
+
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
     // Right panel view in bottom mode: 'filters' or 'details'
@@ -1034,6 +1046,8 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      editorMenuRef,
+      onTextQueryServiceReady,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -1207,6 +1221,7 @@ export default defineComponent({
         </v-tooltip>
 
         <EditorMenu
+          ref="editorMenuRef"
           v-bind="{
             editingMode,
             visibleModes,
@@ -1219,6 +1234,9 @@ export default defineComponent({
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @text-query-init="$emit('text-query-init')"
+          @text-query="$emit('text-query', $event)"
+          @text-query-all-frames="$emit('text-query-all-frames', $event)"
         >
           <template slot="delete-controls">
             <delete-controls

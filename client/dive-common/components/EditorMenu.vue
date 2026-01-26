@@ -321,7 +321,9 @@ export default defineComponent({
             v-on="on"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">{{ activeEditButton?.icon }}</v-icon>
+            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
+              {{ activeEditButton?.icon }}
+            </v-icon>
             <v-btn
               icon
               x-small
@@ -349,7 +351,9 @@ export default defineComponent({
                 @click="button.click"
               >
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon :class="{ 'mdi-spin': button.loading }">{{ button.icon }}</v-icon>
+                <v-icon :class="{ 'mdi-spin': button.loading }">
+                  {{ button.icon }}
+                </v-icon>
               </v-btn>
             </v-list-item-icon>
             <v-list-item-content>
@@ -388,7 +392,9 @@ export default defineComponent({
           @click="button.click"
         >
           <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon :class="{ 'mdi-spin': button.loading }">{{ button.icon }}</v-icon>
+          <v-icon :class="{ 'mdi-spin': button.loading }">
+            {{ button.icon }}
+          </v-icon>
         </v-btn>
       </template>
       <!-- Text Query button -->

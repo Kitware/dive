@@ -239,6 +239,49 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Handle text query service initialization request
+     * Called when user opens the text query dialog
+     */
+    async function handleTextQueryInit() {
+      try {
+        // Try to initialize the segmentation service (which includes text query)
+        await segmentationInitialize();
+        viewerRef.value?.onTextQueryServiceReady(true);
+      } catch (error) {
+        // Provide text-query specific error message instead of generic segmentation error
+        const rawMessage = error instanceof Error ? error.message : '';
+        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
+          ? 'Unable to load text query model. Please ensure the service is properly configured.'
+          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
+        viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
+      }
+    }
+
+    /**
+     * Handle text query on current frame
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async function handleTextQuery(_params: { text: string; boxThreshold: number }) {
+      // Text query for single frame would go here
+      // For now, this is handled by the segmentation service
+      await prompt({
+        title: 'Text Query',
+        text: ['Text query for single frame is not yet implemented on web platform.'],
+      });
+    }
+
+    /**
+     * Handle text query on all frames - runs as a pipeline job
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async function handleTextQueryAllFrames(_params: { text: string; boxThreshold: number }) {
+      await prompt({
+        title: 'Text Query',
+        text: ['Text query for all frames is not yet implemented on web platform.'],
+      });
+    }
+
     return {
       buttonOptions,
       brandData,
@@ -253,6 +296,9 @@ export default defineComponent({
       routeSet,
       largeImageWarning,
       typeList,
+      handleTextQueryInit,
+      handleTextQuery,
+      handleTextQueryAllFrames,
     };
   },
 });
@@ -269,6 +315,9 @@ export default defineComponent({
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
+    @text-query-init="handleTextQueryInit"
+    @text-query="handleTextQuery"
+    @text-query-all-frames="handleTextQueryAllFrames"
   >
     <template #title>
       <ViewerAlert />
