@@ -69,6 +69,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
+  /* Track if the last click was a right-click or shift-click for Point mode */
+  lastClickWasBackground: boolean;
+
+  /* Track shift key state from native DOM events (more reliable than GeoJS events) */
+  lastShiftKeyState: boolean;
+
+  /* Bound event handlers for cleanup */
+  private boundTrackShiftKey: ((e: MouseEvent) => void) | null = null;
+
+  private boundHandleContextMenu: ((e: MouseEvent) => void) | null = null;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.skipNextExternalUpdate = false;
@@ -80,9 +91,81 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.shapeInProgress = null;
     this.disableModeSync = false;
     this.leftButtonCheckTimeout = -1;
+    this.lastClickWasBackground = false;
+    this.lastShiftKeyState = false;
+
+    // Bind event handlers once (listeners are added/removed dynamically based on type)
+    this.boundTrackShiftKey = this.trackShiftKey.bind(this);
+    this.boundHandleContextMenu = this.handleContextMenu.bind(this);
+
+    // Add listeners if starting in Point mode
+    if (this.type === 'Point') {
+      this.addPointModeListeners();
+    }
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
+  }
+
+  /**
+   * Add event listeners needed for Point mode (segmentation).
+   */
+  private addPointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.addEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.addEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Remove event listeners used for Point mode.
+   */
+  private removePointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.removeEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.removeEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Track shift key state from native DOM mousedown events.
+   * This is more reliable than GeoJS events for detecting shift+click.
+   */
+  trackShiftKey(e: MouseEvent) {
+    this.lastShiftKeyState = e.shiftKey;
+    // Also track middle-click (button 1) from native events for background points
+    if (e.button === 1 && this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = true;
+    }
+  }
+
+  /**
+   * Handle right-click context menu in Point mode.
+   * In segmentation mode, right-click confirms/locks the annotation.
+   * Prevents browser context menu.
+   */
+  handleContextMenu(e: MouseEvent) {
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      // Prevent the browser context menu
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Emit confirm event to lock the annotation (like other edit modes)
+      this.bus.$emit('confirm-annotation');
+    }
+  }
+
+  /**
+   * Clean up event listeners when the layer is destroyed.
+   */
+  destroy() {
+    this.removePointModeListeners();
+    this.boundTrackShiftKey = null;
+    this.boundHandleContextMenu = null;
   }
 
   /**
@@ -155,10 +238,51 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
-    // Allow middle click movement when placing points
-    if (e.mouse.buttons.middle && !e.propogated) {
+    // Allow middle click movement when placing points (except in Point mode where it creates background points)
+    if (e.mouse.buttons.middle && !e.propogated && this.type !== 'Point') {
       return;
     }
+
+    // Track if this is a background point (shift+click or middle-click) for Point mode
+    // Check both GeoJS event modifiers and our native DOM event tracking for reliability
+    // Preserve the value if it was already set to true by trackShiftKey (native event)
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = this.lastClickWasBackground
+        || e.mouse.buttons.middle
+        || e.mouse.modifiers.shift
+        || this.lastShiftKeyState;
+    }
+
+    // Handle middle-click in Point mode - GeoJS doesn't create points on middle-click,
+    // so we need to manually create the point and emit the event
+    if (this.type === 'Point' && this.getMode() === 'creation' && e.mouse.buttons.middle) {
+      const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)],
+        },
+        properties: {
+          background: true,
+        },
+      };
+
+      // Emit the point creation event directly
+      this.bus.$emit(
+        'update:geojson',
+        'editing',
+        true, // geometryCompleteEvent - point is complete
+        pointGeojson,
+        this.type,
+        this.selectedKey,
+        this.skipNextFunc(),
+      );
+
+      // Reset background flag for next point
+      this.lastClickWasBackground = false;
+      return;
+    }
+
     if (this.getMode() === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
       if (this.shapeInProgress === null) {
         // Initialize a new in-progress shape
@@ -248,9 +372,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * Set the current Editing type for switching between editing polygons or rects.
-   * */
+   * Also manages event listeners that are only needed for Point mode (segmentation).
+   */
   setType(type: EditAnnotationTypes) {
+    const wasPoint = this.type === 'Point';
+    const isPoint = type === 'Point';
     this.type = type;
+
+    // Add or remove Point mode listeners based on type change
+    if (!wasPoint && isPoint) {
+      this.addPointModeListeners();
+    } else if (wasPoint && !isPoint) {
+      this.removePointModeListeners();
+    }
   }
 
   setKey(key: string) {
@@ -432,6 +566,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
             geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
           );
+        }
+        // For Point mode, add background property if it was a right-click or shift-click
+        if (this.type === 'Point' && this.lastClickWasBackground) {
+          geoJSONData[0].properties = {
+            ...geoJSONData[0].properties,
+            background: true,
+          };
+          this.lastClickWasBackground = false; // Reset for next point
         }
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes

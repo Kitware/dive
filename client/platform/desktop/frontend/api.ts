@@ -10,6 +10,8 @@ import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
+  SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -206,6 +208,78 @@ async function cancelJob(job: DesktopJob): Promise<void> {
 }
 
 /**
+ * Interactive Segmentation API
+ */
+
+async function segmentationInitialize(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-initialize');
+}
+
+async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
+  return ipcRenderer.invoke('segmentation-predict', request);
+}
+
+async function segmentationSetImage(imagePath: string): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-set-image', imagePath);
+}
+
+async function segmentationClearImage(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-clear-image');
+}
+
+async function segmentationShutdown(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-shutdown');
+}
+
+async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
+  return ipcRenderer.invoke('segmentation-is-ready');
+}
+
+/**
+ * Text Query API
+ * Allows open-vocabulary detection and segmentation using text prompts
+ */
+
+async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
+  return ipcRenderer.invoke('segmentation-text-query', request);
+}
+
+async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
+  return ipcRenderer.invoke('segmentation-refine', request);
+}
+
+/**
+ * Run text query pipeline on all frames
+ */
+async function runTextQueryPipeline(
+  datasetId: string,
+  queryText: string,
+  threshold?: number,
+): Promise<void> {
+  const pipeline: Pipe = {
+    name: 'Text Query',
+    pipe: 'utility_text_query.pipe',
+    type: 'utility',
+  };
+
+  const pipelineParams: Record<string, string> = {
+    'track_refiner:refiner:text_query': queryText,
+  };
+
+  if (threshold !== undefined) {
+    pipelineParams['track_refiner:refiner:detection_threshold'] = threshold.toString();
+  }
+
+  const args: RunPipeline = {
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId,
+    pipelineParams,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+/**
  * REST api for larger-body messages
  */
 
@@ -277,4 +351,15 @@ export {
   openLink,
   nvidiaSmi,
   cancelJob,
+  /* Segmentation APIs */
+  segmentationInitialize,
+  segmentationPredict,
+  segmentationSetImage,
+  segmentationClearImage,
+  segmentationShutdown,
+  segmentationIsReady,
+  /* Text Query APIs */
+  textQuery,
+  refineDetections,
+  runTextQueryPipeline,
 };

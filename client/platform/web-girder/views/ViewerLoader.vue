@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType, nextTick,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -11,8 +11,8 @@ import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useApi } from 'dive-common/apispec';
-import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
+import { useApi, SegmentationPredictRequest } from 'dive-common/apispec';
+import { convertLargeImage, segmentationPredict, segmentationInitialize } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
@@ -155,6 +155,7 @@ export default defineComponent({
 
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
+      initializeSegmentation();
     });
 
     onBeforeUnmount(() => {
@@ -209,6 +210,32 @@ export default defineComponent({
       });
       if (result) {
         convertLargeImage(props.id);
+      }
+    }
+
+    /**
+     * Initialize segmentation recipe with platform-specific functions
+     */
+    async function initializeSegmentation() {
+      await nextTick(); // Wait for Viewer to be mounted
+      if (!viewerRef.value?.segmentationRecipe) {
+        console.warn('[Segmentation] segmentationRecipe not found on Viewer');
+        return;
+      }
+
+      try {
+        // Initialize the recipe
+        // Web platform uses folderId + frameNum; the backend resolves the actual image path
+        viewerRef.value.segmentationRecipe.initialize({
+          predictFn: (request: SegmentationPredictRequest, frameNum: number) => segmentationPredict(props.id, frameNum, request),
+          getImagePath: () => '', // Not used for web platform - backend resolves paths
+          // Initialize the segmentation service when the recipe is activated (user clicks Segment button)
+          initializeServiceFn: segmentationInitialize,
+        });
+
+        console.log('[Segmentation] Recipe initialized successfully for web');
+      } catch (error) {
+        console.error('[Segmentation] Failed to initialize recipe:', error);
       }
     }
 

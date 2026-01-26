@@ -24,6 +24,9 @@ export default Vue.extend({
       if (this.editingMode === 'rectangle') {
         return true; // deleting rectangle is unsupported
       }
+      if (this.editingMode === 'Point') {
+        return true; // Point mode uses reset instead of delete
+      }
       return false;
     },
   },
