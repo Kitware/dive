@@ -483,10 +483,11 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(setVal?: string) {
-      // If editing the track, disable editing mode before save
+    async function save(setVal?: string, exitEditingMode = false) {
+      // Only exit editing mode if explicitly requested (e.g., manual save)
+      // Auto-save should NOT disrupt the user's editing session
       saveInProgress.value = true;
-      if (editingTrack.value) {
+      if (exitEditingMode && editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
       const saveSet = setVal === 'default' ? undefined : setVal;
