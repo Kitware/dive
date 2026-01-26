@@ -138,7 +138,47 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
-    const sideBarCollapsed = ref(false);
+    const editorMenuRef = ref();
+
+    /**
+     * Forward text query service ready status to EditorMenu
+     * Called by ViewerLoader when text query service initialization completes
+     */
+    function onTextQueryServiceReady(success: boolean, error?: string) {
+      if (editorMenuRef.value?.onTextQueryServiceReady) {
+        editorMenuRef.value.onTextQueryServiceReady(success, error);
+      }
+    }
+
+    // Sidebar mode: 'left', 'bottom', or 'collapsed'
+    const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
+    // Right panel view in bottom mode: 'filters' or 'details'
+    const bottomRightPanelView = ref<'filters' | 'details'>('filters');
+    const toggleBottomRightPanel = () => {
+      bottomRightPanelView.value = bottomRightPanelView.value === 'filters' ? 'details' : 'filters';
+    };
+    const cycleSidebarMode = () => {
+      if (sidebarMode.value === 'left') {
+        sidebarMode.value = 'bottom';
+        clientSettings.layoutSettings.sidebarPosition = 'bottom';
+      } else if (sidebarMode.value === 'bottom') {
+        sidebarMode.value = 'collapsed';
+        // Keep setting as 'bottom' when collapsed (collapsed is a temporary state)
+      } else {
+        sidebarMode.value = 'left';
+        clientSettings.layoutSettings.sidebarPosition = 'left';
+      }
+    };
+    const sidebarModeIcon = computed(() => {
+      if (sidebarMode.value === 'left') return 'mdi-page-layout-sidebar-left';
+      if (sidebarMode.value === 'bottom') return 'mdi-page-layout-footer';
+      return 'mdi-checkbox-blank-outline';
+    });
+    const sidebarModeTooltip = computed(() => {
+      if (sidebarMode.value === 'left') return 'Sidebar: Left (click to cycle)';
+      if (sidebarMode.value === 'bottom') return 'Sidebar: Bottom (click to cycle)';
+      return 'Sidebar: Hidden (click to cycle)';
+    });
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -850,7 +890,14 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
-      sideBarCollapsed,
+      editorMenuRef,
+      onTextQueryServiceReady,
+      sidebarMode,
+      cycleSidebarMode,
+      sidebarModeIcon,
+      sidebarModeTooltip,
+      bottomRightPanelView,
+      toggleBottomRightPanel,
       colorBy,
       clientSettings,
       datasetName,
@@ -1001,6 +1048,7 @@ export default defineComponent({
         </v-tooltip>
 
         <EditorMenu
+          ref="editorMenuRef"
           v-bind="{
             editingMode,
             visibleModes,
@@ -1013,6 +1061,9 @@ export default defineComponent({
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @text-query-init="$emit('text-query-init')"
+          @text-query="$emit('text-query', $event)"
+          @text-query-all-frames="$emit('text-query-all-frames', $event)"
         >
           <template slot="delete-controls">
             <delete-controls
