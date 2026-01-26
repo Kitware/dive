@@ -206,6 +206,19 @@ async function runPipeline(
           meta.attributes = newMeta.attributes;
           await common.saveMetadata(settings, datasetId, meta);
         }
+
+        // Check if this is a calibration pipeline and save the output
+        if (pipeline.pipe.toLowerCase().includes('calibrate_cameras')) {
+          const files = await fs.readdir(jobWorkDir);
+          const calibrationFile = files.find(
+            (f) => f.toLowerCase().includes('calibration') && f.endsWith('.json'),
+          );
+          if (calibrationFile) {
+            const calibrationPath = npath.join(jobWorkDir, calibrationFile);
+            const savedPath = await common.saveLastCalibration(settings, calibrationPath);
+            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath);
+          }
+        }
       } catch (err) {
         console.error(err);
       }
