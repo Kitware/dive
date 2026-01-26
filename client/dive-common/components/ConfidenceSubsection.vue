@@ -23,6 +23,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    userModified: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup() {
     const typeStylingRef = useTrackStyleManager().typeStyling;
@@ -86,7 +90,7 @@ export default defineComponent({
                 }"
               />
             </v-col>
-            <v-col :cols="pair[1] !== 1 && !disabled ? '7' : '8'">
+            <v-col :cols="pair[1] !== 1 && !disabled ? '6' : '7'">
               {{ pair[0] }}
             </v-col>
             <v-spacer />
@@ -96,9 +100,28 @@ export default defineComponent({
             >
               {{ pair[1].toFixed(4) }}
             </v-col>
+            <v-col v-if="userModified && index === 0" cols="1">
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    color="orange"
+                    class="ml-1"
+                    v-on="on"
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </template>
+                <span>This annotation has been modified by a user</span>
+              </v-tooltip>
+            </v-col>
             <v-col
               v-if="pair[1] !== 1 && !disabled"
               class="shrink"
+              cols="1"
             >
               <v-tooltip
                 open-delay="200"
