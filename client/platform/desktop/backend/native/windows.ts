@@ -38,7 +38,7 @@ const DefaultSettings: Settings = {
 
 const ViameWindowsConstants = {
   setup: 'setup_viame.bat',
-  trainingExe: 'viame_train_detector.exe',
+  trainingExe: 'viame.exe',
   kwiverExe: 'kwiver.exe',
   shell: true,
 };
