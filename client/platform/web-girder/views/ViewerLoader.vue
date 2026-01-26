@@ -249,9 +249,11 @@ export default defineComponent({
         await segmentationInitialize();
         viewerRef.value?.onTextQueryServiceReady(true);
       } catch (error) {
-        const errorMessage = error instanceof Error
-          ? error.message
-          : 'Text query model is not available. Please ensure the segmentation service is properly configured.';
+        // Provide text-query specific error message instead of generic segmentation error
+        const rawMessage = error instanceof Error ? error.message : '';
+        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
+          ? 'Unable to load text query model. Please ensure the service is properly configured.'
+          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
         viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
       }
     }
