@@ -189,7 +189,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         )
         if poly_regex:
             temp = [float(x) for x in poly_regex.group(1).split()]
-            coords = list(zip(temp[::2], temp[1::2]))
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
             # Create new polygon with auto-generated key
             create_geoJSONFeature(features, 'Polygon', coords, auto_key=True)
 
@@ -200,7 +200,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List]:
         )
         if hole_regex:
             temp = [float(x) for x in hole_regex.group(1).split()]
-            coords = list(zip(temp[::2], temp[1::2]))
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
             # Add hole to the most recent polygon (last one added)
             if "geometry" in features and features["geometry"]["features"]:
                 polygons = [f for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"]
