@@ -150,6 +150,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
   imageData: Readonly<FrameImage[]>;
   videoUrl: Readonly<string | undefined>;
+  // Path to original video for native (non-transcoded) playback via frame extraction
+  nativeVideoPath?: Readonly<string>;
   type: Readonly<DatasetType | 'multi'>;
   fps: Readonly<number>; // this will become mutable in the future.
   name: Readonly<string>;
