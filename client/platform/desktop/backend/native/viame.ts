@@ -251,7 +251,7 @@ async function exportTrainedPipeline(
     throw new Error(isValid);
   }
 
-  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_to_onnx.pipe');
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_model_to_onnx.pipe');
   if (!fs.existsSync(npath.join(exportPipelinePath))) {
     throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
   }

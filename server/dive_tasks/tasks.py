@@ -308,7 +308,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
         output_path = utils.make_directory(_working_directory_path / 'output')
         onnx_path = output_path / output_name
-        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_to_onnx.pipe"
+        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_model_to_onnx.pipe"
 
         gc.downloadFolderRecursive(input_folder_id, str(trained_pipeline_path))
 
