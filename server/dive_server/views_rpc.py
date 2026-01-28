@@ -14,7 +14,7 @@ from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, T
 from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
 
 from . import crud, crud_rpc
-from .vital_segmentation_service import get_vital_segmentation_service
+from .viame_segmentation_service import get_viame_segmentation_service
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +34,12 @@ class RpcResource(Resource):
         self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
         self.route("POST", ("batch_postprocess", ":id"), self.batch_postprocess)
 
-        # SAM2 Interactive Segmentation
-        self.route("POST", ("sam2_predict",), self.sam2_predict)
-        self.route("GET", ("sam2_status",), self.sam2_status)
+        # Interactive Segmentation
+        self.route("POST", ("segmentation_predict",), self.segmentation_predict)
+        self.route("GET", ("segmentation_status",), self.segmentation_status)
 
-        # SAM3 Interactive Segmentation (uses transformers, supports text queries)
-        self.route("POST", ("sam3_predict",), self.sam3_predict)
-        self.route("POST", ("sam3_text_query",), self.sam3_text_query)
-        self.route("GET", ("sam3_status",), self.sam3_status)
+        # Text Query (detection/segmentation via text prompts)
+        self.route("POST", ("text_query",), self.text_query)
 
     @access.user
     @autoDescribeRoute(
@@ -66,7 +64,7 @@ class RpcResource(Resource):
     )
     def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
         return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
-    
+
     @access.user
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")
@@ -319,7 +317,7 @@ class RpcResource(Resource):
 
     @access.user
     @autoDescribeRoute(
-        Description("Run SAM2 point-based segmentation")
+        Description("Run point-based interactive segmentation")
         .modelParam(
             "folderId",
             description="Dataset folder ID",
@@ -347,9 +345,9 @@ class RpcResource(Resource):
             },
         )
     )
-    def sam2_predict(self, folder, frameNumber, body):
+    def segmentation_predict(self, folder, frameNumber, body):
         """
-        Run SAM2 prediction with point prompts.
+        Run segmentation prediction with point prompts.
 
         Query params:
             folderId: Dataset folder ID
@@ -364,7 +362,7 @@ class RpcResource(Resource):
         Returns:
             polygon: List of [x, y] coordinate pairs
             bounds: [x_min, y_min, x_max, y_max]
-            score: Quality score from SAM2
+            score: Quality score
             lowResMask: Low-res mask for subsequent refinement
         """
         from dive_utils import fromMeta
@@ -373,12 +371,12 @@ class RpcResource(Resource):
         from girder.models.item import Item
         import os
 
-        service = get_vital_segmentation_service()
+        service = get_viame_segmentation_service()
 
         if not service.is_available():
             return {
                 "success": False,
-                "error": "SAM2 is not available. Enable VIAME_ENABLE_PYTORCH-SAM2 in your build.",
+                "error": "Segmentation is not available. Check your VIAME installation.",
             }
 
         try:
@@ -421,11 +419,9 @@ class RpcResource(Resource):
                 image_path = assetstore.fullPath(file_doc)
 
             elif dataset_type == VideoType:
-                # For video, we would need to extract a frame
-                # This requires ffmpeg and is more complex
                 return {
                     "success": False,
-                    "error": "SAM2 for video datasets is not yet supported. Use image sequences.",
+                    "error": "Segmentation for video datasets is not yet supported. Use image sequences.",
                 }
             else:
                 return {
@@ -457,156 +453,21 @@ class RpcResource(Resource):
             }
 
     @access.user
-    @autoDescribeRoute(Description("Get SAM2 service status"))
-    def sam2_status(self):
+    @autoDescribeRoute(Description("Get segmentation service status"))
+    def segmentation_status(self):
         """Check if segmentation service is available and loaded."""
-        service = get_vital_segmentation_service()
-        backend_info = service.get_backend_info()
+        service = get_viame_segmentation_service()
+        service_info = service.get_service_info()
         return {
             "available": service.is_available(),
             "loaded": service.is_loaded(),
-            "backend": backend_info.get('backend'),
+            "text_query_available": service.is_text_query_available(),
+            "device": service_info.get('device'),
         }
 
     @access.user
     @autoDescribeRoute(
-        Description("Run SAM3 point-based segmentation (uses transformers)")
-        .modelParam(
-            "folderId",
-            description="Dataset folder ID",
-            model=Folder,
-            paramType="query",
-            required=True,
-            level=AccessType.READ,
-        )
-        .param(
-            "frameNumber",
-            description="Frame number to segment",
-            paramType="query",
-            dataType="integer",
-            required=True,
-        )
-        .jsonParam(
-            "body",
-            description="JSON object with point prompts",
-            paramType="body",
-            schema={
-                "points": List[List[float]],
-                "pointLabels": List[int],
-                "multimaskOutput": Optional[bool],
-            },
-        )
-    )
-    def sam3_predict(self, folder, frameNumber, body):
-        """
-        Run SAM3 prediction with point prompts using transformers.
-
-        This endpoint uses HuggingFace transformers for model loading,
-        which doesn't require Meta's sam2 module.
-
-        Query params:
-            folderId: Dataset folder ID
-            frameNumber: Frame number to segment
-
-        Request body:
-            points: List of [x, y] point coordinates
-            pointLabels: List of labels (1=foreground, 0=background)
-            multimaskOutput: Whether to return multiple masks (default: false)
-
-        Returns:
-            polygon: List of [x, y] coordinate pairs
-            bounds: [x_min, y_min, x_max, y_max]
-            score: Quality score from SAM3
-        """
-        from dive_utils import fromMeta
-        from dive_utils.constants import TypeMarker, ImageSequenceType, VideoType
-        from girder.models.file import File
-        from girder.models.item import Item
-        import os
-
-        service = get_vital_segmentation_service()
-
-        if not service.is_available():
-            return {
-                "success": False,
-                "error": "Segmentation service is not available.",
-            }
-
-        try:
-            # Get dataset type and resolve image path
-            dataset_type = fromMeta(folder, TypeMarker)
-            image_path = None
-
-            if dataset_type == ImageSequenceType:
-                # Find image items in the folder, sorted by name
-                items = list(Item().find(
-                    {"folderId": folder["_id"]},
-                    sort=[("name", 1)]
-                ))
-
-                # Filter to only image items
-                image_items = [
-                    item for item in items
-                    if item.get("name", "").lower().endswith(
-                        ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp')
-                    )
-                ]
-
-                if frameNumber < 0 or frameNumber >= len(image_items):
-                    return {
-                        "success": False,
-                        "error": f"Frame {frameNumber} out of range (0-{len(image_items)-1})",
-                    }
-
-                image_item = image_items[frameNumber]
-                files = list(File().find({"itemId": image_item["_id"]}))
-                if not files:
-                    return {
-                        "success": False,
-                        "error": f"No file found for frame {frameNumber}",
-                    }
-
-                # Get the file path from Girder's assetstore
-                file_doc = files[0]
-                assetstore = File().getAssetstoreAdapter(file_doc)
-                image_path = assetstore.fullPath(file_doc)
-
-            elif dataset_type == VideoType:
-                return {
-                    "success": False,
-                    "error": "SAM3 for video datasets is not yet supported. Use image sequences.",
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Unsupported dataset type: {dataset_type}",
-                }
-
-            if not image_path or not os.path.exists(image_path):
-                return {
-                    "success": False,
-                    "error": f"Image file not found: {image_path}",
-                }
-
-            # Run segmentation prediction
-            result = service.predict(
-                image_path=image_path,
-                points=body.get("points", []),
-                point_labels=body.get("pointLabels", []),
-                multimask_output=body.get("multimaskOutput", False),
-            )
-            return result
-
-        except Exception as e:
-            logger.exception("Segmentation prediction failed")
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
-    @access.user
-    @autoDescribeRoute(
-        Description("Run SAM3 text-based object detection and segmentation")
+        Description("Run text-based object detection and segmentation")
         .modelParam(
             "folderId",
             description="Dataset folder ID",
@@ -634,11 +495,9 @@ class RpcResource(Resource):
             },
         )
     )
-    def sam3_text_query(self, folder, frameNumber, body):
+    def text_query(self, folder, frameNumber, body):
         """
         Detect objects using text query and segment them.
-
-        Uses Grounding DINO for text-based detection and SAM3 for segmentation.
 
         Query params:
             folderId: Dataset folder ID
@@ -659,7 +518,7 @@ class RpcResource(Resource):
         from girder.models.item import Item
         import os
 
-        service = get_vital_segmentation_service()
+        service = get_viame_segmentation_service()
 
         if not service.is_available():
             return {
@@ -670,7 +529,7 @@ class RpcResource(Resource):
         if not service.is_text_query_available():
             return {
                 "success": False,
-                "error": "Text query not available (requires SAM3 backend).",
+                "error": "Text query is not supported by the current segmentation config.",
             }
 
         try:
@@ -742,18 +601,3 @@ class RpcResource(Resource):
                 "success": False,
                 "error": str(e),
             }
-
-    @access.user
-    @autoDescribeRoute(Description("Get SAM3 service status"))
-    def sam3_status(self):
-        """Check if segmentation service is available and loaded."""
-        service = get_vital_segmentation_service()
-        backend_info = service.get_backend_info()
-        return {
-            "available": service.is_available(),
-            "loaded": service.is_loaded(),
-            "text_query_available": service.is_text_query_available(),
-            "backend": backend_info.get('backend'),
-            "checkpoint": backend_info.get('checkpoint'),
-            "device": backend_info.get('device'),
-        }

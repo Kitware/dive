@@ -68,7 +68,7 @@ async function segmentationPredict(
   frameNumber: number,
   request: SegmentationPredictRequest,
 ): Promise<SegmentationPredictResponse> {
-  const { data } = await girderRest.post<SegmentationPredictResponse>('dive_rpc/sam2_predict', {
+  const { data } = await girderRest.post<SegmentationPredictResponse>('dive_rpc/segmentation_predict', {
     points: request.points,
     pointLabels: request.pointLabels,
     maskInput: request.maskInput,
@@ -83,7 +83,7 @@ async function segmentationPredict(
 }
 
 async function segmentationStatus(): Promise<SegmentationStatusResponse> {
-  const { data } = await girderRest.get<SegmentationStatusResponse>('dive_rpc/sam2_status');
+  const { data } = await girderRest.get<SegmentationStatusResponse>('dive_rpc/segmentation_status');
   return data;
 }
 
@@ -107,7 +107,7 @@ async function textQuery(
   frameNumber: number,
   request: Omit<TextQueryRequest, 'imagePath'>,
 ): Promise<TextQueryResponse> {
-  const { data } = await girderRest.post<TextQueryResponse>('dive_rpc/sam3_text_query', {
+  const { data } = await girderRest.post<TextQueryResponse>('dive_rpc/text_query', {
     text: request.text,
     boxThreshold: request.boxThreshold,
     maxDetections: request.maxDetections,
@@ -121,10 +121,10 @@ async function textQuery(
 }
 
 async function textQueryStatus(): Promise<{ available: boolean; grounding_available: boolean }> {
-  const { data } = await girderRest.get<{ available: boolean; loaded: boolean; grounding_available: boolean }>('dive_rpc/sam3_status');
+  const { data } = await girderRest.get<{ available: boolean; loaded: boolean; text_query_available: boolean }>('dive_rpc/segmentation_status');
   return {
     available: data.available,
-    grounding_available: data.grounding_available,
+    grounding_available: data.text_query_available,
   };
 }
 
