@@ -25,6 +25,14 @@ import {
   shutdownSegmentationService,
   SegmentationPredictRequest,
 } from './native/segmentation';
+import {
+  getStereoServiceManager,
+  shutdownStereoService,
+  StereoCalibration,
+  StereoSetFrameRequest,
+  StereoTransferLineRequest,
+  StereoTransferPointsRequest,
+} from './native/stereo';
 
 // defaults to linux if win32 doesn't exist
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
@@ -270,5 +278,70 @@ export default function register() {
 
     const response = await segService.refineDetections(args);
     return response;
+  });
+
+  /**
+   * Interactive Stereo Service
+   */
+
+  ipcMain.handle('stereo-enable', async (event, args?: { calibration?: StereoCalibration }) => {
+    const stereoService = getStereoServiceManager();
+
+    // Forward async disparity events to the renderer
+    stereoService.on('disparity_ready', (data) => {
+      event.sender.send('stereo-disparity-ready', data);
+    });
+    stereoService.on('disparity_error', (data) => {
+      event.sender.send('stereo-disparity-error', data);
+    });
+
+    const result = await stereoService.enable(settings.get(), args?.calibration);
+    return result;
+  });
+
+  ipcMain.handle('stereo-disable', async () => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.disable();
+    return result;
+  });
+
+  ipcMain.handle('stereo-set-frame', async (_, args: StereoSetFrameRequest) => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.setFrame(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-get-status', async () => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.getStatus();
+    return result;
+  });
+
+  ipcMain.handle('stereo-transfer-line', async (_, args: StereoTransferLineRequest) => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.transferLine(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-transfer-points', async (_, args: StereoTransferPointsRequest) => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.transferPoints(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-set-calibration', async (_, args: { calibration: StereoCalibration }) => {
+    const stereoService = getStereoServiceManager();
+    await stereoService.setCalibration(args.calibration);
+    return { success: true };
+  });
+
+  ipcMain.handle('stereo-shutdown', async () => {
+    await shutdownStereoService();
+    return { success: true };
+  });
+
+  ipcMain.handle('stereo-is-enabled', () => {
+    const stereoService = getStereoServiceManager();
+    return { enabled: stereoService.isEnabled() };
   });
 }
