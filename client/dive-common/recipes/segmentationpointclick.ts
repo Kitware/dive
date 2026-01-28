@@ -66,6 +66,11 @@ export interface SegmentationPredictionResult {
   rleMask?: [number, number][];
   /** Mask dimensions [height, width] */
   maskShape?: [number, number];
+  /** Control points used for this prediction (for stereo warping) */
+  controlPoints?: {
+    points: [number, number][];
+    labels: number[];
+  };
 }
 
 /** Data stored per frame for multi-frame segmentation */
@@ -677,6 +682,10 @@ export default class SegmentationPointClick implements Recipe {
           polygon: data.polygon,
           bounds: data.bounds,
           frameNum,
+          controlPoints: data.points.length > 0 ? {
+            points: data.points,
+            labels: data.labels,
+          } : undefined,
         });
       }
     });

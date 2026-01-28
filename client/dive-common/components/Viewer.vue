@@ -43,6 +43,7 @@ import DeleteControls from 'dive-common/components/DeleteControls.vue';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import { useModeManager, useSave } from 'dive-common/use';
+import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -120,6 +121,7 @@ export default defineComponent({
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
+    const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
@@ -150,6 +152,7 @@ export default defineComponent({
       }
     }
 
+    const sideBarCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const sidebarMode = ref(clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed');
     // Right panel view in bottom mode: 'filters' or 'details'
@@ -290,6 +293,9 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
+        emit('stereo-annotation-complete', params);
+      },
     });
 
     const {
@@ -625,6 +631,7 @@ export default defineComponent({
           setImageEnhancements(meta.imageEnhancements);
         }
         datasetName.value = meta.name;
+        subType.value = meta.subType || null;
         initTime({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
@@ -890,6 +897,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
       editorMenuRef,
       onTextQueryServiceReady,
       sidebarMode,
@@ -902,6 +910,7 @@ export default defineComponent({
       clientSettings,
       datasetName,
       datasetType,
+      subType,
       editingTrack,
       editingMode,
       editingDetails,
@@ -1159,6 +1168,7 @@ export default defineComponent({
     >
       <sidebar
         v-if="!sideBarCollapsed"
+        :is-stereo-dataset="subType === 'stereo'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
       >
