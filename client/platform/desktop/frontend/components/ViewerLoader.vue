@@ -1,7 +1,7 @@
 <script lang="ts">
 import npath from 'path';
 import {
-  computed, defineComponent, ref, watch, onMounted, nextTick,
+  computed, defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -10,9 +10,13 @@ import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
+import { clientSettings } from 'dive-common/store/settings';
+import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
   runTextQueryPipeline,
+  stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
+  onStereoDisparityReady, onStereoDisparityError,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -389,6 +393,324 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Interactive Stereo Service
+     */
+    const stereoLoadingDialog = ref(false);
+    const stereoLoadingMessage = ref('Loading stereo model...');
+    const stereoLoadingError = ref('');
+    const stereoEnabled = ref(false);
+
+    // Cache image path getters per camera for stereo frame setting
+    const stereoImagePathGetters = ref({} as Record<string, (frameNum: number) => string>);
+
+    function closeStereoLoadingDialog() {
+      stereoLoadingDialog.value = false;
+      stereoLoadingError.value = '';
+    }
+
+    /**
+     * Load multicam metadata for both cameras to build image path getters
+     */
+    async function loadStereoMetadata() {
+      try {
+        const meta = await loadMetadata(props.id);
+        if (!meta.multiCamMedia) return;
+
+        const { cameras } = meta.multiCamMedia;
+        const cameraNames = Object.keys(cameras);
+
+        for (let i = 0; i < cameraNames.length; i += 1) {
+          const cam = cameraNames[i];
+          const cameraId = `${props.id}/${cam}`;
+          // eslint-disable-next-line no-await-in-loop
+          const camMeta = await loadMetadata(cameraId);
+          const {
+            originalBasePath, originalImageFiles, type, originalVideoFile,
+          } = camMeta;
+
+          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
+            if (type === 'video') {
+              return npath.join(originalBasePath, originalVideoFile || '');
+            }
+            if (originalImageFiles && originalImageFiles[frameNum]) {
+              const imagePath = originalImageFiles[frameNum];
+              if (npath.isAbsolute(imagePath)) {
+                return imagePath;
+              }
+              return npath.join(originalBasePath, imagePath);
+            }
+            return '';
+          };
+        }
+      } catch (err) {
+        console.error('[Stereo] Failed to load multicam metadata:', err);
+      }
+    }
+
+    // Watch stereo toggle
+    watch(() => clientSettings.stereoSettings.interactiveModeEnabled, async (enabled) => {
+      if (enabled) {
+        stereoLoadingDialog.value = true;
+        stereoLoadingMessage.value = 'Loading stereo model...';
+        stereoLoadingError.value = '';
+
+        try {
+          await loadStereoMetadata();
+          const result = await stereoEnable();
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to enable stereo service');
+          }
+          stereoEnabled.value = true;
+          stereoLoadingDialog.value = false;
+        } catch (err) {
+          stereoEnabled.value = false;
+          clientSettings.stereoSettings.interactiveModeEnabled = false;
+          stereoLoadingError.value = err instanceof Error ? err.message : String(err);
+        }
+      } else {
+        try {
+          await stereoDisable();
+        } catch {
+          // Ignore errors on disable
+        }
+        stereoEnabled.value = false;
+      }
+    });
+
+    // Watch frame changes to proactively compute disparity
+    let lastStereoFrame = -1;
+    watch(() => viewerRef.value?.aggregateController?.frame?.value, (frameNum) => {
+      if (frameNum === undefined || frameNum === lastStereoFrame || !stereoEnabled.value) return;
+      lastStereoFrame = frameNum;
+
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length < 2) return;
+
+      const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
+      const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
+
+      if (leftPath && rightPath) {
+        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+          console.warn('[Stereo] Failed to set frame:', err);
+        });
+      }
+    });
+
+    // Clean up disparity event listeners
+    let cleanupDisparityReady: (() => void) | null = null;
+    let cleanupDisparityError: (() => void) | null = null;
+
+    onMounted(() => {
+      cleanupDisparityReady = onStereoDisparityReady(() => {
+        // Disparity is ready for current frame - no action needed, transfers will succeed
+      });
+      cleanupDisparityError = onStereoDisparityError((data) => {
+        console.warn('[Stereo] Disparity error:', data);
+      });
+    });
+
+    onBeforeUnmount(() => {
+      if (cleanupDisparityReady) cleanupDisparityReady();
+      if (cleanupDisparityError) cleanupDisparityError();
+    });
+
+    /**
+     * Handle stereo annotation complete event from Viewer
+     * Warps annotation from source camera to the other camera
+     */
+    async function handleStereoAnnotationComplete(params: StereoAnnotationCompleteParams) {
+      if (!stereoEnabled.value) return;
+
+      const viewer = viewerRef.value;
+      if (!viewer) return;
+
+      const { cameraStore, multiCamList } = viewer;
+      if (multiCamList.length < 2) return;
+
+      // Determine the other camera
+      const otherCamera = multiCamList.find((c: string) => c !== params.camera);
+      if (!otherCamera) return;
+
+      try {
+        if (params.type === 'line') {
+          const response = await stereoTransferLine({ line: params.line });
+          if (!response.success || !response.transferredLine) {
+            console.warn('[Stereo] Line transfer failed:', response.error);
+            return;
+          }
+
+          // Get the track on the other camera and set the warped line
+          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (track) {
+            const lineGeometry: GeoJSON.Feature[] = [{
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: response.transferredLine,
+              },
+              properties: { key: '' },
+            }];
+
+            // Compute bounds from the transferred line
+            const xs = response.transferredLine.map((p: [number, number]) => p[0]);
+            const ys = response.transferredLine.map((p: [number, number]) => p[1]);
+            const bounds = [
+              Math.min(...xs), Math.min(...ys),
+              Math.max(...xs), Math.max(...ys),
+            ] as [number, number, number, number];
+
+            track.setFeature({
+              frame: params.frameNum,
+              flick: 0,
+              bounds,
+              keyframe: true,
+              interpolate: false,
+            }, lineGeometry);
+          }
+        } else if (params.type === 'box') {
+          // Convert box bounds to 4 corner points
+          const [x1, y1, x2, y2] = params.bounds;
+          const corners: [number, number][] = [
+            [x1, y1], [x2, y1], [x2, y2], [x1, y2],
+          ];
+
+          const response = await stereoTransferPoints({ points: corners });
+          if (!response.success || !response.transferredPoints) {
+            console.warn('[Stereo] Box transfer failed:', response.error);
+            return;
+          }
+
+          // Compute new bounds from warped corners
+          const txs = response.transferredPoints.map((p) => p[0]);
+          const tys = response.transferredPoints.map((p) => p[1]);
+          const newBounds = [
+            Math.min(...txs), Math.min(...tys),
+            Math.max(...txs), Math.max(...tys),
+          ] as [number, number, number, number];
+
+          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (track) {
+            track.setFeature({
+              frame: params.frameNum,
+              flick: 0,
+              bounds: newBounds,
+              keyframe: true,
+              interpolate: false,
+            });
+          }
+        } else if (params.type === 'polygon') {
+          const response = await stereoTransferPoints({ points: params.polygon });
+          if (!response.success || !response.transferredPoints) {
+            console.warn('[Stereo] Polygon transfer failed:', response.error);
+            return;
+          }
+
+          // Close the warped polygon
+          const warpedPolygon = [...response.transferredPoints];
+          if (warpedPolygon.length > 0) {
+            const first = warpedPolygon[0];
+            const last = warpedPolygon[warpedPolygon.length - 1];
+            if (first[0] !== last[0] || first[1] !== last[1]) {
+              warpedPolygon.push([...first] as [number, number]);
+            }
+          }
+
+          const polyGeometry: GeoJSON.Feature[] = [{
+            type: 'Feature',
+            geometry: {
+              type: 'Polygon',
+              coordinates: [warpedPolygon],
+            },
+            properties: { key: params.key },
+          }];
+
+          // Compute bounds from warped polygon
+          const pxs = response.transferredPoints.map((p) => p[0]);
+          const pys = response.transferredPoints.map((p) => p[1]);
+          const polyBounds = [
+            Math.min(...pxs), Math.min(...pys),
+            Math.max(...pxs), Math.max(...pys),
+          ] as [number, number, number, number];
+
+          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (track) {
+            track.setFeature({
+              frame: params.frameNum,
+              flick: 0,
+              bounds: polyBounds,
+              keyframe: true,
+              interpolate: false,
+            }, polyGeometry);
+          }
+        } else if (params.type === 'segmentation') {
+          // Transfer control points to the other camera
+          const response = await stereoTransferPoints({ points: params.points });
+          if (!response.success || !response.transferredPoints) {
+            console.warn('[Stereo] Segmentation point transfer failed:', response.error);
+            return;
+          }
+
+          // Get the image path for the other camera at this frame
+          const otherImagePath = stereoImagePathGetters.value[otherCamera]?.(params.frameNum);
+          if (!otherImagePath) {
+            console.warn('[Stereo] No image path for other camera');
+            return;
+          }
+
+          // Run segmentation prediction with warped control points on the other camera's image
+          try {
+            const segResponse = await segmentationPredict({
+              imagePath: otherImagePath,
+              points: response.transferredPoints,
+              pointLabels: params.labels,
+            });
+
+            if (segResponse.polygon && segResponse.polygon.length >= 3) {
+              // Close polygon if needed
+              const closedPolygon = [...segResponse.polygon];
+              const first = closedPolygon[0];
+              const last = closedPolygon[closedPolygon.length - 1];
+              if (first[0] !== last[0] || first[1] !== last[1]) {
+                closedPolygon.push([...first] as [number, number]);
+              }
+
+              const segGeometry: GeoJSON.Feature[] = [{
+                type: 'Feature',
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: [closedPolygon],
+                },
+                properties: { key: '' },
+              }];
+
+              const segBounds = segResponse.bounds || [
+                Math.min(...segResponse.polygon.map((p: [number, number]) => p[0])),
+                Math.min(...segResponse.polygon.map((p: [number, number]) => p[1])),
+                Math.max(...segResponse.polygon.map((p: [number, number]) => p[0])),
+                Math.max(...segResponse.polygon.map((p: [number, number]) => p[1])),
+              ] as [number, number, number, number];
+
+              const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+              if (track) {
+                track.setFeature({
+                  frame: params.frameNum,
+                  flick: 0,
+                  bounds: segBounds,
+                  keyframe: true,
+                  interpolate: false,
+                }, segGeometry);
+              }
+            }
+          } catch (segErr) {
+            console.warn('[Stereo] Segmentation prediction on other camera failed:', segErr);
+          }
+        }
+      } catch (err) {
+        console.warn('[Stereo] Annotation warping failed:', err);
+      }
+    }
+
     return {
       datasets,
       viewerRef,
@@ -405,70 +727,126 @@ export default defineComponent({
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      /* Stereo */
+      stereoLoadingDialog,
+      stereoLoadingMessage,
+      stereoLoadingError,
+      closeStereoLoadingDialog,
+      handleStereoAnnotationComplete,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer
-    :id.sync="id"
-    ref="viewerRef"
-    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
-    @change-camera="changeCamera"
-    @large-image-warning="largeImageWarning()"
-    @text-query-submit="handleTextQuerySubmit"
-    @text-query-init="handleTextQueryInit"
-    @text-query-all-frames="handleTextQueryAllFrames"
-  >
-    <template #title>
-      <v-tabs
-        icons-and-text
-        hide-slider
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="{ name: 'recent' }">
-          Library
-          <v-icon>mdi-folder-open</v-icon>
-        </v-tab>
-        <job-tab />
-        <v-tab :to="{ name: 'training' }">
-          Training<v-icon>mdi-brain</v-icon>
-        </v-tab>
-        <v-tab :to="{ name: 'settings' }">
-          Settings<v-icon>mdi-cog</v-icon>
-        </v-tab>
-      </v-tabs>
-    </template>
-    <template #title-right>
-      <RunPipelineMenu
-        :selected-dataset-ids="[modifiedId]"
-        :sub-type-list="subTypeList"
-        :camera-numbers="camNumbers"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="readOnlyMode"
-        v-bind="{ buttonOptions, menuOptions }"
-      />
-      <ImportAnnotations
-        :dataset-id="modifiedId"
-        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
-        block-on-unsaved
-      />
-      <Export
-        v-if="datasets[id]"
-        :id="modifiedId"
-        :button-options="buttonOptions"
-      />
-    </template>
-    <template #right-sidebar="{ sidebarMode }">
-      <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
-        <template #default="{ name, subCategory }">
-          <component
-            :is="name"
-            :sub-category="subCategory"
-          />
-        </template>
-      </SidebarContext>
-    </template>
-  </Viewer>
+  <div class="viewer-loader-wrapper">
+    <Viewer
+      :id.sync="id"
+      ref="viewerRef"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      @change-camera="changeCamera"
+      @large-image-warning="largeImageWarning()"
+      @text-query-submit="handleTextQuerySubmit"
+      @text-query-init="handleTextQueryInit"
+      @text-query-all-frames="handleTextQueryAllFrames"
+      @stereo-annotation-complete="handleStereoAnnotationComplete"
+    >
+      <template #title>
+        <v-tabs
+          icons-and-text
+          hide-slider
+          style="flex-basis:0; flex-grow:0;"
+        >
+          <v-tab :to="{ name: 'recent' }">
+            Library
+            <v-icon>mdi-folder-open</v-icon>
+          </v-tab>
+          <job-tab />
+          <v-tab :to="{ name: 'training' }">
+            Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'settings' }">
+            Settings<v-icon>mdi-cog</v-icon>
+          </v-tab>
+        </v-tabs>
+      </template>
+      <template #title-right>
+        <RunPipelineMenu
+          :selected-dataset-ids="[modifiedId]"
+          :sub-type-list="subTypeList"
+          :camera-numbers="camNumbers"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="readOnlyMode"
+          v-bind="{ buttonOptions, menuOptions }"
+        />
+        <ImportAnnotations
+          :dataset-id="modifiedId"
+          v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
+          block-on-unsaved
+        />
+        <Export
+          v-if="datasets[id]"
+          :id="modifiedId"
+          :button-options="buttonOptions"
+        />
+      </template>
+      <template #right-sidebar="{ sidebarMode }">
+        <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
+          <template #default="{ name, subCategory }">
+            <component
+              :is="name"
+              :sub-category="subCategory"
+            />
+          </template>
+        </SidebarContext>
+      </template>
+    </Viewer>
+    <v-dialog
+      :value="stereoLoadingDialog"
+      persistent
+      max-width="400"
+    >
+      <v-card>
+        <v-card-title>Stereo Service</v-card-title>
+        <v-card-text>
+          <div
+            v-if="!stereoLoadingError"
+            class="d-flex align-center"
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              class="mr-3"
+            />
+            {{ stereoLoadingMessage }}
+          </div>
+          <v-alert
+            v-else
+            type="error"
+            dense
+          >
+            {{ stereoLoadingError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions v-if="stereoLoadingError">
+          <v-spacer />
+          <v-btn
+            text
+            @click="closeStereoLoadingDialog"
+          >
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
+
+<style scoped>
+.viewer-loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+</style>

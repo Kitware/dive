@@ -50,6 +50,16 @@ interface SetAnnotationStateArgs {
   key?: string;
   recipeName?: string;
 }
+
+export type StereoAnnotationCompleteParams =
+  | { type: 'line'; camera: string; trackId: number; frameNum: number;
+      line: [[number, number], [number, number]]; }
+  | { type: 'box'; camera: string; trackId: number; frameNum: number;
+      bounds: [number, number, number, number]; }
+  | { type: 'polygon'; camera: string; trackId: number; frameNum: number;
+      polygon: [number, number][]; key: string; }
+  | { type: 'segmentation'; camera: string; trackId: number; frameNum: number;
+      points: [number, number][]; labels: number[]; };
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -64,6 +74,7 @@ export default function useModeManager({
   aggregateController,
   readonlyState,
   recipes,
+  onStereoAnnotationComplete,
 }: {
     cameraStore: CameraStore;
     trackFilterControls: TrackFilterControls;
@@ -71,6 +82,7 @@ export default function useModeManager({
     aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
+    onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
 }) {
   let creating = false;
   const { prompt } = usePrompt();
@@ -419,6 +431,17 @@ export default function useModeManager({
           interpolate: _shouldInterpolate(interpolate),
         });
         newTrackSettingsAfterLogic(track);
+
+        // Stereo: emit box annotation complete
+        if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled) {
+          onStereoAnnotationComplete({
+            type: 'box',
+            camera: selectedCamera.value,
+            trackId: selectedTrackId.value as number,
+            frameNum,
+            bounds: bounds as [number, number, number, number],
+          });
+        }
       }
     }
   }
@@ -567,6 +590,44 @@ export default function useModeManager({
           // Or none of the recieps reported that they were unfinished.
           if (eventType === 'editing' || update.done.every((v) => v !== false)) {
             newTrackSettingsAfterLogic(track);
+
+            // Stereo: emit line or polygon annotation complete
+            if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
+                && selectedTrackId.value !== null) {
+              // Check for LineString with exactly 2 points (line annotation)
+              if (data.geometry.type === 'LineString'
+                  && data.geometry.coordinates.length === 2) {
+                const coords = data.geometry.coordinates as [number, number][];
+                onStereoAnnotationComplete({
+                  type: 'line',
+                  camera: selectedCamera.value,
+                  trackId: selectedTrackId.value as number,
+                  frameNum,
+                  line: [coords[0], coords[1]],
+                });
+              }
+              // Check for completed Polygon (done=true from recipes)
+              if (update.done.some((v) => v === true)) {
+                // Look for polygon geometry in the update record
+                Object.entries(update.geoJsonFeatureRecord).forEach(([geoKey, features]) => {
+                  features.forEach((feat) => {
+                    if (feat.geometry.type === 'Polygon'
+                        && feat.geometry.coordinates[0]
+                        && feat.geometry.coordinates[0].length >= 3) {
+                      const polyCoords = feat.geometry.coordinates[0] as [number, number][];
+                      onStereoAnnotationComplete({
+                        type: 'polygon',
+                        camera: selectedCamera.value,
+                        trackId: selectedTrackId.value as number,
+                        frameNum,
+                        polygon: polyCoords,
+                        key: geoKey,
+                      });
+                    }
+                  });
+                });
+              }
+            }
           }
         }
       } else {
@@ -986,6 +1047,19 @@ export default function useModeManager({
           keyframe: true,
           interpolate,
         }, polygonGeometry);
+
+        // Stereo: emit segmentation annotation complete for each frame
+        if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
+            && selectedTrackId.value !== null && frameResult.controlPoints) {
+          onStereoAnnotationComplete({
+            type: 'segmentation',
+            camera: selectedCamera.value,
+            trackId: selectedTrackId.value as number,
+            frameNum,
+            points: frameResult.controlPoints.points,
+            labels: frameResult.controlPoints.labels,
+          });
+        }
       }
     });
 

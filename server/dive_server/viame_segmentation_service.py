@@ -1,15 +1,12 @@
 """
-Vital Algorithm-based Segmentation Service for DIVE Web (Girder)
+VIAME Segmentation Service for DIVE Web (Girder)
 
-This service provides interactive segmentation using KWIVER vital algorithms:
-- SegmentViaPoints: For point-based segmentation (SAM2/SAM3)
-- PerformTextQuery: For text-based detection/segmentation (SAM3)
+This service provides interactive segmentation using KWIVER algorithms:
+- SegmentViaPoints: For point-based segmentation
+- PerformTextQuery: For text-based detection/segmentation
 
-The service uses the shared model cache from viame.pytorch.sam3_utilities to avoid
-loading duplicate models when both algorithms are configured with the same checkpoint.
-
-This replaces the previous sam2_service.py and sam3_service.py with a unified
-implementation based on KWIVER vital algorithms.
+Algorithm implementations and model details are determined by the config file
+(interactive_segmenter_default.conf) in the VIAME install directory.
 """
 
 import logging
@@ -44,12 +41,9 @@ def find_viame_install() -> Optional[Path]:
     return None
 
 
-def find_segmentation_config(model_type: str = "sam3") -> Optional[Path]:
+def find_segmentation_config() -> Optional[Path]:
     """
     Find the segmentation config file in VIAME install.
-
-    Args:
-        model_type: Type of model ('sam2' or 'sam3')
 
     Returns:
         Path to config file if found, None otherwise
@@ -60,42 +54,43 @@ def find_segmentation_config(model_type: str = "sam3") -> Optional[Path]:
 
     pipelines_dir = viame_install / "configs" / "pipelines"
 
-    # Map model type to config file (use the new common_sam*_segmenter.conf files)
-    config_files = {
-        "sam2": "common_sam2_segmenter.conf",
-        "sam3": "common_sam3_segmenter.conf",
-    }
-
-    config_name = config_files.get(model_type)
-    if config_name:
-        config_path = pipelines_dir / config_name
-        if config_path.exists():
-            return config_path
-
-    # Fallback to any available config
-    for name in ["common_sam3_segmenter.conf", "common_sam2_segmenter.conf"]:
-        config_path = pipelines_dir / name
-        if config_path.exists():
-            return config_path
+    config_path = pipelines_dir / "interactive_segmenter_default.conf"
+    if config_path.exists():
+        return config_path
 
     return None
 
 
-class VitalSegmentationService:
+def _parse_config_file(config_path: Path) -> Dict[str, str]:
+    """Parse a KWIVER .conf file into key-value pairs."""
+    config = {}
+    with open(config_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, _, value = line.partition('=')
+                config[key.strip()] = value.strip()
+    return config
+
+
+class ViameSegmentationService:
     """
-    Singleton segmentation service using KWIVER vital algorithms.
+    Singleton segmentation service using KWIVER algorithms.
 
     This service provides:
     - Point-based segmentation via SegmentViaPoints algorithm
     - Text-based detection via PerformTextQuery algorithm (optional)
 
+    Algorithm implementations are determined by the VIAME config file.
     Thread-safe with lazy initialization of algorithms.
     """
 
-    _instance: Optional['VitalSegmentationService'] = None
+    _instance: Optional['ViameSegmentationService'] = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> 'VitalSegmentationService':
+    def __new__(cls) -> 'ViameSegmentationService':
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -112,13 +107,9 @@ class VitalSegmentationService:
         self._algo_lock = threading.Lock()
         self._current_image_path: Optional[str] = None
         self._current_image_container = None
-        self._backend_type: Optional[str] = None
 
-        # Configuration - will be set properly when algorithms are loaded
         self._config_path = None
         self.device = os.environ.get('SEGMENTATION_DEVICE', 'cuda')
-        self.checkpoint = os.environ.get('SAM_MODEL_PATH', '')
-        self.model_config = os.environ.get('SAM_CONFIG_PATH', '')
         self.hole_policy = "remove"
         self.multipolygon_policy = "largest"
         self.max_polygon_points = 25
@@ -129,9 +120,6 @@ class VitalSegmentationService:
         self,
         config_path: Optional[str] = None,
         device: Optional[str] = None,
-        checkpoint: Optional[str] = None,
-        model_config: Optional[str] = None,
-        backend_type: Optional[str] = None,
     ) -> None:
         """
         Configure the service before first use.
@@ -139,23 +127,14 @@ class VitalSegmentationService:
         Args:
             config_path: Path to KWIVER config file
             device: Device to use (cuda, cpu)
-            checkpoint: Path to model checkpoint
-            model_config: Path to model config JSON
-            backend_type: Backend type ('sam2' or 'sam3')
         """
         if config_path:
             self._config_path = Path(config_path)
         if device:
             self.device = device
-        if checkpoint:
-            self.checkpoint = checkpoint
-        if model_config:
-            self.model_config = model_config
-        if backend_type:
-            self._backend_type = backend_type
 
     def _ensure_algorithms_loaded(self) -> None:
-        """Load the vital algorithms if not already loaded."""
+        """Load the segmentation algorithms if not already loaded."""
         if self._segment_algo is not None:
             return
 
@@ -163,7 +142,7 @@ class VitalSegmentationService:
             if self._segment_algo is not None:
                 return
 
-            logger.info("Loading vital segmentation algorithms...")
+            logger.info("Loading segmentation algorithms...")
 
             try:
                 from kwiver.vital.algo import SegmentViaPoints, PerformTextQuery
@@ -173,104 +152,61 @@ class VitalSegmentationService:
                 # Load KWIVER modules
                 vital_modules.load_known_modules()
 
-                # Determine backend type
-                backend = self._backend_type or self._detect_backend_type()
-                self._backend_type = backend
-                logger.info(f"  Using backend: {backend}")
+                # Find and parse config file
+                if not self._config_path:
+                    self._config_path = find_segmentation_config()
+                if not self._config_path:
+                    raise RuntimeError(
+                        "Segmentation config file not found. "
+                        "Ensure interactive_segmenter_default.conf is installed."
+                    )
+                logger.info(f"  Config file: {self._config_path}")
 
-                # Find config file for this backend
-                self._config_path = find_segmentation_config(backend)
-                if self._config_path:
-                    logger.info(f"  Config file: {self._config_path}")
+                parsed_config = _parse_config_file(self._config_path)
+                algo_type = parsed_config.get("type", "")
+                if not algo_type:
+                    raise RuntimeError(
+                        f"No 'type' specified in config file: {self._config_path}"
+                    )
+                logger.info(f"  Algorithm type: {algo_type}")
 
-                # Create algorithms directly without config file
-                self._segment_algo = self._create_segment_algorithm(backend)
-                self._text_query_algo = self._create_text_query_algorithm(backend)
+                # Create and configure SegmentViaPoints from config
+                self._segment_algo = SegmentViaPoints.create(algo_type)
+                seg_cfg = vital_config.empty_config()
+                prefix = f"{algo_type}:"
+                for key, value in parsed_config.items():
+                    if key.startswith(prefix):
+                        param = key[len(prefix):]
+                        seg_cfg.set_value(param, value)
+                seg_cfg.set_value("device", self.device)
+                self._segment_algo.set_configuration(seg_cfg)
 
-                logger.info("Vital segmentation algorithms loaded successfully")
+                # Try to create PerformTextQuery from the same config
+                try:
+                    text_algo = PerformTextQuery.create(algo_type)
+                    text_cfg = vital_config.empty_config()
+                    for key, value in parsed_config.items():
+                        if key.startswith(prefix):
+                            param = key[len(prefix):]
+                            text_cfg.set_value(param, value)
+                    text_cfg.set_value("device", self.device)
+                    text_algo.set_configuration(text_cfg)
+                    self._text_query_algo = text_algo
+                except Exception as e:
+                    logger.info(f"  PerformTextQuery not available for this config: {e}")
+                    self._text_query_algo = None
+
+                logger.info("Segmentation algorithms loaded successfully")
 
             except ImportError as e:
-                logger.error(f"KWIVER vital not available: {e}")
+                logger.error(f"KWIVER not available: {e}")
                 raise RuntimeError(
-                    "KWIVER vital algorithms not available. "
+                    "KWIVER algorithms not available. "
                     "Ensure kwiver Python bindings are installed."
                 ) from e
             except Exception as e:
-                logger.error(f"Failed to load vital algorithms: {e}")
+                logger.error(f"Failed to load segmentation algorithms: {e}")
                 raise
-
-    def _detect_backend_type(self) -> str:
-        """Detect which backend to use based on available modules."""
-        # Check for sam3 module first (preferred)
-        try:
-            from sam3.model_builder import build_sam3_image_model  # noqa: F401
-            return "sam3"
-        except ImportError:
-            pass
-
-        # Check for sam2 module
-        try:
-            from sam2.build_sam import build_sam2  # noqa: F401
-            return "sam2"
-        except ImportError:
-            pass
-
-        # Check for transformers (fallback for sam3)
-        try:
-            from transformers import Sam2Model  # noqa: F401
-            return "sam3"
-        except ImportError:
-            pass
-
-        # Default to sam2
-        return "sam2"
-
-    def _create_segment_algorithm(self, backend: str):
-        """Create and configure the SegmentViaPoints algorithm."""
-        from kwiver.vital.algo import SegmentViaPoints
-        from kwiver.vital.config import config as vital_config
-
-        # Create algorithm instance
-        algo = SegmentViaPoints.create(backend)
-
-        # Create config
-        cfg = vital_config.empty_config()
-        cfg.set_value("checkpoint", self.checkpoint or "")
-        cfg.set_value("device", self.device)
-
-        if backend == "sam2":
-            cfg.set_value("cfg", "configs/sam2.1/sam2.1_hiera_b+.yaml")
-        elif backend == "sam3":
-            cfg.set_value("model_config", self.model_config or "")
-
-        algo.set_configuration(cfg)
-        return algo
-
-    def _create_text_query_algorithm(self, backend: str):
-        """Create and configure the PerformTextQuery algorithm (SAM3 only)."""
-        if backend != "sam3":
-            return None
-
-        try:
-            from kwiver.vital.algo import PerformTextQuery
-            from kwiver.vital.config import config as vital_config
-
-            algo = PerformTextQuery.create("sam3")
-
-            cfg = vital_config.empty_config()
-            cfg.set_value("checkpoint", self.checkpoint or "")
-            cfg.set_value("model_config", self.model_config or "")
-            cfg.set_value("device", self.device)
-            cfg.set_value("detection_threshold", "0.3")
-            cfg.set_value("max_detections", "10")
-            cfg.set_value("iou_threshold", "0.3")
-
-            algo.set_configuration(cfg)
-            return algo
-
-        except Exception as e:
-            logger.warning(f"Could not create PerformTextQuery algorithm: {e}")
-            return None
 
     def _load_image(self, image_path: str):
         """Load an image and return a vital ImageContainer."""
@@ -431,7 +367,7 @@ class VitalSegmentationService:
         if self._text_query_algo is None:
             return {
                 "success": False,
-                "error": "Text query not available (requires SAM3 backend)",
+                "error": "Text query is not supported by the current segmentation config.",
             }
 
         with self._algo_lock:
@@ -521,32 +457,12 @@ class VitalSegmentationService:
 
     def is_available(self) -> bool:
         """Check if segmentation is available."""
-        # Check for vital algorithms
         try:
             from kwiver.vital.algo import SegmentViaPoints  # noqa: F401
         except ImportError:
             return False
 
-        # Check for at least one backend
-        try:
-            from sam2.build_sam import build_sam2  # noqa: F401
-            return True
-        except ImportError:
-            pass
-
-        try:
-            from sam3.model_builder import build_sam3_image_model  # noqa: F401
-            return True
-        except ImportError:
-            pass
-
-        try:
-            from transformers import Sam2Model  # noqa: F401
-            return True
-        except ImportError:
-            pass
-
-        return False
+        return find_segmentation_config() is not None
 
     def is_loaded(self) -> bool:
         """Check if the algorithms are currently loaded."""
@@ -554,60 +470,35 @@ class VitalSegmentationService:
 
     def is_text_query_available(self) -> bool:
         """Check if text query is available."""
+        if self.is_loaded():
+            return self._text_query_algo is not None
+
         if not self.is_available():
             return False
 
-        # Text query requires SAM3 backend
         try:
             from kwiver.vital.algo import PerformTextQuery  # noqa: F401
+            return True
         except ImportError:
             return False
 
-        # Check for sam3 or transformers
-        try:
-            from sam3.model_builder import build_sam3_image_model  # noqa: F401
-            return True
-        except ImportError:
-            pass
-
-        try:
-            from transformers import Sam2Model  # noqa: F401
-            return True
-        except ImportError:
-            pass
-
-        return False
-
-    def get_backend_info(self) -> Dict[str, Any]:
-        """Get information about the current backend configuration."""
+    def get_service_info(self) -> Dict[str, Any]:
+        """Get information about the current service configuration."""
         return {
-            'backend': self._backend_type,
             'loaded': self.is_loaded(),
             'text_query_available': self._text_query_algo is not None,
             'config_path': str(self._config_path) if self._config_path else None,
-            'checkpoint': self.checkpoint or None,
             'device': self.device,
         }
 
 
 # Singleton accessor
-_service_instance: Optional[VitalSegmentationService] = None
+_service_instance: Optional[ViameSegmentationService] = None
 
 
-def get_vital_segmentation_service() -> VitalSegmentationService:
-    """Get the singleton VitalSegmentationService instance."""
+def get_viame_segmentation_service() -> ViameSegmentationService:
+    """Get the singleton ViameSegmentationService instance."""
     global _service_instance
     if _service_instance is None:
-        _service_instance = VitalSegmentationService()
+        _service_instance = ViameSegmentationService()
     return _service_instance
-
-
-# Aliases for backward compatibility with existing code
-def get_sam2_service() -> VitalSegmentationService:
-    """Backward compatible alias for get_vital_segmentation_service."""
-    return get_vital_segmentation_service()
-
-
-def get_sam3_service() -> VitalSegmentationService:
-    """Backward compatible alias for get_vital_segmentation_service."""
-    return get_vital_segmentation_service()

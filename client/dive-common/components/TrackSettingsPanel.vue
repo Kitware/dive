@@ -16,6 +16,10 @@ export default defineComponent({
       type: Array as PropType<Array<string>>,
       required: true,
     },
+    isStereoDataset: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props) {
@@ -34,6 +38,7 @@ export default defineComponent({
       autoZoom: 'Automatically zoom to the track when selected',
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       autoSave: 'Automatically save annotation changes after a short delay. Changes are batched to reduce server requests.',
+      stereoInteractiveMode: 'When enabled, annotations created on one camera are automatically warped to the other camera using stereo disparity',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -402,6 +407,47 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
+      <template v-if="isStereoDataset">
+        <v-divider class="my-2" />
+        <div class="subheading">
+          Stereo Settings
+        </div>
+        <v-row
+          align="end"
+          dense
+        >
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.stereoSettings.interactiveModeEnabled"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Interactive Mode"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoInteractiveMode }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+      </template>
     </v-card>
   </div>
 </template>

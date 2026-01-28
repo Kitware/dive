@@ -66,6 +66,11 @@ interface AnnotationSettings {
   layoutSettings: {
     sidebarPosition: 'left' | 'bottom';
   };
+  stereoSettings: {
+    interactiveModeEnabled: boolean;
+    loading: boolean;
+    loadingMessage: string;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -139,6 +144,11 @@ const defaultSettings: AnnotationSettings = {
   layoutSettings: {
     sidebarPosition: 'left',
   },
+  stereoSettings: {
+    interactiveModeEnabled: false,
+    loading: false,
+    loadingMessage: '',
+  },
 };
 
 // Utility to safely load from localStorage
@@ -158,7 +168,16 @@ function loadStoredSettings(): Partial<AnnotationSettings> {
 function saveSettings() {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+      // Exclude transient stereo fields from persistence
+      const toSave = {
+        ...clientSettings,
+        stereoSettings: {
+          ...clientSettings.stereoSettings,
+          loading: false,
+          loadingMessage: '',
+        },
+      };
+      localStorage.setItem('Settings', JSON.stringify(toSave));
     }
   } catch (e) {
     console.warn('Failed to save settings to localStorage:', e);
