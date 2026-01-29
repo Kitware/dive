@@ -31,6 +31,59 @@ import {
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
 
+/**
+ * Filter an image list to only include images within frame range.
+ * @param imageList List of image file paths
+ * @param frameRange Tuple of (start_frame, end_frame) inclusive (0-indexed)
+ * @returns Filtered list of image file paths
+ */
+function filterImageListByFrameRange(
+  imageList: string[],
+  frameRange: [number, number],
+): string[] {
+  const [startFrame, endFrame] = frameRange;
+  // Ensure we don't go out of bounds
+  const safeStart = Math.max(0, startFrame);
+  const safeEnd = Math.min(endFrame, imageList.length - 1);
+  return imageList.slice(safeStart, safeEnd + 1);
+}
+
+/**
+ * Filter VIAME CSV to only include detections within frame range.
+ * @param csvPath Path to the input CSV file
+ * @param frameRange Tuple of (start_frame, end_frame) inclusive
+ * @returns Path to the filtered CSV file
+ */
+async function filterCsvByFrameRange(
+  csvPath: string,
+  frameRange: [number, number],
+): Promise<string> {
+  const [startFrame, endFrame] = frameRange;
+  const filteredPath = csvPath.replace('.csv', '_filtered.csv');
+
+  const content = await fs.readFile(csvPath, 'utf-8');
+  const lines = content.split('\n');
+  const filteredLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('#') || line.trim() === '') {
+      filteredLines.push(line);
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    const parts = line.split(',');
+    if (parts.length >= 3) {
+      const frame = parseInt(parts[2], 10);
+      if (!Number.isNaN(frame) && frame >= startFrame && frame <= endFrame) {
+        filteredLines.push(line);
+      }
+    }
+  }
+
+  await fs.writeFile(filteredPath, filteredLines.join('\n'));
+  return filteredPath;
+}
+
 export interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
   trainingExe: string; // name of training binary on PATH
@@ -108,7 +161,7 @@ async function runPipeline(
   viameConstants: ViameConstants,
   forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline } = runPipelineArgs;
+  const { datasetId, pipeline, frameRange } = runPipelineArgs;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -198,6 +251,10 @@ async function runPipeline(
     let imageList = meta.originalImageFiles;
     if (meta.type === MultiType) {
       imageList = getMultiCamImageFiles(meta);
+    }
+    // Filter image list by frame range if specified
+    if (frameRange) {
+      imageList = filterImageListByFrameRange(imageList, frameRange);
     }
     const fileData = imageList
       .map((f) => npath.join(meta.originalBasePath, f))
@@ -293,8 +350,19 @@ async function runPipeline(
     if (code === 0) {
       try {
         if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
-          // Filter and transcode pipelines should ensure that detector/track output files are located in the new dataset directory
-          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
+          let finalDetectorOutput = detectorOutput;
+          let finalTrackOutput = trackOutput;
+
+          if (frameRange && metaType === 'video') {
+            if (await fs.pathExists(trackOutput)) {
+              finalTrackOutput = await filterCsvByFrameRange(trackOutput, frameRange);
+            }
+            if (await fs.pathExists(detectorOutput)) {
+              finalDetectorOutput = await filterCsvByFrameRange(detectorOutput, frameRange);
+            }
+          }
+
+          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
           if (newMeta) {
             meta.attributes = newMeta.attributes;
             await common.saveMetadata(settings, datasetId, meta);

@@ -183,7 +183,7 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   getPipelineList(): Promise<Pipelines>;
-  runPipeline(itemId: string, pipeline: Pipe, additionalConfig?: Record<string, string>): Promise<unknown>;
+  runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
 
