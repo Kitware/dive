@@ -184,6 +184,12 @@ export interface Handler {
   startLinking(camera: string): void;
   stopLinking(): void;
   setChange(set: string): void;
+  /* Add a hole to the current polygon */
+  addHole(): void;
+  /* Add a new separate polygon */
+  addPolygon(): void;
+  /* Cancel any in-progress creation mode (hole or polygon addition) */
+  cancelCreation(): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -226,6 +232,9 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
     setChange(...args) { handle('setChange', args); },
+    addHole(...args) { handle('addHole', args); },
+    addPolygon(...args) { handle('addPolygon', args); },
+    cancelCreation(...args) { handle('cancelCreation', args); },
   };
 }
 

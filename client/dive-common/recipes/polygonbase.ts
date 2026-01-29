@@ -77,6 +77,7 @@ export default class PolygonBoundsExpand implements Recipe {
   setAddingHole() {
     this.addingMode.value = 'hole';
     // Emit activate event with special key to trigger creation mode
+    // The special key ensures no geometry matches, forcing creation mode
     this.bus.$emit('activate', {
       editing: 'Polygon' as EditAnnotationTypes,
       key: '__adding_hole__',
@@ -120,13 +121,29 @@ export default class PolygonBoundsExpand implements Recipe {
           if (existingPolygons.length > 0) {
             // Add as hole to the first (default) polygon
             const targetPoly = existingPolygons[0];
-            track.addHoleToPolygon(frameNum, targetPoly.key, newPolyCoords);
+            // Create updated polygon geometry with the hole added
+            const updatedCoordinates = [
+              ...targetPoly.geometry.coordinates,
+              newPolyCoords,
+            ];
+            const updatedPolygon: GeoJSON.Polygon = {
+              type: 'Polygon',
+              coordinates: updatedCoordinates,
+            };
+            const updatedFeature: GeoJSON.Feature<GeoJSON.Polygon> = {
+              type: 'Feature',
+              properties: { key: targetPoly.key },
+              geometry: updatedPolygon,
+            };
+            // Return data like add polygon mode so right-click behavior is consistent
             return {
-              data: {},
+              data: {
+                [targetPoly.key]: [updatedFeature],
+              },
               union: [],
               done: true,
               unionWithoutBounds: [],
-              newSelectedKey: targetPoly.key, // Reset to the polygon's key
+              newSelectedKey: targetPoly.key, // Set to target polygon's key for proper mode transition
             };
           }
           // No existing polygon, treat as normal (create first polygon)

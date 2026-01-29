@@ -493,16 +493,18 @@ export default function useModeManager({
 
         // If a drawable changed, but we aren't changing modes
         // prevent an interrupt within EditAnnotationLayer
+        // Use === undefined to distinguish "no key change" from "change to empty key"
         if (
           somethingChanged
-          && !update.newSelectedKey
+          && update.newSelectedKey === undefined
           && !update.newType
           && preventInterrupt
         ) {
           preventInterrupt();
         } else {
           // Otherwise, one of these state changes will trigger an interrupt.
-          if (update.newSelectedKey) {
+          // Use !== undefined to allow setting key to empty string
+          if (update.newSelectedKey !== undefined) {
             selectedKey.value = update.newSelectedKey;
           }
           if (update.newType) {
@@ -857,6 +859,17 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Cancel any in-progress creation mode (hole or polygon addition).
+   * This resets the recipe's adding mode so right-click selection can work.
+   */
+  function handleCancelCreation() {
+    const polygonRecipe = recipes.find((r) => r.name === 'PolygonBase');
+    if (polygonRecipe && 'resetAddingMode' in polygonRecipe) {
+      (polygonRecipe as { resetAddingMode: () => void }).resetAddingMode();
+    }
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
   /* Unsubscribe before unmount */
@@ -907,6 +920,7 @@ export default function useModeManager({
       seekFrame,
       addHole: handleAddHole,
       addPolygon: handleAddPolygon,
+      cancelCreation: handleCancelCreation,
     },
   };
 }

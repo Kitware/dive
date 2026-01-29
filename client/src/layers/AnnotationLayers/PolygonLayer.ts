@@ -96,7 +96,12 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
       // If we aren't clicking on an annotation we can deselect the current track
       if (this.featureLayer.pointSearch(e.geo).found.length === 0 && !this.drawingOther) {
-        this.bus.$emit('annotation-clicked', null, false);
+        if (e.mouse.buttonsDown.left) {
+          this.bus.$emit('annotation-clicked', null, false);
+        } else if (e.mouse.buttonsDown.right) {
+          // Right-click outside polygons - emit event to finalize/cancel creation
+          this.bus.$emit('polygon-right-clicked-outside');
+        }
       }
     });
     super.initialize();

@@ -457,9 +457,9 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     // Handle right-click polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
-      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      // If in creation mode, cancel it first so we can select the polygon
       if (editAnnotationLayer.getMode() === 'creation') {
-        return;
+        handler.cancelCreation();
       }
       // Set the polygon key for the right-clicked polygon
       handler.selectFeatureHandle(-1, polygonKey);
@@ -482,9 +482,9 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     // Handle polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
-      // Don't switch polygons when in creation mode (e.g., drawing a hole)
+      // If in creation mode, cancel it first so we can select the polygon
       if (editAnnotationLayer.getMode() === 'creation') {
-        return;
+        handler.cancelCreation();
       }
       handler.selectFeatureHandle(-1, polygonKey);
       // Force layer update to load the newly selected polygon
@@ -501,6 +501,26 @@ export default defineComponent({
           props.colorBy,
         );
       }, 0);
+    });
+    // Handle right-click outside polygons to finalize/cancel creation
+    polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
+      if (editAnnotationLayer.getMode() === 'creation') {
+        // Cancel creation and go back to editing the default polygon
+        handler.cancelCreation();
+        handler.selectFeatureHandle(-1, '');
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
     });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
