@@ -118,9 +118,7 @@ export class SegmentationServiceManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       const viameSetup = npath.join(settings.viamePath, 'setup_viame.sh');
 
-      const configPath = npath.join(
-        settings.viamePath, 'configs', 'pipelines', 'interactive_segmenter_default.conf',
-      );
+      const configPath = npath.join(settings.viamePath, 'configs', 'pipelines', 'interactive_segmenter_default.conf');
 
       // Build the command to run the interactive segmentation service
       const command = [
