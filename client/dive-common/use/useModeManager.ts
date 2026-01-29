@@ -570,11 +570,32 @@ export default function useModeManager({
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         const { frame } = aggregateController.value;
+        const frameNum = frame.value;
         recipes.forEach((r) => {
           if (r.active.value) {
-            r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
+            r.delete(frameNum, track, selectedKey.value, annotationModes.editing);
           }
         });
+
+        // After deleting a polygon, recalculate bounds from remaining polygons
+        if (annotationModes.editing === 'Polygon') {
+          const remainingPolygons = track.getPolygonFeatures(frameNum);
+          if (remainingPolygons.length > 0) {
+            // Recalculate bounds from remaining polygons
+            const polygonGeometries = remainingPolygons.map((p) => p.geometry);
+            const newBounds = updateBounds(undefined, [], polygonGeometries);
+
+            // Get current feature and update with new bounds
+            const [currentFeature] = track.getFeature(frameNum);
+            if (currentFeature && newBounds) {
+              track.setFeature({
+                ...currentFeature,
+                bounds: newBounds,
+              });
+            }
+          }
+        }
+
         _nudgeEditingCanary();
       }
     }
