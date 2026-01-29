@@ -63,35 +63,6 @@ export default Vue.extend({
 
 <template>
   <span class="mx-1 d-flex align-center">
-    <!-- Add Hole button - shown in polygon edit mode -->
-    <v-tooltip
-      v-if="isPolygonMode"
-      bottom
-    >
-      <template #activator="{ on, attrs }">
-        <v-btn
-          v-bind="attrs"
-          color="primary"
-          depressed
-          small
-          class="mr-1"
-          v-on="on"
-          @click="addHole"
-        >
-          <v-icon small>
-            mdi-vector-polygon
-          </v-icon>
-          <v-icon
-            x-small
-            class="ml-n1"
-          >
-            mdi-minus-circle-outline
-          </v-icon>
-        </v-btn>
-      </template>
-      <span>Add hole to polygon</span>
-    </v-tooltip>
-
     <!-- Add Polygon button - shown in polygon edit mode -->
     <v-tooltip
       v-if="isPolygonMode"
@@ -119,6 +90,35 @@ export default Vue.extend({
         </v-btn>
       </template>
       <span>Add another polygon</span>
+    </v-tooltip>
+
+    <!-- Add Hole button - shown in polygon edit mode -->
+    <v-tooltip
+      v-if="isPolygonMode"
+      bottom
+    >
+      <template #activator="{ on, attrs }">
+        <v-btn
+          v-bind="attrs"
+          color="primary"
+          depressed
+          small
+          class="mr-1"
+          v-on="on"
+          @click="addHole"
+        >
+          <v-icon small>
+            mdi-vector-polygon
+          </v-icon>
+          <v-icon
+            x-small
+            class="ml-n1"
+          >
+            mdi-minus-circle-outline
+          </v-icon>
+        </v-btn>
+      </template>
+      <span>Add hole to polygon</span>
     </v-tooltip>
 
     <!-- Delete button -->

@@ -551,16 +551,18 @@ export default function useModeManager({
 
         // If a drawable changed, but we aren't changing modes
         // prevent an interrupt within EditAnnotationLayer
+        // Use === undefined to distinguish "no key change" from "change to empty key"
         if (
           somethingChanged
-          && !update.newSelectedKey
+          && update.newSelectedKey === undefined
           && !update.newType
           && preventInterrupt
         ) {
           preventInterrupt();
         } else {
           // Otherwise, one of these state changes will trigger an interrupt.
-          if (update.newSelectedKey) {
+          // Use !== undefined to allow setting key to empty string
+          if (update.newSelectedKey !== undefined) {
             selectedKey.value = update.newSelectedKey;
           }
           if (update.newType) {
@@ -666,11 +668,32 @@ export default function useModeManager({
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         const { frame } = aggregateController.value;
+        const frameNum = frame.value;
         recipes.forEach((r) => {
           if (r.active.value) {
-            r.delete(frame.value, track, selectedKey.value, annotationModes.editing);
+            r.delete(frameNum, track, selectedKey.value, annotationModes.editing);
           }
         });
+
+        // After deleting a polygon, recalculate bounds from remaining polygons
+        if (annotationModes.editing === 'Polygon') {
+          const remainingPolygons = track.getPolygonFeatures(frameNum);
+          if (remainingPolygons.length > 0) {
+            // Recalculate bounds from remaining polygons
+            const polygonGeometries = remainingPolygons.map((p) => p.geometry);
+            const newBounds = updateBounds(undefined, [], polygonGeometries);
+
+            // Get current feature and update with new bounds
+            const [currentFeature] = track.getFeature(frameNum);
+            if (currentFeature && newBounds) {
+              track.setFeature({
+                ...currentFeature,
+                bounds: newBounds,
+              });
+            }
+          }
+        }
+
         _nudgeEditingCanary();
       }
     }
@@ -1110,6 +1133,17 @@ export default function useModeManager({
     });
   }
 
+  /**
+   * Cancel any in-progress creation mode (hole or polygon addition).
+   * This resets the recipe's adding mode so right-click selection can work.
+   */
+  function handleCancelCreation() {
+    const polygonRecipe = recipes.find((r) => r.name === 'PolygonBase');
+    if (polygonRecipe && 'resetAddingMode' in polygonRecipe) {
+      (polygonRecipe as { resetAddingMode: () => void }).resetAddingMode();
+    }
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
 
@@ -1184,6 +1218,7 @@ export default function useModeManager({
       seekFrame,
       addHole: handleAddHole,
       addPolygon: handleAddPolygon,
+      cancelCreation: handleCancelCreation,
     },
   };
 }
