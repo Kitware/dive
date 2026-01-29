@@ -482,9 +482,10 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     // Handle polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
-      // If in creation mode, cancel it first so we can select the polygon
+      // If in creation mode, don't interrupt - let the edit layer handle clicks for placing points
+      // This is important for hole drawing where left-clicks place hole vertices
       if (editAnnotationLayer.getMode() === 'creation') {
-        handler.cancelCreation();
+        return;
       }
       handler.selectFeatureHandle(-1, polygonKey);
       // Force layer update to load the newly selected polygon
