@@ -89,7 +89,8 @@ export default defineComponent({
       return trackStyleManager.typeStyling.value;
     });
 
-    const annotator = injectAggregateController().value.getController(props.camera);
+    const aggregateController = injectAggregateController();
+    const annotator = aggregateController.value.getController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
@@ -432,6 +433,23 @@ export default defineComponent({
         props.colorBy,
       );
     });
+
+    /** Watch for resize events to redraw layers after view mode changes */
+    watch(
+      () => aggregateController.value.resizeTrigger.value,
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      },
+    );
 
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // If the camera isn't selected yet we ignore the click
