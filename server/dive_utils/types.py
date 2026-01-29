@@ -80,6 +80,7 @@ class PipelineJob(TypedDict):
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version
+    frame_range: Optional[Tuple[int, int]]  # (start_frame, end_frame) or None for full video
 
 
 class TrainingJob(TypedDict):

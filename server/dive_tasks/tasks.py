@@ -23,6 +23,53 @@ from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
 from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
 
+
+def filter_csv_by_frame_range(csv_path: str, frame_range: Tuple[int, int]) -> str:
+    """Filter VIAME CSV to only include detections within frame range.
+
+    Args:
+        csv_path: Path to the input CSV file
+        frame_range: Tuple of (start_frame, end_frame) inclusive
+
+    Returns:
+        Path to the filtered CSV file
+    """
+    start_frame, end_frame = frame_range
+    filtered_path = csv_path.replace('.csv', '_filtered.csv')
+
+    with open(csv_path, 'r') as infile, open(filtered_path, 'w') as outfile:
+        for line in infile:
+            if line.startswith('#'):
+                outfile.write(line)
+                continue
+            parts = line.split(',')
+            if len(parts) >= 3:
+                try:
+                    frame = int(parts[2])  # Frame number is column 3 (0-indexed as column 2)
+                    if start_frame <= frame <= end_frame:
+                        outfile.write(line)
+                except ValueError:
+                    # If frame number can't be parsed, include the line
+                    outfile.write(line)
+    return filtered_path
+
+
+def filter_image_list_by_frame_range(image_list: List[str], frame_range: Tuple[int, int]) -> List[str]:
+    """Filter an image list to only include images within frame range.
+
+    Args:
+        image_list: List of image file paths
+        frame_range: Tuple of (start_frame, end_frame) inclusive (0-indexed)
+
+    Returns:
+        Filtered list of image file paths
+    """
+    start_frame, end_frame = frame_range
+    # Ensure we don't go out of bounds
+    start_frame = max(0, start_frame)
+    end_frame = min(end_frame, len(image_list) - 1)
+    return image_list[start_frame:end_frame + 1]
+
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
     'training': {
@@ -198,6 +245,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     output_folder_id = str(params["output_folder"])
     input_revision = params["input_revision"]
     force_transcoded = params.get('force_transcoded', False)
+    frame_range = params.get('frame_range', None)
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -241,8 +289,12 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
             ]
         elif input_type == constants.ImageSequenceType:
+            # Filter image list by frame range if specified
+            filtered_media_list = input_media_list
+            if frame_range is not None:
+                filtered_media_list = filter_image_list_by_frame_range(input_media_list, frame_range)
             with open(img_list_path, "w+") as img_list_file:
-                img_list_file.write('\n'.join(input_media_list))
+                img_list_file.write('\n'.join(filtered_media_list))
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
@@ -277,6 +329,10 @@ def run_pipeline(self: Task, params: PipelineJob):
             output_file = track_output_file
         else:
             output_file = detector_output_file
+
+        # Filter output CSV by frame range for videos
+        if frame_range is not None and input_type == constants.VideoType:
+            output_file = filter_csv_by_frame_range(output_file, frame_range)
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         newfile = gc.uploadFileToFolder(output_folder_id, output_file)
