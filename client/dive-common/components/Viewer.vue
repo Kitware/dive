@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, defineAsyncComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
@@ -28,6 +28,8 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  TrackList,
+  FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -39,7 +41,15 @@ import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
+import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
+import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
+import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
+import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
+import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import { useModeManager, useSave } from 'dive-common/use';
@@ -54,6 +64,12 @@ import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 
+// NativeVideoAnnotator uses electron APIs - only load in desktop app
+// The webpackIgnore comment prevents bundling in web builds
+const NativeVideoAnnotator = defineAsyncComponent(
+  () => import(/* webpackIgnore: true */ 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue'),
+);
+
 export interface ImageDataItem {
   url: string;
   filename: string;
@@ -66,6 +82,7 @@ export default defineComponent({
     Sidebar,
     LayerManager,
     VideoAnnotator,
+    NativeVideoAnnotator,
     ImageAnnotator,
     LargeImageAnnotator,
     ConfidenceFilter,
@@ -73,6 +90,15 @@ export default defineComponent({
     EditorMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
+    TrackList,
+    FilterList,
+    TypeSettingsPanel,
+    TrackSettingsPanel,
+    TrackListColumnSettings,
+    TrackDetailsPanel,
+    ConfidenceSubsection,
+    AttributeSubsection,
+    AttributeEditor,
   },
 
   // TODO: remove this in vue 3
@@ -99,7 +125,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const { prompt } = usePrompt();
+    const { prompt, visible } = usePrompt();
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -124,6 +150,7 @@ export default defineComponent({
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
+    const nativeVideoPath: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
     } = useApi();
@@ -462,10 +489,11 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(setVal?: string) {
-      // If editing the track, disable editing mode before save
+    async function save(setVal?: string, exitEditingMode = false) {
+      // Only exit editing mode if explicitly requested (e.g., manual save)
+      // Auto-save should NOT disrupt the user's editing session
       saveInProgress.value = true;
-      if (editingTrack.value) {
+      if (exitEditingMode && editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
       const saveSet = setVal === 'default' ? undefined : setVal;
@@ -516,6 +544,32 @@ export default defineComponent({
     const debouncedSaveImageEnhancements = debounce(saveImageEnhancements, 1000, { trailing: true });
 
     watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
+
+    // Auto-save annotations when enabled
+    const debouncedAutoSave = debounce(
+      async () => {
+        if (readonlyState.value) return;
+        if (pendingSaveCount.value === 0) return;
+        if (saveInProgress.value) return;
+        await save(props.currentSet);
+      },
+      2000,
+      { trailing: true, leading: false },
+    );
+
+    watch(
+      pendingSaveCount,
+      (newCount, oldCount) => {
+        if (
+          clientSettings.autoSaveSettings.enabled
+          && newCount > oldCount
+          && newCount > 0
+          && !readonlyState.value
+        ) {
+          debouncedAutoSave();
+        }
+      },
+    );
 
     // Navigation Guards used by parent component
     async function warnBrowserExit(event: BeforeUnloadEvent) {
@@ -649,6 +703,9 @@ export default defineComponent({
           imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
+          }
+          if (subCameraMeta.nativeVideoPath) {
+            nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
@@ -816,11 +873,12 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sideBarCollapsed], async () => {
+    watch([controlsCollapsed, sidebarMode], async () => {
       await nextTick();
       handleResize();
     });
     onBeforeUnmount(() => {
+      debouncedAutoSave.cancel();
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
@@ -889,6 +947,116 @@ export default defineComponent({
       trackFilters.disableAnnotationFilters.value
     ));
 
+    // For bottom panel details view
+    const selectedTrackForDetails = computed(() => {
+      if (selectedTrackId.value !== null) {
+        return cameraStore.getAnyTrack(selectedTrackId.value);
+      }
+      return null;
+    });
+
+    // Determine if confidence should be shown first (multiple types) or last (0-1 types)
+    const showConfidenceFirst = computed(() => {
+      if (selectedTrackForDetails.value) {
+        return selectedTrackForDetails.value.confidencePairs.length > 1;
+      }
+      return false;
+    });
+
+    // Check if track has any track-level attributes set
+    const hasTrackAttributes = computed(() => {
+      if (selectedTrackForDetails.value && selectedTrackForDetails.value.attributes) {
+        const attrs = selectedTrackForDetails.value.attributes;
+        // Check if any non-userAttributes keys exist with values
+        return Object.keys(attrs).some(
+          (key) => key !== 'userAttributes' && attrs[key] !== undefined,
+        );
+      }
+      return false;
+    });
+
+    // Determine attribute order: true = track first, false = detection first
+    // If track has attributes, show track first; otherwise show detection first
+    const showTrackAttributesFirst = computed(() => hasTrackAttributes.value);
+
+    // Attribute editing state for bottom panel
+    const editIndividual: Ref<Attribute | null> = ref(null);
+    const editingAttribute: Ref<Attribute | null> = ref(null);
+    const editingError: Ref<string | null> = ref(null);
+
+    function setEditIndividual(attribute: Attribute | null) {
+      editIndividual.value = attribute;
+    }
+
+    function resetEditIndividual(event: MouseEvent) {
+      if (editIndividual.value) {
+        const path = event.composedPath() as HTMLElement[];
+        const inputs = ['INPUT', 'SELECT'];
+        if (
+          path.find(
+            (item: HTMLElement) => (item.classList && item.classList.contains('v-input'))
+              || inputs.includes(item.nodeName),
+          )
+        ) {
+          return;
+        }
+        editIndividual.value = null;
+      }
+    }
+
+    function addAttribute(type: 'Track' | 'Detection') {
+      const belongs = type.toLowerCase() as 'track' | 'detection';
+      editingAttribute.value = {
+        belongs,
+        datatype: 'text',
+        name: `New${type}Attribute`,
+        key: '',
+      };
+    }
+
+    function editAttribute(attribute: Attribute) {
+      editingAttribute.value = attribute;
+    }
+
+    async function closeAttributeEditor() {
+      editingAttribute.value = null;
+      editingError.value = null;
+    }
+
+    async function saveAttributeHandler({ data, oldAttribute, close }: {
+      oldAttribute?: Attribute;
+      data: Attribute;
+      close: boolean;
+    }) {
+      editingError.value = null;
+      if (!oldAttribute && attributes.value.some((attribute) => (
+        attribute.name === data.name
+        && attribute.belongs === data.belongs))) {
+        editingError.value = 'Attribute with that name exists';
+        return;
+      }
+      try {
+        await setAttribute({ data, oldAttribute });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value && close) {
+        closeAttributeEditor();
+      }
+    }
+
+    async function deleteAttributeHandler(data: Attribute) {
+      editingError.value = null;
+      try {
+        await deleteAttribute({ data });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value) {
+        closeAttributeEditor();
+      }
+    }
+
     return {
       /* props */
       aggregateController,
@@ -933,6 +1101,7 @@ export default defineComponent({
       selectedKey,
       trackFilters,
       videoUrl,
+      nativeVideoPath,
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
@@ -941,6 +1110,23 @@ export default defineComponent({
       imageEnhancementOutputs,
       isDefaultImage,
       disableAnnotationFilters,
+      trackStyleManager,
+      visible,
+      selectedTrackForDetails,
+      showConfidenceFirst,
+      showTrackAttributesFirst,
+      attributes,
+      /* Attribute editing for bottom panel */
+      editIndividual,
+      editingAttribute,
+      editingError,
+      setEditIndividual,
+      resetEditIndividual,
+      addAttribute,
+      editAttribute,
+      closeAttributeEditor,
+      saveAttributeHandler,
+      deleteAttributeHandler,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1048,12 +1234,12 @@ export default defineComponent({
           <template #activator="{ on }">
             <v-icon
               v-on="on"
-              @click="sideBarCollapsed = !sideBarCollapsed"
+              @click="cycleSidebarMode"
             >
-              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+              {{ sidebarModeIcon }}
             </v-icon>
           </template>
-          <span>Collapse Side Panel</span>
+          <span>{{ sidebarModeTooltip }}</span>
         </v-tooltip>
 
         <EditorMenu
@@ -1080,11 +1266,19 @@ export default defineComponent({
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
+              @add-hole="handler.addHole"
+              @add-polygon="handler.addPolygon"
             />
           </template>
           <template
+            v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
+            slot="multicam-controls-left"
+          >
+            <multi-cam-toolbar />
+          </template>
+          <template
             v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls"
+            slot="multicam-controls-right"
           >
             <multi-cam-toolbar />
           </template>
@@ -1111,6 +1305,7 @@ export default defineComponent({
         />
         <v-tooltip
           bottom
+          :z-index="20"
         >
           <template #activator="{ on }">
             <v-icon
@@ -1151,7 +1346,7 @@ export default defineComponent({
                 @click="save(currentSet)"
               >
                 <v-icon>
-                  mdi-content-save
+                  {{ clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save' }}
                 </v-icon>
               </v-btn>
             </div>
@@ -1161,13 +1356,14 @@ export default defineComponent({
       </v-tooltip>
     </v-app-bar>
 
+    <!-- Left sidebar layout -->
     <v-row
+      v-if="sidebarMode === 'left'"
       no-gutters
       class="fill-height"
       style="min-width: 700px;"
     >
       <sidebar
-        v-if="!sideBarCollapsed"
         :is-stereo-dataset="subType === 'stereo'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="aggregateController.seek($event)"
@@ -1219,14 +1415,17 @@ export default defineComponent({
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                  : datasetType === 'video'
+                    ? (nativeVideoPath[camera] ? 'native-video-annotator' : 'video-annotator')
+                    : 'large-image-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
+                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime,
                   frameRate,
                   originalFps,
@@ -1279,8 +1478,309 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
-      <slot name="right-sidebar" />
+      <slot
+        name="right-sidebar"
+        :sidebar-mode="sidebarMode"
+      />
     </v-row>
+
+    <!-- Bottom sidebar layout or collapsed -->
+    <div
+      v-else
+      class="d-flex flex-column fill-height"
+      style="min-width: 700px;"
+    >
+      <div
+        v-if="progress.loaded"
+        v-mousetrap="[
+          { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+          { bind: 'r', handler: () => aggregateController.resetZoom() },
+          { bind: 'esc', handler: () => handler.trackAbort() },
+          { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
+        ]"
+        class="d-flex flex-column grow"
+        style="min-height: 0;"
+      >
+        <!-- Video/annotator area -->
+        <div class="d-flex grow" style="min-height: 0;">
+          <div
+            v-for="camera in multiCamList"
+            :key="camera"
+            class="d-flex flex-column grow"
+            @mousedown.left="changeCamera(camera, $event)"
+            @mouseup.right="changeCamera(camera, $event)"
+          >
+            <component
+              :is="datasetType === 'image-sequence' ? 'image-annotator'
+                : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+              v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+              ref="subPlaybackComponent"
+              class="fill-height"
+              :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
+              v-bind="{
+                imageData: imageData[camera],
+                videoUrl: videoUrl[camera],
+                updateTime,
+                frameRate,
+                originalFps,
+                camera,
+                imageEnhancementOutputs,
+                isDefaultImage,
+                getTiles,
+                getTileURL,
+              }"
+              @large-image-warning="$emit('large-image-warning', true)"
+            >
+              <LayerManager :camera="camera" />
+            </component>
+          </div>
+        </div>
+        <!-- Bottom panel: timeline, track list, and type filters side by side -->
+        <div
+          class="d-flex flex-shrink-0"
+          :style="{
+            'border-top': '1px solid #444',
+            height: sidebarMode === 'bottom' ? '260px' : 'auto',
+          }"
+        >
+          <!-- Left: Timeline and controls -->
+          <div
+            class="d-flex flex-column bottom-panel-section"
+            :style="{
+              width: sidebarMode === 'bottom' ? '28%' : '100%',
+              'min-width': '0',
+              overflow: 'hidden',
+            }"
+          >
+            <ControlsContainer
+              ref="controlsRef"
+              bottom-layout
+              :collapsed.sync="controlsCollapsed"
+              v-bind="{
+                lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
+              }"
+            />
+          </div>
+
+          <!-- Middle: Track list -->
+          <div
+            v-if="sidebarMode === 'bottom'"
+            class="d-flex flex-column bottom-panel-section"
+            :style="{
+              width: '44%',
+              'min-width': '0',
+              overflow: 'hidden',
+            }"
+          >
+            <TrackList
+              class="fill-height"
+              compact
+              :new-track-mode="clientSettings.trackSettings.newTrackSettings.mode"
+              :new-track-type="clientSettings.trackSettings.newTrackSettings.type"
+              :lock-types="clientSettings.typeSettings.lockTypes"
+              :hotkeys-disabled="visible() || readonlyState"
+              :height="220"
+              :fps="frameRate"
+              :disabled="disableAnnotationFilters"
+              @track-seek="aggregateController.seek($event)"
+            >
+              <template slot="settings">
+                <TrackSettingsPanel
+                  :all-types="trackFilters.allTypes"
+                  :is-stereo-dataset="subType === 'stereo'"
+                />
+              </template>
+              <template slot="column-settings">
+                <TrackListColumnSettings
+                  :attributes="attributes"
+                  :fps="frameRate"
+                />
+              </template>
+            </TrackList>
+          </div>
+
+          <!-- Right: Type filters/confidence OR Track details -->
+          <div
+            v-if="sidebarMode === 'bottom'"
+            class="d-flex flex-column bottom-panel-section"
+            :style="{
+              width: '28%',
+              'min-width': '0',
+              overflow: 'hidden',
+            }"
+          >
+            <!-- Header with toggle button -->
+            <div class="right-panel-header d-flex align-center px-2 py-1">
+              <span class="right-panel-title">
+                {{ bottomRightPanelView === 'filters' ? 'Type Filters' : 'Track Details' }}
+              </span>
+              <v-spacer />
+              <v-tooltip bottom>
+                <template #activator="{ on }">
+                  <v-btn
+                    icon
+                    x-small
+                    v-on="on"
+                    @click="toggleBottomRightPanel"
+                  >
+                    <v-icon small>
+                      {{ bottomRightPanelView === 'filters' ? 'mdi-card-text' : 'mdi-filter-variant' }}
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <span>{{ bottomRightPanelView === 'filters' ? 'Switch to Track Details' : 'Switch to Type Filters' }}</span>
+              </v-tooltip>
+            </div>
+
+            <!-- Filters view -->
+            <template v-if="bottomRightPanelView === 'filters'">
+              <!-- Type filters -->
+              <div class="flex-grow-1 bottom-filter-list" style="overflow-y: auto; overflow-x: hidden;">
+                <FilterList
+                  :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
+                  :height="130"
+                  :width="300"
+                  :style-manager="trackStyleManager"
+                  :filter-controls="trackFilters"
+                  :disabled="disableAnnotationFilters"
+                  class="fill-height"
+                >
+                  <template #settings>
+                    <TypeSettingsPanel
+                      :all-types="trackFilters.allTypes"
+                      @import-types="trackFilters.importTypes($event)"
+                    />
+                  </template>
+                </FilterList>
+              </div>
+              <!-- Confidence slider at bottom -->
+              <div class="confidence-row-bottom px-2 py-1">
+                <ConfidenceFilter
+                  :confidence.sync="confidenceFilters.default"
+                  :disabled="disableAnnotationFilters"
+                  text="Confidence"
+                  @end="saveThreshold"
+                />
+              </div>
+            </template>
+
+            <!-- Track details view (simplified for bottom mode) -->
+            <template v-else>
+              <div
+                class="flex-grow-1 bottom-details-panel"
+                style="overflow-y: auto; overflow-x: hidden;"
+                @click="resetEditIndividual"
+              >
+                <div v-if="selectedTrackForDetails" class="pa-2">
+                  <!-- Type classifications (first if multiple types) -->
+                  <ConfidenceSubsection
+                    v-if="showConfidenceFirst"
+                    :confidence-pairs="selectedTrackForDetails.confidencePairs"
+                    :disabled="false"
+                    @set-type="selectedTrackForDetails.setType($event)"
+                  />
+                  <!-- Attributes: Track first if has values, otherwise Detection first -->
+                  <template v-if="showTrackAttributesFirst">
+                    <AttributeSubsection
+                      mode="Track"
+                      :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
+                    />
+                    <AttributeSubsection
+                      mode="Detection"
+                      :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
+                    />
+                  </template>
+                  <template v-else>
+                    <AttributeSubsection
+                      mode="Detection"
+                      :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
+                    />
+                    <AttributeSubsection
+                      mode="Track"
+                      :attributes="attributes"
+                      :edit-individual="editIndividual"
+                      @edit-attribute="editAttribute($event)"
+                      @set-edit-individual="setEditIndividual($event)"
+                      @add-attribute="addAttribute"
+                    />
+                  </template>
+                  <!-- Type classifications (last if 0-1 types) -->
+                  <ConfidenceSubsection
+                    v-if="!showConfidenceFirst"
+                    :confidence-pairs="selectedTrackForDetails.confidencePairs"
+                    :disabled="false"
+                    @set-type="selectedTrackForDetails.setType($event)"
+                  />
+                </div>
+                <div v-else class="pa-3 text-caption grey--text">
+                  No track selected. Select a track to view its type classifications and attributes.
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div
+        v-else
+        class="d-flex justify-center align-center fill-height"
+      >
+        <v-alert
+          v-if="loadError"
+          type="error"
+          prominent
+          max-width="60%"
+        >
+          <p class="ma-2">
+            {{ loadError }}
+          </p>
+        </v-alert>
+        <v-progress-circular
+          v-else
+          :indeterminate="progressValue === 0"
+          :value="progressValue"
+          size="100"
+          width="15"
+          color="light-blue"
+          class="main-progress-linear"
+          rotate="-90"
+        >
+          <span v-if="progressValue === 0">Loading</span>
+          <span v-else>{{ progressValue }}%</span>
+        </v-progress-circular>
+      </div>
+      <slot
+        name="right-sidebar"
+        :sidebar-mode="sidebarMode"
+      />
+    </div>
+    <!-- Attribute editor dialog for bottom panel -->
+    <v-dialog
+      :value="editingAttribute != null"
+      max-width="550"
+      @click:outside="closeAttributeEditor"
+      @keydown.esc.stop="closeAttributeEditor"
+    >
+      <AttributeEditor
+        v-if="editingAttribute != null"
+        :selected-attribute="editingAttribute"
+        :error="editingError"
+        @close="closeAttributeEditor"
+        @save="saveAttributeHandler"
+        @delete="deleteAttributeHandler"
+      />
+    </v-dialog>
   </v-main>
 </template>
 
@@ -1305,6 +1805,50 @@ html {
 
 .text-xs-center {
   text-align: center !important;
+}
+
+.bottom-panel-section {
+  background-color: #1e1e1e;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin: 4px;
+}
+
+.confidence-row-bottom {
+  background-color: #262626;
+  border-top: 1px solid #444;
+  flex-shrink: 0;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+
+  /* Match title styling with Tracks header */
+  .text-body-2 {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: white !important;
+  }
+}
+
+.bottom-filter-list {
+  /* Match title styling with Tracks header */
+  #type-header b {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+  }
+}
+
+.right-panel-header {
+  background-color: #262626;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.right-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
 }
 
 </style>
