@@ -448,7 +448,10 @@ export default defineComponent({
       }
     }
 
-    // Watch stereo toggle
+    // Track last stereo frame to avoid redundant set_frame calls
+    let lastStereoFrame = -1;
+
+    // Watch stereo toggle (immediate so a remembered setting enables on load)
     watch(() => clientSettings.stereoSettings.interactiveModeEnabled, async (enabled) => {
       if (enabled) {
         stereoLoadingDialog.value = true;
@@ -463,6 +466,23 @@ export default defineComponent({
           }
           stereoEnabled.value = true;
           stereoLoadingDialog.value = false;
+
+          // Kick off disparity computation for the current frame
+          const viewer = viewerRef.value;
+          const frameNum = viewer?.aggregateController?.frame?.value;
+          if (frameNum !== undefined) {
+            const cameras = Object.keys(stereoImagePathGetters.value);
+            if (cameras.length >= 2) {
+              const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
+              const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
+              if (leftPath && rightPath) {
+                lastStereoFrame = frameNum;
+                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+                  console.warn('[Stereo] Failed to set initial frame:', err);
+                });
+              }
+            }
+          }
         } catch (err) {
           stereoEnabled.value = false;
           clientSettings.stereoSettings.interactiveModeEnabled = false;
@@ -476,10 +496,9 @@ export default defineComponent({
         }
         stereoEnabled.value = false;
       }
-    });
+    }, { immediate: true });
 
     // Watch frame changes to proactively compute disparity
-    let lastStereoFrame = -1;
     watch(() => viewerRef.value?.aggregateController?.frame?.value, (frameNum) => {
       if (frameNum === undefined || frameNum === lastStereoFrame || !stereoEnabled.value) return;
       lastStereoFrame = frameNum;
@@ -516,6 +535,24 @@ export default defineComponent({
     });
 
     /**
+     * Get or create a track on the target camera.
+     * In multicam, a track drawn on one camera doesn't automatically exist on the other.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function getOrCreateStereoTrack(cameraStore: any, trackId: number, sourceCamera: string, targetCamera: string, frameNum: number) {
+      let track = cameraStore.getPossibleTrack(trackId, targetCamera);
+      if (!track) {
+        const targetTrackStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
+        if (targetTrackStore) {
+          const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
+          const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
+          track = targetTrackStore.add(frameNum, trackType, undefined, trackId);
+        }
+      }
+      return track;
+    }
+
+    /**
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
      */
@@ -532,16 +569,31 @@ export default defineComponent({
       const otherCamera = multiCamList.find((c: string) => c !== params.camera);
       if (!otherCamera) return;
 
+      // Skip transfer if the other camera already has a feature for this track+frame.
+      // This ensures the initial warp happens only once — after that, both cameras
+      // are independently editable without overwriting the user's corrections.
+      const existingTrack = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+      if (existingTrack) {
+        const [feature] = existingTrack.getFeature(params.frameNum);
+        if (feature !== null) {
+          return;
+        }
+      }
+
+      // Show loading indicator while waiting for stereo transfer
+      stereoLoadingMessage.value = 'Computing stereo correspondence...';
+      stereoLoadingError.value = '';
+      stereoLoadingDialog.value = true;
+
       try {
         if (params.type === 'line') {
           const response = await stereoTransferLine({ line: params.line });
           if (!response.success || !response.transferredLine) {
-            console.warn('[Stereo] Line transfer failed:', response.error);
-            return;
+            throw new Error(response.error || 'Line transfer returned no result');
           }
 
-          // Get the track on the other camera and set the warped line
-          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          // Get or create the track on the other camera and set the warped line
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
             const lineGeometry: GeoJSON.Feature[] = [{
               type: 'Feature',
@@ -577,8 +629,7 @@ export default defineComponent({
 
           const response = await stereoTransferPoints({ points: corners });
           if (!response.success || !response.transferredPoints) {
-            console.warn('[Stereo] Box transfer failed:', response.error);
-            return;
+            throw new Error(response.error || 'Box transfer returned no result');
           }
 
           // Compute new bounds from warped corners
@@ -589,7 +640,7 @@ export default defineComponent({
             Math.max(...txs), Math.max(...tys),
           ] as [number, number, number, number];
 
-          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
             track.setFeature({
               frame: params.frameNum,
@@ -602,8 +653,7 @@ export default defineComponent({
         } else if (params.type === 'polygon') {
           const response = await stereoTransferPoints({ points: params.polygon });
           if (!response.success || !response.transferredPoints) {
-            console.warn('[Stereo] Polygon transfer failed:', response.error);
-            return;
+            throw new Error(response.error || 'Polygon transfer returned no result');
           }
 
           // Close the warped polygon
@@ -633,7 +683,7 @@ export default defineComponent({
             Math.max(...pxs), Math.max(...pys),
           ] as [number, number, number, number];
 
-          const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
             track.setFeature({
               frame: params.frameNum,
@@ -647,15 +697,13 @@ export default defineComponent({
           // Transfer control points to the other camera
           const response = await stereoTransferPoints({ points: params.points });
           if (!response.success || !response.transferredPoints) {
-            console.warn('[Stereo] Segmentation point transfer failed:', response.error);
-            return;
+            throw new Error(response.error || 'Segmentation point transfer returned no result');
           }
 
           // Get the image path for the other camera at this frame
           const otherImagePath = stereoImagePathGetters.value[otherCamera]?.(params.frameNum);
           if (!otherImagePath) {
-            console.warn('[Stereo] No image path for other camera');
-            return;
+            throw new Error('No image path for other camera');
           }
 
           // Run segmentation prediction with warped control points on the other camera's image
@@ -691,7 +739,7 @@ export default defineComponent({
                 Math.max(...segResponse.polygon.map((p: [number, number]) => p[1])),
               ] as [number, number, number, number];
 
-              const track = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+              const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
               if (track) {
                 track.setFeature({
                   frame: params.frameNum,
@@ -703,11 +751,21 @@ export default defineComponent({
               }
             }
           } catch (segErr) {
-            console.warn('[Stereo] Segmentation prediction on other camera failed:', segErr);
+            throw new Error(`Segmentation on other camera failed: ${segErr}`);
           }
         }
+        // Success — hide loading dialog
+        stereoLoadingDialog.value = false;
       } catch (err) {
-        console.warn('[Stereo] Annotation warping failed:', err);
+        stereoLoadingDialog.value = false;
+        const message = err instanceof Error ? err.message : String(err);
+        await prompt({
+          title: 'Stereo Transfer Error',
+          text: [
+            'Failed to transfer annotation to the other camera.',
+            message,
+          ],
+        });
       }
     }
 
