@@ -1,6 +1,6 @@
 <script lang="ts">
 import Vue, {
-  computed, defineComponent, ref, Ref, PropType,
+  computed, defineComponent, onMounted, ref, Ref, PropType,
 } from 'vue';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import {
@@ -42,7 +42,9 @@ export default defineComponent({
   },
 
   setup(props, { emit }) {
-    const { openFromDisk } = useApi();
+    const {
+      openFromDisk, getLastCalibration, saveCalibration,
+    } = useApi();
     const importType: Ref<'multi'|'keyword'| ''> = ref('');
     const folderList: Ref<Record<string, { sourcePath: string; trackFile: string}>> = ref({});
     const keywordFolder = ref('');
@@ -52,6 +54,16 @@ export default defineComponent({
     const defaultDisplay = ref('left');
     const importAnnotationFilesCheck = ref(false);
     const { error: importError, request: importRequest } = useRequest();
+
+    // Load default calibration for stereo imports
+    onMounted(async () => {
+      if (props.stereo && getLastCalibration) {
+        const lastCalibration = await getLastCalibration();
+        if (lastCalibration) {
+          calibrationFile.value = lastCalibration;
+        }
+      }
+    });
 
     const clearCameraSet = () => {
       keywordFolder.value = '';
@@ -193,6 +205,10 @@ export default defineComponent({
         const path = ret.filePaths[0];
         if (folder === 'calibration') {
           calibrationFile.value = path;
+          // Save user-selected calibration as the new default
+          if (saveCalibration) {
+            saveCalibration(path);
+          }
         } else if (importType.value === 'multi') {
           if (ret.root) {
             folderList.value[folder].sourcePath = ret.root;

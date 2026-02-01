@@ -103,6 +103,7 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
+    restart: always
     deploy:
       resources:
         reservations:
@@ -116,10 +117,17 @@ services:
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+    healthcheck:
+      test: ["CMD", "nvidia-smi"]
+      interval: 15m
+      timeout: 10s
+      retries: 1
+      start_period: 1m
 
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
+    restart: always
     deploy:
       resources:
         reservations:
@@ -132,6 +140,12 @@ services:
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
+    healthcheck:
+      test: ["CMD", "nvidia-smi"]
+      interval: 15m
+      timeout: 10s
+      retries: 1
+      start_period: 1m
 
 volumes:
   addons:

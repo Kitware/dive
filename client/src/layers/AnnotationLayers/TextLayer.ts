@@ -1,3 +1,4 @@
+import { Ref } from 'vue';
 import { TypeStyling } from '../../StyleManager';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
@@ -16,10 +17,11 @@ export interface TextData {
 }
 
 export type FormatTextRow = (
-  annotation: FrameDataTrack, typeStyling?: TypeStyling) => TextData[] | null;
+  annotation: FrameDataTrack, typeStyling?: TypeStyling, showUserCreatedIcon?: boolean) => TextData[] | null;
 
 interface TextLayerParams {
   formatter?: FormatTextRow;
+  showUserCreatedIcon?: Ref<boolean>;
 }
 
 /**
@@ -31,6 +33,7 @@ interface TextLayerParams {
 function defaultFormatter(
   annotation: FrameDataTrack,
   typeStyling?: TypeStyling,
+  showUserCreatedIcon: boolean = true,
 ): TextData[] | null {
   if (annotation.features && annotation.features.bounds) {
     const { bounds } = annotation.features;
@@ -50,14 +53,18 @@ function defaultFormatter(
       const [type, confidence] = confidencePairs[i];
 
       let text = '';
+      const userModified = annotation.features?.attributes?.userModified === true;
+      const userCreated = annotation.track.attributes?.userCreated === true;
+      // Show pencil icon if detection is userModified OR if track is userCreated, and showUserCreatedIcon is true
+      const modifiedIndicator = (showUserCreatedIcon && (userModified || userCreated)) ? ' ✏️' : '';
       if (typeStyling) {
         const { showLabel, showConfidence } = typeStyling.labelSettings(type);
         if (showLabel && !showConfidence) {
-          text = type;
+          text = type + modifiedIndicator;
         } else if (showConfidence && !showLabel) {
-          text = `${confidence.toFixed(2)}`;
+          text = `${confidence.toFixed(2)}${modifiedIndicator}`;
         } else if (showConfidence && showLabel) {
-          text = `${type}: ${confidence.toFixed(2)}`;
+          text = `${type}: ${confidence.toFixed(2)}${modifiedIndicator}`;
         }
       }
       arr.push({
@@ -100,8 +107,11 @@ function defaultFormatter(
 export default class TextLayer extends BaseLayer<TextData> {
   formatter: FormatTextRow;
 
+  showUserCreatedIcon: Ref<boolean>;
+
   constructor(params: BaseLayerParams & TextLayerParams) {
     super(params);
+    this.showUserCreatedIcon = params.showUserCreatedIcon || { value: true } as Ref<boolean>;
     this.formatter = params.formatter || defaultFormatter;
   }
 
@@ -119,8 +129,9 @@ export default class TextLayer extends BaseLayer<TextData> {
   formatData(frameData: FrameDataTrack[]) {
     const arr = [] as TextData[];
     const typeStyling = this.typeStyling.value;
+    const showIcon = this.showUserCreatedIcon.value;
     frameData.forEach((track: FrameDataTrack) => {
-      const formatted = this.formatter(track, typeStyling);
+      const formatted = this.formatter(track, typeStyling, showIcon);
       if (formatted !== null) {
         arr.push(...formatted);
       }

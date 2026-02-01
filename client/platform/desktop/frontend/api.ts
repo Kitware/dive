@@ -249,6 +249,14 @@ async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFil
   return client.post(`dataset/${id}/attribute_track_filters`, args);
 }
 
+function getLastCalibration(): Promise<string | null> {
+  return ipcRenderer.invoke('get-last-calibration');
+}
+
+function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
+  return ipcRenderer.invoke('save-calibration', { path });
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -277,4 +285,6 @@ export {
   openLink,
   nvidiaSmi,
   cancelJob,
+  getLastCalibration,
+  saveCalibration,
 };

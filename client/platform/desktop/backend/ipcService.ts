@@ -126,6 +126,17 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
+
+  ipcMain.handle('save-calibration', async (_, { path }: { path: string }) => {
+    const savedPath = await common.saveLastCalibration(settings.get(), path);
+    const updatedIds = await common.applyCalibrationToUncalibratedStereoDatasets(
+      settings.get(),
+      savedPath,
+    );
+    return { savedPath, updatedDatasetIds: updatedIds };
+  });
+
   ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
 
   ipcMain.handle('convert', async (event, args: ConversionArgs) => {
