@@ -85,6 +85,8 @@ interface SaveAttributeTrackFilterArgs {
 interface FrameImage {
   url: string;
   filename: string;
+  /** Required for large-image (tiled) datasets; used as itemId for getTiles/getTileURL */
+  id?: string;
 }
 
 export interface MultiCamImportFolderArgs {

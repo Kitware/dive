@@ -88,6 +88,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // relative to originalBasePath
   originalVideoFile: string;
 
+  // large image (e.g. GeoTIFF) file path, relative to originalBasePath
+  originalLargeImageFile?: string;
+
   // output of web safe transcoding
   // relative to project path
   transcodedVideoFile: string;

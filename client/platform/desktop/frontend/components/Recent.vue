@@ -174,6 +174,9 @@ export default defineComponent({
       if (recent.type === 'video') {
         return 'mdi-file-video';
       }
+      if (recent.type === 'large-image') {
+        return 'mdi-map';
+      }
       if (recent.imageListPath) {
         return 'mdi-view-list-outline';
       }
@@ -412,6 +415,13 @@ export default defineComponent({
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
+            />
+            <ImportButton
+              name="Open Large Image (TIFF)"
+              icon="mdi-map"
+              open-type="large-image"
+              class="my-3"
+              @open="open($event)"
             />
           </v-col>
         </v-row>

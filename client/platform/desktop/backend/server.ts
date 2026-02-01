@@ -12,6 +12,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 
 import settings from './state/settings';
 import * as common from './native/common';
+import * as geotiffTiles from './tiles/geotiffTiles';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -118,6 +119,90 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;
+    next(err);
+  }
+  return null;
+});
+
+/* Large image (GeoTIFF) tiles - compatible with LargeImageAnnotator getTiles/getTileURL */
+apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const level = parseInt(req.params.level, 10);
+    const x = parseInt(req.params.x, 10);
+    const y = parseInt(req.params.y, 10);
+    console.log(`[tiles] GET tile request: datasetId=${datasetId} level=${level} x=${x} y=${y}`);
+    if (Number.isNaN(level) || Number.isNaN(x) || Number.isNaN(y)) {
+      return next({ status: 400, statusMessage: 'Invalid level, x, or y' });
+    }
+    const png = await geotiffTiles.getTilePng(settings.get(), datasetId, level, x, y);
+    if (!png) {
+      console.warn(`[tiles] GET tile 404: datasetId=${datasetId} level=${level} x=${x} y=${y} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Tile not found or dataset is not a large image' });
+    }
+    console.log(`[tiles] GET tile 200: datasetId=${datasetId} level=${level} x=${x} y=${y} size=${png.length}`);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  } catch (err) {
+    console.error('[tiles] GET tile error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    console.log(`[tiles] GET tiles metadata request: datasetId=${datasetId}`);
+    const meta = await geotiffTiles.getTilesMetadata(settings.get(), datasetId);
+    if (!meta) {
+      console.warn(`[tiles] GET tiles metadata 404: datasetId=${datasetId} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Dataset not found or is not a large image' });
+    }
+    console.log(`[tiles] GET tiles metadata 200: datasetId=${datasetId} sizeX=${meta.sizeX} sizeY=${meta.sizeY} levels=${meta.levels}`);
+    res.json(meta);
+  } catch (err) {
+    console.error('[tiles] GET tiles metadata error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+/* List valid tile z/x/y values for a dataset (for debugging / tooling) */
+apirouter.get('/dataset/:id/:camera?/tiles/list', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const limit = Math.min(
+      Math.max(0, parseInt(String(req.query.limit), 10) || 10000),
+      50000,
+    );
+    const meta = await geotiffTiles.getTilesMetadata(settings.get(), datasetId);
+    if (!meta) {
+      return next({ status: 404, statusMessage: 'Dataset not found or is not a large image' });
+    }
+    const tiles = geotiffTiles.getValidTileList(
+      meta.sizeX,
+      meta.sizeY,
+      meta.levels,
+      limit,
+    );
+    res.json({
+      tiles,
+      total: tiles.length,
+      limit,
+      tileRanges: meta.tileRanges,
+    });
+  } catch (err) {
+    console.error('[tiles] GET tiles list error:', err);
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
