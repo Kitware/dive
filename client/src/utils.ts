@@ -283,10 +283,6 @@ function getEdgeAngle(coords: GeoJSON.Position[], edgeIndex: number): number {
  * orientations (sides are parallel). Used to distinguish resize-only edits
  * from rotation: if the new rect's sides are parallel to the old rect's,
  * we keep the existing rotation instead of recomputing from centroid/vertex.
- *
- * @param oldCoords - Previous rectangle ring (4 or 5 positions)
- * @param newCoords - Current rectangle ring (4 or 5 positions)
- * @returns True if corresponding edge angles match within ROTATION_THRESHOLD
  */
 export function areRectangleSidesParallel(
   oldCoords: GeoJSON.Position[],
