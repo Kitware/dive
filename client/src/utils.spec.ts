@@ -9,6 +9,11 @@ import {
   hasSignificantRotation,
   isReservedAttributeName,
   isAxisAligned,
+  getRotationBetweenCoordinateArrays,
+  areRectangleSidesParallel,
+  rotateGeoJSONCoordinates,
+  rotatedPointAboutCenter,
+  getRotationArrowLine,
   ROTATION_THRESHOLD,
   ROTATION_ATTRIBUTE_NAME,
 } from './utils';
@@ -211,6 +216,122 @@ describe('Rotation utilities', () => {
       // 45 degree rotation
       const coords = [[0, 0], [5, 5], [10, 0], [5, -5]];
       expect(isAxisAligned(coords)).toBe(false);
+    });
+  });
+
+  describe('getRotationBetweenCoordinateArrays', () => {
+    it('should return 0 for identical axis-aligned rectangles', () => {
+      const coords = [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]];
+      expect(getRotationBetweenCoordinateArrays(coords, coords)).toBeCloseTo(0, 5);
+    });
+
+    it('should return rotation from first to second (counter-clockwise positive)', () => {
+      // Axis-aligned: UL, LL, LR, UR, UL
+      const axisAligned = [[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]];
+      const rotatedByPi4 = rotateGeoJSONCoordinates(axisAligned, Math.PI / 4);
+      const angle = getRotationBetweenCoordinateArrays(axisAligned, rotatedByPi4);
+      expect(angle).toBeCloseTo(Math.PI / 4, 4);
+    });
+
+    it('should return 0 for empty arrays', () => {
+      expect(getRotationBetweenCoordinateArrays([], [[0, 0], [1, 0]])).toBe(0);
+      expect(getRotationBetweenCoordinateArrays([[0, 0]], [])).toBe(0);
+    });
+  });
+
+  describe('areRectangleSidesParallel', () => {
+    it('should return true for same-orientation rectangles', () => {
+      const a = [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]];
+      const b = [[1, 1], [1, 11], [11, 11], [11, 1], [1, 1]];
+      expect(areRectangleSidesParallel(a, b)).toBe(true);
+    });
+
+    it('should return false when one rectangle is rotated', () => {
+      const axisAligned = [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]];
+      const rotated45 = [[0, 0], [5, 5], [10, 0], [5, -5], [0, 0]];
+      expect(areRectangleSidesParallel(axisAligned, rotated45)).toBe(false);
+    });
+
+    it('should return false for insufficient coordinates', () => {
+      expect(areRectangleSidesParallel([[0, 0], [1, 0]], [[0, 0], [1, 0], [1, 1], [0, 1]])).toBe(false);
+      expect(areRectangleSidesParallel([[0, 0], [1, 0], [1, 1], [0, 1]], [[0, 0]])).toBe(false);
+    });
+  });
+
+  describe('rotatedPointAboutCenter', () => {
+    it('should leave point unchanged for zero rotation', () => {
+      const center: [number, number] = [5, 5];
+      const point: [number, number] = [10, 5];
+      expect(rotatedPointAboutCenter(center, point, 0)).toEqual([10, 5]);
+    });
+
+    it('should rotate point 90° counter-clockwise about center', () => {
+      const center: [number, number] = [0, 0];
+      const point: [number, number] = [1, 0];
+      const result = rotatedPointAboutCenter(center, point, Math.PI / 2);
+      expect(result[0]).toBeCloseTo(0, 5);
+      expect(result[1]).toBeCloseTo(1, 5);
+    });
+
+    it('should leave center point unchanged for any rotation', () => {
+      const center: [number, number] = [3, 7];
+      expect(rotatedPointAboutCenter(center, center, Math.PI / 4)).toEqual(center);
+      expect(rotatedPointAboutCenter(center, center, Math.PI)).toEqual(center);
+    });
+  });
+
+  describe('rotateGeoJSONCoordinates', () => {
+    it('should return same coords for zero rotation', () => {
+      const coords = [[0, 0], [0, 10], [10, 10], [10, 0], [0, 0]];
+      expect(rotateGeoJSONCoordinates(coords, 0)).toEqual(coords);
+    });
+
+    it('should rotate rectangle 90° CCW about centroid', () => {
+      // Square centered at (5, 5): UL, LL, LR, UR, UL
+      const coords = [[0, 10], [0, 0], [10, 0], [10, 10], [0, 10]];
+      const rotated = rotateGeoJSONCoordinates(coords, Math.PI / 2);
+      // After 90° CCW about (5,5): (0,10)->(0,0), (0,0)->(10,0), (10,0)->(10,10), (10,10)->(0,10)
+      expect(rotated[0][0]).toBeCloseTo(0, 5);
+      expect(rotated[0][1]).toBeCloseTo(0, 5);
+      expect(rotated[1][0]).toBeCloseTo(10, 5);
+      expect(rotated[1][1]).toBeCloseTo(0, 5);
+      // Rotating back should recover original (within floating point)
+      const back = rotateGeoJSONCoordinates(rotated, -Math.PI / 2);
+      expect(back[0][0]).toBeCloseTo(coords[0][0], 5);
+      expect(back[0][1]).toBeCloseTo(coords[0][1], 5);
+    });
+
+    it('should return original coords when coords array is empty', () => {
+      expect(rotateGeoJSONCoordinates([], Math.PI / 4)).toEqual([]);
+    });
+  });
+
+  describe('getRotationArrowLine', () => {
+    it('should return null for zero or insignificant rotation', () => {
+      const bounds: RectBounds = [0, 0, 10, 10];
+      expect(getRotationArrowLine(bounds, 0)).toBeNull();
+      expect(getRotationArrowLine(bounds, ROTATION_THRESHOLD / 2)).toBeNull();
+    });
+
+    it('should return a LineString for significant rotation', () => {
+      const bounds: RectBounds = [0, 0, 10, 10];
+      const line = getRotationArrowLine(bounds, Math.PI / 4);
+      expect(line).not.toBeNull();
+      expect(line?.type).toBe('LineString');
+      expect(Array.isArray(line?.coordinates)).toBe(true);
+      expect((line?.coordinates?.length ?? 0)).toBe(3);
+    });
+
+    it('should return LineString with coordinates as position arrays', () => {
+      const bounds: RectBounds = [0, 0, 20, 10];
+      const line = getRotationArrowLine(bounds, Math.PI / 6);
+      expect(line).not.toBeNull();
+      (line!.coordinates as [number, number][]).forEach((pt) => {
+        expect(Array.isArray(pt)).toBe(true);
+        expect(pt).toHaveLength(2);
+        expect(typeof pt[0]).toBe('number');
+        expect(typeof pt[1]).toBe('number');
+      });
     });
   });
 });
