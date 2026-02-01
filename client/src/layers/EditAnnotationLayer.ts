@@ -10,6 +10,7 @@ import {
   RectBounds,
   getRotationBetweenCoordinateArrays,
   rotateGeoJSONCoordinates,
+  areRectangleSidesParallel,
 } from '../utils';
 import { FrameDataTrack } from './LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
@@ -509,13 +510,30 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon|GeoJSON.LineString> = (
             e.annotation.geojson()
           );
-          const rotationBetween = getRotationBetweenCoordinateArrays(
-            this.unrotatedGeoJSONCoords || [],
-            newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
-          );
+          const newCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
+          let rotationBetween: number;
+          if (this.formattedData.length > 0 && this.type === 'rectangle') {
+            const existingRotation = getRotationFromAttributes(this.formattedData[0].properties as Record<string, unknown>) ?? 0;
+            const oldCoords = rotateGeoJSONCoordinates(
+              this.unrotatedGeoJSONCoords || [],
+              existingRotation,
+            );
+            if (areRectangleSidesParallel(oldCoords, newCoords)) {
+              rotationBetween = existingRotation;
+            } else {
+              rotationBetween = getRotationBetweenCoordinateArrays(
+                this.unrotatedGeoJSONCoords || [],
+                newCoords,
+              );
+            }
+          } else {
+            rotationBetween = getRotationBetweenCoordinateArrays(
+              this.unrotatedGeoJSONCoords || [],
+              newCoords,
+            );
+          }
           if (this.formattedData.length > 0) {
             if (this.type === 'rectangle') {
-              const coords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
               // If rotated, keep the rotated coordinates for editing
 
               // The corners need to update for the indexes to update
@@ -533,7 +551,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
               // For rectangles, convert to axis-aligned bounds with rotation when saving
               // Convert to axis-aligned for storage, but keep rotation in properties
-              const axisAlignedCoords = rotateGeoJSONCoordinates(coords, 0 - rotationBetween);
+              const axisAlignedCoords = rotateGeoJSONCoordinates(newCoords, 0 - rotationBetween);
               newGeojson.properties = {
                 ...newGeojson.properties,
                 [ROTATION_ATTRIBUTE_NAME]: rotationBetween,

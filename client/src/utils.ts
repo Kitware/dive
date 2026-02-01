@@ -253,6 +253,60 @@ export function getRotationBetweenCoordinateArrays(
 }
 
 /**
+ * Normalize an angle difference to [-π, π].
+ */
+function normalizeAngleDiff(rad: number): number {
+  let d = rad;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+/**
+ * Get the angle (radians) of an edge from coords[i] to coords[i+1].
+ * For closed polygons, coords[coords.length - 1] may equal coords[0]; we use
+ * indices modulo 4 so edge 3 is from coords[3] to coords[0].
+ */
+function getEdgeAngle(coords: GeoJSON.Position[], edgeIndex: number): number {
+  const n = 4;
+  const i = edgeIndex % n;
+  const j = (i + 1) % n;
+  const a = coords[i];
+  const b = coords[j];
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  return Math.atan2(dy, dx);
+}
+
+/**
+ * Returns true if the two rectangle coordinate arrays have the same edge
+ * orientations (sides are parallel). Used to distinguish resize-only edits
+ * from rotation: if the new rect's sides are parallel to the old rect's,
+ * we keep the existing rotation instead of recomputing from centroid/vertex.
+ *
+ * @param oldCoords - Previous rectangle ring (4 or 5 positions)
+ * @param newCoords - Current rectangle ring (4 or 5 positions)
+ * @returns True if corresponding edge angles match within ROTATION_THRESHOLD
+ */
+export function areRectangleSidesParallel(
+  oldCoords: GeoJSON.Position[],
+  newCoords: GeoJSON.Position[],
+): boolean {
+  if (oldCoords.length < 4 || newCoords.length < 4) {
+    return false;
+  }
+  for (let e = 0; e < 4; e += 1) {
+    const angleOld = getEdgeAngle(oldCoords, e);
+    const angleNew = getEdgeAngle(newCoords, e);
+    const diff = normalizeAngleDiff(angleNew - angleOld);
+    if (Math.abs(diff) > ROTATION_THRESHOLD) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Check if a rectangle is axis-aligned (not rotated)
  * Returns true if edges are parallel to axes (within a small threshold)
  */
