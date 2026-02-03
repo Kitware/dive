@@ -16,8 +16,9 @@ function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, numbe
     pipeline,
   };
   if (frameRange) {
-    params.startFrame = frameRange[0];
-    params.endFrame = frameRange[1];
+    const [startFrame, endFrame] = frameRange;
+    params.startFrame = startFrame;
+    params.endFrame = endFrame;
   }
   return girderRest.post('dive_rpc/pipeline', null, { params });
 }

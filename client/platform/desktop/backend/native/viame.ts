@@ -54,22 +54,17 @@ async function filterCsvByFrameRange(
 
   const content = await fs.readFile(csvPath, 'utf-8');
   const lines = content.split('\n');
-  const filteredLines: string[] = [];
-
-  for (const line of lines) {
+  const filteredLines = lines.filter((line) => {
     if (line.startsWith('#') || line.trim() === '') {
-      filteredLines.push(line);
-      // eslint-disable-next-line no-continue
-      continue;
+      return true;
     }
     const parts = line.split(',');
     if (parts.length >= 3) {
       const frame = parseInt(parts[2], 10);
-      if (!Number.isNaN(frame) && frame >= startFrame && frame <= endFrame) {
-        filteredLines.push(line);
-      }
+      return !Number.isNaN(frame) && frame >= startFrame && frame <= endFrame;
     }
-  }
+    return false;
+  });
 
   await fs.writeFile(filteredPath, filteredLines.join('\n'));
   return filteredPath;
