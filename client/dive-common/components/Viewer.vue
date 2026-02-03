@@ -433,6 +433,7 @@ export default defineComponent({
           customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
+          timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
@@ -455,6 +456,12 @@ export default defineComponent({
     function saveThreshold() {
       saveMetadata(datasetId.value, {
         confidenceFilters: trackFilters.confidenceFilters.value,
+      });
+    }
+
+    function saveTimeFilter() {
+      saveMetadata(datasetId.value, {
+        timeFilters: trackFilters.timeFilters.value,
       });
     }
 
@@ -577,6 +584,7 @@ export default defineComponent({
           loadAttributes(meta.attributes);
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
+        trackFilters.setTimeFilters(meta.timeFilters ?? null);
         if (meta.imageEnhancements) {
           setImageEnhancements(meta.imageEnhancements);
         }
@@ -882,6 +890,7 @@ export default defineComponent({
       handler: globalHandler,
       save,
       saveThreshold,
+      saveTimeFilter,
       updateTime,
       // multicam
       multiCamList,
