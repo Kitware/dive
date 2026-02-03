@@ -7,8 +7,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
 import {
   isReservedAttributeName,
-  RESERVED_DETECTION_ATTRIBUTES,
-  RESERVED_TRACK_ATTRIBUTES,
+  RESERVED_ATTRIBUTES,
 } from 'vue-media-annotator/utils';
 import AttributeRendering from './AttributeRendering.vue';
 import AttributeValueColors from './AttributeValueColors.vue';
@@ -212,8 +211,7 @@ export default defineComponent({
       launchColorEditor,
       //utils
       isReservedAttributeName,
-      RESERVED_DETECTION_ATTRIBUTES,
-      RESERVED_TRACK_ATTRIBUTES,
+      RESERVED_ATTRIBUTES,
     };
   },
 });
@@ -259,9 +257,7 @@ export default defineComponent({
                   v => !v.includes(' ') || 'No spaces',
                   v => v !== 'userAttributes' || 'Reserved Name',
                   v => !isReservedAttributeName(v, baseSettings.belongs)
-                    || `Reserved name. ${baseSettings.belongs === 'detection'
-                      ? `Reserved detection attributes: ${RESERVED_DETECTION_ATTRIBUTES.join(', ')}`
-                      : `Reserved track attributes: ${RESERVED_TRACK_ATTRIBUTES.join(', ')}`}`,
+                    || `Reserved name. ${RESERVED_ATTRIBUTES[baseSettings.belongs].join(', ')} are not allowed.`,
                 ]"
                 required
               />

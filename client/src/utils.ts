@@ -12,7 +12,7 @@ export const ROTATION_ATTRIBUTE_NAME = 'rotation';
 
 // Reserved attribute names - these cannot be used by users when creating attributes
 /** Reserved detection attribute names */
-export const RESERVED_ATTRIBUTES = {
+export const RESERVED_ATTRIBUTES: Record<'track' | 'detection', readonly string[]> = {
   track: ['rotation', 'userModifed'],
   detection: ['userCreated'],
 } as const;
@@ -27,10 +27,7 @@ export function isReservedAttributeName(
   name: string,
   belongs: 'track' | 'detection',
 ): boolean {
-  if (belongs === 'detection') {
-    return RESERVED_DETECTION_ATTRIBUTES.includes(name as typeof RESERVED_DETECTION_ATTRIBUTES[number]);
-  }
-  return RESERVED_TRACK_ATTRIBUTES.includes(name as typeof RESERVED_TRACK_ATTRIBUTES[number]);
+  return RESERVED_ATTRIBUTES[belongs].includes(name);
 }
 
 /*
