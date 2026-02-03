@@ -56,7 +56,13 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       allFiles,
     ];
   }
-  const props = (['image-sequence', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
+  if (datasetType === 'large-image') {
+    filters = [
+      { name: 'GeoTIFF/TIFF', extensions: ['tif', 'tiff', 'nitf', 'ntf'] },
+      allFiles,
+    ];
+  }
+  const props = (['image-sequence', 'large-image', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
   const results = await dialog.showOpenDialog({
     properties: [props],
     filters,
@@ -249,6 +255,29 @@ async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFil
   return client.post(`dataset/${id}/attribute_track_filters`, args);
 }
 
+async function getTiles(itemId: string, projection?: string) {
+  const client = await getClient();
+  const params: Record<string, string> = { path: itemId };
+  if (projection) params.projection = projection;
+  const { data } = await client.get('tiles/metadata', { params });
+  return data;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTileURL(itemId: string, x: number, y: number, level: number, query: Record<string, any>) {
+  const baseURL = _axiosClient?.defaults?.baseURL || '';
+  let url = `${baseURL}/tiles/zxy/${level}/${x}/${y}?path=${encodeURIComponent(itemId)}`;
+  if (query) {
+    const params = Object.keys(query)
+      .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`)
+      .join('&');
+    if (params) {
+      url += `&${params}`;
+    }
+  }
+  return url;
+}
+
 function getLastCalibration(): Promise<string | null> {
   return ipcRenderer.invoke('get-last-calibration');
 }
@@ -285,6 +314,8 @@ export {
   openLink,
   nvidiaSmi,
   cancelJob,
+  getTiles,
+  getTileURL,
   getLastCalibration,
   saveCalibration,
 };

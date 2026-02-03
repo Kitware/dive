@@ -33,6 +33,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
+  largeImageTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
@@ -150,6 +151,33 @@ async function findImagesInFolder(path: string, glob?: string) {
     imageNames: filteredImagePaths.map((absPath) => npath.basename(absPath)),
     mediaConvertList: requiresTranscoding ? filteredImagePaths : [],
     source,
+  };
+}
+
+/**
+ * findLargeImagesInFolder
+ * Finds TIFF/GeoTIFF/NITF files in a directory based on MIME type.
+ */
+async function findLargeImagesInFolder(path: string) {
+  const stat = await fs.stat(path);
+  let filePaths: string[];
+  if (stat.isDirectory()) {
+    filePaths = (await fs.readdir(path))
+      .map((name) => npath.join(path, name));
+  } else {
+    filePaths = [path];
+  }
+  const filteredPaths: string[] = [];
+  filePaths.forEach((absPath) => {
+    const mimetype = mime.lookup(absPath);
+    if (mimetype && largeImageTypes.includes(mimetype)) {
+      filteredPaths.push(absPath);
+    }
+  });
+  filteredPaths.sort(strNumericCompare);
+  return {
+    imagePaths: filteredPaths,
+    imageNames: filteredPaths.map((absPath) => npath.basename(absPath)),
   };
 }
 
@@ -300,6 +328,13 @@ async function loadMetadata(
         };
       });
     }
+  } else if (projectMetaData.type === 'large-image') {
+    const basePath = projectMetaData.originalBasePath;
+    imageData = projectMetaData.originalImageFiles.map((filename: string) => ({
+      url: '',
+      filename,
+      id: npath.join(basePath, filename),
+    } as FrameImage));
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -925,11 +960,18 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
 
   const stat = await fs.stat(path);
   if (stat.isDirectory()) {
-    datasetType = 'image-sequence';
+    const largeImages = await findLargeImagesInFolder(path);
+    if (largeImages.imagePaths.length > 0) {
+      datasetType = 'large-image';
+    } else {
+      datasetType = 'image-sequence';
+    }
   } else if (stat.isFile()) {
     const mimetype = mime.lookup(path);
     if (mimetype && mimetype === 'text/plain') {
       datasetType = 'image-sequence';
+    } else if (mimetype && largeImageTypes.includes(mimetype)) {
+      datasetType = 'large-image';
     } else {
       datasetType = 'video';
     }
@@ -960,8 +1002,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
 
   /* TODO: Look for an EXISTING meta.json file to override the above */
 
-  if (datasetType === 'video') {
-    // get parent folder, since videos reference a file directly
+  if (datasetType === 'video' || (datasetType === 'large-image' && stat.isFile())) {
+    // get parent folder, since videos and single files reference a file directly
     jsonMeta.originalBasePath = npath.dirname(path);
   }
 
@@ -1009,8 +1051,21 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
       relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
+  } else if (datasetType === 'large-image') {
+    if (stat.isFile()) {
+      jsonMeta.originalVideoFile = npath.basename(path);
+      jsonMeta.originalImageFiles = [npath.basename(path)];
+    } else {
+      const found = await findLargeImagesInFolder(path);
+      if (found.imagePaths.length === 0) {
+        throw new Error(`no large image files found in ${path}`);
+      }
+      jsonMeta.originalImageFiles = found.imageNames;
+    }
+    jsonMeta.fps = 1;
+    jsonMeta.originalFps = 1;
   } else {
-    throw new Error('only video and image-sequence types are supported');
+    throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
   const { trackFileAbsPath, metaFileAbsPath } = await
@@ -1332,6 +1387,7 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
+  findLargeImagesInFolder,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,
   saveLastCalibration,

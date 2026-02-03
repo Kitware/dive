@@ -12,6 +12,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 
 import settings from './state/settings';
 import * as common from './native/common';
+import * as tileServer from './native/tileServer';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -121,6 +122,49 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     next(err);
   }
   return null;
+});
+
+/* GET tile metadata */
+apirouter.get('/tiles/metadata', async (req, res, next) => {
+  try {
+    let { path } = req.query;
+    if (!path || Array.isArray(path)) {
+      return next({
+        status: 400,
+        statusMessage: `Invalid path: ${path}`,
+      });
+    }
+    path = path.toString();
+    const metadata = await tileServer.getMetadata(path);
+    return res.json(metadata);
+  } catch (err) {
+    err.status = 500;
+    return next(err);
+  }
+});
+
+/* GET tile image */
+apirouter.get('/tiles/zxy/:level/:x/:y', async (req, res, next) => {
+  try {
+    let { path } = req.query;
+    if (!path || Array.isArray(path)) {
+      return next({
+        status: 400,
+        statusMessage: `Invalid path: ${path}`,
+      });
+    }
+    path = path.toString();
+    const level = parseInt(req.params.level, 10);
+    const x = parseInt(req.params.x, 10);
+    const y = parseInt(req.params.y, 10);
+    const png = await tileServer.getTile(path, level, x, y);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'max-age=3600');
+    return res.send(png);
+  } catch (err) {
+    err.status = 500;
+    return next(err);
+  }
 });
 
 /* STREAM media */
