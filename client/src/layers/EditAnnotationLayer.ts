@@ -626,21 +626,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             const arrow = getRotationArrowLine(bounds, rotation ?? 0);
             if (arrow) {
               this.arrowFeatureLayer.data([{ c: arrow.coordinates }]).line((d: { c: GeoJSON.Position[] }) => d.c).draw();
-            } else {
-              this.arrowFeatureLayer.data([]).draw();
+              return;
             }
-          } else {
-            this.arrowFeatureLayer.data([]).draw();
           }
-        } else {
-          this.arrowFeatureLayer.data([]).draw();
         }
-      } else {
-        this.arrowFeatureLayer.data([]).draw();
       }
     }
-
-    return null;
+    this.arrowFeatureLayer.data([]).draw();
   }
 
   /**
