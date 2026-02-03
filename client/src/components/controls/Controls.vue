@@ -6,10 +6,10 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
-import { DatasetType } from 'dive-common/apispec';
+import { DatasetType, useApi } from 'dive-common/apispec';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
-import { useTime, useTrackFilters } from '../../provides';
+import { useTime, useTrackFilters, useDatasetId } from '../../provides';
 
 export default defineComponent({
   name: 'Controls',
@@ -34,6 +34,8 @@ export default defineComponent({
     const { frameRate } = useTime();
     const { visible } = usePrompt();
     const trackFilters = useTrackFilters();
+    const { saveMetadata } = useApi();
+    const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
     watch(mediaController.frame, (frame) => {
@@ -74,18 +76,49 @@ export default defineComponent({
     const timeFilterMin = computed(() => trackFilters.timeFilters.value?.[0] ?? 0);
     const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? mediaController.maxFrame.value);
 
-    function toggleTimeFilter() {
-      if (trackFilters.timeFilters.value === null) {
+    function saveTimeFilter() {
+      saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
+    }
+
+    function handleTimeFilterClick() {
+      if (!timeFilterActive.value) {
+        // Not enabled: enable and open settings
         trackFilters.setTimeFilters([0, mediaController.maxFrame.value]);
-      } else {
+        saveTimeFilter();
+        activeTimeFilter.value = true;
+      } else if (activeTimeFilter.value) {
+        // Enabled and settings open: disable and close
         trackFilters.setTimeFilters(null);
+        saveTimeFilter();
+        activeTimeFilter.value = false;
+      } else {
+        // Enabled but settings closed: just open settings
+        activeTimeFilter.value = true;
       }
     }
+
+    const timeFilterBtnRef = ref<HTMLElement | null>(null);
+    const clickOutsideTimeFilter = {
+      handler() {
+        activeTimeFilter.value = false;
+      },
+      include() {
+        const els: HTMLElement[] = [];
+        if (timeFilterBtnRef.value) {
+          // Vue component ref: get the underlying DOM element
+          const el = (timeFilterBtnRef.value as unknown as { $el?: HTMLElement }).$el
+            ?? timeFilterBtnRef.value;
+          els.push(el);
+        }
+        return els;
+      },
+    };
 
     function updateTimeFilterMin(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
         trackFilters.setTimeFilters([value, current[1]]);
+        saveTimeFilter();
       }
     }
 
@@ -93,6 +126,7 @@ export default defineComponent({
       const current = trackFilters.timeFilters.value;
       if (current) {
         trackFilters.setTimeFilters([current[0], value]);
+        saveTimeFilter();
       }
     }
 
@@ -101,6 +135,68 @@ export default defineComponent({
         return null;
       }
       return frameToTimestamp(frame, frameRate.value);
+    }
+
+    function timestampToFrame(timestamp: string): number | null {
+      if (!frameRate.value) return null;
+      const parts = timestamp.split(':');
+      if (parts.length !== 3) return null;
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      const seconds = parseInt(parts[2], 10);
+      if (Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
+      const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+      return Math.round(totalSeconds * frameRate.value);
+    }
+
+    const minFrameInput = ref(String(timeFilterMin.value));
+    const maxFrameInput = ref(String(timeFilterMax.value));
+    const minTimeInput = ref(formatTimestamp(timeFilterMin.value) ?? '00:00:00');
+    const maxTimeInput = ref(formatTimestamp(timeFilterMax.value) ?? '00:00:00');
+
+    watch(timeFilterMin, (val) => {
+      minFrameInput.value = String(val);
+      minTimeInput.value = formatTimestamp(val) ?? '00:00:00';
+    });
+    watch(timeFilterMax, (val) => {
+      maxFrameInput.value = String(val);
+      maxTimeInput.value = formatTimestamp(val) ?? '00:00:00';
+    });
+
+    function applyMinFrame() {
+      const val = parseInt(minFrameInput.value, 10);
+      if (!Number.isNaN(val) && val >= 0 && val <= mediaController.maxFrame.value) {
+        updateTimeFilterMin(val);
+      } else {
+        minFrameInput.value = String(timeFilterMin.value);
+      }
+    }
+
+    function applyMaxFrame() {
+      const val = parseInt(maxFrameInput.value, 10);
+      if (!Number.isNaN(val) && val >= 0 && val <= mediaController.maxFrame.value) {
+        updateTimeFilterMax(val);
+      } else {
+        maxFrameInput.value = String(timeFilterMax.value);
+      }
+    }
+
+    function applyMinTime() {
+      const frame = timestampToFrame(minTimeInput.value);
+      if (frame !== null && frame >= 0 && frame <= mediaController.maxFrame.value) {
+        updateTimeFilterMin(frame);
+      } else {
+        minTimeInput.value = formatTimestamp(timeFilterMin.value) ?? '00:00:00';
+      }
+    }
+
+    function applyMaxTime() {
+      const frame = timestampToFrame(maxTimeInput.value);
+      if (frame !== null && frame >= 0 && frame <= mediaController.maxFrame.value) {
+        updateTimeFilterMax(frame);
+      } else {
+        maxTimeInput.value = formatTimestamp(timeFilterMax.value) ?? '00:00:00';
+      }
     }
 
     return {
@@ -120,11 +216,22 @@ export default defineComponent({
       timeFilterActive,
       timeFilterMin,
       timeFilterMax,
-      toggleTimeFilter,
+      handleTimeFilterClick,
+      clickOutsideTimeFilter,
+      timeFilterBtnRef,
       updateTimeFilterMin,
       updateTimeFilterMax,
       isVideo,
+      frameRate,
       formatTimestamp,
+      minFrameInput,
+      maxFrameInput,
+      minTimeInput,
+      maxTimeInput,
+      applyMinFrame,
+      applyMaxFrame,
+      applyMinTime,
+      applyMaxTime,
     };
   },
 });
@@ -144,7 +251,119 @@ export default defineComponent({
         disabled: visible(),
       },
     ]"
+    style="position: relative;"
   >
+    <v-card
+      v-if="activeTimeFilter"
+      v-click-outside="clickOutsideTimeFilter"
+      outlined
+      class="pa-2 pr-4"
+      color="blue-grey darken-3"
+      style="position: absolute; bottom: 100%; right: 0; width: 33%; min-width: 400px; z-index: 10;"
+    >
+      <v-card-title>
+        Time Filter Settings
+      </v-card-title>
+      <v-card-text>
+        <v-row class="align-center" dense>
+          <v-col>
+            <div class="text-caption mb-2">
+              Filter tracks to only show those that intersect with this time range.
+            </div>
+          </v-col>
+        </v-row>
+        <div v-if="timeFilterActive">
+          <v-row class="align-center" dense>
+            <v-col cols="auto" style="min-width: 80px;">
+              Min Frame:
+            </v-col>
+            <v-col cols="auto" style="width: 80px;">
+              <v-text-field
+                v-model="minFrameInput"
+                type="number"
+                dense
+                hide-details
+                outlined
+                :min="0"
+                :max="mediaController.maxFrame.value"
+                @blur="applyMinFrame"
+                @keydown.enter="applyMinFrame"
+              />
+            </v-col>
+            <v-col>
+              <v-slider
+                :value="timeFilterMin"
+                :min="0"
+                :max="mediaController.maxFrame.value"
+                step="1"
+                dense
+                hide-details
+                thumb-label="always"
+                @change="updateTimeFilterMin"
+              />
+            </v-col>
+            <v-col v-if="isVideo && frameRate" cols="auto" style="min-width: 60px;">
+              Time:
+            </v-col>
+            <v-col v-if="isVideo && frameRate" cols="auto" style="width: 110px;">
+              <v-text-field
+                v-model="minTimeInput"
+                dense
+                hide-details
+                outlined
+                placeholder="HH:MM:SS"
+                @blur="applyMinTime"
+                @keydown.enter="applyMinTime"
+              />
+            </v-col>
+          </v-row>
+          <v-row class="align-center" dense>
+            <v-col cols="auto" style="min-width: 80px;">
+              Max Frame:
+            </v-col>
+            <v-col cols="auto" style="width: 80px;">
+              <v-text-field
+                v-model="maxFrameInput"
+                type="number"
+                dense
+                hide-details
+                outlined
+                :min="0"
+                :max="mediaController.maxFrame.value"
+                @blur="applyMaxFrame"
+                @keydown.enter="applyMaxFrame"
+              />
+            </v-col>
+            <v-col>
+              <v-slider
+                :value="timeFilterMax"
+                :min="0"
+                :max="mediaController.maxFrame.value"
+                step="1"
+                dense
+                hide-details
+                thumb-label="always"
+                @change="updateTimeFilterMax"
+              />
+            </v-col>
+            <v-col v-if="isVideo && frameRate" cols="auto" style="min-width: 60px;">
+              Time:
+            </v-col>
+            <v-col v-if="isVideo && frameRate" cols="auto" style="width: 110px;">
+              <v-text-field
+                v-model="maxTimeInput"
+                dense
+                hide-details
+                outlined
+                placeholder="HH:MM:SS"
+                @blur="applyMaxTime"
+                @keydown.enter="applyMaxTime"
+              />
+            </v-col>
+          </v-row>
+        </div>
+      </v-card-text>
+    </v-card>
     <v-card
       class="px-4 py-1"
       tile
@@ -213,97 +432,18 @@ export default defineComponent({
           class="pl-1 py-1 shrink d-flex"
           align="right"
         >
-          <v-menu
-            v-model="activeTimeFilter"
-            :nudge-left="28"
-            left
-            top
-            :close-on-content-click="false"
-            open-on-hover
-            open-delay="750"
-            close-delay="500"
+          <v-btn
+            ref="timeFilterBtnRef"
+            icon
+            small
+            :color="timeFilterActive ? 'primary' : 'default'"
+            title="Filter tracks by time range"
+            @click.stop="handleTimeFilterClick"
           >
-            <template #activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                :color="timeFilterActive ? 'primary' : 'default'"
-                title="Filter tracks by time range"
-                v-bind="attrs"
-                v-on="on"
-                @click="toggleTimeFilter"
-              >
-                <v-icon v-bind="attrs" v-on="on">
-                  {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-                </v-icon>
-              </v-btn>
-            </template>
-            <v-card
-              outlined
-              class="pa-2 pr-4"
-              color="blue-grey darken-3"
-              style="overflow-y: none"
-            >
-              <v-card-title>
-                Time Filter Settings
-              </v-card-title>
-              <v-card-text>
-                <v-row class="align-center" dense>
-                  <v-col>
-                    <div class="text-caption mb-2">
-                      Filter tracks to only show those that intersect with this time range.
-                    </div>
-                  </v-col>
-                </v-row>
-                <div v-if="timeFilterActive">
-                  <v-row class="align-center" dense>
-                    <v-col>
-                      Min Frame:
-                    </v-col>
-                    <v-col v-if="isVideo">
-                      {{ formatTimestamp(timeFilterMin) }}
-                    </v-col>
-                    <v-col>
-                      <v-slider
-                        :value="timeFilterMin"
-                        :min="0"
-                        :max="mediaController.maxFrame.value"
-                        step="1"
-                        dense
-                        hide-details
-                        thumb-label="always"
-                        @change="updateTimeFilterMin"
-                      />
-                    </v-col>
-                  </v-row>
-                  <v-row class="align-center" dense>
-                    <v-col>
-                      Max Frame:
-                    </v-col>
-                    <v-col v-if="isVideo">
-                      {{ formatTimestamp(timeFilterMax) }}
-                    </v-col>
-
-                    <v-col>
-                      <v-slider
-                        :value="timeFilterMax"
-                        :min="0"
-                        :max="mediaController.maxFrame.value"
-                        step="1"
-                        dense
-                        hide-details
-                        thumb-label="always"
-                        @change="updateTimeFilterMax"
-                      />
-                    </v-col>
-                  </v-row>
-                </div>
-                <div v-else>
-                  <p>Click the filter icon to enable time filtering</p>
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-menu>
+            <v-icon>
+              {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+            </v-icon>
+          </v-btn>
           <v-menu
             v-model="activeLockedCamera"
             :nudge-left="28"
