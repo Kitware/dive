@@ -13,8 +13,8 @@ export const ROTATION_ATTRIBUTE_NAME = 'rotation';
 // Reserved attribute names - these cannot be used by users when creating attributes
 /** Reserved detection attribute names */
 export const RESERVED_ATTRIBUTES: Record<'track' | 'detection', readonly string[]> = {
-  track: ['rotation', 'userModifed'],
-  detection: ['userCreated'],
+  track: ['userCreated'],
+  detection: ['rotation', 'userModified'],
 } as const;
 
 /**
