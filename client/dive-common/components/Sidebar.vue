@@ -299,6 +299,7 @@ export default defineComponent({
           <template slot="settings">
             <TrackSettingsPanel
               :all-types="allTypesRef"
+              :is-stereo-dataset="isStereoDataset"
             />
           </template>
         </TrackList>

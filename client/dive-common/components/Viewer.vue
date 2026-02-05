@@ -1587,6 +1587,7 @@ export default defineComponent({
               <template slot="settings">
                 <TrackSettingsPanel
                   :all-types="trackFilters.allTypes"
+                  :is-stereo-dataset="subType === 'stereo'"
                 />
               </template>
               <template slot="column-settings">

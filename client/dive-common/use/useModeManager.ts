@@ -781,6 +781,21 @@ export default function useModeManager({
     if (track) {
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
+      // Auto-detect geometry type so the correct editor activates.
+      // Without this, tracks with LineString or Polygon geometry would open
+      // in the default 'rectangle' mode and vertex handles wouldn't appear.
+      if (editing) {
+        const { frame } = aggregateController.value;
+        const [feature] = track.getFeature(frame.value);
+        if (feature?.geometry?.features?.length) {
+          const geoTypes = feature.geometry.features.map((f) => f.geometry.type);
+          if (geoTypes.includes('LineString')) {
+            annotationModes.editing = 'LineString';
+          } else if (geoTypes.includes('Polygon')) {
+            annotationModes.editing = 'Polygon';
+          }
+        }
+      }
       handleSelectTrack(trackId, editing);
     } else if (cameraStore.getAnyTrack(trackId) !== undefined) {
       //track exists in other cameras we create in the current map using override

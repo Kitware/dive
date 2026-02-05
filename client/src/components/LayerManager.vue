@@ -476,7 +476,13 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        handler.trackSelect(trackId, editing, modifiers);
+        // When entering editing mode (right-click), use trackEdit so the
+        // geometry type is auto-detected (e.g. LineString vs rectangle).
+        if (editing && trackId !== null) {
+          handler.trackEdit(trackId);
+        } else {
+          handler.trackSelect(trackId, editing, modifiers);
+        }
       }
     };
 
@@ -518,6 +524,8 @@ export default defineComponent({
       }, 0);
     });
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    lineLayer.bus.$on('annotation-clicked', Clicked);
+    lineLayer.bus.$on('annotation-right-clicked', Clicked);
     // Handle polygon selection for multi-polygon support
     polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
       // If in creation mode, don't interrupt - let the edit layer handle clicks for placing points
