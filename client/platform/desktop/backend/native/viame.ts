@@ -6,13 +6,20 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  JsonMeta,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
+import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import sendToRenderer from 'platform/desktop/background';
 
-import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
+import {
+  MultiType,
+  stereoPipelineMarker,
+  multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
+} from 'dive-common/constants';
 import * as common from './common';
 import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
@@ -134,17 +141,21 @@ async function runPipeline(
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
   const outputDir = `${npath.join(settings.dataPath, DIVE_OUTPUT_PROJECT_DIR, outputDirName)}`;
-  if (runPipelineArgs.pipeline.type === 'filter') {
+  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
     if (outputDir !== jobWorkDir) {
       await fs.mkdir(outputDir, { recursive: true });
     }
+  }
+
+  if (runPipelineArgs.pipeline.type === 'filter') {
     command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
     command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
   }
 
   let transcodedFilename: string;
   if (runPipelineArgs.pipeline.type === 'transcode') {
-    transcodedFilename = npath.join(jobWorkDir, `${datasetId}.mp4`);
+    // Note: the output of the pipeline may be HEVC encoded
+    transcodedFilename = npath.join(outputDir, `${runPipelineArgs.pipeline.name}_${datasetId}_${timestamp}.mp4`);
     command.push(`-s video_writer:video_filename="${transcodedFilename}"`);
   }
 
@@ -236,12 +247,34 @@ async function runPipeline(
   });
 
   if (['filter', 'transcode'].includes(runPipelineArgs.pipeline.type)) {
-    job.on('exit', async (code) => {
-      const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
-      if (runPipelineArgs.pipeline.type === 'transcode') {
-        // TODO: work must be done to find the video file
-        return;
+    const importNewMedia = async (sourceName: string, datasetName: string, code: number) => {
+      const importPayload = await common.beginMediaImport(sourceName);
+      importPayload.jsonMeta.name = datasetName;
+      const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+      if (conversionJobArgs.mediaList.length > 0) {
+        // Convert the media, directly in this job
+        updater({
+          ...jobBase,
+          body: ['Converting pipeline output...'],
+          exitCode: code,
+          endTime: new Date(),
+        });
+        await convertMedia(
+          settings,
+          conversionJobArgs,
+          updater,
+          (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
+          undefined,
+          false,
+          0,
+          jobBase.key,
+          outputDir,
+        );
+      } else {
+        sendToRenderer('filter-complete', conversionJobArgs.meta);
       }
+    };
+    job.on('exit', async (code) => {
       if (code === 0) {
         // Ingest the output into a new dataset
         updater({
@@ -250,14 +283,25 @@ async function runPipeline(
           exitCode: code,
           endTime: new Date(),
         });
-        // transcodedFilename will only be assigned for transcode pipelines
-        const importSource = transcodedFilename || outputDir;
-        if (importSource) {
-          const importPayload = await common.beginMediaImport(importSource);
-          importPayload.jsonMeta.name = datasetName;
-          const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
-          sendToRenderer('filter-complete', conversionJobArgs.meta);
+        const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+        if (runPipelineArgs.pipeline.type === 'transcode') {
+          fs.readdir(outputDir, async (err, entries) => {
+            if (err) {
+              console.error(`Failed to traverse ${outputDir}.`);
+            }
+            if (!transcodedFilename) {
+              console.error('Could not determine name of output video file.');
+            }
+            entries.forEach((entry: string) => {
+              if (entry.startsWith(`${pipeline.name}_${datasetId}`)) {
+                transcodedFilename = npath.join(outputDir, entry);
+              }
+            });
+            await importNewMedia(transcodedFilename, datasetName, code);
+          });
+          return;
         }
+        await importNewMedia(outputDir, datasetName, code);
       }
     });
   }
