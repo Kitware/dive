@@ -31,6 +31,12 @@ interface AnnotationSchema {
 interface TrackData {
   id: AnnotationId;
   meta: Record<string, unknown>;
+  /**
+   * Track-level attributes. Can contain arbitrary key-value pairs.
+   * 
+   * Reserved attribute names (cannot be created by users):
+   * - `userCreated`: Internal flag indicating user creation status.
+   */
   attributes: Record<string, unknown>;
   confidencePairs: Array<[string, number]>;
   begin: number;
@@ -62,11 +68,35 @@ interface Feature {
   bounds?: [number, number, number, number]; // [x1, y1, x2, y2] as (left, top), (bottom, right)
   geometry?: GeoJSON.FeatureCollection<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>;
   fishLength?: number;
+  /**
+   * Detection attributes. Can contain arbitrary key-value pairs.
+   * 
+   * Reserved attribute names (cannot be created by users):
+   * - `rotation`: Rotation angle in radians for rotated bounding boxes (counter-clockwise).
+   *   When present, the `bounds` field represents an axis-aligned bounding box, and the
+   *   actual rotated rectangle is computed by applying this rotation around the bbox center.
+   *   Only stored if rotation is significant (|rotation| > 0.001 radians).
+   * - `userModified`: Internal flag indicating user modification status.
+   */
   attributes?: Record<string, unknown>;
   head?: [number, number];
   tail?: [number, number];
 }
 ```
+
+### Reserved Attribute Names
+
+!!! warning "Reserved Attribute Names"
+    Certain attribute names are reserved by DIVE and cannot be used when creating custom attributes. Attempting to create attributes with these names will result in an error.
+
+**Reserved Detection Attributes** (stored in `Feature.attributes`):
+- `rotation`: Used to store the rotation angle in radians for rotated bounding boxes. When present, the `bounds` field represents an axis-aligned bounding box, and the actual rotated rectangle is computed by applying this rotation around the bbox center. Only stored if rotation is significant (|rotation| > 0.001 radians).
+- `userModified`: Internal flag used by DIVE to track user modification status.
+
+**Reserved Track Attributes** (stored in `TrackData.attributes`):
+- `userCreated`: Internal flag used by DIVE to track user creation status.
+
+These reserved names are enforced at both the UI level (when creating attributes) and the API level (when saving attributes). If you need to use similar names, consider alternatives like `rotationAngle`, `isUserModified`, or `isUserCreated`.
 
 The full source [TrackData definition can be found here](https://github.com/Kitware/dive/blob/main/client/src/track.ts) as a TypeScript interface.
 
@@ -87,7 +117,7 @@ This is a relatively simple example, and many optional fields are not included.
       "confidencePairs": [["fish", 0.87], ["rock", 0.22]],
       "features": [
         { "frame": 0, "bounds": [0, 0, 10, 10], "interpolate": true },
-        { "frame": 3, "bounds": [10, 10, 20, 20] },
+        { "frame": 3, "bounds": [10, 10, 20, 20], "attributes": { "rotation": 0.785 } },
       ],
       "begin": 0,
       "end": 2,

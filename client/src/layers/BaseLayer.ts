@@ -22,6 +22,7 @@ export interface LayerStyle<D> {
   textOpacity?: (data: D) => number;
   fontSize?: (data: D) => string | undefined;
   offset?: (data: D) => { x: number; y: number };
+  rotation?: (data: D) => number;
   fill?: ObjectFunction<boolean, D> | boolean;
   radius?: PointFunction<number, D> | number;
   textAlign?: ((data: D) => string) | string;

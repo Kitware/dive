@@ -132,6 +132,7 @@ export interface Handler {
     frameNum: number,
     flickNum: number,
     bounds: RectBounds,
+    rotation?: number,
   ): void;
   /* update geojson for track */
   updateGeoJSON(
