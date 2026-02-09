@@ -332,6 +332,25 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       } else {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
+        // Auto-complete LineString after 2 points (simple line with 2 endpoints)
+        if (coords.length >= 2) {
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress!,
+            properties: {},
+          };
+          this.shapeInProgress = null;
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true, // geometryCompleteEvent - line is complete
+            feature,
+            this.type,
+            this.selectedKey,
+          );
+          return;
+        }
       }
       this.bus.$emit(
         'update:geojson',

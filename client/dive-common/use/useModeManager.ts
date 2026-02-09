@@ -791,6 +791,11 @@ export default function useModeManager({
           const geoTypes = feature.geometry.features.map((f) => f.geometry.type);
           if (geoTypes.includes('LineString')) {
             annotationModes.editing = 'LineString';
+            // Set the selected key so EditAnnotationLayer can find the geometry
+            const lineFeature = feature.geometry.features.find(
+              (f) => f.geometry.type === 'LineString',
+            );
+            selectedKey.value = lineFeature?.properties?.key || '';
           } else if (geoTypes.includes('Polygon')) {
             annotationModes.editing = 'Polygon';
           }
