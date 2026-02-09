@@ -98,7 +98,15 @@ module.exports = {
           artifactName: 'DIVE-Desktop-${version}.${ext}',
         },
       },
-      chainWebpackMainProcess: chainWebpack,
+      externals: ['sharp'],
+      chainWebpackMainProcess(config) {
+        chainWebpack(config);
+        // Re-apply native module externals after chainWebpack overwrites them
+        config.externals({
+          ...config.get('externals'),
+          sharp: 'require("sharp")',
+        });
+      },
       /**
        * Node Integration is needed for this app,
        * so we will have to be careful with RCE
