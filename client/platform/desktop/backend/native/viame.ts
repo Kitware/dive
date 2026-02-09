@@ -148,6 +148,12 @@ async function runPipeline(
       `-p "${pipelinePath}"`,
       `-s downsampler:target_frame_rate=${meta.fps}`,
     ];
+    if (frameRange) {
+      command.push(`-s downsampler:start_frame=${frameRange[0]}`);
+      command.push(`-s downsampler:end_frame=${frameRange[1]}`);
+      const isNative = !meta.originalFps || meta.fps >= meta.originalFps;
+      command.push(`-s downsampler:frame_range_is_native=${isNative}`);
+    }
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${videoAbsPath}"`);
       command.push(`-s detector_writer:file_name="${detectorOutput}"`);
