@@ -288,6 +288,12 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
             ]
+            if frame_range is not None:
+                command.append(f"-s downsampler:start_frame={shlex.quote(str(frame_range[0]))}")
+                command.append(f"-s downsampler:end_frame={shlex.quote(str(frame_range[1]))}")
+                original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
+                is_native = original_fps is None or input_fps >= original_fps
+                command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
         elif input_type == constants.ImageSequenceType:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
