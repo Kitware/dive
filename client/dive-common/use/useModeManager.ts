@@ -836,6 +836,8 @@ export default function useModeManager({
         r.confirm();
       }
     });
+    // Clear saved state - the confirmed polygons are now permanent
+    preSegmentationFeatures.clear();
     // Exit editing mode and deselect to unhighlight the track
     selectTrack(null, false);
     // Re-activate segmentation recipe so it's ready for the next detection
@@ -937,6 +939,17 @@ export default function useModeManager({
   }
 
   /**
+   * Save original track feature state before segmentation prediction modifies it.
+   * Used by handleSegmentationReset to restore the detection to its pre-segmentation state.
+   */
+  const preSegmentationFeatures = new Map<number, {
+    hadFeature: boolean;
+    bounds?: RectBounds;
+    interpolate?: boolean;
+    geometryFeatures?: GeoJSON.Feature[];
+  }>();
+
+  /**
    * Segmentation prompt points for visualization (green=foreground, red=background)
    */
   const segmentationPoints: Ref<{ points: [number, number][]; labels: number[]; frameNum: number }> = ref({
@@ -1002,6 +1015,24 @@ export default function useModeManager({
       // Use frame number from the result if provided, otherwise current frame
       const targetFrame = result.frameNum ?? frame.value;
       const { interpolate } = track.canInterpolate(targetFrame);
+
+      // Save original feature state before first prediction modifies the track
+      if (!preSegmentationFeatures.has(targetFrame)) {
+        const [existingFeature] = track.getFeature(targetFrame);
+        if (existingFeature) {
+          preSegmentationFeatures.set(targetFrame, {
+            hadFeature: true,
+            bounds: existingFeature.bounds
+              ? [...existingFeature.bounds] as RectBounds : undefined,
+            interpolate: existingFeature.interpolate,
+            geometryFeatures: existingFeature.geometry?.features
+              ? JSON.parse(JSON.stringify(existingFeature.geometry.features))
+              : undefined,
+          });
+        } else {
+          preSegmentationFeatures.set(targetFrame, { hadFeature: false });
+        }
+      }
 
       track.setFeature({
         frame: targetFrame,
@@ -1102,6 +1133,44 @@ export default function useModeManager({
     });
   }
 
+  /**
+   * Handle segmentation reset - restore detection to its pre-segmentation state.
+   * Called when the user presses the Reset button, which triggers resetPoints()
+   * on the recipe, which emits 'prediction-reset' for each frame.
+   */
+  function handleSegmentationReset(data: { frameNum: number }) {
+    if (selectedTrackId.value === null) return;
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    if (!track) return;
+
+    const saved = preSegmentationFeatures.get(data.frameNum);
+    if (!saved) return;
+
+    if (!saved.hadFeature) {
+      track.deleteFeature(data.frameNum);
+    } else {
+      // Remove the segmentation-derived polygon
+      track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
+      // Find original default polygon if there was one
+      const origDefaultPolygon = saved.geometryFeatures?.find(
+        (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === '',
+      );
+      // Restore original bounds and geometry
+      track.setFeature({
+        frame: data.frameNum,
+        flick: 0,
+        bounds: saved.bounds,
+        keyframe: true,
+        interpolate: saved.interpolate ?? false,
+      }, origDefaultPolygon
+        ? [origDefaultPolygon as GeoJSON.Feature<TrackSupportedFeature>]
+        : []);
+    }
+
+    preSegmentationFeatures.delete(data.frameNum);
+    _nudgeEditingCanary();
+  }
+
   /* Subscribe to recipe activation events */
   recipes.forEach((r) => r.bus.$on('activate', handleSetAnnotationState));
 
@@ -1113,6 +1182,7 @@ export default function useModeManager({
       r.bus.$on('prediction-confirmed', handleSegmentationPredictionConfirmed);
       r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
       r.bus.$on('prediction-error', handleSegmentationPredictionError);
+      r.bus.$on('prediction-reset', handleSegmentationReset);
     }
   });
 
@@ -1126,6 +1196,7 @@ export default function useModeManager({
         r.bus.$off('prediction-confirmed', handleSegmentationPredictionConfirmed);
         r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
         r.bus.$off('prediction-error', handleSegmentationPredictionError);
+        r.bus.$off('prediction-reset', handleSegmentationReset);
       }
     });
   });

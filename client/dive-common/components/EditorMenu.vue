@@ -11,6 +11,7 @@ import { flatten } from 'lodash';
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
 
@@ -218,6 +219,13 @@ export default defineComponent({
       return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
     });
 
+    const activeSegmentationRecipe = computed((): SegmentationPointClick | null => {
+      const segRecipe = props.recipes.find(
+        (r) => r instanceof SegmentationPointClick && r.active.value,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe || null;
+    });
+
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
         return '';
@@ -251,6 +259,7 @@ export default defineComponent({
       toggleEditButtonsExpanded,
       activeEditButton,
       editButtonsMenuKey,
+      activeSegmentationRecipe,
       // Text query
       textQueryDialogOpen,
       textQueryInput,
@@ -407,7 +416,30 @@ export default defineComponent({
         <pre>T:</pre>
         <v-icon>mdi-text-search</v-icon>
       </v-btn>
-      <slot name="delete-controls" />
+      <!-- Segmentation Reset button -->
+      <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-btn
+          color="error"
+          class="mx-1"
+          small
+          :disabled="!activeSegmentationRecipe.hasPoints()"
+          @click="activeSegmentationRecipe.resetPoints()"
+        >
+          <v-icon left>
+            mdi-close
+          </v-icon>
+          Reset
+        </v-btn>
+      </template>
+      <!-- Hide delete controls when in segmentation mode -->
+      <slot
+        v-if="!activeSegmentationRecipe"
+        name="delete-controls"
+      />
       <v-spacer />
       <slot name="multicam-controls" />
       <v-spacer />
