@@ -781,23 +781,32 @@ export default function useModeManager({
     if (track) {
       seekNearest(track);
       const editing = trackId === selectedTrackId.value ? (!editingTrack.value) : true;
-      // Auto-detect geometry type so the correct editor activates.
-      // Without this, tracks with LineString or Polygon geometry would open
-      // in the default 'rectangle' mode and vertex handles wouldn't appear.
+      // Auto-detect geometry type only when the current editing mode can't
+      // represent any geometry on this track. This preserves the user's chosen
+      // mode (e.g. staying in rectangle mode) while still falling back to the
+      // correct editor for tracks that lack the current geometry type.
       if (editing) {
         const { frame } = aggregateController.value;
         const [feature] = track.getFeature(frame.value);
         if (feature?.geometry?.features?.length) {
           const geoTypes = feature.geometry.features.map((f) => f.geometry.type);
-          if (geoTypes.includes('LineString')) {
-            annotationModes.editing = 'LineString';
-            // Set the selected key so EditAnnotationLayer can find the geometry
+          const currentMode = annotationModes.editing;
+          // Rectangle mode always applies (every track has bounds)
+          const currentModeHasGeometry = currentMode === 'rectangle'
+            || geoTypes.includes(currentMode);
+          if (!currentModeHasGeometry) {
+            if (geoTypes.includes('LineString')) {
+              annotationModes.editing = 'LineString';
+            } else if (geoTypes.includes('Polygon')) {
+              annotationModes.editing = 'Polygon';
+            }
+          }
+          // When in LineString mode, set the key so EditAnnotationLayer can find the geometry
+          if (annotationModes.editing === 'LineString' && geoTypes.includes('LineString')) {
             const lineFeature = feature.geometry.features.find(
               (f) => f.geometry.type === 'LineString',
             );
             selectedKey.value = lineFeature?.properties?.key || '';
-          } else if (geoTypes.includes('Polygon')) {
-            annotationModes.editing = 'Polygon';
           }
         }
       }
