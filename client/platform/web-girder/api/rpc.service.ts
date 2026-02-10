@@ -94,7 +94,7 @@ async function segmentationStatus(): Promise<SegmentationStatusResponse> {
 async function segmentationInitialize(): Promise<void> {
   const status = await segmentationStatus();
   if (!status.available) {
-    throw new Error('Unable to load segmentation module');
+    throw new Error("Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.");
   }
 }
 

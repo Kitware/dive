@@ -578,7 +578,7 @@ export default class SegmentationPointClick implements Recipe {
         })
         .catch((error) => {
           this.pendingActivation = false;
-          const errorMessage = error instanceof Error ? error.message : 'Unable to load segmentation module';
+          const errorMessage = error instanceof Error ? error.message : "Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.";
           this.bus.$emit('prediction-error', errorMessage);
           this.loading.value = false;
           this.icon.value = 'mdi-auto-fix';

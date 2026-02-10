@@ -13,7 +13,7 @@ import { Settings } from 'platform/desktop/constants';
 import { observeChild } from './processManager';
 
 /** Error message shown to users when segmentation fails to load */
-export const SEGMENTATION_LOAD_ERROR_MESSAGE = 'Unable to load segmentation module';
+export const SEGMENTATION_LOAD_ERROR_MESSAGE = "Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.";
 
 /** Request to the segmentation service */
 export interface SegmentationInternalPredictRequest {
