@@ -715,8 +715,13 @@ export default class SegmentationPointClick implements Recipe {
    * Called when right-click is used to lock the annotation.
    */
   confirm(): void {
-    if (this.active.value && this.hasPendingPrediction()) {
-      this.confirmPrediction();
+    if (this.active.value) {
+      if (this.hasPendingPrediction()) {
+        this.confirmPrediction();
+      } else {
+        // No prediction to confirm, still deactivate the recipe
+        this.deactivate();
+      }
     }
   }
 

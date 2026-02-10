@@ -857,6 +857,8 @@ export default function useModeManager({
         r.confirm();
       }
     });
+    // Exit editing mode and deselect to unhighlight the track
+    selectTrack(null, false);
   }
 
   /**
