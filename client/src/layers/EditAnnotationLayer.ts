@@ -196,6 +196,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e),
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        // Right-click in creation mode (non-Point): cancel and exit editing.
+        // Point mode has its own right-click handler (handleContextMenu).
+        if (e.buttonsDown.right && this.getMode() === 'creation' && this.type !== 'Point') {
+          this.shapeInProgress = null;
+          this.bus.$emit('editing-annotation-sync', false);
+          return;
+        }
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
         if (!this.disableModeSync && (e.buttonsDown.left)
