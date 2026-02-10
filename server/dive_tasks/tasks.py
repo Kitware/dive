@@ -294,6 +294,11 @@ def run_pipeline(self: Task, params: PipelineJob):
                 original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
                 is_native = original_fps is None or input_fps >= original_fps
                 command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
+                # Transcode/filter pipes: output frames renumbered relative to new range
+                # All other pipes: output frames relative to original video
+                renumber = pipeline["pipe"].startswith(("transcode_", "filter_"))
+                command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
+                command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
         elif input_type == constants.ImageSequenceType:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list

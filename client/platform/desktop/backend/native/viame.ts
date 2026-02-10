@@ -153,6 +153,11 @@ async function runPipeline(
       command.push(`-s downsampler:end_frame=${frameRange[1]}`);
       const isNative = !meta.originalFps || meta.fps >= meta.originalFps;
       command.push(`-s downsampler:frame_range_is_native=${isNative}`);
+      // Transcode/filter pipes: output frames renumbered relative to new range
+      // All other pipes: output frames relative to original video
+      const renumber = pipeline.type === 'transcode' || pipeline.type === 'filter';
+      command.push(`-s downsampler:renumber_frames=${renumber}`);
+      command.push(`-s downsampler:adjust_timestamps=${renumber}`);
     }
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${videoAbsPath}"`);
