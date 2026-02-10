@@ -39,8 +39,10 @@ export interface SegmentationInternalPredictResponse {
   success: boolean;
   /** Error message if failed */
   error?: string;
-  /** Polygon coordinates as [x, y] pairs */
+  /** Polygon coordinates as [x, y] pairs (largest exterior, for backward compat) */
   polygon?: [number, number][];
+  /** Multi-polygon data with holes support */
+  polygons?: Array<{ exterior: [number, number][]; holes: [number, number][][] }>;
   /** Bounding box [x_min, y_min, x_max, y_max] */
   bounds?: [number, number, number, number];
   /** Quality score from segmentation model */

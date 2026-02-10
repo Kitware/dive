@@ -60,6 +60,8 @@ export interface SegmentationRecipeOptions {
 /** Callback data when prediction completes */
 export interface SegmentationPredictionResult {
   polygon: [number, number][];
+  /** Multi-polygon data with holes support */
+  polygons?: Array<{ exterior: [number, number][]; holes: [number, number][][] }>;
   bounds: [number, number, number, number] | null;
   frameNum: number;
   /** RLE-encoded full-resolution mask for display */
@@ -78,6 +80,7 @@ interface FrameSegmentationData {
   points: [number, number][];
   labels: number[];
   polygon: [number, number][] | null;
+  polygons: Array<{ exterior: [number, number][]; holes: [number, number][][] }> | null;
   bounds: [number, number, number, number] | null;
   lowResMask: number[][] | null;
   rleMask: [number, number][] | null;
@@ -133,6 +136,9 @@ export default class SegmentationPointClick implements Recipe {
   /** Pending polygon from async prediction */
   private pendingPolygon: [number, number][] | null = null;
 
+  /** Pending multi-polygon data from async prediction */
+  private pendingPolygons: Array<{ exterior: [number, number][]; holes: [number, number][][] }> | null = null;
+
   /** Pending bounds from async prediction */
   private pendingBounds: [number, number, number, number] | null = null;
 
@@ -183,6 +189,7 @@ export default class SegmentationPointClick implements Recipe {
     this.pointLabels = [];
     this.lastLowResMask = null;
     this.pendingPolygon = null;
+    this.pendingPolygons = null;
     this.pendingBounds = null;
     this.pendingRleMask = null;
     this.pendingMaskShape = null;
@@ -200,6 +207,7 @@ export default class SegmentationPointClick implements Recipe {
     this.pointLabels = [];
     this.lastLowResMask = null;
     this.pendingPolygon = null;
+    this.pendingPolygons = null;
     this.pendingBounds = null;
     this.pendingRleMask = null;
     this.pendingMaskShape = null;
@@ -217,6 +225,7 @@ export default class SegmentationPointClick implements Recipe {
         points: [...this.points],
         labels: [...this.pointLabels],
         polygon: this.pendingPolygon ? [...this.pendingPolygon] : null,
+        polygons: this.pendingPolygons ? JSON.parse(JSON.stringify(this.pendingPolygons)) : null,
         bounds: this.pendingBounds ? [...this.pendingBounds] as [number, number, number, number] : null,
         lowResMask: this.lastLowResMask,
         rleMask: this.pendingRleMask ? [...this.pendingRleMask] : null,
@@ -234,6 +243,7 @@ export default class SegmentationPointClick implements Recipe {
       this.points = [...data.points];
       this.pointLabels = [...data.labels];
       this.pendingPolygon = data.polygon ? [...data.polygon] : null;
+      this.pendingPolygons = data.polygons ? JSON.parse(JSON.stringify(data.polygons)) : null;
       this.pendingBounds = data.bounds ? [...data.bounds] as [number, number, number, number] : null;
       this.lastLowResMask = data.lowResMask;
       this.pendingRleMask = data.rleMask ? [...data.rleMask] : null;
@@ -242,6 +252,7 @@ export default class SegmentationPointClick implements Recipe {
       this.points = [];
       this.pointLabels = [];
       this.pendingPolygon = null;
+      this.pendingPolygons = null;
       this.pendingBounds = null;
       this.lastLowResMask = null;
       this.pendingRleMask = null;
@@ -278,6 +289,7 @@ export default class SegmentationPointClick implements Recipe {
     if (this.pendingPolygon || this.pendingRleMask) {
       this.bus.$emit('prediction-ready', {
         polygon: this.pendingPolygon || [],
+        polygons: this.pendingPolygons || undefined,
         bounds: this.pendingBounds,
         frameNum: newFrame,
         rleMask: this.pendingRleMask || undefined,
@@ -321,6 +333,7 @@ export default class SegmentationPointClick implements Recipe {
 
       if (response.success && response.polygon && response.polygon.length > 0) {
         this.pendingPolygon = response.polygon;
+        this.pendingPolygons = response.polygons ?? null;
         this.pendingBounds = response.bounds ?? null;
         this.lastLowResMask = response.lowResMask ?? null;
         this.pendingRleMask = response.rleMask ?? null;
@@ -331,6 +344,7 @@ export default class SegmentationPointClick implements Recipe {
         // Includes mask data for display during editing
         this.bus.$emit('prediction-ready', {
           polygon: response.polygon,
+          polygons: response.polygons,
           bounds: response.bounds,
           score: response.score,
           frameNum,
@@ -680,6 +694,7 @@ export default class SegmentationPointClick implements Recipe {
       if (data.polygon && data.polygon.length > 2) {
         confirmedFrames.set(frameNum, {
           polygon: data.polygon,
+          polygons: data.polygons || undefined,
           bounds: data.bounds,
           frameNum,
           controlPoints: data.points.length > 0 ? {

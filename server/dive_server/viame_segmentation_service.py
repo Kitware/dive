@@ -110,8 +110,8 @@ class ViameSegmentationService:
 
         self._config_path = None
         self.device = os.environ.get('SEGMENTATION_DEVICE', 'cuda')
-        self.hole_policy = "remove"
-        self.multipolygon_policy = "largest"
+        self.hole_policy = "allow"
+        self.multipolygon_policy = "allow"
         self.max_polygon_points = 25
 
         self._initialized = True
@@ -228,6 +228,17 @@ class ViameSegmentationService:
         )
         return polygon, bounds
 
+    def _mask_to_polygons(
+        self, mask: np.ndarray
+    ) -> Tuple[List[dict], List[float]]:
+        """Convert binary mask to multiple polygon coordinates with holes."""
+        from viame.core.segmentation_utils import mask_to_polygons
+
+        polygons, bounds = mask_to_polygons(
+            mask, self.hole_policy, self.multipolygon_policy
+        )
+        return polygons, bounds
+
     def _adaptive_simplify_polygon(
         self,
         polygon: List[List[float]],
@@ -256,6 +267,7 @@ class ViameSegmentationService:
         score = det_obj.confidence()
 
         polygon = []
+        polygons_data = None
         if det_obj.mask is not None:
             mask = det_obj.mask.image().asarray()
             if mask is not None and mask.size > 0:
@@ -264,12 +276,16 @@ class ViameSegmentationService:
                 mask = (mask > 0).astype(np.uint8)
 
                 # The mask is cropped to bbox, need to offset coordinates
-                poly_local, _ = self._mask_to_polygon(mask)
+                poly_local, poly_bounds = self._mask_to_polygon(mask)
+
+                # Get multi-polygon data with holes
+                raw_polygons, mp_bounds = self._mask_to_polygons(mask)
+
+                x_offset = bounds[0]
+                y_offset = bounds[1]
 
                 # Offset polygon by bbox origin
                 if poly_local:
-                    x_offset = bounds[0]
-                    y_offset = bounds[1]
                     polygon = [
                         [p[0] + x_offset, p[1] + y_offset]
                         for p in poly_local
@@ -281,12 +297,52 @@ class ViameSegmentationService:
                             polygon, self.max_polygon_points, min_points=4
                         )
 
-        return {
+                # Offset and simplify multi-polygon data
+                if raw_polygons:
+                    for poly_data in raw_polygons:
+                        ext = poly_data["exterior"]
+                        if len(ext) > 4:
+                            poly_data["exterior"] = self._adaptive_simplify_polygon(
+                                ext, self.max_polygon_points, min_points=4
+                            )
+                        poly_data["exterior"] = [
+                            [x + x_offset, y + y_offset]
+                            for x, y in poly_data["exterior"]
+                        ]
+                        for i, hole in enumerate(poly_data["holes"]):
+                            if len(hole) > 4:
+                                poly_data["holes"][i] = self._adaptive_simplify_polygon(
+                                    hole, self.max_polygon_points, min_points=4
+                                )
+                            poly_data["holes"][i] = [
+                                [x + x_offset, y + y_offset]
+                                for x, y in poly_data["holes"][i]
+                            ]
+                    polygons_data = raw_polygons
+
+                # Use polygon-derived bounds instead of detection bbox
+                if poly_local and poly_bounds and poly_bounds != [0, 0, 0, 0]:
+                    bounds = [
+                        poly_bounds[0] + x_offset, poly_bounds[1] + y_offset,
+                        poly_bounds[2] + x_offset, poly_bounds[3] + y_offset,
+                    ]
+                elif raw_polygons and mp_bounds and mp_bounds != [0, 0, 0, 0]:
+                    bounds = [
+                        mp_bounds[0] + x_offset, mp_bounds[1] + y_offset,
+                        mp_bounds[2] + x_offset, mp_bounds[3] + y_offset,
+                    ]
+
+        result: Dict[str, Any] = {
             "success": True,
             "polygon": polygon,
             "bounds": bounds,
             "score": score,
         }
+
+        if polygons_data is not None:
+            result["polygons"] = polygons_data
+
+        return result
 
     def predict(
         self,

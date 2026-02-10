@@ -969,12 +969,15 @@ export default function useModeManager({
   /**
    * Save original track feature state before segmentation prediction modifies it.
    * Used by handleSegmentationReset to restore the detection to its pre-segmentation state.
+   * Also tracks which polygon keys existed before segmentation so we know which to remove.
    */
   const preSegmentationFeatures = new Map<number, {
     hadFeature: boolean;
     bounds?: RectBounds;
     interpolate?: boolean;
     geometryFeatures?: GeoJSON.Feature[];
+    /** Polygon keys that existed before segmentation (to know which are segmentation-added) */
+    existingPolygonKeys?: Set<string>;
   }>();
 
   /**
@@ -1002,6 +1005,20 @@ export default function useModeManager({
    * This is called when the segmentation model returns a prediction.
    * During editing, we show the polygon preview but don't commit it yet.
    */
+  /**
+   * Ensure a polygon ring is closed (first point equals last point).
+   */
+  function ensureClosed(ring: [number, number][]): [number, number][] {
+    if (ring.length < 2) return ring;
+    const closed = [...ring];
+    const first = closed[0];
+    const last = closed[closed.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      closed.push([...first] as [number, number]);
+    }
+    return closed;
+  }
+
   function handleSegmentationPredictionReady(result: SegmentationPredictionResult) {
     if (selectedTrackId.value === null) {
       return;
@@ -1022,22 +1039,33 @@ export default function useModeManager({
         Math.max(...result.polygon.map((p) => p[1])),
       ] as [number, number, number, number];
 
-      // Close polygon if not already closed
-      const closedPolygon = [...result.polygon];
-      const first = closedPolygon[0];
-      const last = closedPolygon[closedPolygon.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        closedPolygon.push([...first] as [number, number]);
-      }
+      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
 
-      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [closedPolygon],
-        },
-        properties: { key: '' },
-      }];
+      if (result.polygons && result.polygons.length > 0) {
+        // New path: multi-polygon with holes
+        result.polygons.forEach((polyData, index) => {
+          const coordinates = [
+            ensureClosed(polyData.exterior),
+            ...polyData.holes.map((h) => ensureClosed(h)),
+          ];
+          polygonGeometry.push({
+            type: 'Feature',
+            geometry: { type: 'Polygon', coordinates },
+            properties: { key: index === 0 ? '' : String(index) },
+          });
+        });
+      } else {
+        // Backward compat: single polygon
+        const closedPolygon = ensureClosed(result.polygon);
+        polygonGeometry.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [closedPolygon],
+          },
+          properties: { key: '' },
+        });
+      }
 
       // Update the track's feature with the preview polygon
       // Use frame number from the result if provided, otherwise current frame
@@ -1047,6 +1075,15 @@ export default function useModeManager({
       // Save original feature state before first prediction modifies the track
       if (!preSegmentationFeatures.has(targetFrame)) {
         const [existingFeature] = track.getFeature(targetFrame);
+        // Track which polygon keys existed before segmentation
+        const existingPolygonKeys = new Set<string>();
+        if (existingFeature?.geometry?.features) {
+          existingFeature.geometry.features.forEach((f) => {
+            if (f.geometry.type === 'Polygon') {
+              existingPolygonKeys.add(f.properties?.key ?? '');
+            }
+          });
+        }
         if (existingFeature) {
           preSegmentationFeatures.set(targetFrame, {
             hadFeature: true,
@@ -1056,9 +1093,13 @@ export default function useModeManager({
             geometryFeatures: existingFeature.geometry?.features
               ? JSON.parse(JSON.stringify(existingFeature.geometry.features))
               : undefined,
+            existingPolygonKeys,
           });
         } else {
-          preSegmentationFeatures.set(targetFrame, { hadFeature: false });
+          preSegmentationFeatures.set(targetFrame, {
+            hadFeature: false,
+            existingPolygonKeys,
+          });
         }
       }
 
@@ -1106,22 +1147,33 @@ export default function useModeManager({
           Math.max(...frameResult.polygon.map((p) => p[1])),
         ] as [number, number, number, number];
 
-        // Close polygon if not already closed
-        const closedPolygon = [...frameResult.polygon];
-        const first = closedPolygon[0];
-        const last = closedPolygon[closedPolygon.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          closedPolygon.push([...first] as [number, number]);
-        }
+        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
 
-        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [closedPolygon],
-          },
-          properties: { key: '' },
-        }];
+        if (frameResult.polygons && frameResult.polygons.length > 0) {
+          // New path: multi-polygon with holes
+          frameResult.polygons.forEach((polyData, index) => {
+            const coordinates = [
+              ensureClosed(polyData.exterior),
+              ...polyData.holes.map((h) => ensureClosed(h)),
+            ];
+            polygonGeometry.push({
+              type: 'Feature',
+              geometry: { type: 'Polygon', coordinates },
+              properties: { key: index === 0 ? '' : String(index) },
+            });
+          });
+        } else {
+          // Backward compat: single polygon
+          const closedPolygon = ensureClosed(frameResult.polygon);
+          polygonGeometry.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Polygon',
+              coordinates: [closedPolygon],
+            },
+            properties: { key: '' },
+          });
+        }
 
         const { interpolate } = track.canInterpolate(frameNum);
 
@@ -1222,12 +1274,26 @@ export default function useModeManager({
     if (!saved.hadFeature) {
       track.deleteFeature(data.frameNum);
     } else {
-      // Remove the segmentation-derived polygon
+      // Get current polygon features to find segmentation-added keys
+      const currentPolygons = track.getPolygonFeatures(data.frameNum);
+      const preExistingKeys = saved.existingPolygonKeys || new Set<string>();
+
+      // Remove all polygon features that were added by segmentation
+      // (any key not in the pre-segmentation set)
+      currentPolygons.forEach((pf) => {
+        if (!preExistingKeys.has(pf.key)) {
+          track.removeFeatureGeometry(data.frameNum, { key: pf.key, type: 'Polygon' });
+        }
+      });
+
+      // Also remove the default key polygon (segmentation always overwrites it)
       track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
-      // Find original default polygon if there was one
-      const origDefaultPolygon = saved.geometryFeatures?.find(
-        (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === '',
-      );
+
+      // Restore original geometry features
+      const origFeatures = saved.geometryFeatures?.filter(
+        (f) => f.geometry.type === 'Polygon',
+      ) || [];
+
       // Restore original bounds and geometry
       track.setFeature({
         frame: data.frameNum,
@@ -1235,8 +1301,8 @@ export default function useModeManager({
         bounds: saved.bounds,
         keyframe: true,
         interpolate: saved.interpolate ?? false,
-      }, origDefaultPolygon
-        ? [origDefaultPolygon as GeoJSON.Feature<TrackSupportedFeature>]
+      }, origFeatures.length > 0
+        ? origFeatures as GeoJSON.Feature<TrackSupportedFeature>[]
         : []);
     }
 
