@@ -137,6 +137,15 @@ export default function useModeManager({
   const selectNextGroup = (delta = 1) => selectNext(_filteredGroups.value, editingGroupId.value, delta);
 
   function selectTrack(trackId: AnnotationId | null, edit = false) {
+    // Reset segmentation recipe state when switching to a different track
+    // so stale points/mask from the previous detection don't interfere
+    if (trackId !== selectedTrackId.value) {
+      recipes.forEach((r) => {
+        if (r instanceof SegmentationPointClick && r.active.value) {
+          r.resetPoints();
+        }
+      });
+    }
     selectedTrackId.value = trackId;
     if (edit && readonlyState.value) {
       prompt({ title: 'Read Only Mode', text: 'This Dataset is in Read Only mode, no edits can be made.' });
@@ -818,13 +827,19 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
+    const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
       if (r.active.value && r.confirm) {
+        if (r instanceof SegmentationPointClick) {
+          activeSegRecipes.push(r);
+        }
         r.confirm();
       }
     });
     // Exit editing mode and deselect to unhighlight the track
     selectTrack(null, false);
+    // Re-activate segmentation recipe so it's ready for the next detection
+    activeSegRecipes.forEach((r) => r.activate());
   }
 
   /**
