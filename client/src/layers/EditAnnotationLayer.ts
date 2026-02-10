@@ -249,6 +249,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (e.mouse.buttons.middle && !e.propogated && this.type !== 'Point') {
       return;
     }
+    // Right-click should never add vertices - cancel/confirm is handled by
+    // mouseclick (line/polygon cancel) and contextmenu (Point confirm)
+    if (e.mouse.buttons.right) {
+      return;
+    }
 
     // Track if this is a background point (shift+click or middle-click) for Point mode
     // Check both GeoJS event modifiers and our native DOM event tracking for reliability
