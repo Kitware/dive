@@ -2,12 +2,10 @@
 import {
   defineComponent,
   watch,
-  // onMounted,
   ref,
   Ref,
   PropType,
 } from 'vue';
-// import sanitize from 'sanitize-filename';
 
 export default defineComponent({
   props: {

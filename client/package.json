@@ -50,7 +50,6 @@
     "lodash": "^4.17.19",
     "moment": "^2.29.1",
     "mousetrap": "^1.6.5",
-    "sanitize-filename": "^1.6.3",
     "semver": "^7.3.5",
     "vue": "^2.7.16",
     "vue-gtag": "^1.9.1",
