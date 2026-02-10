@@ -483,12 +483,21 @@ export default defineComponent({
         } else {
           handler.trackSelect(trackId, editing, modifiers);
         }
+      } else if (editing && trackId !== null) {
+        // Right-click on another detection while in creation mode:
+        // cancel creation and switch to editing the clicked detection
+        editAnnotationLayer.disable();
+        handler.trackEdit(trackId);
       }
     };
 
     //Sync of internal geoJS state with the application
-    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      handler.trackSelect(selectedTrackIdRef.value, editing);
+    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
+      if (deselect) {
+        handler.trackSelect(null, false);
+      } else {
+        handler.trackSelect(selectedTrackIdRef.value, editing);
+      }
     });
     // Handle right-click to confirm/lock annotation in Point mode (segmentation)
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
