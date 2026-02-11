@@ -511,6 +511,7 @@ export default defineComponent({
           customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
+          timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
@@ -533,6 +534,12 @@ export default defineComponent({
     function saveThreshold() {
       saveMetadata(datasetId.value, {
         confidenceFilters: trackFilters.confidenceFilters.value,
+      });
+    }
+
+    function saveTimeFilter() {
+      saveMetadata(datasetId.value, {
+        timeFilters: trackFilters.timeFilters.value,
       });
     }
 
@@ -681,6 +688,7 @@ export default defineComponent({
           loadAttributes(meta.attributes);
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
+        trackFilters.setTimeFilters(meta.timeFilters ?? null);
         if (meta.imageEnhancements) {
           setImageEnhancements(meta.imageEnhancements);
         }
@@ -1134,6 +1142,7 @@ export default defineComponent({
       handler: globalHandler,
       save,
       saveThreshold,
+      saveTimeFilter,
       updateTime,
       // multicam
       multiCamList,
@@ -1254,6 +1263,7 @@ export default defineComponent({
             groupEditActive: editingGroupId !== null,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
+          :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
           @text-query-init="$emit('text-query-init')"

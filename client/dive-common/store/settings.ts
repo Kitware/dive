@@ -130,6 +130,7 @@ const defaultSettings: AnnotationSettings = {
       multiBounds: false,
       transition: false,
     },
+    showUserCreatedIcon: false,
   },
   timelineCountSettings: {
     totalCount: true,

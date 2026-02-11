@@ -663,6 +663,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.attributes) {
     existing.attributes = args.attributes;
   }
+  if (args.timeFilters !== undefined) {
+    existing.timeFilters = args.timeFilters;
+  }
   if (args.error) {
     existing.error = args.error;
   }

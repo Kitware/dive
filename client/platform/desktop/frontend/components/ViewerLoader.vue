@@ -1,7 +1,7 @@
 <script lang="ts">
 import npath from 'path';
 import {
-  computed, defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick,
+  computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick, watchEffect,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -95,6 +95,17 @@ export default defineComponent({
       return props.id;
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const timeFilter: Ref<[number, number] | null> = ref(null);
+
+    // Watch the viewer's trackFilters.timeFilters and sync to local ref
+    watchEffect(() => {
+      if (viewerRef.value?.trackFilters?.timeFilters?.value) {
+        timeFilter.value = viewerRef.value.trackFilters.timeFilters.value;
+      } else {
+        timeFilter.value = null;
+      }
+    });
+
     const runningPipelines = computed(() => {
       const results: string[] = [];
       // Check if any running job contains the root props.id
@@ -785,6 +796,7 @@ export default defineComponent({
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      timeFilter,
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
@@ -835,6 +847,7 @@ export default defineComponent({
           :camera-numbers="camNumbers"
           :running-pipelines="runningPipelines"
           :read-only-mode="readOnlyMode"
+          :time-filter="timeFilter"
           v-bind="{ buttonOptions, menuOptions }"
         />
         <ImportAnnotations

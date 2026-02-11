@@ -129,11 +129,13 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
+    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       formatter: props.formatTextRow,
+      showUserCreatedIcon: showUserCreatedIconRef,
     });
 
     const attributeBoxLayer = new AttributeBoxLayer({

@@ -1,6 +1,7 @@
 <script lang="ts">
 import {
   computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType, nextTick,
+  watchEffect,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -106,12 +107,22 @@ export default defineComponent({
     const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
 
     const typeList: Ref<string[]> = ref([]);
+    const timeFilter: Ref<[number, number] | null> = ref(null);
 
     const findType = async () => {
       const meta = await loadMetadata(props.id);
       typeList.value = [meta.type];
     };
     findType();
+
+    // Watch the viewer's trackFilters.timeFilters and sync to local ref
+    watchEffect(() => {
+      if (viewerRef.value?.trackFilters?.timeFilters?.value) {
+        timeFilter.value = viewerRef.value.trackFilters.timeFilters.value;
+      } else {
+        timeFilter.value = null;
+      }
+    });
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (getters['Jobs/datasetRunningState'](props.id)) {
@@ -299,6 +310,7 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQuery,
       handleTextQueryAllFrames,
+      timeFilter,
     };
   },
 });
@@ -341,6 +353,7 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
+        :time-filter="timeFilter"
       />
       <ImportAnnotations
         :button-options="buttonOptions"
