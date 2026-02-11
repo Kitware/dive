@@ -345,11 +345,15 @@ def run_pipeline(self: Task, params: PipelineJob):
         if frame_range is not None and input_type == constants.VideoType:
             output_file = filter_csv_by_frame_range(output_file, frame_range)
 
-        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        newfile = gc.uploadFileToFolder(output_folder_id, output_file)
-
-        gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
-        gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+        # Only ingest output annotations into the source dataset for
+        # non-filter/transcode pipelines. Filter/transcode output tracks
+        # correspond to the new output media, not the original.
+        is_output_pipeline = pipeline["pipe"].startswith(("transcode_", "filter_"))
+        if not is_output_pipeline:
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            newfile = gc.uploadFileToFolder(output_folder_id, output_file)
+            gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+            gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
 
 
 @app.task(bind=True, acks_late=True, ignore_results=True)
