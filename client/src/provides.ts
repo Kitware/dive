@@ -138,6 +138,7 @@ export interface Handler {
     frameNum: number,
     flickNum: number,
     bounds: RectBounds,
+    rotation?: number,
   ): void;
   /* Set a feature on the selected track with proper interpolation handling */
   setTrackFeature(

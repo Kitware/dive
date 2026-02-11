@@ -13,7 +13,7 @@ function postProcess(folderId: string, skipJobs = false, skipTranscoding = false
   });
 }
 
-function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null) {
+function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>) {
   const params: Record<string, unknown> = {
     folderId: itemId,
     pipeline,
@@ -22,6 +22,9 @@ function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, numbe
     const [startFrame, endFrame] = frameRange;
     params.startFrame = startFrame;
     params.endFrame = endFrame;
+  }
+  if (additionalConfig) {
+    Object.assign(params, additionalConfig);
   }
   return girderRest.post('dive_rpc/pipeline', null, { params });
 }

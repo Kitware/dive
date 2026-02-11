@@ -15,9 +15,11 @@ import {
   JobType,
   RunPipeline,
   RunTraining,
+  JsonMeta,
 } from 'platform/desktop/constants';
 import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
 import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
+import { setRecents } from './dataset';
 
 interface DesktopJobHistory {
   job: DesktopJob;
@@ -93,6 +95,9 @@ function init() {
     updateHistory({
       ...args, body: ['Job cancelled by user'], exitCode: cancelledJobExitCode, endTime: new Date(), cancelledJob: true,
     });
+  });
+  ipcRenderer.on('filter-complete', (event, args: JsonMeta) => {
+    setRecents(args);
   });
 }
 

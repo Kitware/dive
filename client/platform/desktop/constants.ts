@@ -183,6 +183,7 @@ export interface RunPipeline extends JobArgs {
   /** Optional parameters to pass to the pipeline via -s flags */
   pipelineParams?: Record<string, string>;
   frameRange?: [number, number] | null; // (start_frame, end_frame) or null for full video
+  outputDatasetName?: string;
 }
 
 export interface ExportTrainedPipeline extends JobArgs {
