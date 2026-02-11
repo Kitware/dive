@@ -286,24 +286,29 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        // Determine which output files to use
-        let finalDetectorOutput = detectorOutput;
-        let finalTrackOutput = trackOutput;
+        // Skip ingesting pipeline output into the source dataset for
+        // filter/transcode pipelines — their output tracks correspond
+        // to the new output media, not the original.
+        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+          // Determine which output files to use
+          let finalDetectorOutput = detectorOutput;
+          let finalTrackOutput = trackOutput;
 
-        // Filter output CSV by frame range for videos
-        if (frameRange && metaType === 'video') {
-          if (await fs.pathExists(trackOutput)) {
-            finalTrackOutput = await filterCsvByFrameRange(trackOutput, frameRange);
+          // Filter output CSV by frame range for videos
+          if (frameRange && metaType === 'video') {
+            if (await fs.pathExists(trackOutput)) {
+              finalTrackOutput = await filterCsvByFrameRange(trackOutput, frameRange);
+            }
+            if (await fs.pathExists(detectorOutput)) {
+              finalDetectorOutput = await filterCsvByFrameRange(detectorOutput, frameRange);
+            }
           }
-          if (await fs.pathExists(detectorOutput)) {
-            finalDetectorOutput = await filterCsvByFrameRange(detectorOutput, frameRange);
-          }
-        }
 
-        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
-        if (newMeta) {
-          meta.attributes = newMeta.attributes;
-          await common.saveMetadata(settings, datasetId, meta);
+          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
+          if (newMeta) {
+            meta.attributes = newMeta.attributes;
+            await common.saveMetadata(settings, datasetId, meta);
+          }
         }
 
         // Check if this is a calibration pipeline and save the output
@@ -367,6 +372,12 @@ async function runPipeline(
           exitCode: code,
           endTime: new Date(),
         });
+        // Copy output CSVs into outputDir so beginMediaImport can discover them
+        for (const csvFile of [trackOutput, detectorOutput]) {
+          if (await fs.pathExists(csvFile)) {
+            await fs.copy(csvFile, npath.join(outputDir, npath.basename(csvFile)));
+          }
+        }
         const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
         if (runPipelineArgs.pipeline.type === 'transcode') {
           fs.readdir(outputDir, async (err, entries) => {
