@@ -38,6 +38,65 @@ export interface ViameConstants {
 }
 
 /**
+ * Import newly created media as a new dataset.
+ * Should be called after a transcode or filter pipeline runs.
+ * @param sourceName
+ * The location (directory for images, file for video) of data to be
+ * imported.
+ * @param datasetName
+ * The name of the dataset to be created from the imported data.
+ * @param code
+ * The exit code of the job that created the data to be imported.
+ * @param settings
+ * @param updater
+ * The job updater function. Used to log additional messages to the
+ * DesktopJob log
+ * @param jobBase
+ * The DesktopJob to update
+ * @param outputDir
+ * If new data must be converted, this is used as the baseWorkDir
+ * for the conversion
+ */
+async function importNewMedia(
+  sourceName: string,
+  datasetName: string,
+  code: number,
+  settings: Settings,
+  updater: DesktopJobUpdater,
+  jobBase: DesktopJob,
+  outputDir: string,
+): Promise<void> {
+  if (code !== 0) {
+    return;
+  }
+  const importPayload = await common.beginMediaImport(sourceName);
+  importPayload.jsonMeta.name = datasetName;
+  const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+  if (conversionJobArgs.mediaList.length > 0) {
+    // Convert the media, directly in this job
+    updater({
+      ...jobBase,
+      body: ['Converting pipeline output...'],
+      exitCode: code,
+      endTime: new Date(),
+    });
+    await convertMedia(
+      settings,
+      conversionJobArgs,
+      updater,
+      (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
+      undefined,
+      false,
+      0,
+      jobBase.key,
+      outputDir,
+    );
+  } else {
+    sendToRenderer('filter-complete', conversionJobArgs.meta);
+  }
+}
+
+/**
  * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
 async function runPipeline(
@@ -234,6 +293,51 @@ async function runPipeline(
             await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath);
           }
         }
+
+        // Check if this is a transcode/filter pipeline and create a new dataset
+        if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+          updater({
+            ...jobBase,
+            body: ['Creating dataset from output...'],
+            exitCode: code,
+            endTime: new Date(),
+          });
+          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+          if (runPipelineArgs.pipeline.type === 'transcode') {
+            fs.readdir(outputDir, async (err, entries) => {
+              if (err) {
+                console.error(`Failed to traverse ${outputDir}.`);
+              }
+              if (!transcodedFilename) {
+                console.error('Could not determine name of output video file.');
+              }
+              entries.forEach((entry: string) => {
+                if (entry.startsWith(`${pipeline.name}_${datasetId}`)) {
+                  transcodedFilename = npath.join(outputDir, entry);
+                }
+              });
+              await importNewMedia(
+                transcodedFilename,
+                datasetName,
+                code,
+                settings,
+                updater,
+                jobBase,
+                outputDir,
+              );
+            });
+            return;
+          }
+          await importNewMedia(
+            outputDir,
+            datasetName,
+            code,
+            settings,
+            updater,
+            jobBase,
+            outputDir,
+          );
+        }
       } catch (err) {
         console.error(err);
       }
@@ -245,67 +349,6 @@ async function runPipeline(
       endTime: new Date(),
     });
   });
-
-  if (['filter', 'transcode'].includes(runPipelineArgs.pipeline.type)) {
-    const importNewMedia = async (sourceName: string, datasetName: string, code: number) => {
-      const importPayload = await common.beginMediaImport(sourceName);
-      importPayload.jsonMeta.name = datasetName;
-      const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
-      if (conversionJobArgs.mediaList.length > 0) {
-        // Convert the media, directly in this job
-        updater({
-          ...jobBase,
-          body: ['Converting pipeline output...'],
-          exitCode: code,
-          endTime: new Date(),
-        });
-        await convertMedia(
-          settings,
-          conversionJobArgs,
-          updater,
-          (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
-          undefined,
-          false,
-          0,
-          jobBase.key,
-          outputDir,
-        );
-      } else {
-        sendToRenderer('filter-complete', conversionJobArgs.meta);
-      }
-    };
-    job.on('exit', async (code) => {
-      if (code === 0) {
-        // Ingest the output into a new dataset
-        updater({
-          ...jobBase,
-          body: ['Creating dataset from output...'],
-          exitCode: code,
-          endTime: new Date(),
-        });
-        const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
-        if (runPipelineArgs.pipeline.type === 'transcode') {
-          fs.readdir(outputDir, async (err, entries) => {
-            if (err) {
-              console.error(`Failed to traverse ${outputDir}.`);
-            }
-            if (!transcodedFilename) {
-              console.error('Could not determine name of output video file.');
-            }
-            entries.forEach((entry: string) => {
-              if (entry.startsWith(`${pipeline.name}_${datasetId}`)) {
-                transcodedFilename = npath.join(outputDir, entry);
-              }
-            });
-            await importNewMedia(transcodedFilename, datasetName, code);
-          });
-          return;
-        }
-        await importNewMedia(outputDir, datasetName, code);
-      }
-    });
-  }
-
   return jobBase;
 }
 
