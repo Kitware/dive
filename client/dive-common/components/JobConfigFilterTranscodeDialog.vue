@@ -13,23 +13,13 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    datasetName: {
-      type: String,
-      required: true,
-    },
     pipelineName: {
       type: String,
       required: true,
     },
-    // Consumers of this component should make sure that for each i,
-    // selectedDatasetIds[i] is the ID for the dataset with the name selectedDatasetNames[i]
-    // Additionally, since this feature is currently only available in Desktop, and Desktop
+    // Since this feature is currently only available in Desktop, and Desktop
     // runs a pipeline on a single dataset at a time, this array should always be length 1.
     selectedDatasetIds: {
-      type: Array as PropType<string[]>,
-      default: () => [],
-    },
-    selectedDatasetNames: {
       type: Array as PropType<string[]>,
       default: () => [],
     },

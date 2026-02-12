@@ -408,7 +408,6 @@ export default defineComponent({
     />
     <JobConfigFilterTranscodeDialog
       :value="menuState === 'configuring'"
-      :dataset-name="'foo'"
       :pipeline-name="selectedPipelineName"
       :selected-dataset-ids="selectedDatasetIds"
       @cancel="cancelConfig"
