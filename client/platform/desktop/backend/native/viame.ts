@@ -122,8 +122,27 @@ async function runPipeline(
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
-  const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
-  let trackOutput = npath.join(jobWorkDir, 'track_output.csv');
+  const DIVE_OUTPUT_PROJECT_DIR = 'DIVE_Jobs_Output';
+  const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
+  const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
+  const outputDir = `${npath.join(settings.dataPath, DIVE_OUTPUT_PROJECT_DIR, outputDirName)}`;
+  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+    if (outputDir !== jobWorkDir) {
+      await fs.mkdir(outputDir, { recursive: true });
+    }
+  }
+
+  const detectorOutputFileName = 'detector_output.csv';
+  const trackOutputFileName = 'track_output.csv';
+  let trackOutput: string;
+  let detectorOutput: string;
+  if (pipelineCreatesDatasetMarkers.includes(pipeline.name)) {
+    detectorOutput = npath.join(outputDir, detectorOutputFileName);
+    trackOutput = npath.join(outputDir, trackOutputFileName);
+  } else {
+    detectorOutput = npath.join(jobWorkDir, detectorOutputFileName);
+    trackOutput = npath.join(jobWorkDir, trackOutputFileName);
+  }
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
@@ -196,16 +215,6 @@ async function runPipeline(
     }
   }
 
-  const DIVE_OUTPUT_PROJECT_DIR = 'DIVE_Jobs_Output';
-  const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
-  const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
-  const outputDir = `${npath.join(settings.dataPath, DIVE_OUTPUT_PROJECT_DIR, outputDirName)}`;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
-    if (outputDir !== jobWorkDir) {
-      await fs.mkdir(outputDir, { recursive: true });
-    }
-  }
-
   if (runPipelineArgs.pipeline.type === 'filter') {
     command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
     command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
@@ -275,10 +284,13 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
-        if (newMeta) {
-          meta.attributes = newMeta.attributes;
-          await common.saveMetadata(settings, datasetId, meta);
+        if (!pipelineCreatesDatasetMarkers.includes(pipeline.name)) {
+          // Filter and transcode pipelines should ensure that detector/track output files are located in the new dataset directory
+          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
+          if (newMeta) {
+            meta.attributes = newMeta.attributes;
+            await common.saveMetadata(settings, datasetId, meta);
+          }
         }
 
         // Check if this is a calibration pipeline and save the output
