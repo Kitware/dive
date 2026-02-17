@@ -822,19 +822,21 @@ async function deleteDataset(
   settings: Settings,
   datasetId: string,
 ): Promise<boolean> {
-  // confirm dataset Id exists
+  // Confirm dataset exists
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   await fs.remove(projectDirInfo.basePath);
-  // If the dataset source is inside DIVE_Jobs_Output, delete the whole output folder
+  // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
   if (projectMetaData.originalBasePath) {
-    const jobsOutputPath = npath.join(settings.dataPath, JobsOutputFolderName);
-    const relativePath = npath.relative(jobsOutputPath, npath.normalize(projectMetaData.originalBasePath));
-    const isInsideJobsOutput = relativePath !== '' && !relativePath.startsWith('..') && !npath.isAbsolute(relativePath);
-    if (isInsideJobsOutput && await fs.pathExists(projectMetaData.originalBasePath)) {
-      await fs.remove(projectMetaData.originalBasePath);
+    const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
+    const originalBasePath = npath.resolve(projectMetaData.originalBasePath);
+    const isInsideJobsOutput = originalBasePath !== jobsOutputPath
+      && originalBasePath.startsWith(jobsOutputPath + npath.sep);
+    if (isInsideJobsOutput && await fs.pathExists(originalBasePath)) {
+      await fs.remove(originalBasePath);
     }
   }
+
   return true;
 }
 
