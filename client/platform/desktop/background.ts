@@ -133,3 +133,9 @@ if (process.platform === 'win32') {
     cleanup();
   });
 }
+
+export default function sendToRenderer(channel: string, payload?: unknown) {
+  if (win) {
+    win.webContents.send(channel, payload);
+  }
+}

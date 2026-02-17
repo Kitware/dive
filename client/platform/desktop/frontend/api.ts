@@ -91,11 +91,12 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return ipcRenderer.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe): Promise<void> {
+async function runPipeline(itemId: string, pipeline: Pipe, additionalConfig?: Record<string, string>): Promise<void> {
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
+    ...additionalConfig,
   };
   gpuJobQueue.enqueue(args);
 }

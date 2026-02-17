@@ -11,6 +11,7 @@ export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
 export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
+export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
 export const LastCalibrationFileName = 'last_calibration.json';
 
@@ -171,6 +172,7 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  outputDatasetName?: string;
 }
 
 export interface ExportTrainedPipeline extends JobArgs {

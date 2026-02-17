@@ -13,6 +13,7 @@ import {
   itemsPerPageOptions,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -77,6 +78,23 @@ const stagedDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
     width: 80,
   },
 ]);
+const createNewDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
+  {
+    text: 'Output Dataset Name',
+    value: 'output',
+    sortable: false,
+  },
+  {
+    text: 'Remove',
+    value: 'remove',
+    sortable: false,
+    width: 80,
+  },
+]);
+function computeOutputDatasetName(item: JsonMetaCache) {
+  const timeStamp = (new Date()).toISOString().replace(/[:.]/g, '-');
+  return `${selectedPipeline.value?.name}_${item.name}_${timeStamp}`;
+}
 function getAvailableItems(): JsonMetaCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
@@ -108,7 +126,18 @@ function toggleStaged(item: JsonMetaCache) {
 async function runPipelineForDatasets() {
   if (selectedPipeline.value !== null) {
     const results = await Promise.allSettled(
-      stagedDatasetIds.value.map((datasetId: string) => runPipeline(datasetId, selectedPipeline.value!)),
+      stagedDatasetIds.value.map((datasetId: string) => {
+        if (['transcode', 'filter'].includes(selectedPipeline.value?.type || '')) {
+          const datasetMeta = availableItems.value.find((item: JsonMetaCache) => item.id === datasetId);
+          if (!datasetMeta) {
+            throw new Error(`Attempted to run pipeline on nonexistant dataset ${datasetId}`);
+          }
+          return runPipeline(datasetId, selectedPipeline.value!, {
+            outputDatasetName: computeOutputDatasetName(datasetMeta),
+          });
+        }
+        return runPipeline(datasetId, selectedPipeline.value!);
+      }),
     );
     const failed = results
       .map((result, i) => ({ result, datasetId: stagedDatasetIds.value[i] }))
@@ -178,7 +207,10 @@ onBeforeMount(async () => {
         <v-card-title>Datasets staged for selected pipeline</v-card-title>
         <v-data-table
           dense
-          v-bind="{ headers: stagedDatasetHeaders, items: stagedDatasets }"
+          v-bind="{
+            headers: pipelineCreatesDatasetMarkers.includes(selectedPipelineType || '') ? createNewDatasetHeaders : stagedDatasetHeaders,
+            items: stagedDatasets,
+          }"
           :items-per-page.sync="clientSettings.rowsPerPage"
           hide-default-footer
           :hide-default-header="stagedDatasets.length === 0"
@@ -192,6 +224,9 @@ onBeforeMount(async () => {
             >
               <v-icon>mdi-minus</v-icon>
             </v-btn>
+          </template>
+          <template #[`item.output`]="{ item }">
+            <b>{{ computeOutputDatasetName(item) }}</b>
           </template>
         </v-data-table>
       </div>
