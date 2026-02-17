@@ -136,7 +136,7 @@ async function runPipeline(
   const trackOutputFileName = 'track_output.csv';
   let trackOutput: string;
   let detectorOutput: string;
-  if (pipelineCreatesDatasetMarkers.includes(pipeline.name)) {
+  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
     detectorOutput = npath.join(outputDir, detectorOutputFileName);
     trackOutput = npath.join(outputDir, trackOutputFileName);
   } else {
@@ -284,7 +284,7 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        if (!pipelineCreatesDatasetMarkers.includes(pipeline.name)) {
+        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
           // Filter and transcode pipelines should ensure that detector/track output files are located in the new dataset directory
           const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
           if (newMeta) {
