@@ -172,8 +172,8 @@ export default defineComponent({
         :button-options="buttonOptions"
       />
     </template>
-    <template #right-sidebar>
-      <SidebarContext>
+    <template #right-sidebar="{ sidebarMode }">
+      <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
         <template #default="{ name, subCategory }">
           <component
             :is="name"
