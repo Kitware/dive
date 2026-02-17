@@ -2,7 +2,7 @@
 
 !!! note
 
-    This page is **not related** to the VIAME command line (i.e. `kwiver`, `viame_train_detector`)
+    This page is **not related** to the VIAME command line (i.e. `kwiver`, `viame`)
 
 Some of the DIVE data conversion features are exposed through `dive`.  
 

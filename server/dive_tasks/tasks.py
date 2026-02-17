@@ -81,8 +81,8 @@ class Config:
         assert self.viame_install_path.exists(), "VIAME Base install directory missing."
         self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
         assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_training_executable = self.viame_install_path / "bin" / "viame_train_detector"
-        assert self.viame_training_executable.is_file(), "VIAME Training Executable missing"
+        self.viame_training_executable = self.viame_install_path / "bin" / "viame"
+        assert self.viame_training_executable.is_file(), "VIAME Executable missing"
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
@@ -232,7 +232,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "kwiver runner",
+                "viame runner",
                 "-s input:video_reader:type=vidl_ffmpeg",
                 f"-p {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(input_media_list[0])}",
@@ -246,7 +246,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "kwiver runner",
+                "viame runner",
                 f"-p {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(str(img_list_path))}",
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
@@ -316,8 +316,8 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-            "kwiver runner",
-            f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
+            "viame runner",
+            f"-p {shlex.quote(str(convert_to_onnx_pipeline_path))}",
             f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
             f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
         ]
@@ -338,7 +338,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def train_pipeline(self: Task, params: TrainingJob):
-    """Train a pipeline by making a call to viame_train_detector"""
+    """Train a pipeline by making a call to viame train"""
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
@@ -364,7 +364,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     config_file = pipeline_base_path / config
     # List of (input folder, ground truth file) pairs for creating input lists
     input_groundtruth_list: List[Tuple[Path, Path]] = []
-    # root_data_dir is the directory passed to `viame_train_detector`
+    # root_data_dir is the directory passed to `viame train`
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -397,7 +397,7 @@ def train_pipeline(self: Task, params: TrainingJob):
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-            shlex.quote(str(conf.viame_training_executable)),
+            f"{shlex.quote(str(conf.viame_training_executable))} train",
             "--input-list",
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
