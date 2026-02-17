@@ -37,7 +37,7 @@ import {
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
+  ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
   JobType, LastCalibrationFileName,
 } from 'platform/desktop/constants';
@@ -824,7 +824,17 @@ async function deleteDataset(
 ): Promise<boolean> {
   // confirm dataset Id exists
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   await fs.remove(projectDirInfo.basePath);
+  // If the dataset source is inside DIVE_Jobs_Output, delete the whole output folder
+  if (projectMetaData.originalBasePath) {
+    const jobsOutputPath = npath.join(settings.dataPath, JobsOutputFolderName);
+    const relativePath = npath.relative(jobsOutputPath, npath.normalize(projectMetaData.originalBasePath));
+    const isInsideJobsOutput = relativePath !== '' && !relativePath.startsWith('..') && !npath.isAbsolute(relativePath);
+    if (isInsideJobsOutput && await fs.pathExists(projectMetaData.originalBasePath)) {
+      await fs.remove(projectMetaData.originalBasePath);
+    }
+  }
   return true;
 }
 

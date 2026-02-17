@@ -7,6 +7,7 @@ import {
   DesktopJobUpdater,
   ExportTrainedPipeline,
   JsonMeta,
+  JobsOutputFolderName,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -122,10 +123,9 @@ async function runPipeline(
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
-  const DIVE_OUTPUT_PROJECT_DIR = 'DIVE_Jobs_Output';
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
-  const outputDir = `${npath.join(settings.dataPath, DIVE_OUTPUT_PROJECT_DIR, outputDirName)}`;
+  const outputDir = `${npath.join(settings.dataPath, JobsOutputFolderName, outputDirName)}`;
   if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
     if (outputDir !== jobWorkDir) {
       await fs.mkdir(outputDir, { recursive: true });

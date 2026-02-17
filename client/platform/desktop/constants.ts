@@ -11,6 +11,7 @@ export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
 export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
+export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
 export const LastCalibrationFileName = 'last_calibration.json';
 
