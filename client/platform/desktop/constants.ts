@@ -171,6 +171,7 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  frameRange?: [number, number] | null; // (start_frame, end_frame) or null for full video
 }
 
 export interface ExportTrainedPipeline extends JobArgs {

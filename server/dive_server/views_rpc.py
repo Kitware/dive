@@ -49,10 +49,27 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
+        .param(
+            "startFrame",
+            "Start frame (inclusive) for frame range filtering",
+            paramType="query",
+            dataType="integer",
+            required=False,
+        )
+        .param(
+            "endFrame",
+            "End frame (inclusive) for frame range filtering",
+            paramType="query",
+            dataType="integer",
+            required=False,
+        )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
     )
-    def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
+    def run_pipeline_task(self, folder, forceTranscoded, startFrame, endFrame, pipeline: PipelineDescription):
+        frame_range = None
+        if startFrame is not None and endFrame is not None:
+            frame_range = (startFrame, endFrame)
+        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range)
     
     @access.user
     @autoDescribeRoute(
