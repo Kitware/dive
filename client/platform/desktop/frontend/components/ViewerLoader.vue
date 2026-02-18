@@ -129,6 +129,33 @@ export default defineComponent({
     }
 
     /**
+     * Build a function that resolves frame numbers to image file paths from dataset metadata.
+     */
+    function buildImagePathGetter(meta: {
+      originalBasePath: string;
+      originalImageFiles: string[];
+      type: string;
+      originalVideoFile?: string;
+    }): (frameNum: number) => string {
+      const {
+        originalBasePath, originalImageFiles, type, originalVideoFile,
+      } = meta;
+      return (frameNum: number): string => {
+        if (type === 'video') {
+          return npath.join(originalBasePath, originalVideoFile || '');
+        }
+        if (originalImageFiles && originalImageFiles[frameNum]) {
+          const imagePath = originalImageFiles[frameNum];
+          if (npath.isAbsolute(imagePath)) {
+            return imagePath;
+          }
+          return npath.join(originalBasePath, imagePath);
+        }
+        return '';
+      };
+    }
+
+    /**
      * Initialize segmentation recipe with platform-specific functions
      */
     async function initializeSegmentation() {
@@ -138,37 +165,47 @@ export default defineComponent({
       }
 
       try {
-        // Load metadata to get image paths
+        // Load base metadata to check for multicam
         const meta = await loadMetadata(props.id);
-        const { originalBasePath, originalImageFiles, type } = meta;
 
-        // Create image path getter based on dataset type
-        const getImagePath = (frameNum: number): string => {
-          if (type === 'video') {
-            // For video, we need to extract frames - this is more complex
-            // For now, return the video path (segmentation would need frame extraction)
-            return npath.join(originalBasePath, meta.originalVideoFile);
+        let getImagePath: (frameNum: number) => string;
+
+        if (meta.multiCamMedia) {
+          // Multicam: load per-camera metadata and build per-camera getters
+          const { cameras } = meta.multiCamMedia;
+          const cameraNames = Object.keys(cameras);
+          for (let i = 0; i < cameraNames.length; i += 1) {
+            const cam = cameraNames[i];
+            // eslint-disable-next-line no-await-in-loop
+            const camMeta = await loadMetadata(`${props.id}/${cam}`);
+            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
           }
-          // For image sequences, return the image file path
-          if (originalImageFiles && originalImageFiles[frameNum]) {
-            const imagePath = originalImageFiles[frameNum];
-            // Handle both relative and absolute paths
-            if (npath.isAbsolute(imagePath)) {
-              return imagePath;
+          // Dynamic getter that reads selectedCamera at call time
+          getImagePath = (frameNum: number): string => {
+            const cam = viewerRef.value?.selectedCamera;
+            if (cam && stereoImagePathGetters.value[cam]) {
+              return stereoImagePathGetters.value[cam](frameNum);
             }
-            return npath.join(originalBasePath, imagePath);
-          }
-          return '';
-        };
+            return '';
+          };
+        } else {
+          // Single cam: use base metadata directly
+          const singleGetter = buildImagePathGetter(meta);
+          getImagePath = singleGetter;
+          // Also cache for text query usage
+          cachedMeta = {
+            originalBasePath: meta.originalBasePath,
+            originalImageFiles: meta.originalImageFiles,
+            type: meta.type,
+            originalVideoFile: meta.originalVideoFile,
+          };
+        }
 
         // Initialize the recipe
-        // Desktop uses imagePath from the request, so we ignore the frameNum parameter
         viewerRef.value.segmentationRecipe.initialize({
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           predictFn: (request: SegmentationPredictRequest, _frameNum: number) => segmentationPredict(request),
           getImagePath,
-          // Initialize the segmentation service when the recipe is activated (user clicks Segment button)
-          // Check if already ready to avoid showing loading indicator unnecessarily
           initializeServiceFn: async () => {
             const status = await segmentationIsReady();
             if (status.ready) {
@@ -194,22 +231,20 @@ export default defineComponent({
      * Get image path for a given frame number
      */
     function getImagePathForFrame(frameNum: number): string {
+      // Multicam: use per-camera getter based on selected camera
+      const getters = stereoImagePathGetters.value;
+      if (Object.keys(getters).length > 0) {
+        const cam = viewerRef.value?.selectedCamera;
+        if (cam && getters[cam]) {
+          return getters[cam](frameNum);
+        }
+        return '';
+      }
+      // Single cam: use cached metadata
       if (!cachedMeta) {
         return '';
       }
-      const { originalBasePath, originalImageFiles, type } = cachedMeta;
-      if (type === 'video') {
-        // Video datasets require frame extraction - not yet supported
-        return npath.join(originalBasePath, cachedMeta.originalVideoFile || '');
-      }
-      if (originalImageFiles && originalImageFiles[frameNum]) {
-        const imagePath = originalImageFiles[frameNum];
-        if (npath.isAbsolute(imagePath)) {
-          return imagePath;
-        }
-        return npath.join(originalBasePath, imagePath);
-      }
-      return '';
+      return buildImagePathGetter(cachedMeta)(frameNum);
     }
 
     /**
@@ -222,16 +257,27 @@ export default defineComponent({
     }) {
       const { text, boxThreshold, frameNum } = params;
 
-      // Ensure metadata is loaded
-      if (!cachedMeta) {
+      // Ensure metadata is loaded (either stereoImagePathGetters for multicam or cachedMeta for single)
+      if (Object.keys(stereoImagePathGetters.value).length === 0 && !cachedMeta) {
         try {
           const meta = await loadMetadata(props.id);
-          cachedMeta = {
-            originalBasePath: meta.originalBasePath,
-            originalImageFiles: meta.originalImageFiles,
-            type: meta.type,
-            originalVideoFile: meta.originalVideoFile,
-          };
+          if (meta.multiCamMedia) {
+            const { cameras } = meta.multiCamMedia;
+            const cameraNames = Object.keys(cameras);
+            for (let i = 0; i < cameraNames.length; i += 1) {
+              const cam = cameraNames[i];
+              // eslint-disable-next-line no-await-in-loop
+              const camMeta = await loadMetadata(`${props.id}/${cam}`);
+              stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+            }
+          } else {
+            cachedMeta = {
+              originalBasePath: meta.originalBasePath,
+              originalImageFiles: meta.originalImageFiles,
+              type: meta.type,
+              originalVideoFile: meta.originalVideoFile,
+            };
+          }
         } catch {
           await prompt({
             title: 'Text Query Error',
@@ -435,31 +481,17 @@ export default defineComponent({
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
 
+        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+        if (Object.keys(stereoImagePathGetters.value).length > 0) return;
+
         const { cameras } = meta.multiCamMedia;
         const cameraNames = Object.keys(cameras);
 
         for (let i = 0; i < cameraNames.length; i += 1) {
           const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
           // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadMetadata(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return npath.join(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (npath.isAbsolute(imagePath)) {
-                return imagePath;
-              }
-              return npath.join(originalBasePath, imagePath);
-            }
-            return '';
-          };
+          const camMeta = await loadMetadata(`${props.id}/${cam}`);
+          stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
         }
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
