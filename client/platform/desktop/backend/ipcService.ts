@@ -295,7 +295,9 @@ export default function register() {
    * Interactive Stereo Service
    */
 
-  ipcMain.handle('stereo-enable', async (event, args?: { calibration?: StereoCalibration }) => {
+  ipcMain.handle('stereo-enable', async (
+    event, args?: { calibration?: StereoCalibration; calibrationFile?: string },
+  ) => {
     const stereoService = getStereoServiceManager();
 
     // Forward async disparity events to the renderer
@@ -306,7 +308,9 @@ export default function register() {
       event.sender.send('stereo-disparity-error', data);
     });
 
-    const result = await stereoService.enable(settings.get(), args?.calibration);
+    const result = await stereoService.enable(
+      settings.get(), args?.calibration, args?.calibrationFile,
+    );
     return result;
   });
 

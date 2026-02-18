@@ -132,7 +132,11 @@ export class StereoServiceManager extends EventEmitter {
    * Enable the stereo service with the given settings and calibration.
    * This spawns the Python process and loads the interactive stereo model.
    */
-  async enable(settings: Settings, calibration?: StereoCalibration): Promise<{ success: boolean; error?: string }> {
+  async enable(
+    settings: Settings,
+    calibration?: StereoCalibration,
+    calibrationFile?: string,
+  ): Promise<{ success: boolean; error?: string }> {
     // If already enabled and running, just update calibration if provided
     if (this.enabled && this.isReady()) {
       console.log('[Stereo] Service already running');
@@ -152,7 +156,7 @@ export class StereoServiceManager extends EventEmitter {
     this.settings = settings;
 
     try {
-      this.initPromise = this._doInitialize(settings, calibration);
+      this.initPromise = this._doInitialize(settings, calibration, calibrationFile);
       await this.initPromise;
       this.enabled = true;
       return { success: true };
@@ -164,7 +168,11 @@ export class StereoServiceManager extends EventEmitter {
     }
   }
 
-  private async _doInitialize(settings: Settings, calibration?: StereoCalibration): Promise<void> {
+  private async _doInitialize(
+    settings: Settings,
+    calibration?: StereoCalibration,
+    calibrationFile?: string,
+  ): Promise<void> {
     // Clean up any existing process
     await this.shutdown();
 
@@ -211,7 +219,7 @@ export class StereoServiceManager extends EventEmitter {
             // Detect successful startup (service is waiting for requests)
             if (message.includes('Service started, waiting for requests')) {
               // Now send the enable command with calibration
-              this.sendEnableCommand(calibration)
+              this.sendEnableCommand(calibration, calibrationFile)
                 .then(() => {
                   initialized = true;
                   resolve();
@@ -251,12 +259,16 @@ export class StereoServiceManager extends EventEmitter {
   /**
    * Send the enable command to the Python service
    */
-  private async sendEnableCommand(calibration?: StereoCalibration): Promise<void> {
+  private async sendEnableCommand(
+    calibration?: StereoCalibration,
+    calibrationFile?: string,
+  ): Promise<void> {
     const id = this.generateRequestId();
     const request = {
       id,
       command: 'enable',
       calibration,
+      calibration_file: calibrationFile,
     };
 
     return new Promise((resolve, reject) => {

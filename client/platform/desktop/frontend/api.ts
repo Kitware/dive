@@ -348,8 +348,11 @@ interface StereoTransferPointsResponse {
   disparityValues?: number[];
 }
 
-async function stereoEnable(calibration?: StereoCalibration): Promise<{ success: boolean; error?: string }> {
-  return ipcRenderer.invoke('stereo-enable', { calibration });
+async function stereoEnable(
+  calibration?: StereoCalibration,
+  calibrationFile?: string,
+): Promise<{ success: boolean; error?: string }> {
+  return ipcRenderer.invoke('stereo-enable', { calibration, calibrationFile });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {

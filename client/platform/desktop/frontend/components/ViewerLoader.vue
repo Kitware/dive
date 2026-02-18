@@ -420,13 +420,20 @@ export default defineComponent({
       stereoLoadingError.value = '';
     }
 
+    // Calibration file path for stereo matching
+    let stereoCalibrationFile: string | undefined;
+
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Load multicam metadata for both cameras to build image path getters.
+     * Also extracts the calibration file path from the dataset metadata.
      */
     async function loadStereoMetadata() {
       try {
         const meta = await loadMetadata(props.id);
         if (!meta.multiCamMedia) return;
+
+        // Extract calibration file path from multiCam metadata
+        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
 
         const { cameras } = meta.multiCamMedia;
         const cameraNames = Object.keys(cameras);
@@ -471,7 +478,7 @@ export default defineComponent({
 
         try {
           await loadStereoMetadata();
-          const result = await stereoEnable();
+          const result = await stereoEnable(undefined, stereoCalibrationFile);
           if (!result.success) {
             throw new Error(result.error || 'Failed to enable stereo service');
           }
