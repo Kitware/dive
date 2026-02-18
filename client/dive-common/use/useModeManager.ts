@@ -58,7 +58,7 @@ interface SetAnnotationStateArgs {
 
 export type StereoAnnotationCompleteParams =
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
-      line: [[number, number], [number, number]]; }
+      line: [[number, number], [number, number]]; key: string; }
   | { type: 'box'; camera: string; trackId: number; frameNum: number;
       bounds: [number, number, number, number]; }
   | { type: 'polygon'; camera: string; trackId: number; frameNum: number;
@@ -650,6 +650,7 @@ export default function useModeManager({
                   trackId: selectedTrackId.value as number,
                   frameNum,
                   line: [coords[0], coords[1]],
+                  key: selectedKey.value,
                 });
               }
               // Check for completed Polygon (done=true from recipes)

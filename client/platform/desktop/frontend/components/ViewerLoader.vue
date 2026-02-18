@@ -651,7 +651,7 @@ export default defineComponent({
                 type: 'LineString',
                 coordinates: response.transferredLine,
               },
-              properties: { key: '' },
+              properties: { key: params.key },
             }];
 
             // Compute bounds from the transferred line

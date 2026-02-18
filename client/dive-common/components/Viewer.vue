@@ -649,9 +649,18 @@ export default defineComponent({
       if (event) {
         event.preventDefault();
       }
-      // Left click should kick out of editing mode automatically
+      // Left click should kick out of editing mode, unless the selected track
+      // exists on the target camera (e.g. a stereo-warped annotation) — in that
+      // case preserve editing so the user can immediately adjust it.
       if (event?.button === 0) {
-        editingTrack.value = false;
+        if (selectedTrackId.value !== null) {
+          const targetTrack = cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+          if (!targetTrack) {
+            editingTrack.value = false;
+          }
+        } else {
+          editingTrack.value = false;
+        }
       }
       selectCamera(camera, event?.button === 2);
       emit('change-camera', camera);
