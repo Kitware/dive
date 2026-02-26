@@ -163,7 +163,11 @@ export default defineComponent({
         if (length !== images.length) {
           return `All cameras should have the same length of ${length}`;
         }
-        if (totalList.some((imageName) => images.includes(imageName))) {
+        // Only check for overlapping filenames in keyword/glob mode where images
+        // come from a single shared directory. In multi-folder mode, same filenames
+        // in different directories are valid (e.g., stereo camera setups).
+        if (importType.value === 'keyword'
+            && totalList.some((imageName) => images.includes(imageName))) {
           return 'Overlapping values.  All cameras must consist of mutually exclusive images.';
         }
         totalList = totalList.concat(images);
