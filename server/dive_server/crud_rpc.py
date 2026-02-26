@@ -353,9 +353,10 @@ def run_training(
         raise RestException(
             f'Output pipeline "{pipelineName}" already exists, please choose a different name'
         )
+    # Use a plain dict for model so serialization (Celery/MongoDB) never sees a Pydantic model
     fineTuneModel = None
     if bodyParams.fineTuneModel:
-        fineTuneModel = bodyParams.fineTuneModel
+        fineTuneModel = bodyParams.fineTuneModel.dict()
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],

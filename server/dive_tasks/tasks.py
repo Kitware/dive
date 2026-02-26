@@ -358,6 +358,9 @@ def train_pipeline(self: Task, params: TrainingJob):
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
     model = params.get('model', None)
+    # Normalize: model can arrive as a list of [key, value] pairs from some serialization paths
+    if model is not None and isinstance(model, list):
+        model = dict(model)
     force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
