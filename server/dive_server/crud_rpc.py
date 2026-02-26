@@ -356,7 +356,7 @@ def run_training(
     # Use a plain dict for model so serialization (Celery/MongoDB) never sees a Pydantic model
     fineTuneModel = None
     if bodyParams.fineTuneModel:
-        fineTuneModel = bodyParams.fineTuneModel.dict()
+        fineTuneModel = bodyParams.fineTuneModel.model_dump()
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
