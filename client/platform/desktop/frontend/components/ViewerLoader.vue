@@ -654,12 +654,21 @@ export default defineComponent({
               properties: { key: params.key },
             }];
 
-            // Compute bounds from the transferred line
+            // Compute bounds from the transferred line with 10% expansion
+            // to match the expansion applied on the source camera side (headtail.ts)
             const xs = response.transferredLine.map((p: [number, number]) => p[0]);
             const ys = response.transferredLine.map((p: [number, number]) => p[1]);
+            const minX = Math.min(...xs);
+            const minY = Math.min(...ys);
+            const maxX = Math.max(...xs);
+            const maxY = Math.max(...ys);
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const padX = width * 0.10 || height * 0.10;
+            const padY = height * 0.10 || width * 0.10;
             const bounds = [
-              Math.min(...xs), Math.min(...ys),
-              Math.max(...xs), Math.max(...ys),
+              minX - padX, minY - padY,
+              maxX + padX, maxY + padY,
             ] as [number, number, number, number];
 
             track.setFeature({
