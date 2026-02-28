@@ -54,6 +54,10 @@ export default defineComponent({
       type: Boolean as PropType<boolean>,
       required: true,
     },
+    bottomLayout: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(_, { emit }) {
     const handler = useHandler();
@@ -150,12 +154,15 @@ export default defineComponent({
 <template>
   <v-col
     dense
-    style="position:absolute; bottom: 0px; padding: 0px; margin:0px;"
+    :style="bottomLayout
+      ? 'position: relative; padding: 0px; margin: 0px; width: 100%;'
+      : 'position: absolute; bottom: 0px; padding: 0px; margin: 0px;'"
   >
-    <Controls :is-default-image="isDefaultImage" :dataset-type="datasetType">
+    <Controls :is-default-image="isDefaultImage" :dataset-type="datasetType" :bottom-layout="bottomLayout">
       <template slot="timelineControls">
-        <div style="min-width: 270px">
+        <div :style="{ 'min-width': bottomLayout ? 'auto' : '270px', 'white-space': 'nowrap' }">
           <v-tooltip
+            v-if="!bottomLayout"
             open-delay="200"
             bottom
           >
@@ -304,114 +311,118 @@ export default defineComponent({
         </div>
       </template>
       <template #middle>
-        <file-name-time-display
-          v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
-          class="text-middle px-3"
-          display-type="filename"
-        />
-        <span v-else-if="datasetType === 'video'">
-          <span class="mr-2">
-            <v-menu
-              :close-on-content-click="false"
-              top
-              offset-y
-              nudge-left="3"
-              open-on-hover
-              close-delay="500"
-              open-delay="250"
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
-                  v-on="on"
-                > {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
-                </v-icon>
-              </template>
-              <v-card style="overflow:hidden; width:60px;">
-                <v-slider
-                  :value="volume"
-                  min="0"
-                  max="1.0"
-                  step="0.05"
-                  vertical
-                  @change="setVolume"
-                />
-                <v-row dense align="center">
-                  <b class="ma-auto">{{ volume * 100 }}%</b>
-                </v-row>
-
-              </v-card>
-            </v-menu>
-          </span>
-          <span class="mr-2">
-            <v-menu
-              :close-on-content-click="false"
-              top
-              offset-y
-              nudge-left="3"
-              open-on-hover
-              close-delay="500"
-              open-delay="250"
-              rounded="lg"
-            >
-              <template #activator="{ on }">
-                <v-badge
-                  :value="speed != 1.0"
-                  color="#0277bd88"
-                  :content="`${speed}X`"
-                  offset-y="5px"
-                  overlap
-                >
-                  <v-icon
-                    v-on="on"
-                    @click="setSpeed(1)"
-                  > mdi-speedometer
-                  </v-icon>
-                </v-badge>
-              </template>
-              <v-card style="overflow:hidden; width:60px;">
-                <v-slider
-                  :value="ticks.indexOf(speed)"
-                  min="0"
-                  :max="ticks.length - 1"
-                  step="1"
-                  ticks="always"
-                  :tick-size="4"
-                  style="font-size:0.75em;"
-                  vertical
-                  hide-details
-                  @input="setSpeed(ticks[$event])"
-                />
-                <v-row dense align="center">
-                  <b class="ma-auto">{{ speed }}x</b>
-                </v-row>
-              </v-card>
-            </v-menu>
-          </span>
+        <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
-            class="text-middle pl-2"
-            display-type="time"
+            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
+            class="text-middle px-3"
+            display-type="filename"
           />
-        </span>
-        <v-tooltip
-          open-delay="200"
-          bottom
-        >
-          <template #activator="{ on }">
-            <v-icon
-              small
-              class="mx-2"
-              v-on="on"
-            >
-              mdi-information
-            </v-icon>
-          </template>
-          <span>
-            annotation framerate may be downsampled.
-            <br>
-            frame numbers start at zero.
+          <span v-else-if="datasetType === 'video'">
+            <span class="mr-2">
+              <v-menu
+                :close-on-content-click="false"
+                top
+                offset-y
+                nudge-left="3"
+                open-on-hover
+                close-delay="500"
+                open-delay="250"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
+                    v-on="on"
+                  >
+                    {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
+                  </v-icon>
+                </template>
+                <v-card style="overflow:hidden; width:60px;">
+                  <v-slider
+                    :value="volume"
+                    min="0"
+                    max="1.0"
+                    step="0.05"
+                    vertical
+                    @change="setVolume"
+                  />
+                  <v-row dense align="center">
+                    <b class="ma-auto">{{ volume * 100 }}%</b>
+                  </v-row>
+                </v-card>
+              </v-menu>
+            </span>
+            <span class="mr-2">
+              <v-menu
+                :close-on-content-click="false"
+                top
+                offset-y
+                nudge-left="3"
+                open-on-hover
+                close-delay="500"
+                open-delay="250"
+                rounded="lg"
+              >
+                <template #activator="{ on }">
+                  <v-badge
+                    :value="speed != 1.0"
+                    color="#0277bd88"
+                    :content="`${speed}X`"
+                    offset-y="5px"
+                    overlap
+                  >
+                    <v-icon
+                      v-on="on"
+                      @click="setSpeed(1)"
+                    >
+                      mdi-speedometer
+                    </v-icon>
+                  </v-badge>
+                </template>
+                <v-card style="overflow:hidden; width:60px;">
+                  <v-slider
+                    :value="ticks.indexOf(speed)"
+                    min="0"
+                    :max="ticks.length - 1"
+                    step="1"
+                    ticks="always"
+                    :tick-size="4"
+                    style="font-size:0.75em;"
+                    vertical
+                    hide-details
+                    @input="setSpeed(ticks[$event])"
+                  />
+                  <v-row dense align="center">
+                    <b class="ma-auto">{{ speed }}x</b>
+                  </v-row>
+                </v-card>
+              </v-menu>
+            </span>
+            <file-name-time-display
+              class="text-middle pl-2"
+              display-type="time"
+            />
           </span>
-        </v-tooltip>
+          <v-tooltip
+            v-if="!bottomLayout"
+            open-delay="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                class="mx-2"
+                v-on="on"
+              >
+                mdi-information
+              </v-icon>
+            </template>
+            <span>
+              annotation framerate may be downsampled.
+              <br>
+              frame numbers start at zero.
+            </span>
+          </v-tooltip>
+        </div>
       </template>
     </Controls>
     <Timeline
@@ -489,5 +500,18 @@ export default defineComponent({
 }
 .timeline-button {
   border: thin solid transparent;
+}
+.middle-content-bottom {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.middle-content-bottom .text-middle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 </style>
