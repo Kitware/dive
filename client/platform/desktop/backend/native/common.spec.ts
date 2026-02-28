@@ -76,6 +76,7 @@ const settings: Settings = {
   dataPath: '/home/user/viamedata',
   viamePath: '/opt/viame',
   readonlyMode: false,
+  nativeVideoPlayback: false,
   overrides: {},
 };
 const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
