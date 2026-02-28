@@ -69,6 +69,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   selectedKey?: string;
 
+  selectedPolygonIndex: number;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
@@ -90,6 +92,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.skipNextExternalUpdate = false;
     this._mode = 'editing';
     this.selectedKey = '';
+    this.selectedPolygonIndex = 0;
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
@@ -137,6 +140,35 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
           const newIndex = this.hoverHandleIndex;
+          // If not hovering over an edit handle and not on the edit polygon,
+          // emit event so other layers can handle the click (e.g., selecting different polygon)
+          if (newIndex < 0 && this.type === 'Polygon') {
+            const annotations = this.featureLayer.annotations();
+            if (annotations.length > 0) {
+              const annotation = annotations[0];
+              const geojson = annotation.geojson();
+              if (geojson && geojson.geometry && geojson.geometry.type === 'Polygon') {
+                const coords = geojson.geometry.coordinates[0] as [number, number][];
+                const point: [number, number] = [e.geo.x, e.geo.y];
+                // Ray casting algorithm to check if point is inside polygon
+                let inside = false;
+                for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+                  const xi = coords[i][0];
+                  const yi = coords[i][1];
+                  const xj = coords[j][0];
+                  const yj = coords[j][1];
+                  const intersect = ((yi > point[1]) !== (yj > point[1]))
+                    && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+                  if (intersect) inside = !inside;
+                }
+                if (!inside) {
+                  // Click is outside the current edit polygon - emit passthrough event
+                  this.bus.$emit('click-outside-edit', e.geo);
+                  return;
+                }
+              }
+            }
+          }
           // Click features like a toggle: unselect if it's clicked twice.
           if (newIndex === this.selectedHandleIndex) {
             this.selectedHandleIndex = -1;
@@ -359,23 +391,50 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * retrieves geoJSON data based on the key and type
-   * @param frameData
+   * @param track
+   * @param polygonIndex optional index to get a specific polygon when multiple exist
    */
-  getGeoJSONData(track: FrameDataTrack) {
-    let geoJSONData;
+  getGeoJSONData(
+    track: FrameDataTrack,
+    polygonIndex?: number,
+  ): GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined {
+    let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
     if (track && track.features && track.features.geometry) {
+      const matchingFeatures: (GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString)[] = [];
       track.features.geometry.features.forEach((feature) => {
         if (feature.geometry
             && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
-          if (feature.properties && feature.properties.key !== 'undefined') {
-            if (feature.properties.key === this.selectedKey) {
-              geoJSONData = feature.geometry;
-            }
+          // Get the feature key, defaulting to '' for undefined/null keys
+          const featureKey = feature.properties?.key ?? '';
+          if (featureKey === this.selectedKey) {
+            matchingFeatures.push(
+              feature.geometry as GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString,
+            );
           }
         }
       });
+      // If polygonIndex is specified and valid, use it; otherwise use first match
+      if (polygonIndex !== undefined && polygonIndex >= 0 && polygonIndex < matchingFeatures.length) {
+        geoJSONData = matchingFeatures[polygonIndex];
+      } else if (matchingFeatures.length > 0) {
+        [geoJSONData] = matchingFeatures;
+      }
     }
     return geoJSONData;
+  }
+
+  /**
+   * Set which polygon index to edit when multiple polygons exist
+   */
+  setPolygonIndex(index: number) {
+    this.selectedPolygonIndex = index;
+  }
+
+  /**
+   * Get the currently selected polygon index
+   */
+  getPolygonIndex() {
+    return this.selectedPolygonIndex;
   }
 
   /** overrides default function to disable and clear anotations before drawing again */
