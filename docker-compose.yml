@@ -84,6 +84,8 @@ services:
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
       - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
       - "WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-mytoken}"
+      - "LARGE_IMAGE_CACHE_BACKEND=memcached"
+      - "LARGE_IMAGE_CACHE_MEMCACHED_URL=memcached"
     labels:
       # REMOVING WEEKLY UPDATE
       # - "com.centurylinklabs.watchtower.enable=true"
