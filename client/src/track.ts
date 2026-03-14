@@ -15,6 +15,15 @@ export type TrackId = number;
 export type TrackSupportedFeature = (
   GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point);
 
+/**
+ * A single point annotation on a detection (separate from geometry head/tail).
+ * Stored in Feature.additionalPoints by label.
+ */
+export interface AdditionalPoint {
+  coordinates: [number, number];
+  label?: string;
+}
+
 /* Frame feature for both TrackData and Track */
 export interface Feature {
   frame: number;
@@ -27,6 +36,8 @@ export interface Feature {
   attributes?: StringKeyObject & { userAttributes?: StringKeyObject };
   head?: [number, number];
   tail?: [number, number];
+  /** Point annotations keyed by type/label; multiple points per label per detection. */
+  additionalPoints?: Record<string, AdditionalPoint[]>;
 }
 
 /** TrackData is the json schema for Track transport */
@@ -371,6 +382,68 @@ export default class Track extends BaseAnnotation {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Get additional point annotations for a frame. If label is given, returns
+   * only points for that label; otherwise returns the full additionalPoints record.
+   */
+  getAdditionalPoints(frame: number, label?: string): AdditionalPoint[] | Record<string, AdditionalPoint[]> {
+    const feature = this.features[frame];
+    const points = feature?.additionalPoints;
+    if (!points) {
+      return label !== undefined ? [] : {};
+    }
+    if (label !== undefined) {
+      return points[label] ?? [];
+    }
+    return points;
+  }
+
+  /**
+   * Set all additional points for a label on a frame. Empty array removes the label key.
+   */
+  setAdditionalPoints(frame: number, label: string, points: AdditionalPoint[]): void {
+    const feature = this.features[frame];
+    if (!feature) {
+      return;
+    }
+    if (!feature.additionalPoints) {
+      feature.additionalPoints = {};
+    }
+    if (points.length === 0) {
+      delete feature.additionalPoints[label];
+    } else {
+      feature.additionalPoints[label] = points;
+    }
+    this.notify('feature', feature);
+  }
+
+  /** Append one additional point for a label on a frame. */
+  addAdditionalPoint(frame: number, label: string, point: AdditionalPoint): void {
+    const current = this.getAdditionalPoints(frame, label) as AdditionalPoint[];
+    this.setAdditionalPoints(frame, label, [...current, point]);
+  }
+
+  /** Remove the additional point at index for a label on a frame. */
+  removeAdditionalPoint(frame: number, label: string, index: number): void {
+    const current = this.getAdditionalPoints(frame, label) as AdditionalPoint[];
+    if (index < 0 || index >= current.length) {
+      return;
+    }
+    const next = current.slice(0, index).concat(current.slice(index + 1));
+    this.setAdditionalPoints(frame, label, next);
+  }
+
+  /** Replace the additional point at index for a label on a frame. */
+  updateAdditionalPoint(frame: number, label: string, index: number, point: AdditionalPoint): void {
+    const current = this.getAdditionalPoints(frame, label) as AdditionalPoint[];
+    if (index < 0 || index >= current.length) {
+      return;
+    }
+    const next = current.slice();
+    next[index] = point;
+    this.setAdditionalPoints(frame, label, next);
   }
 
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
