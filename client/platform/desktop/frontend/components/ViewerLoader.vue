@@ -407,20 +407,20 @@ export default defineComponent({
       try {
         // Check if the service is already ready
         const status = await segmentationIsReady();
-        if (status.ready) {
-          viewerRef.value?.onTextQueryServiceReady(true);
-          return;
+        if (!status.ready) {
+          // Try to initialize the service
+          await segmentationInitialize();
         }
-
-        // Try to initialize the service
-        await segmentationInitialize();
+        // Verify text query is specifically available by checking the service status
+        const updatedStatus = await segmentationIsReady();
+        if (!updatedStatus.ready) {
+          throw new Error('Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
+        }
         viewerRef.value?.onTextQueryServiceReady(true);
       } catch (error) {
-        // Provide text-query specific error message instead of generic segmentation error
-        const rawMessage = error instanceof Error ? error.message : '';
-        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
-          ? 'Unable to load text query model. Please ensure the service is properly configured.'
-          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
+        const errorMessage = error instanceof Error
+          ? error.message
+          : 'Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.';
         viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
       }
     }

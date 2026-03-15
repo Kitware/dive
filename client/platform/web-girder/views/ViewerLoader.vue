@@ -13,7 +13,9 @@ import context from 'dive-common/store/context';
 import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useApi, SegmentationPredictRequest } from 'dive-common/apispec';
-import { convertLargeImage, segmentationPredict, segmentationInitialize } from 'platform/web-girder/api/rpc.service';
+import {
+  convertLargeImage, segmentationPredict, segmentationInitialize, textQueryInitialize,
+} from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
@@ -256,15 +258,13 @@ export default defineComponent({
      */
     async function handleTextQueryInit() {
       try {
-        // Try to initialize the segmentation service (which includes text query)
-        await segmentationInitialize();
+        // Initialize and verify that text query is specifically available
+        await textQueryInitialize();
         viewerRef.value?.onTextQueryServiceReady(true);
       } catch (error) {
-        // Provide text-query specific error message instead of generic segmentation error
-        const rawMessage = error instanceof Error ? error.message : '';
-        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
-          ? 'Unable to load text query model. Please ensure the service is properly configured.'
-          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
+        const errorMessage = error instanceof Error
+          ? error.message
+          : 'Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.';
         viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
       }
     }

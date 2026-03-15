@@ -101,7 +101,22 @@ async function segmentationStatus(): Promise<SegmentationStatusResponse> {
 async function segmentationInitialize(): Promise<void> {
   const status = await segmentationStatus();
   if (!status.available) {
-    throw new Error("Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.");
+    throw new Error('Model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
+  }
+}
+
+/**
+ * Initialize and verify that text query is available.
+ * Throws if the segmentation service or text query capability is not available.
+ */
+async function textQueryInitialize(): Promise<void> {
+  const status = await segmentationStatus();
+  if (!status.available) {
+    throw new Error('Model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
+  }
+  const tqStatus = await textQueryStatus();
+  if (!tqStatus.grounding_available) {
+    throw new Error('Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
   }
 }
 
@@ -147,4 +162,5 @@ export {
   segmentationInitialize,
   textQuery,
   textQueryStatus,
+  textQueryInitialize,
 };
