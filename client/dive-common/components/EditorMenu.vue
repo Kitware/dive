@@ -155,6 +155,7 @@ export default defineComponent({
 
     const editButtons = computed((): ButtonData[] => {
       const em = props.editingMode;
+      const recipeButtons = props.recipes.filter((r) => r.toggleable.value);
       return [
         {
           id: 'rectangle',
@@ -172,7 +173,7 @@ export default defineComponent({
           },
         },
         /* Include recipes as editing modes if they're toggleable */
-        ...props.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
+        ...recipeButtons.map((r, i) => ({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
@@ -187,15 +188,23 @@ export default defineComponent({
             ...r.mousetrap(),
           ],
         })),
+        /* Text Query button included alongside other annotation types */
+        {
+          id: 'Text Query',
+          icon: 'mdi-text-search',
+          active: false,
+          description: 'Text Query',
+          mousetrap: [{
+            bind: 't',
+            handler: () => openTextQueryDialog(),
+          }],
+          click: () => openTextQueryDialog(),
+        },
       ];
     });
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
-      {
-        bind: 't',
-        handler: () => openTextQueryDialog(),
-      },
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -410,16 +419,6 @@ export default defineComponent({
           </v-icon>
         </v-btn>
       </template>
-      <!-- Text Query button -->
-      <v-btn
-        outlined
-        class="mx-1"
-        small
-        @click="openTextQueryDialog"
-      >
-        <pre>T:</pre>
-        <v-icon>mdi-text-search</v-icon>
-      </v-btn>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-divider
