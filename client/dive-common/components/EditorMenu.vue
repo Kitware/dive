@@ -532,6 +532,9 @@ export default defineComponent({
               :disabled="textQueryLoading"
             />
           </template>
+          <p class="text-caption mt-3 mb-0 text--secondary">
+            Textual query support uses architectures derived from Meta's SAM3 project
+          </p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
