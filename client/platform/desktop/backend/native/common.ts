@@ -22,7 +22,7 @@ import {
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
-  Pipe,
+  Pipe, PipelineRequirement,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -126,6 +126,48 @@ async function extractPipeDescription(filePath: string): Promise<string | undefi
     }
 
     return description || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Extract requirements from a .pipe file header.
+ * Looks for "# Requirements: " lines in the first 20 lines.
+ * Each requirement is specified as: { Title, kwiver_override_key, type }
+ */
+async function extractPipeRequirements(
+  filePath: string,
+): Promise<PipelineRequirement[] | undefined> {
+  try {
+    const lines = await readLines(filePath);
+    const requirements: PipelineRequirement[] = [];
+
+    const headerLines = lines.slice(0, 20);
+    headerLines.forEach((line) => {
+      const match = line.match(/^#\s*Requirements?:\s*(.+)$/i);
+      if (match) {
+        const raw = match[1].trim();
+        // Support multiple requirements on same line separated by ;
+        raw.split(';').forEach((entry) => {
+          let trimmed = entry.trim();
+          // Remove surrounding braces if present
+          if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            trimmed = trimmed.slice(1, -1).trim();
+          }
+          const parts = trimmed.split(',').map((p) => p.trim());
+          if (parts.length >= 3) {
+            requirements.push({
+              title: parts[0],
+              kwiver_override: parts[1],
+              param_type: parts[2],
+            });
+          }
+        });
+      }
+    });
+
+    return requirements.length > 0 ? requirements : undefined;
   } catch {
     return undefined;
   }
@@ -446,15 +488,17 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeName = parts.join(' ');
     }
 
-    // Extract description from the pipe file
+    // Extract description and requirements from the pipe file
     const pipeFilePath = npath.join(pipelinePath, p);
     const description = await extractPipeDescription(pipeFilePath);
+    const requirements = await extractPipeRequirements(pipeFilePath);
 
-    const pipeInfo = {
+    const pipeInfo: Pipe = {
       name: pipeName,
       type: pipeType,
       pipe: p,
       description,
+      requirements,
     };
     if (pipeType in ret) {
       ret[pipeType].pipes.push(pipeInfo);
