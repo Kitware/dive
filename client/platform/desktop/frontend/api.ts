@@ -99,7 +99,7 @@ async function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number,
     pipeline,
     datasetId: itemId,
     frameRange: frameRange || undefined,
-    ...additionalConfig,
+    pipelineParams: additionalConfig,
   };
   gpuJobQueue.enqueue(args);
 }

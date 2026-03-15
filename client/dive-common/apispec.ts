@@ -31,11 +31,21 @@ interface AnnotationSchemaList {
   sets: string[];
 }
 
+interface PipelineRequirement {
+  /** Display name shown in the GUI */
+  title: string;
+  /** KWIVER -s override key (e.g. "track_refiner:refiner:sam3:text_query") */
+  kwiver_override: string;
+  /** Parameter type: string, int, float, bool */
+  param_type: string;
+}
+
 interface Pipe {
   name: string;
   pipe: string;
   type: string;
   description?: string;
+  requirements?: PipelineRequirement[];
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
@@ -354,6 +364,7 @@ export {
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
+  PipelineRequirement,
   Pipelines,
   SaveDetectionsArgs,
   SaveAttributeArgs,

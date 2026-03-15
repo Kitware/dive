@@ -8,6 +8,7 @@ from dive_utils.types import (
     AvailableJobSchema,
     PipelineCategory,
     PipelineDescription,
+    PipelineRequirement,
     TrainingConfigurationSummary,
     TrainingModelDescription,
 )
@@ -88,6 +89,44 @@ def extract_pipe_description(pipe_path: Path) -> Optional[str]:
         return None
 
 
+def extract_pipe_requirements(pipe_path: Path) -> Optional[List[PipelineRequirement]]:
+    """
+    Extract requirements from a .pipe file header.
+    Looks for "# Requirements: " lines in the header.
+    Each requirement is specified as: { Title, kwiver_override_key, type }
+    Multiple requirements can appear on separate "# Requirements:" lines.
+    """
+    try:
+        with open(pipe_path, 'r', encoding='utf-8') as f:
+            lines = [line.rstrip('\n\r') for line in f.readlines()]
+
+        requirements: List[PipelineRequirement] = []
+
+        for line in lines[:20]:  # Check first 20 lines for requirements
+            match = re.match(r'^#\s*Requirements?:\s*(.+)$', line, re.IGNORECASE)
+            if match:
+                raw = match.group(1).strip()
+                # Parse { title, kwiver_override, type } format
+                # Support multiple requirements on same line separated by ;
+                entries = raw.split(';')
+                for entry in entries:
+                    entry = entry.strip()
+                    # Remove surrounding braces if present
+                    if entry.startswith('{') and entry.endswith('}'):
+                        entry = entry[1:-1].strip()
+                    parts = [p.strip() for p in entry.split(',')]
+                    if len(parts) >= 3:
+                        requirements.append({
+                            'title': parts[0],
+                            'kwiver_override': parts[1],
+                            'param_type': parts[2],
+                        })
+
+        return requirements if requirements else None
+    except Exception:
+        return None
+
+
 def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipedict: Dict[str, PipelineCategory] = {}
 
@@ -102,14 +141,16 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
         pipe = pipe_path.name
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
 
-        # Extract description from the pipe file
+        # Extract description and requirements from the pipe file
         description = extract_pipe_description(pipe_path)
+        requirements = extract_pipe_requirements(pipe_path)
 
         pipe_info: PipelineDescription = {
             "name": " ".join(nameparts),
             "type": pipe_type,
             "pipe": pipe,
             "description": description,
+            "requirements": requirements,
             "folderId": None,
         }
         print(f"Discovered pipe {pipe_info}")

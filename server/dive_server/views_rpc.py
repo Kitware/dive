@@ -75,12 +75,20 @@ class RpcResource(Resource):
             required=False,
         )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
+        .jsonParam(
+            "pipelineParams",
+            "Optional KWIVER -s parameter overrides from pipeline requirements",
+            required=False,
+            default=None,
+        )
     )
-    def run_pipeline_task(self, folder, forceTranscoded, startFrame, endFrame, pipeline: PipelineDescription):
+    def run_pipeline_task(self, folder, forceTranscoded, startFrame, endFrame, pipeline: PipelineDescription, pipelineParams):
         frame_range = None
         if startFrame is not None and endFrame is not None:
             frame_range = (startFrame, endFrame)
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range)
+        return crud_rpc.run_pipeline(
+            self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range, pipelineParams
+        )
 
 
     @access.user

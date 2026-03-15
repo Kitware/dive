@@ -8,6 +8,7 @@ __all__ = [
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
+    "PipelineRequirement",
 ]
 
 
@@ -57,6 +58,14 @@ class TrainingModelTuneArgs(TrainingModelDescription):
         extra = 'forbid'
 
 
+class PipelineRequirement(TypedDict):
+    """Describes a required user parameter for a pipeline."""
+
+    title: str  # display name shown in the GUI
+    kwiver_override: str  # kwiver -s override key (e.g. "track_refiner:refiner:sam3:text_query")
+    param_type: str  # parameter type: string, int, float, bool
+
+
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
@@ -64,6 +73,7 @@ class PipelineDescription(TypedDict):
     type: str  # indicates whether this is a dynamic pipe.
     pipe: str  # unmodified pipe file name
     description: Optional[str]  # description extracted from pipe file header
+    requirements: Optional[List['PipelineRequirement']]  # user-prompted parameters
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
@@ -82,6 +92,7 @@ class PipelineJob(TypedDict):
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version
     frame_range: Optional[Tuple[int, int]]  # (start_frame, end_frame) or None for full video
+    pipeline_params: Optional[Dict[str, str]]  # KWIVER -s overrides from user-prompted requirements
 
 
 class TrainingJob(TypedDict):

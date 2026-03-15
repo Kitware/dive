@@ -24,7 +24,7 @@ function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, numbe
     params.endFrame = endFrame;
   }
   if (additionalConfig) {
-    Object.assign(params, additionalConfig);
+    params.pipelineParams = additionalConfig;
   }
   return girderRest.post('dive_rpc/pipeline', null, { params });
 }
