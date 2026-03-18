@@ -389,6 +389,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     '^.*\\.svm',
     '^.*\\.lbl',
     '^.*\\.cfg',
+    '^.*\\.yaml',
   ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);

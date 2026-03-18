@@ -381,17 +381,27 @@ async function exportTrainedPipeline(
     throw new Error(isValid);
   }
 
-  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_to_onnx.pipe');
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_model_to_onnx.pipe');
   if (!fs.existsSync(npath.join(exportPipelinePath))) {
     throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
   }
 
   const modelPipelineDir = npath.parse(pipeline.pipe).dir;
-  let weightsPath: string;
-  if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {
-    weightsPath = npath.join(modelPipelineDir, 'yolo.weights');
-  } else {
-    throw new Error('Your pipeline has no trained weights (yolo.weights is missing)');
+  const extensions = ['.weights', '.ckpt', '.pth'];
+  let weightsPath: string | undefined;
+
+  const files = fs.readdirSync(modelPipelineDir);
+
+  for (const ext of extensions) {
+    const found = files.find((file) => file.toLowerCase().endsWith(ext));
+    if (found) {
+      weightsPath = npath.join(modelPipelineDir, found);
+      break;
+    }
+  }
+
+  if (!weightsPath) {
+    throw new Error(`No weights path (${extensions.join(', ')}) found.`);
   }
 
   const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
