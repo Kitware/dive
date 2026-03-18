@@ -392,11 +392,14 @@ async function exportTrainedPipeline(
 
   const files = fs.readdirSync(modelPipelineDir);
 
-  for (const ext of extensions) {
-    const found = files.find((file) => file.toLowerCase().endsWith(ext));
-    if (found) {
-      weightsPath = npath.join(modelPipelineDir, found);
-      break;
+  const foundExtension = extensions.find((ext) => 
+    files.some((file) => file.toLowerCase().endsWith(ext))
+  );
+
+  if (foundExtension) {
+    const fileName = files.find((file) => file.toLowerCase().endsWith(foundExtension));
+    if (fileName) {
+      weightsPath = npath.join(modelPipelineDir, fileName);
     }
   }
 
