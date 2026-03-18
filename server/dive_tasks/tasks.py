@@ -308,9 +308,20 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
         output_path = utils.make_directory(_working_directory_path / 'output')
         onnx_path = output_path / output_name
-        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_to_onnx.pipe"
+        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_model_to_onnx.pipe"
 
         gc.downloadFolderRecursive(input_folder_id, str(trained_pipeline_path))
+        extensions = ['*.weights', '*.ckpt', '*.pth']
+        model_file = None
+
+        for ext in extensions:
+            found_files = list(trained_pipeline_path.glob(ext))
+            if found_files:
+                model_file = found_files[0]
+                break
+
+        if not model_file:
+            raise FileNotFoundError(f"No weights path ({extensions}) found.")
 
         # Convert pipeline to ONNX
         command = [
@@ -318,7 +329,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
             "kwiver runner",
             f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
-            f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
+            f"-s onnx_convert:model_path={shlex.quote(str(model_file))}",
             f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
         ]
 
