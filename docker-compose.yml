@@ -11,6 +11,7 @@ x-worker: &base-worker
     - addons:/tmp/addons:ro # readonly
   labels:
     - "com.centurylinklabs.watchtower.enable=true"
+    - "autoheal=true"
   depends_on:
     girder:
       condition: service_started
@@ -130,6 +131,8 @@ services:
       timeout: 10s
       retries: 1
       start_period: 1m
+    labels:
+      - autoheal=true
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -153,6 +156,22 @@ services:
       timeout: 10s
       retries: 1
       start_period: 1m
+    labels:
+      - autoheal=true
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      - "AUTOHEAL_INTERVAL=300"
+      - "AUTOHEAL_START_PERIOD=300"
+      - "AUTOHEAL_DEFAULT_STOP_TIMEOUT=100"
+      - "AUTOHEAL_ONLY_MONITOR_RUNNING=true"
+    volumes:
+      - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
 volumes:
   addons:
   mongo_db:
