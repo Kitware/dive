@@ -35,7 +35,7 @@ def find_viame_install() -> Optional[Path]:
     ]
 
     for candidate in candidates:
-        if (candidate / "setup_viame.sh").exists():
+        if (candidate / "setup_viame.sh").exists() or (candidate / "setup_viame.bat").exists():
             return candidate
 
     return None

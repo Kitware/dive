@@ -5,6 +5,7 @@
  * for fast interactive segmentation from point clicks.
  */
 
+import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
 import readline from 'readline';
@@ -118,23 +119,40 @@ export class SegmentationServiceManager extends EventEmitter {
     await this.shutdown();
 
     return new Promise((resolve, reject) => {
-      const viameSetup = npath.join(settings.viamePath, 'setup_viame.sh');
+      const isWin32 = OS.platform() === 'win32';
+      const viameSetup = npath.join(
+        settings.viamePath,
+        isWin32 ? 'setup_viame.bat' : 'setup_viame.sh',
+      );
 
       const configPath = npath.join(settings.viamePath, 'configs', 'pipelines', 'interactive_segmenter_default.conf');
 
       // Build the command to run the interactive segmentation service
-      const command = [
-        `. "${viameSetup}"`,
-        '&&',
-        'python -m viame.core.interactive_segmentation',
-        `--config "${configPath}"`,
-      ].join(' ');
+      let command: string;
+      let shellOption: string | boolean;
+      if (isWin32) {
+        command = [
+          `"${viameSetup}"`,
+          '&&',
+          'python -m viame.core.interactive_segmentation',
+          `--config "${configPath}"`,
+        ].join(' ');
+        shellOption = true;
+      } else {
+        command = [
+          `. "${viameSetup}"`,
+          '&&',
+          'python -m viame.core.interactive_segmentation',
+          `--config "${configPath}"`,
+        ].join(' ');
+        shellOption = '/bin/bash';
+      }
 
       console.log('[Segmentation] Starting interactive segmentation service...');
       console.log(`[Segmentation] Command: ${command}`);
 
       this.process = observeChild(spawn(command, {
-        shell: '/bin/bash',
+        shell: shellOption,
         stdio: ['pipe', 'pipe', 'pipe'],
       }));
 

@@ -6,6 +6,7 @@
  * disparity maps when the user navigates to new frames, so annotation transfers are instant.
  */
 
+import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
 import readline from 'readline';
@@ -177,22 +178,39 @@ export class StereoServiceManager extends EventEmitter {
     await this.shutdown();
 
     return new Promise((resolve, reject) => {
-      const viameSetup = npath.join(settings.viamePath, 'setup_viame.sh');
+      const isWin32 = OS.platform() === 'win32';
+      const viameSetup = npath.join(
+        settings.viamePath,
+        isWin32 ? 'setup_viame.bat' : 'setup_viame.sh',
+      );
       const configPath = npath.join(settings.viamePath, 'configs', 'pipelines', 'interactive_stereo_default.conf');
 
       // Build the command to run the interactive stereo service
-      const command = [
-        `. "${viameSetup}"`,
-        '&&',
-        'python -m viame.core.interactive_stereo',
-        `--config "${configPath}"`,
-      ].join(' ');
+      let command: string;
+      let shellOption: string | boolean;
+      if (isWin32) {
+        command = [
+          `"${viameSetup}"`,
+          '&&',
+          'python -m viame.core.interactive_stereo',
+          `--config "${configPath}"`,
+        ].join(' ');
+        shellOption = true;
+      } else {
+        command = [
+          `. "${viameSetup}"`,
+          '&&',
+          'python -m viame.core.interactive_stereo',
+          `--config "${configPath}"`,
+        ].join(' ');
+        shellOption = '/bin/bash';
+      }
 
       console.log('[Stereo] Starting interactive stereo service...');
       console.log(`[Stereo] Command: ${command}`);
 
       this.process = observeChild(spawn(command, {
-        shell: '/bin/bash',
+        shell: shellOption,
         stdio: ['pipe', 'pipe', 'pipe'],
       }));
 
