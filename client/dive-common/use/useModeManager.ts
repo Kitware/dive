@@ -839,6 +839,18 @@ export default function useModeManager({
             selectedKey.value = lineFeature?.properties?.key || '';
           }
         }
+        // If editing type is Point (segmentation), ensure the segmentation
+        // recipe is active so point clicks generate segmentation predictions.
+        // Only set the active flag directly - don't call activate() which would
+        // re-emit the activate event and interfere with the track selection.
+        if (annotationModes.editing === 'Point') {
+          const segRecipe = recipes.find(
+            (rec) => rec instanceof SegmentationPointClick && !rec.active.value,
+          ) as SegmentationPointClick | undefined;
+          if (segRecipe) {
+            segRecipe.active.value = true;
+          }
+        }
       }
       handleSelectTrack(trackId, editing);
     } else if (cameraStore.getAnyTrack(trackId) !== undefined) {
@@ -892,10 +904,14 @@ export default function useModeManager({
    */
   function handleConfirmRecipe() {
     const activeSegRecipes: SegmentationPointClick[] = [];
+    let hadPendingPrediction = false;
     recipes.forEach((r) => {
       if (r.active.value && r.confirm) {
         if (r instanceof SegmentationPointClick) {
           activeSegRecipes.push(r);
+          if (r.hasPendingPrediction()) {
+            hadPendingPrediction = true;
+          }
         }
         r.confirm();
       }
@@ -904,8 +920,13 @@ export default function useModeManager({
     preSegmentationFeatures.clear();
     // Exit editing mode and deselect to unhighlight the track
     selectTrack(null, false);
-    // Re-activate segmentation recipe so it's ready for the next detection
-    activeSegRecipes.forEach((r) => r.activate());
+    // Only re-activate segmentation recipe if there was a prediction to confirm.
+    // If there was no pending prediction (e.g. user right-clicked an existing
+    // detection to enter edit mode), don't re-activate - let the click handler
+    // select the track for editing instead.
+    if (hadPendingPrediction) {
+      activeSegRecipes.forEach((r) => r.activate());
+    }
   }
 
   /**
