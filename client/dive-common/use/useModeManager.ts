@@ -903,15 +903,27 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
-    const activeSegRecipes: SegmentationPointClick[] = [];
+    // First check if any active segmentation recipe has a pending prediction.
+    // If not, there's nothing to confirm - this happens when the contextmenu
+    // event from a right-click that entered Point edit mode triggers
+    // confirm-annotation before any points are placed. In that case, don't
+    // confirm/deactivate recipes or deselect - let the edit mode continue.
     let hadPendingPrediction = false;
+    recipes.forEach((r) => {
+      if (r.active.value && r.confirm && r instanceof SegmentationPointClick) {
+        if (r.hasPendingPrediction()) {
+          hadPendingPrediction = true;
+        }
+      }
+    });
+    if (!hadPendingPrediction) {
+      return;
+    }
+    const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
       if (r.active.value && r.confirm) {
         if (r instanceof SegmentationPointClick) {
           activeSegRecipes.push(r);
-          if (r.hasPendingPrediction()) {
-            hadPendingPrediction = true;
-          }
         }
         r.confirm();
       }
@@ -920,13 +932,8 @@ export default function useModeManager({
     preSegmentationFeatures.clear();
     // Exit editing mode and deselect to unhighlight the track
     selectTrack(null, false);
-    // Only re-activate segmentation recipe if there was a prediction to confirm.
-    // If there was no pending prediction (e.g. user right-clicked an existing
-    // detection to enter edit mode), don't re-activate - let the click handler
-    // select the track for editing instead.
-    if (hadPendingPrediction) {
-      activeSegRecipes.forEach((r) => r.activate());
-    }
+    // Re-activate segmentation recipe so it's ready for the next detection
+    activeSegRecipes.forEach((r) => r.activate());
   }
 
   /**
