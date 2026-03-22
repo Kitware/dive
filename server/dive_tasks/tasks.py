@@ -552,6 +552,7 @@ def convert_video(
                     constants.OriginalFPSMarker: originalFps,
                     constants.OriginalFPSStringMarker: avgFpsString,
                     constants.FPSMarker: newAnnotationFps,
+                    constants.MarkForPostProcess: False,
                     "ffprobe_info": videostream[0],
                 },
             )
@@ -618,6 +619,7 @@ def convert_video(
                 constants.OriginalFPSMarker: originalFps,
                 constants.OriginalFPSStringMarker: avgFpsString,
                 constants.FPSMarker: newAnnotationFps,
+                constants.MarkForPostProcess: False,
                 "ffprobe_info": videostream[0],
             },
         )
@@ -666,7 +668,7 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
 
         gc.addMetadataToFolder(
             str(folderId),
-            {"annotate": True},  # mark the parent folder as able to annotate.
+            {"annotate": True, constants.MarkForPostProcess: False},  # mark the parent folder as able to annotate.
         )
 
 
