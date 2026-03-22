@@ -97,6 +97,14 @@ export default defineComponent({
           click: () => toggleVisible('LineString'),
         },
         {
+          id: 'additionalPoints',
+          type: 'additionalPoints',
+          active: isVisible('additionalPoints'),
+          icon: 'mdi-vector-point',
+          description: 'Additional Points',
+          click: () => toggleVisible('additionalPoints'),
+        },
+        {
           id: 'text',
           type: 'text',
           active: isVisible('text'),

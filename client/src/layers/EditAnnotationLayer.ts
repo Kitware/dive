@@ -15,7 +15,7 @@ import {
 import { FrameDataTrack } from './LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 
-export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
+export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString' | 'additionalPoints';
 interface EditAnnotationLayerParams {
   type: EditAnnotationTypes;
 }
@@ -32,6 +32,7 @@ const typeMapper = new Map([
   ['LineString', 'line'],
   ['Polygon', 'polygon'],
   ['Point', 'point'],
+  ['additionalPoints', 'point'],
   ['rectangle', 'rectangle'],
 ]);
 /**
@@ -640,7 +641,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   createStyle(): LayerStyle<GeoJSON.Feature> {
     const baseStyle = super.createStyle();
-    if (this.type === 'rectangle' || this.type === 'Polygon' || this.type === 'LineString') {
+    if (
+      this.type === 'rectangle'
+      || this.type === 'Polygon'
+      || this.type === 'LineString'
+    ) {
       return {
         ...baseStyle,
         fill: false,
@@ -671,7 +676,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
       };
     }
-    if (this.type === 'Point') {
+    if (this.type === 'Point' || this.type === 'additionalPoints') {
       return {
         handles: false,
       };
@@ -734,7 +739,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         },
       };
     }
-    if (this.type === 'Point') {
+    if (this.type === 'Point' || this.type === 'additionalPoints') {
       return {
         stroke: false,
       };

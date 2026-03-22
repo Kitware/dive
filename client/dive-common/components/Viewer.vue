@@ -279,6 +279,30 @@ export default defineComponent({
       return multiSelectList.value;
     });
 
+    /** Every `additionalPoints` object key present on any track at the current frame (active camera). */
+    const allAdditionalPointKeys = computed(() => {
+      // Re-compute when edits mark the dataset dirty (feature updates use this path).
+      const dirtyTick = pendingSaveCount.value;
+      const sub = cameraStore.camMap.value.get(selectedCamera.value);
+      const store = sub?.trackStore;
+      if (!store) {
+        return [] as string[];
+      }
+      const frame = time.frame.value;
+      const keys = new Set<string>();
+      store.annotationMap.forEach((track) => {
+        const [feature] = (track as Track).getFeature(frame);
+        const ap = feature?.additionalPoints;
+        if (!ap) {
+          return;
+        }
+        Object.keys(ap).forEach((k) => keys.add(k));
+      });
+      return Array.from(keys)
+        .sort((a, b) => a.localeCompare(b))
+        .filter(() => dirtyTick >= 0);
+    });
+
     const { lineChartData } = useLineChart({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
@@ -865,6 +889,7 @@ export default defineComponent({
       selectedTrackId,
       editingGroupId,
       selectedKey,
+      allAdditionalPointKeys,
       trackFilters,
       videoUrl,
       visibleModes,
@@ -999,6 +1024,8 @@ export default defineComponent({
             multiSelectActive,
             editingDetails,
             groupEditActive: editingGroupId !== null,
+            selectedKey,
+            allAdditionalPointKeys,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"

@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  nextTick,
   PropType,
   ref,
   watch,
@@ -66,6 +67,15 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    selectedKey: {
+      type: String,
+      default: '',
+    },
+    /** All additionalPoints keys seen on any track at the current frame (current camera). */
+    allAdditionalPointKeys: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
   },
   emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
   setup(props, { emit }) {
@@ -90,13 +100,19 @@ export default defineComponent({
         rectangle: 'Drag to draw rectangle. Press ESC to exit.',
         Polygon: 'Click to place vertices. Right click to close.',
         LineString: 'Click to place head/tail points.',
+        additionalPoints: 'Click to place a named point inside the selected bounding box.',
       },
       Editing: {
         rectangle: 'Drag vertices to resize the rectangle',
         Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
         LineString: 'Click endpoints to select for deletion.',
+        additionalPoints: 'Drag to move the named point. Delete to remove the current point name.',
       },
     };
+
+    const additionalPointName = ref(props.selectedKey || '');
+    /** v-combobox @change runs when v-model is set programmatically; skip spurious commits (e.g. "New Point"). */
+    const suppressAdditionalPointCommit = ref(false);
 
     const editButtons = computed((): ButtonData[] => {
       const em = props.editingMode;
@@ -131,6 +147,31 @@ export default defineComponent({
             ...r.mousetrap(),
           ],
         })),
+        {
+          id: 'additionalPoints',
+          icon: 'mdi-vector-point',
+          active: props.editingTrack && em === 'additionalPoints',
+          description: 'Additional Points',
+          mousetrap: [{
+            bind: '4',
+            handler: () => {
+              const key = additionalPointName.value.trim()
+                || props.selectedKey
+                || (props.allAdditionalPointKeys && props.allAdditionalPointKeys[0])
+                || 'point';
+              additionalPointName.value = key;
+              emit('set-annotation-state', { editing: 'additionalPoints', key });
+            },
+          }],
+          click: () => {
+            const key = additionalPointName.value.trim()
+              || props.selectedKey
+              || (props.allAdditionalPointKeys && props.allAdditionalPointKeys[0])
+              || 'point';
+            additionalPointName.value = key;
+            emit('set-annotation-state', { editing: 'additionalPoints', key });
+          },
+        },
       ];
     });
 
@@ -184,6 +225,66 @@ export default defineComponent({
       }
     });
 
+    watch(() => props.selectedKey, (val) => {
+      if (val && val !== additionalPointName.value) {
+        additionalPointName.value = val;
+      }
+    });
+
+    const commitAdditionalPointName = () => {
+      if (suppressAdditionalPointCommit.value) {
+        return;
+      }
+      const key = additionalPointName.value.trim();
+      if (!key) {
+        return;
+      }
+      additionalPointName.value = key;
+      if (
+        props.editingMode === 'additionalPoints'
+        && key === (props.selectedKey || '').trim()
+      ) {
+        return;
+      }
+      emit('set-annotation-state', { editing: 'additionalPoints', key });
+    };
+
+    const additionalPointNameOptions = computed(() => {
+      const options = new Set<string>(props.allAdditionalPointKeys || []);
+      const selected = props.selectedKey?.trim();
+      if (selected) {
+        options.add(selected);
+      }
+      const cur = typeof additionalPointName.value === 'string'
+        ? additionalPointName.value.trim()
+        : '';
+      if (cur) {
+        options.add(cur);
+      }
+      return Array.from(options).sort((a, b) => a.localeCompare(b));
+    });
+
+    const createNewPointName = () => {
+      const existing = new Set(additionalPointNameOptions.value);
+      let index = 1;
+      let candidate = `point-${index}`;
+      while (existing.has(candidate)) {
+        index += 1;
+        candidate = `point-${index}`;
+      }
+      suppressAdditionalPointCommit.value = true;
+      // Emit first so parent `selectedKey` updates before any combobox @change runs.
+      emit('set-annotation-state', {
+        editing: 'additionalPoints',
+        key: candidate,
+        skipAdditionalPointRename: true,
+      });
+      additionalPointName.value = candidate;
+      nextTick(() => {
+        suppressAdditionalPointCommit.value = false;
+      });
+    };
+
     return {
       modeToolTips,
       editButtons,
@@ -194,6 +295,10 @@ export default defineComponent({
       toggleEditButtonsExpanded,
       activeEditButton,
       editButtonsMenuKey,
+      additionalPointName,
+      commitAdditionalPointName,
+      additionalPointNameOptions,
+      createNewPointName,
     };
   },
 });
@@ -272,7 +377,7 @@ export default defineComponent({
           >
             <v-list-item-icon>
               <v-btn
-                :disabled="!editingMode"
+                :disabled="!editingMode || (button.id === 'additionalPoints' && editingDetails === 'disabled')"
                 :outlined="!button.active"
                 :color="button.active ? editingHeader.color : ''"
                 class="mx-1"
@@ -311,7 +416,7 @@ export default defineComponent({
         <v-btn
           v-for="button in editButtons"
           :key="button.id + 'view'"
-          :disabled="!editingMode"
+          :disabled="!editingMode || (button.id === 'additionalPoints' && editingDetails === 'disabled')"
           :outlined="!button.active"
           :color="button.active ? editingHeader.color : ''"
           class="mx-1"
@@ -322,6 +427,32 @@ export default defineComponent({
           <v-icon>{{ button.icon }}</v-icon>
         </v-btn>
       </template>
+      <v-combobox
+        v-if="editingTrack && editingMode === 'additionalPoints'"
+        v-model="additionalPointName"
+        class="ml-2"
+        style="max-width: 220px;"
+        :items="additionalPointNameOptions"
+        dense
+        hide-details
+        outlined
+        label="Point name"
+        @change="commitAdditionalPointName"
+        @blur="commitAdditionalPointName"
+        @keydown.enter.prevent="commitAdditionalPointName"
+      />
+      <v-btn
+        v-if="editingTrack && editingMode === 'additionalPoints'"
+        class="ml-2"
+        color="success"
+        small
+        @click="createNewPointName"
+      >
+        <v-icon small class="mr-1">
+          mdi-plus
+        </v-icon>
+        Point
+      </v-btn>
       <slot name="delete-controls" />
       <v-spacer />
       <slot name="multicam-controls" />

@@ -419,6 +419,29 @@ export default class Track extends BaseAnnotation {
     this.notify('feature', feature);
   }
 
+  /**
+   * Move all additional points from one label to another on a frame (rename).
+   * Returns true if data was moved. No-op if labels are equal, old label has no
+   * points, or new label already has points (caller is switching keys, not renaming).
+   */
+  renameAdditionalPointsLabel(frame: number, oldLabel: string, newLabel: string): boolean {
+    if (!oldLabel || !newLabel || oldLabel === newLabel) {
+      return false;
+    }
+    const oldPts = this.getAdditionalPoints(frame, oldLabel) as AdditionalPoint[];
+    if (!oldPts.length) {
+      return false;
+    }
+    const existingNew = this.getAdditionalPoints(frame, newLabel) as AdditionalPoint[];
+    if (existingNew.length > 0) {
+      return false;
+    }
+    const migrated = oldPts.map((p) => ({ ...p, label: newLabel }));
+    this.setAdditionalPoints(frame, newLabel, migrated);
+    this.setAdditionalPoints(frame, oldLabel, []);
+    return true;
+  }
+
   /** Append one additional point for a label on a frame. */
   addAdditionalPoint(frame: number, label: string, point: AdditionalPoint): void {
     const current = this.getAdditionalPoints(frame, label) as AdditionalPoint[];

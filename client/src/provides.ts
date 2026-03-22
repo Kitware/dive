@@ -143,6 +143,14 @@ export interface Handler {
     key?: string,
     preventInterrupt?: () => void,
   ): void;
+  /* set annotation view/edit state */
+  setAnnotationState(args: {
+    visible?: VisibleAnnotationTypes[];
+    editing?: EditAnnotationTypes;
+    key?: string;
+    recipeName?: string;
+    skipAdditionalPointRename?: boolean;
+  }): void;
   /* Remove a whole track */
   removeTrack(AnnotationIds: AnnotationId[],
     forcePromptDisable?: boolean, cameraName?: string): void;
@@ -206,6 +214,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
+    setAnnotationState(...args) { handle('setAnnotationState', args); },
     removeTrack(...args) { handle('removeTrack', args); },
     removeGroup(...args) { handle('removeGroup', args); },
     removePoint(...args) { handle('removePoint', args); },
