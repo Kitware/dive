@@ -29,6 +29,29 @@ export default class AdditionalPointLayer extends BaseLayer<AdditionalPointData>
 
   private additionalPointEditKey = '';
 
+  /** When false, point labels are hidden (markers still draw). */
+  private showLabels = true;
+
+  /** Scales default radii; 100 = same as legacy sizes. */
+  private sizePercent = 100;
+
+  private pointRadiusBase(data: AdditionalPointData): number {
+    if (data.keySelected) {
+      return data.selected ? 11 : 9;
+    }
+    return data.selected ? 8 : 6;
+  }
+
+  /** Pixel radius after size slider. */
+  pointRadius(data: AdditionalPointData): number {
+    return this.pointRadiusBase(data) * (this.sizePercent / 100);
+  }
+
+  updateDisplaySettings(showLabels: boolean, sizePercent: number) {
+    this.showLabels = showLabels;
+    this.sizePercent = sizePercent;
+  }
+
   /**
    * Highlight the point that matches the current additional-points edit selection.
    */
@@ -64,7 +87,7 @@ export default class AdditionalPointLayer extends BaseLayer<AdditionalPointData>
       });
       this.textFeatureLayer = this.textLayer
         .createFeature('text')
-        .text((data: AdditionalPointData) => data.label)
+        .text((data: AdditionalPointData) => (this.showLabels ? data.label : ''))
         .position((data: AdditionalPointData) => ({ x: data.x, y: data.y }));
       this.textFeatureLayer.style({
         color: (data: AdditionalPointData) => {
@@ -76,7 +99,11 @@ export default class AdditionalPointLayer extends BaseLayer<AdditionalPointData>
           }
           return this.typeStyling.value.color('');
         },
-        offset: () => ({ x: 10, y: -10 }),
+        offset: (data: AdditionalPointData) => {
+          const r = this.pointRadius(data);
+          const pad = 6;
+          return { x: r + pad, y: -(r + pad) };
+        },
         fontSize: '12px',
       });
       return true;
@@ -134,12 +161,7 @@ export default class AdditionalPointLayer extends BaseLayer<AdditionalPointData>
         return this.typeStyling.value.color('');
       },
       fillOpacity: 0.9,
-      radius: (data: AdditionalPointData) => {
-        if (data.keySelected) {
-          return data.selected ? 11 : 9;
-        }
-        return data.selected ? 8 : 6;
-      },
+      radius: (data: AdditionalPointData) => this.pointRadius(data),
       strokeWidth: (data: AdditionalPointData) => (data.keySelected ? 4 : 2),
       strokeColor: (data: AdditionalPointData) => (data.keySelected ? '#ffeb3b' : '#ffffff'),
     };

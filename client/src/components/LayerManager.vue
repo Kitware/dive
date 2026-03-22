@@ -322,6 +322,11 @@ export default defineComponent({
         pointLayer.disable();
       }
       if (visibleModes.includes('additionalPoints')) {
+        const apPrefs = annotatorPrefs.value.additionalPoints;
+        additionalPointLayer.updateDisplaySettings(
+          apPrefs?.showLabels ?? true,
+          apPrefs?.sizePercent ?? 100,
+        );
         additionalPointLayer.setAdditionalPointEditContext(
           editingTrack === 'additionalPoints',
           selectedTrackId,

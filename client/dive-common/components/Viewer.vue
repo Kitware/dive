@@ -1028,6 +1028,7 @@ export default defineComponent({
             allAdditionalPointKeys,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
+          :additional-point-settings.sync="clientSettings.annotatorPreferences.additionalPoints"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"

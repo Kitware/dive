@@ -67,6 +67,10 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    additionalPointSettings: {
+      type: Object as PropType<{ showLabels: boolean; sizePercent: number }>,
+      default: () => ({ showLabels: true, sizePercent: 100 }),
+    },
     selectedKey: {
       type: String,
       default: '',
@@ -77,7 +81,12 @@ export default defineComponent({
       default: () => [],
     },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+    'update:additional-point-settings',
+  ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -461,9 +470,11 @@ export default defineComponent({
         :visible-modes="visibleModes"
         :tail-settings="tailSettings"
         :show-user-created-icon="showUserCreatedIcon"
+        :additional-point-settings="additionalPointSettings"
         @set-annotation-state="$emit('set-annotation-state', $event)"
         @update:tail-settings="$emit('update:tail-settings', $event)"
         @update:show-user-created-icon="$emit('update:show-user-created-icon', $event)"
+        @update:additional-point-settings="$emit('update:additional-point-settings', $event)"
       />
     </div>
   </v-row>

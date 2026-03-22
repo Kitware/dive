@@ -313,7 +313,11 @@ function dummyState(): State {
 
   });
   return {
-    annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
+    annotatorPreferences: ref({
+      trackTails: { before: 20, after: 10 },
+      additionalPoints: { showLabels: true, sizePercent: 100 },
+      lockedCamera: { enabled: false },
+    }),
     attributes: ref([]),
     cameraStore,
     datasetId: ref(''),

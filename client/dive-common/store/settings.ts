@@ -92,6 +92,10 @@ const defaultSettings: AnnotationSettings = {
       before: 20,
       after: 10,
     },
+    additionalPoints: {
+      showLabels: true,
+      sizePercent: 100,
+    },
     lockedCamera: {
       enabled: false,
       multiBounds: false,
