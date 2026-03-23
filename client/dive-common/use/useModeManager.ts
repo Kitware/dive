@@ -141,6 +141,25 @@ export default function useModeManager({
 
   const selectNextGroup = (delta = 1) => selectNext(_filteredGroups.value, editingGroupId.value, delta);
 
+  /**
+   * Remove a track if it has no features (empty detection with nothing drawn).
+   * Returns true if the track was removed.
+   */
+  function _removeIfEmpty(checkTrackId: AnnotationId): boolean {
+    const track = cameraStore.getPossibleTrack(checkTrackId, selectedCamera.value);
+    if (track && track.begin === track.end) {
+      const features = track.getFeature(track.begin);
+      if (!features.filter((item) => item !== null).length) {
+        const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+        if (trackStore) {
+          trackStore.remove(checkTrackId);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     // Reset segmentation recipe state when switching to a different track
     // so stale points/mask from the previous detection don't interfere
@@ -150,6 +169,15 @@ export default function useModeManager({
           r.resetPoints();
         }
       });
+    }
+    // Clean up empty tracks when leaving edit mode (e.g., created a detection
+    // but never drew an annotation, then clicked away or right-clicked to deselect)
+    if (
+      selectedTrackId.value !== null
+      && editingTrack.value
+      && selectedTrackId.value !== trackId
+    ) {
+      _removeIfEmpty(selectedTrackId.value);
     }
     selectedTrackId.value = trackId;
     if (edit && readonlyState.value) {
@@ -357,17 +385,7 @@ export default function useModeManager({
   //Handles deselection or hitting escape including while editing
   function handleEscapeMode() {
     if (selectedTrackId.value !== null) {
-      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
-      if (track && track.begin === track.end) {
-        const features = track.getFeature(track.begin);
-        // If no features exist we remove the empty track
-        if (!features.filter((item) => item !== null).length) {
-          const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
-          if (trackStore) {
-            trackStore.remove(selectedTrackId.value);
-          }
-        }
-      }
+      _removeIfEmpty(selectedTrackId.value);
     }
     linkingState.value = false;
     linkingCamera.value = '';
