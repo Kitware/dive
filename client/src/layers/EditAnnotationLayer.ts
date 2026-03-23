@@ -533,6 +533,54 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * Attempt to finalize an in-progress polygon or line shape.
+   * If a valid shape is in progress (polygon with 3+ vertices, or a completed line),
+   * emit it as a completed geometry. Otherwise, discard the partial shape.
+   * Returns true if a shape was finalized.
+   */
+  finalizeInProgress(): boolean {
+    if (!this.shapeInProgress || this.getMode() !== 'creation') {
+      return false;
+    }
+
+    if (this.shapeInProgress.type === 'Polygon') {
+      const coords = this.shapeInProgress.coordinates as GeoJSON.Position[][];
+      // Need at least 3 vertices for a valid polygon
+      if (coords[0] && coords[0].length >= 3) {
+        // Close the polygon ring if needed
+        const ring = coords[0];
+        const first = ring[0];
+        const last = ring[ring.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+          ring.push([...first]);
+        }
+
+        const feature: GeoJSON.Feature = {
+          type: 'Feature',
+          geometry: this.shapeInProgress,
+          properties: {},
+        };
+        this.disableModeSync = true;
+        this.bus.$emit(
+          'update:geojson',
+          'editing',
+          true,
+          feature,
+          this.type,
+          this.selectedKey,
+          this.skipNextFunc(),
+        );
+        this.shapeInProgress = null;
+        return true;
+      }
+    }
+
+    // Discard invalid partial shapes (polygon with < 3 vertices, etc.)
+    this.shapeInProgress = null;
+    return false;
+  }
+
+  /**
    * Removes the current annotation and resets the mode when completed editing
    */
   disable() {

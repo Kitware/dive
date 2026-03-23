@@ -204,6 +204,8 @@ export interface Handler {
   addPolygon(): void;
   /* Cancel any in-progress creation mode (hole or polygon addition) */
   cancelCreation(): void;
+  /* Register callback to finalize in-progress shapes (used by LayerManager) */
+  registerFinalizeCreation(cb: () => void): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -251,6 +253,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     addHole(...args) { handle('addHole', args); },
     addPolygon(...args) { handle('addPolygon', args); },
     cancelCreation(...args) { handle('cancelCreation', args); },
+    registerFinalizeCreation(...args) { handle('registerFinalizeCreation', args); },
   };
 }
 

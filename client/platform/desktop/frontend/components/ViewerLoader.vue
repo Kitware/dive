@@ -254,9 +254,33 @@ export default defineComponent({
     async function handleTextQuerySubmit(params: {
       text: string;
       boxThreshold: number;
-      frameNum: number;
     }) {
-      const { text, boxThreshold, frameNum } = params;
+      const { text, boxThreshold } = params;
+      const frameNum = viewerRef.value?.aggregateController?.frame?.value ?? 0;
+
+      // Verify the segmentation service is ready before attempting a text query
+      try {
+        const status = await segmentationIsReady();
+        if (!status.ready) {
+          await prompt({
+            title: 'Text Query Error',
+            text: [
+              'The text query service is not available.',
+              'Please install the SAM3 add-on from the VIAME add-on repository and ensure you have enough video RAM to run it.',
+            ],
+          });
+          return;
+        }
+      } catch {
+        await prompt({
+          title: 'Text Query Error',
+          text: [
+            'Could not verify text query service status.',
+            'Please install the SAM3 add-on from the VIAME add-on repository.',
+          ],
+        });
+        return;
+      }
 
       // Ensure metadata is loaded (either stereoImagePathGetters for multicam or cachedMeta for single)
       if (Object.keys(stereoImagePathGetters.value).length === 0 && !cachedMeta) {
@@ -873,7 +897,7 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
-      @text-query-submit="handleTextQuerySubmit"
+      @text-query="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"
       @stereo-annotation-complete="handleStereoAnnotationComplete"

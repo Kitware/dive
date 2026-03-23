@@ -258,18 +258,31 @@ async function runTextQueryPipeline(
   queryText: string,
   threshold?: number,
 ): Promise<void> {
+  const pipeName = 'utility_text_query_default.pipe';
+
+  // Verify the text query pipeline is installed before enqueuing
+  const pipelines = await getPipelineList();
+  const allPipes = Object.values(pipelines).flatMap((category) => category.pipes);
+  const found = allPipes.find((p) => p.pipe === pipeName);
+  if (!found) {
+    throw new Error(
+      'The text query pipeline (utility_text_query_default.pipe) was not found. '
+      + 'Please install the SAM3 add-on from the VIAME add-on repository.',
+    );
+  }
+
   const pipeline: Pipe = {
     name: 'Text Query',
-    pipe: 'utility_text_query.pipe',
+    pipe: pipeName,
     type: 'utility',
   };
 
   const pipelineParams: Record<string, string> = {
-    'track_refiner:refiner:text_query': queryText,
+    'track_refiner:refiner:sam3:text_query': queryText,
   };
 
   if (threshold !== undefined) {
-    pipelineParams['track_refiner:refiner:detection_threshold'] = threshold.toString();
+    pipelineParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
   }
 
   const args: RunPipeline = {

@@ -505,6 +505,10 @@ export default defineComponent({
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
       handler.confirmRecipe();
     });
+    // Register callback so pressing 'n' (new detection) finalizes in-progress shapes
+    handler.registerFinalizeCreation(() => {
+      editAnnotationLayer.finalizeInProgress();
+    });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);

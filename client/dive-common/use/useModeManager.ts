@@ -125,6 +125,12 @@ export default function useModeManager({
   const editingMode = computed(() => editingTrack.value && annotationModes.editing);
   const editingCanary = ref(false);
 
+  /**
+   * Callback that the LayerManager registers to finalize in-progress shapes
+   * (e.g., an incomplete polygon) before switching tracks or creating new ones.
+   */
+  let finalizeCreationCallback: (() => void) | null = null;
+
   // Track Multi-select state
   const multiSelectList = ref([] as AnnotationId[]);
   const multiSelectActive = computed(() => multiSelectList.value.length > 0);
@@ -396,6 +402,12 @@ export default function useModeManager({
   }
 
   function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
+    // Finalize any in-progress shape (e.g., incomplete polygon) before
+    // escaping and creating a new track. This commits the shape if valid
+    // (3+ polygon vertices) or discards it otherwise.
+    if (finalizeCreationCallback) {
+      finalizeCreationCallback();
+    }
     // Handles adding a new track with the NewTrack Settings
     handleEscapeMode();
     const { frame } = aggregateController.value;
@@ -1423,6 +1435,14 @@ export default function useModeManager({
     });
   });
 
+  /**
+   * Register a callback to finalize in-progress creation shapes.
+   * Called by LayerManager to connect the edit layer's finalize method.
+   */
+  function registerFinalizeCreation(cb: () => void) {
+    finalizeCreationCallback = cb;
+  }
+
   return {
     selectedTrackId,
     editingGroupId,
@@ -1470,6 +1490,7 @@ export default function useModeManager({
       addHole: handleAddHole,
       addPolygon: handleAddPolygon,
       cancelCreation: handleCancelCreation,
+      registerFinalizeCreation,
     },
   };
 }

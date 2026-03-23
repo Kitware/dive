@@ -186,13 +186,27 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
     const value = this.get(annotationId);
     const range = [value.begin, value.end];
     if (!this.intervalTree.remove(range as NumericTuple, annotationId.toString())) {
-      throw new Error(`AnnotationId ${annotationId} with range ${range} not found in tree.`);
+      // The interval tree entry may be out of sync with the track's current bounds
+      // (e.g., from an empty track that was never given features). Try to find and
+      // remove the entry by scanning all tree items for this annotation ID.
+      const idStr = annotationId.toString();
+      const match = this.intervalTree.items.find((item) => item.value === idStr);
+      const found = !!match;
+      if (match) {
+        this.intervalTree.remove(match.key, idStr);
+      }
+      if (!found) {
+        // eslint-disable-next-line no-console
+        console.warn(`AnnotationId ${annotationId} with range ${range} not found in interval tree. Proceeding with removal from other stores.`);
+      }
     }
     value.setNotifier(undefined);
     this.annotationMap.delete(annotationId);
     const listIndex = this.annotationIds.value.findIndex((v) => v === annotationId);
     if (listIndex === -1) {
-      throw new Error(`AnnotationId ${annotationId} not found in annotationIds.`);
+      // eslint-disable-next-line no-console
+      console.warn(`AnnotationId ${annotationId} not found in annotationIds.`);
+      return;
     }
     this.annotationIds.value.splice(listIndex, 1);
     if (!disableNotifications) {
