@@ -151,6 +151,9 @@ export default class SegmentationPointClick implements Recipe {
   /** Whether a prediction is currently in progress */
   private isPredicting: boolean = false;
 
+  /** Whether points were reset since last activation (to distinguish from initial entry) */
+  private _wasReset: boolean = false;
+
   /** Current frame number */
   private currentFrame: number = 0;
 
@@ -197,6 +200,15 @@ export default class SegmentationPointClick implements Recipe {
     this.frameData.clear();
     // Clear visual feedback for points
     this.bus.$emit('points-updated', { points: [], labels: [], frameNum: this.currentFrame });
+  }
+
+  /**
+   * Whether the recipe was reset (points cleared) since last activation.
+   * Used to distinguish "just entered edit mode, no points yet" from
+   * "was actively used and then reset" so right-click can finalize after reset.
+   */
+  get wasReset(): boolean {
+    return this._wasReset;
   }
 
   /**
@@ -596,6 +608,7 @@ export default class SegmentationPointClick implements Recipe {
   private completeActivation(): void {
     this.active.value = true;
     this.reset();
+    this._wasReset = false;
     this.icon.value = 'mdi-auto-fix';
 
     // Emit activation event to trigger Point editing mode
@@ -615,6 +628,7 @@ export default class SegmentationPointClick implements Recipe {
     this.pendingActivation = false;
     this.loading.value = false;
     this.reset();
+    this._wasReset = false;
     this.icon.value = 'mdi-auto-fix';
 
     // Emit empty points to clear the visual points layer
@@ -676,6 +690,7 @@ export default class SegmentationPointClick implements Recipe {
       this.bus.$emit('prediction-reset', { frameNum });
     });
     this.reset();
+    this._wasReset = true;
     this.icon.value = 'mdi-auto-fix';
   }
 
