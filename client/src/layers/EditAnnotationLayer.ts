@@ -533,50 +533,78 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
-   * Attempt to finalize an in-progress polygon or line shape.
-   * If a valid shape is in progress (polygon with 3+ vertices, or a completed line),
-   * emit it as a completed geometry. Otherwise, discard the partial shape.
+   * Attempt to finalize any in-progress annotation before switching tracks.
+   * Handles:
+   * - Polygon with 3+ vertices tracked in shapeInProgress
+   * - GeoJS-managed annotations (rectangles) in creation/done state
+   * - Discards invalid partial shapes (polygon < 3 vertices, line with 1 point)
    * Returns true if a shape was finalized.
    */
   finalizeInProgress(): boolean {
-    if (!this.shapeInProgress || this.getMode() !== 'creation') {
+    // Handle shapeInProgress (polygon/line tracked manually)
+    if (this.shapeInProgress && this.getMode() === 'creation') {
+      if (this.shapeInProgress.type === 'Polygon') {
+        const coords = this.shapeInProgress.coordinates as GeoJSON.Position[][];
+        if (coords[0] && coords[0].length >= 3) {
+          const ring = coords[0];
+          const first = ring[0];
+          const last = ring[ring.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            ring.push([...first]);
+          }
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress,
+            properties: {},
+          };
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            feature,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          this.shapeInProgress = null;
+          return true;
+        }
+      }
+      // Discard invalid partial shapes (polygon < 3 vertices, line with 1 point)
+      this.shapeInProgress = null;
       return false;
     }
 
-    if (this.shapeInProgress.type === 'Polygon') {
-      const coords = this.shapeInProgress.coordinates as GeoJSON.Position[][];
-      // Need at least 3 vertices for a valid polygon
-      if (coords[0] && coords[0].length >= 3) {
-        // Close the polygon ring if needed
-        const ring = coords[0];
-        const first = ring[0];
-        const last = ring[ring.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          ring.push([...first]);
+    // Handle GeoJS-managed annotations (rectangles, completed shapes)
+    // Skip Point mode — segmentation manages its own polygon via the recipe,
+    // not through the edit layer's GeoJS annotation.
+    if (this.featureLayer && this.type !== 'Point') {
+      const annotations = this.featureLayer.annotations();
+      if (annotations.length > 0) {
+        const annotation = annotations[0];
+        const geoJSONData = annotation.geojson();
+        if (geoJSONData && geoJSONData.geometry) {
+          if (this.type === 'rectangle') {
+            geoJSONData.geometry.coordinates[0] = reOrdergeoJSON(
+              geoJSONData.geometry.coordinates[0] as GeoJSON.Position[],
+            );
+          }
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            geoJSONData,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          return true;
         }
-
-        const feature: GeoJSON.Feature = {
-          type: 'Feature',
-          geometry: this.shapeInProgress,
-          properties: {},
-        };
-        this.disableModeSync = true;
-        this.bus.$emit(
-          'update:geojson',
-          'editing',
-          true,
-          feature,
-          this.type,
-          this.selectedKey,
-          this.skipNextFunc(),
-        );
-        this.shapeInProgress = null;
-        return true;
       }
     }
 
-    // Discard invalid partial shapes (polygon with < 3 vertices, etc.)
-    this.shapeInProgress = null;
     return false;
   }
 

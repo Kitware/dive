@@ -402,6 +402,17 @@ export default function useModeManager({
   }
 
   function handleAddTrackOrDetection(overrideTrackId?: number): TrackId {
+    // If a segmentation recipe has a pending prediction, commit it permanently
+    // by clearing preSegmentationFeatures. Without this, selectTrack calls
+    // resetPoints → handleSegmentationReset which restores the pre-segmentation
+    // state (deleting the polygon) AFTER _removeIfEmpty already ran, leaving
+    // an empty detection in the list.
+    const hasSegPrediction = recipes.some(
+      (r) => r instanceof SegmentationPointClick && r.active.value && r.hasPendingPrediction(),
+    );
+    if (hasSegPrediction) {
+      preSegmentationFeatures.clear();
+    }
     // Finalize any in-progress shape (e.g., incomplete polygon) before
     // escaping and creating a new track. This commits the shape if valid
     // (3+ polygon vertices) or discards it otherwise.
