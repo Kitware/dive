@@ -180,6 +180,7 @@ export default defineComponent({
             // eslint-disable-next-line no-await-in-loop
             const camMeta = await loadMetadata(`${props.id}/${cam}`);
             stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+            if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
           }
           // Dynamic getter that reads selectedCamera at call time
           getImagePath = (frameNum: number): string => {
@@ -304,6 +305,7 @@ export default defineComponent({
               // eslint-disable-next-line no-await-in-loop
               const camMeta = await loadMetadata(`${props.id}/${cam}`);
               stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+              if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
             }
           } else {
             cachedMeta = {
@@ -503,6 +505,8 @@ export default defineComponent({
 
     // Cache image path getters per camera for stereo frame setting
     const stereoImagePathGetters = ref({} as Record<string, (frameNum: number) => string>);
+    // Cache per-camera FPS for video frame time computation
+    const stereoCameraFps = ref({} as Record<string, number>);
 
     function closeStereoLoadingDialog() {
       stereoLoadingDialog.value = false;
@@ -535,6 +539,7 @@ export default defineComponent({
           // eslint-disable-next-line no-await-in-loop
           const camMeta = await loadMetadata(`${props.id}/${cam}`);
           stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+          if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
         }
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
@@ -570,7 +575,9 @@ export default defineComponent({
               const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
               if (leftPath && rightPath) {
                 lastStereoFrame = frameNum;
-                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+                const fps0 = stereoCameraFps.value[cameras[0]];
+                const ft = fps0 ? frameNum / fps0 : undefined;
+                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
                   console.warn('[Stereo] Failed to set initial frame:', err);
                 });
               }
@@ -603,7 +610,9 @@ export default defineComponent({
       const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
 
       if (leftPath && rightPath) {
-        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+        const fps0 = stereoCameraFps.value[cameras[0]];
+        const ft = fps0 ? frameNum / fps0 : undefined;
+        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
           console.warn('[Stereo] Failed to set frame:', err);
         });
       }

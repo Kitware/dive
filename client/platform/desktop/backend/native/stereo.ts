@@ -30,6 +30,8 @@ export interface StereoCalibration {
 export interface StereoSetFrameRequest {
   leftImagePath: string;
   rightImagePath: string;
+  /** Time in seconds when paths are video files */
+  frameTime?: number;
 }
 
 /** Response from set frame request */
@@ -448,6 +450,7 @@ export class StereoServiceManager extends EventEmitter {
       command: 'set_frame',
       left_image_path: request.leftImagePath,
       right_image_path: request.rightImagePath,
+      frame_time: request.frameTime,
     };
 
     return new Promise((resolve, reject) => {
