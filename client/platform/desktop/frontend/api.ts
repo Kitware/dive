@@ -309,6 +309,7 @@ interface StereoCalibration {
 interface StereoSetFrameRequest {
   leftImagePath: string;
   rightImagePath: string;
+  frameTime?: number;
 }
 
 interface StereoSetFrameResponse {
