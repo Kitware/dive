@@ -339,6 +339,7 @@ export default class SegmentationPointClick implements Recipe {
         pointLabels: this.pointLabels,
         maskInput: this.lastLowResMask ?? undefined,
         multimaskOutput: this.points.length === 1, // Use multimask for single point
+        frame: frameNum,
       };
 
       const response = await this.predictFn(request, frameNum);

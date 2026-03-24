@@ -268,6 +268,7 @@ export class SegmentationServiceManager extends EventEmitter {
       point_labels: request.pointLabels,
       mask_input: request.maskInput,
       multimask_output: request.multimaskOutput ?? false,
+      frame: request.frame,
     };
 
     return new Promise((resolve, reject) => {
@@ -386,6 +387,7 @@ export class SegmentationServiceManager extends EventEmitter {
       boxes: request.boxes,
       points: request.points,
       point_labels: request.pointLabels,
+      frame: request.frame,
     };
 
     return new Promise((resolve, reject) => {

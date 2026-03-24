@@ -327,6 +327,7 @@ export default defineComponent({
           text,
           boxThreshold,
           maxDetections: 10,
+          frame: frameNum,
         });
 
         if (!response.success) {

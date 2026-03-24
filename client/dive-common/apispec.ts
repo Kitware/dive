@@ -233,7 +233,7 @@ function useApi() {
  * Interactive Segmentation Types
  */
 export interface SegmentationPredictRequest {
-  /** Path to the image file */
+  /** Path to the image file (or video file if frame is specified) */
   imagePath: string;
   /** Point coordinates as [x, y] pairs */
   points: [number, number][];
@@ -243,6 +243,8 @@ export interface SegmentationPredictRequest {
   maskInput?: number[][];
   /** Whether to return multiple mask options */
   multimaskOutput?: boolean;
+  /** Frame number when imagePath is a video file */
+  frame?: number;
 }
 
 export interface SegmentationPredictResponse {
@@ -294,7 +296,7 @@ export interface TextQueryDetection {
 }
 
 export interface TextQueryRequest {
-  /** Path to the image file */
+  /** Path to the image file (or video file if frame is specified) */
   imagePath: string;
   /** Text query describing what to find (e.g., "fish", "person swimming") */
   text: string;
@@ -310,6 +312,8 @@ export interface TextQueryRequest {
   pointLabels?: number[];
   /** Optional masks to refine */
   masks?: number[][][];
+  /** Frame number when imagePath is a video file */
+  frame?: number;
 }
 
 export interface TextQueryResponse {
