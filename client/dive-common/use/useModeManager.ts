@@ -506,6 +506,11 @@ export default function useModeManager({
         if (isEditingExisting && track.attributes?.userCreated !== true) {
           track.setFeatureAttribute(frameNum, 'userModified', true);
         }
+        // Capture track ID before newTrackSettingsAfterLogic, which may
+        // create a new track in continuous detection mode and change
+        // selectedTrackId
+        const completedTrackId = selectedTrackId.value as number;
+
         newTrackSettingsAfterLogic(track);
 
         // Stereo: emit box annotation complete
@@ -513,7 +518,7 @@ export default function useModeManager({
           onStereoAnnotationComplete({
             type: 'box',
             camera: selectedCamera.value,
-            trackId: selectedTrackId.value as number,
+            trackId: completedTrackId,
             frameNum,
             bounds: bounds as [number, number, number, number],
           });
@@ -676,11 +681,15 @@ export default function useModeManager({
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
           if (eventType === 'editing' || update.done.every((v) => v !== false)) {
+            // Capture track ID before newTrackSettingsAfterLogic which may
+            // change selectedTrackId in continuous detection mode
+            const completedTrackId = selectedTrackId.value;
+
             newTrackSettingsAfterLogic(track);
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
-                && selectedTrackId.value !== null) {
+                && completedTrackId !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
                   && data.geometry.coordinates.length === 2) {
@@ -688,7 +697,7 @@ export default function useModeManager({
                 onStereoAnnotationComplete({
                   type: 'line',
                   camera: selectedCamera.value,
-                  trackId: selectedTrackId.value as number,
+                  trackId: completedTrackId as number,
                   frameNum,
                   line: [coords[0], coords[1]],
                   key: selectedKey.value,
@@ -706,7 +715,7 @@ export default function useModeManager({
                       onStereoAnnotationComplete({
                         type: 'polygon',
                         camera: selectedCamera.value,
-                        trackId: selectedTrackId.value as number,
+                        trackId: completedTrackId as number,
                         frameNum,
                         polygon: polyCoords,
                         key: geoKey,
