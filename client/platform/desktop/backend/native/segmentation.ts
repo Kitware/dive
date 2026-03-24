@@ -20,7 +20,7 @@ export const SEGMENTATION_LOAD_ERROR_MESSAGE = "Model failed to load. If you hav
 export interface SegmentationInternalPredictRequest {
   /** Unique request ID for correlation */
   id: string;
-  /** Path to the image file */
+  /** Path to the image file (or video file if frame is specified) */
   imagePath: string;
   /** Point coordinates as [x, y] pairs */
   points: [number, number][];
@@ -30,6 +30,8 @@ export interface SegmentationInternalPredictRequest {
   maskInput?: number[][];
   /** Whether to return multiple mask options */
   multimaskOutput?: boolean;
+  /** Frame number when imagePath is a video file */
+  frame?: number;
 }
 
 /** Response from the segmentation service */
@@ -366,6 +368,7 @@ export class SegmentationServiceManager extends EventEmitter {
     boxes?: [number, number, number, number][];
     points?: [number, number][];
     pointLabels?: number[];
+    frame?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }): Promise<any> {
     if (!this.isReady()) {
