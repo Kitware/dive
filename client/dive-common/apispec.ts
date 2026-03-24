@@ -243,8 +243,8 @@ export interface SegmentationPredictRequest {
   maskInput?: number[][];
   /** Whether to return multiple mask options */
   multimaskOutput?: boolean;
-  /** Frame number when imagePath is a video file */
-  frame?: number;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
 }
 
 export interface SegmentationPredictResponse {
@@ -312,8 +312,8 @@ export interface TextQueryRequest {
   pointLabels?: number[];
   /** Optional masks to refine */
   masks?: number[][][];
-  /** Frame number when imagePath is a video file */
-  frame?: number;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
 }
 
 export interface TextQueryResponse {

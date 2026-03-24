@@ -30,8 +30,8 @@ export interface SegmentationInternalPredictRequest {
   maskInput?: number[][];
   /** Whether to return multiple mask options */
   multimaskOutput?: boolean;
-  /** Frame number when imagePath is a video file */
-  frame?: number;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
 }
 
 /** Response from the segmentation service */
@@ -270,7 +270,7 @@ export class SegmentationServiceManager extends EventEmitter {
       point_labels: request.pointLabels,
       mask_input: request.maskInput,
       multimask_output: request.multimaskOutput ?? false,
-      frame: request.frame,
+      frame_time: request.frameTime,
     };
 
     return new Promise((resolve, reject) => {
@@ -368,7 +368,7 @@ export class SegmentationServiceManager extends EventEmitter {
     boxes?: [number, number, number, number][];
     points?: [number, number][];
     pointLabels?: number[];
-    frame?: number;
+    frameTime?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }): Promise<any> {
     if (!this.isReady()) {
@@ -390,7 +390,7 @@ export class SegmentationServiceManager extends EventEmitter {
       boxes: request.boxes,
       points: request.points,
       point_labels: request.pointLabels,
-      frame: request.frame,
+      frame_time: request.frameTime,
     };
 
     return new Promise((resolve, reject) => {

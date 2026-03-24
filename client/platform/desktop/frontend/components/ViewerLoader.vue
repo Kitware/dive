@@ -193,20 +193,28 @@ export default defineComponent({
           // Single cam: use base metadata directly
           const singleGetter = buildImagePathGetter(meta);
           getImagePath = singleGetter;
-          // Also cache for text query usage
+          // Also cache for text query and video frame usage
           cachedMeta = {
             originalBasePath: meta.originalBasePath,
             originalImageFiles: meta.originalImageFiles,
             type: meta.type,
             originalVideoFile: meta.originalVideoFile,
+            fps: meta.fps,
+            originalFps: meta.originalFps,
           };
         }
+
+        // Build frame time getter for video seek support
+        const getFrameTime = cachedMeta?.type === 'video' && cachedMeta.fps
+          ? (fNum: number) => fNum / (cachedMeta!.fps || 1)
+          : undefined;
 
         // Initialize the recipe
         viewerRef.value.segmentationRecipe.initialize({
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           predictFn: (request: SegmentationPredictRequest, _frameNum: number) => segmentationPredict(request),
           getImagePath,
+          getFrameTime,
           initializeServiceFn: async () => {
             const status = await segmentationIsReady();
             if (status.ready) {
@@ -226,6 +234,8 @@ export default defineComponent({
       originalImageFiles: string[];
       type: string;
       originalVideoFile?: string;
+      fps?: number;
+      originalFps?: number;
     } | null = null;
 
     /**
@@ -327,7 +337,9 @@ export default defineComponent({
           text,
           boxThreshold,
           maxDetections: 10,
-          frame: frameNum,
+          frameTime: cachedMeta?.type === 'video' && cachedMeta.fps
+            ? frameNum / cachedMeta.fps
+            : undefined,
         });
 
         if (!response.success) {
