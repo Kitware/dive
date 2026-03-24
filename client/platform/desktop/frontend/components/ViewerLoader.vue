@@ -416,6 +416,11 @@ export default defineComponent({
           title: 'Text Query Error',
           text: [`Failed to execute text query: ${error}`],
         });
+      } finally {
+        // Exit edit/draw mode after text query completes (success or failure)
+        if (viewerRef.value?.handler) {
+          viewerRef.value.handler.trackAbort();
+        }
       }
     }
 
