@@ -587,15 +587,51 @@ export default function useModeManager({
     };
 
     if (selectedTrackId.value !== null) {
-      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      let track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
+        // Segmentation continuous mode: when a positive (foreground) point is clicked
+        // and there's already a pending prediction, commit the current annotation
+        // and start a new one on a fresh track.
+        if (
+          trackSettings.value.newTrackSettings.mode === 'Detection'
+          && trackSettings.value.newTrackSettings.modeSettings.Detection.continuous
+          && data.geometry.type === 'Point'
+          && data.properties?.background !== true
+        ) {
+          const segRecipe = recipes.find(
+            (r) => r instanceof SegmentationPointClick
+              && r.active.value && r.hasPendingPrediction(),
+          ) as SegmentationPointClick | undefined;
+          if (segRecipe) {
+            // The preview polygon is already on the track via
+            // handleSegmentationPredictionReady.  Clearing
+            // preSegmentationFeatures makes it permanent.
+            preSegmentationFeatures.clear();
+            // Reset the recipe's points/masks (prediction-reset events
+            // are no-ops because preSegmentationFeatures is now empty).
+            segRecipe.resetPoints();
+            // Create a new track.  handleAddTrackOrDetection handles
+            // escape, track creation, and re-selection.  The segmentation
+            // recipe stays active because nothing deactivates it here.
+            handleAddTrackOrDetection(cameraStore.getNewTrackId());
+            // Re-fetch the track reference for the newly created track.
+            const newTrack = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+            if (!newTrack) {
+              throw new Error(`New track ${selectedTrackId.value} missing after continuous segmentation transition`);
+            }
+            track = newTrack;
+          }
+        }
+
         // newDetectionMode is true if there's no keyframe on frameNum
-        const { features, interpolate } = track.canInterpolate(frameNum);
+        // Capture in a const so TypeScript can narrow the type inside closures.
+        const currentTrack = track;
+        const { features, interpolate } = currentTrack.canInterpolate(frameNum);
         const [real] = features;
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
-          const changes = recipe.update(eventType, frameNum, track, [data], key);
+          const changes = recipe.update(eventType, frameNum, currentTrack, [data], key);
           // Prevent key conflicts among recipes
           Object.keys(changes.data).forEach((key_) => {
             if (key_ in update.geoJsonFeatureRecord) {
@@ -656,7 +692,7 @@ export default function useModeManager({
           // If there's already a keyframe at this frame, we're editing an existing annotation
           const isEditingExisting = real !== null && real.keyframe;
 
-          track.setFeature({
+          currentTrack.setFeature({
             frame: frameNum,
             flick: flickNum,
             keyframe: true,
@@ -673,8 +709,8 @@ export default function useModeManager({
 
           // Mark as user-modified if editing existing annotation (as detection attribute)
           // Skip if track is userCreated (user-created tracks don't need userModified on every detection)
-          if (isEditingExisting && track.attributes?.userCreated !== true) {
-            track.setFeatureAttribute(frameNum, 'userModified', true);
+          if (isEditingExisting && currentTrack.attributes?.userCreated !== true) {
+            currentTrack.setFeatureAttribute(frameNum, 'userModified', true);
           }
 
           // Only perform "initialization" after the first shape.
@@ -685,7 +721,7 @@ export default function useModeManager({
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
 
-            newTrackSettingsAfterLogic(track);
+            newTrackSettingsAfterLogic(currentTrack);
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
@@ -1422,6 +1458,25 @@ export default function useModeManager({
     }
 
     preSegmentationFeatures.delete(data.frameNum);
+
+    // If the track is now empty (e.g., a detection created by continuous mode
+    // whose only geometry came from a segmentation preview that was just reset),
+    // remove it so empty detections don't linger.
+    // Note: can't use _removeIfEmpty here because deleteFeature sets
+    // track.begin=Infinity, track.end=0, which fails its begin===end check.
+    const trackAfterReset = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    if (trackAfterReset) {
+      const hasAnyFeature = trackAfterReset.featureIndex.length > 0;
+      if (!hasAnyFeature) {
+        const trackStoreForReset = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+        if (trackStoreForReset) {
+          trackStoreForReset.remove(selectedTrackId.value);
+          selectTrack(null, false);
+          return;
+        }
+      }
+    }
+
     _nudgeEditingCanary();
   }
 
