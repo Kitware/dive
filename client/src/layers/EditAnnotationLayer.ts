@@ -170,12 +170,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   handleContextMenu(e: MouseEvent) {
     if (this.type === 'Point' && this.getMode() === 'creation') {
-      // Prevent the browser context menu
       e.preventDefault();
       e.stopPropagation();
 
-      // Emit confirm event to lock the annotation (like other edit modes)
-      this.bus.$emit('confirm-annotation');
+      // Emit right-click event with screen coordinates so LayerManager can
+      // check if an annotation is under the cursor and select it.
+      // On Windows/Electron, GeoJS mouseclick may not fire for right-button,
+      // so this provides a reliable fallback for annotation selection.
+      this.bus.$emit('right-click-point-mode', { x: e.clientX, y: e.clientY });
     }
   }
 

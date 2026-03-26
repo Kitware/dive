@@ -501,9 +501,38 @@ export default defineComponent({
         handler.trackSelect(selectedTrackIdRef.value, editing);
       }
     });
-    // Handle right-click to confirm/lock annotation in Point mode (segmentation)
-    editAnnotationLayer.bus.$on('confirm-annotation', () => {
-      handler.confirmRecipe();
+    // Handle right-click in Point mode (segmentation).
+    // On Windows/Electron, GeoJS mouseclick may not fire reliably for right-button,
+    // so we detect annotations under the cursor from the contextmenu event instead.
+    editAnnotationLayer.bus.$on('right-click-point-mode', (pos: { x: number; y: number }) => {
+      const map = annotator.geoViewerRef.value;
+      const mapNode = map.node().get(0) as HTMLElement;
+      const domRect = mapNode.getBoundingClientRect();
+      const displayCoords = {
+        x: pos.x - domRect.left,
+        y: pos.y - domRect.top,
+      };
+      const geoCoords = map.displayToGcs(displayCoords);
+
+      // Check if an annotation is under the cursor
+      const rectHits = rectAnnotationLayer.featureLayer
+        ? rectAnnotationLayer.featureLayer.pointSearch(geoCoords) : { found: [] };
+      const polyHits = polyAnnotationLayer.featureLayer
+        ? polyAnnotationLayer.featureLayer.pointSearch(geoCoords) : { found: [] };
+      const hitData = (rectHits.found.length > 0 && rectHits.found[0])
+        || (polyHits.found.length > 0 && polyHits.found[0]);
+
+      if (hitData && hitData.trackId != null) {
+        // Right-clicked on an annotation while in Point/segmentation mode:
+        // select that track for editing, staying in segmentation mode.
+        // Deselect first so trackEdit doesn't toggle off the already-selected track.
+        editAnnotationLayer.disable();
+        handler.trackSelect(null, false);
+        handler.trackEdit(hitData.trackId);
+      } else {
+        // Right-clicked on empty space: confirm segmentation if pending
+        handler.confirmRecipe();
+      }
     });
     // Register callback so pressing 'n' (new detection) finalizes in-progress shapes
     handler.registerFinalizeCreation(() => {
