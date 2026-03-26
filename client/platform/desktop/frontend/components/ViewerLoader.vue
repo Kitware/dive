@@ -13,6 +13,7 @@ import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
 import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import { SEGMENTATION_NO_SAM_WARNING } from 'dive-common/recipes/segmentationpointclick';
 import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
   runTextQueryPipeline,
@@ -221,7 +222,17 @@ export default defineComponent({
             if (status.ready) {
               return;
             }
-            await segmentationInitialize();
+            const result = await segmentationInitialize();
+            const extended = result as { success: boolean; noSamInstalled?: boolean };
+            if (extended.noSamInstalled) {
+              prompt({
+                title: 'Segmentation Info',
+                text: [SEGMENTATION_NO_SAM_WARNING],
+              });
+            }
+            if (!result.success) {
+              throw new Error('Segmentation initialization failed');
+            }
           },
         });
       } catch {

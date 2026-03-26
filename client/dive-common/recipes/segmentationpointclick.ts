@@ -34,6 +34,9 @@ import { SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-co
 
 export const SegmentationPolygonKey = 'SegmentationPolygon';
 
+/** Warning message shown when neither SAM2 nor SAM3 model pack is installed */
+export const SEGMENTATION_NO_SAM_WARNING = 'SAM2 or SAM3 model pack is not installed, defaulting to GrabCut segmentation method. Performance will be improved by using one of the SAM model packs from the Add-On page.';
+
 const EmptyResponse: UpdateResponse = {
   data: {},
   union: [],
@@ -597,7 +600,7 @@ export default class SegmentationPointClick implements Recipe {
         })
         .catch((error) => {
           this.pendingActivation = false;
-          const errorMessage = error instanceof Error ? error.message : "Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.";
+          const errorMessage = error instanceof Error ? error.message : 'Segmentation initialization failed';
           this.bus.$emit('prediction-error', errorMessage);
           this.loading.value = false;
           this.icon.value = 'mdi-auto-fix';

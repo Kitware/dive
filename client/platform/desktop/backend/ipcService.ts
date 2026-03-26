@@ -1,5 +1,7 @@
+import fs from 'fs';
 import OS from 'os';
 import http from 'http';
+import npath from 'path';
 import { ipcMain } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
@@ -200,10 +202,25 @@ export default function register() {
    * Interactive Segmentation Service
    */
 
+  let samWarningShown = false;
+
   ipcMain.handle('segmentation-initialize', async () => {
+    const currentSettings = settings.get();
+    const pipelinesDir = npath.join(currentSettings.viamePath, 'configs', 'pipelines');
+    const hasSam2 = fs.existsSync(npath.join(pipelinesDir, 'interactive_segmenter_sam2.conf'));
+    const hasSam3 = fs.existsSync(npath.join(pipelinesDir, 'interactive_segmenter_sam3.conf'));
+    const noSamInstalled = !hasSam2 && !hasSam3;
+
+    // Show a one-time warning if neither SAM pack is installed,
+    // but still proceed with initialization (VIAME has a default GrabCut fallback)
+    const showWarning = noSamInstalled && !samWarningShown;
+    if (showWarning) {
+      samWarningShown = true;
+    }
+
     const segService = getSegmentationServiceManager();
-    await segService.initialize(settings.get());
-    return { success: true };
+    await segService.initialize(currentSettings);
+    return { success: true, noSamInstalled: showWarning };
   });
 
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
