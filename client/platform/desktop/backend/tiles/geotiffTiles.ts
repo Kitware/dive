@@ -37,8 +37,6 @@ export interface TilesMetadata {
   error?: string;
   /** Valid tile indices per level: for each level, x in [0, maxX], y in [0, maxY]. */
   tileRanges: TileRange[];
-  /** List of valid { z, x, y } tile coordinates (capped by default limit). */
-  validTileList: { z: number; x: number; y: number }[];
 }
 
 /**
@@ -62,35 +60,23 @@ export function getValidTileRanges(
   return ranges;
 }
 
-/**
- * Build a list of valid { z, x, y } tile coordinates, optionally capped.
- * @param limit max number of tiles to return (default 10000); omit for no cap
- */
-export function getValidTileList(
-  sizeX: number,
-  sizeY: number,
-  levels: number,
-  limit = 10000,
-): { z: number; x: number; y: number }[] {
-  const ranges = getValidTileRanges(sizeX, sizeY, levels);
-  const tiles: { z: number; x: number; y: number }[] = [];
-  for (let i = 0; i < ranges.length; i += 1) {
-    const { level, maxX, maxY } = ranges[i];
-    for (let x = 0; x <= maxX && tiles.length < limit; x += 1) {
-      for (let y = 0; y <= maxY && tiles.length < limit; y += 1) {
-        tiles.push({ z: level, x, y });
-      }
-    }
-  }
-  return tiles;
-}
-
 const LOG_PREFIX = '[tiles]';
 const MAX_TILE_CACHE_ENTRIES = 256;
 const TIFF_STAT_REFRESH_MS = 1000;
 const DEFAULT_MAX_IN_MEMORY_TIFF_MB = 5120;
 const PATH_CACHE_TTL_MS = 5000;
+const PRECONVERSION_GUIDANCE = [
+  'This large image is missing internal overview levels and must be pre-converted before viewing tiles.',
+  'Run `gdalinfo --stats "<input-file>.tif"` and note each band\'s minimum and maximum values.',
+  'Then run `gdal_translate "<input-file>.tif" "<input-file>_cog_scaled.tif" -of COG -ot Byte -scale <min> <max> 0 255 -co BLOCKSIZE=256 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -co NUM_THREADS=ALL_CPUS -co OVERVIEWS=IGNORE_EXISTING -co RESAMPLING=LANCZOS -co OVERVIEW_RESAMPLING=AVERAGE`.',
+  'Re-import the converted file.',
+].join(' ');
 type RasterArray = Uint8Array | Uint16Array | Float32Array | Float64Array;
+
+interface SampleRange {
+  min: number;
+  max: number;
+}
 
 interface GeoTiffReadableImage {
   getWidth(): number;
@@ -98,6 +84,8 @@ interface GeoTiffReadableImage {
   getSamplesPerPixel(): number;
   readRasters(options: Record<string, unknown>): Promise<unknown>;
   readRGB(options: Record<string, unknown>): Promise<unknown>;
+  getFileDirectory?: () => unknown;
+  fileDirectory?: unknown;
 }
 
 interface GeoTiffReadable {
@@ -123,6 +111,17 @@ interface RawTiffImageEntry {
   height: number;
 }
 
+interface TileWindow {
+  levelClamped: number;
+  scale: number;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  outputWidth: number;
+  outputHeight: number;
+}
+
 interface TiffContext {
   path: string;
   size: number;
@@ -133,6 +132,7 @@ interface TiffContext {
   imageSources: TiffImageSource[];
   width: number;
   height: number;
+  sampleRanges: SampleRange[] | null;
   sourceMaxLevel: number;
   maxLevel: number;
   preconversionRequired: boolean;
@@ -141,6 +141,7 @@ interface TiffContext {
 
 let tiffContext: TiffContext | null = null;
 let tiffContextPromise: Promise<TiffContext> | null = null;
+let tiffContextPromisePath: string | null = null;
 let tiffContextStatCheckedAtMs = 0;
 const datasetPathCache = new Map<string, { path: string | null; expiresAtMs: number }>();
 const datasetPathPromiseCache = new Map<string, Promise<string | null>>();
@@ -227,7 +228,7 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
     })
     // File-backed mode fetches bytes lazily and keeps process memory lower.
     : await fromFile(path);
-  const tiffReadable = tiff as GeoTiffReadable;
+  const tiffReadable = tiff as unknown as GeoTiffReadable;
   const imageCountRaw = tiffReadable.getImageCount ? await tiffReadable.getImageCount() : 1;
   const imageCount = Number.isFinite(imageCountRaw) ? Math.max(1, Math.floor(Number(imageCountRaw))) : 1;
   const rawImages: RawTiffImageEntry[] = [];
@@ -250,6 +251,17 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
     }
   }
   const { width, height } = fullRes;
+  const sampleCount = fullRes.image.getSamplesPerPixel();
+  let sampleRanges = getSampleRangesFromMetadata(fullRes.image, sampleCount);
+  if (!sampleRanges) {
+    for (let i = 0; i < rawImages.length; i += 1) {
+      sampleRanges = getSampleRangesFromMetadata(rawImages[i].image, sampleCount);
+      if (sampleRanges) break;
+    }
+  }
+  if (!sampleRanges) {
+    sampleRanges = await estimateSampleRangesFromOverview(rawImages, sampleCount);
+  }
   const theoreticalMaxLevel = Math.max(0, Math.ceil(Math.log2(Math.max(width / TILE_SIZE, height / TILE_SIZE))));
   const imageSources = buildAlignedImageSources(rawImages, fullRes);
   const maxAvailableScale = imageSources.length > 0
@@ -258,9 +270,7 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
   const availableMaxLevel = Math.max(0, Math.floor(Math.log2(Math.max(1, maxAvailableScale))));
   const maxLevel = Math.min(theoreticalMaxLevel, availableMaxLevel);
   const preconversionRequired = theoreticalMaxLevel > 0 && availableMaxLevel === 0;
-  const preconversionError = preconversionRequired
-    ? 'This large image is missing internal overview levels and must be pre-converted before viewing tiles. Please convert with GDAL (for example to a tiled pyramidal COG) and re-import.'
-    : null;
+  const preconversionError = preconversionRequired ? PRECONVERSION_GUIDANCE : null;
   return {
     path,
     size: stat.size,
@@ -271,6 +281,7 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
     imageSources,
     width,
     height,
+    sampleRanges,
     sourceMaxLevel: theoreticalMaxLevel,
     maxLevel,
     preconversionRequired,
@@ -279,6 +290,15 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
 }
 
 function buildAlignedImageSources(rawImages: RawTiffImageEntry[], fullRes: RawTiffImageEntry): TiffImageSource[] {
+  /**
+   * Select an IFD pyramid that behaves predictably for tile rendering:
+   * 1) keep only dimensions/samples compatible with full resolution,
+   * 2) snap each source to the nearest power-of-two overview level,
+   * 3) keep the best candidate per level and always keep full-res fallback.
+   *
+   * This avoids stitching seams from non-pyramidal sidecar IFDs while still
+   * making use of valid internal overviews when present.
+   */
   const fullResSamples = fullRes.image.getSamplesPerPixel();
   const aligned = rawImages.filter((entry) => {
     if (entry.width <= 0 || entry.height <= 0) return false;
@@ -347,6 +367,134 @@ function buildAlignedImageSources(rawImages: RawTiffImageEntry[], fullRes: RawTi
   return Array.from(byOverviewLevel.values()).sort((a, b) => a.overviewLevel - b.overviewLevel);
 }
 
+function getFileDirectory(image: GeoTiffReadableImage): Record<string, unknown> | null {
+  if (typeof image.getFileDirectory === 'function') {
+    const raw = image.getFileDirectory();
+    if (raw && typeof raw === 'object') {
+      return raw as Record<string, unknown>;
+    }
+    return null;
+  }
+  if (image.fileDirectory && typeof image.fileDirectory === 'object') {
+    return image.fileDirectory as Record<string, unknown>;
+  }
+  return null;
+}
+
+function parseSampleValues(value: unknown): number[] {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
+  }
+  if (ArrayBuffer.isView(value)) {
+    const numericView = value as unknown as ArrayLike<number>;
+    const out: number[] = [];
+    for (let i = 0; i < numericView.length; i += 1) {
+      const n = numericView[i];
+      if (typeof n === 'number' && Number.isFinite(n)) {
+        out.push(n);
+      }
+    }
+    return out;
+  }
+  return [];
+}
+
+function expandSampleValues(values: number[], sampleCount: number): number[] {
+  if (sampleCount <= 0) return [];
+  if (values.length === 0) return [];
+  if (values.length >= sampleCount) {
+    return values.slice(0, sampleCount);
+  }
+  const first = values[0];
+  return Array.from({ length: sampleCount }, (_, i) => values[i] ?? first);
+}
+
+function getSampleRangesFromMetadata(
+  image: GeoTiffReadableImage,
+  sampleCount: number,
+): SampleRange[] | null {
+  if (sampleCount <= 0) return null;
+  const fileDirectory = getFileDirectory(image);
+  if (!fileDirectory) return null;
+  const mins = expandSampleValues(
+    parseSampleValues(fileDirectory.TIFFTAG_MINSAMPLEVALUE ?? fileDirectory.MinSampleValue),
+    sampleCount,
+  );
+  const maxs = expandSampleValues(
+    parseSampleValues(fileDirectory.TIFFTAG_MAXSAMPLEVALUE ?? fileDirectory.MaxSampleValue),
+    sampleCount,
+  );
+  if (mins.length === 0 || maxs.length === 0) return null;
+  const ranges: SampleRange[] = [];
+  for (let i = 0; i < sampleCount; i += 1) {
+    const min = mins[i];
+    const max = maxs[i];
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+      return null;
+    }
+    ranges.push(mapAutoRange(min, max));
+  }
+  return ranges;
+}
+
+function mapAutoRange(min: number, max: number): SampleRange {
+  // large_image-like "auto": keep full 8-bit when native values already fit there.
+  return min >= 0 && max <= 255 ? { min: 0, max: 255 } : { min, max };
+}
+
+function getFiniteMinMax(raw: RasterArray): SampleRange | null {
+  if (raw.length === 0) return null;
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < raw.length; i += 1) {
+    const v = Number(raw[i]);
+    if (Number.isFinite(v)) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return null;
+  }
+  return { min, max };
+}
+
+async function estimateSampleRangesFromOverview(
+  rawImages: RawTiffImageEntry[],
+  sampleCount: number,
+): Promise<SampleRange[] | null> {
+  if (rawImages.length === 0 || sampleCount <= 0) return null;
+  let smallest = rawImages[0];
+  for (let i = 1; i < rawImages.length; i += 1) {
+    const candidate = rawImages[i];
+    if ((candidate.width * candidate.height) < (smallest.width * smallest.height)) {
+      smallest = candidate;
+    }
+  }
+  const sampleIndices = Array.from({ length: sampleCount }, (_, i) => i);
+  try {
+    const rasters = await smallest.image.readRasters({
+      window: [0, 0, smallest.width, smallest.height],
+      samples: sampleIndices,
+      interleave: false,
+    } as Record<string, unknown>) as RasterArray[];
+    const ranges: SampleRange[] = [];
+    for (let i = 0; i < sampleCount; i += 1) {
+      const band = rasters[i];
+      if (!band) return null;
+      const minMax = getFiniteMinMax(band);
+      if (!minMax) return null;
+      ranges.push(mapAutoRange(minMax.min, minMax.max));
+    }
+    return ranges;
+  } catch {
+    return null;
+  }
+}
+
 function pickImageSourceForScale(imageSources: TiffImageSource[], requestedScale: number): TiffImageSource {
   if (process.env.TILES_DISABLE_OVERVIEW_SELECTION?.trim() === '1') {
     return imageSources[0];
@@ -381,6 +529,12 @@ function pickImageSourceForScale(imageSources: TiffImageSource[], requestedScale
 }
 
 async function getCachedTiffContext(path: string): Promise<TiffContext> {
+  /**
+   * Cache policy:
+   * - Return hot context quickly within a short stat refresh interval.
+   * - Re-stat and reuse context when file size/mtime match.
+   * - Coalesce concurrent reloads through a single in-flight promise per path.
+   */
   const now = Date.now();
   if (
     tiffContext
@@ -400,7 +554,8 @@ async function getCachedTiffContext(path: string): Promise<TiffContext> {
     return tiffContext;
   }
 
-  if (!tiffContextPromise) {
+  if (!tiffContextPromise || tiffContextPromisePath !== path) {
+    tiffContextPromisePath = path;
     tiffContextPromise = loadTiffContext(path).then((ctx) => {
       const pathChanged = tiffContext && tiffContext.path !== ctx.path;
       const fileChanged = tiffContext
@@ -412,11 +567,81 @@ async function getCachedTiffContext(path: string): Promise<TiffContext> {
       tiffContext = ctx;
       return ctx;
     }).finally(() => {
-      tiffContextPromise = null;
+      if (tiffContextPromisePath === path) {
+        tiffContextPromise = null;
+        tiffContextPromisePath = null;
+      }
     });
   }
 
   return tiffContextPromise;
+}
+
+function clampToByte(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function normalizeSampleToU8(value: number, range?: SampleRange): number {
+  if (!range) {
+    return clampToByte(value);
+  }
+  const span = range.max - range.min;
+  if (!Number.isFinite(span) || span <= 0) {
+    return 0;
+  }
+  return clampToByte((value - range.min) * (255 / span));
+}
+
+function createOpaqueRgba(pixelCount: number): Uint8Array {
+  const rgba = new Uint8Array(pixelCount * 4);
+  for (let i = 3; i < rgba.length; i += 4) {
+    rgba[i] = 255;
+  }
+  return rgba;
+}
+
+function computeTileWindow(
+  width: number,
+  height: number,
+  maxLevel: number,
+  level: number,
+  x: number,
+  y: number,
+): TileWindow | null {
+  const levelClamped = Math.max(0, Math.min(level, maxLevel));
+  const scale = 2 ** (maxLevel - levelClamped);
+  const left = Math.min(x * TILE_SIZE * scale, width);
+  const top = Math.min(y * TILE_SIZE * scale, height);
+  const right = Math.min((x + 1) * TILE_SIZE * scale, width);
+  const bottom = Math.min((y + 1) * TILE_SIZE * scale, height);
+  if (left >= right || top >= bottom) return null;
+  return {
+    levelClamped,
+    scale,
+    left,
+    top,
+    right,
+    bottom,
+    outputWidth: Math.max(1, Math.min(TILE_SIZE, Math.ceil((right - left) / scale))),
+    outputHeight: Math.max(1, Math.min(TILE_SIZE, Math.ceil((bottom - top) / scale))),
+  };
+}
+
+function computeSourceWindow(
+  source: TiffImageSource,
+  tileWindow: TileWindow,
+): [number, number, number, number] {
+  const sourceLeft = Math.min(source.width, Math.max(0, Math.floor(tileWindow.left / source.scaleX)));
+  const sourceTop = Math.min(source.height, Math.max(0, Math.floor(tileWindow.top / source.scaleY)));
+  const sourceRight = Math.min(
+    source.width,
+    Math.max(sourceLeft + 1, Math.ceil(tileWindow.right / source.scaleX)),
+  );
+  const sourceBottom = Math.min(
+    source.height,
+    Math.max(sourceTop + 1, Math.ceil(tileWindow.bottom / source.scaleY)),
+  );
+  return [sourceLeft, sourceTop, sourceRight, sourceBottom];
 }
 
 /** If set (e.g. DEBUG_TILE_PATH=/path/to/lake.tiff), use this path for all tile requests (for debugging). */
@@ -428,10 +653,8 @@ function getEffectiveTiffPath(
   if (debugPath) {
     return fs.pathExists(debugPath).then((exists) => {
       if (exists) {
-        console.log(`${LOG_PREFIX} using DEBUG_TILE_PATH: ${debugPath} (datasetId=${datasetId})`);
         return debugPath;
       }
-      console.warn(`${LOG_PREFIX} DEBUG_TILE_PATH set but file does not exist: ${debugPath}`);
       return null;
     });
   }
@@ -463,7 +686,6 @@ export async function getTilesMetadata(
   settings: Settings,
   datasetId: string,
 ): Promise<TilesMetadata | null> {
-  console.log(`${LOG_PREFIX} getTilesMetadata: datasetId="${datasetId}"`);
   const tiffPath = await getEffectiveTiffPath(settings, datasetId);
   if (!tiffPath) {
     console.warn(`${LOG_PREFIX} getTilesMetadata: no large-image path for dataset "${datasetId}" (not large-image or missing originalLargeImageFile in meta)`);
@@ -483,8 +705,6 @@ export async function getTilesMetadata(
     const sourceLevelCount = sourceMaxLevel + 1;
     // geoJS pixelCoordinateParams uses maxLevel = ceil(log2(max(w/256, h/256))); level 0 = overview, maxLevel = full res.
     const tileRanges = getValidTileRanges(width, height, maxLevel);
-    const validTileList = getValidTileList(width, height, maxLevel, 10000);
-    console.log(`${LOG_PREFIX} getTilesMetadata: success width=${width} height=${height} maxLevel=${maxLevel} sourceMaxLevel=${sourceMaxLevel} preconversionRequired=${preconversionRequired} validTileList.length=${validTileList.length}`);
     return {
       sizeX: width,
       sizeY: height,
@@ -497,7 +717,6 @@ export async function getTilesMetadata(
       preconversionRequired,
       error: preconversionError ?? undefined,
       tileRanges,
-      validTileList,
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
@@ -533,6 +752,7 @@ export async function getTilePng(
       height,
       maxLevel,
       imageSources,
+      sampleRanges,
     } = ctx;
     const tileCacheKey = getTileCacheKey(tiffPath, level, x, y);
     const cached = tilePngCache.get(tileCacheKey);
@@ -542,38 +762,31 @@ export async function getTilePng(
     }
     // geoJS uses level 0 = overview (fewest tiles), maxLevel = full res (most tiles).
     // tilesAtZoom(level): scale = 2^(maxLevel - level). Match that here.
-    const levelClamped = Math.max(0, Math.min(level, maxLevel));
-    const scale = 2 ** (maxLevel - levelClamped);
-    const left = Math.min(x * TILE_SIZE * scale, width);
-    const top = Math.min(y * TILE_SIZE * scale, height);
-    const right = Math.min((x + 1) * TILE_SIZE * scale, width);
-    const bottom = Math.min((y + 1) * TILE_SIZE * scale, height);
-    if (left >= right || top >= bottom) {
-      console.warn(`${LOG_PREFIX} getTilePng: tile window out of bounds for dataset "${datasetId}" level=${level} x=${x} y=${y} (image ${width}x${height}, window [${left},${top},${right},${bottom}])`);
+    const tileWindow = computeTileWindow(width, height, maxLevel, level, x, y);
+    if (!tileWindow) {
+      const attemptedScale = 2 ** (maxLevel - Math.max(0, Math.min(level, maxLevel)));
+      const attemptedLeft = Math.min(x * TILE_SIZE * attemptedScale, width);
+      const attemptedTop = Math.min(y * TILE_SIZE * attemptedScale, height);
+      const attemptedRight = Math.min((x + 1) * TILE_SIZE * attemptedScale, width);
+      const attemptedBottom = Math.min((y + 1) * TILE_SIZE * attemptedScale, height);
+      console.warn(`${LOG_PREFIX} getTilePng: tile window out of bounds for dataset "${datasetId}" level=${level} x=${x} y=${y} (image ${width}x${height}, window [${attemptedLeft},${attemptedTop},${attemptedRight},${attemptedBottom}])`);
       return null;
     }
-    // Image-space pixel window [left, top, right, bottom]; not bbox (geospatial).
-    const source = pickImageSourceForScale(imageSources, scale);
-    const sourceLeft = Math.min(source.width, Math.max(0, Math.floor(left / source.scaleX)));
-    const sourceTop = Math.min(source.height, Math.max(0, Math.floor(top / source.scaleY)));
-    const sourceRight = Math.min(source.width, Math.max(sourceLeft + 1, Math.ceil(right / source.scaleX)));
-    const sourceBottom = Math.min(source.height, Math.max(sourceTop + 1, Math.ceil(bottom / source.scaleY)));
-    const sourceWindow = [sourceLeft, sourceTop, sourceRight, sourceBottom] as [number, number, number, number];
+    // Read window is in image-space pixels. We then remap the same window to the
+    // selected overview IFD so geotiff.js can resample to the requested tile size.
+    const source = pickImageSourceForScale(imageSources, tileWindow.scale);
+    const sourceWindow = computeSourceWindow(source, tileWindow);
     const sourceImage = source.image;
     if (process.env.DEBUG_TILE_PATH) {
-      console.log(`${LOG_PREFIX} getTilePng: level=${level} maxLevel=${maxLevel} scale=${scale} x=${x} y=${y} window=[${left},${top},${right},${bottom}] sourceIFD=${source.index} sourceScale=${source.scale.toFixed(2)} sourceWindow=[${sourceLeft},${sourceTop},${sourceRight},${sourceBottom}] image=${width}x${height}`);
     }
     const opts = {
       window: sourceWindow,
-      width: TILE_SIZE,
-      height: TILE_SIZE,
+      width: tileWindow.outputWidth,
+      height: tileWindow.outputHeight,
       resampleMethod: 'bilinear' as const,
     };
-    const expectedPixels = TILE_SIZE * TILE_SIZE;
-    const rgba = new Uint8Array(expectedPixels * 4);
-    for (let i = 3; i < rgba.length; i += 4) {
-      rgba[i] = 255;
-    }
+    const expectedPixels = tileWindow.outputWidth * tileWindow.outputHeight;
+    const sampledRgba = createOpaqueRgba(expectedPixels);
 
     const sampleCount = sourceImage.getSamplesPerPixel();
     try {
@@ -583,7 +796,7 @@ export async function getTilePng(
           samples: [0, 1, 2],
           interleave: true,
         } as Record<string, unknown>) as RasterArray;
-        normalizeInterleavedRgbToRgba(rgbInterleaved, rgba, expectedPixels);
+        normalizeInterleavedRgbToRgba(rgbInterleaved, sampledRgba, expectedPixels, sampleRanges);
       } else {
         const rasters = await sourceImage.readRasters({
           ...opts,
@@ -591,10 +804,9 @@ export async function getTilePng(
           interleave: false,
         } as Record<string, unknown>) as RasterArray[];
         const gray = (rasters[0] ?? new Uint8Array(0)) as RasterArray;
-        normalizeGrayToRgba(gray, rgba, expectedPixels);
+        normalizeGrayToRgba(gray, sampledRgba, expectedPixels, sampleRanges?.[0] ?? null);
       }
       if (process.env.DEBUG_TILE_PATH) {
-        console.log(`${LOG_PREFIX} getTilePng: readRasters samples=${sampleCount} rgba length=${rgba.length}`);
       }
     } catch (readErr) {
       if (process.env.DEBUG_TILE_PATH) {
@@ -602,14 +814,15 @@ export async function getTilePng(
       }
       try {
         const rgb = await sourceImage.readRGB(opts as Record<string, unknown>);
-        fillRgbaFromReadRgbResult(rgb, rgba, expectedPixels);
+        fillRgbaFromReadRgbResult(rgb, sampledRgba, expectedPixels, sampleRanges);
       } catch {
         throw readErr;
       }
     }
+    const rgba = new Uint8Array(TILE_SIZE * TILE_SIZE * 4);
+    blitRgba(sampledRgba, tileWindow.outputWidth, tileWindow.outputHeight, rgba, TILE_SIZE, TILE_SIZE);
     const pngBuffer = encodePngRgba(TILE_SIZE, TILE_SIZE, rgba);
     if (process.env.DEBUG_TILE_PATH) {
-      console.log(`${LOG_PREFIX} getTilePng: encodePng done, buffer length=${pngBuffer.length}`);
     }
     touchTileCacheEntry(tileCacheKey, pngBuffer);
     return pngBuffer;
@@ -632,33 +845,15 @@ export async function getTilePng(
 function normalizeToU8(
   raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
   out: Uint8Array,
+  range?: SampleRange,
   offset = 0,
   stride = 1,
 ): void {
   const n = Math.min(raw.length, Math.floor((out.length - offset) / stride));
   if (n === 0) return;
   const outView = out;
-  if (raw instanceof Uint8Array && offset === 0 && stride === 1 && n === out.length) {
-    outView.set(raw.subarray(0, n));
-    return;
-  }
-  let min = raw[0];
-  let max = raw[0];
-  for (let i = 1; i < n; i += 1) {
-    const v = raw[i];
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  const range = max - min;
-  if (range <= 0 || !Number.isFinite(range)) {
-    for (let i = 0; i < n; i += 1) {
-      outView[offset + i * stride] = 0;
-    }
-    return;
-  }
-  const scale = 255 / range;
   for (let i = 0; i < n; i += 1) {
-    outView[offset + i * stride] = Math.round((Number(raw[i]) - min) * scale);
+    outView[offset + i * stride] = normalizeSampleToU8(Number(raw[i]), range);
   }
 }
 
@@ -666,47 +861,23 @@ function normalizeInterleavedRgbToRgba(
   raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
   outRgba: Uint8Array,
   pixelCount: number,
+  ranges: SampleRange[] | null = null,
 ): void {
   if (pixelCount <= 0 || raw.length < 3) return;
   const out = outRgba;
   const n = Math.min(pixelCount, Math.floor(raw.length / 3));
-  if (raw instanceof Uint8Array) {
-    for (let i = 0; i < n; i += 1) {
-      const src = i * 3;
-      const dst = i * 4;
-      out[dst] = raw[src];
-      out[dst + 1] = raw[src + 1] ?? raw[src];
-      out[dst + 2] = raw[src + 2] ?? raw[src];
-    }
-    return;
-  }
-  let rMin = Number(raw[0]);
-  let rMax = rMin;
-  let gMin = Number(raw[1] ?? raw[0]);
-  let gMax = gMin;
-  let bMin = Number(raw[2] ?? raw[0]);
-  let bMax = bMin;
-  for (let i = 0; i < n; i += 1) {
-    const base = i * 3;
-    const r = Number(raw[base]);
-    const g = Number(raw[base + 1] ?? r);
-    const b = Number(raw[base + 2] ?? r);
-    if (r < rMin) rMin = r;
-    if (r > rMax) rMax = r;
-    if (g < gMin) gMin = g;
-    if (g > gMax) gMax = g;
-    if (b < bMin) bMin = b;
-    if (b > bMax) bMax = b;
-  }
-  const rScale = rMax > rMin ? 255 / (rMax - rMin) : 0;
-  const gScale = gMax > gMin ? 255 / (gMax - gMin) : 0;
-  const bScale = bMax > bMin ? 255 / (bMax - bMin) : 0;
+  const rRange = ranges?.[0];
+  const gRange = ranges?.[1] ?? rRange;
+  const bRange = ranges?.[2] ?? rRange;
   for (let i = 0; i < n; i += 1) {
     const src = i * 3;
     const dst = i * 4;
-    out[dst] = rScale ? Math.round((Number(raw[src]) - rMin) * rScale) : 0;
-    out[dst + 1] = gScale ? Math.round((Number(raw[src + 1] ?? raw[src]) - gMin) * gScale) : 0;
-    out[dst + 2] = bScale ? Math.round((Number(raw[src + 2] ?? raw[src]) - bMin) * bScale) : 0;
+    const r = Number(raw[src]);
+    const g = Number(raw[src + 1] ?? raw[src]);
+    const b = Number(raw[src + 2] ?? raw[src]);
+    out[dst] = normalizeSampleToU8(r, rRange);
+    out[dst + 1] = normalizeSampleToU8(g, gRange);
+    out[dst + 2] = normalizeSampleToU8(b, bRange);
   }
 }
 
@@ -714,11 +885,12 @@ function normalizeGrayToRgba(
   raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
   outRgba: Uint8Array,
   pixelCount: number,
+  range: SampleRange | null = null,
 ): void {
   if (pixelCount <= 0 || raw.length === 0) return;
   const out = outRgba;
   const n = Math.min(pixelCount, raw.length);
-  if (raw instanceof Uint8Array) {
+  if (!range && raw instanceof Uint8Array) {
     for (let i = 0; i < n; i += 1) {
       const dst = i * 4;
       const v = raw[i];
@@ -728,7 +900,7 @@ function normalizeGrayToRgba(
     }
     return;
   }
-  normalizeToU8(raw, outRgba, 0, 4);
+  normalizeToU8(raw, outRgba, range ?? undefined, 0, 4);
   for (let i = 0; i < pixelCount; i += 1) {
     const dst = i * 4;
     const v = out[dst];
@@ -741,20 +913,47 @@ function fillRgbaFromReadRgbResult(
   rgb: unknown,
   outRgba: Uint8Array,
   pixelCount: number,
+  ranges: SampleRange[] | null = null,
 ): void {
   const rgbBands = rgb as { [0]?: RasterArray; [1]?: RasterArray; [2]?: RasterArray };
   if (rgb && rgbBands[0] !== undefined && rgbBands[1] !== undefined && rgbBands[2] !== undefined) {
-    normalizeToU8(rgbBands[0], outRgba, 0, 4);
-    normalizeToU8(rgbBands[1], outRgba, 1, 4);
-    normalizeToU8(rgbBands[2], outRgba, 2, 4);
+    normalizeToU8(rgbBands[0], outRgba, ranges?.[0], 0, 4);
+    normalizeToU8(rgbBands[1], outRgba, ranges?.[1] ?? ranges?.[0], 1, 4);
+    normalizeToU8(rgbBands[2], outRgba, ranges?.[2] ?? ranges?.[0], 2, 4);
     return;
   }
   const raw = rgb as RasterArray | undefined;
   if (!raw || raw.length === 0) return;
   if (raw.length >= pixelCount * 3) {
-    normalizeInterleavedRgbToRgba(raw, outRgba, pixelCount);
+    normalizeInterleavedRgbToRgba(raw, outRgba, pixelCount, ranges);
   } else {
-    normalizeGrayToRgba(raw, outRgba, pixelCount);
+    normalizeGrayToRgba(raw, outRgba, pixelCount, ranges?.[0] ?? null);
+  }
+}
+
+function blitRgba(
+  sourceRgba: Uint8Array,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetRgba: Uint8Array,
+  targetWidth: number,
+  targetHeight: number,
+): void {
+  if (
+    sourceWidth <= 0
+    || sourceHeight <= 0
+    || targetWidth <= 0
+    || targetHeight <= 0
+  ) {
+    return;
+  }
+  const copyWidth = Math.min(sourceWidth, targetWidth);
+  const copyHeight = Math.min(sourceHeight, targetHeight);
+  for (let row = 0; row < copyHeight; row += 1) {
+    const srcOffset = row * sourceWidth * 4;
+    const dstOffset = row * targetWidth * 4;
+    const rowLength = copyWidth * 4;
+    targetRgba.set(sourceRgba.subarray(srcOffset, srcOffset + rowLength), dstOffset);
   }
 }
 

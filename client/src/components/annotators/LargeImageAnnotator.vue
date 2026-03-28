@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, onUnmounted, PropType, toRef, watch,
+  defineComponent, ref, onUnmounted, PropType, toRef, watch, computed,
 } from 'vue';
 import geo from 'geojs';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
@@ -22,6 +22,21 @@ function loadImageFunc(imageDataItem: LargeImageDataItem, img: HTMLImageElement)
   // eslint-disable-next-line no-param-reassign
   img.src = imageDataItem.url;
 }
+
+function shellEscapePath(path: string): string {
+  return `"${path.replace(/"/g, '\\"')}"`;
+}
+
+function buildOutputFilename(inputFilename: string): string {
+  const separator = Math.max(inputFilename.lastIndexOf('/'), inputFilename.lastIndexOf('\\'));
+  const dirname = separator >= 0 ? inputFilename.slice(0, separator + 1) : '';
+  const basename = separator >= 0 ? inputFilename.slice(separator + 1) : inputFilename;
+  const extIndex = basename.lastIndexOf('.');
+  const hasExt = extIndex > 0;
+  const nameOnly = hasExt ? basename.slice(0, extIndex) : basename;
+  return `${dirname}${nameOnly || 'converted'}_cog_scaled.tif`;
+}
+
 export default defineComponent({
   name: 'LargeImageAnnotator',
   props: {
@@ -91,7 +106,7 @@ export default defineComponent({
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const tileLoadError = ref('');
-    let hasShownTileErrorPrompt = false;
+    const copiedConversionCommand = ref(false);
     const cameraInitializer = injectCameraInitializer();
     // eslint-disable-next-line prefer-const
     let geoSpatial = false;
@@ -108,6 +123,28 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
+    const conversionInputFilename = computed(() => (
+      props.imageData[data.frame]?.filename
+      || props.imageData[0]?.filename
+      || 'input.tif'
+    ));
+    const hasPreconversionGuidance = computed(() => /overview|pre-convert|gdal/i.test(tileLoadError.value));
+    const gdalTranslateCommand = computed(() => {
+      const inputFilename = conversionInputFilename.value;
+      const outputFilename = buildOutputFilename(inputFilename);
+      return `gdal_translate ${shellEscapePath(inputFilename)} ${shellEscapePath(outputFilename)} -of COG -ot Byte -scale <min> <max> 0 255 -co BLOCKSIZE=256 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -co NUM_THREADS=ALL_CPUS -co OVERVIEWS=IGNORE_EXISTING -co RESAMPLING=LANCZOS -co OVERVIEW_RESAMPLING=AVERAGE`;
+    });
+    const copyConversionCommand = async () => {
+      try {
+        await navigator.clipboard.writeText(gdalTranslateCommand.value);
+        copiedConversionCommand.value = true;
+        window.setTimeout(() => {
+          copiedConversionCommand.value = false;
+        }, 1500);
+      } catch (err) {
+        console.warn('Unable to copy GDAL command to clipboard', err);
+      }
+    };
     let projection: string | undefined;
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -274,7 +311,7 @@ export default defineComponent({
     );
     async function init() {
       tileLoadError.value = '';
-      hasShownTileErrorPrompt = false;
+      copiedConversionCommand.value = false;
       data.maxFrame = props.imageData.length - 1;
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
@@ -314,10 +351,6 @@ export default defineComponent({
         loadingVideo.value = false;
         loadingImage.value = false;
         data.ready = false;
-        if (!hasShownTileErrorPrompt) {
-          hasShownTileErrorPrompt = true;
-          window.alert(message);
-        }
         return;
       }
       local.levels = resp.levels;
@@ -435,6 +468,11 @@ export default defineComponent({
       loadingVideo,
       loadingImage,
       tileLoadError,
+      conversionInputFilename,
+      hasPreconversionGuidance,
+      gdalTranslateCommand,
+      copyConversionCommand,
+      copiedConversionCommand,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -524,9 +562,40 @@ export default defineComponent({
         v-if="tileLoadError"
         type="error"
         outlined
-        dense
+        class="ma-2 tile-load-error"
       >
-        {{ tileLoadError }}
+        <div class="tile-load-error__message">
+          {{ tileLoadError }}
+        </div>
+        <div
+          v-if="hasPreconversionGuidance"
+          class="tile-load-error__guidance"
+        >
+          <div class="mt-2">
+            Run <code>gdalinfo --stats "{{ conversionInputFilename }}"</code> and note the min/max
+            values for each band, then replace <code>&lt;min&gt;</code> and <code>&lt;max&gt;</code>
+            below.
+          </div>
+          <v-textarea
+            class="mt-2"
+            outlined
+            readonly
+            no-resize
+            rows="3"
+            hide-details
+            :value="gdalTranslateCommand"
+          />
+          <div class="d-flex justify-end mt-2">
+            <v-btn
+              small
+              color="error"
+              outlined
+              @click="copyConversionCommand"
+            >
+              {{ copiedConversionCommand ? 'Copied' : 'Copy command' }}
+            </v-btn>
+          </div>
+        </div>
       </v-alert>
       <div class="loadingSpinnerContainer">
         <v-progress-circular
@@ -547,4 +616,14 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import "./annotator.scss";
+
+.tile-load-error {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tile-load-error__message {
+  white-space: normal;
+}
 </style>

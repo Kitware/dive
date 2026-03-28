@@ -67,6 +67,7 @@ nav:
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
+      - Large Image Desktop Support: Large-Image-Support.md
       - MultiCamera Data (beta): Multicamera-data.md
     - Screenshots: Screenshots.md
     - Support: Support.md
