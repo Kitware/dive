@@ -63,9 +63,14 @@ export default defineComponent({
     },
     getTileURL: {
       type: Function as PropType<
-      (itemId: string, x: number, y: number,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      level: number, query: Record<string, any>) => string>,
+      (
+        itemId: string,
+        level: number,
+        x: number,
+        y: number,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        query: Record<string, any>,
+      ) => string>,
       required: true,
     },
     imageEnhancementOutputs: {
@@ -85,6 +90,8 @@ export default defineComponent({
   setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
+    const tileLoadError = ref('');
+    let hasShownTileErrorPrompt = false;
     const cameraInitializer = injectCameraInitializer();
     // eslint-disable-next-line prefer-const
     let geoSpatial = false;
@@ -155,7 +162,7 @@ export default defineComponent({
       );
       local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
       local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
-      local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+      local.nextLayer._options.tileHeight = newParams.layer.tileHeight;
       local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
       local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
       local.nextLayer.url(_getTileURL(props.imageData[frame].id));
@@ -211,7 +218,7 @@ export default defineComponent({
             geoViewer.value.onIdle(() => {
               local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
               local.currentLayer._options.tileWidth = newParams.layer.tileWidth;
-              local.currentLayer._options.tileHeight = newParams.layer.tileWidth;
+              local.currentLayer._options.tileHeight = newParams.layer.tileHeight;
               local.currentLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
               local.currentLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
               local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
@@ -266,6 +273,8 @@ export default defineComponent({
       { deep: true },
     );
     async function init() {
+      tileLoadError.value = '';
+      hasShownTileErrorPrompt = false;
       data.maxFrame = props.imageData.length - 1;
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
@@ -293,7 +302,24 @@ export default defineComponent({
       //const baseData = await props.getTiles(props.imageData[data.frame].id);
       //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
-      const resp = await props.getTiles(props.imageData[data.frame].id, projection);
+      let resp;
+      try {
+        resp = await props.getTiles(props.imageData[data.frame].id, projection);
+      } catch (err) {
+        const fallbackMessage = 'Unable to load large-image tiles. This file may need to be pre-converted before viewing.';
+        const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+          || (err as { message?: string })?.message
+          || fallbackMessage;
+        tileLoadError.value = message;
+        loadingVideo.value = false;
+        loadingImage.value = false;
+        data.ready = false;
+        if (!hasShownTileErrorPrompt) {
+          hasShownTileErrorPrompt = true;
+          window.alert(message);
+        }
+        return;
+      }
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -373,7 +399,7 @@ export default defineComponent({
           local.nextLayer = geoViewer.value.createLayer('osm', { ...localParams, ...newParams.layer });
           local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
           local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
-          local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+          local.nextLayer._options.tileHeight = newParams.layer.tileHeight;
           local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
           local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
           local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
@@ -408,6 +434,7 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
+      tileLoadError,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -493,6 +520,14 @@ export default defineComponent({
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     >
+      <v-alert
+        v-if="tileLoadError"
+        type="error"
+        outlined
+        dense
+      >
+        {{ tileLoadError }}
+      </v-alert>
       <div class="loadingSpinnerContainer">
         <v-progress-circular
           v-if="loadingVideo || loadingImage"

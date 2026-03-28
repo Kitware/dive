@@ -164,6 +164,10 @@ apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
       console.warn(`[tiles] GET tiles metadata 404: datasetId=${datasetId} (see tile layer logs for reason)`);
       return next({ status: 404, statusMessage: 'Dataset not found or is not a large image' });
     }
+    if (meta.preconversionRequired && meta.error) {
+      console.warn(`[tiles] GET tiles metadata 422: datasetId=${datasetId} requires pre-conversion`);
+      return next({ status: 422, statusMessage: meta.error });
+    }
     console.log(`[tiles] GET tiles metadata 200: datasetId=${datasetId} sizeX=${meta.sizeX} sizeY=${meta.sizeY} levels=${meta.levels}`);
     res.json(meta);
   } catch (err) {

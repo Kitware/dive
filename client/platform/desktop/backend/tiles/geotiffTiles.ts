@@ -27,9 +27,14 @@ export interface TileRange {
 export interface TilesMetadata {
   sizeX: number;
   sizeY: number;
+  sourceSizeX?: number;
+  sourceSizeY?: number;
   tileWidth: number;
   tileHeight: number;
   levels: number;
+  sourceLevels?: number;
+  preconversionRequired?: boolean;
+  error?: string;
   /** Valid tile indices per level: for each level, x in [0, maxX], y in [0, maxY]. */
   tileRanges: TileRange[];
   /** List of valid { z, x, y } tile coordinates (capped by default limit). */
@@ -128,7 +133,10 @@ interface TiffContext {
   imageSources: TiffImageSource[];
   width: number;
   height: number;
+  sourceMaxLevel: number;
   maxLevel: number;
+  preconversionRequired: boolean;
+  preconversionError: string | null;
 }
 
 let tiffContext: TiffContext | null = null;
@@ -249,6 +257,10 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
     : 1;
   const availableMaxLevel = Math.max(0, Math.floor(Math.log2(Math.max(1, maxAvailableScale))));
   const maxLevel = Math.min(theoreticalMaxLevel, availableMaxLevel);
+  const preconversionRequired = theoreticalMaxLevel > 0 && availableMaxLevel === 0;
+  const preconversionError = preconversionRequired
+    ? 'This large image is missing internal overview levels and must be pre-converted before viewing tiles. Please convert with GDAL (for example to a tiled pyramidal COG) and re-import.'
+    : null;
   return {
     path,
     size: stat.size,
@@ -259,7 +271,10 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
     imageSources,
     width,
     height,
+    sourceMaxLevel: theoreticalMaxLevel,
     maxLevel,
+    preconversionRequired,
+    preconversionError,
   };
 }
 
@@ -456,17 +471,31 @@ export async function getTilesMetadata(
   }
   try {
     const ctx = await getCachedTiffContext(tiffPath);
-    const { width, height, maxLevel } = ctx;
+    const {
+      width,
+      height,
+      maxLevel,
+      sourceMaxLevel,
+      preconversionRequired,
+      preconversionError,
+    } = ctx;
+    const levelCount = maxLevel + 1;
+    const sourceLevelCount = sourceMaxLevel + 1;
     // geoJS pixelCoordinateParams uses maxLevel = ceil(log2(max(w/256, h/256))); level 0 = overview, maxLevel = full res.
     const tileRanges = getValidTileRanges(width, height, maxLevel);
     const validTileList = getValidTileList(width, height, maxLevel, 10000);
-    console.log(`${LOG_PREFIX} getTilesMetadata: success width=${width} height=${height} maxLevel=${maxLevel} validTileList.length=${validTileList.length}`);
+    console.log(`${LOG_PREFIX} getTilesMetadata: success width=${width} height=${height} maxLevel=${maxLevel} sourceMaxLevel=${sourceMaxLevel} preconversionRequired=${preconversionRequired} validTileList.length=${validTileList.length}`);
     return {
       sizeX: width,
       sizeY: height,
+      sourceSizeX: width,
+      sourceSizeY: height,
       tileWidth: TILE_SIZE,
       tileHeight: TILE_SIZE,
-      levels: maxLevel,
+      levels: levelCount,
+      sourceLevels: sourceLevelCount,
+      preconversionRequired,
+      error: preconversionError ?? undefined,
       tileRanges,
       validTileList,
     };
