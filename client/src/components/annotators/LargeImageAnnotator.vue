@@ -106,6 +106,7 @@ export default defineComponent({
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
     const tileLoadError = ref('');
+    const tileLoadErrorWidth = ref<number | null>(null);
     const copiedConversionCommand = ref(false);
     const cameraInitializer = injectCameraInitializer();
     // eslint-disable-next-line prefer-const
@@ -122,6 +123,39 @@ export default defineComponent({
       // allow hoisting for these functions to pass a reference before defining them.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
+    });
+    const updateTileLoadErrorWidth = () => {
+      const containerWidth = container.value?.getBoundingClientRect().width;
+      tileLoadErrorWidth.value = typeof containerWidth === 'number'
+        ? containerWidth
+        : null;
+    };
+    let tileLoadErrorResizeObserver: ResizeObserver | null = null;
+    watch(container, (containerEl, previousEl) => {
+      if (tileLoadErrorResizeObserver && previousEl) {
+        tileLoadErrorResizeObserver.unobserve(previousEl);
+      }
+      if (!containerEl) {
+        tileLoadErrorWidth.value = null;
+        return;
+      }
+      if (!tileLoadErrorResizeObserver) {
+        tileLoadErrorResizeObserver = new ResizeObserver(() => {
+          updateTileLoadErrorWidth();
+        });
+      }
+      tileLoadErrorResizeObserver.observe(containerEl);
+      updateTileLoadErrorWidth();
+    }, { immediate: true });
+    const tileLoadErrorStyle = computed(() => {
+      if (tileLoadErrorWidth.value === null) {
+        return {};
+      }
+      const width = `${Math.round(tileLoadErrorWidth.value)}px`;
+      return {
+        width,
+        maxWidth: width,
+      };
     });
     const conversionInputFilename = computed(() => (
       props.imageData[data.frame]?.filename
@@ -209,7 +243,16 @@ export default defineComponent({
      * When the component is unmounted, cancel all outstanding
      * requests for image load.
      */
-    onUnmounted(() => Array.from(local.pendingImgs).forEach(forceUnload));
+    onUnmounted(() => {
+      Array.from(local.pendingImgs).forEach(forceUnload);
+      if (tileLoadErrorResizeObserver && container.value) {
+        tileLoadErrorResizeObserver.unobserve(container.value);
+      }
+      if (tileLoadErrorResizeObserver) {
+        tileLoadErrorResizeObserver.disconnect();
+        tileLoadErrorResizeObserver = null;
+      }
+    });
     async function seek(f: number) {
       if (!data.ready) {
         return;
@@ -468,6 +511,7 @@ export default defineComponent({
       loadingVideo,
       loadingImage,
       tileLoadError,
+      tileLoadErrorStyle,
       conversionInputFilename,
       hasPreconversionGuidance,
       gdalTranslateCommand,
@@ -562,7 +606,8 @@ export default defineComponent({
         v-if="tileLoadError"
         type="error"
         outlined
-        class="ma-2 tile-load-error"
+        class="tile-load-error"
+        :style="tileLoadErrorStyle"
       >
         <div class="tile-load-error__message">
           {{ tileLoadError }}
@@ -574,7 +619,7 @@ export default defineComponent({
           <div class="mt-2">
             Run <code>gdalinfo --stats "{{ conversionInputFilename }}"</code> and note the min/max
             values for each band, then replace <code>&lt;min&gt;</code> and <code>&lt;max&gt;</code>
-            below.
+            below and run the command to convert the file.
           </div>
           <v-textarea
             class="mt-2"
@@ -618,7 +663,8 @@ export default defineComponent({
 @import "./annotator.scss";
 
 .tile-load-error {
-  max-width: 100%;
+  margin: 8px 0;
+  box-sizing: border-box;
   overflow-wrap: anywhere;
   word-break: break-word;
 }

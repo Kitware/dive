@@ -12,7 +12,7 @@
 
 import fs from 'fs-extra';
 import { fromArrayBuffer, fromFile } from 'geotiff';
-import { PNG } from 'pngjs';
+import  PNG from 'pngjs';
 import type { Settings } from 'platform/desktop/constants';
 import { getLargeImagePath } from '../native/common';
 
@@ -65,12 +65,6 @@ const MAX_TILE_CACHE_ENTRIES = 256;
 const TIFF_STAT_REFRESH_MS = 1000;
 const DEFAULT_MAX_IN_MEMORY_TIFF_MB = 5120;
 const PATH_CACHE_TTL_MS = 5000;
-const PRECONVERSION_GUIDANCE = [
-  'This large image is missing internal overview levels and must be pre-converted before viewing tiles.',
-  'Run `gdalinfo --stats "<input-file>.tif"` and note each band\'s minimum and maximum values.',
-  'Then run `gdal_translate "<input-file>.tif" "<input-file>_cog_scaled.tif" -of COG -ot Byte -scale <min> <max> 0 255 -co BLOCKSIZE=256 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -co NUM_THREADS=ALL_CPUS -co OVERVIEWS=IGNORE_EXISTING -co RESAMPLING=LANCZOS -co OVERVIEW_RESAMPLING=AVERAGE`.',
-  'Re-import the converted file.',
-].join(' ');
 type RasterArray = Uint8Array | Uint16Array | Float32Array | Float64Array;
 
 interface SampleRange {
@@ -252,6 +246,20 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
   }
   const { width, height } = fullRes;
   const sampleCount = fullRes.image.getSamplesPerPixel();
+  const theoreticalMaxLevel = Math.max(0, Math.ceil(Math.log2(Math.max(width / TILE_SIZE, height / TILE_SIZE))));
+  const imageSources = buildAlignedImageSources(rawImages, fullRes);
+  const maxAvailableScale = imageSources.length > 0
+    ? imageSources[imageSources.length - 1].scale
+    : 1;
+  const overviewCount = imageSources.reduce((count, source) => (
+    source.scale > 1 ? count + 1 : count
+  ), 0);
+  const availableMaxLevel = Math.max(0, Math.floor(Math.log2(Math.max(1, maxAvailableScale))));
+  const maxLevel = Math.min(theoreticalMaxLevel, availableMaxLevel);
+  const preconversionRequired = theoreticalMaxLevel > 0 && availableMaxLevel === 0;
+  const preconversionError = preconversionRequired
+    ? `Detected ${overviewCount} internal overview levels (need at least 1).  Need to use GDAL to pre-convert the image to a tiled pyramidal COG.`
+    : null;
   let sampleRanges = getSampleRangesFromMetadata(fullRes.image, sampleCount);
   if (!sampleRanges) {
     for (let i = 0; i < rawImages.length; i += 1) {
@@ -259,18 +267,10 @@ async function loadTiffContext(path: string): Promise<TiffContext> {
       if (sampleRanges) break;
     }
   }
-  if (!sampleRanges) {
+  // Avoid expensive full-image scans when we already know this TIFF must be pre-converted.
+  if (!sampleRanges && !preconversionRequired) {
     sampleRanges = await estimateSampleRangesFromOverview(rawImages, sampleCount);
   }
-  const theoreticalMaxLevel = Math.max(0, Math.ceil(Math.log2(Math.max(width / TILE_SIZE, height / TILE_SIZE))));
-  const imageSources = buildAlignedImageSources(rawImages, fullRes);
-  const maxAvailableScale = imageSources.length > 0
-    ? imageSources[imageSources.length - 1].scale
-    : 1;
-  const availableMaxLevel = Math.max(0, Math.floor(Math.log2(Math.max(1, maxAvailableScale))));
-  const maxLevel = Math.min(theoreticalMaxLevel, availableMaxLevel);
-  const preconversionRequired = theoreticalMaxLevel > 0 && availableMaxLevel === 0;
-  const preconversionError = preconversionRequired ? PRECONVERSION_GUIDANCE : null;
   return {
     path,
     size: stat.size,
@@ -777,8 +777,6 @@ export async function getTilePng(
     const source = pickImageSourceForScale(imageSources, tileWindow.scale);
     const sourceWindow = computeSourceWindow(source, tileWindow);
     const sourceImage = source.image;
-    if (process.env.DEBUG_TILE_PATH) {
-    }
     const opts = {
       window: sourceWindow,
       width: tileWindow.outputWidth,
@@ -806,8 +804,6 @@ export async function getTilePng(
         const gray = (rasters[0] ?? new Uint8Array(0)) as RasterArray;
         normalizeGrayToRgba(gray, sampledRgba, expectedPixels, sampleRanges?.[0] ?? null);
       }
-      if (process.env.DEBUG_TILE_PATH) {
-      }
     } catch (readErr) {
       if (process.env.DEBUG_TILE_PATH) {
         console.warn(`${LOG_PREFIX} getTilePng: readRasters failed, trying readRGB:`, readErr);
@@ -822,8 +818,6 @@ export async function getTilePng(
     const rgba = new Uint8Array(TILE_SIZE * TILE_SIZE * 4);
     blitRgba(sampledRgba, tileWindow.outputWidth, tileWindow.outputHeight, rgba, TILE_SIZE, TILE_SIZE);
     const pngBuffer = encodePngRgba(TILE_SIZE, TILE_SIZE, rgba);
-    if (process.env.DEBUG_TILE_PATH) {
-    }
     touchTileCacheEntry(tileCacheKey, pngBuffer);
     return pngBuffer;
   } catch (err) {
