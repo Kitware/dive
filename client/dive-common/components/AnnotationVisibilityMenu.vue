@@ -271,10 +271,10 @@ export default defineComponent({
       >
         <v-menu
           v-if="button.id === 'text'"
+          :key="`${button.id}-view`"
           open-on-hover
           bottom
           offset-y
-          :key="`${button.id}-view`"
           :close-on-content-click="false"
         >
           <template #activator="{ on, attrs }">

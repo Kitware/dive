@@ -1240,7 +1240,6 @@ async function getLargeImagePath(settings: Settings, datasetId: string): Promise
       return null;
     }
     const path = npath.join(meta.originalBasePath, meta.originalLargeImageFile);
-    console.log(`[tiles] getLargeImagePath: dataset "${datasetId}" -> ${path}`);
     return path;
   } catch (err) {
     console.warn(`[tiles] getLargeImagePath: error for dataset "${datasetId}":`, err);
