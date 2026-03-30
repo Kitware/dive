@@ -5,6 +5,10 @@ import {
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
+import {
+  isReservedAttributeName,
+  RESERVED_ATTRIBUTES,
+} from 'vue-media-annotator/utils';
 import AttributeRendering from './AttributeRendering.vue';
 import AttributeValueColors from './AttributeValueColors.vue';
 import AttributeNumberValueColors from './AttributeNumberValueColors.vue';
@@ -205,6 +209,9 @@ export default defineComponent({
       typeChange,
       numericChange,
       launchColorEditor,
+      //utils
+      isReservedAttributeName,
+      RESERVED_ATTRIBUTES,
     };
   },
 });
@@ -245,8 +252,13 @@ export default defineComponent({
               <v-text-field
                 v-model="baseSettings.name"
                 label="Name"
-                :rules="[v => !!v || 'Name is required', v => !v.includes(' ')
-                  || 'No spaces', v => v !== 'userAttributes' || 'Reserved Name']"
+                :rules="[
+                  v => !!v || 'Name is required',
+                  v => !v.includes(' ') || 'No spaces',
+                  v => v !== 'userAttributes' || 'Reserved Name',
+                  v => !isReservedAttributeName(v, baseSettings.belongs)
+                    || `Reserved name. ${RESERVED_ATTRIBUTES[baseSettings.belongs].join(', ')} are not allowed.`,
+                ]"
                 required
               />
               <v-select

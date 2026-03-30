@@ -1,6 +1,17 @@
 /*eslint class-methods-use-this: "off"*/
 import geo, { GeoEvent } from 'geojs';
-import { boundToGeojson, reOrdergeoJSON } from '../utils';
+import {
+  boundToGeojson,
+  reOrdergeoJSON,
+  getRotationFromAttributes,
+  getRotationArrowLine,
+  hasSignificantRotation,
+  ROTATION_ATTRIBUTE_NAME,
+  RectBounds,
+  getRotationBetweenCoordinateArrays,
+  rotateGeoJSONCoordinates,
+  areRectangleSidesParallel,
+} from '../utils';
 import { FrameDataTrack } from './LayerTypes';
 import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 
@@ -69,6 +80,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  arrowFeatureLayer: any;
+
+  unrotatedGeoJSONCoords: GeoJSON.Position[] | null;
+
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.skipNextExternalUpdate = false;
@@ -80,6 +96,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.shapeInProgress = null;
     this.disableModeSync = false;
     this.leftButtonCheckTimeout = -1;
+    this.unrotatedGeoJSONCoords = null;
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
@@ -143,6 +160,18 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.disableModeSync = false;
       });
       this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
+
+      const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
+      this.arrowFeatureLayer = arrowLayer.createFeature('line');
+      this.arrowFeatureLayer.style({
+        position: (p: [number, number]) => ({ x: p[0], y: p[1] }),
+        stroke: true,
+        fill: false,
+        strokeColor: () => (this.styleType ? this.typeStyling.value.color(this.styleType) : this.stateStyling.selected.color),
+        strokeWidth: () => (this.styleType ? this.typeStyling.value.strokeWidth(this.styleType) : this.stateStyling.selected.strokeWidth),
+        strokeOpacity: () => (this.styleType ? this.typeStyling.value.opacity(this.styleType) : this.stateStyling.selected.opacity),
+        strokeOffset: 0,
+      });
     }
   }
 
@@ -219,6 +248,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.annotator.setCursor(rectVertex[e.handle.handle.index]);
         } else if (e.handle.handle.type === 'edge') {
           this.annotator.setCursor(rectEdge[e.handle.handle.index]);
+        } else if (e.handle.handle.type === 'rotate') {
+          this.annotator.setCursor('grab');
         }
       } else if (e.handle.handle.type === 'vertex') {
         this.annotator.setCursor('grab');
@@ -229,6 +260,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.annotator.setCursor('move');
       } else if (e.handle.handle.type === 'resize') {
         this.annotator.setCursor('nwse-resize');
+      } else if (e.handle.handle.type === 'rotate') {
+        this.annotator.setCursor('grab');
       }
     } else if (this.getMode() !== 'creation') {
       this.annotator.setCursor('default');
@@ -310,6 +343,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.skipNextExternalUpdate = false;
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
+      if (this.arrowFeatureLayer) {
+        this.arrowFeatureLayer.data([]).draw();
+      }
       this.shapeInProgress = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
@@ -378,6 +414,15 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
         if (this.type === 'rectangle') {
           geoJSONData = boundToGeojson(track.features.bounds);
+          this.unrotatedGeoJSONCoords = geoJSONData.coordinates[0] as GeoJSON.Position[];
+
+          // Restore rotation if it exists
+          const rotation = getRotationFromAttributes(track.features.attributes);
+          if (hasSignificantRotation(rotation)) {
+            // Apply rotation to restore the rotated rectangle for editing
+            const updatedCoords = rotateGeoJSONCoordinates(geoJSONData.coordinates[0], rotation ?? 0);
+            geoJSONData.coordinates[0] = updatedCoords;
+          }
         } else {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
@@ -390,6 +435,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             geometry: geoJSONData,
             properties: {
               annotationType: typeMapper.get(this.type),
+              // Preserve rotation in properties
+              ...(getRotationFromAttributes(track.features.attributes) !== undefined
+                ? { [ROTATION_ATTRIBUTE_NAME]: getRotationFromAttributes(track.features.attributes) }
+                : {}),
             },
           };
 
@@ -428,11 +477,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
-        if (this.type === 'rectangle') {
-          geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
-            geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
-          );
-        }
+
+        this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
@@ -464,33 +510,82 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           const newGeojson: GeoJSON.Feature<GeoJSON.Point|GeoJSON.Polygon|GeoJSON.LineString> = (
             e.annotation.geojson()
           );
+          const newCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
+          let rotationBetween: number;
+          if (this.formattedData.length > 0 && this.type === 'rectangle') {
+            const existingRotation = getRotationFromAttributes(this.formattedData[0].properties as Record<string, unknown>) ?? 0;
+            const oldCoords = rotateGeoJSONCoordinates(
+              this.unrotatedGeoJSONCoords || [],
+              existingRotation,
+            );
+            if (areRectangleSidesParallel(oldCoords, newCoords)) {
+              rotationBetween = existingRotation;
+            } else {
+              rotationBetween = getRotationBetweenCoordinateArrays(
+                this.unrotatedGeoJSONCoords || [],
+                newCoords,
+              );
+            }
+          } else {
+            rotationBetween = getRotationBetweenCoordinateArrays(
+              this.unrotatedGeoJSONCoords || [],
+              newCoords,
+            );
+          }
           if (this.formattedData.length > 0) {
             if (this.type === 'rectangle') {
-              /* Updating the corners for the proper cursor icons
-              Also allows for regrabbing of the handle */
-              newGeojson.geometry.coordinates[0] = reOrdergeoJSON(
-                newGeojson.geometry.coordinates[0] as GeoJSON.Position[],
-              );
+              // If rotated, keep the rotated coordinates for editing
+
               // The corners need to update for the indexes to update
-              // coordinates are in a different system than display
-              const coords = newGeojson.geometry.coordinates[0].map(
-                (coord) => ({ x: coord[0], y: coord[1] }),
+              // Use the actual coordinates (rotated or not) to set corners correctly
+              const currentCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
+              const cornerCoords = currentCoords.map(
+                (coord: GeoJSON.Position) => ({ x: coord[0], y: coord[1] }),
               );
               // only use the 4 coords instead of 5
-              const remapped = this.annotator.geoViewerRef.value.worldToGcs(coords.splice(0, 4));
+              const remapped = this.annotator.geoViewerRef.value.worldToGcs(cornerCoords.splice(0, 4));
               e.annotation.options('corners', remapped);
               //This will retrigger highlighting of the current handle after releasing the mouse
               setTimeout(() => this.annotator.geoViewerRef
                 .value.interactor().retriggerMouseMove(), 0);
+
+              // For rectangles, convert to axis-aligned bounds with rotation when saving
+              // Convert to axis-aligned for storage, but keep rotation in properties
+              const axisAlignedCoords = rotateGeoJSONCoordinates(newCoords, 0 - rotationBetween);
+              newGeojson.properties = {
+                ...newGeojson.properties,
+                [ROTATION_ATTRIBUTE_NAME]: rotationBetween,
+              };
+              newGeojson.geometry.coordinates[0] = reOrdergeoJSON(axisAlignedCoords);
             }
+
             // update existing feature
             this.formattedData[0].geometry = newGeojson.geometry;
+            if (newGeojson.properties) {
+              this.formattedData[0].properties = {
+                ...this.formattedData[0].properties,
+                ...newGeojson.properties,
+              };
+            }
           } else {
             // create new feature
+            // For rectangles, convert to axis-aligned bounds with rotation when saving
+            if (this.type === 'rectangle') {
+              const coords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
+
+              // Convert to axis-aligned for storage, but keep rotation in properties
+              newGeojson.properties = {
+                ...(newGeojson.properties || {}),
+                [ROTATION_ATTRIBUTE_NAME]: rotationBetween,
+              };
+              newGeojson.geometry.coordinates[0] = rotateGeoJSONCoordinates(coords, 0 - (rotationBetween ?? 0));
+            }
+
             this.formattedData = [{
               ...newGeojson,
               properties: {
                 annotationType: this.type,
+                ...(newGeojson.properties || {}),
               },
               type: 'Feature',
             }];
@@ -517,7 +612,27 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.applyStylesToAnnotations();
     this.featureLayer.draw();
 
-    return null;
+    if (this.arrowFeatureLayer) {
+      if (this.type === 'rectangle') {
+        const ann = this.featureLayer.annotations()[0];
+        if (ann) {
+          const g = ann.geojson();
+          if (g && g.geometry && g.geometry.type === 'Polygon') {
+            const coords = (g.geometry as GeoJSON.Polygon).coordinates[0];
+            const rotation = getRotationFromAttributes(g.properties as Record<string, unknown>);
+            const unrotated = rotateGeoJSONCoordinates(coords, 0 - (rotation ?? 0));
+            // create RectBounds from unrotated coordinates
+            const bounds: RectBounds = [Math.min(unrotated[0][0], unrotated[2][0]), Math.min(unrotated[0][1], unrotated[2][1]), Math.max(unrotated[0][0], unrotated[2][0]), Math.max(unrotated[0][1], unrotated[2][1])];
+            const arrow = getRotationArrowLine(bounds, rotation ?? 0);
+            if (arrow) {
+              this.arrowFeatureLayer.data([{ c: arrow.coordinates }]).line((d: { c: GeoJSON.Position[] }) => d.c).draw();
+              return;
+            }
+          }
+        }
+      }
+    }
+    this.arrowFeatureLayer.data([]).draw();
   }
 
   /**
@@ -552,7 +667,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     if (this.type === 'rectangle') {
       return {
         handles: {
-          rotate: false,
+          rotate: true,
         },
       };
     }

@@ -12,7 +12,7 @@ RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
 # =================
 # == DIST WORKER ==
 # =================
-FROM kitware/viame:gpu-algorithms-web-cu11 AS worker
+FROM kitware/viame:gpu-algorithms-web AS worker
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 

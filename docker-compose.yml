@@ -11,6 +11,7 @@ x-worker: &base-worker
     - addons:/tmp/addons:ro # readonly
   labels:
     - "com.centurylinklabs.watchtower.enable=true"
+    - "autoheal=true"
   depends_on:
     girder:
       condition: service_started
@@ -48,7 +49,11 @@ services:
     volumes:
       # Use env config path, default to docker volume
       - ${MONGO_DB_PATH:-mongo_db}:/data/db
-
+# Memcache is used for caching girder-large-images, should auto configure with it being present
+  memcached:
+    image: memcached
+    command: -m 4096 --max-item-size 8M
+    restart: unless-stopped
   girder:
     build:
       context: .
@@ -59,6 +64,7 @@ services:
     depends_on:
       - mongo
       - traefik
+      - memcached
     volumes:
       - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
@@ -79,6 +85,8 @@ services:
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
       - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
       - "WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-mytoken}"
+      - "LARGE_IMAGE_CACHE_BACKEND=memcached"
+      - "LARGE_IMAGE_CACHE_MEMCACHED_URL=memcached"
     labels:
       # REMOVING WEEKLY UPDATE
       # - "com.centurylinklabs.watchtower.enable=true"
@@ -123,6 +131,8 @@ services:
       timeout: 10s
       retries: 1
       start_period: 1m
+    labels:
+      - autoheal=true
 
   girder_worker_training:
     # Merge base-worker object with this config
@@ -146,7 +156,22 @@ services:
       timeout: 10s
       retries: 1
       start_period: 1m
+    labels:
+      - autoheal=true
 
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      - "AUTOHEAL_INTERVAL=300"
+      - "AUTOHEAL_START_PERIOD=300"
+      - "AUTOHEAL_DEFAULT_STOP_TIMEOUT=100"
+      - "AUTOHEAL_ONLY_MONITOR_RUNNING=true"
+    volumes:
+      - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
 volumes:
   addons:
   mongo_db:

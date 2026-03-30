@@ -131,6 +131,7 @@ const zipFileTypes = [
 
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
+const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
 const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
 
@@ -161,6 +162,7 @@ export {
   zipFileTypes,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
   JsonMetaRegEx,
   simplifyTrainingName,
 };

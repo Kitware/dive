@@ -308,7 +308,7 @@ beforeEach(() => {
           auxiliary: {},
         },
         stereoDataset: {
-          'meta.json': {
+          'meta.json': JSON.stringify({
             type: 'multi',
             multiCam: {
               cameras: {
@@ -322,15 +322,15 @@ beforeEach(() => {
                 },
               },
             },
-          },
+          }),
           'result_1.json': '',
           auxiliary: {},
           left: {
-            'meta.json': '{}',
+            'meta.json': JSON.stringify({ originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left' }),
             'result_1.json': '',
           },
           right: {
-            'meta.json': '{}',
+            'meta.json': JSON.stringify({ originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right' }),
             'result_1.json': '',
           },
         },
@@ -683,6 +683,7 @@ describe('native.common', () => {
     let deleted = await common.deleteDataset(settings, 'stereoDataset/left');
     expect(deleted).toBe(true);
     leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    expect(leftExists).toBe(false);
     let rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
     expect(rightExists).toBe(true);
     deleted = await common.deleteDataset(settings, 'stereoDataset');

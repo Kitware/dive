@@ -80,6 +80,11 @@ export default defineComponent({
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
     },
+    selectedViameFolderNames() {
+      return this.selected.filter(
+        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+      ).map(({ name }) => name);
+    },
     selectedFileIds() {
       return this.selected.filter(
         (element) => element._modelType === 'item',
@@ -92,6 +97,9 @@ export default defineComponent({
     },
     locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
+    },
+    locationInputNames() {
+      return this.locationIsViameFolder ? [this.location.name] : this.selectedViameFolderNames;
     },
     selectedDescription() {
       return this.location?.description;
@@ -179,6 +187,7 @@ export default defineComponent({
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
                 />
                 <export
