@@ -461,6 +461,7 @@ export default defineComponent({
     <v-dialog
       v-model="textQueryDialogOpen"
       max-width="500"
+      :persistent="textQueryInitializing || textQueryLoading"
     >
       <v-card>
         <v-card-title class="text-h6">

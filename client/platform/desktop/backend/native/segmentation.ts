@@ -83,7 +83,7 @@ export class SegmentationServiceManager extends EventEmitter {
 
   private requestCounter = 0;
 
-  private readonly requestTimeoutMs = 30000; // 30 second timeout
+  private readonly requestTimeoutMs = 180000; // 3 minute timeout
 
   /**
    * Initialize the segmentation service with the given settings.
@@ -201,12 +201,12 @@ export class SegmentationServiceManager extends EventEmitter {
         }
       });
 
-      // Timeout for initialization (60 seconds for model loading)
+      // Timeout for initialization (5 minutes) — covers model loading.
       setTimeout(() => {
         if (this.isInitializing) {
           reject(new Error(SEGMENTATION_LOAD_ERROR_MESSAGE));
         }
-      }, 60000);
+      }, 300000);
     });
   }
 

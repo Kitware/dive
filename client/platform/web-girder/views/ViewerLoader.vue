@@ -109,6 +109,7 @@ export default defineComponent({
     const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
 
     const typeList: Ref<string[]> = ref([]);
+    const textQueryRunning = ref(false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
     const findType = async () => {
@@ -274,12 +275,17 @@ export default defineComponent({
      */
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async function handleTextQuery(_params: { text: string; boxThreshold: number }) {
-      // Text query for single frame would go here
-      // For now, this is handled by the segmentation service
-      await prompt({
-        title: 'Text Query',
-        text: ['Text query for single frame is not yet implemented on web platform.'],
-      });
+      textQueryRunning.value = true;
+      try {
+        // Text query for single frame would go here
+        // For now, this is handled by the segmentation service
+        await prompt({
+          title: 'Text Query',
+          text: ['Text query for single frame is not yet implemented on web platform.'],
+        });
+      } finally {
+        textQueryRunning.value = false;
+      }
     }
 
     /**
@@ -310,6 +316,7 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQuery,
       handleTextQueryAllFrames,
+      textQueryRunning,
       timeFilter,
     };
   },
@@ -323,7 +330,7 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :current-set="set"
-    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || textQueryRunning"
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"

@@ -97,6 +97,7 @@ export default defineComponent({
       return props.id;
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const textQueryRunning = ref(false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
     // Watch the viewer's trackFilters.timeFilters and sync to local ref
@@ -279,6 +280,7 @@ export default defineComponent({
     }) {
       const { text, boxThreshold } = params;
       const frameNum = viewerRef.value?.aggregateController?.frame?.value ?? 0;
+      textQueryRunning.value = true;
 
       // Verify the segmentation service is ready before attempting a text query
       try {
@@ -291,6 +293,7 @@ export default defineComponent({
               'Please install the SAM3 add-on from the VIAME add-on repository and ensure you have enough video RAM to run it.',
             ],
           });
+          textQueryRunning.value = false;
           return;
         }
       } catch {
@@ -301,6 +304,7 @@ export default defineComponent({
             'Please install the SAM3 add-on from the VIAME add-on repository.',
           ],
         });
+        textQueryRunning.value = false;
         return;
       }
 
@@ -331,6 +335,7 @@ export default defineComponent({
             title: 'Text Query Error',
             text: ['Failed to load dataset metadata for text query.'],
           });
+          textQueryRunning.value = false;
           return;
         }
       }
@@ -341,6 +346,7 @@ export default defineComponent({
           title: 'Text Query Error',
           text: ['Could not determine image path for current frame.'],
         });
+        textQueryRunning.value = false;
         return;
       }
 
@@ -446,6 +452,7 @@ export default defineComponent({
         if (viewerRef.value?.handler) {
           viewerRef.value.handler.trackAbort();
         }
+        textQueryRunning.value = false;
       }
     }
 
@@ -915,6 +922,7 @@ export default defineComponent({
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      textQueryRunning,
       timeFilter,
       /* Stereo */
       stereoLoadingDialog,
@@ -932,7 +940,7 @@ export default defineComponent({
     <Viewer
       :id.sync="id"
       ref="viewerRef"
-      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0 || textQueryRunning"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query="handleTextQuerySubmit"
