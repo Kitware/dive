@@ -31,10 +31,26 @@ interface AnnotationSchemaList {
   sets: string[];
 }
 
+interface DiveParam {
+  label: string;
+  type: string;
+  type_props?: string[];
+  key: string;
+  default: string;
+}
+
+interface PipeMetadata {
+  description?: string;
+  inputType?: string;
+  outputType?: string;
+  diveParams?: DiveParam[];
+}
+
 interface Pipe {
   name: string;
   pipe: string;
   type: string;
+  metadata?: PipeMetadata;
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
@@ -45,9 +61,14 @@ interface Category {
   pipes: Pipe[];
 }
 
+interface TrainingConfig {
+  name: string;
+  description?: string;
+}
+
 interface TrainingConfigs {
   training: {
-    configs: string[];
+    configs: TrainingConfig[];
     default: string;
   };
   models: Record<string, {
@@ -222,15 +243,18 @@ export {
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
   DatasetType,
+  DiveParam,
   SubType,
   FrameImage,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
+  PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
+  TrainingConfig,
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,
