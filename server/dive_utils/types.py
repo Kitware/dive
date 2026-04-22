@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 __all__ = [
+    "DiveParam",
     "GirderModel",
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
+    "PipeMetadata",
 ]
 
 
@@ -57,12 +59,28 @@ class TrainingModelTuneArgs(TrainingModelDescription):
         extra = 'forbid'
 
 
+class DiveParam(TypedDict):
+    label: str
+    type: str
+    type_props: list[str]
+    key: str
+    default: str
+
+
+class PipeMetadata(TypedDict):
+    description: Optional[str]
+    inputType: Optional[str]
+    outputType: Optional[str]
+    diveParams: Optional[list[DiveParam]]
+
+
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
     name: str  # friendly name
     type: str  # indicates whether this is a dynamic pipe.
     pipe: str  # unmodified pipe file name
+    metadata: Optional[PipeMetadata]  # some metadata about the pipeline
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
@@ -80,6 +98,7 @@ class PipelineJob(TypedDict):
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version
+    pipeline_params: Optional[dict[str, str]]
 
 
 class TrainingJob(TypedDict):

@@ -191,12 +191,15 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
+    pipeline_params: dict[str, str] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
 
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
+    :param force_transcoded: Force transcoding input.
+    :param pipeline_params: Dict of key values containing user specified settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -234,6 +237,7 @@ def run_pipeline(
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
+        'pipeline_params': pipeline_params,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
