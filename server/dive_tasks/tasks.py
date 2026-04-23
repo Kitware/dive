@@ -263,7 +263,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
-        # Apply user-provided pipeline parameter overrides from requirements
+        # Apply user-provided pipeline parameter overrides from pipeline params
         pipeline_params = params.get('pipeline_params')
         if pipeline_params:
             for key, value in pipeline_params.items():

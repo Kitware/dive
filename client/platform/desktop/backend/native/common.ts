@@ -455,7 +455,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeName = parts.join(' ');
     }
 
-    // Extract description and requirements from the pipe file
+    // Extract description and metadata from the pipe file
     const pipeFilePath = npath.join(pipelinePath, p);
     const metadata = await extractPipeMetadata(pipeFilePath);
 

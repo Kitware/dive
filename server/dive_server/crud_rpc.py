@@ -20,7 +20,6 @@ from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
-from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
