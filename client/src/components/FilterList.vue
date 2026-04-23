@@ -326,7 +326,7 @@ export default defineComponent({
       >
         <v-col
           id="type-header"
-          class="d-flex flex-row align-center py-0 mr-8"
+          class="d-flex flex-row align-center py-0 pr-2"
         >
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"

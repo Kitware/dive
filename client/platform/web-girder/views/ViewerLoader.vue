@@ -285,8 +285,8 @@ export default defineComponent({
         :revision="revisionNum"
       />
     </template>
-    <template #right-sidebar>
-      <SidebarContext>
+    <template #right-sidebar="{ sidebarMode }">
+      <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
         <template #default="{ name, subCategory }">
           <component
             :is="name"
