@@ -8,6 +8,7 @@ from dive_utils.types import (
     AvailableJobSchema,
     PipelineCategory,
     PipelineDescription,
+    PipeMetadata,
     TrainingConfigurationSummary,
     TrainingModelDescription,
 )

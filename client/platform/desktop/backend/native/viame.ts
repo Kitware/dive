@@ -255,10 +255,7 @@ async function runPipeline(
 
   // Add any custom pipeline parameters
   if (runPipelineArgs.pipelineParams) {
-    const escapeValue = (val: string) => {
-      // We replace " by \" and $ by \$ to avoid interpolation
-      return val.replace(/["$]/g, '\\$&');
-    };
+    const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
     Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
       command.push(`-s ${key}="${escapeValue(value)}"`);
     });

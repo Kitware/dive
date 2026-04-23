@@ -14,8 +14,6 @@ export default defineComponent({
 
   setup(props) {
     function getPipelineTypeIcon(type: string | undefined): string {
-      console.log(type);
-
       if (!type) {
         return '';
       }
@@ -41,8 +39,6 @@ export default defineComponent({
           return type;
       }
     }
-
-    console.log(props.pipeline);
 
     const inputIcon = computed(() => getPipelineTypeIcon(props.pipeline.metadata?.inputType));
     const outputIcon = computed(() => getPipelineTypeIcon(props.pipeline.metadata?.outputType));

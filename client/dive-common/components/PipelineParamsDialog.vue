@@ -64,7 +64,6 @@ export default defineComponent({
       if (type.includes('strictly_positive')) {
         res.push(rules.strictlyPositive);
       } else if (type.includes('positive')) {
-        console.log('positive');
         res.push(rules.positive);
       }
 
