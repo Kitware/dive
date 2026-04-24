@@ -29,6 +29,7 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
@@ -758,6 +759,10 @@ async function _ingestFilePath(
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
       metadataConfig = true;
+    } else if (coco.isCocoJson(jsonObject)) {
+      const [parsedAnnotations, parsedMeta] = await coco.parseFile(path);
+      annotations = parsedAnnotations;
+      merge(meta, parsedMeta);
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
@@ -1337,6 +1342,11 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
       header: true,
+    });
+  }
+  if (args.type === 'coco') {
+    return coco.serializeFile(args.path, data, meta, args.typeFilter, {
+      excludeBelowThreshold: args.exclude,
     });
   }
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
