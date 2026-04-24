@@ -1,6 +1,6 @@
 import OS from 'os';
 import http from 'http';
-import { ipcMain } from 'electron';
+import { app, ipcMain, shell, dialog } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
 import {
@@ -50,6 +50,18 @@ export default function register() {
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
     common.openLink(url);
   });
+  ipcMain.handle('desktop:show-open-dialog', (_, options: Electron.OpenDialogOptions) => (
+    dialog.showOpenDialog(options)
+  ));
+  ipcMain.handle('desktop:show-save-dialog', (_, options: Electron.SaveDialogOptions) => (
+    dialog.showSaveDialog(options)
+  ));
+  ipcMain.handle('desktop:get-app-version', () => app.getVersion());
+  ipcMain.on('desktop:get-app-version-sync', (event) => {
+    event.returnValue = app.getVersion();
+  });
+  ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
+  ipcMain.handle('desktop:open-path', (_, targetPath: string) => shell.openPath(targetPath));
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
@@ -109,6 +121,11 @@ export default function register() {
 
   ipcMain.handle('check-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.checkDataset(settings.get(), datasetId);
+    return ret;
+  });
+
+  ipcMain.handle('load-detections', async (event, { datasetId }: { datasetId: string }) => {
+    const ret = await common.loadDetections(settings.get(), datasetId);
     return ret;
   });
 

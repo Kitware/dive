@@ -8,28 +8,25 @@ This directory contains the code for:
 
 ## Development
 
-Requires Node 16 due to [this webpack issue](https://github.com/webpack/webpack/issues/14532) and the fact that we are on vue cli service v4.  Should be resolved by upgrading to v5, which is not yet released.
+Requires Node 18+.
 
 ``` bash
 # install dependencies
-yarn
+npm install
 
 # run development server
-yarn serve
+npm run serve
 
 # build for production
-yarn build:web
-
-# build vue-media-server library
-yarn build:lib
+npm run build:web
 
 # Electron
-yarn serve:electron
-yarn build:electron
+npm run serve:electron
+npm run build:electron
 
 # lint and test
-yarn lint
-yarn test
+npm run lint
+npm test
 
 # Local verification of all tests, linting, builds
 ./checkbuild.sh
@@ -39,22 +36,22 @@ yarn test
 
 ``` bash
 # Build
-yarn build:cli
+npm run build:cli
 
 # Watch (requires above build at least once)
-yarn dev:cli
+npm run dev:cli
 
 # Run in development mode
-yarn divecli --help
+npm run divecli -- --help
 
 # Parse VIAME CSV
-yarn divecli viame2json /path/to/viame.csv
+npm run divecli -- viame2json /path/to/viame.csv
 
 # Parse DIVE JSON
-yarn divecli json2viame /path/to/results.json /path/to/meta.json
+npm run divecli -- json2viame /path/to/results.json /path/to/meta.json
 
-# output to file, suppress yarn's stdout
-yarn --silent divecli viame2json /path/to/viame.csv > tracks.json
+# output to file
+npm run --silent divecli -- viame2json /path/to/viame.csv > tracks.json
 ```
 
 Configuration abnormalities:
@@ -62,8 +59,6 @@ Configuration abnormalities:
 > **Note** tsconfig.cli.json is used to build the cli.  It's necessary to specify the exact files along the import path of the cli.js entrypoint, and if new files are added, they will need to be added manually.  Build errors should alert you to this.
 
 * `tsconfig.json`: `{ target: 'es2018' }` used because renderer/web uses babel but background does not, and [webpack doesn't support esnext](https://stackoverflow.com/questions/58813176/webpack-cant-compile-ts-3-7-optional-chaining-nullish-coalescing)
-* [acorn unexpected token webpack issue (unused, just useful)](https://github.com/webpack/webpack/issues/10227)
-* [Why our yarn serve is weird](https://github.com/vuejs/vue-cli/issues/3065)
 * [Typescript Absolute -> Relative Paths](https://github.com/microsoft/TypeScript/issues/15479)
 * [electron-builder on MacOS arm64](https://github.com/electron-userland/electron-builder/issues/6726)
 
@@ -245,6 +240,6 @@ const {
 
 > **Note** that you must abandon `vuetify-loader` in order to use this lib.  It relies on vuetify's components to be registered with the global context, which doesn't happen with an a-la-carte installation.
 
-> **Note** you can clone this repo, use `yarn link`, and `yarn link vue-media-annotator` in your own project to modify the source library as you go.  You'll have to `yarn build:lib` after changes, and you must `mv node_modeles/ node_modules.old/` in order to prevent your consumer app from using this project's `node_modules` libs instead of yours.  This could cause problems like multiple instances of vue or composition api.
+> **Note** you can clone this repo, use `npm link`, and `npm link vue-media-annotator` in your own project to modify the source library as you go.
 
 The above problems are known and we are working to solve them.

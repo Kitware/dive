@@ -1,16 +1,16 @@
 # ========================
 # == CLIENT BUILD STAGE ==
 # ========================
-FROM node:18 as client-builder
+FROM node:24.15.0 as client-builder
 WORKDIR /app
 
 # Install dependencies
-COPY client/package.json client/yarn.lock /app/
-RUN yarn install --frozen-lockfile --network-timeout 300000
+COPY client/package.json client/package-lock.json /app/
+RUN npm ci
 # Build
 COPY .git/ /app/.git/
 COPY client/ /app/
-RUN yarn build:web
+RUN npm run build:web
 
 # ========================
 # == SERVER BUILD STAGE ==
@@ -44,8 +44,8 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | b
 
 # Default node version
 RUN . ~/.bashrc && \
-    nvm install 14 && \
-    nvm alias default 14 && \
+    nvm install 24.15.0 && \
+    nvm alias default 24.15.0 && \
     nvm use default && \
     ln -s $(dirname `which npm`) /usr/local/node
 

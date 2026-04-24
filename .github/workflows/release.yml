@@ -26,26 +26,23 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '18.18.0'
+        cache: npm
+        cache-dependency-path: client/package-lock.json
         # Specifies the registry, this field is required!
         registry-url: https://registry.npmjs.org/
-    - run: yarn install --frozen-lockfile
-    - run: git config --global user.name "GitHub Bot"
-    - run: git config --global user.email "viame-web@kitware.com"
-    - run: yarn lint
+    - run: npm ci
+    - run: npm run lint
     - name: Unit tests
-      run: yarn test
+      run: npm test
       if: ${{ matrix.config.os != 'windows-latest' }}
 
-    - run: yarn build:lib
-      if: ${{ matrix.config.os == 'ubuntu-latest' }}
-
-    - run: yarn build:cli
+    - run: npm run build:cli
       if: ${{ matrix.config.os == 'ubuntu-latest' }}
 
     - run: chmod +x bin/platform/desktop/backend/cli.js
       if: ${{ matrix.config.os == 'ubuntu-latest' }}
 
-    - run: yarn build:electron
+    - run: npm run build:electron
 
     # push the version changes to GitHub
     - name: Upload Release Asset
@@ -56,7 +53,7 @@ jobs:
         asset_paths: '["./client/dist_electron/DIVE-Desktop*"]'
 
     - name: Publish to NPM
-      run: yarn publish --new-version ${{ github.event.release.tag_name }}
+      run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version && npm publish
       if: ${{ matrix.config.os == 'ubuntu-latest' }}
       continue-on-error: true
       env:
