@@ -16,6 +16,7 @@ import {
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
+import RunPipelineToast from 'dive-common/components/RunPipelineToast.vue';
 import {
   stereoPipelineMarker,
   multiCamPipelineMarkers,
@@ -24,6 +25,7 @@ import {
 } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
 
 type MenuState = 'idle' | 'configuring';
 
@@ -33,6 +35,8 @@ export default defineComponent({
   components: {
     JobLaunchDialog,
     JobConfigFilterTranscodeDialog,
+    PipelineParamsDialog,
+    RunPipelineToast,
   },
 
   props: {
@@ -77,7 +81,6 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
-    const selectedPipe = ref(null as Pipe | null);
     const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
@@ -92,11 +95,32 @@ export default defineComponent({
     function cancelConfig() {
       menuState.value = 'idle';
     }
+    const showParamsDialog = ref(false);
+    const pipelineParams = ref<Record<string, string>>({});
+
+    function openDiveParamsDialog(pipeline: Pipe) {
+      selectedPipeline.value = pipeline;
+      const defaults: Record<string, string> = {};
+      pipeline?.metadata?.diveParams?.forEach((param) => {
+        defaults[param.key] = param.default;
+      });
+      pipelineParams.value = defaults;
+      showParamsDialog.value = true;
+    }
+
+    async function confirmPipelineExecution(updatedParams: Record<string, string>) {
+      const configById: Record<string, Record<string, string>> = {};
+      props.selectedDatasetIds.forEach((id) => {
+        configById[id] = updatedParams;
+      });
+      showParamsDialog.value = false;
+      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, configById);
+    }
 
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
 
     const successMessage = computed(() => (
-      `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
+      `Started ${selectedPipeline.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -175,7 +199,7 @@ export default defineComponent({
       || stereoPipelineMarker === pipeline.type) {
         datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
       }
-      selectedPipe.value = pipeline;
+      selectedPipeline.value = pipeline;
       await _runPipelineRequest(() => Promise.all(
         datasetIds.map((id) => {
           const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
@@ -185,6 +209,10 @@ export default defineComponent({
     }
 
     async function runPipelineOnSelectedItem(pipeline: Pipe) {
+      if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
+        openDiveParamsDialog(pipeline);
+        return;
+      }
       if (!pipelineCreatesDatasetMarkers.includes(pipeline.type)) {
         _runPipelineOnSelectedItemInner(pipeline);
       } else {
@@ -248,6 +276,9 @@ export default defineComponent({
       cancelConfig,
       menuState,
       exitPipelineConfig,
+      pipelineParams,
+      showParamsDialog,
+      confirmPipelineExecution,
     };
   },
 });
@@ -383,15 +414,30 @@ export default defineComponent({
                   outlined
                   style="overflow-y: auto; max-height: 85vh"
                 >
-                  <v-list-item
+                  <v-tooltip
                     v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
-                    @click="runPipelineOnSelectedItem(pipeline)"
+                    left
+                    :disabled="!pipeline?.metadata?.description"
+                    max-width="400"
+                    content-class="pipeline-description-tooltip"
                   >
-                    <v-list-item-title class="font-weight-regular">
-                      {{ pipeline.name }}
-                    </v-list-item-title>
-                  </v-list-item>
+                    <template #activator="{ on, attrs }">
+                      <v-list-item
+                        v-bind="attrs"
+                        v-on="on"
+                        @click="runPipelineOnSelectedItem(pipeline)"
+                      >
+                        <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
+                          {{ pipeline.name }}
+                          <v-icon style="margin-left: 20px">
+                            {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                          </v-icon>
+                        </v-list-item-title>
+                      </v-list-item>
+                    </template>
+                    <RunPipelineToast :pipeline="pipeline" />
+                  </v-tooltip>
                 </v-list>
               </v-menu>
             </v-col>
@@ -412,6 +458,12 @@ export default defineComponent({
       :selected-dataset-ids="selectedDatasetIds"
       @cancel="cancelConfig"
       @submit="exitPipelineConfig"
+    />
+    <PipelineParamsDialog
+      v-model="showParamsDialog"
+      :pipeline="selectedPipeline"
+      :params="pipelineParams"
+      @confirm="confirmPipelineExecution"
     />
   </div>
 </template>

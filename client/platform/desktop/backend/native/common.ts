@@ -17,12 +17,14 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
+  PipeMetadata,
+  PipelineParamType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -65,6 +67,93 @@ const YAMLFileName = /^.*\.ya?ml$/i;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
+
+/**
+ * Extract metadata from a .pipe file header.
+ */
+async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
+  const metadata: PipeMetadata = {};
+  metadata.diveParams = [];
+  try {
+    const lines = await readLines(filePath);
+    let inDescription = false;
+    let contextStack: string[] = [];
+    let fullDescription = '';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+([\w-]+)/i);
+      if (processMatch) {
+        contextStack = [processMatch[1]];
+        return;
+      }
+
+      const blockMatch = trimmed.match(/^block\s+([\w:-]+)/i);
+      if (blockMatch) {
+        contextStack.push(blockMatch[1]);
+        return;
+      }
+
+      if (trimmed.toLowerCase() === 'endblock') {
+        contextStack.pop();
+        return;
+      }
+
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const pipelineTypeArgs = args.slice(1);
+
+        const paramLineMatch = trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i);
+        if (paramLineMatch) {
+          const localKey = paramLineMatch[1];
+          const defaultValue = paramLineMatch[2].trim();
+          const fullKey = [...contextStack, localKey].join(':');
+          metadata.diveParams!.push({
+            label,
+            type,
+            type_props: pipelineTypeArgs,
+            key: fullKey,
+            default: defaultValue,
+          });
+        }
+      }
+
+      // --- Description extraction (Multiline) ---
+      if (/^#\s*Description:\s*/i.test(line)) {
+        inDescription = true;
+        fullDescription = line.replace(/^#\s*Description:\s*/i, '').trim();
+        return;
+      }
+
+      if (inDescription) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output):/i.test(line) || !line.startsWith('#')) {
+          inDescription = false;
+        } else {
+          fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
+          return;
+        }
+      }
+
+      // --- Input / Output extraction ---
+      if (/^#\s*Input:\s*/i.test(line)) {
+        metadata.inputType = line.split(':')[1]?.trim();
+      }
+      if (/^#\s*Output:\s*/i.test(line)) {
+        metadata.outputType = line.split(':')[1]?.trim();
+      }
+    });
+    metadata.description = fullDescription.trim() || undefined;
+  } catch (error) {
+    console.error(`Error while reading ${filePath} metadata`, error);
+  }
+
+  return metadata;
 }
 
 /**
@@ -356,7 +445,8 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
-  pipes.forEach((p) => {
+
+  await Promise.all(pipes.map(async (p) => {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
@@ -365,10 +455,16 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }
-    const pipeInfo = {
+
+    // Extract description and metadata from the pipe file
+    const pipeFilePath = npath.join(pipelinePath, p);
+    const metadata = await extractPipeMetadata(pipeFilePath);
+
+    const pipeInfo: Pipe = {
       name: pipeName,
       type: pipeType,
       pipe: p,
+      metadata,
     };
     if (pipeType in ret) {
       ret[pipeType].pipes.push(pipeInfo);
@@ -378,7 +474,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
         description: '',
       };
     }
-  });
+  }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
   const allowedTrainedPatterns = new RegExp([
@@ -460,10 +556,17 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
   }
-  let configs = await fs.readdir(pipelinePath);
-  configs = configs
+  let configNames = await fs.readdir(pipelinePath);
+  configNames = configNames
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+
+  const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
+    const configFilePath = npath.join(pipelinePath, name);
+    const { description } = (await extractPipeMetadata(configFilePath));
+    return { name, description };
+  }));
+
   // Get Model files in the pipeline directory
   const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
   const models: TrainingConfigs['models'] = {};
@@ -476,7 +579,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   });
   return {
     training: {
-      default: configs[0],
+      default: configNames[0],
       configs,
     },
     models,
