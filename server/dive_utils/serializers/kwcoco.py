@@ -1,9 +1,12 @@
 """
-KWCOCO JSON format deserializer
+COCO / KWCOCO JSON serializer and deserializer.
+
+This module intentionally accepts the COCO base schema while also handling
+KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
@@ -12,8 +15,9 @@ from . import viame
 
 
 def is_coco_json(coco: Dict[str, Any]):
-    # Required COCO fields according to https://cocodataset.org/#format-data
-    keys = ['info', 'images', 'annotations', 'categories']
+    # Minimal COCO fields according to https://cocodataset.org/#format-data.
+    # `info` and `licenses` are optional in common exports.
+    keys = ['images', 'annotations', 'categories']
     return all(key in coco for key in keys)
 
 
@@ -111,7 +115,16 @@ def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict,
             if coords:
                 viame.create_geoJSONFeature(features, 'Polygon', coords)
 
-    # TODO: process attributes and track_attributes
+    # DIVE extension fields for non-standard COCO attributes.
+    detection_attributes = annotation.get('dive_detection_attributes', annotation.get('attributes', {}))
+    if isinstance(detection_attributes, dict):
+        attributes.update(detection_attributes)
+    track_attributes_value = annotation.get(
+        'dive_track_attributes',
+        annotation.get('track_attributes', {}),
+    )
+    if isinstance(track_attributes_value, dict):
+        track_attributes.update(track_attributes_value)
 
     return features, attributes, track_attributes, [confidence_pair]
 
@@ -230,3 +243,133 @@ def load_coco_as_tracks_and_attributes(
         'version': constants.AnnotationsCurrentVersion,
     }
     return converted, metadata_attributes
+
+
+def _feature_to_segmentation(feature: Feature) -> List[List[float]]:
+    """Convert DIVE polygon geometry to COCO segmentation format."""
+    segmentation: List[List[float]] = []
+    if not feature.geometry:
+        return segmentation
+    for geo_feature in feature.geometry.features:
+        if geo_feature.geometry.type != 'Polygon':
+            continue
+        coordinates = geo_feature.geometry.coordinates
+        if not coordinates or not coordinates[0]:
+            continue
+        flat_coords: List[float] = []
+        for x, y in coordinates[0]:
+            flat_coords.extend([x, y])
+        if flat_coords:
+            segmentation.append(flat_coords)
+    return segmentation
+
+
+def _feature_to_keypoints(feature: Feature) -> Tuple[List[float], int]:
+    """Extract head/tail keypoints from DIVE geometry in COCO format."""
+    if not feature.geometry:
+        return [], 0
+    points: Dict[str, List[float]] = {}
+    for geo_feature in feature.geometry.features:
+        if geo_feature.geometry.type != 'Point':
+            continue
+        key = geo_feature.properties.get('key')
+        if key not in ('head', 'tail'):
+            continue
+        coords = geo_feature.geometry.coordinates
+        if not isinstance(coords, list) or len(coords) < 2:
+            continue
+        points[key] = [coords[0], coords[1], 2]
+    if not points:
+        return [], 0
+    keypoints: List[float] = []
+    count = 0
+    for label in ('head', 'tail'):
+        value = points.get(label, [0, 0, 0])
+        keypoints.extend(value)
+        if value[2] > 0:
+            count += 1
+    return keypoints, count
+
+
+def export_dive_as_coco(
+    tracks: Iterable[dict],
+    image_filenames: Dict[int, str],
+    dataset_name: str,
+) -> Dict[str, Any]:
+    """
+    Export DIVE tracks to a single-dataset COCO JSON document.
+
+    Args:
+        tracks: Track documents matching ``dive_utils.models.Track`` schema.
+        image_filenames: Frame-indexed filename mapping for the dataset.
+        dataset_name: Human-readable dataset name used in the COCO info block.
+    """
+    categories: Dict[str, int] = {}
+    coco_annotations: List[dict] = []
+    images: Dict[int, dict] = {}
+    annotation_id = 1
+
+    for track_doc in tracks:
+        track = Track(**track_doc)
+        for feature in track.features:
+            if feature.frame not in image_filenames:
+                continue
+            if not feature.bounds:
+                continue
+            if not track.confidencePairs:
+                continue
+            class_name, score = max(track.confidencePairs, key=lambda x: x[1])
+            category_id = categories.setdefault(class_name, len(categories) + 1)
+            x1, y1, x2, y2 = feature.bounds
+            width = max(0, x2 - x1)
+            height = max(0, y2 - y1)
+            image_id = feature.frame + 1
+            images.setdefault(
+                image_id,
+                {
+                    'id': image_id,
+                    'file_name': image_filenames[feature.frame],
+                    'frame_index': feature.frame,
+                },
+            )
+            segmentation = _feature_to_segmentation(feature)
+            keypoints, num_keypoints = _feature_to_keypoints(feature)
+            annotation = {
+                'id': annotation_id,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': [x1, y1, width, height],
+                'area': width * height,
+                'iscrowd': 0,
+                'score': score,
+            }
+            # Keep a stable object identity across frames when track data exists.
+            annotation['track_id'] = track.id
+            if feature.attributes:
+                annotation['dive_detection_attributes'] = feature.attributes
+            if track.attributes:
+                annotation['dive_track_attributes'] = track.attributes
+            if segmentation:
+                annotation['segmentation'] = segmentation
+            if keypoints:
+                annotation['keypoints'] = keypoints
+                annotation['num_keypoints'] = num_keypoints
+            coco_annotations.append(annotation)
+            annotation_id += 1
+
+    categories_doc: List[dict] = []
+    for class_name, category_id in categories.items():
+        category: Dict[str, Any] = {'id': category_id, 'name': class_name}
+        # When keypoints are exported, publish the category labels explicitly.
+        category['keypoints'] = ['head', 'tail']
+        categories_doc.append(category)
+
+    return {
+        'info': {
+            'description': f'DIVE export for {dataset_name}',
+            'dive_extensions': ['dive_detection_attributes', 'dive_track_attributes'],
+        },
+        'images': list(images.values()),
+        'annotations': coco_annotations,
+        'categories': categories_doc,
+    }
