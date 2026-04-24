@@ -96,7 +96,7 @@ async function runPipeline(itemId: string, pipeline: Pipe, additionalConfig?: Re
     type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
-    ...additionalConfig,
+    pipelineParams: additionalConfig,
   };
   gpuJobQueue.enqueue(args);
 }

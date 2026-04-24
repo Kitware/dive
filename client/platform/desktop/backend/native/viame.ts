@@ -253,6 +253,14 @@ async function runPipeline(
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 
+  // Add any custom pipeline parameters
+  if (runPipelineArgs.pipelineParams) {
+    const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
+    Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
+      command.push(`-s ${key}="${escapeValue(value)}"`);
+    });
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,
@@ -392,7 +400,7 @@ async function exportTrainedPipeline(
 
   const files = fs.readdirSync(modelPipelineDir);
 
-  const foundExtension = extensions.find((ext) => 
+  const foundExtension = extensions.find((ext) =>
     files.some((file) => file.toLowerCase().endsWith(ext))
   );
 
