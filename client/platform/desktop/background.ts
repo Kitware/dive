@@ -1,11 +1,31 @@
 import {
-  app, protocol, screen, BrowserWindow, session,
+  app, protocol, screen, BrowserWindow, session, dialog,
 } from 'electron';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
+
+function ensureValidWorkingDirectory() {
+  try {
+    process.cwd();
+  } catch {
+    const fallbackCandidates = [os.homedir(), '/tmp', '/'];
+    fallbackCandidates.some((candidate) => {
+      try {
+        process.chdir(candidate);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  }
+}
+
+ensureValidWorkingDirectory();
 
 app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
@@ -20,6 +40,11 @@ let win: BrowserWindow | null;
 // can exist at a time.  Acquire a lock or quit and focus the running window.
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
+  dialog.showErrorBox(
+    'DIVE Desktop',
+    'Another instance is already running.\n\n'
+      + 'If you do not see a window, close any existing DIVE Desktop or Electron dev session, then try again.',
+  );
   app.quit();
 }
 
@@ -65,13 +90,34 @@ async function createWindow() {
   });
   ipcListen();
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    // Load the url of the dev server if in development mode
-    await win.loadURL(process.env.VITE_DEV_SERVER_URL as string);
+  const devServerUrl = process.env.ELECTRON_RENDERER_URL || process.env.VITE_DEV_SERVER_URL;
+  if (devServerUrl) {
+    const desktopDevUrl = devServerUrl.includes('desktop.html')
+      ? devServerUrl
+      : new URL('desktop.html', devServerUrl.endsWith('/') ? devServerUrl : `${devServerUrl}/`).toString();
+    try {
+      await win.loadURL(desktopDevUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to load ${desktopDevUrl}: ${msg}`);
+    }
     if (!process.env.IS_TEST) win.webContents.openDevTools();
   } else {
-    const desktopEntry = path.join(app.getAppPath(), 'dist_desktop', 'desktop.html');
-    await win.loadFile(desktopEntry);
+    const desktopEntryCandidates = app.isPackaged
+      ? [path.join(app.getAppPath(), 'dist_desktop', 'desktop.html')]
+      : [
+        path.resolve(__dirname, '..', '..', 'dist_desktop', 'desktop.html'),
+        path.resolve(app.getAppPath(), 'dist_desktop', 'desktop.html'),
+        path.resolve(process.cwd(), 'dist_desktop', 'desktop.html'),
+      ];
+    const desktopEntry = desktopEntryCandidates.find((candidate) => fs.existsSync(candidate))
+      || desktopEntryCandidates[0];
+    try {
+      await win.loadFile(desktopEntry);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to load ${desktopEntry}: ${msg}`);
+    }
   }
 
   win.on('closed', () => {
@@ -92,7 +138,9 @@ app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (win === null) {
-    createWindow();
+    createWindow().catch((err) => {
+      dialog.showErrorBox('DIVE Desktop', err instanceof Error ? err.message : String(err));
+    });
   }
 });
 
@@ -106,8 +154,12 @@ app.on('before-quit', () => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', async () => {
-  createWindow();
+app.whenReady().then(() => createWindow()).catch((err) => {
+  dialog.showErrorBox(
+    'DIVE Desktop',
+    `The application failed to start:\n\n${err instanceof Error ? err.message : String(err)}`,
+  );
+  app.exit(1);
 });
 
 app.on('second-instance', () => {

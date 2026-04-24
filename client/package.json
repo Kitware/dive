@@ -10,12 +10,9 @@
   "license": "Apache-2.0",
   "scripts": {
     "serve": "vite",
-    "serve:electron": "npm run build:electron:main && npm run build:electron:preload && concurrently -k \"vite --config vite.desktop.config.ts --host 127.0.0.1 --port 8080\" \"wait-on tcp:8080 && cross-env ELECTRON_DISABLE_SECURITY_WARNINGS=true VITE_DEV_SERVER_URL=http://127.0.0.1:8080/desktop.html electron .electron/main/background.js\"",
+    "serve:electron": "mkdir -p \"$HOME/.cache/dive/tmp\" && cross-env ELECTRON_ENTRY=.electron/main/background.js ELECTRON_DISABLE_SECURITY_WARNINGS=true TMPDIR=$HOME/.cache/dive/tmp XDG_RUNTIME_DIR=$HOME/.cache/dive/tmp electron-vite dev",
     "build:web": "vite build",
-    "build:electron:renderer": "vite build --config vite.desktop.config.ts",
-    "build:electron:main": "esbuild platform/desktop/background.ts --bundle --platform=node --format=cjs --outfile=.electron/main/background.js --sourcemap --external:electron --external:@electron/remote/main --external:@electron/remote",
-    "build:electron:preload": "esbuild platform/desktop/preload.ts --bundle --platform=node --format=cjs --outfile=.electron/main/preload.js --external:electron",
-    "build:electron": "npm run build:electron:renderer && npm run build:electron:main && npm run build:electron:preload && electron-builder --config electron-builder.json",
+    "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
     "build:cli": "tsc -b tsconfig.cli.json && tsc-alias -p tsconfig.cli.json",
     "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
@@ -25,14 +22,11 @@
   },
   "files": [
     "/src",
-    "/bin/",
-    "/lib/"
+    "/bin/"
   ],
   "bin": {
     "divecli": "./bin/platform/desktop/backend/cli.js"
   },
-  "main": "lib/index.js",
-  "types": "lib/types/index.d.ts",
   "dependencies": {
     "@electron/remote": "^1.2.2",
     "@flatten-js/interval-tree": "^1.0.11",
@@ -60,7 +54,6 @@
   "devDependencies": {
     "@babel/plugin-proposal-do-expressions": "^7.24.1",
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
-    "@vitejs/plugin-vue2": "^2.3.3",
     "@types/axios": "^0.14.0",
     "@types/body-parser": "^1.19.0",
     "@types/color-hash": "^1.0.0",
@@ -86,27 +79,29 @@
     "@types/source-map": "0.5.2",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
+    "@vitejs/plugin-vue2": "^2.3.3",
     "@vue/compiler-sfc": "^3.2.20",
     "@vue/eslint-config-airbnb": "^7.0.1",
     "@vue/eslint-config-typescript": "^12.0.0",
     "@vue/test-utils": "^1.0.3",
+    "autoprefixer": "^10.4.21",
     "babel-eslint": "^10.1.0",
     "babel-jest": "^27.5.1",
     "babel-loader": "^9.1.3",
     "babel-register": "^6.26.0",
     "body-parser": "^1.20.3",
-    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.5",
+    "cross-env": "^10.1.0",
     "csv-parse": "^4.13.1",
     "electron": "^11.5.0",
     "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "esbuild": "^0.25.11",
     "eslint": "^8.55.0",
     "eslint-import-resolver-typescript": "^2.2.0",
     "eslint-plugin-import": "^2.20.2",
     "eslint-plugin-vue": "^9.26.0",
-    "esbuild": "^0.25.11",
     "express": "^4.17.1",
     "ffmpeg-ffprobe-static": "^4.4.0-rc.11",
     "fs-extra": "^9.0.1",
@@ -120,11 +115,6 @@
     "pump": "^3.0.0",
     "range-parser": "^1.2.1",
     "request": "^2.88.2",
-    "rollup": "^2.59.0",
-    "rollup-plugin-cleaner": "^1.0.0",
-    "rollup-plugin-scss": "^3.0.0",
-    "rollup-plugin-typescript2": "^0.31.0",
-    "rollup-plugin-vue": "^6.0.0",
     "sass": "~1.32.6",
     "sass-loader": "^8.0.2",
     "ts-jest": "^27.0.4",
@@ -161,7 +151,9 @@
     },
     "modulePathIgnorePatterns": [
       "<rootDir>/dist/",
-      "<rootDir>/dist_electron/"
+      "<rootDir>/dist_desktop/",
+      "<rootDir>/dist_electron/",
+      "<rootDir>/.electron/"
     ]
   },
   "eslintConfig": {
