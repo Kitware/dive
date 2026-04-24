@@ -18,7 +18,7 @@ function getBinaryPath(name: string) {
   const platform = process.env.npm_config_platform || os.platform();
   const filename = platform === 'win32' ? `${name}.exe` : name;
   const base = path.basename(filename);
-  const resourcesPath = process.resourcesPath;
+  const { resourcesPath } = process;
   const candidates = [
     ...(resourcesPath
       ? [

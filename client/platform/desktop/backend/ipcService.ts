@@ -1,6 +1,8 @@
 import OS from 'os';
 import http from 'http';
-import { app, ipcMain, shell, dialog } from 'electron';
+import {
+  app, ipcMain, shell, dialog,
+} from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
 import {
@@ -58,6 +60,8 @@ export default function register() {
   ));
   ipcMain.handle('desktop:get-app-version', () => app.getVersion());
   ipcMain.on('desktop:get-app-version-sync', (event) => {
+    // Sync IPC reply: Electron sets the return value on the event object.
+    // eslint-disable-next-line no-param-reassign -- ipcMain event.returnValue API
     event.returnValue = app.getVersion();
   });
   ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));

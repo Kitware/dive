@@ -3,7 +3,6 @@ import {
   defineComponent, onBeforeMount, ref, computed, set, watch,
 } from 'vue';
 
-
 import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';

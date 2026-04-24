@@ -18,7 +18,7 @@ interface DesktopRuntimeInfo {
 }
 
 interface DesktopBridge {
-  invoke(channel: string, ...args: unknown[]): Promise<any>;
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
   send(channel: string, ...args: unknown[]): void;
   on(channel: string, listener: (...args: unknown[]) => void): () => void;
   showOpenDialog(options: unknown): Promise<DesktopOpenDialogResult>;
