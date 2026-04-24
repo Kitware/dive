@@ -13,6 +13,11 @@ type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
 type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
+type PipelineParamType = | 'bool'
+  | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
+  | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
+  | 'folder' | 'path'
+  | 'file';
 
 interface AnnotationSchema {
   version: number;
@@ -33,7 +38,7 @@ interface AnnotationSchemaList {
 
 interface DiveParam {
   label: string;
-  type: string;
+  type: PipelineParamType;
   type_props?: string[];
   key: string;
   default: string;
@@ -245,6 +250,7 @@ export {
   DatasetType,
   DiveParam,
   SubType,
+  PipelineParamType,
   FrameImage,
   MultiTrackRecord,
   MultiGroupRecord,

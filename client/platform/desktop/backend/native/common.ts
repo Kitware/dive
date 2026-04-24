@@ -24,6 +24,7 @@ import {
   SaveAttributeTrackFilterArgs,
   Pipe,
   PipeMetadata,
+  PipelineParamType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -105,7 +106,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       if (diveMatch) {
         const [, label, rawArgs] = diveMatch;
         const args = rawArgs.split(',').map((arg) => arg.trim());
-        const type = args[0];
+        const type: PipelineParamType = args[0] as PipelineParamType;
         const pipelineTypeArgs = args.slice(1);
 
         const paramLineMatch = trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i);

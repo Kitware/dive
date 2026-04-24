@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Pipe } from 'dive-common/apispec';
+import { Pipe, PipelineParamType } from 'dive-common/apispec';
 import {
   defineComponent,
   PropType,
@@ -21,7 +21,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const localParams = ref<Record<string, string>>({ ...props.params });
-    const getIcon = (type: string) => {
+    const getIcon = (type: PipelineParamType): string => {
       switch (type) {
         case 'bool': return 'mdi-toggle-switch-outline';
         case 'int':
@@ -35,7 +35,7 @@ export default defineComponent({
         case 'folder':
         case 'path': return 'mdi-folder-outline';
         case 'file': return 'mdi-file-outline';
-        default: return 'mdi-alphabetical-variant';
+        default: return 'mdi-help-box-outline';
       }
     };
 
@@ -55,7 +55,7 @@ export default defineComponent({
       strictlyPositive: (value: string | number) => Number(value) > 0 || 'Please enter a number > 0',
     };
 
-    function getRules(type: string): ValidationRule[] {
+    function getRules(type: PipelineParamType): ValidationRule[] {
       const res = [];
       if (type.includes('int')) {
         res.push(rules.integer);
