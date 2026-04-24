@@ -68,7 +68,7 @@ export function createSharedConfig(overrides: UserConfig = {}) {
           },
         },
       },
-      base: mode === 'production' ? './' : '/',
+      base: mode === 'production' ? '/static/viame/' : '/',
     };
 
     return {

@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY client/package.json client/package-lock.json /app/
-RUN npm ci
+RUN npm install
 # Build
 COPY .git/ /app/.git/
 COPY client/ /app/
@@ -44,8 +44,8 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | b
 
 # Default node version
 RUN . ~/.bashrc && \
-    nvm install 24.15.0 && \
-    nvm alias default 24.15.0 && \
+    nvm install 14 && \
+    nvm alias default 14 && \
     nvm use default && \
     ln -s $(dirname `which npm`) /usr/local/node
 
