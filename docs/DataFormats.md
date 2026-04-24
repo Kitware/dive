@@ -11,7 +11,7 @@ DIVE Desktop and Web support a number of annotation and configuration formats.  
 * DIVE Configuration JSON
 * VIAME CSV
 * KPF (KWIVER Packet Format)
-* COCO and KWCOCO (web only)
+* COCO and KWCOCO
 
 ## DIVE Annotation JSON
 
@@ -200,7 +200,125 @@ DIVE supports [MEVA KPF](https://mevadata.org/)
 
 ## COCO and KWCOCO
 
-Only supported on web.
+DIVE Web and Desktop can import and export COCO for a single dataset at a time
+(an image-sequence dataset or a single video dataset). KWCOCO-compatible files
+are also accepted on import.
 
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
+
+### Export Notes
+
+* For image-sequence datasets, exported `images[].file_name` uses dataset image filenames.
+* For video datasets, DIVE exports per-frame synthetic names (for example, `frame_000123.jpg`)
+  because base COCO does not define a canonical video container field.
+
+### DIVE COCO Attribute Extensions
+
+COCO does not define standard fields for arbitrary track or detection attributes.
+To preserve DIVE attributes during COCO export/import, DIVE uses extension fields
+on each COCO `annotation` object:
+
+* `dive_detection_attributes`: Detection/frame-level attributes (maps to `Feature.attributes`)
+* `dive_track_attributes`: Track-level attributes (maps to `Track.attributes`)
+
+These extension keys are declared in the COCO `info` object as:
+
+* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes"]`
+
+### Extension Field Details
+
+The DIVE extension fields are JSON objects with user-defined key/value pairs.
+Values are typically strings, numbers, or booleans.
+
+* `annotation.dive_detection_attributes`
+  * Scope: one COCO annotation (one frame-level detection)
+  * DIVE mapping: `Track.features[i].attributes`
+* `annotation.dive_track_attributes`
+  * Scope: logical track identity across frames (`track_id`)
+  * DIVE mapping: `Track.attributes`
+
+When importing, DIVE merges any keys in these objects into the target
+detection/track attribute dictionaries. If the same key appears in multiple
+annotations belonging to the same track, later imported entries may overwrite
+earlier values for that track-level key.
+
+### Round-Trip Behavior
+
+For COCO files produced by DIVE:
+
+* DIVE writes `info.dive_extensions` to advertise the extension keys used.
+* DIVE writes `dive_detection_attributes` and `dive_track_attributes` on each
+  annotation when attributes are present.
+* Re-importing that file into DIVE preserves those attributes.
+
+For COCO files not produced by DIVE:
+
+* DIVE still imports standard COCO fields (`bbox`, optional polygon
+  `segmentation`, optional keypoints), and reads extension fields when present.
+
+### Supported / Unsupported COCO Features
+
+* Supported:
+  * Bounding boxes (`bbox`)
+  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`)
+  * Head/tail keypoints from category keypoint labels
+* Partially supported:
+  * COCO has no direct equivalent for DIVE groups, so groups are not represented in COCO export.
+* Unsupported:
+  * Run-length encoded segmentations (RLE)
+
+### Example COCO Annotation with DIVE Extensions
+
+```json
+{
+  "info": {
+    "description": "DIVE export for my-dataset",
+    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes"]
+  },
+  "images": [
+    { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
+  ],
+  "categories": [
+    { "id": 1, "name": "fish", "keypoints": ["head", "tail"] },
+    { "id": 2, "name": "crab" }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [100, 200, 50, 80],
+      "score": 0.97,
+      "track_id": 42,
+      "dive_detection_attributes": {
+        "visibility": "poor",
+        "occluded": true
+      },
+      "dive_track_attributes": {
+        "reviewed": true,
+        "source": "analyst"
+      }
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [320, 140, 120, 90],
+      "score": 0.91,
+      "track_id": 77,
+      "segmentation": [
+        [320, 140, 360, 130, 430, 170, 440, 220, 360, 230, 325, 200]
+      ],
+      "keypoints": [350, 150, 2, 410, 210, 2],
+      "num_keypoints": 2,
+      "dive_detection_attributes": {
+        "visibility": "clear"
+      },
+      "dive_track_attributes": {
+        "species_confidence_note": "manual QA"
+      }
+    }
+  ]
+}
+```
