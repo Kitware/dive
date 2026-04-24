@@ -267,7 +267,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
-    type?: 'csv' | 'json';
+    type?: 'csv' | 'json' | 'coco';
   }
 
 export interface ExportConfigurationArgs {
