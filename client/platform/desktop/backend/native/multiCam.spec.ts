@@ -1,4 +1,5 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
+import { vi } from 'vitest';
 import mockfs from 'mock-fs';
 import fs from 'fs-extra';
 import { Console } from 'console';
@@ -18,8 +19,34 @@ import beginMultiCamImport from './multiCamImport';
 const console = new Console(process.stdout, process.stderr);
 const multiCamSetup = fs.readJSONSync('../testutils/multicam.spec.json');
 
-jest.mock('./mediaJobs', () => ({
-  checkMedia: jest.fn((file: string) => Promise.resolve({
+vi.mock('fs-extra', async () => {
+  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const fsNode = await import('node:fs');
+  const existsByStat = (targetPath: fsNode.PathLike) => {
+    try {
+      fsNode.statSync(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const patchedDefault = {
+    ...actual.default,
+    existsSync: existsByStat,
+    pathExistsSync: existsByStat,
+  };
+
+  return {
+    ...actual,
+    default: patchedDefault,
+    existsSync: existsByStat,
+    pathExistsSync: existsByStat,
+  };
+});
+
+vi.mock('./mediaJobs', () => ({
+  checkMedia: vi.fn((file: string) => Promise.resolve({
     websafe: file.includes('mp4'),
     originalFpsString: '30/1',
     originalFps: 30,

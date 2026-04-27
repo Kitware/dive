@@ -213,7 +213,7 @@ Recipes (`./dive-common/recipes/`) allow for custom workflows when creating anno
 
 ## Tests
 
-Note that `tsconfig.spec.json` is an exact copy of `tsconfig.json` but the `target` and `module` are changed such that babel is not required for jest to execute tests.
+Unit tests are run with Vitest via `npm test`, using the test configuration in `vite.config.ts`.
 
 ## Typescript vue-media-annotator library
 

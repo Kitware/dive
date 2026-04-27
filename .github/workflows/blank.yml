@@ -38,7 +38,7 @@ jobs:
     -
       name: Run tests
       if: ${{ matrix.target == 'web' }}
-      run: npm test -- --collect-coverage
+      run: npm test -- --coverage
     -
       name: Build Web
       if: ${{ matrix.target == 'web' }}

@@ -1,4 +1,5 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
+import { vi } from 'vitest';
 
 import { ref } from 'vue';
 
@@ -20,7 +21,7 @@ const vuetify = {
 
 describe('StyleManager', () => {
   it('can updates custom colors', () => {
-    const markChangesPending = jest.fn();
+    const markChangesPending = vi.fn();
     const sm = new StyleManager({ markChangesPending, vuetify });
     const beforeSetColor = sm.typeStyling.value.color('foo');
     const beforeSetStrokeWidth = sm.typeStyling.value.strokeWidth('bar');
@@ -33,7 +34,7 @@ describe('StyleManager', () => {
   });
 
   it('returns custom saved colors', () => {
-    const markChangesPending = jest.fn();
+    const markChangesPending = vi.fn();
     const sm = new StyleManager({ markChangesPending, vuetify });
     expect(sm.getTypeStyles(ref([]))).toEqual({});
     /** Colors are deterministically generated in order */

@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
 import {
   updateSubset,
   reOrdergeoJSON,

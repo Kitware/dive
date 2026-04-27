@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 
 import vue from '@vitejs/plugin-vue2';
 import type { UserConfig } from 'vite';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
 
@@ -80,6 +81,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     base: mode === 'production' ? '/static/viame/' : '/',
+    test: {
+      globals: true,
+    },
   };
 
   return {

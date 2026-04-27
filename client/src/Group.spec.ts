@@ -1,4 +1,5 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
+import { vi } from 'vitest';
 
 import { merge } from 'lodash';
 import Group, { GroupMembers } from './Group';
@@ -21,7 +22,7 @@ describe('Group', () => {
   });
 
   it('range reflects member range', () => {
-    const notifier = jest.fn();
+    const notifier = vi.fn();
     const group = new Group(0, { members: {} });
     group.notifier = notifier;
     group.addMembers(member0);
