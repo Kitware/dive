@@ -16,7 +16,7 @@ if [ -n "$WORKER_CONCURRENCY" ]; then
     CONCURRENCY_ARGUMENT="--concurrency $WORKER_CONCURRENCY"
 fi
 
-exec poetry run python \
+exec uv run --no-sync python \
     -m dive_tasks \
     -l info \
     --without-gossip --without-mingle \

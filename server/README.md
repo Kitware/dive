@@ -15,11 +15,11 @@ Set up your system as described in the [Basic Deployment](https://kitware.github
 
 In development, the server and client are run in separate processes.  In production, the client is built and bundled as static files into the server image.
 
-This python project uses [Poetry](https://python-poetry.org/).
+This python project uses [uv](https://astral.sh/uv/) for Python dependency management.
 
 ```bash
 # Optional, for intellisense or whatever.  Not required for docker-compose
-poetry install
+uv sync
 ```
 
 ### Running in development with docker
@@ -54,32 +54,32 @@ To work on the Vue client, see development instructions in `../client`.
 
 ## Unit Testing and Static Checks
 
-Automation is done with [Tox](https://pypi.org/project/tox/), installed by poetry above.
+Automation is done with [Tox](https://pypi.org/project/tox/) with `tox-uv`.
 
 ```bash
 # run only lint checks
-poetry run tox -e check
+uv run tox -e lint
 
 # run only type checks
-poetry run tox -e type
+uv run tox -e type
 
 # run only unit tests
-poetry run tox -e testunit
+uv run tox -e testunit
 
 # run only a particular test
-poetry run tox -e testunit -- -k test_image_sort
+uv run tox -e testunit -- -k test_image_sort
 
 # run all three tests above
-poetry run tox
+uv run tox
 
 # automatically format all code to comply to linting checks
-poetry run tox -e format
+uv run tox -e format
 
 # run mkdocs and serve the documentation page
-poetry run tox -e docs
+uv run tox -e docs
 
 # creates docs in the /site folder for eventual deployment
-poetry run tox -e builddocs
+uv run tox -e builddocs
 ```
 
 ## Integration Testing
@@ -94,10 +94,10 @@ docker-compose up -d
 export GIRDER_API_KEY=CHANGEME
 
 # run the tests
-poetry run tox -e testintegration
+uv run tox -e testintegration
 
 # run only a particular test (be mindful of dependencies)
-poetry run tox -e testintegrationkeyword test_pipelines
+uv run tox -e testintegrationkeyword test_pipelines
 ```
 
 After integration tests are complete, visually inspect the results to make sure all jobs completed, new datasets open correctly, etc.
@@ -105,14 +105,14 @@ After integration tests are complete, visually inspect the results to make sure 
 ## Debug utils and command line tools
 
 ``` bash
-# Requires a local poetry installation
-poetry install
+# Requires a local uv installation
+uv sync
 
 # show options
-poetry run dive --help
+uv run dive --help
 
 # build the standalone executable into ./dist
-poetry run tox -e buildcli
+uv run tox -e buildcli
 ```
 
 ## Metadata properties
@@ -137,9 +137,9 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
 * `codec` (string) video codec
 * `source_video` (boolean) whether the video is a raw user upload or a trancoded video
 
-### Poetry Update
+### uv Lockfile Refresh
 
-The girder-large-image plugin uses the `pip install --find-link` argument and poetry has some difficulty supporting that with a location that is deleting and replacing older versions.  This may cause some docker building errors so from time to time it may be necessary to update the poetry lock file.  This requires clearing your local poetry and pypi cache to properly work.  The command below when run in the server folder fixes any build issues
+The girder-large-image plugin dependencies are hosted externally and can occasionally shift beneath pinned resolution. If a build fails because of stale lock metadata, clear uv/pip caches and regenerate the lockfile from the `server` folder:
 
-`poetry cache clear --all pypi && pip cache purge && rm -rf ~/.cache/pypoetry ~/.cache/pip && rm poetry.lock && poetry lock`
+`uv cache clean && pip cache purge && rm -rf ~/.cache/uv ~/.cache/pip && rm -f uv.lock && uv lock`
 
