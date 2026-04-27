@@ -37,6 +37,10 @@ class GeoJSONFeatureCollection(BaseModel):
     features: List[GeoJSONFeature]
 
 
+# Type for a single additional point: {"coordinates": [x, y], "label": optional str}
+AdditionalPointDict = Dict[str, Union[List[float], str]]
+
+
 class Feature(BaseModel):
     """Feature represents a single detection in a track."""
 
@@ -50,6 +54,8 @@ class Feature(BaseModel):
     fishLength: Optional[float] = None
     interpolate: Optional[bool] = None
     keyframe: Optional[bool] = None
+    # Point annotations keyed by type/label; multiple points per label per detection
+    additionalPoints: Optional[Dict[str, List[AdditionalPointDict]]] = None
 
 
 class BaseAnnotation(BaseModel):

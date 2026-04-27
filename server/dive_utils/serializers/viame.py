@@ -426,6 +426,7 @@ def load_csv_as_tracks_and_attributes(
                             fishLength=subFeature.fishLength or None,
                             interpolate=subFeature.interpolate or None,
                             keyframe=subFeature.keyframe or None,
+                            additionalPoints=subFeature.additionalPoints or None,
                         )
                         newFeature.frame = frameMapper[newFeature.frame]
                         newTrack.features.append(newFeature)

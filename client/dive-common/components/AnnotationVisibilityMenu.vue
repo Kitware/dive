@@ -33,8 +33,17 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    additionalPointSettings: {
+      type: Object as PropType<{ showLabels: boolean; sizePercent: number }>,
+      default: () => ({ showLabels: true, sizePercent: 100 }),
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+    'update:additional-point-settings',
+  ],
   setup(props, { emit }) {
     const STORAGE_KEY = 'annotationVisibilityMenu.expanded';
 
@@ -97,6 +106,14 @@ export default defineComponent({
           click: () => toggleVisible('LineString'),
         },
         {
+          id: 'additionalPoints',
+          type: 'additionalPoints',
+          active: isVisible('additionalPoints'),
+          icon: 'mdi-vector-point',
+          description: 'Additional Points',
+          click: () => toggleVisible('additionalPoints'),
+        },
+        {
           id: 'text',
           type: 'text',
           active: isVisible('text'),
@@ -124,6 +141,21 @@ export default defineComponent({
       emit('update:show-user-created-icon', !props.showUserCreatedIcon);
     };
 
+    const toggleAdditionalPointShowLabels = () => {
+      emit('update:additional-point-settings', {
+        ...props.additionalPointSettings,
+        showLabels: !props.additionalPointSettings.showLabels,
+      });
+    };
+
+    const updateAdditionalPointSize = (event: Event) => {
+      const value = Number.parseInt((event.target as HTMLInputElement).value, 10);
+      emit('update:additional-point-settings', {
+        ...props.additionalPointSettings,
+        sizePercent: value,
+      });
+    };
+
     return {
       isExpanded,
       viewButtons,
@@ -132,6 +164,8 @@ export default defineComponent({
       toggleExpanded,
       updateTailSettings,
       toggleShowUserCreatedIcon,
+      toggleAdditionalPointShowLabels,
+      updateAdditionalPointSize,
     };
   },
 });
@@ -193,6 +227,36 @@ export default defineComponent({
               @click.stop
               @change="toggleShowUserCreatedIcon"
             />
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item v-if="isVisible('additionalPoints')">
+          <v-list-item-content>
+            <v-card
+              class="pa-4 flex-column d-flex"
+              outlined
+              flat
+            >
+              <v-checkbox
+                :input-value="additionalPointSettings.showLabels"
+                label="Show point labels"
+                dense
+                hide-details
+                class="mt-0"
+                @click.stop
+                @change="toggleAdditionalPointShowLabels"
+              />
+              <div class="py-2" />
+              <label for="additional-point-size-menu">Point size: {{ additionalPointSettings.sizePercent }}%</label>
+              <input
+                id="additional-point-size-menu"
+                type="range"
+                class="tail-slider-width"
+                min="50"
+                max="200"
+                :value="additionalPointSettings.sizePercent"
+                @input="updateAdditionalPointSize($event)"
+              >
+            </v-card>
           </v-list-item-content>
         </v-list-item>
         <v-list-item>
@@ -300,6 +364,50 @@ export default defineComponent({
               hide-details
               @change="toggleShowUserCreatedIcon"
             />
+          </v-card>
+        </v-menu>
+        <v-menu
+          v-else-if="button.id === 'additionalPoints'"
+          :key="`${button.id}-view`"
+          open-on-hover
+          bottom
+          offset-y
+          :close-on-content-click="false"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :color="button.active ? 'grey darken-2' : ''"
+              class="mx-1 mode-button"
+              small
+              v-on="on"
+              @click="button.click"
+            >
+              <v-icon>{{ button.icon }}</v-icon>
+            </v-btn>
+          </template>
+          <v-card
+            class="pa-4 flex-column d-flex"
+            outlined
+          >
+            <v-checkbox
+              :input-value="additionalPointSettings.showLabels"
+              label="Show point labels"
+              dense
+              hide-details
+              @change="toggleAdditionalPointShowLabels"
+            />
+            <div class="py-2" />
+            <label for="additional-point-size-expanded">Point size: {{ additionalPointSettings.sizePercent }}%</label>
+            <input
+              id="additional-point-size-expanded"
+              type="range"
+              class="tail-slider-width"
+              min="50"
+              max="200"
+              :value="additionalPointSettings.sizePercent"
+              @input="updateAdditionalPointSize($event)"
+            >
           </v-card>
         </v-menu>
         <v-btn
