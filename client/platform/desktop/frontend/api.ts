@@ -188,12 +188,18 @@ async function convert(args: ConversionArgs): Promise<void> {
   cpuJobQueue.enqueue(args);
 }
 
-async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
+async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json' | 'coco'): Promise<string> {
+  let extension = 'csv';
+  if (type === 'json') {
+    extension = 'json';
+  } else if (type === 'coco') {
+    extension = 'coco.json';
+  }
   const location = await window.diveDesktop.showSaveDialog({
     title: 'Export Dataset',
     defaultPath: joinPath(
       await window.diveDesktop.getAppPath('home'),
-      type === 'json' ? `result_${id}.json` : `result_${id}.csv`,
+      `result_${id}.${extension}`,
     ),
   });
   if (!location.canceled && location.filePath) {
