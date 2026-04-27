@@ -22,14 +22,12 @@ jobs:
         # "ref" specifies the branch to check out.
         # "github.event.release.target_commitish" is a global variable and specifies the branch the release targeted
         ref: ${{ github.event.release.target_commitish }}
-    - name: Use Node 18
+    - name: Use Node 24
       uses: actions/setup-node@v3
       with:
-        node-version: '18.18.0'
+        node-version: '24.15.0'
         cache: npm
         cache-dependency-path: client/package-lock.json
-        # Specifies the registry, this field is required!
-        registry-url: https://registry.npmjs.org/
     - run: npm ci
     - run: npm run lint
     - name: Unit tests
@@ -51,14 +49,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         asset_paths: '["./client/dist_electron/DIVE-Desktop*"]'
-
-    - name: Publish to NPM
-      run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version && npm publish
-      if: ${{ matrix.config.os == 'ubuntu-latest' }}
-      continue-on-error: true
-      env:
-        # Use a token to publish to NPM.  Must configure this!
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   docs:
     name: Deploy docs
