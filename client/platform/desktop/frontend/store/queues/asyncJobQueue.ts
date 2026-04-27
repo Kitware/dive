@@ -12,9 +12,9 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
 
   private dequeueing = false;
 
-  ipcRenderer: Electron.IpcRenderer;
+  ipcRenderer: Pick<Window['diveDesktop'], 'on' | 'invoke'>;
 
-  constructor(ipcRenderer: Electron.IpcRenderer, size: number = 1) {
+  constructor(ipcRenderer: Pick<Window['diveDesktop'], 'on' | 'invoke'>, size: number = 1) {
     this.jobSpecs = [];
     this.processingJobs = [];
     this.queued = 0;
@@ -25,7 +25,7 @@ export default abstract class AsyncJobQueue<T extends JobArgs> {
   }
 
   init() {
-    this.ipcRenderer.on('job-update', (event, args: DesktopJobUpdate) => {
+    this.ipcRenderer.on('job-update', (args: DesktopJobUpdate) => {
       this.processJob(args);
     });
   }

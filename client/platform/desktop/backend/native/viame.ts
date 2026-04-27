@@ -400,8 +400,8 @@ async function exportTrainedPipeline(
 
   const files = fs.readdirSync(modelPipelineDir);
 
-  const foundExtension = extensions.find((ext) =>
-    files.some((file) => file.toLowerCase().endsWith(ext))
+  const foundExtension = extensions.find(
+    (ext) => files.some((file) => file.toLowerCase().endsWith(ext)),
   );
 
   if (foundExtension) {
