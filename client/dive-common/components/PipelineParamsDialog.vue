@@ -93,7 +93,9 @@ export default defineComponent({
   >
     <v-card v-if="pipeline" class="rounded-lg">
       <v-toolbar flat color="primary" dark dense>
-        <v-icon left>mdi-cog</v-icon>
+        <v-icon left>
+          mdi-cog
+        </v-icon>
         <v-toolbar-title class="text-h6">
           Pipeline Configuration
         </v-toolbar-title>
@@ -182,7 +184,7 @@ export default defineComponent({
                   :step="param.type_props?.at(2) || 1"
                   hide-details
                 >
-                  <template v-slot:append>
+                  <template #append>
                     <v-text-field
                       v-model="localParams[param.key]"
                       dense
@@ -221,8 +223,10 @@ export default defineComponent({
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn color="primary" @click="confirm" :disabled="!isFormValid">
-          <v-icon left>mdi-play</v-icon>
+        <v-btn color="primary" :disabled="!isFormValid" @click="confirm">
+          <v-icon left>
+            mdi-play
+          </v-icon>
           Run Pipeline
         </v-btn>
       </v-card-actions>

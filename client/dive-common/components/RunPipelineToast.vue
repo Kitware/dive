@@ -54,7 +54,7 @@ export default defineComponent({
 <template>
   <div>
     <span>{{ pipeline.metadata?.description }}</span>
-    <div class="pipeline-type-indicators" v-if="pipeline.metadata?.inputType && pipeline.metadata?.outputType">
+    <div v-if="pipeline.metadata?.inputType && pipeline.metadata?.outputType" class="pipeline-type-indicators">
       <v-icon>
         {{ inputIcon }}
       </v-icon>
