@@ -1,6 +1,3 @@
-/// <reference types="vitest" />
-import { vi } from 'vitest';
-
 import { ref } from 'vue';
 
 import type Vuetify from 'vuetify/lib';

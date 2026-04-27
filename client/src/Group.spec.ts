@@ -1,6 +1,3 @@
-/// <reference types="vitest" />
-import { vi } from 'vitest';
-
 import { merge } from 'lodash';
 import Group, { GroupMembers } from './Group';
 

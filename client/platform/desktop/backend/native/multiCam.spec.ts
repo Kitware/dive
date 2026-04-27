@@ -1,5 +1,3 @@
-/// <reference types="vitest" />
-import { vi } from 'vitest';
 import mockfs from 'mock-fs';
 import fs from 'fs-extra';
 import { Console } from 'console';
