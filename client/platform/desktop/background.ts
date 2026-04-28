@@ -24,10 +24,8 @@ function ensureValidWorkingDirectory() {
     });
   }
 }
-
 ensureValidWorkingDirectory();
 
-app.commandLine.appendSwitch('no-sandbox');
 // To support a broader number of systems.
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
 
@@ -57,6 +55,26 @@ async function cleanup() {
   closeServer();
   await closeChildren();
   app.quit();
+}
+
+// In dev, Electron can attempt to load desktop.html before the Vite renderer
+// server is fully ready. Retry briefly to avoid flaky startup failures.
+async function loadDevUrlWithRetry(window: BrowserWindow, url: string) {
+  const maxAttempts = 10;
+  const attemptLoad = async (attempt: number): Promise<void> => {
+    try {
+      await window.loadURL(url);
+      return Promise.resolve();
+    } catch (err) {
+      if (attempt >= maxAttempts) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to load ${url} after ${maxAttempts} attempts: ${message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return attemptLoad(attempt + 1);
+    }
+  };
+  return attemptLoad(1);
 }
 
 async function createWindow() {
@@ -96,7 +114,7 @@ async function createWindow() {
       ? devServerUrl
       : new URL('desktop.html', devServerUrl.endsWith('/') ? devServerUrl : `${devServerUrl}/`).toString();
     try {
-      await win.loadURL(desktopDevUrl);
+      await loadDevUrlWithRetry(win, desktopDevUrl);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to load ${desktopDevUrl}: ${msg}`);
