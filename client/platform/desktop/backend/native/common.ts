@@ -36,7 +36,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
-  MultiType, JsonMetaRegEx, largeImageTypes,
+  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
@@ -1046,6 +1046,8 @@ async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
+  const fileExtension = npath.extname(path).replace(/^\./, '').toLowerCase();
+  const isDesktopLargeImage = largeImageDesktopTypes.includes(fileExtension);
 
   const exists = fs.existsSync(path);
   if (!exists) {
@@ -1059,7 +1061,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     const mimetype = mime.lookup(path);
     if (mimetype && mimetype === 'text/plain') {
       datasetType = 'image-sequence';
-    } else if (mimetype && largeImageTypes.includes(mimetype)) {
+    } else if (isDesktopLargeImage) {
       datasetType = 'large-image';
     } else {
       datasetType = 'video';

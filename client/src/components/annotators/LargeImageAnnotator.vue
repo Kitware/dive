@@ -80,9 +80,9 @@ export default defineComponent({
       type: Function as PropType<
       (
         itemId: string,
-        level: number,
         x: number,
         y: number,
+        level: number,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         query: Record<string, any>,
       ) => string>,
@@ -212,12 +212,12 @@ export default defineComponent({
     }
     function _getTileURL(itemId: string, proj?: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const returnFunc = (level: number, x: number, y: number, params: any) => {
+      const returnFunc = (x: number, y: number, level: number, params: any) => {
         const updatedParams = { ...params, encoding: 'PNG' };
         if (proj) {
           updatedParams.projection = proj;
         }
-        return props.getTileURL(itemId, level, x, y, updatedParams);
+        return props.getTileURL(itemId, x, y, level, updatedParams);
       };
       return returnFunc;
     }

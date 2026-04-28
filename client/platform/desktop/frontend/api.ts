@@ -40,7 +40,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-const largeImageFileExtensions = ['tif', 'tiff', 'nitf', 'ntf'];
+const largeImageFileExtensions = ['tif', 'tiff', 'geotiff'];
 
 async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
@@ -54,7 +54,6 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'large-image') {
     filters = [
       { name: 'GeoTIFF / TIFF', extensions: largeImageFileExtensions },
-      allFiles,
     ];
   }
   if (datasetType === 'calibration') {
@@ -86,6 +85,14 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'large-image') {
+    const allowed = new Set(largeImageFileExtensions.map((ext) => ext.toLowerCase()));
+    if (!results.filePaths.every(
+      (item) => allowed.has(getExtension(item)),
+    )) {
+      throw Error('File Types did not match TIFF/GeoTIFF');
     }
   }
   return results;
