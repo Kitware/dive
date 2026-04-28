@@ -29,6 +29,25 @@ DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management
 * The client application is a standard [@vue/cli](https://cli.vuejs.org/) application.
 * The job runner is built on celery and [Girder Worker](https://girder-worker.readthedocs.io/en/latest/).  Command-line executables for VIAME and FFmpeg are built inside the worker docker image.
 
+## Docker Compose profiles
+
+DIVE supports two Docker Compose modes:
+
+* **Default mode (no profile):** starts the web stack and the standard worker (`girder_worker_default`) for non-GPU/background tasks.
+* **GPU mode (`--profile gpu`):** also starts GPU workers (`girder_worker_pipelines`, `girder_worker_training`) for VIAME pipelines and training.
+
+### Commands
+
+```bash
+# Default mode (no GPU workers)
+docker compose up -d
+
+# GPU mode (includes pipeline/training workers)
+docker compose --profile gpu up -d
+```
+
+When GPU workers are not running, the web UI and API automatically disable pipeline and training actions.
+
 ## Example Data
 
 ### Input

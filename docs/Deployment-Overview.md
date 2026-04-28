@@ -35,6 +35,8 @@ The easiest option to get started using VIAME is to [try our public server](Web-
 
 You may wish to run your own deployment of VIAME Web in your lab or a cloud environment.  Deploying VIAME Web is relatively straightforward with `docker-compose`.
 
+By default, Docker Compose starts DIVE without GPU pipeline/training workers. Use `--profile gpu` when launching Compose to enable pipeline/training worker containers.
+
 | Environment | Instructions |
 |-------------|--------------|
 **Local server** | If you already have SSH access to an existing server and `sudo` permissions, [proceed to the docker compose guide](Deployment-Docker-Compose.md).
