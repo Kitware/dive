@@ -15,8 +15,6 @@
     "serve:electron": "mkdir -p /tmp/dive-electron && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DISABLE_SECURITY_WARNINGS=true TMPDIR=/tmp/dive-electron XDG_RUNTIME_DIR=/tmp/dive-electron electron-vite dev --entry=.electron/main/background.js",
     "build:web": "vite build",
     "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
-    "build:cli": "tsc -b tsconfig.cli.json && tsc-alias -p tsconfig.cli.json",
-    "dev:cli": "tsc -w -p tsconfig.cli.json & tsc-alias -w -p tsconfig.cli.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "eslint --ext .js,.ts,.vue src/ dive-common/ platform/",
     "lint:templates": "eslint --ext vue src/ dive-common/ platform/",
