@@ -40,6 +40,8 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
+const largeImageFileExtensions = ['tif', 'tiff', 'geotiff'];
+
 async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
@@ -47,6 +49,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
       allFiles,
+    ];
+  }
+  if (datasetType === 'large-image') {
+    filters = [
+      { name: 'GeoTIFF / TIFF', extensions: largeImageFileExtensions },
     ];
   }
   if (datasetType === 'calibration') {
@@ -78,6 +85,14 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'large-image') {
+    const allowed = new Set(largeImageFileExtensions.map((ext) => ext.toLowerCase()));
+    if (!results.filePaths.every(
+      (item) => allowed.has(getExtension(item)),
+    )) {
+      throw Error('File Types did not match TIFF/GeoTIFF');
     }
   }
   return results;
@@ -236,13 +251,32 @@ async function cancelJob(job: DesktopJob): Promise<void> {
  * address details fetched from backend over ipc
  */
 let _axiosClient: AxiosInstance; // do not use elsewhere
+let _baseURL: string | null = null;
+
 async function getClient(): Promise<AxiosInstance> {
   if (_axiosClient === undefined) {
     const addr = await window.diveDesktop.invoke('server-info');
-    const baseURL = `http://${addr.address}:${addr.port}/api`;
-    _axiosClient = axios.create({ baseURL });
+    _baseURL = `http://${addr.address}:${addr.port}/api`;
+    _axiosClient = axios.create({ baseURL: _baseURL });
   }
   return _axiosClient;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- projection kept for API compatibility
+async function getTiles(itemId: string, _projection?: string) {
+  const client = await getClient(); // ensures _baseURL is set for getTileURL
+  const { data } = await client.get(`dataset/${itemId}/tiles`);
+  return data;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTileURL(itemId: string, x: number, y: number, level: number, query: Record<string, any>): string {
+  if (!_baseURL) {
+    throw new Error('API not initialized: getTileURL called before any REST request');
+  }
+  const params = new URLSearchParams(query || {}).toString();
+  const suffix = params ? `?${params}` : '';
+  return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
 async function loadMetadata(id: string) {
@@ -304,6 +338,8 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   openFromDisk,
+  getTiles,
+  getTileURL,
   /* Nonstandard APIs */
   exportDataset,
   exportConfiguration,

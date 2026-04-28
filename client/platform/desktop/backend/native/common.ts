@@ -35,7 +35,8 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
@@ -390,6 +391,13 @@ async function loadMetadata(
         };
       });
     }
+  } else if (projectMetaData.type === 'large-image' && projectMetaData.originalLargeImageFile) {
+    const tiffPath = npath.join(projectMetaData.originalBasePath, projectMetaData.originalLargeImageFile);
+    imageData = [{
+      url: makeMediaUrl(tiffPath),
+      id: datasetId,
+      filename: npath.basename(tiffPath),
+    }];
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -1038,6 +1046,8 @@ async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
+  const fileExtension = npath.extname(path).replace(/^\./, '').toLowerCase();
+  const isDesktopLargeImage = largeImageDesktopTypes.includes(fileExtension);
 
   const exists = fs.existsSync(path);
   if (!exists) {
@@ -1051,6 +1061,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     const mimetype = mime.lookup(path);
     if (mimetype && mimetype === 'text/plain') {
       datasetType = 'image-sequence';
+    } else if (isDesktopLargeImage) {
+      datasetType = 'large-image';
     } else {
       datasetType = 'video';
     }
@@ -1085,6 +1097,10 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     // get parent folder, since videos reference a file directly
     jsonMeta.originalBasePath = npath.dirname(path);
   }
+  if (datasetType === 'large-image') {
+    jsonMeta.originalBasePath = npath.dirname(path);
+    jsonMeta.originalLargeImageFile = npath.basename(path);
+  }
 
   /* Path to search for other related data like annotations */
   let relatedDataSearchPath = jsonMeta.originalBasePath;
@@ -1092,7 +1108,9 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
-  if (jsonMeta.type === 'video') {
+  if (jsonMeta.type === 'large-image') {
+    // No conversion for large images; tile serving is done on demand via geotiff
+  } else if (jsonMeta.type === 'video') {
     jsonMeta.originalVideoFile = npath.basename(path);
     const mimetype = mime.lookup(path);
     if (mimetype) {
@@ -1130,8 +1148,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
       relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
-  } else {
-    throw new Error('only video and image-sequence types are supported');
+  } else if (datasetType !== 'large-image') {
+    throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
   const { trackFileAbsPath, metaFileAbsPath } = await
@@ -1330,6 +1348,28 @@ async function finalizeMediaImport(
   return conversionJobArgs;
 }
 
+/**
+ * Get the absolute path to the large image (e.g. GeoTIFF) file for a dataset.
+ * Returns null if the dataset is not type 'large-image' or path is missing.
+ */
+async function getLargeImagePath(settings: Settings, datasetId: string): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    if (meta.type !== 'large-image' || !meta.originalLargeImageFile) {
+      console.warn(
+        `[tiles] getLargeImagePath: no path for dataset "${datasetId}" (meta.type=${meta.type}, hasOriginalLargeImageFile=${!!meta.originalLargeImageFile})`,
+      );
+      return null;
+    }
+    const path = npath.join(meta.originalBasePath, meta.originalLargeImageFile);
+    return path;
+  } catch (err) {
+    console.warn(`[tiles] getLargeImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1446,6 +1486,7 @@ export {
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
+  getLargeImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,
