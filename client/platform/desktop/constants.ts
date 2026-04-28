@@ -175,6 +175,8 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  /** Optional parameters to pass to the pipeline via -s flags */
+  pipelineParams?: Record<string, string>;
   outputDatasetName?: string;
 }
 
@@ -268,7 +270,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
-    type?: 'csv' | 'json';
+    type?: 'csv' | 'json' | 'coco';
   }
 
 export interface ExportConfigurationArgs {

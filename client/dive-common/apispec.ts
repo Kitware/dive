@@ -13,6 +13,11 @@ type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
 type MultiGroupRecord = Record<string, GroupData>;
 type SubType = 'stereo' | 'multicam' | null; // Additional type info used for UI display enabled pipelines
+type PipelineParamType = | 'bool'
+  | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
+  | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
+  | 'folder' | 'path'
+  | 'file';
 
 interface AnnotationSchema {
   version: number;
@@ -31,10 +36,26 @@ interface AnnotationSchemaList {
   sets: string[];
 }
 
+interface DiveParam {
+  label: string;
+  type: PipelineParamType;
+  type_props?: string[];
+  key: string;
+  default: string;
+}
+
+interface PipeMetadata {
+  description?: string;
+  inputType?: string;
+  outputType?: string;
+  diveParams?: DiveParam[];
+}
+
 interface Pipe {
   name: string;
   pipe: string;
   type: string;
+  metadata?: PipeMetadata;
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
@@ -45,9 +66,14 @@ interface Category {
   pipes: Pipe[];
 }
 
+interface TrainingConfig {
+  name: string;
+  description?: string;
+}
+
 interface TrainingConfigs {
   training: {
-    configs: string[];
+    configs: TrainingConfig[];
     default: string;
   };
   models: Record<string, {
@@ -224,15 +250,19 @@ export {
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
   DatasetType,
+  DiveParam,
   SubType,
+  PipelineParamType,
   FrameImage,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
+  PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
+  TrainingConfig,
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,

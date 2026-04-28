@@ -244,7 +244,7 @@ apirouter.get('/media', (req, res, next) => {
   return null;
 });
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
   /**
    * CORS * is dangerous and should be disabled in production.
    * In prod, the app is loaded from file:/// which is not limited

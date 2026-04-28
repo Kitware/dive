@@ -685,3 +685,59 @@ def test_read_kwcoco_json(
         expected_tracks, sort_keys=True
     )
     assert json.dumps(attributes, sort_keys=True) == json.dumps(expected_attributes, sort_keys=True)
+
+
+def test_is_coco_json_without_info():
+    coco = {
+        "images": [{"id": 1, "file_name": "img_0001.jpg"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 10, 10]}],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    assert kwcoco.is_coco_json(coco)
+
+
+def test_export_dive_as_coco_single_dataset():
+    tracks = [
+        {
+            "id": 7,
+            "begin": 0,
+            "end": 0,
+            "confidencePairs": [["fish", 0.9]],
+            "attributes": {"gear": "trawl"},
+            "features": [
+                {"frame": 0, "bounds": [10, 20, 30, 60], "attributes": {"occluded": True}}
+            ],
+        }
+    ]
+    image_filenames = {0: "frame_000000.jpg"}
+    coco = kwcoco.export_dive_as_coco(tracks, image_filenames, dataset_name="demo")
+    assert len(coco["images"]) == 1
+    assert coco["images"][0]["file_name"] == "frame_000000.jpg"
+    assert len(coco["annotations"]) == 1
+    assert coco["annotations"][0]["track_id"] == 7
+    assert coco["annotations"][0]["bbox"] == [10, 20, 20, 40]
+    assert coco["annotations"][0]["dive_detection_attributes"] == {"occluded": True}
+    assert coco["annotations"][0]["dive_track_attributes"] == {"gear": "trawl"}
+
+
+def test_import_dive_attribute_extensions():
+    coco = {
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [
+            {
+                "id": 10,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [1, 2, 3, 4],
+                "track_id": 5,
+                "dive_detection_attributes": {"visibility": "poor"},
+                "dive_track_attributes": {"reviewed": True},
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    converted, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    track = converted["tracks"]["5"]
+    assert track["attributes"]["reviewed"] is True
+    assert track["features"][0]["attributes"]["visibility"] == "poor"
+
