@@ -1,23 +1,12 @@
-# ========================
-# == SERVER BUILD STAGE ==
-# ========================
-# ====================
-# == FFMPEG FETCHER ==
-# ====================
-FROM python:3.8-bookworm AS ffmpeg-builder
-RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-RUN mkdir /tmp/ffextracted
-RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
-
-# =====================
-# == STANDARD WORKER ==
-# =====================
 FROM python:3.11-bookworm AS worker
 
-# install tini init system
-ENV TINI_VERSION=v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
+# install architecture-compatible tini and ffmpeg
+RUN apt-get update && \
+  apt-get install -qy tini ffmpeg && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# use distro-provided tini binary for current architecture
+RUN ln -sf /usr/bin/tini /tini
 
 
 
@@ -55,7 +44,9 @@ RUN uv sync --frozen --no-dev
 
 # Copy the built python installation
 # Copy ffmpeg
-COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/ffmpeg/
+RUN install -d /opt/dive/local/ffmpeg && \
+  ln -sf /usr/bin/ffmpeg /opt/dive/local/ffmpeg/ffmpeg && \
+  ln -sf /usr/bin/ffprobe /opt/dive/local/ffmpeg/ffprobe
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 
