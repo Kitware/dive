@@ -35,12 +35,6 @@ npm test
 ### CLI Tools
 
 ``` bash
-# Build
-npm run build:cli
-
-# Watch (requires above build at least once)
-npm run dev:cli
-
 # Run in development mode
 npm run divecli -- --help
 
