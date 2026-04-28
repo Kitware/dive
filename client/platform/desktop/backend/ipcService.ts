@@ -1,5 +1,7 @@
 import OS from 'os';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import {
   app, ipcMain, shell, dialog,
 } from 'electron';
@@ -27,6 +29,29 @@ import { listen } from './server';
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
 if (OS.platform() === 'win32') {
   win32.initialize();
+}
+
+function getDiveVersion() {
+  const appPath = app.getAppPath();
+  const packageCandidates = [
+    path.resolve(appPath, 'package.json'),
+    path.resolve(appPath, '..', 'package.json'),
+    path.resolve(appPath, '..', '..', 'package.json'),
+  ];
+  const packageVersion = packageCandidates
+    .map((packagePath) => {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(packagePath, 'utf8')) as { version?: string };
+        return typeof parsed.version === 'string' && parsed.version.length > 0
+          ? parsed.version
+          : null;
+      } catch {
+        return null;
+      }
+    })
+    .find((version) => version !== null);
+
+  return packageVersion || process.env.npm_package_version || app.getVersion();
 }
 
 export default function register() {
@@ -58,11 +83,11 @@ export default function register() {
   ipcMain.handle('desktop:show-save-dialog', (_, options: Electron.SaveDialogOptions) => (
     dialog.showSaveDialog(options)
   ));
-  ipcMain.handle('desktop:get-app-version', () => app.getVersion());
+  ipcMain.handle('desktop:get-app-version', () => getDiveVersion());
   ipcMain.on('desktop:get-app-version-sync', (event) => {
     // Sync IPC reply: Electron sets the return value on the event object.
     // eslint-disable-next-line no-param-reassign -- ipcMain event.returnValue API
-    event.returnValue = app.getVersion();
+    event.returnValue = getDiveVersion();
   });
   ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
   ipcMain.handle('desktop:open-path', (_, targetPath: string) => shell.openPath(targetPath));
