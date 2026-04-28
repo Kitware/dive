@@ -48,7 +48,7 @@ jobs:
     -
       name: Build electron
       if: ${{ matrix.target == 'electron' }}
-      run: npm run build:electron
+      run: npm run build:electron -- --linux AppImage
 
   test-server:
     name: Server Tests
