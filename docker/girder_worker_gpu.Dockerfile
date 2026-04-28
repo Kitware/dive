@@ -9,19 +9,28 @@ RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-relea
 RUN mkdir /tmp/ffextracted
 RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
 
-# =====================
-# == STANDARD WORKER ==
-# =====================
-FROM python:3.11-bookworm AS worker
+# =================
+# == GPU WORKER ==
+# =================
+FROM kitware/viame:gpu-algorithms-web AS worker
+# VIAME install at /opt/noaa/viame/
+# VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
 # install tini init system
 ENV TINI_VERSION=v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
+# Install python
+RUN export DEBIAN_FRONTEND=noninteractive && \
+  apt update && \
+  apt-get install software-properties-common -y && \
+  add-apt-repository ppa:deadsnakes/ppa && \
+  apt-get update && \
+  apt-get install -qy python3.11 libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
 
-
-RUN ln -fs /usr/bin/python3.11 /usr/bin/python
+RUN ln -fs /usr/bin/python3.10 /usr/bin/python
 WORKDIR /opt/dive/src
 
 # Use a globally accessible uv binary (works before/after USER switch)
@@ -35,12 +44,9 @@ ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
 COPY server/pyproject.toml server/uv.lock /opt/dive/src/
 # Install dependencies only
 RUN uv sync --frozen --no-install-project --no-dev
-# Build girder client, including plugins like worker/jobs
-# RUN girder build
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-    
 
 # Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
