@@ -1,4 +1,4 @@
-name: NPM Publish
+name: Electron Build and Docs Deployment
 on:
   release:
     types: [published]
