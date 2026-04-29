@@ -11,7 +11,9 @@ export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
 export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
+export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
+export const LastCalibrationFileName = 'last_calibration.json';
 
 export interface Settings {
   // version a schema version
@@ -87,6 +89,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // relative to originalBasePath
   originalVideoFile: string;
 
+  // large image (e.g. GeoTIFF) file path, relative to originalBasePath
+  originalLargeImageFile?: string;
+
   // output of web safe transcoding
   // relative to project path
   transcodedVideoFile: string;
@@ -108,6 +113,8 @@ export interface JsonMeta extends DatasetMetaMutable {
   // If the dataset required transcoding, specify the job
   // key that ran transcoding
   transcodingJobKey?: string;
+
+  error?: string;
 
   // attributes are not datasetMetaMutable and are stored separate
   attributes?: Record<string, Attribute>;
@@ -168,6 +175,9 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  /** Optional parameters to pass to the pipeline via -s flags */
+  pipelineParams?: Record<string, string>;
+  outputDatasetName?: string;
 }
 
 export interface ExportTrainedPipeline extends JobArgs {
@@ -229,6 +239,8 @@ export interface DesktopJob {
   startTime: Date;
   // endTime time of process exit
   endTime?: Date;
+  // cancelledJob
+  cancelledJob?: boolean;
 }
 
 export interface DesktopMediaImportResponse extends MediaImportResponse {
@@ -258,7 +270,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
-    type?: 'csv' | 'json';
+    type?: 'csv' | 'json' | 'coco';
   }
 
 export interface ExportConfigurationArgs {

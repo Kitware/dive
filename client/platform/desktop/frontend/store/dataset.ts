@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import Vue, { ref, computed } from 'vue';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
@@ -17,6 +16,7 @@ export interface JsonMetaCache {
   id: string;
   fps: number;
   name: string;
+  error?: string
   createdAt: string;
   accessedAt: string;
   originalBasePath: string;
@@ -60,6 +60,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     imageListPath: meta.imageListPath,
     transcodedVideoFile: meta.transcodedVideoFile,
     subType: meta.subType,
+    error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
@@ -76,7 +77,7 @@ async function autoDiscover() {
   /* Make sure settings are ready on backend */
   await initializedSettings;
   /* Nothing came from localStorage, try to populate from autodiscovery */
-  const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
+  const discovered: JsonMeta[] = await window.diveDesktop.invoke('autodiscover-data');
   discovered.forEach((d) => setRecents(d));
 }
 

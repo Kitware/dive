@@ -74,11 +74,17 @@ export default defineComponent({
   },
   computed: {
     ...mapState('Location', ['selected', 'location']),
+    ...mapState('Config', ['pipelinesEnabled', 'trainingEnabled']),
     ...mapGetters('Location', ['locationIsViameFolder']),
     selectedViameFolderIds() {
       return this.selected.filter(
         ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
       ).map(({ _id }) => _id);
+    },
+    selectedViameFolderNames() {
+      return this.selected.filter(
+        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+      ).map(({ name }) => name);
     },
     selectedFileIds() {
       return this.selected.filter(
@@ -92,6 +98,9 @@ export default defineComponent({
     },
     locationInputs() {
       return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
+    },
+    locationInputNames() {
+      return this.locationIsViameFolder ? [this.location.name] : this.selectedViameFolderNames;
     },
     selectedDescription() {
       return this.location?.description;
@@ -165,6 +174,7 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
+                  v-if="trainingEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
@@ -173,12 +183,14 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
+                  v-if="pipelinesEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
                 />
                 <export

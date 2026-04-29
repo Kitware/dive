@@ -36,6 +36,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     /* Horizontal padding is the width of checkbox, scrollbar, and edit button */
@@ -67,6 +71,7 @@ export default defineComponent({
       <v-checkbox
         :input-value="checked"
         :color="color"
+        :disabled="disabled"
         dense
         shrink
         hide-details

@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
 import { nextTick } from 'vue';
 import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';

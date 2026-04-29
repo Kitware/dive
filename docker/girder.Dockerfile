@@ -5,12 +5,12 @@ FROM node:20 as client-builder
 WORKDIR /app
 
 # Install dependencies
-COPY client/package.json client/yarn.lock /app/
-RUN yarn install --frozen-lockfile --network-timeout 300000
+COPY client/package.json client/package-lock.json /app/
+RUN npm install
 # Build
 COPY .git/ /app/.git/
 COPY client/ /app/
-RUN yarn build:web
+RUN npm run build:web
 
 from node:20 as girder-client-builder
 WORKDIR /app
@@ -26,9 +26,15 @@ RUN cd girder/girder && git checkout plugin-client-path-fix && cd web && npm ins
 # == SERVER BUILD STAGE ==
 # ========================
 # Note: server-builder stage will be the same in both dockerfiles
-FROM python:3.11-bookworm as server-builder
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS server-builder
+SHELL ["/bin/bash", "-c"]
 
 WORKDIR /opt/dive/src
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # https://cryptography.io/en/latest/installation/#debian-ubuntu
 RUN apt-get update
@@ -39,8 +45,11 @@ ENV PATH="/opt/dive/poetry/bin:$PATH"
 # Create a virtual environment for the installation
 RUN python -m venv /opt/dive/local/venv
 # Poetry needs this set to recognize it as ane existing environment
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
 ENV PATH="/opt/dive/local/venv/bin:$PATH"
+RUN uv venv /opt/dive/local/venv
 
 # Copy only the lock and project files to optimize cache
 COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
@@ -50,18 +59,23 @@ RUN poetry config virtualenvs.create false
 # Install dependencies only
 RUN poetry install --no-root --extras "large-image"
 # Build girder client, including plugins like worker/jobs
+COPY server/pyproject.toml server/uv.lock /opt/dive/src/
+RUN uv sync --frozen --no-install-project --no-dev --extra large-image
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-RUN poetry install --only main --extras "large-image"
+RUN uv sync --frozen --no-dev --extra large-image
+RUN uv run girder build
 
 # =================
 # == DIST SERVER ==
 # =================
-FROM python:3.11-slim-bookworm as server
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS server
 
 # Hack: Tell GitPython to be quiet, we aren't using git
 ENV GIT_PYTHON_REFRESH="quiet"
-ENV PATH="/opt/dive/local/venv/bin:$PATH"
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
+ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
 
 # Copy site packages and executables
 COPY --from=server-builder /opt/dive/local/venv /opt/dive/local/venv

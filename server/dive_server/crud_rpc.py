@@ -20,7 +20,6 @@ from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
-from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
@@ -200,12 +199,15 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
+    pipeline_params: dict[str, str] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
 
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
+    :param force_transcoded: Force transcoding input.
+    :param pipeline_params: Dict of key values containing user specified settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -243,6 +245,7 @@ def run_pipeline(
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
+        'pipeline_params': pipeline_params,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -362,9 +365,10 @@ def run_training(
         raise RestException(
             f'Output pipeline "{pipelineName}" already exists, please choose a different name'
         )
+    # Use a plain dict for model so serialization (Celery/MongoDB) never sees a Pydantic model
     fineTuneModel = None
     if bodyParams.fineTuneModel:
-        fineTuneModel = bodyParams.fineTuneModel
+        fineTuneModel = bodyParams.fineTuneModel.model_dump()
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
@@ -728,3 +732,10 @@ def convert_large_image(
         newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
         newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
         Job().save(newjob.job)
+        Notification().createNotification(
+            type='job_status',
+            data=newjob.job,
+            user=user,
+            expires=datetime.now() + timedelta(seconds=30),
+        )
+

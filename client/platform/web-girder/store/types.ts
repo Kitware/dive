@@ -47,6 +47,11 @@ export interface RootState {
   Dataset: DatasetState;
   Brand: BrandState;
   User: UserState;
+  Config: {
+    distributedWorkerEnabled: boolean;
+    pipelinesEnabled: boolean;
+    trainingEnabled: boolean;
+  };
 }
 
 export function useStore(): Store<RootState> {

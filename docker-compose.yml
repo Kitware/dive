@@ -11,6 +11,7 @@ x-worker: &base-worker
     - addons:/tmp/addons:ro # readonly
   labels:
     - "com.centurylinklabs.watchtower.enable=true"
+    - "autoheal=true"
   depends_on:
     girder:
       condition: service_started
@@ -69,7 +70,12 @@ services:
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
       - "C_FORCE_ROOT=1"
-    
+
+# Memcache is used for caching girder-large-images, should auto configure with it being present
+  memcached:
+    image: memcached
+    command: -m 4096 --max-item-size 8M
+    restart: unless-stopped
   girder:
     build:
       context: .
@@ -80,6 +86,7 @@ services:
     depends_on:
       - mongo
       - traefik
+      - memcached
     volumes:
       - girder_assetstore:/home/assetstore
       # Bind mount nocopy public data
@@ -104,6 +111,8 @@ services:
       - "RABBITMQ_MANAGEMENT_URL=${RABBITMQ_MANAGEMENT_URL:-http://rabbit:15672/}"
       - "RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE=${RABBITMQ_MANAGEMENT_BROKER_URL_TEMPLATE}"
       - "WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-mytoken}"
+      - "LARGE_IMAGE_CACHE_BACKEND=memcached"
+      - "LARGE_IMAGE_CACHE_MEMCACHED_URL=memcached"
     labels:
       # REMOVING WEEKLY UPDATE
       # - "com.centurylinklabs.watchtower.enable=true"
@@ -116,6 +125,9 @@ services:
   girder_worker_default:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+      - cpu
     deploy: {}
     volumes:
       # readwrite because this worker does addon updates
@@ -130,6 +142,13 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+    build:
+      context: .
+      dockerfile: docker/girder_worker_gpu.Dockerfile
+    image: kitware/viame-worker:${TAG:-latest}
+    restart: always
     deploy:
       resources:
         reservations:
@@ -143,15 +162,30 @@ services:
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
-      - "GIRDER_MONGO_URI=mongodb://mongodb:27017/girder"
+      - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
-
+    healthcheck:
+      test: ["CMD", "nvidia-smi"]
+      interval: 15m
+      timeout: 10s
+      retries: 1
+      start_period: 1m
+    labels:
+      - autoheal=true
 
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+    build:
+      context: .
+      dockerfile: docker/girder_worker_gpu.Dockerfile
+    image: kitware/viame-worker:${TAG:-latest}
+    restart: always
     deploy:
       resources:
         reservations:
@@ -164,10 +198,31 @@ services:
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+    healthcheck:
+      test: ["CMD", "nvidia-smi"]
+      interval: 15m
+      timeout: 10s
+      retries: 1
+      start_period: 1m
+    labels:
+      - autoheal=true
 
-
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      - "AUTOHEAL_INTERVAL=300"
+      - "AUTOHEAL_START_PERIOD=300"
+      - "AUTOHEAL_DEFAULT_STOP_TIMEOUT=100"
+      - "AUTOHEAL_ONLY_MONITOR_RUNNING=true"
+    volumes:
+      - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
 volumes:
   addons:
   mongo_db:

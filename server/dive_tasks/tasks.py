@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import zipfile
 
 from GPUtil import getGPUs
-from girder_client import GirderClient
+from girder_client import GirderClient, HttpError
 from girder_worker.app import app
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
@@ -269,6 +269,12 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
+        # Apply user-provided pipeline parameter overrides from pipeline params
+        pipeline_params = params.get('pipeline_params')
+        if pipeline_params:
+            for key, value in pipeline_params.items():
+                command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
+
         manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {
             'args': " ".join(command),
@@ -314,9 +320,20 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         trained_pipeline_path = utils.make_directory(_working_directory_path / 'trained_pipeline')
         output_path = utils.make_directory(_working_directory_path / 'output')
         onnx_path = output_path / output_name
-        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_to_onnx.pipe"
+        convert_to_onnx_pipeline_path = conf.viame_pipeline_path / "convert_model_to_onnx.pipe"
 
         gc.downloadFolderRecursive(input_folder_id, str(trained_pipeline_path))
+        extensions = ['*.weights', '*.ckpt', '*.pth']
+        model_file = None
+
+        for ext in extensions:
+            found_files = list(trained_pipeline_path.glob(ext))
+            if found_files:
+                model_file = found_files[0]
+                break
+
+        if not model_file:
+            raise FileNotFoundError(f"No weights path ({extensions}) found.")
 
         # Convert pipeline to ONNX
         command = [
@@ -324,8 +341,8 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
             "kwiver runner",
             f"{shlex.quote(str(convert_to_onnx_pipeline_path))}",
-            f"-s onnx_convert:model_path={shlex.quote(str(trained_pipeline_path / 'yolo.weights'))}",
-            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}",
+            f"-s onnx_convert:model_path={shlex.quote(str(model_file))}",
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
         ]
 
         manager.updateStatus(JobStatus.RUNNING)
@@ -364,6 +381,9 @@ def train_pipeline(self: Task, params: TrainingJob):
     annotated_frames_only = params['annotated_frames_only']
     label_text = params['label_txt']
     model = params.get('model', None)
+    # Normalize: model can arrive as a list of [key, value] pairs from some serialization paths
+    if model is not None and isinstance(model, list):
+        model = dict(model)
     force_transcoded = params.get('force_transcoded', False)
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
@@ -654,7 +674,7 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
             command = ["ffmpeg", "-i", str(item_path), str(new_item_path)]
             utils.stream_subprocess(self, context, manager, {'args': command})
             gc.uploadFileToFolder(folderId, new_item_path)
-            gc.delete(f"item/{item['_id']}")
+            gc.delete(f"item/{str(item['_id'])}")
 
         gc.addMetadataToFolder(
             str(folderId),
@@ -683,7 +703,25 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     ]
     for item in items_to_convert:
         # Assumes 1 file per item
-        gc.post(f'/item/{item["_id"]}/tiles')
+        try:
+            # Does it already have tiles?
+            gc.get(f'item/{item["_id"]}/tiles')
+            manager.write(f'Skipping {item["name"]}, already a large image\n')
+            continue
+        except HttpError as e:
+            # Safely parse JSON if possible
+            message = ""
+            try:
+                message = e.response.json().get("message", "")
+            except Exception:
+                pass  # non-JSON response, leave message empty
+            # This is the Girder message when no large image exists
+            if e.status == 400 and message == "No large image file in this item.":
+                manager.write(f'Converting {item["name"]} to large image\n')
+                gc.post(f'item/{item["_id"]}/tiles')
+            else:
+                # Re-raise unexpected errors to fail the job
+                raise
     gc.addMetadataToFolder(
         str(folderId),
         {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.

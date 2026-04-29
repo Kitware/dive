@@ -26,7 +26,7 @@ export default defineComponent({
       await loadNextPage((l, o) => loadRevisions(datasetId.value, l, o, undefined, currentSet.value));
     }
 
-    function checkout(id: number) {
+    function checkout(id: number | undefined) {
       emit('update:revision', id, currentSet.value);
       reloadAnnotations();
     }
@@ -78,11 +78,7 @@ export default defineComponent({
       <v-btn
         x-small
         depressed
-        :to="{
-          name: 'viewer',
-          params: { id: datasetId },
-        }
-        "
+        @click="checkout(undefined)"
       >
         Return to newest revision
       </v-btn>

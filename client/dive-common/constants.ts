@@ -76,9 +76,16 @@ const fileVideoTypes = [
 const largeImageTypes = [
   'image/geotiff',
   'image/tiff',
+  'image/tif',
   'image/x-tiff',
   'image/nitf',
   'image/ntf',
+];
+
+const largeImageDesktopTypes = [
+  'geotiff',
+  'tiff',
+  'tif',
 ];
 
 const websafeImageTypes = [
@@ -124,6 +131,7 @@ const zipFileTypes = [
 
 const stereoPipelineMarker = 'measurement';
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
+const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
 const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
 
@@ -148,11 +156,13 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   largeImageTypes,
+  largeImageDesktopTypes,
   inputAnnotationFileTypes,
   listFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
   JsonMetaRegEx,
   simplifyTrainingName,
 };

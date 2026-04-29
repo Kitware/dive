@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import mockfs from 'mock-fs';
 import npath from 'path';
 import fs from 'fs-extra';
@@ -14,6 +13,32 @@ import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
 import { createWorkingDirectory } from './utils';
+
+vi.mock('fs-extra', async () => {
+  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const fsNode = await import('node:fs');
+  const existsByStat = (targetPath: fsNode.PathLike) => {
+    try {
+      fsNode.statSync(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const patchedDefault = {
+    ...actual.default,
+    existsSync: existsByStat,
+    pathExistsSync: existsByStat,
+  };
+
+  return {
+    ...actual,
+    default: patchedDefault,
+    existsSync: existsByStat,
+    pathExistsSync: existsByStat,
+  };
+});
 
 const pipelines = {
   'classify_detections_svm.pipe': '',
@@ -82,14 +107,14 @@ const urlMapper = (a: string) => `http://localhost:8888/api/media?path=${a}`;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updater = (update: DesktopJobUpdate) => undefined;
 
-jest.mock('./mediaJobs', () => ({
-  checkMedia: jest.fn((file: string) => Promise.resolve({
+vi.mock('./mediaJobs', () => ({
+  checkMedia: vi.fn((file: string) => Promise.resolve({
     websafe: file.includes('mp4'),
     originalFpsString: '30/1',
     originalFps: 30,
     videoDimensions: { width: 1920, height: 1080 },
   })),
-  convertMedia: jest.fn(() => ({
+  convertMedia: vi.fn(() => ({
     key: 'jobKey',
     title: 'title',
     command: 'command',
@@ -308,7 +333,7 @@ beforeEach(() => {
           auxiliary: {},
         },
         stereoDataset: {
-          'meta.json': {
+          'meta.json': JSON.stringify({
             type: 'multi',
             multiCam: {
               cameras: {
@@ -322,15 +347,15 @@ beforeEach(() => {
                 },
               },
             },
-          },
+          }),
           'result_1.json': '',
           auxiliary: {},
           left: {
-            'meta.json': '{}',
+            'meta.json': JSON.stringify({ originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left' }),
             'result_1.json': '',
           },
           right: {
-            'meta.json': '{}',
+            'meta.json': JSON.stringify({ originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right' }),
             'result_1.json': '',
           },
         },
@@ -683,6 +708,7 @@ describe('native.common', () => {
     let deleted = await common.deleteDataset(settings, 'stereoDataset/left');
     expect(deleted).toBe(true);
     leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
+    expect(leftExists).toBe(false);
     let rightExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/right');
     expect(rightExists).toBe(true);
     deleted = await common.deleteDataset(settings, 'stereoDataset');
@@ -722,10 +748,10 @@ describe('native.common', () => {
       trainingConfig: 'trainingConfig',
       annotatedFramesOnly: false,
     };
-    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
+    await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
       'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
     );
-    expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
+    await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
       'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
     );
   });

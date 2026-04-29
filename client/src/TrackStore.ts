@@ -13,6 +13,7 @@ export default class TrackStore extends BaseAnnotationStore<Track> {
       begin: frame,
       end: frame,
       confidencePairs: [[defaultType, 1]],
+      attributes: { userCreated: true },
     });
     this.insert(track, { afterId });
     this.markChangesPending({ action: 'upsert', track, cameraName: this.cameraName });

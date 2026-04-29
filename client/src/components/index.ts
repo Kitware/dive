@@ -1,7 +1,5 @@
 /**
- * TODO: DANGER: this file must be a javascript (not typescript)
- * file for the sake of rollup build process.
- * See rollup.config.js for more
+ * Barrel re-export of annotator UI components (used by the app and tests).
  */
 
 import ImageAnnotator from './annotators/ImageAnnotator.vue';

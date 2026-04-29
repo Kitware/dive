@@ -1,6 +1,5 @@
 <script lang="ts">
-import { shell } from 'electron';
-import moment, { utc } from 'moment';
+import moment from 'moment';
 import {
   defineComponent,
   ref,
@@ -8,6 +7,7 @@ import {
 } from 'vue';
 
 import { DesktopJob } from 'platform/desktop/constants';
+import { cancelJob } from 'platform/desktop/frontend/api';
 
 import BrowserLink from './BrowserLink.vue';
 import NavigationBar from './NavigationBar.vue';
@@ -38,7 +38,13 @@ export default defineComponent({
     }
 
     async function openPath(job: DesktopJob) {
-      if (job.workingDir) shell.openPath(job.workingDir);
+      if (job.workingDir) await window.diveDesktop.openPath(job.workingDir);
+    }
+
+    async function cancelInProgressJob(job: DesktopJob): Promise<void> {
+      if (job.exitCode === null && !job.cancelledJob) {
+        await cancelJob(job);
+      }
     }
 
     return {
@@ -47,12 +53,12 @@ export default defineComponent({
       recentHistory,
       gpuJobQueue,
       moment,
-      utc,
       visibleOutput,
       truncateOutputAtLines,
       /* methods */
       openPath,
       toggleVisibleOutput,
+      cancelInProgressJob,
     };
   },
 });
@@ -69,7 +75,7 @@ export default defineComponent({
           </h1>
           <v-card
             v-for="job in recentHistory.slice().reverse()"
-            :key="job.job.key"
+            :key="`${job.job.key}_${job.job.exitCode}_${job.job.cancelledJob}`"
             class=" mb-4"
             min-width="100%"
           >
@@ -94,6 +100,12 @@ export default defineComponent({
                     color="success"
                   >
                     mdi-check-circle
+                  </v-icon>
+                  <v-icon
+                    v-else-if="job.job.cancelledJob"
+                    color="warning"
+                  >
+                    mdi-cancel
                   </v-icon>
                   <v-icon
                     v-else
@@ -175,13 +187,29 @@ export default defineComponent({
                   </v-icon>
                   <span>
                     {{
-                      utc(
+                      moment.utc(
                         moment(job.job.endTime || moment())
                           .diff(moment(job.job.startTime)),
                       )
                         .format("HH:mm:ss")
                     }}
                   </span>
+                </div>
+                <div v-if="job.job.exitCode === null">
+                  <v-btn
+                    text
+                    small
+                    class="mb-2 error--text text--lighten-3 text-decoration-none"
+                    @click="cancelInProgressJob(job.job)"
+                  >
+                    <v-icon
+                      color="error lighten-3"
+                      class="pr-2"
+                    >
+                      mdi-cancel
+                    </v-icon>
+                    Cancel Job
+                  </v-btn>
                 </div>
                 <v-btn
                   text

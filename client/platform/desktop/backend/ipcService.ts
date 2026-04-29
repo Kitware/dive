@@ -1,6 +1,10 @@
 import OS from 'os';
 import http from 'http';
-import { ipcMain } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import {
+  app, ipcMain, shell, dialog,
+} from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
 import {
@@ -11,6 +15,8 @@ import {
   DesktopJob,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { closeChildById } from 'platform/desktop/backend/native/processManager';
+import { updateJobFilesOnCancel } from 'platform/desktop/backend/native/utils';
 
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -23,6 +29,29 @@ import { listen } from './server';
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
 if (OS.platform() === 'win32') {
   win32.initialize();
+}
+
+function getDiveVersion() {
+  const appPath = app.getAppPath();
+  const packageCandidates = [
+    path.resolve(appPath, 'package.json'),
+    path.resolve(appPath, '..', 'package.json'),
+    path.resolve(appPath, '..', '..', 'package.json'),
+  ];
+  const packageVersion = packageCandidates
+    .map((packagePath) => {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(packagePath, 'utf8')) as { version?: string };
+        return typeof parsed.version === 'string' && parsed.version.length > 0
+          ? parsed.version
+          : null;
+      } catch {
+        return null;
+      }
+    })
+    .find((version) => version !== null);
+
+  return packageVersion || process.env.npm_package_version || app.getVersion();
 }
 
 export default function register() {
@@ -48,6 +77,20 @@ export default function register() {
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
     common.openLink(url);
   });
+  ipcMain.handle('desktop:show-open-dialog', (_, options: Electron.OpenDialogOptions) => (
+    dialog.showOpenDialog(options)
+  ));
+  ipcMain.handle('desktop:show-save-dialog', (_, options: Electron.SaveDialogOptions) => (
+    dialog.showSaveDialog(options)
+  ));
+  ipcMain.handle('desktop:get-app-version', () => getDiveVersion());
+  ipcMain.on('desktop:get-app-version-sync', (event) => {
+    // Sync IPC reply: Electron sets the return value on the event object.
+    // eslint-disable-next-line no-param-reassign -- ipcMain event.returnValue API
+    event.returnValue = getDiveVersion();
+  });
+  ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
+  ipcMain.handle('desktop:open-path', (_, targetPath: string) => shell.openPath(targetPath));
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
@@ -64,6 +107,17 @@ export default function register() {
   ipcMain.handle('autodiscover-data', async () => {
     const ret = await common.autodiscoverData(settings.get());
     return ret;
+  });
+
+  ipcMain.handle('cancel-job', async (event, job: DesktopJob) => {
+    event.sender.send('cancel-job', {
+      ...job, exitCode: -1, endTime: new Date(), cancelledJob: true,
+    });
+    // Update manifest and log file if working directory is available
+    if (job.workingDir) {
+      await updateJobFilesOnCancel(job.workingDir);
+    }
+    closeChildById(job.pid);
   });
 
   /**
@@ -99,6 +153,11 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('load-detections', async (event, { datasetId }: { datasetId: string }) => {
+    const ret = await common.loadDetections(settings.get(), datasetId);
+    return ret;
+  });
+
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(args);
@@ -113,6 +172,17 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
+
+  ipcMain.handle('save-calibration', async (_, { path }: { path: string }) => {
+    const savedPath = await common.saveLastCalibration(settings.get(), path);
+    const updatedIds = await common.applyCalibrationToUncalibratedStereoDatasets(
+      settings.get(),
+      savedPath,
+    );
+    return { savedPath, updatedDatasetIds: updatedIds };
+  });
+
   ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
 
   ipcMain.handle('convert', async (event, args: ConversionArgs) => {
@@ -125,6 +195,12 @@ export default function register() {
       args,
       updater,
       (jobKey, meta) => common.completeConversion(currentSettings, args.meta.id, jobKey, meta),
+      (_jobKey, meta, errorMessage) => common.failConversion(
+        currentSettings,
+        args.meta.id,
+        meta,
+        errorMessage,
+      ),
       true,
     );
     return job;

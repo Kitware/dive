@@ -22,6 +22,7 @@ export default {
   computed: {
     ...mapGetters('Location', ['locationRoute']),
     ...mapState('Brand', ['brandData']),
+    ...mapState('Config', ['pipelinesEnabled', 'trainingEnabled']),
     isAdmin() {
       if (this.girderRest) {
         return this.girderRest?.user?.admin || false;
@@ -65,6 +66,7 @@ export default {
         </v-tab>
         <JobsTab />
         <v-tab
+          v-if="pipelinesEnabled || trainingEnabled"
           to="/trained-models"
         >
           Models <v-icon>mdi-brain</v-icon>

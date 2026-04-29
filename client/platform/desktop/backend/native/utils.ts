@@ -14,17 +14,24 @@ const processChunk = (chunk: Buffer) => chunk
   .split('\n')
   .filter((a) => a);
 
-function isDev() {
-  return process.env.NODE_ENV !== 'production';
-}
-
 function getBinaryPath(name: string) {
   const platform = process.env.npm_config_platform || os.platform();
   const filename = platform === 'win32' ? `${name}.exe` : name;
-  if (isDev()) {
-    return path.join(__dirname, '..', 'node_modules', filename);
-  }
-  return path.join(process.resourcesPath, filename);
+  const base = path.basename(filename);
+  const { resourcesPath } = process;
+  const candidates = [
+    ...(resourcesPath
+      ? [
+        path.join(resourcesPath, 'ffmpeg-ffprobe-static', base),
+        path.join(resourcesPath, filename),
+      ]
+      : []),
+    path.resolve(process.cwd(), 'node_modules', filename),
+    path.resolve(__dirname, '..', '..', 'node_modules', filename),
+    path.resolve(__dirname, '..', 'node_modules', filename),
+  ];
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return existing || candidates[0];
 }
 
 /**
@@ -121,12 +128,48 @@ function splitExt(input: string): [string, string] {
   return [path.basename(input, ext), ext];
 }
 
+const DiveJobManifestName = 'dive_job_manifest.json';
+
+async function updateJobManifestOnCancel(workingDir: string): Promise<void> {
+  const manifestPath = path.join(workingDir, DiveJobManifestName);
+  if (!fs.existsSync(manifestPath)) {
+    // Manifest doesn't exist, nothing to update
+    return;
+  }
+  try {
+    const manifestContent = await fs.readJson(manifestPath);
+    manifestContent.cancelledJob = true;
+    manifestContent.exitCode = -1;
+    manifestContent.endTime = new Date();
+    await fs.writeJson(manifestPath, manifestContent, { spaces: 2 });
+  } catch (err) {
+    console.error(`Failed to update job manifest at ${manifestPath}:`, err);
+  }
+}
+
+async function appendCancelMessageToLog(workingDir: string): Promise<void> {
+  const logPath = path.join(workingDir, 'runlog.txt');
+  const cancelMessage = `\n[${moment().format('YYYY-MM-DD HH:mm:ss')}] Job cancelled by user\n`;
+  try {
+    await fs.appendFile(logPath, cancelMessage);
+  } catch (err) {
+    console.error(`Failed to append cancellation message to log at ${logPath}:`, err);
+  }
+}
+
+async function updateJobFilesOnCancel(workingDir: string): Promise<void> {
+  await Promise.all([
+    updateJobManifestOnCancel(workingDir),
+    appendCancelMessageToLog(workingDir),
+  ]);
+}
+
 export {
-  isDev,
   getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,
   createCustomWorkingDirectory,
   spawnResult,
   splitExt,
+  updateJobFilesOnCancel,
 };

@@ -3,7 +3,12 @@ import {
 } from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
 import Track, { TrackId } from 'vue-media-annotator/track';
-import { RectBounds, updateBounds } from 'vue-media-annotator/utils';
+import {
+  RectBounds,
+  updateBounds,
+  validateRotation,
+  ROTATION_ATTRIBUTE_NAME,
+} from 'vue-media-annotator/utils';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
@@ -395,12 +400,15 @@ export default function useModeManager({
     creating = newCreatingValue;
   }
 
-  function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds) {
+  function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds, rotation?: number) {
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
         // Determines if we are creating a new Detection
-        const { interpolate } = track.canInterpolate(frameNum);
+        const { interpolate, features } = track.canInterpolate(frameNum);
+        const [real] = features;
+        // If there's already a keyframe at this frame, we're editing an existing annotation
+        const isEditingExisting = real !== null && real.keyframe;
 
         track.setFeature({
           frame: frameNum,
@@ -409,6 +417,24 @@ export default function useModeManager({
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         });
+
+        // Save rotation as detection attribute if provided
+        const normalizedRotation = validateRotation(rotation);
+        if (normalizedRotation !== undefined) {
+          track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, normalizedRotation);
+        } else {
+          // Remove rotation attribute if rotation is 0 or undefined
+          const feature = track.features[frameNum];
+          if (feature && feature.attributes && ROTATION_ATTRIBUTE_NAME in feature.attributes) {
+            track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, undefined);
+          }
+        }
+
+        // Mark as user-modified if editing existing annotation (as detection attribute)
+        // Skip if track is userCreated (user-created tracks don't need userModified on every detection)
+        if (isEditingExisting && track.attributes?.userCreated !== true) {
+          track.setFeatureAttribute(frameNum, 'userModified', true);
+        }
         newTrackSettingsAfterLogic(track);
       }
     }
@@ -507,6 +533,9 @@ export default function useModeManager({
         }
         // Update the state of the track in the trackstore.
         if (somethingChanged) {
+          // If there's already a keyframe at this frame, we're editing an existing annotation
+          const isEditingExisting = real !== null && real.keyframe;
+
           track.setFeature({
             frame: frameNum,
             flick: flickNum,
@@ -521,6 +550,12 @@ export default function useModeManager({
               properties: { key: key_ },
             })),
           ));
+
+          // Mark as user-modified if editing existing annotation (as detection attribute)
+          // Skip if track is userCreated (user-created tracks don't need userModified on every detection)
+          if (isEditingExisting && track.attributes?.userCreated !== true) {
+            track.setFeatureAttribute(frameNum, 'userModified', true);
+          }
 
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing

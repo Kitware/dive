@@ -1,14 +1,24 @@
 /**
  * Job Manager
  */
-import { ipcRenderer } from 'electron';
 import {
   ref, Ref, set, computed,
   reactive,
 } from 'vue';
-import { DesktopJob, DesktopJobUpdate } from 'platform/desktop/constants';
+import {
+  ConversionArgs,
+  DesktopJob,
+  DesktopJobUpdate,
+  ExportTrainedPipeline,
+  JobArgs,
+  JobType,
+  RunPipeline,
+  RunTraining,
+  JsonMeta,
+} from 'platform/desktop/constants';
 import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
 import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
+import { setRecents } from './dataset';
 
 interface DesktopJobHistory {
   job: DesktopJob;
@@ -17,11 +27,12 @@ interface DesktopJobHistory {
 }
 
 const truncateOutputAtLines = 500;
+const cancelledJobExitCode = 143; // SIGTERM
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
 const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
 
-function updateHistory(args: DesktopJobUpdate) {
+export function updateHistory(args: DesktopJobUpdate) {
   let existing = jobHistory.value[args.key];
   if (!existing) {
     set<DesktopJobHistory>(jobHistory.value, args.key, {
@@ -31,14 +42,28 @@ function updateHistory(args: DesktopJobUpdate) {
     });
     existing = jobHistory.value[args.key];
   }
+  // If job is cancelled we should stop updating data
+  if (existing.job.cancelledJob) {
+    return;
+  }
   if (args.body) {
     /* Prevent logs filling memory and causing render slowdowns */
     existing.truncatedLogs.push(...args.body);
     existing.truncatedLogs.splice(0, existing.truncatedLogs.length - truncateOutputAtLines);
     existing.totalLogLength += args.body.length;
   }
-  existing.job.exitCode = args.exitCode;
-  existing.job.endTime = args.endTime;
+  // Only update exitCode if explicitly set
+  if (args.exitCode !== undefined) {
+    existing.job.exitCode = args.exitCode;
+  }
+  // Only update cancelledJob if explicitly set to true (preserve true once set)
+  if (args.cancelledJob === true) {
+    existing.job.cancelledJob = true;
+    existing.job.exitCode = cancelledJobExitCode; // SIGTERM
+  }
+  if (args.endTime !== undefined) {
+    existing.job.endTime = args.endTime;
+  }
 }
 
 const conversionJob: Ref<Record<string, boolean>> = ref({});
@@ -59,26 +84,49 @@ function setOrGetConversionJob(datasetId: string, status?: boolean) {
 }
 
 function init() {
-  ipcRenderer.on('job-update', (event, args: DesktopJobUpdate) => {
+  window.diveDesktop.on('job-update', (args: DesktopJobUpdate) => {
     updateHistory(args);
     if (args.jobType === 'conversion') {
       setOrGetConversionJob(args.datasetIds[0], !args.endTime);
     }
   });
+  window.diveDesktop.on('cancel-job', (args: DesktopJob) => {
+    updateHistory({
+      ...args, body: ['Job cancelled by user'], exitCode: cancelledJobExitCode, endTime: new Date(), cancelledJob: true,
+    });
+  });
+  window.diveDesktop.on('filter-complete', (args: JsonMeta) => {
+    setRecents(args);
+  });
 }
 
 init();
 
-const gpuJobQueue = new AsyncGpuJobQueue(ipcRenderer);
+const gpuJobQueue = new AsyncGpuJobQueue(window.diveDesktop);
 gpuJobQueue.init();
 const reactiveGpuQueue = reactive(gpuJobQueue);
 
-const cpuJobQueue = new AsyncCpuJobQueue(ipcRenderer);
+const cpuJobQueue = new AsyncCpuJobQueue(window.diveDesktop);
 cpuJobQueue.init();
 const reactiveCpuQueue = reactive(cpuJobQueue);
 
 const queuedCpuJobs = computed(() => reactiveCpuQueue.jobSpecs);
 const queuedGpuJobs = computed(() => reactiveGpuQueue.jobSpecs);
+
+function removeJobFromQueue(jobArgs: JobArgs) {
+  switch (jobArgs.type) {
+    case JobType.Conversion:
+    case JobType.ExportTrainedPipeline:
+      cpuJobQueue.removeJobFromQueue(jobArgs as ConversionArgs | ExportTrainedPipeline);
+      break;
+    case JobType.RunPipeline:
+    case JobType.RunTraining:
+      gpuJobQueue.removeJobFromQueue(jobArgs as RunPipeline | RunTraining);
+      break;
+    default:
+      break;
+  }
+}
 
 export {
   jobHistory,
@@ -92,4 +140,5 @@ export {
   reactiveGpuQueue,
   queuedCpuJobs,
   queuedGpuJobs,
+  removeJobFromQueue,
 };

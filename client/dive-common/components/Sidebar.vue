@@ -120,6 +120,7 @@ export default defineComponent({
       typeSettings,
       readOnlyMode,
       styleManager,
+      disableAnnotationFilters: trackFilterControls.disableAnnotationFilters,
       visible,
       /* methods */
       doToggleMerge,
@@ -157,6 +158,7 @@ export default defineComponent({
             :width="width"
             :style-manager="styleManager"
             :filter-controls="trackFilterControls"
+            :disabled="disableAnnotationFilters"
             class="flex-shrink-1 flex-grow-1"
           >
             <template #settings>
@@ -175,6 +177,7 @@ export default defineComponent({
             :lock-types="typeSettings.lockTypes"
             :hotkeys-disabled="visible() || readOnlyMode"
             :height="bottomHeight"
+            :disabled="disableAnnotationFilters"
             @track-seek="$emit('track-seek', $event)"
           >
             <template slot="settings">
@@ -189,6 +192,7 @@ export default defineComponent({
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible() || readOnlyMode"
           :width="width"
+          :disabled="disableAnnotationFilters"
           @track-seek="$emit('track-seek', $event)"
           @toggle-merge="doToggleMerge"
           @back="swapTabs"

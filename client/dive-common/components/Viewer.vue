@@ -49,6 +49,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 
 export interface ImageDataItem {
@@ -68,6 +69,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     EditorMenu,
+    MultiCamToolbar,
     PrimaryAttributeTrackFilter,
   },
 
@@ -733,10 +735,10 @@ export default defineComponent({
     loadData();
 
     const reloadAnnotations = async () => {
-      mediaControllerClear();
-      cameraStore.clearAll();
-      discardChanges();
       progress.loaded = false;
+      discardChanges();
+      cameraStore.clearAll();
+      mediaControllerClear();
       await loadData();
       displayComparisons.value = props.comparisonSets.length
         ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
@@ -827,6 +829,10 @@ export default defineComponent({
       useAttributeFilters,
     );
 
+    const disableAnnotationFilters = computed(() => (
+      trackFilters.disableAnnotationFilters.value
+    ));
+
     return {
       /* props */
       aggregateController,
@@ -868,6 +874,7 @@ export default defineComponent({
       readonlyState,
       imageEnhancementOutputs,
       isDefaultImage,
+      disableAnnotationFilters,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -994,6 +1001,7 @@ export default defineComponent({
             groupEditActive: editingGroupId !== null,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
+          :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
@@ -1004,6 +1012,12 @@ export default defineComponent({
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
             />
+          </template>
+          <template
+            v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
+            slot="multicam-controls"
+          >
+            <multi-cam-toolbar />
           </template>
         </EditorMenu>
         <v-select
@@ -1097,6 +1111,7 @@ export default defineComponent({
             v-if="context.state.active !== 'TypeThreshold'"
             class="ma-2 mb-0"
             :confidence.sync="confidenceFilters.default"
+            :disabled="disableAnnotationFilters"
             @end="saveThreshold"
           >
             <a
@@ -1119,6 +1134,7 @@ export default defineComponent({
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => aggregateController.resetZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
           ]"
           class="d-flex flex-column grow"
         >

@@ -1,6 +1,11 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount,
+  defineComponent,
+  computed,
+  PropType,
+  ref,
+  Ref,
+  onBeforeMount,
 } from 'vue';
 import {
   Pipelines,
@@ -10,14 +15,29 @@ import {
   DatasetType,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import { stereoPipelineMarker, multiCamPipelineMarkers, LargeImageType } from 'dive-common/constants';
+import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
+import RunPipelineToast from 'dive-common/components/RunPipelineToast.vue';
+import {
+  stereoPipelineMarker,
+  multiCamPipelineMarkers,
+  LargeImageType,
+  pipelineCreatesDatasetMarkers,
+} from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
+
+type MenuState = 'idle' | 'configuring';
 
 export default defineComponent({
   name: 'RunPipelineMenu',
 
-  components: { JobLaunchDialog },
+  components: {
+    JobLaunchDialog,
+    JobConfigFilterTranscodeDialog,
+    PipelineParamsDialog,
+    RunPipelineToast,
+  },
 
   props: {
     selectedDatasetIds: {
@@ -61,7 +81,6 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
-    const selectedPipe = ref(null as Pipe | null);
     const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
@@ -69,10 +88,39 @@ export default defineComponent({
       state: jobState,
     } = useRequest();
 
+    const menuState: Ref<MenuState> = ref('idle');
+    const configuring = computed(() => menuState.value === 'configuring');
+    const selectedPipeline: Ref<Pipe | null> = ref(null);
+    const selectedPipelineName = computed(() => (selectedPipeline.value ? selectedPipeline.value.name : ''));
+    function cancelConfig() {
+      menuState.value = 'idle';
+    }
+    const showParamsDialog = ref(false);
+    const pipelineParams = ref<Record<string, string>>({});
+
+    function openDiveParamsDialog(pipeline: Pipe) {
+      selectedPipeline.value = pipeline;
+      const defaults: Record<string, string> = {};
+      pipeline?.metadata?.diveParams?.forEach((param) => {
+        defaults[param.key] = param.default;
+      });
+      pipelineParams.value = defaults;
+      showParamsDialog.value = true;
+    }
+
+    async function confirmPipelineExecution(updatedParams: Record<string, string>) {
+      const configById: Record<string, Record<string, string>> = {};
+      props.selectedDatasetIds.forEach((id) => {
+        configById[id] = updatedParams;
+      });
+      showParamsDialog.value = false;
+      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, configById);
+    }
+
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
 
     const successMessage = computed(() => (
-      `Started ${selectedPipe.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
+      `Started ${selectedPipeline.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
@@ -124,7 +172,10 @@ export default defineComponent({
       return false;
     });
 
-    async function runPipelineOnSelectedItem(pipeline: Pipe) {
+    async function _runPipelineOnSelectedItemInner(
+      pipeline: Pipe,
+      additionalConfigById?: Record<string, Record<string, string> | undefined>,
+    ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
       }
@@ -148,10 +199,50 @@ export default defineComponent({
       || stereoPipelineMarker === pipeline.type) {
         datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
       }
-      selectedPipe.value = pipeline;
+      selectedPipeline.value = pipeline;
       await _runPipelineRequest(() => Promise.all(
-        datasetIds.map((id) => runPipeline(id, pipeline)),
+        datasetIds.map((id) => {
+          const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
+          return runPipeline(id, pipeline, additionalConfig);
+        }),
       ));
+    }
+
+    async function runPipelineOnSelectedItem(pipeline: Pipe) {
+      if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
+        openDiveParamsDialog(pipeline);
+        return;
+      }
+      if (!pipelineCreatesDatasetMarkers.includes(pipeline.type)) {
+        _runPipelineOnSelectedItemInner(pipeline);
+      } else {
+        // If a pipeline creates datasets, open the configuration dialog
+        // to allow users to name that dataset
+        // This is relevant for filter and transcode pipeline types
+        selectedPipeline.value = pipeline;
+        menuState.value = 'configuring'; // force the dialog open
+      }
+    }
+
+    /**
+     * Handle a user confirming additional configuration for filter
+     * or transcode pipelines, which create new datasets.
+     *
+     * @param outputNameMap Map selected dataset IDs to the name
+     * of the resultant dataset created by the pipeline
+     */
+    async function exitPipelineConfig(outputNameMap: Record<string, string>) {
+      menuState.value = 'idle'; // close the dialog
+      const additionalConfigById: Record<string, Record<string, string>> = {};
+      Object.keys(outputNameMap).forEach((id: string) => {
+        additionalConfigById[id] = {
+          outputDatasetName: outputNameMap[id],
+        };
+      });
+      if (selectedPipeline.value) {
+        _runPipelineOnSelectedItemInner(selectedPipeline.value, additionalConfigById);
+      }
+      selectedPipeline.value = null; // reset selected pipeline state
     }
 
     function pipeTypeDisplay(pipeType: string) {
@@ -179,6 +270,15 @@ export default defineComponent({
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
       singlePipelineValue,
+      selectedPipeline,
+      selectedPipelineName,
+      configuring,
+      cancelConfig,
+      menuState,
+      exitPipelineConfig,
+      pipelineParams,
+      showParamsDialog,
+      confirmPipelineExecution,
     };
   },
 });
@@ -314,15 +414,30 @@ export default defineComponent({
                   outlined
                   style="overflow-y: auto; max-height: 85vh"
                 >
-                  <v-list-item
+                  <v-tooltip
                     v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
-                    @click="runPipelineOnSelectedItem(pipeline)"
+                    left
+                    :disabled="!pipeline?.metadata?.description"
+                    max-width="400"
+                    content-class="pipeline-description-tooltip"
                   >
-                    <v-list-item-title class="font-weight-regular">
-                      {{ pipeline.name }}
-                    </v-list-item-title>
-                  </v-list-item>
+                    <template #activator="{ on, attrs }">
+                      <v-list-item
+                        v-bind="attrs"
+                        v-on="on"
+                        @click="runPipelineOnSelectedItem(pipeline)"
+                      >
+                        <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
+                          {{ pipeline.name }}
+                          <v-icon style="margin-left: 20px">
+                            {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                          </v-icon>
+                        </v-list-item-title>
+                      </v-list-item>
+                    </template>
+                    <RunPipelineToast :pipeline="pipeline" />
+                  </v-tooltip>
                 </v-list>
               </v-menu>
             </v-col>
@@ -336,6 +451,19 @@ export default defineComponent({
       :error="jobState.error"
       :message="successMessage"
       @close="dismissLaunchDialog"
+    />
+    <JobConfigFilterTranscodeDialog
+      :value="menuState === 'configuring'"
+      :pipeline-name="selectedPipelineName"
+      :selected-dataset-ids="selectedDatasetIds"
+      @cancel="cancelConfig"
+      @submit="exitPipelineConfig"
+    />
+    <PipelineParamsDialog
+      v-model="showParamsDialog"
+      :pipeline="selectedPipeline"
+      :params="pipelineParams"
+      @confirm="confirmPipelineExecution"
     />
   </div>
 </template>

@@ -96,6 +96,17 @@ export default defineComponent({
       }
       return results;
     });
+
+    async function largeImageWarning() {
+      await prompt({
+        title: 'Large Image Warning',
+        text: ['The current Image Sequence dataset has a large resolution',
+          'This may prevent the image from being shown on certain hardware/browsers',
+        ],
+        positiveButton: 'Okay',
+      });
+    }
+
     return {
       datasets,
       viewerRef,
@@ -108,6 +119,7 @@ export default defineComponent({
       changeCamera,
       readOnlyMode,
       runningPipelines,
+      largeImageWarning,
     };
   },
 });
@@ -119,6 +131,7 @@ export default defineComponent({
     ref="viewerRef"
     :read-only-mode="readOnlyMode || runningPipelines.length > 0"
     @change-camera="changeCamera"
+    @large-image-warning="largeImageWarning()"
   >
     <template #title>
       <v-tabs

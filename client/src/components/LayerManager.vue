@@ -19,7 +19,7 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import { geojsonToBound } from '../utils';
+import { geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -126,11 +126,13 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
+    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       formatter: props.formatTextRow,
+      showUserCreatedIcon: showUserCreatedIconRef,
     });
 
     const attributeBoxLayer = new AttributeBoxLayer({
@@ -200,7 +202,7 @@ export default defineComponent({
       }
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
-          const track = trackStore?.get(trackId);
+          const track = trackStore?.getPossible(trackId);
           if (track === undefined) {
             // Track may be located in another Camera
             // TODO: Find a better way to represent tracks outside of cameras
@@ -465,8 +467,12 @@ export default defineComponent({
     ) => {
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+        // Extract rotation from properties if it exists
+        const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
+          ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
+          : undefined;
         cb();
-        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds);
+        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
       } else {
         handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
       }

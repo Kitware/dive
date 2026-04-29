@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, watch,
+  computed, defineComponent, ref, toRef, watch,
 } from 'vue';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
@@ -16,7 +16,9 @@ export default defineComponent({
     const restClient = useGirderRest();
     const store = useStore();
     const outstandingJobs = ref(0);
-    const distributedWorkerEnabled = ref(false);
+    const distributedWorkerEnabled = computed(
+      () => store.state.Config.distributedWorkerEnabled,
+    );
 
     watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
       restClient.get('job/queued').then(({ data }) => {
@@ -30,10 +32,6 @@ export default defineComponent({
       privateQueueEnabled.value = resp.data.user_private_queue_enabled;
       loading.value = false;
     }
-
-    restClient.get('dive_configuration').then((data) => {
-      distributedWorkerEnabled.value = !!(data.data.distributedWorker);
-    });
 
     restClient.fetchUser()
       .then((user) => {

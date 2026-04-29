@@ -1,6 +1,7 @@
 [tool.black]
 line-length = 100
 skip-string-normalization = true
+target-version = ["py311"]
 exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
 
 [tool.isort]
@@ -20,13 +21,12 @@ show_error_codes = true
 pretty = true
 exclude = '\.eggs|\.git|\.mypy_cache|\.tox|\.env|\.venv|env|venv|_build|buck-out|build|dist'
 
-[tool.poetry]
+[project]
 name = "dive_server"
 version = "1.0.0"
 description = "DIVE Data Server"
-authors = ["Kitware, Inc. <viame-web@kitware.com>"]
-license = "Apache 2.0"
-include = ["**/*.mako"]
+authors = [{ name = "Kitware, Inc.", email = "viame-web@kitware.com" }]
+license = { text = "Apache 2.0" }
 readme = "README.md"
 keywords = ["DIVE", "VIAME", "Annotation", "Computer Vision", "Marine"]
 classifiers = [
@@ -37,12 +37,25 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.11",
 ]
-packages = [
-  { include = "bucket_notifications" },
-  { include = "dive_server" },
-  { include = "dive_tasks" },
-  { include = "dive_utils" },
-  { include = "rabbitmq_user_queues" },
+requires-python = ">=3.8,<3.12"
+dependencies = [
+  "cheroot>=8.4.5",
+  "click>=8.1.3",
+  "girder>=3.2.8,<4",
+  "girder_jobs>=3.2.8,<4",
+  "girder_worker>=0.10.3,<1",
+  "girder_worker_utils>=0.9.0,<1",
+  "pydantic==1.10.13",
+  "pyrabbit2==1.0.7",
+  "typing-extensions>=4.2.0",
+  "GPUtil>=1.4.0",
+  "requests>=2.27.1",
+  "urllib3<1.27",
+  "bitarray>=2.9.2",
+  "simplejpeg>=1.7.2",
+  "girder-large-image>=1.28.1,<1.30",
+  "cherrypy>=18.9.0",
+  "numpy==1.24.4",
 ]
 
 [tool.poetry.dependencies]
@@ -77,38 +90,70 @@ gdal = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/GDAL-
 pylibtiff = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pylibtiff-0.6.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", optional = true}
 pyvips = {url = "https://github.com/girder/large_image_wheels/raw/wheelhouse/pyvips-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"}
 
-[tool.poetry.group.dev.dependencies]
-opencv-python = "^4.5.5"
-tox = "^3.25.0"
-[tool.poetry.extras]
-large-image = [
-  "girder-large-image",
-  "large-image",
-  "large-image-tasks",
-  "large-image-converter",
-  "large-image-source-pil",
-  "large-image-source-gdal",
-  "large-image-source-tiff",
-  "large-image-source-ometiff",
-  "large-image-source-openjpeg",
-  "gdal",
-  "numpy",
+[dependency-groups]
+dev = [
+  "opencv-python>=4.5.5",
+  "tox>=3.25.0",
 ]
 
-[build-system]
-requires = ["poetry-core", "setuptools"]
-build-backend = "poetry.core.masonry.api"
+[project.optional-dependencies]
+large-image = [
+  "large-image>=1.28.1,<1.30",
+  "large-image-tasks>=1.28.1,<1.30",
+  "large-image-converter>=1.28.1,<1.30",
+  "large-image-source-pil>=1.28.1,<1.30",
+  "large-image-source-gdal>=1.28.1,<1.30",
+  "large-image-source-tiff>=1.28.1,<1.30",
+  "large-image-source-ometiff>=1.28.1,<1.30",
+  "large-image-source-openjpeg>=1.28.1,<1.30",
+  "gdal",
+  "pylibtiff",
+]
 
-[tool.poetry.scripts]
+[project.scripts]
 diveutils = "scripts.entrypoint_dev:cli"
 dive = "scripts.entrypoint_main:cli"
 
-
-[tool.poetry.plugins."girder.plugin"]
+[project.entry-points."girder.plugin"]
 dive_server = "dive_server:GirderPlugin"
 bucket_notifications = "bucket_notifications:GirderPlugin"
 rabbit_user_queues = "rabbitmq_user_queues:GirderPlugin"
 
-[tool.poetry.plugins."girder_worker_plugins"]
+[project.entry-points."girder_worker_plugins"]
 dive_tasks = "dive_tasks:DIVEPlugin"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bucket_notifications", "dive_server", "dive_tasks", "dive_utils", "rabbitmq_user_queues"]
+include = ["**/*.mako"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "bucket_notifications/",
+  "dive_server/",
+  "dive_tasks/",
+  "dive_utils/",
+  "rabbitmq_user_queues/",
+  "scripts/",
+  "README.md",
+  "**/*.mako",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv]
+conflicts = []
+
+[[tool.uv.index]]
+name = "large_image_wheels"
+url = "https://girder.github.io/large_image_wheels/"
+explicit = true
+
+[tool.uv.sources]
+gdal = { index = "large_image_wheels" }
+pylibtiff = { index = "large_image_wheels" }
 

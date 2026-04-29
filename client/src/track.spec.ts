@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
 import Track, { TrackData } from './track';
 import { RectBounds } from './utils';
 import { ConfidencePair } from './BaseAnnotation';

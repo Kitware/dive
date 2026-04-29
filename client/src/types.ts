@@ -12,5 +12,6 @@ export interface AnnotatorPreferences {
   enabled?: boolean;
   transition?: false | number;
   multiBounds?: false | number;
-  }
+  };
+  showUserCreatedIcon?: boolean;
 }

@@ -97,6 +97,7 @@ export default defineComponent({
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
+    const pipelinesEnabled = toRef(store.state.Config, 'pipelinesEnabled');
     const revisionNum = computed(() => {
       const parsed = Number.parseInt(props.revision, 10);
       if (Number.isNaN(parsed)) return undefined;
@@ -161,11 +162,16 @@ export default defineComponent({
       window.removeEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 
-    function routeRevision(revisionId: number, set?: string) {
-      if (set && set !== 'default') {
+    function routeRevision(revisionId: number | undefined, set?: string) {
+      if (set && set !== 'default' && revisionId !== undefined) {
         router.replace({
           name: 'revision set viewer',
           params: { id: props.id, revision: revisionId.toString(), set },
+        });
+      } else if (revisionId === undefined) {
+        router.replace({
+          name: 'viewer',
+          params: { id: props.id },
         });
       } else {
         router.replace({
@@ -221,6 +227,7 @@ export default defineComponent({
       routeSet,
       largeImageWarning,
       typeList,
+      pipelinesEnabled,
     };
   },
 });
@@ -256,6 +263,7 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
+        v-if="pipelinesEnabled"
         v-bind="{ buttonOptions, menuOptions, typeList }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"

@@ -17,29 +17,33 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
+  PipeMetadata,
+  PipelineParamType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, JobsFolderName, ProjectsFolderName,
+  ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType,
+  JobType, LastCalibrationFileName,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -65,6 +69,93 @@ const YAMLFileName = /^.*\.ya?ml$/i;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
+
+/**
+ * Extract metadata from a .pipe file header.
+ */
+async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
+  const metadata: PipeMetadata = {};
+  metadata.diveParams = [];
+  try {
+    const lines = await readLines(filePath);
+    let inDescription = false;
+    let contextStack: string[] = [];
+    let fullDescription = '';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+([\w-]+)/i);
+      if (processMatch) {
+        contextStack = [processMatch[1]];
+        return;
+      }
+
+      const blockMatch = trimmed.match(/^block\s+([\w:-]+)/i);
+      if (blockMatch) {
+        contextStack.push(blockMatch[1]);
+        return;
+      }
+
+      if (trimmed.toLowerCase() === 'endblock') {
+        contextStack.pop();
+        return;
+      }
+
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const pipelineTypeArgs = args.slice(1);
+
+        const paramLineMatch = trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i);
+        if (paramLineMatch) {
+          const localKey = paramLineMatch[1];
+          const defaultValue = paramLineMatch[2].trim();
+          const fullKey = [...contextStack, localKey].join(':');
+          metadata.diveParams!.push({
+            label,
+            type,
+            type_props: pipelineTypeArgs,
+            key: fullKey,
+            default: defaultValue,
+          });
+        }
+      }
+
+      // --- Description extraction (Multiline) ---
+      if (/^#\s*Description:\s*/i.test(line)) {
+        inDescription = true;
+        fullDescription = line.replace(/^#\s*Description:\s*/i, '').trim();
+        return;
+      }
+
+      if (inDescription) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output):/i.test(line) || !line.startsWith('#')) {
+          inDescription = false;
+        } else {
+          fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
+          return;
+        }
+      }
+
+      // --- Input / Output extraction ---
+      if (/^#\s*Input:\s*/i.test(line)) {
+        metadata.inputType = line.split(':')[1]?.trim();
+      }
+      if (/^#\s*Output:\s*/i.test(line)) {
+        metadata.outputType = line.split(':')[1]?.trim();
+      }
+    });
+    metadata.description = fullDescription.trim() || undefined;
+  } catch (error) {
+    console.error(`Error while reading ${filePath} metadata`, error);
+  }
+
+  return metadata;
 }
 
 /**
@@ -300,6 +391,13 @@ async function loadMetadata(
         };
       });
     }
+  } else if (projectMetaData.type === 'large-image' && projectMetaData.originalLargeImageFile) {
+    const tiffPath = npath.join(projectMetaData.originalBasePath, projectMetaData.originalLargeImageFile);
+    imageData = [{
+      url: makeMediaUrl(tiffPath),
+      id: datasetId,
+      filename: npath.basename(tiffPath),
+    }];
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -356,7 +454,8 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
-  pipes.forEach((p) => {
+
+  await Promise.all(pipes.map(async (p) => {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
@@ -365,10 +464,16 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }
-    const pipeInfo = {
+
+    // Extract description and metadata from the pipe file
+    const pipeFilePath = npath.join(pipelinePath, p);
+    const metadata = await extractPipeMetadata(pipeFilePath);
+
+    const pipeInfo: Pipe = {
       name: pipeName,
       type: pipeType,
       pipe: p,
+      metadata,
     };
     if (pipeType in ret) {
       ret[pipeType].pipes.push(pipeInfo);
@@ -378,7 +483,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
         description: '',
       };
     }
-  });
+  }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
   const allowedTrainedPatterns = new RegExp([
@@ -389,6 +494,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     '^.*\\.svm',
     '^.*\\.lbl',
     '^.*\\.cfg',
+    '^.*\\.yaml',
   ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
@@ -459,10 +565,17 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
   }
-  let configs = await fs.readdir(pipelinePath);
-  configs = configs
+  let configNames = await fs.readdir(pipelinePath);
+  configNames = configNames
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+
+  const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
+    const configFilePath = npath.join(pipelinePath, name);
+    const { description } = (await extractPipeMetadata(configFilePath));
+    return { name, description };
+  }));
+
   // Get Model files in the pipeline directory
   const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
   const models: TrainingConfigs['models'] = {};
@@ -475,7 +588,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   });
   return {
     training: {
-      default: configs[0],
+      default: configNames[0],
       configs,
     },
     models,
@@ -569,6 +682,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.attributes) {
     existing.attributes = args.attributes;
   }
+  if (args.error) {
+    existing.error = args.error;
+  }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
@@ -651,6 +767,10 @@ async function _ingestFilePath(
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
       metadataConfig = true;
+    } else if (coco.isCocoJson(jsonObject)) {
+      const [parsedAnnotations, parsedMeta] = await coco.parseFile(path);
+      annotations = parsedAnnotations;
+      merge(meta, parsedMeta);
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
@@ -819,9 +939,21 @@ async function deleteDataset(
   settings: Settings,
   datasetId: string,
 ): Promise<boolean> {
-  // confirm dataset Id exists
+  // Confirm dataset exists
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const projectMetaData = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   await fs.remove(projectDirInfo.basePath);
+  // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
+  if (projectMetaData.originalBasePath) {
+    const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
+    const originalBasePath = npath.resolve(projectMetaData.originalBasePath);
+    const isInsideJobsOutput = originalBasePath !== jobsOutputPath
+      && originalBasePath.startsWith(jobsOutputPath + npath.sep);
+    if (isInsideJobsOutput && await fs.pathExists(originalBasePath)) {
+      await fs.remove(originalBasePath);
+    }
+  }
+
   return true;
 }
 
@@ -836,6 +968,9 @@ async function checkDataset(
     if (!exists) {
       throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
     }
+  }
+  if (projectMetaData.error && projectMetaData.error !== '') {
+    throw new Error(`Dataset ${projectMetaData.name} contains error: ${projectMetaData.error}`);
   }
   return true;
 }
@@ -911,6 +1046,8 @@ async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
+  const fileExtension = npath.extname(path).replace(/^\./, '').toLowerCase();
+  const isDesktopLargeImage = largeImageDesktopTypes.includes(fileExtension);
 
   const exists = fs.existsSync(path);
   if (!exists) {
@@ -924,6 +1061,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     const mimetype = mime.lookup(path);
     if (mimetype && mimetype === 'text/plain') {
       datasetType = 'image-sequence';
+    } else if (isDesktopLargeImage) {
+      datasetType = 'large-image';
     } else {
       datasetType = 'video';
     }
@@ -958,6 +1097,10 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     // get parent folder, since videos reference a file directly
     jsonMeta.originalBasePath = npath.dirname(path);
   }
+  if (datasetType === 'large-image') {
+    jsonMeta.originalBasePath = npath.dirname(path);
+    jsonMeta.originalLargeImageFile = npath.basename(path);
+  }
 
   /* Path to search for other related data like annotations */
   let relatedDataSearchPath = jsonMeta.originalBasePath;
@@ -965,7 +1108,9 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
-  if (jsonMeta.type === 'video') {
+  if (jsonMeta.type === 'large-image') {
+    // No conversion for large images; tile serving is done on demand via geotiff
+  } else if (jsonMeta.type === 'video') {
     jsonMeta.originalVideoFile = npath.basename(path);
     const mimetype = mime.lookup(path);
     if (mimetype) {
@@ -1003,8 +1148,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
       relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
-  } else {
-    throw new Error('only video and image-sequence types are supported');
+  } else if (datasetType !== 'large-image') {
+    throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
   const { trackFileAbsPath, metaFileAbsPath } = await
@@ -1093,6 +1238,13 @@ export async function completeConversion(settings: Settings, datasetId: string, 
     meta.transcodingJobKey = undefined;
     saveMetadata(settings, datasetId, meta);
   }
+}
+
+export async function failConversion(settings: Settings, datasetId: string, meta: JsonMeta, errorMessage: string) {
+  await getValidatedProjectDir(settings, datasetId);
+  // eslint-disable-next-line no-param-reassign
+  meta.error = errorMessage;
+  saveMetadata(settings, datasetId, meta);
 }
 
 /**
@@ -1196,6 +1348,28 @@ async function finalizeMediaImport(
   return conversionJobArgs;
 }
 
+/**
+ * Get the absolute path to the large image (e.g. GeoTIFF) file for a dataset.
+ * Returns null if the dataset is not type 'large-image' or path is missing.
+ */
+async function getLargeImagePath(settings: Settings, datasetId: string): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    if (meta.type !== 'large-image' || !meta.originalLargeImageFile) {
+      console.warn(
+        `[tiles] getLargeImagePath: no path for dataset "${datasetId}" (meta.type=${meta.type}, hasOriginalLargeImageFile=${!!meta.originalLargeImageFile})`,
+      );
+      return null;
+    }
+    const path = npath.join(meta.originalBasePath, meta.originalLargeImageFile);
+    return path;
+  } catch (err) {
+    console.warn(`[tiles] getLargeImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1208,6 +1382,11 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
       header: true,
+    });
+  }
+  if (args.type === 'coco') {
+    return coco.serializeFile(args.path, data, meta, args.typeFilter, {
+      excludeBelowThreshold: args.exclude,
     });
   }
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
@@ -1228,6 +1407,68 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
   return args.path;
 }
 
+/**
+ * Get path to last_calibration.json if it exists
+ * @returns path to last calibration file or null if it doesn't exist
+ */
+async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
+  const calibrationPath = npath.join(settings.dataPath, LastCalibrationFileName);
+  if (await fs.pathExists(calibrationPath)) {
+    return calibrationPath;
+  }
+  return null;
+}
+
+/**
+ * Save a calibration file as the last used calibration
+ * @param settings app settings
+ * @param sourcePath path to the source calibration file
+ * @returns path to the saved calibration file
+ */
+async function saveLastCalibration(settings: Settings, sourcePath: string): Promise<string> {
+  const destPath = npath.join(settings.dataPath, LastCalibrationFileName);
+  await fs.copy(sourcePath, destPath, { overwrite: true });
+  return destPath;
+}
+
+/**
+ * Apply calibration to all stereo datasets that don't already have calibration set
+ * @param settings app settings
+ * @param calibrationPath path to the calibration file to apply
+ * @returns list of dataset IDs that were updated
+ */
+async function applyCalibrationToUncalibratedStereoDatasets(
+  settings: Settings,
+  calibrationPath: string,
+): Promise<string[]> {
+  const datasets = await autodiscoverData(settings);
+  const updatedIds: string[] = [];
+
+  for (let i = 0; i < datasets.length; i += 1) {
+    const meta = datasets[i];
+    // Check if this is a stereo dataset without calibration
+    if (meta.subType === 'stereo' && meta.multiCam && !meta.multiCam.calibration) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
+        // eslint-disable-next-line no-await-in-loop
+        const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+        if (fullMeta.multiCam) {
+          fullMeta.multiCam.calibration = calibrationPath;
+          // eslint-disable-next-line no-await-in-loop
+          await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
+          updatedIds.push(meta.id);
+        }
+      } catch (err) {
+        // Skip datasets that fail to update
+        console.error(`Failed to update calibration for dataset ${meta.id}:`, err);
+      }
+    }
+  }
+
+  return updatedIds;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1245,6 +1486,7 @@ export {
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
+  getLargeImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,
@@ -1258,4 +1500,7 @@ export {
   saveAttributeTrackFilters,
   findImagesInFolder,
   findTrackandMetaFileinFolder,
+  getLastCalibrationPath,
+  saveLastCalibration,
+  applyCalibrationToUncalibratedStereoDatasets,
 };

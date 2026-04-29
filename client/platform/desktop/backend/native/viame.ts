@@ -6,12 +6,21 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  JsonMeta,
+  JobsOutputFolderName,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
+import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
+import sendToRenderer from 'platform/desktop/background';
 
-import { MultiType, stereoPipelineMarker, multiCamPipelineMarkers } from 'dive-common/constants';
+import {
+  MultiType,
+  stereoPipelineMarker,
+  multiCamPipelineMarkers,
+  pipelineCreatesDatasetMarkers,
+} from 'dive-common/constants';
 import * as common from './common';
 import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
@@ -27,6 +36,65 @@ export interface ViameConstants {
   trainingExe: string; // name of training binary on PATH
   kwiverExe: string; // name of kwiver binary on PATH
   shell: string | boolean; // shell arg for spawn
+}
+
+/**
+ * Import newly created media as a new dataset.
+ * Should be called after a transcode or filter pipeline runs.
+ * @param sourceName
+ * The location (directory for images, file for video) of data to be
+ * imported.
+ * @param datasetName
+ * The name of the dataset to be created from the imported data.
+ * @param code
+ * The exit code of the job that created the data to be imported.
+ * @param settings
+ * @param updater
+ * The job updater function. Used to log additional messages to the
+ * DesktopJob log
+ * @param jobBase
+ * The DesktopJob to update
+ * @param outputDir
+ * If new data must be converted, this is used as the baseWorkDir
+ * for the conversion
+ */
+async function importNewMedia(
+  sourceName: string,
+  datasetName: string,
+  code: number,
+  settings: Settings,
+  updater: DesktopJobUpdater,
+  jobBase: DesktopJob,
+  outputDir: string,
+): Promise<void> {
+  if (code !== 0) {
+    return;
+  }
+  const importPayload = await common.beginMediaImport(sourceName);
+  importPayload.jsonMeta.name = datasetName;
+  const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
+  if (conversionJobArgs.mediaList.length > 0) {
+    // Convert the media, directly in this job
+    updater({
+      ...jobBase,
+      body: ['Converting pipeline output...'],
+      exitCode: code,
+      endTime: new Date(),
+    });
+    await convertMedia(
+      settings,
+      conversionJobArgs,
+      updater,
+      (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
+      undefined,
+      false,
+      0,
+      jobBase.key,
+      outputDir,
+    );
+  } else {
+    sendToRenderer('filter-complete', conversionJobArgs.meta);
+  }
 }
 
 /**
@@ -55,8 +123,26 @@ async function runPipeline(
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
-  const detectorOutput = npath.join(jobWorkDir, 'detector_output.csv');
-  let trackOutput = npath.join(jobWorkDir, 'track_output.csv');
+  const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
+  const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
+  const outputDir = `${npath.join(settings.dataPath, JobsOutputFolderName, outputDirName)}`;
+  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+    if (outputDir !== jobWorkDir) {
+      await fs.mkdir(outputDir, { recursive: true });
+    }
+  }
+
+  const detectorOutputFileName = 'detector_output.csv';
+  const trackOutputFileName = 'track_output.csv';
+  let trackOutput: string;
+  let detectorOutput: string;
+  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+    detectorOutput = npath.join(outputDir, detectorOutputFileName);
+    trackOutput = npath.join(outputDir, trackOutputFileName);
+  } else {
+    detectorOutput = npath.join(jobWorkDir, detectorOutputFileName);
+    trackOutput = npath.join(jobWorkDir, trackOutputFileName);
+  }
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
@@ -130,11 +216,15 @@ async function runPipeline(
   }
 
   if (runPipelineArgs.pipeline.type === 'filter') {
-    command.push(`-s kwa_writer:output_directory="${npath.join(jobWorkDir, 'output')}"`);
-    command.push(`-s image_writer:file_name_prefix="${jobWorkDir}/"`);
+    command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
+    command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
   }
+
+  let transcodedFilename: string;
   if (runPipelineArgs.pipeline.type === 'transcode') {
-    command.push(`-s video_writer:video_filename="${npath.join(jobWorkDir, `${datasetId}.mp4`)}"`);
+    // Note: the output of the pipeline may be HEVC encoded
+    transcodedFilename = npath.join(outputDir, `${runPipelineArgs.pipeline.name}_${datasetId}_${timestamp}.mp4`);
+    command.push(`-s video_writer:video_filename="${transcodedFilename}"`);
   }
 
   if (requiresInput && !stereoOrMultiCam) {
@@ -161,6 +251,14 @@ async function runPipeline(
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
+  }
+
+  // Add any custom pipeline parameters
+  if (runPipelineArgs.pipelineParams) {
+    const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
+    Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
+      command.push(`-s ${key}="${escapeValue(value)}"`);
+    });
   }
 
   const job = observeChild(spawn(command.join(' '), {
@@ -194,10 +292,71 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
-        if (newMeta) {
-          meta.attributes = newMeta.attributes;
-          await common.saveMetadata(settings, datasetId, meta);
+        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+          // Filter and transcode pipelines should ensure that detector/track output files are located in the new dataset directory
+          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [detectorOutput, trackOutput], multiOutFiles);
+          if (newMeta) {
+            meta.attributes = newMeta.attributes;
+            await common.saveMetadata(settings, datasetId, meta);
+          }
+        }
+
+        // Check if this is a calibration pipeline and save the output
+        if (pipeline.pipe.toLowerCase().includes('calibrate_cameras')) {
+          const files = await fs.readdir(jobWorkDir);
+          const calibrationFile = files.find(
+            (f) => f.toLowerCase().includes('calibration') && f.endsWith('.json'),
+          );
+          if (calibrationFile) {
+            const calibrationPath = npath.join(jobWorkDir, calibrationFile);
+            const savedPath = await common.saveLastCalibration(settings, calibrationPath);
+            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath);
+          }
+        }
+
+        // Check if this is a transcode/filter pipeline and create a new dataset
+        if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+          updater({
+            ...jobBase,
+            body: ['Creating dataset from output...'],
+            exitCode: code,
+            endTime: new Date(),
+          });
+          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+          if (runPipelineArgs.pipeline.type === 'transcode') {
+            fs.readdir(outputDir, async (err, entries) => {
+              if (err) {
+                console.error(`Failed to traverse ${outputDir}.`);
+              }
+              if (!transcodedFilename) {
+                console.error('Could not determine name of output video file.');
+              }
+              entries.forEach((entry: string) => {
+                if (entry.startsWith(`${pipeline.name}_${datasetId}`)) {
+                  transcodedFilename = npath.join(outputDir, entry);
+                }
+              });
+              await importNewMedia(
+                transcodedFilename,
+                datasetName,
+                code,
+                settings,
+                updater,
+                jobBase,
+                outputDir,
+              );
+            });
+            return;
+          }
+          await importNewMedia(
+            outputDir,
+            datasetName,
+            code,
+            settings,
+            updater,
+            jobBase,
+            outputDir,
+          );
         }
       } catch (err) {
         console.error(err);
@@ -210,7 +369,6 @@ async function runPipeline(
       endTime: new Date(),
     });
   });
-
   return jobBase;
 }
 
@@ -231,17 +389,30 @@ async function exportTrainedPipeline(
     throw new Error(isValid);
   }
 
-  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_to_onnx.pipe');
+  const exportPipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, 'convert_model_to_onnx.pipe');
   if (!fs.existsSync(npath.join(exportPipelinePath))) {
     throw new Error("Your VIAME version doesn't support ONNX export. You have to update it to a newer version to be able to export models.");
   }
 
   const modelPipelineDir = npath.parse(pipeline.pipe).dir;
-  let weightsPath: string;
-  if (fs.existsSync(npath.join(modelPipelineDir, 'yolo.weights'))) {
-    weightsPath = npath.join(modelPipelineDir, 'yolo.weights');
-  } else {
-    throw new Error('Your pipeline has no trained weights (yolo.weights is missing)');
+  const extensions = ['.weights', '.ckpt', '.pth'];
+  let weightsPath: string | undefined;
+
+  const files = fs.readdirSync(modelPipelineDir);
+
+  const foundExtension = extensions.find(
+    (ext) => files.some((file) => file.toLowerCase().endsWith(ext)),
+  );
+
+  if (foundExtension) {
+    const fileName = files.find((file) => file.toLowerCase().endsWith(foundExtension));
+    if (fileName) {
+      weightsPath = npath.join(modelPipelineDir, fileName);
+    }
+  }
+
+  if (!weightsPath) {
+    throw new Error(`No weights path (${extensions.join(', ')}) found.`);
   }
 
   const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
