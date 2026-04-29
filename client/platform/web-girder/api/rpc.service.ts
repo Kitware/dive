@@ -1,9 +1,6 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
-import {
-  Pipe, SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
-  TextQueryRequest, TextQueryResponse,
-} from 'dive-common/apispec';
+import { Pipe } from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
@@ -66,90 +63,6 @@ function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
 
-/**
- * Interactive Segmentation API
- */
-
-async function segmentationPredict(
-  folderId: string,
-  frameNumber: number,
-  request: SegmentationPredictRequest,
-): Promise<SegmentationPredictResponse> {
-  const { data } = await girderRest.post<SegmentationPredictResponse>('dive_rpc/segmentation_predict', {
-    points: request.points,
-    pointLabels: request.pointLabels,
-    maskInput: request.maskInput,
-    multimaskOutput: request.multimaskOutput,
-  }, {
-    params: {
-      folderId,
-      frameNumber,
-    },
-  });
-  return data;
-}
-
-async function segmentationStatus(): Promise<SegmentationStatusResponse> {
-  const { data } = await girderRest.get<SegmentationStatusResponse>('dive_rpc/segmentation_status');
-  return data;
-}
-
-/**
- * Initialize segmentation service by checking availability.
- * Throws an error if segmentation is not available on the server.
- */
-async function segmentationInitialize(): Promise<void> {
-  const status = await segmentationStatus();
-  if (!status.available) {
-    throw new Error('Model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
-  }
-}
-
-/**
- * Initialize and verify that text query is available.
- * Throws if the segmentation service or text query capability is not available.
- */
-async function textQueryInitialize(): Promise<void> {
-  const status = await segmentationStatus();
-  if (!status.available) {
-    throw new Error('Model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
-  }
-  const tqStatus = await textQueryStatus();
-  if (!tqStatus.grounding_available) {
-    throw new Error('Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
-  }
-}
-
-/**
- * Text Query API for open-vocabulary detection/segmentation
- */
-
-async function textQuery(
-  folderId: string,
-  frameNumber: number,
-  request: Omit<TextQueryRequest, 'imagePath'>,
-): Promise<TextQueryResponse> {
-  const { data } = await girderRest.post<TextQueryResponse>('dive_rpc/text_query', {
-    text: request.text,
-    boxThreshold: request.boxThreshold,
-    maxDetections: request.maxDetections,
-  }, {
-    params: {
-      folderId,
-      frameNumber,
-    },
-  });
-  return data;
-}
-
-async function textQueryStatus(): Promise<{ available: boolean; grounding_available: boolean }> {
-  const { data } = await girderRest.get<{ available: boolean; loaded: boolean; text_query_available: boolean }>('dive_rpc/segmentation_status');
-  return {
-    available: data.available,
-    grounding_available: data.text_query_available,
-  };
-}
-
 export {
   convertLargeImage,
   postProcess,
@@ -157,10 +70,4 @@ export {
   runTraining,
   deleteTrainedPipeline,
   exportTrainedPipeline,
-  segmentationPredict,
-  segmentationStatus,
-  segmentationInitialize,
-  textQuery,
-  textQueryStatus,
-  textQueryInitialize,
 };

@@ -22,18 +22,6 @@ export default defineComponent({
         <v-row>
           <v-col>
             <v-switch
-              v-model="clientSettings.multiCamSettings.showToolbar"
-              color="primary"
-              label="Show multi-camera toolbar"
-              hint="Show multi-camera editing tools in the top toolbar when a track is selected"
-              persistent-hint
-              class="my-0"
-            />
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col>
-            <v-switch
               v-model="clientSettings.autoSaveSettings.enabled"
               color="primary"
               label="Auto-save annotations"
