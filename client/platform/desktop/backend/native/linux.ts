@@ -40,7 +40,7 @@ const DefaultSettings: Settings = {
 
 const ViameLinuxConstants = {
   setup: 'setup_viame.sh',
-  trainingExe: 'viame_train_detector',
+  trainingExe: 'viame',
   kwiverExe: 'kwiver',
   shell: '/bin/bash',
 };
@@ -57,10 +57,10 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
     return `${setupScriptPath} does not exist`;
   }
 
-  const trainingScriptPath = npath.join(settings.viamePath, 'bin', ViameLinuxConstants.trainingExe);
-  const trainingExists = await fs.pathExists(trainingScriptPath);
-  if (!trainingExists) {
-    return `${trainingScriptPath} does not exist`;
+  const viameExePath = npath.join(settings.viamePath, 'bin', ViameLinuxConstants.trainingExe);
+  const viameExists = await fs.pathExists(viameExePath);
+  if (!viameExists) {
+    return `${viameExePath} does not exist`;
   }
 
   const kwiverExistsOnPath = observeChild(spawn(
