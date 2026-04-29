@@ -37,11 +37,8 @@ export default defineComponent({
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
-<<<<<<< HEAD
       autoSave: 'Automatically save annotation changes after a short delay. Changes are batched to reduce server requests.',
-=======
       stereoInteractiveMode: 'When enabled, annotations created on one camera are automatically warped to the other camera using stereo disparity',
->>>>>>> dev/add-interactive-seg-and-stereo
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -371,7 +368,6 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-<<<<<<< HEAD
       <v-divider class="my-2" />
       <div class="subheading">
         Auto-Save Settings
@@ -411,7 +407,6 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-=======
       <template v-if="isStereoDataset">
         <v-divider class="my-2" />
         <div class="subheading">
@@ -453,7 +448,6 @@ export default defineComponent({
           </v-col>
         </v-row>
       </template>
->>>>>>> dev/add-interactive-seg-and-stereo
     </v-card>
   </div>
 </template>

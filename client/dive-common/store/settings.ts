@@ -2,6 +2,17 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
+interface ColumnVisibilitySettings {
+  type: boolean;
+  confidence: boolean;
+  startFrame: boolean;
+  endFrame: boolean;
+  startTimestamp: boolean;
+  endTimestamp: boolean;
+  notes: boolean;
+  attributeColumns: string[]; // Array of attribute keys to show as columns
+}
+
 interface AnnotationSettings {
   typeSettings: {
     trackSortDir: 'a-z' | 'count' | 'frame count';
@@ -31,6 +42,7 @@ interface AnnotationSettings {
     trackListSettings: {
       autoZoom?: boolean;
       filterDetectionsByFrame?: boolean;
+      columnVisibility?: ColumnVisibilitySettings;
     }
   };
   groupSettings: {
@@ -48,10 +60,9 @@ interface AnnotationSettings {
   multiCamSettings: {
     showToolbar: boolean;
   };
-<<<<<<< HEAD
   autoSaveSettings: {
     enabled: boolean;
-=======
+  };
   layoutSettings: {
     sidebarPosition: 'left' | 'bottom';
   };
@@ -59,7 +70,6 @@ interface AnnotationSettings {
     interactiveModeEnabled: boolean;
     loading: boolean;
     loadingMessage: string;
->>>>>>> dev/add-interactive-seg-and-stereo
   };
 }
 
@@ -84,6 +94,16 @@ const defaultSettings: AnnotationSettings = {
     trackListSettings: {
       autoZoom: false,
       filterDetectionsByFrame: false,
+      columnVisibility: {
+        type: true,
+        confidence: true,
+        startFrame: true,
+        endFrame: true,
+        startTimestamp: false,
+        endTimestamp: false,
+        notes: true,
+        attributeColumns: [],
+      },
     },
   },
   groupSettings: {
@@ -119,10 +139,9 @@ const defaultSettings: AnnotationSettings = {
   multiCamSettings: {
     showToolbar: true,
   },
-<<<<<<< HEAD
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
-=======
+  },
   layoutSettings: {
     sidebarPosition: 'left',
   },
@@ -130,7 +149,6 @@ const defaultSettings: AnnotationSettings = {
     interactiveModeEnabled: false,
     loading: false,
     loadingMessage: '',
->>>>>>> dev/add-interactive-seg-and-stereo
   },
 };
 
@@ -186,4 +204,5 @@ watch(clientSettings, saveSettings, { deep: true });
 export {
   clientSettings,
   AnnotationSettings,
+  ColumnVisibilitySettings,
 };

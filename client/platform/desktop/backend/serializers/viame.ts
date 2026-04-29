@@ -30,12 +30,14 @@ const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 const PolyRegex = /^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 // Hole format: (hole) coordinates
 const HoleRegex = /^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+const NoteRegex = /^\(note\)\s*(.+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
 const AtrToken = '(atr)';
 const TrackAtrToken = '(trk-atr)';
 const PolyToken = '(poly)';
 const KeypointToken = '(kp)';
+const NoteToken = '(note)';
 
 export interface AnnotationFileData {
   tracks: MultiTrackRecord;
@@ -197,6 +199,7 @@ function _parseRow(row: string[]) {
     };
   let attributes: StringKeyObject | undefined;
   const trackAttributes: StringKeyObject = {};
+  const notes: string[] = [];
   const cpStarti = 9; // Confidence pairs start at i=9
   const confidencePairs: ConfidencePair[] = row
     .slice(cpStarti, row.length)
@@ -285,6 +288,12 @@ function _parseRow(row: string[]) {
         _addHoleToPolygon(geoFeatureCollection, coords, lastPolyKey);
       }
     }
+
+    /* Note */
+    const note = getCaptureGroups(NoteRegex, value);
+    if (note !== null) {
+      notes.push(note[1]);
+    }
   });
 
   if (headTail[0] !== undefined && headTail[1] !== undefined) {
@@ -300,7 +309,7 @@ function _parseRow(row: string[]) {
   }
 
   return {
-    attributes, trackAttributes, confidencePairs, geoFeatureCollection,
+    attributes, trackAttributes, confidencePairs, geoFeatureCollection, notes,
   };
 }
 
@@ -319,6 +328,9 @@ function _parseFeature(row: string[]) {
   }
   if (rowData.geoFeatureCollection.features.length > 0) {
     feature.geometry = rowData.geoFeatureCollection;
+  }
+  if (rowData.notes.length > 0) {
+    feature.notes = rowData.notes;
   }
   return {
     rowInfo,
@@ -689,6 +701,13 @@ async function serialize(
                     );
                   }
                 }
+              });
+            }
+
+            /* Notes */
+            if (feature.notes && feature.notes.length > 0) {
+              feature.notes.forEach((noteText) => {
+                row.push(`${NoteToken} ${noteText}`);
               });
             }
             stringify.write(row);

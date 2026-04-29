@@ -69,14 +69,7 @@ export default defineComponent({
       default: true,
     },
   },
-  emits: [
-    'set-annotation-state',
-    'update:tail-settings',
-    'update:show-user-created-icon',
-    'text-query-init',
-    'text-query',
-    'text-query-all-frames',
-  ],
+  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon', 'text-query-init', 'text-query', 'text-query-all-frames'],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -162,6 +155,7 @@ export default defineComponent({
 
     const editButtons = computed((): ButtonData[] => {
       const em = props.editingMode;
+      const recipeButtons = props.recipes.filter((r) => r.toggleable.value);
       return [
         {
           id: 'rectangle',
@@ -179,7 +173,7 @@ export default defineComponent({
           },
         },
         /* Include recipes as editing modes if they're toggleable */
-        ...props.recipes.filter((r) => r.toggleable.value).map((r, i) => ({
+        ...recipeButtons.map((r, i) => ({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
@@ -194,15 +188,23 @@ export default defineComponent({
             ...r.mousetrap(),
           ],
         })),
+        /* Text Query button included alongside other annotation types */
+        {
+          id: 'Text Query',
+          icon: 'mdi-text-search',
+          active: false,
+          description: 'Text Query',
+          mousetrap: [{
+            bind: 't',
+            handler: () => openTextQueryDialog(),
+          }],
+          click: () => openTextQueryDialog(),
+        },
       ];
     });
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
-      {
-        bind: 't',
-        handler: () => openTextQueryDialog(),
-      },
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -417,16 +419,6 @@ export default defineComponent({
           </v-icon>
         </v-btn>
       </template>
-      <!-- Text Query button -->
-      <v-btn
-        outlined
-        class="mx-1"
-        small
-        @click="openTextQueryDialog"
-      >
-        <pre>T:</pre>
-        <v-icon>mdi-text-search</v-icon>
-      </v-btn>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-divider
@@ -451,8 +443,9 @@ export default defineComponent({
         v-if="!activeSegmentationRecipe"
         name="delete-controls"
       />
+      <slot name="multicam-controls-left" />
       <v-spacer />
-      <slot name="multicam-controls" />
+      <slot name="multicam-controls-right" />
       <v-spacer />
       <annotation-visibility-menu
         :visible-modes="visibleModes"
@@ -468,6 +461,7 @@ export default defineComponent({
     <v-dialog
       v-model="textQueryDialogOpen"
       max-width="500"
+      :persistent="textQueryInitializing || textQueryLoading"
     >
       <v-card>
         <v-card-title class="text-h6">
@@ -538,6 +532,9 @@ export default defineComponent({
               :disabled="textQueryLoading"
             />
           </template>
+          <p class="text-caption mt-3 mb-0 text--secondary">
+            Textual query support uses architectures derived from Meta's SAM3 project
+          </p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />

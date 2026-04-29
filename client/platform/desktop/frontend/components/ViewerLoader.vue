@@ -1,11 +1,7 @@
 <script lang="ts">
 import npath from 'path';
 import {
-<<<<<<< HEAD
-  computed, defineComponent, ref, watch, Ref, watchEffect,
-=======
-  computed, defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick,
->>>>>>> dev/add-interactive-seg-and-stereo
+  computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick, watchEffect,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -16,6 +12,8 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
 import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
+import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import { SEGMENTATION_NO_SAM_WARNING } from 'dive-common/recipes/segmentationpointclick';
 import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
   runTextQueryPipeline,
@@ -99,6 +97,7 @@ export default defineComponent({
       return props.id;
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const textQueryRunning = ref(false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
     // Watch the viewer's trackFilters.timeFilters and sync to local ref
@@ -133,6 +132,33 @@ export default defineComponent({
     }
 
     /**
+     * Build a function that resolves frame numbers to image file paths from dataset metadata.
+     */
+    function buildImagePathGetter(meta: {
+      originalBasePath: string;
+      originalImageFiles: string[];
+      type: string;
+      originalVideoFile?: string;
+    }): (frameNum: number) => string {
+      const {
+        originalBasePath, originalImageFiles, type, originalVideoFile,
+      } = meta;
+      return (frameNum: number): string => {
+        if (type === 'video') {
+          return npath.join(originalBasePath, originalVideoFile || '');
+        }
+        if (originalImageFiles && originalImageFiles[frameNum]) {
+          const imagePath = originalImageFiles[frameNum];
+          if (npath.isAbsolute(imagePath)) {
+            return imagePath;
+          }
+          return npath.join(originalBasePath, imagePath);
+        }
+        return '';
+      };
+    }
+
+    /**
      * Initialize segmentation recipe with platform-specific functions
      */
     async function initializeSegmentation() {
@@ -142,43 +168,72 @@ export default defineComponent({
       }
 
       try {
-        // Load metadata to get image paths
+        // Load base metadata to check for multicam
         const meta = await loadMetadata(props.id);
-        const { originalBasePath, originalImageFiles, type } = meta;
 
-        // Create image path getter based on dataset type
-        const getImagePath = (frameNum: number): string => {
-          if (type === 'video') {
-            // For video, we need to extract frames - this is more complex
-            // For now, return the video path (segmentation would need frame extraction)
-            return npath.join(originalBasePath, meta.originalVideoFile);
+        let getImagePath: (frameNum: number) => string;
+
+        if (meta.multiCamMedia) {
+          // Multicam: load per-camera metadata and build per-camera getters
+          const { cameras } = meta.multiCamMedia;
+          const cameraNames = Object.keys(cameras);
+          for (let i = 0; i < cameraNames.length; i += 1) {
+            const cam = cameraNames[i];
+            // eslint-disable-next-line no-await-in-loop
+            const camMeta = await loadMetadata(`${props.id}/${cam}`);
+            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+            if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
           }
-          // For image sequences, return the image file path
-          if (originalImageFiles && originalImageFiles[frameNum]) {
-            const imagePath = originalImageFiles[frameNum];
-            // Handle both relative and absolute paths
-            if (npath.isAbsolute(imagePath)) {
-              return imagePath;
+          // Dynamic getter that reads selectedCamera at call time
+          getImagePath = (frameNum: number): string => {
+            const cam = viewerRef.value?.selectedCamera;
+            if (cam && stereoImagePathGetters.value[cam]) {
+              return stereoImagePathGetters.value[cam](frameNum);
             }
-            return npath.join(originalBasePath, imagePath);
-          }
-          return '';
-        };
+            return '';
+          };
+        } else {
+          // Single cam: use base metadata directly
+          const singleGetter = buildImagePathGetter(meta);
+          getImagePath = singleGetter;
+          // Also cache for text query and video frame usage
+          cachedMeta = {
+            originalBasePath: meta.originalBasePath,
+            originalImageFiles: meta.originalImageFiles,
+            type: meta.type,
+            originalVideoFile: meta.originalVideoFile,
+            fps: meta.fps,
+            originalFps: meta.originalFps,
+          };
+        }
+
+        // Build frame time getter for video seek support
+        const getFrameTime = cachedMeta?.type === 'video' && cachedMeta.fps
+          ? (fNum: number) => fNum / (cachedMeta!.fps || 1)
+          : undefined;
 
         // Initialize the recipe
-        // Desktop uses imagePath from the request, so we ignore the frameNum parameter
         viewerRef.value.segmentationRecipe.initialize({
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           predictFn: (request: SegmentationPredictRequest, _frameNum: number) => segmentationPredict(request),
           getImagePath,
-          // Initialize the segmentation service when the recipe is activated (user clicks Segment button)
-          // Check if already ready to avoid showing loading indicator unnecessarily
+          getFrameTime,
           initializeServiceFn: async () => {
             const status = await segmentationIsReady();
             if (status.ready) {
               return;
             }
-            await segmentationInitialize();
+            const result = await segmentationInitialize();
+            const extended = result as { success: boolean; noSamInstalled?: boolean };
+            if (extended.noSamInstalled) {
+              prompt({
+                title: 'Segmentation Info',
+                text: [SEGMENTATION_NO_SAM_WARNING],
+              });
+            }
+            if (!result.success) {
+              throw new Error('Segmentation initialization failed');
+            }
           },
         });
       } catch {
@@ -192,28 +247,28 @@ export default defineComponent({
       originalImageFiles: string[];
       type: string;
       originalVideoFile?: string;
+      fps?: number;
+      originalFps?: number;
     } | null = null;
 
     /**
      * Get image path for a given frame number
      */
     function getImagePathForFrame(frameNum: number): string {
+      // Multicam: use per-camera getter based on selected camera
+      const getters = stereoImagePathGetters.value;
+      if (Object.keys(getters).length > 0) {
+        const cam = viewerRef.value?.selectedCamera;
+        if (cam && getters[cam]) {
+          return getters[cam](frameNum);
+        }
+        return '';
+      }
+      // Single cam: use cached metadata
       if (!cachedMeta) {
         return '';
       }
-      const { originalBasePath, originalImageFiles, type } = cachedMeta;
-      if (type === 'video') {
-        // Video datasets require frame extraction - not yet supported
-        return npath.join(originalBasePath, cachedMeta.originalVideoFile || '');
-      }
-      if (originalImageFiles && originalImageFiles[frameNum]) {
-        const imagePath = originalImageFiles[frameNum];
-        if (npath.isAbsolute(imagePath)) {
-          return imagePath;
-        }
-        return npath.join(originalBasePath, imagePath);
-      }
-      return '';
+      return buildImagePathGetter(cachedMeta)(frameNum);
     }
 
     /**
@@ -222,25 +277,65 @@ export default defineComponent({
     async function handleTextQuerySubmit(params: {
       text: string;
       boxThreshold: number;
-      frameNum: number;
     }) {
-      const { text, boxThreshold, frameNum } = params;
+      const { text, boxThreshold } = params;
+      const frameNum = viewerRef.value?.aggregateController?.frame?.value ?? 0;
+      textQueryRunning.value = true;
 
-      // Ensure metadata is loaded
-      if (!cachedMeta) {
+      // Verify the segmentation service is ready before attempting a text query
+      try {
+        const status = await segmentationIsReady();
+        if (!status.ready) {
+          await prompt({
+            title: 'Text Query Error',
+            text: [
+              'The text query service is not available.',
+              'Please install the SAM3 add-on from the VIAME add-on repository and ensure you have enough video RAM to run it.',
+            ],
+          });
+          textQueryRunning.value = false;
+          return;
+        }
+      } catch {
+        await prompt({
+          title: 'Text Query Error',
+          text: [
+            'Could not verify text query service status.',
+            'Please install the SAM3 add-on from the VIAME add-on repository.',
+          ],
+        });
+        textQueryRunning.value = false;
+        return;
+      }
+
+      // Ensure metadata is loaded (either stereoImagePathGetters for multicam or cachedMeta for single)
+      if (Object.keys(stereoImagePathGetters.value).length === 0 && !cachedMeta) {
         try {
           const meta = await loadMetadata(props.id);
-          cachedMeta = {
-            originalBasePath: meta.originalBasePath,
-            originalImageFiles: meta.originalImageFiles,
-            type: meta.type,
-            originalVideoFile: meta.originalVideoFile,
-          };
+          if (meta.multiCamMedia) {
+            const { cameras } = meta.multiCamMedia;
+            const cameraNames = Object.keys(cameras);
+            for (let i = 0; i < cameraNames.length; i += 1) {
+              const cam = cameraNames[i];
+              // eslint-disable-next-line no-await-in-loop
+              const camMeta = await loadMetadata(`${props.id}/${cam}`);
+              stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+              if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
+            }
+          } else {
+            cachedMeta = {
+              originalBasePath: meta.originalBasePath,
+              originalImageFiles: meta.originalImageFiles,
+              type: meta.type,
+              originalVideoFile: meta.originalVideoFile,
+            };
+          }
         } catch {
           await prompt({
             title: 'Text Query Error',
             text: ['Failed to load dataset metadata for text query.'],
           });
+          textQueryRunning.value = false;
           return;
         }
       }
@@ -251,6 +346,7 @@ export default defineComponent({
           title: 'Text Query Error',
           text: ['Could not determine image path for current frame.'],
         });
+        textQueryRunning.value = false;
         return;
       }
 
@@ -260,6 +356,9 @@ export default defineComponent({
           text,
           boxThreshold,
           maxDetections: 10,
+          frameTime: cachedMeta?.type === 'video' && cachedMeta.fps
+            ? frameNum / cachedMeta.fps
+            : undefined,
         });
 
         if (!response.success) {
@@ -348,6 +447,12 @@ export default defineComponent({
           title: 'Text Query Error',
           text: [`Failed to execute text query: ${error}`],
         });
+      } finally {
+        // Exit edit/draw mode after text query completes (success or failure)
+        if (viewerRef.value?.handler) {
+          viewerRef.value.handler.trackAbort();
+        }
+        textQueryRunning.value = false;
       }
     }
 
@@ -364,20 +469,20 @@ export default defineComponent({
       try {
         // Check if the service is already ready
         const status = await segmentationIsReady();
-        if (status.ready) {
-          viewerRef.value?.onTextQueryServiceReady(true);
-          return;
+        if (!status.ready) {
+          // Try to initialize the service
+          await segmentationInitialize();
         }
-
-        // Try to initialize the service
-        await segmentationInitialize();
+        // Verify text query is specifically available by checking the service status
+        const updatedStatus = await segmentationIsReady();
+        if (!updatedStatus.ready) {
+          throw new Error('Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.');
+        }
         viewerRef.value?.onTextQueryServiceReady(true);
       } catch (error) {
-        // Provide text-query specific error message instead of generic segmentation error
-        const rawMessage = error instanceof Error ? error.message : '';
-        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
-          ? 'Unable to load text query model. Please ensure the service is properly configured.'
-          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
+        const errorMessage = error instanceof Error
+          ? error.message
+          : 'Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.';
         viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
       }
     }
@@ -418,45 +523,41 @@ export default defineComponent({
 
     // Cache image path getters per camera for stereo frame setting
     const stereoImagePathGetters = ref({} as Record<string, (frameNum: number) => string>);
+    // Cache per-camera FPS for video frame time computation
+    const stereoCameraFps = ref({} as Record<string, number>);
 
     function closeStereoLoadingDialog() {
       stereoLoadingDialog.value = false;
       stereoLoadingError.value = '';
     }
 
+    // Calibration file path for stereo matching
+    let stereoCalibrationFile: string | undefined;
+
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Load multicam metadata for both cameras to build image path getters.
+     * Also extracts the calibration file path from the dataset metadata.
      */
     async function loadStereoMetadata() {
       try {
         const meta = await loadMetadata(props.id);
         if (!meta.multiCamMedia) return;
 
+        // Extract calibration file path from multiCam metadata
+        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+
+        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+        if (Object.keys(stereoImagePathGetters.value).length > 0) return;
+
         const { cameras } = meta.multiCamMedia;
         const cameraNames = Object.keys(cameras);
 
         for (let i = 0; i < cameraNames.length; i += 1) {
           const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
           // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadMetadata(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return npath.join(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (npath.isAbsolute(imagePath)) {
-                return imagePath;
-              }
-              return npath.join(originalBasePath, imagePath);
-            }
-            return '';
-          };
+          const camMeta = await loadMetadata(`${props.id}/${cam}`);
+          stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+          if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
         }
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
@@ -475,7 +576,7 @@ export default defineComponent({
 
         try {
           await loadStereoMetadata();
-          const result = await stereoEnable();
+          const result = await stereoEnable(undefined, stereoCalibrationFile);
           if (!result.success) {
             throw new Error(result.error || 'Failed to enable stereo service');
           }
@@ -492,7 +593,9 @@ export default defineComponent({
               const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
               if (leftPath && rightPath) {
                 lastStereoFrame = frameNum;
-                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+                const fps0 = stereoCameraFps.value[cameras[0]];
+                const ft = fps0 ? frameNum / fps0 : undefined;
+                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
                   console.warn('[Stereo] Failed to set initial frame:', err);
                 });
               }
@@ -525,7 +628,9 @@ export default defineComponent({
       const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
 
       if (leftPath && rightPath) {
-        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath }).catch((err) => {
+        const fps0 = stereoCameraFps.value[cameras[0]];
+        const ft = fps0 ? frameNum / fps0 : undefined;
+        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
           console.warn('[Stereo] Failed to set frame:', err);
         });
       }
@@ -610,21 +715,38 @@ export default defineComponent({
           // Get or create the track on the other camera and set the warped line
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
-            const lineGeometry: GeoJSON.Feature[] = [{
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: response.transferredLine,
+            const [p1, p2] = response.transferredLine;
+            const lineGeometry: GeoJSON.Feature[] = [
+              {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: response.transferredLine },
+                properties: { key: params.key },
               },
-              properties: { key: '' },
-            }];
+              {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p1[0], p1[1]] },
+                properties: { key: HeadPointKey },
+              },
+              {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p2[0], p2[1]] },
+                properties: { key: TailPointKey },
+              },
+            ];
 
-            // Compute bounds from the transferred line
-            const xs = response.transferredLine.map((p: [number, number]) => p[0]);
-            const ys = response.transferredLine.map((p: [number, number]) => p[1]);
+            // Compute bounds from the transferred line with 10% expansion
+            // to match the expansion applied on the source camera side (headtail.ts)
+            const minX = Math.min(p1[0], p2[0]);
+            const minY = Math.min(p1[1], p2[1]);
+            const maxX = Math.max(p1[0], p2[0]);
+            const maxY = Math.max(p1[1], p2[1]);
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const padX = width * 0.10 || height * 0.10;
+            const padY = height * 0.10 || width * 0.10;
             const bounds = [
-              Math.min(...xs), Math.min(...ys),
-              Math.max(...xs), Math.max(...ys),
+              minX - padX, minY - padY,
+              maxX + padX, maxY + padY,
             ] as [number, number, number, number];
 
             track.setFeature({
@@ -797,93 +919,31 @@ export default defineComponent({
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
-<<<<<<< HEAD
-      timeFilter,
-=======
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      textQueryRunning,
+      timeFilter,
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
       stereoLoadingError,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
->>>>>>> dev/add-interactive-seg-and-stereo
     };
   },
 });
 </script>
 
 <template>
-<<<<<<< HEAD
-  <Viewer
-    :id.sync="id"
-    ref="viewerRef"
-    :read-only-mode="readOnlyMode || runningPipelines.length > 0"
-    @change-camera="changeCamera"
-    @large-image-warning="largeImageWarning()"
-  >
-    <template #title>
-      <v-tabs
-        icons-and-text
-        hide-slider
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="{ name: 'recent' }">
-          Library
-          <v-icon>mdi-folder-open</v-icon>
-        </v-tab>
-        <job-tab />
-        <v-tab :to="{ name: 'training' }">
-          Training<v-icon>mdi-brain</v-icon>
-        </v-tab>
-        <v-tab :to="{ name: 'settings' }">
-          Settings<v-icon>mdi-cog</v-icon>
-        </v-tab>
-      </v-tabs>
-    </template>
-    <template #title-right>
-      <RunPipelineMenu
-        :selected-dataset-ids="[modifiedId]"
-        :sub-type-list="subTypeList"
-        :camera-numbers="camNumbers"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="readOnlyMode"
-        :time-filter="timeFilter"
-        v-bind="{ buttonOptions, menuOptions }"
-      />
-      <ImportAnnotations
-        :dataset-id="modifiedId"
-        v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
-        block-on-unsaved
-      />
-      <Export
-        v-if="datasets[id]"
-        :id="modifiedId"
-        :button-options="buttonOptions"
-      />
-    </template>
-    <template #right-sidebar>
-      <SidebarContext>
-        <template #default="{ name, subCategory }">
-          <component
-            :is="name"
-            :sub-category="subCategory"
-          />
-        </template>
-      </SidebarContext>
-    </template>
-  </Viewer>
-=======
   <div class="viewer-loader-wrapper">
     <Viewer
       :id.sync="id"
       ref="viewerRef"
-      :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :read-only-mode="readOnlyMode || runningPipelines.length > 0 || textQueryRunning"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
-      @text-query-submit="handleTextQuerySubmit"
+      @text-query="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
@@ -914,6 +974,7 @@ export default defineComponent({
           :camera-numbers="camNumbers"
           :running-pipelines="runningPipelines"
           :read-only-mode="readOnlyMode"
+          :time-filter="timeFilter"
           v-bind="{ buttonOptions, menuOptions }"
         />
         <ImportAnnotations
@@ -927,8 +988,8 @@ export default defineComponent({
           :button-options="buttonOptions"
         />
       </template>
-      <template #right-sidebar>
-        <SidebarContext>
+      <template #right-sidebar="{ sidebarMode }">
+        <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
           <template #default="{ name, subCategory }">
             <component
               :is="name"
@@ -977,7 +1038,6 @@ export default defineComponent({
       </v-card>
     </v-dialog>
   </div>
->>>>>>> dev/add-interactive-seg-and-stereo
 </template>
 
 <style scoped>
