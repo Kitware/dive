@@ -99,6 +99,9 @@ services:
   girder_worker_default:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+      - cpu
     deploy: {}
     volumes:
       # readwrite because this worker does addon updates

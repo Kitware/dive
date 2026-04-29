@@ -33,20 +33,20 @@ DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management
 
 DIVE supports two Docker Compose modes:
 
-* **Default mode (no profile):** starts the web stack and the standard worker (`girder_worker_default`) for non-GPU/background tasks.
-* **GPU mode (`--profile gpu`):** also starts GPU workers (`girder_worker_pipelines`, `girder_worker_training`) for VIAME pipelines and training.
+* **Default mode (GPU-enabled):** starts the web stack, the standard worker, and GPU workers (`girder_worker_pipelines`, `girder_worker_training`) for VIAME pipelines and training.
+* **CPU-only mode (`--profile cpu`):** starts only the standard worker (`girder_worker_default`) and omits GPU workers.
 
 ### Commands
 
 ```bash
-# Default mode (no GPU workers)
+# Default mode (GPU-enabled workers)
 docker compose up -d
 
-# GPU mode (includes pipeline/training workers)
-docker compose --profile gpu up -d
+# CPU-only mode
+docker compose --profile cpu up -d
 ```
 
-When GPU workers are not running, the web UI and API automatically disable pipeline and training actions.
+When GPU workers are not running (for example, in CPU-only mode), the web UI and API automatically disable pipeline and training actions.
 
 ## Example Data
 

@@ -63,20 +63,20 @@ VIAME server will be running at [http://localhost:8010](http://localhost:8010/).
 
 There are two ways to run the stack:
 
-* **Default (no profile):** runs the web services and the standard worker only.
-* **GPU profile (`--profile gpu`):** additionally runs `girder_worker_pipelines` and `girder_worker_training`.
+* **Default (GPU-enabled):** runs the web services, the standard worker, and GPU workers.
+* **CPU profile (`--profile cpu`):** runs only the standard worker (`girder_worker_default`).
 
 Use these commands:
 
 ```bash
-# Default mode (no GPU pipeline/training workers)
+# Default mode (GPU-enabled pipeline/training workers)
 docker-compose -f docker-compose.yml up -d
 
-# GPU mode (enable pipeline/training workers)
-docker-compose -f docker-compose.yml --profile gpu up -d
+# CPU-only mode
+docker-compose -f docker-compose.yml --profile cpu up -d
 ```
 
-When the GPU profile is not enabled (or GPU workers are otherwise not connected), the UI and API automatically disable pipeline and training features.
+When GPU workers are not connected (for example, in CPU-only mode), the UI and API automatically disable pipeline and training features.
 
 ![Login Page](images/General/login.png)
 
@@ -113,7 +113,7 @@ It's possible to split your web server and task runner between multiple nodes.  
 docker-compose -f docker-compose.yml up -d girder rabbit
 
 ## On the GPU server(s)
-docker-compose -f docker-compose.yml --profile gpu up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
+docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
 ```
 
 In this split setup, `girder_worker_default` handles standard queue jobs while the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
