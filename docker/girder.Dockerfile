@@ -1,7 +1,7 @@
 # ========================
 # == CLIENT BUILD STAGE ==
 # ========================
-FROM node:20 as client-builder
+FROM node:20 AS client-builder
 WORKDIR /app
 
 # Install dependencies
@@ -12,7 +12,7 @@ COPY .git/ /app/.git/
 COPY client/ /app/
 RUN npm run build:web
 
-from node:20 as girder-client-builder
+FROM node:20 AS girder-client-builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y git
 # make sure I clone 
