@@ -14,17 +14,24 @@ const processChunk = (chunk: Buffer) => chunk
   .split('\n')
   .filter((a) => a);
 
-function isDev() {
-  return process.env.NODE_ENV !== 'production';
-}
-
 function getBinaryPath(name: string) {
   const platform = process.env.npm_config_platform || os.platform();
   const filename = platform === 'win32' ? `${name}.exe` : name;
-  if (isDev()) {
-    return path.join(__dirname, '..', 'node_modules', filename);
-  }
-  return path.join(process.resourcesPath, filename);
+  const base = path.basename(filename);
+  const { resourcesPath } = process;
+  const candidates = [
+    ...(resourcesPath
+      ? [
+        path.join(resourcesPath, 'ffmpeg-ffprobe-static', base),
+        path.join(resourcesPath, filename),
+      ]
+      : []),
+    path.resolve(process.cwd(), 'node_modules', filename),
+    path.resolve(__dirname, '..', '..', 'node_modules', filename),
+    path.resolve(__dirname, '..', 'node_modules', filename),
+  ];
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return existing || candidates[0];
 }
 
 /**
@@ -158,7 +165,6 @@ async function updateJobFilesOnCancel(workingDir: string): Promise<void> {
 }
 
 export {
-  isDev,
   getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,

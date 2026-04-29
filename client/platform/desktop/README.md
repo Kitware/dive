@@ -11,29 +11,79 @@
 
 ## General architecture
 
-Electron applications are comprised of two main threads
+A DIVE Desktop build is a normal Electron app with **three separate Vite targets** (main, preload, renderer):
 
-* a node.js main thread with full access to the node environment
-* a renderer thread which is like a browser tab that runs under a stricter security policy
+* **Main process** — Node.js, full OS and Node APIs. Owns the window, starts the embedded HTTP server, registers `ipcMain` handlers, and runs desktop-only backend code under `backend/`.
+* **Preload script** — A small bundle that runs in an isolated world before the renderer loads. It is the only place that may call Node/Electron APIs on behalf of the UI; it exposes a vetted API on `window.diveDesktop` via `contextBridge`.
+* **Renderer process** — The Vue UI (`desktop.html` and the desktop frontend). It behaves like a browser tab: **no Node integration**, **context isolation enabled**. It talks to the main process only through `window.diveDesktop` and to the local backend over HTTP.
 
-Due to security concerns in the renderer thread, this app uses a small embedded node.js webserver to serve media content (images and videos) from disk.  This is actually the most reasonable way to stream bytes with range requests into a browser environment.
+Because the renderer cannot read the filesystem directly, the app runs a small **Express server inside the main process** to stream media (range requests), expose REST-shaped dataset routes, and handle large payloads more comfortably than raw IPC.
 
-* The common frontend api is implemented in `api/`
-* The backend services are implemented in `backend/`
+* Shared web/client logic lives under `src/` and `dive-common/`; the **desktop-specific frontend adapter** (IPC + axios to the local server) is `frontend/api.ts`.
+* **Desktop backend** (filesystem, jobs, platform helpers) lives under `backend/`.
+
+## Configuration and build (client package root)
+
+Tooling paths are relative to the **`client/`** directory (the npm package that owns Electron).
+
+### `client/electron.vite.config.ts`
+
+[electron-vite](https://electron-vite.org/) reads this file for `electron-vite dev` and `electron-vite build`. It defines three builds:
+
+| Target | Source | Output | Role |
+|--------|--------|--------|------|
+| **main** | `platform/desktop/background.ts` | `client/.electron/main/background.js` | Electron entry; window, lifecycle, starts server + IPC |
+| **preload** | `platform/desktop/preload.ts` | `client/.electron/main/preload.js` | `contextBridge` → `window.diveDesktop` |
+| **renderer** | `desktop.html` (Vue app) | `client/dist_desktop/` | Packaged UI assets (`base: './'` for `file://` loading) |
+
+The renderer section also configures the **dev server** (host/port from `VITE_PORT`, optional `VITE_API_PROXY_TARGET` for Girder when developing against a remote API).
+
+### `client/electron-builder.json`
+
+After `electron-vite build`, **`electron-builder --config electron-builder.json`** produces installers under `client/dist_electron/`. Important fields:
+
+* **`files`** — Ships `dist_desktop/**`, `.electron/main/**`, `node_modules/**`, and `package.json` into the app bundle.
+* **`extraMetadata.main`** — Sets the packaged app entry to `.electron/main/background.js` (overriding the library `main` field used for the npm package).
+* **`extraFiles`** — Bundles static ffmpeg/ffprobe binaries for media tooling.
+* **`directories.buildResources`** — Icons and other assets under `platform/desktop/buildResources`.
+
+### npm scripts (in `client/package.json`)
+
+* **`serve:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env).
+* **`build:electron`** — `electron-vite build` then `electron-builder --config electron-builder.json`.
+
+## Main process, preload, and renderer
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Main (background.ts)                                             │
+│  • BrowserWindow + session                                       │
+│  • backend/server.ts  → Express on localhost (dataset REST, media)│
+│  • backend/ipcService.ts → ipcMain.handle / ipcMain.on           │
+└───────────────┬───────────────────────────────┬───────────────────┘
+                │ preload.js (contextBridge)     │ HTTP
+                ▼                                ▼
+┌───────────────────────────────┐    ┌─────────────────────────────┐
+│ Renderer (Vue, desktop.html)   │    │ axios baseURL http://host:  │
+│  window.diveDesktop.invoke…    │    │ port/api (after server-info) │
+└───────────────────────────────┘    └─────────────────────────────┘
+```
+
+* **`background.ts`** creates the window with `nodeIntegration: false`, `contextIsolation: true`, and `preload` pointing at `preload.js` next to the compiled main bundle. It calls `listen()` from `backend/server.ts` and `ipcListen()` from `backend/ipcService.ts`. In development it loads `desktop.html` from the Vite dev server URL; when packaged it loads `dist_desktop/desktop.html` from disk.
+* **`preload.ts`** exposes `window.diveDesktop`: thin wrappers around `ipcRenderer.invoke`, `send`, `on`, plus helpers for native dialogs, app paths, and a small `runtime` snapshot. Types for the renderer are in `client/src/@types/desktop-preload.d.ts`.
+* **Renderer** uses `frontend/api.ts`: IPC for commands and structured work (pipelines, import/export, `server-info`, etc.), and **HTTP** (axios) for metadata saves and other `/api/...` routes served by Express. Some operations use IPC even when data is large (for example `load-detections` is handled in main via `common.loadDetections`); streaming media goes through the HTTP `/api/media` path.
+
+## IPC, HTTP, and data flow
+
+* **IPC (`ipcMain` / `window.diveDesktop`)** — Good for control messages, dialogs, job orchestration, and returning JSON that has already been read or produced in main. Handlers are registered in `backend/ipcService.ts`; the preload keeps the renderer from importing Electron directly.
+* **HTTP (Express in main)** — Used for dataset-style REST endpoints and **range requests** for video/images (`backend/server.ts`). The renderer obtains `host:port` via the `server-info` IPC handler, then builds an axios client with `baseURL` `http://…/api`.
+* **Main → renderer** — `background.ts` can push updates with `webContents.send` (for example job progress); the preload’s `on` API subscribes on the renderer side.
+
+Older notes still apply: avoid blocking synchronous IPC for anything non-trivial; prefer async IPC or HTTP for heavier work.
 
 ## Desktop Dependencies
 
 Currently, desktop-only dependencies are installed into devdependencies and linting errors are ignored inline.  This is to prevent desktop's dependencies from polluting the installation of `vue-media-annotator` from NPM.  Separating the many packaging needs of this project is an open discussion.
-
-## IPC and data flow
-
-Several kinds of inter-process communication are used between renderer and main.
-
-* Synchronous IPC for short messages that resolve quickly.  Blocking IPC should generally be avoided.
-* Asynchronous IPC for short messages that take longer.  This will be the majority of cases.
-* HTTP Service running in main for very long messages.  IPC isn't good for passing large blobs.
-  * Mostly used to read images and video from disk.
-* Direct use of node.js native libraries from renderer, for loading large blobs to and from disk where streaming isn't useful.  HTTP is used for range queries, but for annotation files, there is no benefit to using the HTTP interface over direct filesystem access since JSON files must be loaded into memory 100% to be useful.
 
 ## Platform-specific methods
 

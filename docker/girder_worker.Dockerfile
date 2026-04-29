@@ -12,12 +12,12 @@ RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
 # =================
 # == DIST WORKER ==
 # =================
-FROM kitware/viame:gpu-algorithms-web-cu11 AS worker
+FROM kitware/viame:gpu-algorithms-web AS worker
 # VIAME install at /opt/noaa/viame/
 # VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
 # install tini init system
-ENV TINI_VERSION v0.19.0
+ENV TINI_VERSION=v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
@@ -33,18 +33,17 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 RUN ln -fs /usr/bin/python3.10 /usr/bin/python
 WORKDIR /opt/dive/src
 
-RUN curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.8.3 POETRY_HOME=/opt/dive/poetry /usr/bin/python3.11 -
-ENV PATH="/opt/dive/poetry/bin:$PATH"
-# Create a virtual environment for the installation
-RUN /usr/bin/python3.11 -m venv --copies /opt/dive/local/venv
-# Poetry needs this set to recognize it as ane existing environment
+# Use a globally accessible uv binary (works before/after USER switch)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+RUN uv venv /opt/dive/local/venv
+ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
 # Copy only the lock and project files to optimize cache
-COPY server/pyproject.toml server/poetry.lock /opt/dive/src/
-# Use the system installation
-RUN poetry env use /usr/bin/python3.11
+COPY server/pyproject.toml server/uv.lock /opt/dive/src/
 # Install dependencies only
-RUN poetry install --no-root --verbose
+RUN uv sync --frozen --no-install-project --no-dev
 # Build girder client, including plugins like worker/jobs
 # RUN girder build
 
@@ -61,7 +60,7 @@ RUN chown -R dive /opt/dive/local/
 
 # Switch to the new user
 USER dive
-RUN poetry install --only main --verbose
+RUN uv sync --frozen --no-dev
 
 # Copy the built python installation
 # Copy ffmpeg

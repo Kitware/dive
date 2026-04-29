@@ -20,7 +20,6 @@ from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
-from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
@@ -199,6 +198,8 @@ def run_pipeline(
 
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
+    :param force_transcoded: Force transcoding input.
+    :param pipeline_params: Dict of key values containing user specified settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -357,9 +358,10 @@ def run_training(
         raise RestException(
             f'Output pipeline "{pipelineName}" already exists, please choose a different name'
         )
+    # Use a plain dict for model so serialization (Celery/MongoDB) never sees a Pydantic model
     fineTuneModel = None
     if bodyParams.fineTuneModel:
-        fineTuneModel = bodyParams.fineTuneModel
+        fineTuneModel = bodyParams.fineTuneModel.model_dump()
 
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],

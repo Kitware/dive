@@ -1,6 +1,5 @@
 <script lang="ts">
-import { shell } from 'electron';
-import moment, { utc } from 'moment';
+import moment from 'moment';
 import {
   defineComponent,
   ref,
@@ -39,7 +38,7 @@ export default defineComponent({
     }
 
     async function openPath(job: DesktopJob) {
-      if (job.workingDir) shell.openPath(job.workingDir);
+      if (job.workingDir) await window.diveDesktop.openPath(job.workingDir);
     }
 
     async function cancelInProgressJob(job: DesktopJob): Promise<void> {
@@ -54,7 +53,6 @@ export default defineComponent({
       recentHistory,
       gpuJobQueue,
       moment,
-      utc,
       visibleOutput,
       truncateOutputAtLines,
       /* methods */
@@ -189,7 +187,7 @@ export default defineComponent({
                   </v-icon>
                   <span>
                     {{
-                      utc(
+                      moment.utc(
                         moment(job.job.endTime || moment())
                           .diff(moment(job.job.startTime)),
                       )

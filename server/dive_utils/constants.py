@@ -143,5 +143,5 @@ UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'
 
 AddonsListURL = 'https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv'
 
-TrainingModelExtensions = (".zip", ".pth", ".pt", ".py", ".weights", ".wt")
+TrainingModelExtensions = (".zip", ".pth", ".pt", ".py", ".weights", ".wt", ".ckpt")
 MISALGINED_MARKER = "VideoMisaligned"

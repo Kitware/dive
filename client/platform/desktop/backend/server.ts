@@ -13,6 +13,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 import settings from './state/settings';
 import * as common from './native/common';
 import * as frameExtraction from './native/frameExtraction';
+import * as geotiffTiles from './tiles/geotiffTiles';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -201,6 +202,57 @@ apirouter.post('/prefetch-frames', async (req, res, next) => {
       statusMessage: `Failed to prefetch frames: ${err}`,
     });
   }
+  return null;
+});
+
+/* Large image (GeoTIFF) tiles - compatible with LargeImageAnnotator getTiles/getTileURL */
+apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const level = parseInt(req.params.level, 10);
+    const x = parseInt(req.params.x, 10);
+    const y = parseInt(req.params.y, 10);
+    if (Number.isNaN(level) || Number.isNaN(x) || Number.isNaN(y)) {
+      return next({ status: 400, statusMessage: 'Invalid level, x, or y' });
+    }
+    const png = await geotiffTiles.getTilePng(settings.get(), datasetId, level, x, y);
+    if (!png) {
+      console.warn(`[tiles] GET tile 404: datasetId=${datasetId} level=${level} x=${x} y=${y} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Tile not found or dataset is not a large image' });
+    }
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  } catch (err) {
+    console.error('[tiles] GET tile error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const meta = await geotiffTiles.getTilesMetadata(settings.get(), datasetId);
+    if (!meta) {
+      console.warn(`[tiles] GET tiles metadata 404: datasetId=${datasetId} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Dataset not found or is not a large image' });
+    }
+    if (meta.preconversionRequired && meta.error) {
+      console.warn(`[tiles] GET tiles metadata 422: datasetId=${datasetId} requires pre-conversion`);
+      return next({ status: 422, statusMessage: meta.error });
+    }
+    res.json(meta);
+  } catch (err) {
+    console.error('[tiles] GET tiles metadata error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
 });
 
 /* STREAM media */
@@ -273,7 +325,7 @@ apirouter.get('/media', (req, res, next) => {
   return null;
 });
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
   /**
    * CORS * is dangerous and should be disabled in production.
    * In prod, the app is loaded from file:/// which is not limited

@@ -1,10 +1,4 @@
-import type { FileFilter } from 'electron';
-
-import npath from 'path';
-import mime from 'mime-types';
 import axios, { AxiosInstance } from 'axios';
-import { ipcRenderer } from 'electron';
-import { dialog, app } from '@electron/remote';
 
 import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
@@ -16,7 +10,7 @@ import type {
 
 import {
   fileVideoTypes, calibrationFileTypes,
-  inputAnnotationFileTypes, listFileTypes, inputAnnotationTypes,
+  inputAnnotationFileTypes, listFileTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -27,9 +21,28 @@ import {
 
 import { gpuJobQueue, cpuJobQueue } from './store/jobs';
 
+interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+
+function getExtension(filePath: string) {
+  const normalized = filePath.replace(/\\/g, '/');
+  const filename = normalized.split('/').pop() || '';
+  const lastDot = filename.lastIndexOf('.');
+  return lastDot > -1 ? filename.slice(lastDot + 1).toLowerCase() : '';
+}
+
+function joinPath(dir: string, filename: string) {
+  const separator = dir.includes('\\') ? '\\' : '/';
+  return `${dir.replace(/[\\/]+$/, '')}${separator}${filename}`;
+}
+
 /**
  * Native functions that run entirely in the renderer
  */
+
+const largeImageFileExtensions = ['tif', 'tiff', 'geotiff'];
 
 async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
@@ -38,6 +51,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
     filters = [
       { name: 'Videos', extensions: fileVideoTypes },
       allFiles,
+    ];
+  }
+  if (datasetType === 'large-image') {
+    filters = [
+      { name: 'GeoTIFF / TIFF', extensions: largeImageFileExtensions },
     ];
   }
   if (datasetType === 'calibration') {
@@ -59,15 +77,24 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
     ];
   }
   const props = (['image-sequence', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
-  const results = await dialog.showOpenDialog({
+  const results = await window.diveDesktop.showOpenDialog({
     properties: [props],
     filters,
   });
   if (datasetType === 'annotation') {
+    const allowed = new Set(inputAnnotationFileTypes.map((ext) => ext.toLowerCase()));
     if (!results.filePaths.every(
-      (item) => inputAnnotationTypes.includes(mime.lookup(item).toString()),
+      (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'large-image') {
+    const allowed = new Set(largeImageFileExtensions.map((ext) => ext.toLowerCase()));
+    if (!results.filePaths.every(
+      (item) => allowed.has(getExtension(item)),
+    )) {
+      throw Error('File Types did not match TIFF/GeoTIFF');
     }
   }
   return results;
@@ -78,19 +105,19 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
  */
 
 function nvidiaSmi(): Promise<NvidiaSmiReply> {
-  return ipcRenderer.invoke('nvidia-smi');
+  return window.diveDesktop.invoke('nvidia-smi');
 }
 
 function openLink(url: string): Promise<void> {
-  return ipcRenderer.invoke('open-link-in-browser', url);
+  return window.diveDesktop.invoke('open-link-in-browser', url);
 }
 
 async function getPipelineList(): Promise<Pipelines> {
-  return ipcRenderer.invoke('get-pipeline-list');
+  return window.diveDesktop.invoke('get-pipeline-list');
 }
 
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
-  return ipcRenderer.invoke('get-training-configs');
+  return window.diveDesktop.invoke('get-training-configs');
 }
 
 async function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<void> {
@@ -139,74 +166,83 @@ async function runTraining(
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
-  return ipcRenderer.invoke('delete-trained-pipeline', pipeline);
+  return window.diveDesktop.invoke('delete-trained-pipeline', pipeline);
 }
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
-  return ipcRenderer.invoke('import-media', { path });
+  return window.diveDesktop.invoke('import-media', { path });
 }
 
 function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
-  return ipcRenderer.invoke('bulk-import-media', { path });
+  return window.diveDesktop.invoke('bulk-import-media', { path });
 }
 
 function deleteDataset(datasetId: string): Promise<boolean> {
-  return ipcRenderer.invoke('delete-dataset', { datasetId });
+  return window.diveDesktop.invoke('delete-dataset', { datasetId });
 }
 
 function checkDataset(datasetId: string): Promise<boolean> {
-  return ipcRenderer.invoke('check-dataset', { datasetId });
+  return window.diveDesktop.invoke('check-dataset', { datasetId });
 }
 
 function importMultiCam(args: MultiCamImportArgs):
    Promise<DesktopMediaImportResponse> {
-  return ipcRenderer.invoke('import-multicam-media', { args });
+  return window.diveDesktop.invoke('import-multicam-media', { args });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
-  return ipcRenderer.invoke('import-annotation', {
+  return window.diveDesktop.invoke('import-annotation', {
     id, path, additive, additivePrepend,
   });
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
   // Have this return JsonMeta as well as everything needed to start a job?
-  return ipcRenderer.invoke('finalize-import', args);
+  return window.diveDesktop.invoke('finalize-import', args);
 }
 
 async function convert(args: ConversionArgs): Promise<void> {
   cpuJobQueue.enqueue(args);
 }
 
-async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json'): Promise<string> {
-  const location = await dialog.showSaveDialog({
+async function exportDataset(id: string, exclude: boolean, typeFilter: readonly string[], type?: 'csv' | 'json' | 'coco'): Promise<string> {
+  let extension = 'csv';
+  if (type === 'json') {
+    extension = 'json';
+  } else if (type === 'coco') {
+    extension = 'coco.json';
+  }
+  const location = await window.diveDesktop.showSaveDialog({
     title: 'Export Dataset',
-    defaultPath: npath.join(app.getPath('home'), type === 'json' ? `result_${id}.json` : `result_${id}.csv`),
+    defaultPath: joinPath(
+      await window.diveDesktop.getAppPath('home'),
+      `result_${id}.${extension}`,
+    ),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportDatasetArgs = {
       id, exclude, path: location.filePath, typeFilter: new Set(typeFilter), type,
     };
-    return ipcRenderer.invoke('export-dataset', args);
+    return window.diveDesktop.invoke('export-dataset', args);
   }
   return '';
 }
 
 async function exportConfiguration(id: string): Promise<string> {
-  const location = await dialog.showSaveDialog({
+  const location = await window.diveDesktop.showSaveDialog({
     title: 'Export Configuration',
-    defaultPath: npath.join(app.getPath('home'), `${id}.config.json`),
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), `${id}.config.json`),
   });
   if (!location.canceled && location.filePath) {
     const args: ExportConfigurationArgs = { id, path: location.filePath };
-    return ipcRenderer.invoke('export-configuration', args);
+    return window.diveDesktop.invoke('export-configuration', args);
   }
   return '';
 }
 
 async function cancelJob(job: DesktopJob): Promise<void> {
-  return ipcRenderer.invoke('cancel-job', job);
+  return window.diveDesktop.invoke('cancel-job', job);
 }
 
 /**
@@ -418,19 +454,48 @@ function onStereoDisparityError(callback: (data: unknown) => void): () => void {
  * address details fetched from backend over ipc
  */
 let _axiosClient: AxiosInstance; // do not use elsewhere
+let _baseURL: string | null = null;
+
 async function getClient(): Promise<AxiosInstance> {
   if (_axiosClient === undefined) {
-    const addr = await ipcRenderer.invoke('server-info');
-    const baseURL = `http://${addr.address}:${addr.port}/api`;
-    _axiosClient = axios.create({ baseURL });
+    const addr = await window.diveDesktop.invoke('server-info');
+    _baseURL = `http://${addr.address}:${addr.port}/api`;
+    _axiosClient = axios.create({ baseURL: _baseURL });
   }
   return _axiosClient;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- projection kept for API compatibility
+async function getTiles(itemId: string, _projection?: string) {
+  const client = await getClient(); // ensures _baseURL is set for getTileURL
+  const { data } = await client.get(`dataset/${itemId}/tiles`);
+  return data;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTileURL(itemId: string, x: number, y: number, level: number, query: Record<string, any>): string {
+  if (!_baseURL) {
+    throw new Error('API not initialized: getTileURL called before any REST request');
+  }
+  const params = new URLSearchParams(query || {}).toString();
+  const suffix = params ? `?${params}` : '';
+  return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
 async function loadMetadata(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
   return data;
+}
+
+async function loadDetections(datasetId: string) {
+  const annotations = await window.diveDesktop.invoke('load-detections', { datasetId });
+  return {
+    version: annotations.version,
+    tracks: Object.values(annotations.tracks),
+    groups: Object.values(annotations.groups),
+    sets: [],
+  };
 }
 
 async function saveMetadata(id: string, args: DatasetMetaMutable) {
@@ -454,16 +519,17 @@ async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFil
 }
 
 function getLastCalibration(): Promise<string | null> {
-  return ipcRenderer.invoke('get-last-calibration');
+  return window.diveDesktop.invoke('get-last-calibration');
 }
 
 function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
-  return ipcRenderer.invoke('save-calibration', { path });
+  return window.diveDesktop.invoke('save-calibration', { path });
 }
 
 export {
   /* Standard Specification APIs */
   loadMetadata,
+  loadDetections,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
@@ -475,6 +541,8 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   openFromDisk,
+  getTiles,
+  getTileURL,
   /* Nonstandard APIs */
   exportDataset,
   exportConfiguration,

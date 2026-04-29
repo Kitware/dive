@@ -18,13 +18,13 @@ Follow the docs in the [Debug Utils and Command Line Tools](https://github.com/K
 ``` bash
 git clone https://github.com/Kitware/dive.git
 cd dive/server
-poetry install
+uv sync
 ```
 
 ## Usage
 
 ``` bash
-~$ poetry run dive convert --help
+~$ uv run dive convert --help
 
 # Usage: dive convert [OPTIONS] COMMAND [ARGS]...
 

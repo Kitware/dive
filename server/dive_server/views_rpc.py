@@ -77,7 +77,7 @@ class RpcResource(Resource):
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
         .jsonParam(
             "pipelineParams",
-            "Optional KWIVER -s parameter overrides from pipeline requirements",
+            "Optional KWIVER -s parameter overrides from pipeline specified parameters",
             required=False,
             default=None,
         )
@@ -89,7 +89,6 @@ class RpcResource(Resource):
         return crud_rpc.run_pipeline(
             self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range, pipelineParams
         )
-
 
     @access.user
     @autoDescribeRoute(

@@ -4,11 +4,13 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 __all__ = [
+    "DiveParam",
     "GirderModel",
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
     "PipelineRequirement",
+    "PipeMetadata",
 ]
 
 
@@ -61,9 +63,24 @@ class TrainingModelTuneArgs(TrainingModelDescription):
 class PipelineRequirement(TypedDict):
     """Describes a required user parameter for a pipeline."""
 
-    title: str  # display name shown in the GUI
-    kwiver_override: str  # kwiver -s override key (e.g. "track_refiner:refiner:sam3:text_query")
-    param_type: str  # parameter type: string, int, float, bool
+    title: str
+    kwiver_override: str
+    param_type: str
+
+
+class DiveParam(TypedDict):
+    label: str
+    type: str
+    type_props: list[str]
+    key: str
+    default: str
+
+
+class PipeMetadata(TypedDict):
+    description: Optional[str]
+    inputType: Optional[str]
+    outputType: Optional[str]
+    diveParams: Optional[list[DiveParam]]
 
 
 class PipelineDescription(TypedDict):
@@ -72,8 +89,9 @@ class PipelineDescription(TypedDict):
     name: str  # friendly name
     type: str  # indicates whether this is a dynamic pipe.
     pipe: str  # unmodified pipe file name
-    description: Optional[str]  # description extracted from pipe file header
-    requirements: Optional[List['PipelineRequirement']]  # user-prompted parameters
+    description: Optional[str]
+    requirements: Optional[List['PipelineRequirement']]
+    metadata: Optional[PipeMetadata]
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
@@ -90,9 +108,9 @@ class PipelineJob(TypedDict):
     output_folder: str  # Where to upload results
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
-    force_transcoded: Optional[bool]  # Force using the transcoded version
-    frame_range: Optional[Tuple[int, int]]  # (start_frame, end_frame) or None for full video
-    pipeline_params: Optional[Dict[str, str]]  # KWIVER -s overrides from user-prompted requirements
+    force_transcoded: Optional[bool]
+    frame_range: Optional[Tuple[int, int]]
+    pipeline_params: Optional[Dict[str, str]]
 
 
 class TrainingJob(TypedDict):

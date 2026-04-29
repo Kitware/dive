@@ -9,6 +9,7 @@ from dive_utils.types import (
     PipelineCategory,
     PipelineDescription,
     PipelineRequirement,
+    PipeMetadata,
     TrainingConfigurationSummary,
     TrainingModelDescription,
 )
@@ -127,6 +128,104 @@ def extract_pipe_requirements(pipe_path: Path) -> Optional[List[PipelineRequirem
         return None
 
 
+def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
+    metadata: PipeMetadata = {
+        "diveParams": []
+    }
+
+    context_stack: List[str] = []
+    in_description = False
+    full_description_parts: List[str] = []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line_raw = line.rstrip('\n\r')
+                trimmed = line_raw.strip()
+                if not trimmed:
+                    continue
+
+                process_match = re.match(r'^process\s+([\w-]+)', trimmed, re.IGNORECASE)
+                if process_match:
+                    context_stack = [process_match.group(1)]
+                    continue
+
+                block_match = re.match(r'^block\s+([\w:-]+)', trimmed, re.IGNORECASE)
+                if block_match:
+                    context_stack.append(block_match.group(1))
+                    continue
+
+                if trimmed.lower() == 'endblock':
+                    if context_stack:
+                        context_stack.pop()
+                    continue
+
+                dive_match = re.search(r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE)
+                if dive_match:
+                    label, raw_args = dive_match.groups()
+                    args = [arg.strip() for arg in raw_args.split(',')]
+                    param_type = args[0]
+                    pipeline_type_args = args[1:]
+
+                    param_line_match = re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed,
+                                                re.IGNORECASE)
+                    if param_line_match:
+                        local_key = param_line_match.group(1)
+                        default_val = param_line_match.group(2).strip()
+                        full_key = ":".join(context_stack + [local_key])
+
+                        metadata["diveParams"].append({
+                            "label": label,
+                            "type": param_type,
+                            "type_props": pipeline_type_args,
+                            "key": full_key,
+                            "default": default_val
+                        })
+
+                # --- Description extraction (Multiline) ---
+                desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)
+                if desc_start_match:
+                    in_description = True
+                    content = desc_start_match.group(1).strip()
+                    if content:
+                        full_description_parts.append(content)
+                    continue
+
+                if in_description:
+                    is_stop_condition = (
+                            re.match(r'^#\s*$', line_raw) or
+                            re.match(r'^#\s*=', line_raw) or
+                            re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE) or
+                            not line_raw.startswith('#')
+                    )
+
+                    if is_stop_condition:
+                        in_description = False
+                    else:
+                        continued_text = re.sub(r'^#\s*', '', line_raw).strip()
+                        if continued_text:
+                            full_description_parts.append(continued_text)
+
+                # --- Input / Output extraction ---
+                input_match = re.match(r'^#\s*Input:\s*(.*)', line_raw, re.IGNORECASE)
+                if input_match:
+                    metadata["inputType"] = input_match.group(1).strip()
+
+                output_match = re.match(r'^#\s*Output:\s*(.*)', line_raw, re.IGNORECASE)
+                if output_match:
+                    metadata["outputType"] = output_match.group(1).strip()
+
+        if full_description_parts:
+            metadata["description"] = " ".join(full_description_parts)
+        else:
+            metadata["description"] = None
+
+    except Exception as e:
+        print(f"Error while reading {file_path} metadata: {e}")
+
+    return metadata
+
+
 def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipedict: Dict[str, PipelineCategory] = {}
 
@@ -141,9 +240,9 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
         pipe = pipe_path.name
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
 
-        # Extract description and requirements from the pipe file
         description = extract_pipe_description(pipe_path)
         requirements = extract_pipe_requirements(pipe_path)
+        metadata = extract_pipe_metadata(pipe_path)
 
         pipe_info: PipelineDescription = {
             "name": " ".join(nameparts),
@@ -151,6 +250,7 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
             "pipe": pipe,
             "description": description,
             "requirements": requirements,
+            "metadata": metadata,
             "folderId": None,
         }
         print(f"Discovered pipe {pipe_info}")

@@ -11,6 +11,7 @@ export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
 export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
+export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
 export const LastCalibrationFileName = 'last_calibration.json';
 
@@ -91,6 +92,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // video file path
   // relative to originalBasePath
   originalVideoFile: string;
+
+  // large image (e.g. GeoTIFF) file path, relative to originalBasePath
+  originalLargeImageFile?: string;
 
   // output of web safe transcoding
   // relative to project path
@@ -182,7 +186,7 @@ export interface RunPipeline extends JobArgs {
   pipeline: Pipe;
   /** Optional parameters to pass to the pipeline via -s flags */
   pipelineParams?: Record<string, string>;
-  frameRange?: [number, number] | null; // (start_frame, end_frame) or null for full video
+  frameRange?: [number, number] | null;
   outputDatasetName?: string;
 }
 
@@ -279,7 +283,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
-    type?: 'csv' | 'json';
+    type?: 'csv' | 'json' | 'coco';
   }
 
 export interface ExportConfigurationArgs {
