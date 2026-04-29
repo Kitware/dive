@@ -467,6 +467,46 @@ export default defineComponent({
 
     watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
 
+    // Auto-save annotations when enabled. Skips firing while a save is
+    // already in flight; the saveInProgress watcher below re-arms it.
+    const debouncedAutoSave = debounce(
+      async () => {
+        if (readonlyState.value) return;
+        if (pendingSaveCount.value === 0) return;
+        if (saveInProgress.value) return;
+        await save(props.currentSet);
+      },
+      2000,
+      { trailing: true, leading: false },
+    );
+
+    watch(
+      pendingSaveCount,
+      (newCount, oldCount) => {
+        if (
+          clientSettings.autoSaveSettings.enabled
+          && newCount > oldCount
+          && newCount > 0
+          && !readonlyState.value
+        ) {
+          debouncedAutoSave();
+        }
+      },
+    );
+
+    // Flush pending edits once an in-flight save settles.
+    watch(saveInProgress, (nowSaving, wasSaving) => {
+      if (
+        wasSaving
+        && !nowSaving
+        && clientSettings.autoSaveSettings.enabled
+        && pendingSaveCount.value > 0
+        && !readonlyState.value
+      ) {
+        debouncedAutoSave();
+      }
+    });
+
     // Navigation Guards used by parent component
     async function warnBrowserExit(event: BeforeUnloadEvent) {
       if (pendingSaveCount.value === 0) return;
@@ -766,6 +806,7 @@ export default defineComponent({
       handleResize();
     });
     onBeforeUnmount(() => {
+      debouncedAutoSave.cancel();
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
