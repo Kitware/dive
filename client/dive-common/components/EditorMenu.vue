@@ -11,6 +11,7 @@ import { flatten } from 'lodash';
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
 
@@ -19,6 +20,7 @@ interface ButtonData {
   icon: string;
   type?: VisibleAnnotationTypes;
   active: boolean;
+  loading?: boolean;
   mousetrap?: Mousetrap[];
   description: string;
   click: () => void;
@@ -67,7 +69,14 @@ export default defineComponent({
       default: true,
     },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+    'text-query-init',
+    'text-query',
+    'text-query-all-frames',
+  ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -84,6 +93,59 @@ export default defineComponent({
     watch(isEditButtonsExpanded, (value) => {
       localStorage.setItem(STORAGE_KEY, String(value));
     });
+
+    // Text query state
+    const textQueryDialogOpen = ref(false);
+    const textQueryInput = ref('');
+    const textQueryLoading = ref(false);
+    const textQueryThreshold = ref(0.3);
+    const textQueryInitializing = ref(false);
+    const textQueryServiceError = ref('');
+    const textQueryAllFrames = ref(false);
+
+    const openTextQueryDialog = () => {
+      textQueryDialogOpen.value = true;
+      textQueryInput.value = '';
+      textQueryServiceError.value = '';
+      textQueryAllFrames.value = false;
+      textQueryInitializing.value = true;
+      emit('text-query-init');
+    };
+
+    const closeTextQueryDialog = () => {
+      textQueryDialogOpen.value = false;
+      textQueryInput.value = '';
+      textQueryServiceError.value = '';
+      textQueryInitializing.value = false;
+      textQueryAllFrames.value = false;
+    };
+
+    const onTextQueryServiceReady = (success: boolean, error?: string) => {
+      textQueryInitializing.value = false;
+      if (!success) {
+        textQueryServiceError.value = error || 'Text query service is not available';
+      }
+    };
+
+    const submitTextQuery = () => {
+      if (!textQueryInput.value.trim()) {
+        return;
+      }
+      textQueryLoading.value = true;
+      if (textQueryAllFrames.value) {
+        emit('text-query-all-frames', {
+          text: textQueryInput.value.trim(),
+          boxThreshold: textQueryThreshold.value,
+        });
+      } else {
+        emit('text-query', {
+          text: textQueryInput.value.trim(),
+          boxThreshold: textQueryThreshold.value,
+        });
+      }
+      closeTextQueryDialog();
+      textQueryLoading.value = false;
+    };
 
     const modeToolTips = {
       Creating: {
@@ -121,6 +183,7 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
+          loading: r.loading?.value ?? false,
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -134,7 +197,13 @@ export default defineComponent({
       ];
     });
 
-    const mousetrap = computed((): Mousetrap[] => flatten(editButtons.value.map((b) => b.mousetrap || [])));
+    const mousetrap = computed((): Mousetrap[] => [
+      ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
+      {
+        bind: 't',
+        handler: () => openTextQueryDialog(),
+      },
+    ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
 
@@ -159,6 +228,13 @@ export default defineComponent({
         };
       }
       return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
+    });
+
+    const activeSegmentationRecipe = computed((): SegmentationPointClick | null => {
+      const segRecipe = props.recipes.find(
+        (r) => r instanceof SegmentationPointClick && r.active.value,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe || null;
     });
 
     const editingTooltip = computed(() => {
@@ -194,6 +270,19 @@ export default defineComponent({
       toggleEditButtonsExpanded,
       activeEditButton,
       editButtonsMenuKey,
+      activeSegmentationRecipe,
+      // Text query
+      textQueryDialogOpen,
+      textQueryInput,
+      textQueryLoading,
+      textQueryThreshold,
+      textQueryInitializing,
+      textQueryServiceError,
+      textQueryAllFrames,
+      openTextQueryDialog,
+      closeTextQueryDialog,
+      onTextQueryServiceReady,
+      submitTextQuery,
     };
   },
 });
@@ -244,7 +333,7 @@ export default defineComponent({
         <template #activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
-            :disabled="!editingMode"
+            :disabled="!editingMode || activeEditButton?.loading"
             :outlined="!activeEditButton?.active"
             :color="activeEditButton?.active ? editingHeader.color : ''"
             class="mx-1"
@@ -252,7 +341,9 @@ export default defineComponent({
             v-on="on"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
+              {{ activeEditButton?.icon }}
+            </v-icon>
             <v-btn
               icon
               x-small
@@ -272,7 +363,7 @@ export default defineComponent({
           >
             <v-list-item-icon>
               <v-btn
-                :disabled="!editingMode"
+                :disabled="!editingMode || button.loading"
                 :outlined="!button.active"
                 :color="button.active ? editingHeader.color : ''"
                 class="mx-1"
@@ -280,7 +371,9 @@ export default defineComponent({
                 @click="button.click"
               >
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon>{{ button.icon }}</v-icon>
+                <v-icon :class="{ 'mdi-spin': button.loading }">
+                  {{ button.icon }}
+                </v-icon>
               </v-btn>
             </v-list-item-icon>
             <v-list-item-content>
@@ -311,7 +404,7 @@ export default defineComponent({
         <v-btn
           v-for="button in editButtons"
           :key="button.id + 'view'"
-          :disabled="!editingMode"
+          :disabled="!editingMode || button.loading"
           :outlined="!button.active"
           :color="button.active ? editingHeader.color : ''"
           class="mx-1"
@@ -319,10 +412,45 @@ export default defineComponent({
           @click="button.click"
         >
           <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
+          <v-icon :class="{ 'mdi-spin': button.loading }">
+            {{ button.icon }}
+          </v-icon>
         </v-btn>
       </template>
-      <slot name="delete-controls" />
+      <!-- Text Query button -->
+      <v-btn
+        outlined
+        class="mx-1"
+        small
+        @click="openTextQueryDialog"
+      >
+        <pre>T:</pre>
+        <v-icon>mdi-text-search</v-icon>
+      </v-btn>
+      <!-- Segmentation Reset button -->
+      <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-btn
+          color="error"
+          class="mx-1"
+          small
+          :disabled="!activeSegmentationRecipe.hasPoints()"
+          @click="activeSegmentationRecipe.resetPoints()"
+        >
+          <v-icon left>
+            mdi-close
+          </v-icon>
+          Reset
+        </v-btn>
+      </template>
+      <!-- Hide delete controls when in segmentation mode -->
+      <slot
+        v-if="!activeSegmentationRecipe"
+        name="delete-controls"
+      />
       <v-spacer />
       <slot name="multicam-controls" />
       <v-spacer />
@@ -335,6 +463,103 @@ export default defineComponent({
         @update:show-user-created-icon="$emit('update:show-user-created-icon', $event)"
       />
     </div>
+
+    <!-- Text Query Dialog -->
+    <v-dialog
+      v-model="textQueryDialogOpen"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          <v-icon left>
+            mdi-text-search
+          </v-icon>
+          Text Query
+        </v-card-title>
+        <v-card-text>
+          <!-- Loading state while initializing service -->
+          <div
+            v-if="textQueryInitializing"
+            class="text-center py-4"
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              size="48"
+            />
+            <p class="text-body-2 mt-3">
+              Loading text query model...
+            </p>
+          </div>
+          <!-- Error state if service failed to initialize -->
+          <div
+            v-else-if="textQueryServiceError"
+            class="text-center py-4"
+          >
+            <v-icon
+              color="error"
+              size="48"
+            >
+              mdi-alert-circle
+            </v-icon>
+            <p class="text-body-2 mt-3 error--text">
+              {{ textQueryServiceError }}
+            </p>
+          </div>
+          <!-- Normal input form when service is ready -->
+          <template v-else>
+            <p class="text-body-2 mb-3">
+              Enter a description of objects to find in the current frame.
+            </p>
+            <v-text-field
+              v-model="textQueryInput"
+              label="Object description"
+              placeholder="e.g., fish swimming near coral"
+              outlined
+              dense
+              autofocus
+              :disabled="textQueryLoading"
+              @keyup.enter="submitTextQuery"
+            />
+            <v-slider
+              v-model="textQueryThreshold"
+              label="Confidence threshold"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              thumb-label
+              :disabled="textQueryLoading"
+            />
+            <v-checkbox
+              v-model="textQueryAllFrames"
+              label="Apply to all frames"
+              hint="Run across all frames instead of only the current (this will run as a job)"
+              persistent-hint
+              :disabled="textQueryLoading"
+            />
+          </template>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            :disabled="textQueryLoading"
+            @click="closeTextQueryDialog"
+          >
+            {{ textQueryServiceError ? 'Close' : 'Cancel' }}
+          </v-btn>
+          <v-btn
+            v-if="!textQueryInitializing && !textQueryServiceError"
+            color="primary"
+            :loading="textQueryLoading"
+            :disabled="!textQueryInput.trim() || textQueryLoading"
+            @click="submitTextQuery"
+          >
+            Search
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-row>
 </template>
 

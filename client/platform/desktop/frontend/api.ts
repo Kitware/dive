@@ -4,6 +4,8 @@ import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
+  SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -244,6 +246,189 @@ async function cancelJob(job: DesktopJob): Promise<void> {
 }
 
 /**
+ * Interactive Segmentation API
+ */
+
+async function segmentationInitialize(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-initialize');
+}
+
+async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
+  return ipcRenderer.invoke('segmentation-predict', request);
+}
+
+async function segmentationSetImage(imagePath: string): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-set-image', imagePath);
+}
+
+async function segmentationClearImage(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-clear-image');
+}
+
+async function segmentationShutdown(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('segmentation-shutdown');
+}
+
+async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
+  return ipcRenderer.invoke('segmentation-is-ready');
+}
+
+/**
+ * Text Query API
+ * Allows open-vocabulary detection and segmentation using text prompts
+ */
+
+async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
+  return ipcRenderer.invoke('segmentation-text-query', request);
+}
+
+async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
+  return ipcRenderer.invoke('segmentation-refine', request);
+}
+
+/**
+ * Run text query pipeline on all frames
+ */
+async function runTextQueryPipeline(
+  datasetId: string,
+  queryText: string,
+  threshold?: number,
+): Promise<void> {
+  const pipeline: Pipe = {
+    name: 'Text Query',
+    pipe: 'utility_text_query.pipe',
+    type: 'utility',
+  };
+
+  const pipelineParams: Record<string, string> = {
+    'track_refiner:refiner:text_query': queryText,
+  };
+
+  if (threshold !== undefined) {
+    pipelineParams['track_refiner:refiner:detection_threshold'] = threshold.toString();
+  }
+
+  const args: RunPipeline = {
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId,
+    pipelineParams,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+/**
+ * Interactive Stereo API
+ */
+
+interface StereoCalibration {
+  fx_left: number;
+  fy_left?: number;
+  cx_left: number;
+  cy_left: number;
+  T: [number, number, number];
+}
+
+interface StereoSetFrameRequest {
+  leftImagePath: string;
+  rightImagePath: string;
+}
+
+interface StereoSetFrameResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  disparityReady: boolean;
+  message?: string;
+}
+
+interface StereoStatusResponse {
+  id: string;
+  success: boolean;
+  enabled: boolean;
+  disparityReady: boolean;
+  computing?: boolean;
+  currentLeftPath?: string;
+  currentRightPath?: string;
+  hasCalibration: boolean;
+}
+
+interface StereoTransferLineRequest {
+  line: [[number, number], [number, number]];
+}
+
+interface StereoTransferLineResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  transferredLine?: [[number, number], [number, number]];
+  originalLine?: [[number, number], [number, number]];
+  depthInfo?: {
+    depthPoint1: number | null;
+    depthPoint2: number | null;
+    disparityPoint1: number;
+    disparityPoint2: number;
+  };
+}
+
+interface StereoTransferPointsRequest {
+  points: [number, number][];
+}
+
+interface StereoTransferPointsResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  transferredPoints?: [number, number][];
+  originalPoints?: [number, number][];
+  disparityValues?: number[];
+}
+
+async function stereoEnable(calibration?: StereoCalibration): Promise<{ success: boolean; error?: string }> {
+  return ipcRenderer.invoke('stereo-enable', { calibration });
+}
+
+async function stereoDisable(): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('stereo-disable');
+}
+
+async function stereoSetFrame(request: StereoSetFrameRequest): Promise<StereoSetFrameResponse> {
+  return ipcRenderer.invoke('stereo-set-frame', request);
+}
+
+async function stereoGetStatus(): Promise<StereoStatusResponse> {
+  return ipcRenderer.invoke('stereo-get-status');
+}
+
+async function stereoTransferLine(request: StereoTransferLineRequest): Promise<StereoTransferLineResponse> {
+  return ipcRenderer.invoke('stereo-transfer-line', request);
+}
+
+async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
+  return ipcRenderer.invoke('stereo-transfer-points', request);
+}
+
+async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
+  return ipcRenderer.invoke('stereo-set-calibration', { calibration });
+}
+
+async function stereoIsEnabled(): Promise<{ enabled: boolean }> {
+  return ipcRenderer.invoke('stereo-is-enabled');
+}
+
+function onStereoDisparityReady(callback: (data: unknown) => void): () => void {
+  const handler = (_event: unknown, data: unknown) => callback(data);
+  ipcRenderer.on('stereo-disparity-ready', handler);
+  return () => ipcRenderer.removeListener('stereo-disparity-ready', handler);
+}
+
+function onStereoDisparityError(callback: (data: unknown) => void): () => void {
+  const handler = (_event: unknown, data: unknown) => callback(data);
+  ipcRenderer.on('stereo-disparity-error', handler);
+  return () => ipcRenderer.removeListener('stereo-disparity-error', handler);
+}
+
+/**
  * REST api for larger-body messages
  */
 
@@ -357,4 +542,26 @@ export {
   cancelJob,
   getLastCalibration,
   saveCalibration,
+  /* Segmentation APIs */
+  segmentationInitialize,
+  segmentationPredict,
+  segmentationSetImage,
+  segmentationClearImage,
+  segmentationShutdown,
+  segmentationIsReady,
+  /* Text Query APIs */
+  textQuery,
+  refineDetections,
+  runTextQueryPipeline,
+  /* Stereo APIs */
+  stereoEnable,
+  stereoDisable,
+  stereoSetFrame,
+  stereoGetStatus,
+  stereoTransferLine,
+  stereoTransferPoints,
+  stereoSetCalibration,
+  stereoIsEnabled,
+  onStereoDisparityReady,
+  onStereoDisparityError,
 };

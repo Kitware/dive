@@ -48,8 +48,18 @@ interface AnnotationSettings {
   multiCamSettings: {
     showToolbar: boolean;
   };
+<<<<<<< HEAD
   autoSaveSettings: {
     enabled: boolean;
+=======
+  layoutSettings: {
+    sidebarPosition: 'left' | 'bottom';
+  };
+  stereoSettings: {
+    interactiveModeEnabled: boolean;
+    loading: boolean;
+    loadingMessage: string;
+>>>>>>> dev/add-interactive-seg-and-stereo
   };
 }
 
@@ -109,8 +119,18 @@ const defaultSettings: AnnotationSettings = {
   multiCamSettings: {
     showToolbar: true,
   },
+<<<<<<< HEAD
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
+=======
+  layoutSettings: {
+    sidebarPosition: 'left',
+  },
+  stereoSettings: {
+    interactiveModeEnabled: false,
+    loading: false,
+    loadingMessage: '',
+>>>>>>> dev/add-interactive-seg-and-stereo
   },
 };
 
@@ -131,7 +151,16 @@ function loadStoredSettings(): Partial<AnnotationSettings> {
 function saveSettings() {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+      // Exclude transient stereo fields from persistence
+      const toSave = {
+        ...clientSettings,
+        stereoSettings: {
+          ...clientSettings.stereoSettings,
+          loading: false,
+          loadingMessage: '',
+        },
+      };
+      localStorage.setItem('Settings', JSON.stringify(toSave));
     }
   } catch (e) {
     console.warn('Failed to save settings to localStorage:', e);
