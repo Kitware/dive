@@ -36,15 +36,6 @@ interface AnnotationSchemaList {
   sets: string[];
 }
 
-interface PipelineRequirement {
-  /** Display name shown in the GUI */
-  title: string;
-  /** KWIVER -s override key (e.g. "track_refiner:refiner:sam3:text_query") */
-  kwiver_override: string;
-  /** Parameter type: string, int, float, bool */
-  param_type: string;
-}
-
 interface DiveParam {
   label: string;
   type: PipelineParamType;
@@ -64,8 +55,6 @@ interface Pipe {
   name: string;
   pipe: string;
   type: string;
-  description?: string;
-  requirements?: PipelineRequirement[];
   metadata?: PipeMetadata;
   folderId?: string;
   ownerId?: string;
@@ -393,7 +382,6 @@ export {
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
-  PipelineRequirement,
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,

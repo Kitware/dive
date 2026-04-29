@@ -8,7 +8,6 @@ from dive_utils.types import (
     AvailableJobSchema,
     PipelineCategory,
     PipelineDescription,
-    PipelineRequirement,
     PipeMetadata,
     TrainingConfigurationSummary,
     TrainingModelDescription,
@@ -35,97 +34,6 @@ DisallowedStaticPipelines = (
     r".*[2|3]-cam\.pipe"
 )
 
-
-def extract_pipe_description(pipe_path: Path) -> Optional[str]:
-    """
-    Extract description from a .pipe file header.
-    Looks for "# Description: " in the first 5 lines of the file.
-    Description can span multiple lines and ends when:
-    - A line starting with "# " followed by "=" is found (e.g., "# ===")
-    - A line starting with "#" followed by only whitespace is found
-    - A non-comment line is found
-    """
-    try:
-        with open(pipe_path, 'r', encoding='utf-8') as f:
-            lines = [line.rstrip('\n\r') for line in f.readlines()]
-
-        # Find the Description: field within the first 5 lines
-        header_lines = lines[:5]
-        desc_start_index = -1
-        for i, line in enumerate(header_lines):
-            if re.match(r'^#\s*Description:\s*', line, re.IGNORECASE):
-                desc_start_index = i
-                break
-
-        if desc_start_index == -1:
-            return None
-
-        # Extract the initial description text
-        desc_match = re.match(r'^#\s*Description:\s*(.*)$', header_lines[desc_start_index], re.IGNORECASE)
-        if not desc_match:
-            return None
-
-        description = desc_match.group(1).strip()
-
-        # Continue reading from the line after Description: was found
-        for line in lines[desc_start_index + 1:]:
-            # End conditions:
-            # 1. Line starting with "# " followed by "=" (e.g., "# ===")
-            if re.match(r'^#\s*=', line):
-                break
-            # 2. Line starting with "#" followed by only whitespace
-            if re.match(r'^#\s*$', line):
-                break
-            # 3. Non-comment line (not starting with #)
-            if not line.startswith('#'):
-                break
-
-            # Continue reading multi-line description
-            continued_text = re.sub(r'^#\s*', '', line).strip()
-            if continued_text:
-                description += ' ' + continued_text
-
-        return description if description else None
-    except Exception:
-        return None
-
-
-def extract_pipe_requirements(pipe_path: Path) -> Optional[List[PipelineRequirement]]:
-    """
-    Extract requirements from a .pipe file header.
-    Looks for "# Requirements: " lines in the header.
-    Each requirement is specified as: { Title, kwiver_override_key, type }
-    Multiple requirements can appear on separate "# Requirements:" lines.
-    """
-    try:
-        with open(pipe_path, 'r', encoding='utf-8') as f:
-            lines = [line.rstrip('\n\r') for line in f.readlines()]
-
-        requirements: List[PipelineRequirement] = []
-
-        for line in lines[:20]:  # Check first 20 lines for requirements
-            match = re.match(r'^#\s*Requirements?:\s*(.+)$', line, re.IGNORECASE)
-            if match:
-                raw = match.group(1).strip()
-                # Parse { title, kwiver_override, type } format
-                # Support multiple requirements on same line separated by ;
-                entries = raw.split(';')
-                for entry in entries:
-                    entry = entry.strip()
-                    # Remove surrounding braces if present
-                    if entry.startswith('{') and entry.endswith('}'):
-                        entry = entry[1:-1].strip()
-                    parts = [p.strip() for p in entry.split(',')]
-                    if len(parts) >= 3:
-                        requirements.append({
-                            'title': parts[0],
-                            'kwiver_override': parts[1],
-                            'param_type': parts[2],
-                        })
-
-        return requirements if requirements else None
-    except Exception:
-        return None
 
 
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
@@ -240,16 +148,12 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
         pipe = pipe_path.name
         pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
 
-        description = extract_pipe_description(pipe_path)
-        requirements = extract_pipe_requirements(pipe_path)
         metadata = extract_pipe_metadata(pipe_path)
 
         pipe_info: PipelineDescription = {
             "name": " ".join(nameparts),
             "type": pipe_type,
             "pipe": pipe,
-            "description": description,
-            "requirements": requirements,
             "metadata": metadata,
             "folderId": None,
         }

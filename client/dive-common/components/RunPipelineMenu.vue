@@ -10,7 +10,6 @@ import {
 import {
   Pipelines,
   Pipe,
-  PipelineRequirement,
   useApi,
   SubType,
   DatasetType,
@@ -102,48 +101,6 @@ export default defineComponent({
       menuState.value = 'idle';
     }
 
-    // Requirements dialog state (VIAME-specific)
-    const requirementsDialogOpen = ref(false);
-    const requirementsPipeline: Ref<Pipe | null> = ref(null);
-    const requirementValues: Ref<Record<string, string>> = ref({});
-
-    function openRequirementsDialog(pipeline: Pipe) {
-      requirementsPipeline.value = pipeline;
-      const values: Record<string, string> = {};
-      (pipeline.requirements || []).forEach((req: PipelineRequirement) => {
-        if (req.param_type === 'bool') {
-          values[req.kwiver_override] = 'false';
-        } else if (req.param_type === 'int' || req.param_type === 'float') {
-          values[req.kwiver_override] = '0';
-        } else {
-          values[req.kwiver_override] = '';
-        }
-      });
-      requirementValues.value = values;
-      requirementsDialogOpen.value = true;
-    }
-
-    function cancelRequirements() {
-      requirementsDialogOpen.value = false;
-      requirementsPipeline.value = null;
-      requirementValues.value = {};
-    }
-
-    async function submitRequirements() {
-      if (!requirementsPipeline.value) return;
-      requirementsDialogOpen.value = false;
-      const pipeline = requirementsPipeline.value;
-      const additionalConfig: Record<string, string> = { ...requirementValues.value };
-      requirementsPipeline.value = null;
-      requirementValues.value = {};
-      const configById: Record<string, Record<string, string>> = {};
-      props.selectedDatasetIds.forEach((id) => {
-        configById[id] = additionalConfig;
-      });
-      _runPipelineOnSelectedItemInner(pipeline, configById);
-    }
-
-    // DiveParams dialog state (origin/main)
     const showParamsDialog = ref(false);
     const pipelineParams = ref<Record<string, string>>({});
 
@@ -259,10 +216,6 @@ export default defineComponent({
     }
 
     async function runPipelineOnSelectedItem(pipeline: Pipe) {
-      if (pipeline.requirements && pipeline.requirements.length > 0) {
-        openRequirementsDialog(pipeline);
-        return;
-      }
       if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
         openDiveParamsDialog(pipeline);
         return;
@@ -330,11 +283,6 @@ export default defineComponent({
       cancelConfig,
       menuState,
       exitPipelineConfig,
-      requirementsDialogOpen,
-      requirementsPipeline,
-      requirementValues,
-      cancelRequirements,
-      submitRequirements,
       pipelineParams,
       showParamsDialog,
       confirmPipelineExecution,
@@ -490,7 +438,7 @@ export default defineComponent({
                         <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
                           {{ pipeline.name }}
                           <v-icon style="margin-left: 20px">
-                            {{ (pipeline.metadata?.diveParams?.length ?? 0) > 0 || (pipeline.requirements?.length ?? 0) > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                            {{ (pipeline.metadata?.diveParams?.length ?? 0) > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
                           </v-icon>
                         </v-list-item-title>
                       </v-list-item>
@@ -519,84 +467,6 @@ export default defineComponent({
       @cancel="cancelConfig"
       @submit="exitPipelineConfig"
     />
-    <!-- Requirements Dialog -->
-    <v-dialog
-      :value="requirementsDialogOpen"
-      max-width="500"
-      persistent
-    >
-      <v-card v-if="requirementsPipeline">
-        <v-card-title class="text-h6">
-          <v-icon left>
-            mdi-cog
-          </v-icon>
-          {{ requirementsPipeline.name }}
-        </v-card-title>
-        <v-card-text>
-          <p class="text-body-2 mb-4">
-            This pipeline requires the following parameters:
-          </p>
-          <template v-for="req in requirementsPipeline.requirements">
-            <v-checkbox
-              v-if="req.param_type === 'bool'"
-              :key="req.kwiver_override"
-              v-model="requirementValues[req.kwiver_override]"
-              :label="req.title"
-              true-value="true"
-              false-value="false"
-              dense
-              class="mt-1"
-            />
-            <v-text-field
-              v-else-if="req.param_type === 'int'"
-              :key="req.kwiver_override"
-              v-model="requirementValues[req.kwiver_override]"
-              :label="req.title"
-              type="number"
-              step="1"
-              outlined
-              dense
-              class="mt-2"
-            />
-            <v-text-field
-              v-else-if="req.param_type === 'float'"
-              :key="req.kwiver_override"
-              v-model="requirementValues[req.kwiver_override]"
-              :label="req.title"
-              type="number"
-              step="0.01"
-              outlined
-              dense
-              class="mt-2"
-            />
-            <v-text-field
-              v-else
-              :key="req.kwiver_override"
-              v-model="requirementValues[req.kwiver_override]"
-              :label="req.title"
-              outlined
-              dense
-              class="mt-2"
-            />
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            text
-            @click="cancelRequirements"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
-            @click="submitRequirements"
-          >
-            Run Pipeline
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
     <PipelineParamsDialog
       v-model="showParamsDialog"
       :pipeline="selectedPipeline"

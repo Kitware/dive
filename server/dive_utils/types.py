@@ -9,7 +9,6 @@ __all__ = [
     "PipelineDescription",
     "PipelineJob",
     "PipelineCategory",
-    "PipelineRequirement",
     "PipeMetadata",
 ]
 
@@ -60,14 +59,6 @@ class TrainingModelTuneArgs(TrainingModelDescription):
         extra = 'forbid'
 
 
-class PipelineRequirement(TypedDict):
-    """Describes a required user parameter for a pipeline."""
-
-    title: str
-    kwiver_override: str
-    param_type: str
-
-
 class DiveParam(TypedDict):
     label: str
     type: str
@@ -89,8 +80,6 @@ class PipelineDescription(TypedDict):
     name: str  # friendly name
     type: str  # indicates whether this is a dynamic pipe.
     pipe: str  # unmodified pipe file name
-    description: Optional[str]
-    requirements: Optional[List['PipelineRequirement']]
     metadata: Optional[PipeMetadata]
 
     # If the pipeline is stored in girder, this is

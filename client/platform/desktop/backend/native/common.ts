@@ -23,7 +23,6 @@ import {
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
-  PipelineRequirement,
   PipeMetadata,
   PipelineParamType,
 } from 'dive-common/apispec';
@@ -70,112 +69,6 @@ const YAMLFileName = /^.*\.ya?ml$/i;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
-}
-
-/**
- * Extract description from a .pipe file header.
- * Looks for "# Description: " in the first 5 lines of the file.
- * Description can span multiple lines and ends when:
- * - A line starting with "# " followed by "=" is found (e.g., "# ===")
- * - A line starting with "#" followed by only whitespace is found
- * - A non-comment line is found
- */
-async function extractPipeDescription(filePath: string): Promise<string | undefined> {
-  try {
-    const lines = await readLines(filePath);
-    let description = '';
-    let inDescription = false;
-    let descriptionStartLine = -1;
-
-    // Find the Description: field within the first 5 lines
-    const headerLines = lines.slice(0, 5);
-    const descStartIndex = headerLines.findIndex((line) => /^#\s*Description:\s*/i.test(line));
-
-    if (descStartIndex === -1) {
-      return undefined;
-    }
-
-    // Extract the initial description text
-    const descMatch = headerLines[descStartIndex].match(/^#\s*Description:\s*(.*)$/i);
-    if (descMatch) {
-      description = descMatch[1].trim();
-      inDescription = true;
-      descriptionStartLine = descStartIndex;
-    }
-
-    // Continue reading from the line after Description: was found
-    if (inDescription) {
-      const remainingLines = lines.slice(descriptionStartLine + 1);
-      remainingLines.some((line) => {
-        // End conditions:
-        // 1. Line starting with "# " followed by "=" (e.g., "# ===")
-        if (/^#\s*=/.test(line)) {
-          return true; // stop iteration
-        }
-        // 2. Line starting with "#" followed by only whitespace
-        if (/^#\s*$/.test(line)) {
-          return true; // stop iteration
-        }
-        // 3. Non-comment line (not starting with #)
-        if (!line.startsWith('#')) {
-          return true; // stop iteration
-        }
-
-        // Continue reading multi-line description
-        const continuedText = line.replace(/^#\s*/, '').trim();
-        if (continuedText) {
-          description += ` ${continuedText}`;
-        }
-        return false; // continue iteration
-      });
-    }
-
-    return description || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Extract requirements from a .pipe file header.
- * Looks for "# Requirements: " lines in the first 20 lines.
- * Each requirement is specified as: { Title, kwiver_override_key, type }
- */
-async function extractPipeRequirements(
-  filePath: string,
-): Promise<PipelineRequirement[] | undefined> {
-  try {
-    const lines = await readLines(filePath);
-    const requirements: PipelineRequirement[] = [];
-
-    const headerLines = lines.slice(0, 20);
-    headerLines.forEach((line) => {
-      const match = line.match(/^#\s*Requirements?:\s*(.+)$/i);
-      if (match) {
-        const raw = match[1].trim();
-        // Support multiple requirements on same line separated by ;
-        raw.split(';').forEach((entry) => {
-          let trimmed = entry.trim();
-          // Remove surrounding braces if present
-          if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-            trimmed = trimmed.slice(1, -1).trim();
-          }
-          const parts = trimmed.split(',').map((p) => p.trim());
-          if (parts.length >= 3) {
-            requirements.push({
-              title: parts[0],
-              kwiver_override: parts[1],
-              param_type: parts[2],
-            });
-          }
-        });
-      }
-    });
-
-    return requirements.length > 0 ? requirements : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -587,18 +480,12 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     }
 
     const pipeFilePath = npath.join(pipelinePath, p);
-    const [description, requirements, metadata] = await Promise.all([
-      extractPipeDescription(pipeFilePath),
-      extractPipeRequirements(pipeFilePath),
-      extractPipeMetadata(pipeFilePath),
-    ]);
+    const metadata = await extractPipeMetadata(pipeFilePath);
 
     const pipeInfo: Pipe = {
       name: pipeName,
       type: pipeType,
       pipe: p,
-      description,
-      requirements,
       metadata,
     };
     if (pipeType in ret) {
@@ -698,7 +585,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
 
   const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
     const configFilePath = npath.join(pipelinePath, name);
-    const description = await extractPipeDescription(configFilePath);
+    const { description } = await extractPipeMetadata(configFilePath);
     return { name, description };
   }));
 
