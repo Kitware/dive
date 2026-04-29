@@ -6,7 +6,7 @@ x-worker: &base-worker
   build:
     context: .
     dockerfile: docker/girder_worker.Dockerfile
-  image: kitware/viame-worker:${TAG:-latest}
+  image: kitware/dive-worker:${TAG:-latest}
   volumes:
     - addons:/tmp/addons:ro # readonly
   labels:
@@ -99,6 +99,9 @@ services:
   girder_worker_default:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+      - cpu
     deploy: {}
     volumes:
       # readwrite because this worker does addon updates
@@ -111,6 +114,12 @@ services:
   girder_worker_pipelines:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+    build:
+      context: .
+      dockerfile: docker/girder_worker_gpu.Dockerfile
+    image: kitware/viame-worker:${TAG:-latest}
     restart: always
     deploy:
       resources:
@@ -137,6 +146,12 @@ services:
   girder_worker_training:
     # Merge base-worker object with this config
     << : *base-worker
+    profiles:
+      - gpu
+    build:
+      context: .
+      dockerfile: docker/girder_worker_gpu.Dockerfile
+    image: kitware/viame-worker:${TAG:-latest}
     restart: always
     deploy:
       resources:

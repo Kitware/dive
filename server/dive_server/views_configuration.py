@@ -17,7 +17,7 @@ from girder.utility import setting_utilities
 from girder_jobs.models.job import Job
 import requests
 
-from dive_server import crud, crud_rpc
+from dive_server import crud, crud_rpc, worker_capabilities
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, constants, models, types
 
@@ -72,9 +72,12 @@ class ConfigurationResource(Resource):
     @autoDescribeRoute(Description("Get Configuration Information"))
     def get_config(self):
         env = os.environ.copy()
-
         distributed_worker = env.get("RABBITMQ_DISTRIBUTED_WORKER")
-        return {'distributedWorker': distributed_worker}
+        capabilities = worker_capabilities.get_worker_capabilities()
+        return {
+            'distributedWorker': distributed_worker,
+            **capabilities,
+        }
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))
@@ -84,11 +87,16 @@ class ConfigurationResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get available pipeline configurations"))
     def get_pipelines(self, params):
+        if not worker_capabilities.get_worker_capabilities()['pipelinesEnabled']:
+            return {}
         return crud_rpc.load_pipelines(self.getCurrentUser())
 
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
+        capabilities = worker_capabilities.get_worker_capabilities()
+        if not capabilities['trainingEnabled']:
+            return {"training": {"configs": [], "default": ""}, "models": {}}
         static_job_configs: types.AvailableJobSchema = (
             Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or {}
         )

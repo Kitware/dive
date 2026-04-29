@@ -59,6 +59,25 @@ docker-compose -f docker-compose.yml up -d
 
 VIAME server will be running at [http://localhost:8010](http://localhost:8010/). You should see a page that looks like this. The default username and password is `admin:letmein`.
 
+### Docker Compose profile behavior
+
+There are two ways to run the stack:
+
+* **Default (GPU-enabled):** runs the web services, the standard worker, and GPU workers.
+* **CPU profile (`--profile cpu`):** runs only the standard worker (`girder_worker_default`).
+
+Use these commands:
+
+```bash
+# Default mode (GPU-enabled pipeline/training workers)
+docker-compose -f docker-compose.yml up -d
+
+# CPU-only mode
+docker-compose -f docker-compose.yml --profile cpu up -d
+```
+
+When GPU workers are not connected (for example, in CPU-only mode), the UI and API automatically disable pipeline and training features.
+
 ![Login Page](images/General/login.png)
 
 ## Production deployment
@@ -94,10 +113,10 @@ It's possible to split your web server and task runner between multiple nodes.  
 docker-compose -f docker-compose.yml up -d girder rabbit
 
 ## On the GPU server(s)
-docker-compose -f docker-compose.yml up -d --no-deps girder_worker_pipelines girder_worker_training girder_worker_default
+docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
 ```
 
-In order to run any jobs (video transcoding, pipelines, training, addon upgrades) the GPU server will need to be running.
+In this split setup, `girder_worker_default` handles standard queue jobs while the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
 
 ## Addon management
 
