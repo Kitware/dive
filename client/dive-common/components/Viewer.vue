@@ -412,10 +412,11 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(setVal?: string) {
-      // If editing the track, disable editing mode before save
+    async function save(setVal?: string, exitEditingMode = false) {
+      // Only exit editing mode if explicitly requested (e.g., manual save)
+      // Auto-save should NOT disrupt the user's editing session
       saveInProgress.value = true;
-      if (editingTrack.value) {
+      if (exitEditingMode && editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
       }
       const saveSet = setVal === 'default' ? undefined : setVal;
@@ -466,6 +467,46 @@ export default defineComponent({
     const debouncedSaveImageEnhancements = debounce(saveImageEnhancements, 1000, { trailing: true });
 
     watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
+
+    // Auto-save annotations when enabled. Skips firing while a save is
+    // already in flight; the saveInProgress watcher below re-arms it.
+    const debouncedAutoSave = debounce(
+      async () => {
+        if (readonlyState.value) return;
+        if (pendingSaveCount.value === 0) return;
+        if (saveInProgress.value) return;
+        await save(props.currentSet);
+      },
+      2000,
+      { trailing: true, leading: false },
+    );
+
+    watch(
+      pendingSaveCount,
+      (newCount, oldCount) => {
+        if (
+          clientSettings.autoSaveSettings.enabled
+          && newCount > oldCount
+          && newCount > 0
+          && !readonlyState.value
+        ) {
+          debouncedAutoSave();
+        }
+      },
+    );
+
+    // Flush pending edits once an in-flight save settles.
+    watch(saveInProgress, (nowSaving, wasSaving) => {
+      if (
+        wasSaving
+        && !nowSaving
+        && clientSettings.autoSaveSettings.enabled
+        && pendingSaveCount.value > 0
+        && !readonlyState.value
+      ) {
+        debouncedAutoSave();
+      }
+    });
 
     // Navigation Guards used by parent component
     async function warnBrowserExit(event: BeforeUnloadEvent) {
@@ -766,6 +807,7 @@ export default defineComponent({
       handleResize();
     });
     onBeforeUnmount(() => {
+      debouncedAutoSave.cancel();
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
@@ -1082,7 +1124,7 @@ export default defineComponent({
                 @click="save(currentSet)"
               >
                 <v-icon>
-                  mdi-content-save
+                  {{ clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save' }}
                 </v-icon>
               </v-btn>
             </div>
