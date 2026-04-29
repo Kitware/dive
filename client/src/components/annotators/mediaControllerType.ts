@@ -39,6 +39,8 @@ export interface MediaController extends AggregateMediaController {
   flick: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;
+  /** True when the GeoJS viewer is fully initialized and ready to create layers */
+  ready: Readonly<Ref<boolean>>;
   /** @deprecated may be removed in a future release */
   syncedFrame: Readonly<Ref<number>>;
 
