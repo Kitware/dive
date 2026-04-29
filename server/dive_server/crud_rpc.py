@@ -190,7 +190,8 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
-    pipeline_params: dict[str, str] = None,
+    frame_range: Optional[Tuple[int, int]] = None,
+    pipeline_params: Optional[Dict[str, str]] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -236,6 +237,7 @@ def run_pipeline(
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
+        'frame_range': frame_range,
         'pipeline_params': pipeline_params,
     }
     newjob = tasks.run_pipeline.apply_async(

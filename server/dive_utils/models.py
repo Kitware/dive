@@ -232,6 +232,7 @@ class MetadataMutable(BaseModel):
     customTypeStyling: Optional[Dict[str, CustomStyle]]
     customGroupStyling: Optional[Dict[str, CustomStyle]]
     confidenceFilters: Optional[Dict[str, float]]
+    timeFilters: Optional[List[int]]
     imageEnhancements: Optional[Dict[str, Any]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]

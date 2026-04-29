@@ -118,11 +118,12 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return window.diveDesktop.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe, additionalConfig?: Record<string, string>): Promise<void> {
+async function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<void> {
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
+    frameRange: frameRange || undefined,
     pipelineParams: additionalConfig,
   };
   gpuJobQueue.enqueue(args);

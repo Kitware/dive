@@ -97,8 +97,9 @@ class PipelineJob(TypedDict):
     output_folder: str  # Where to upload results
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
-    force_transcoded: Optional[bool]  # Force using the transcoded version
-    pipeline_params: Optional[dict[str, str]]
+    force_transcoded: Optional[bool]
+    frame_range: Optional[Tuple[int, int]]
+    pipeline_params: Optional[Dict[str, str]]
 
 
 class TrainingJob(TypedDict):
