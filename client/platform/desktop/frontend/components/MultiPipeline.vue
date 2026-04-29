@@ -199,7 +199,28 @@ onBeforeMount(async () => {
               dense
               label="Pipeline"
               hint="Select the pipeline to run"
-            />
+            >
+              <template #item="{ item, on, attrs }">
+                <v-tooltip
+                  left
+                  :disabled="!item.metadata?.description"
+                  max-width="300"
+                  content-class="pipeline-description-tooltip"
+                >
+                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                    <v-list-item
+                      v-bind="{ ...attrs, ...tooltipAttrs }"
+                      v-on="{ ...on, ...tooltipOn }"
+                    >
+                      <v-list-item-content>
+                        <v-list-item-title>{{ item.name }}</v-list-item-title>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </template>
+                  <span>{{ item.metadata?.description }}</span>
+                </v-tooltip>
+              </template>
+            </v-select>
           </v-col>
         </v-row>
       </v-card-text>
