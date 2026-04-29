@@ -27,7 +27,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   apt-get install software-properties-common -y && \
   add-apt-repository ppa:deadsnakes/ppa && \
   apt-get update && \
-  apt-get install -qy python3.11 libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm && \
+  apt-get install -qy python3.11 libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm git && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -fs /usr/bin/python3.10 /usr/bin/python
