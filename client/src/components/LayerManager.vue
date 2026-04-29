@@ -93,68 +93,28 @@ export default defineComponent({
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
-    const rectAnnotationLayer = new RectangleLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-    const overlapLayer = new OverlapLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-
-    const polyAnnotationLayer = new PolygonLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-
-    const lineLayer = new LineLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-    const pointLayer = new PointLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-    const tailLayer = new TailLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    }, trackStore);
+    // Track initialization state to prevent race conditions with GeoJS
+    const layersInitialized = ref(false);
+    const hoverOvered: Ref<ToolTipWidgetData[]> = ref([]);
 
     const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
-    const textLayer = new TextLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-      formatter: props.formatTextRow,
-      showUserCreatedIcon: showUserCreatedIconRef,
-    });
 
-    const attributeBoxLayer = new AttributeBoxLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-
-    const attributeLayer = new AttributeLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-    });
-
-    const editAnnotationLayer = new EditAnnotationLayer({
-      annotator,
-      stateStyling: trackStyleManager.stateStyles,
-      typeStyling: typeStylingRef,
-      type: 'rectangle',
-    });
+    // Layer references — initialized after annotator is ready to ensure GeoJS
+    // is fully set up before creating layers.
+    let rectAnnotationLayer: RectangleLayer;
+    let overlapLayer: OverlapLayer;
+    let polyAnnotationLayer: PolygonLayer;
+    let lineLayer: LineLayer;
+    let pointLayer: PointLayer;
+    let tailLayer: TailLayer;
+    let textLayer: TextLayer;
+    let attributeBoxLayer: AttributeBoxLayer;
+    let attributeLayer: AttributeLayer;
+    let editAnnotationLayer: EditAnnotationLayer;
+    let uiLayer: UILayer;
 
     const updateAttributes = () => {
+      if (!layersInitialized.value) return;
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
         if (a.render && b.render) {
           return (a.render.order - b.render.order);
@@ -165,16 +125,81 @@ export default defineComponent({
       attributeLayer.updateRenderAttributes(newList, user);
       attributeBoxLayer.updateRenderAttributes(newList);
     };
-    updateAttributes();
-    const uiLayer = new UILayer(annotator);
-    const hoverOvered: Ref<ToolTipWidgetData[]> = ref([]);
-    const toolTipWidgetProps = {
-      color: typeStylingRef.value.color,
-      dataList: hoverOvered,
-      selected: selectedTrackIdRef,
-      stateStyling: trackStyleManager.stateStyles,
-    };
-    uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
+
+    function initializeLayers() {
+      rectAnnotationLayer = new RectangleLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+      overlapLayer = new OverlapLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+
+      polyAnnotationLayer = new PolygonLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+
+      lineLayer = new LineLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+      pointLayer = new PointLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+      tailLayer = new TailLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      }, trackStore);
+
+      textLayer = new TextLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+        formatter: props.formatTextRow,
+        showUserCreatedIcon: showUserCreatedIconRef,
+      });
+
+      attributeBoxLayer = new AttributeBoxLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+
+      attributeLayer = new AttributeLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+      });
+
+      editAnnotationLayer = new EditAnnotationLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+        type: 'rectangle',
+      });
+
+      uiLayer = new UILayer(annotator);
+      const toolTipWidgetProps = {
+        color: typeStylingRef.value.color,
+        dataList: hoverOvered,
+        selected: selectedTrackIdRef,
+        stateStyling: trackStyleManager.stateStyles,
+      };
+      uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
+
+      setupEventListeners();
+      layersInitialized.value = true;
+      updateAttributes();
+    }
 
     function updateLayers(
       frame: number,
@@ -186,6 +211,7 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
+      if (!layersInitialized.value) return;
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
@@ -359,22 +385,30 @@ export default defineComponent({
     }
 
     /**
-     * TODO: for some reason, GeoJS requires us to initialize
-     * by calling the render function twice.  This is a bug.
-     * https://github.com/Kitware/dive/issues/365
+     * Watch for the GeoJS viewer to be ready before initializing layers.
+     * The annotator components set ready=true only after initializeViewer()
+     * completes, guaranteeing geoViewerRef.value is initialized before use.
+     * Fixes https://github.com/Kitware/dive/issues/365.
      */
-    [1, 2].forEach(() => {
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        multiSeletListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-        props.colorBy,
-      );
-    });
+    watch(
+      () => annotator.ready.value,
+      (ready) => {
+        if (ready && !layersInitialized.value) {
+          initializeLayers();
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }
+      },
+      { immediate: true },
+    );
 
     /** Shallow watch */
     watch(
@@ -447,85 +481,87 @@ export default defineComponent({
       }
     };
 
-    //Sync of internal geoJS state with the application
-    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      handler.trackSelect(selectedTrackIdRef.value, editing);
-    });
-    rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
-    rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
-    rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
-    polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
-    polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
-    polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
-    editAnnotationLayer.bus.$on('update:geojson', (
-      mode: 'in-progress' | 'editing',
-      geometryCompleteEvent: boolean,
-      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
-      type: string,
-      key = '',
-      cb: () => void = () => (undefined),
-    ) => {
-      if (type === 'rectangle') {
-        const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
-        // Extract rotation from properties if it exists
-        const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
-          ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
-          : undefined;
-        cb();
-        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
-      } else {
-        handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
-      }
-      // Jump into edit mode if we completed a new shape
-      if (geometryCompleteEvent) {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
-      }
-    });
-    editAnnotationLayer.bus.$on(
-      'update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
-    );
-    const annotationHoverTooltip = (
-      found: {
-          styleType: [string, number];
-          trackId: number;
-          polygon: { coordinates: Array<Array<[number, number]>>};
-        }[],
-    ) => {
-      const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
-      found.forEach((item) => {
-        // get Max of X and Min of y for ordering
-        if (item.polygon.coordinates.length) {
-          let maxX = -Infinity;
-          let minY = Infinity;
-          item.polygon.coordinates[0].forEach((coord) => {
-            if (coord.length === 2) {
-              maxX = Math.max(coord[0], maxX);
-              minY = Math.min(coord[1], minY);
-            }
-          });
-          hoveredVals.push({
-            type: item.styleType[0],
-            confidence: item.styleType[1],
-            trackId: item.trackId,
-            maxX,
-          });
+    function setupEventListeners() {
+      //Sync of internal geoJS state with the application
+      editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
+        handler.trackSelect(selectedTrackIdRef.value, editing);
+      });
+      rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+      rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+      rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+      polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
+      polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+      polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+      editAnnotationLayer.bus.$on('update:geojson', (
+        mode: 'in-progress' | 'editing',
+        geometryCompleteEvent: boolean,
+        data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
+        type: string,
+        key = '',
+        cb: () => void = () => (undefined),
+      ) => {
+        if (type === 'rectangle') {
+          const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+          // Extract rotation from properties if it exists
+          const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
+            ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
+            : undefined;
+          cb();
+          handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
+        } else {
+          handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
+        }
+        // Jump into edit mode if we completed a new shape
+        if (geometryCompleteEvent) {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
         }
       });
-      hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
-      uiLayer.setToolTipWidget('customToolTip', (hoverOvered.value.length > 0));
-    };
-    rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
-    polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+      editAnnotationLayer.bus.$on(
+        'update:selectedIndex',
+        (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+      );
+      const annotationHoverTooltip = (
+        found: {
+            styleType: [string, number];
+            trackId: number;
+            polygon: { coordinates: Array<Array<[number, number]>>};
+          }[],
+      ) => {
+        const hoveredVals: (ToolTipWidgetData & { maxX: number})[] = [];
+        found.forEach((item) => {
+          // get Max of X and Min of y for ordering
+          if (item.polygon.coordinates.length) {
+            let maxX = -Infinity;
+            let minY = Infinity;
+            item.polygon.coordinates[0].forEach((coord) => {
+              if (coord.length === 2) {
+                maxX = Math.max(coord[0], maxX);
+                minY = Math.min(coord[1], minY);
+              }
+            });
+            hoveredVals.push({
+              type: item.styleType[0],
+              confidence: item.styleType[1],
+              trackId: item.trackId,
+              maxX,
+            });
+          }
+        });
+        hoverOvered.value = hoveredVals.sort((a, b) => a.maxX - b.maxX);
+        uiLayer.setToolTipWidget('customToolTip', (hoverOvered.value.length > 0));
+      };
+      rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+      polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+    }
   },
 });
 </script>

@@ -406,6 +406,7 @@ export function useMediaController() {
       volume: toRef(state[camera], 'volume'),
       maxFrame: toRef(state[camera], 'maxFrame'),
       speed: toRef(state[camera], 'speed'),
+      ready: toRef(state[camera], 'ready'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       prevFrame,
       nextFrame,
