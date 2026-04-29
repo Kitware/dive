@@ -10,6 +10,9 @@ resolution-markers = [
     "(python_full_version < '3.11' and platform_machine != 'aarch64' and sys_platform == 'linux') or (python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux')",
 ]
 
+[options]
+prerelease-mode = "allow"
+
 [[package]]
 name = "amqp"
 version = "5.3.1"
@@ -467,7 +470,6 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
-    { name = "cheroot" },
     { name = "cherrypy" },
     { name = "click" },
     { name = "girder" },
@@ -477,6 +479,7 @@ dependencies = [
     { name = "girder-worker" },
     { name = "girder-worker-utils" },
     { name = "gputil" },
+    { name = "large-image" },
     { name = "numpy" },
     { name = "pydantic" },
     { name = "pyrabbit2" },
@@ -509,7 +512,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bitarray", specifier = ">=2.9.2" },
-    { name = "cheroot", specifier = ">=8.4.5" },
     { name = "cherrypy", specifier = ">=18.9.0" },
     { name = "click", specifier = ">=8.1.3" },
     { name = "gdal", marker = "extra == 'large-image'", index = "https://girder.github.io/large_image_wheels/" },
@@ -520,6 +522,7 @@ requires-dist = [
     { name = "girder-worker", specifier = "==5.0.4" },
     { name = "girder-worker-utils", specifier = ">=0.9.0,<1" },
     { name = "gputil", specifier = ">=1.4.0" },
+    { name = "large-image", specifier = "==1.34.2a180" },
     { name = "large-image", marker = "extra == 'large-image'" },
     { name = "large-image-converter", marker = "extra == 'large-image'" },
     { name = "large-image-source-gdal", marker = "extra == 'large-image'" },
