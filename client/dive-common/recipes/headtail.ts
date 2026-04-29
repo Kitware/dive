@@ -35,6 +35,9 @@ export default class HeadTail implements Recipe {
 
   private startWithHead: boolean;
 
+  /* Whether the track had bounds before line creation started */
+  private hadBoundsOnCreate: boolean;
+
   bus: Vue;
 
   toggleable: Ref<boolean>;
@@ -44,6 +47,7 @@ export default class HeadTail implements Recipe {
   constructor() {
     this.bus = new Vue();
     this.startWithHead = true;
+    this.hadBoundsOnCreate = false;
     this.active = ref(false);
     this.name = 'HeadTail';
     this.toggleable = ref(true);
@@ -100,6 +104,37 @@ export default class HeadTail implements Recipe {
       results.push(withinBounds([x, y], bounds));
     }
     return (results.filter((item) => item).length === coords.length);
+  }
+
+  /**
+   * Compute a tight axis-aligned bounding box around coords, expanded by fraction
+   * (e.g. 0.10 = 10% larger in each dimension).
+   */
+  private static tightBoundsExpanded(
+    coords: GeoJSON.Position[],
+    fraction: number,
+  ): GeoJSON.Polygon[] {
+    const xs = coords.map((c) => c[0]);
+    const ys = coords.map((c) => c[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    // Use the other dimension as fallback for degenerate (zero-width/height) cases
+    const padX = width * fraction || height * fraction;
+    const padY = height * fraction || width * fraction;
+    return [{
+      type: 'Polygon',
+      coordinates: [[
+        [minX - padX, minY - padY],
+        [minX - padX, maxY + padY],
+        [maxX + padX, maxY + padY],
+        [maxX + padX, minY - padY],
+        [minX - padX, minY - padY],
+      ]],
+    }];
   }
 
   private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
@@ -187,14 +222,19 @@ export default class HeadTail implements Recipe {
           } as GeoJSON.LineString;
         }
         if (geom.coordinates.length === 2) {
-          let union = HeadTail.findBounds(geom, PaddingVector);
+          let union: GeoJSON.Polygon[];
           if (bounds !== null) {
             // If both are inside of the bbox don't adjust the union
             if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
               union = [];
             } else if (tail.length > 0) { // If creating new box add padding
               union = HeadTail.findBounds(geom, PaddingVectorZero);
+            } else {
+              union = HeadTail.findBounds(geom, PaddingVector);
             }
+          } else {
+            // No existing box: make box 10% larger than tight box around vertices
+            union = HeadTail.tightBoundsExpanded(geom.coordinates, 0.10);
           }
           // Both head and tail placed, replace them.
           return {
@@ -206,7 +246,8 @@ export default class HeadTail implements Recipe {
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
-          // Only the head placed so far
+          // Only the head placed so far — record if the track already had bounds
+          this.hadBoundsOnCreate = bounds !== null;
           let union = HeadTail.findBounds(geom, PaddingVector);
           if (bounds !== null) {
             if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
@@ -226,6 +267,16 @@ export default class HeadTail implements Recipe {
       /**
        * IF recipe isn't active, but the key matches, we are editing
        */
+        if (this.active.value && !this.hadBoundsOnCreate) {
+          // Creating a new line on a track without a pre-existing box:
+          // use unionWithoutBounds to replace interim bounds with 10% expanded box
+          return {
+            ...EmptyResponse,
+            data: HeadTail.makeGeom(linestring.geometry, true),
+            unionWithoutBounds: HeadTail.tightBoundsExpanded(linestring.geometry.coordinates, 0.20),
+            done: true,
+          };
+        }
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
