@@ -1,7 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType, nextTick,
-  watchEffect,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -12,10 +11,8 @@ import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { useStore } from 'platform/web-girder/store/types';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useApi, SegmentationPredictRequest } from 'dive-common/apispec';
-import {
-  convertLargeImage, segmentationPredict, segmentationInitialize, textQueryInitialize,
-} from 'platform/web-girder/api/rpc.service';
+import { useApi } from 'dive-common/apispec';
+import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
@@ -109,23 +106,12 @@ export default defineComponent({
     const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
 
     const typeList: Ref<string[]> = ref([]);
-    const textQueryRunning = ref(false);
-    const timeFilter: Ref<[number, number] | null> = ref(null);
 
     const findType = async () => {
       const meta = await loadMetadata(props.id);
       typeList.value = [meta.type];
     };
     findType();
-
-    // Watch the viewer's trackFilters.timeFilters and sync to local ref
-    watchEffect(() => {
-      if (viewerRef.value?.trackFilters?.timeFilters?.value) {
-        timeFilter.value = viewerRef.value.trackFilters.timeFilters.value;
-      } else {
-        timeFilter.value = null;
-      }
-    });
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (getters['Jobs/datasetRunningState'](props.id)) {
@@ -169,7 +155,6 @@ export default defineComponent({
 
     onMounted(() => {
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
-      initializeSegmentation();
     });
 
     onBeforeUnmount(() => {
@@ -227,78 +212,6 @@ export default defineComponent({
       }
     }
 
-    /**
-     * Initialize segmentation recipe with platform-specific functions
-     */
-    async function initializeSegmentation() {
-      await nextTick(); // Wait for Viewer to be mounted
-      if (!viewerRef.value?.segmentationRecipe) {
-        console.warn('[Segmentation] segmentationRecipe not found on Viewer');
-        return;
-      }
-
-      try {
-        // Initialize the recipe
-        // Web platform uses folderId + frameNum; the backend resolves the actual image path
-        viewerRef.value.segmentationRecipe.initialize({
-          predictFn: (request: SegmentationPredictRequest, frameNum: number) => segmentationPredict(props.id, frameNum, request),
-          getImagePath: () => '', // Not used for web platform - backend resolves paths
-          // Initialize the segmentation service when the recipe is activated (user clicks Segment button)
-          initializeServiceFn: segmentationInitialize,
-        });
-
-        console.log('[Segmentation] Recipe initialized successfully for web');
-      } catch (error) {
-        console.error('[Segmentation] Failed to initialize recipe:', error);
-      }
-    }
-
-    /**
-     * Handle text query service initialization request
-     * Called when user opens the text query dialog
-     */
-    async function handleTextQueryInit() {
-      try {
-        // Initialize and verify that text query is specifically available
-        await textQueryInitialize();
-        viewerRef.value?.onTextQueryServiceReady(true);
-      } catch (error) {
-        const errorMessage = error instanceof Error
-          ? error.message
-          : 'Text query model failed to load. Ensure that the SAM3 model pack is downloaded from the VIAME add-on repository and that you have enough video RAM to run it.';
-        viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
-      }
-    }
-
-    /**
-     * Handle text query on current frame
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async function handleTextQuery(_params: { text: string; boxThreshold: number }) {
-      textQueryRunning.value = true;
-      try {
-        // Text query for single frame would go here
-        // For now, this is handled by the segmentation service
-        await prompt({
-          title: 'Text Query',
-          text: ['Text query for single frame is not yet implemented on web platform.'],
-        });
-      } finally {
-        textQueryRunning.value = false;
-      }
-    }
-
-    /**
-     * Handle text query on all frames - runs as a pipeline job
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async function handleTextQueryAllFrames(_params: { text: string; boxThreshold: number }) {
-      await prompt({
-        title: 'Text Query',
-        text: ['Text query for all frames is not yet implemented on web platform.'],
-      });
-    }
-
     return {
       buttonOptions,
       brandData,
@@ -313,11 +226,6 @@ export default defineComponent({
       routeSet,
       largeImageWarning,
       typeList,
-      handleTextQueryInit,
-      handleTextQuery,
-      handleTextQueryAllFrames,
-      textQueryRunning,
-      timeFilter,
     };
   },
 });
@@ -330,13 +238,10 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :current-set="set"
-    :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || textQueryRunning"
+    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
-    @text-query-init="handleTextQueryInit"
-    @text-query="handleTextQuery"
-    @text-query-all-frames="handleTextQueryAllFrames"
   >
     <template #title>
       <ViewerAlert />
@@ -360,7 +265,6 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
-        :time-filter="timeFilter"
       />
       <ImportAnnotations
         :button-options="buttonOptions"
@@ -381,8 +285,8 @@ export default defineComponent({
         :revision="revisionNum"
       />
     </template>
-    <template #right-sidebar="{ sidebarMode }">
-      <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
+    <template #right-sidebar>
+      <SidebarContext>
         <template #default="{ name, subCategory }">
           <component
             :is="name"
