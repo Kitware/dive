@@ -55,8 +55,14 @@ export default defineComponent({
       strictlyPositive: (value: string | number) => Number(value) > 0 || 'Please enter a number > 0',
     };
 
-    function getRules(type: PipelineParamType): ValidationRule[] {
-      const res = [];
+    function getRules(type: PipelineParamType, required = false): ValidationRule[] {
+      const res: ValidationRule[] = [];
+      if (required) {
+        res.push((value) => {
+          if (value === undefined || value === null || value === '') return 'Required';
+          return true;
+        });
+      }
       if (type.includes('int')) {
         res.push(rules.integer);
       }
@@ -131,7 +137,7 @@ export default defineComponent({
                 :for="`input-${param.key}`"
                 class="text-caption font-weight-bold text-uppercase text--secondary"
               >
-                {{ param.label }}
+                {{ param.label }}<span v-if="param.required" class="error--text"> *</span>
               </label>
             </div>
 
@@ -157,7 +163,7 @@ export default defineComponent({
                 hide-details="auto"
                 class="mt-1"
                 :min="param.type === 'int' ? 'none' : 0"
-                :rules="getRules(param.type)"
+                :rules="getRules(param.type, param.required)"
               />
             </template>
 
@@ -171,7 +177,7 @@ export default defineComponent({
                 hide-details="auto"
                 class="mt-1"
                 :min="param.type === 'float' ? 'none' : 0"
-                :rules="getRules(param.type)"
+                :rules="getRules(param.type, param.required)"
               />
             </template>
 
@@ -193,7 +199,7 @@ export default defineComponent({
                       :min="param.type_props?.at(0) || 0"
                       :max="param.type_props?.at(1) || 100"
                       :step="param.type_props?.at(2) || 1"
-                      :rules="getRules(param.type)"
+                      :rules="getRules(param.type, param.required)"
                       outlined
                       hide-details
                     />
@@ -211,6 +217,7 @@ export default defineComponent({
               dense
               hide-details="auto"
               class="mt-1"
+              :rules="getRules(param.type, param.required)"
             />
           </div>
         </v-form>

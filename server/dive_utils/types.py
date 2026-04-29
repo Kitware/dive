@@ -59,12 +59,14 @@ class TrainingModelTuneArgs(TrainingModelDescription):
         extra = 'forbid'
 
 
-class DiveParam(TypedDict):
+class DiveParam(TypedDict, total=False):
     label: str
     type: str
     type_props: list[str]
     key: str
     default: str
+    # True if the pipeline can't run until the user supplies a value
+    required: bool
 
 
 class PipeMetadata(TypedDict):

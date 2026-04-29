@@ -72,22 +72,43 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     label, raw_args = dive_match.groups()
                     args = [arg.strip() for arg in raw_args.split(',')]
                     param_type = args[0]
-                    pipeline_type_args = args[1:]
+                    rest_args = args[1:]
+                    # `required` is a flag keyword — strip it from type_props,
+                    # everything else stays positional for the type.
+                    is_required = any(a.lower() == 'required' for a in rest_args)
+                    pipeline_type_args = [a for a in rest_args if a.lower() != 'required']
 
-                    param_line_match = re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed,
-                                                re.IGNORECASE)
-                    if param_line_match:
+                    # `config <key> = <value>` — absolute kwiver key, no
+                    # process/block prefix. Used for global / cross-referenced
+                    # settings.
+                    config_match = re.match(r'^config\s+([\w:.-]+)\s*=\s*([^#]+)', trimmed, re.IGNORECASE)
+                    # Otherwise a regular per-process/block parameter assignment.
+                    param_line_match = (
+                        re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE)
+                        if not config_match else None
+                    )
+
+                    full_key = None
+                    default_val = None
+                    if config_match:
+                        full_key = config_match.group(1)
+                        default_val = config_match.group(2).strip()
+                    elif param_line_match:
                         local_key = param_line_match.group(1)
                         default_val = param_line_match.group(2).strip()
                         full_key = ":".join(context_stack + [local_key])
 
-                        metadata["diveParams"].append({
+                    if full_key is not None and default_val is not None:
+                        param_dict = {
                             "label": label,
                             "type": param_type,
                             "type_props": pipeline_type_args,
                             "key": full_key,
-                            "default": default_val
-                        })
+                            "default": default_val,
+                        }
+                        if is_required:
+                            param_dict["required"] = True
+                        metadata["diveParams"].append(param_dict)
 
                 # --- Description extraction (Multiline) ---
                 desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)

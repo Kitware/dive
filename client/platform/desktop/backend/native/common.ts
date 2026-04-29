@@ -109,19 +109,38 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         const [, label, rawArgs] = diveMatch;
         const args = rawArgs.split(',').map((arg) => arg.trim());
         const type: PipelineParamType = args[0] as PipelineParamType;
-        const pipelineTypeArgs = args.slice(1);
+        const restArgs = args.slice(1);
+        // `required` is a flag keyword — strip it from type_props,
+        // everything else stays positional for the type.
+        const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
+        const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
 
-        const paramLineMatch = trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i);
-        if (paramLineMatch) {
-          const localKey = paramLineMatch[1];
-          const defaultValue = paramLineMatch[2].trim();
-          const fullKey = [...contextStack, localKey].join(':');
+        // `config <key> = <value>` — absolute kwiver key, no process/block prefix
+        // applied. Used for global / cross-referenced settings.
+        const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
+        // Otherwise a regular per-process/block parameter assignment.
+        const paramLineMatch = !configMatch
+          ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
+          : null;
+
+        let fullKey: string | null = null;
+        let defaultValue: string | null = null;
+        if (configMatch) {
+          fullKey = configMatch[1];
+          defaultValue = configMatch[2].trim();
+        } else if (paramLineMatch) {
+          fullKey = [...contextStack, paramLineMatch[1]].join(':');
+          defaultValue = paramLineMatch[2].trim();
+        }
+
+        if (fullKey !== null && defaultValue !== null) {
           metadata.diveParams!.push({
             label,
             type,
             type_props: pipelineTypeArgs,
             key: fullKey,
             default: defaultValue,
+            ...(isRequired ? { required: true } : {}),
           });
         }
       }
