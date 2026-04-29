@@ -184,8 +184,8 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
-  /** Optional parameters to pass to the pipeline via -s flags */
   pipelineParams?: Record<string, string>;
+  frameRange?: [number, number] | null;
   outputDatasetName?: string;
 }
 

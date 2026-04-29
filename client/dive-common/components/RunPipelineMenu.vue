@@ -75,6 +75,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /* Time filter range from the viewer - [startFrame, endFrame] or null */
+    timeFilter: {
+      type: Array as unknown as PropType<[number, number] | null>,
+      default: null,
+    },
   },
 
   setup(props) {
@@ -200,10 +205,11 @@ export default defineComponent({
         datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
       }
       selectedPipeline.value = pipeline;
+      const frameRange = props.timeFilter;
       await _runPipelineRequest(() => Promise.all(
         datasetIds.map((id) => {
           const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
-          return runPipeline(id, pipeline, additionalConfig);
+          return runPipeline(id, pipeline, frameRange, additionalConfig);
         }),
       ));
     }
