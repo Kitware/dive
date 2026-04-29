@@ -12,6 +12,7 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
+import AdditionalPointLayer from '../layers/AnnotationLayers/AdditionalPointLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
@@ -125,6 +126,11 @@ export default defineComponent({
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
     }, trackStore);
+    const additionalPointLayer = new AdditionalPointLayer({
+      annotator,
+      stateStyling: trackStyleManager.stateStyles,
+      typeStyling: typeStylingRef,
+    });
 
     const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
     const textLayer = new TextLayer({
@@ -315,6 +321,22 @@ export default defineComponent({
       } else {
         pointLayer.disable();
       }
+      if (visibleModes.includes('additionalPoints')) {
+        const apPrefs = annotatorPrefs.value.additionalPoints;
+        additionalPointLayer.updateDisplaySettings(
+          apPrefs?.showLabels ?? true,
+          apPrefs?.sizePercent ?? 100,
+        );
+        additionalPointLayer.setAdditionalPointEditContext(
+          editingTrack === 'additionalPoints',
+          selectedTrackId,
+          selectedKey,
+        );
+        additionalPointLayer.changeData(frameData);
+      } else {
+        additionalPointLayer.setAdditionalPointEditContext(false, null, '');
+        additionalPointLayer.disable();
+      }
       if (visibleModes.includes('text')) {
         textLayer.changeData(frameData);
         attributeBoxLayer.changeData(frameData);
@@ -346,9 +368,54 @@ export default defineComponent({
         }
         if (editingTracks.length) {
           if (editingTrack) {
-            editAnnotationLayer.setType(editingTrack);
-            editAnnotationLayer.setKey(selectedKey);
-            editAnnotationLayer.changeData(editingTracks);
+            if (editingTrack === 'additionalPoints') {
+              const additionalPointEditingTrack = editingTracks.map((trackFrame) => {
+                if (!trackFrame.features) {
+                  return trackFrame;
+                }
+                const additionalPointsForKey = (
+                  trackFrame.features.additionalPoints?.[selectedKey]
+                  || []
+                );
+                const firstPoint = additionalPointsForKey[0];
+                if (!firstPoint) {
+                  return {
+                    ...trackFrame,
+                    features: {
+                      ...trackFrame.features,
+                      geometry: undefined,
+                    },
+                  };
+                }
+                const geometry: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+                  type: 'FeatureCollection',
+                  features: [{
+                    type: 'Feature',
+                    geometry: {
+                      type: 'Point',
+                      coordinates: firstPoint.coordinates,
+                    },
+                    properties: {
+                      key: selectedKey,
+                    },
+                  }],
+                };
+                return {
+                  ...trackFrame,
+                  features: {
+                    ...trackFrame.features,
+                    geometry,
+                  },
+                };
+              });
+              editAnnotationLayer.setType('additionalPoints');
+              editAnnotationLayer.setKey(selectedKey);
+              editAnnotationLayer.changeData(additionalPointEditingTrack);
+            } else {
+              editAnnotationLayer.setType(editingTrack);
+              editAnnotationLayer.setKey(selectedKey);
+              editAnnotationLayer.changeData(editingTracks);
+            }
           }
         } else {
           editAnnotationLayer.disable();
@@ -385,6 +452,7 @@ export default defineComponent({
         selectedTrackIdRef,
         multiSeletListRef,
         visibleModesRef,
+        selectedKeyRef,
         typeStylingRef,
         toRef(props, 'colorBy'),
         selectedCamera,
@@ -457,6 +525,15 @@ export default defineComponent({
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    additionalPointLayer.bus.$on('annotation-right-clicked', (trackId: number, key: string) => {
+      if (selectedCamera.value !== props.camera) {
+        return;
+      }
+      editAnnotationLayer.disable();
+      handler.trackSelect(trackId, true);
+      handler.setAnnotationState({ editing: 'additionalPoints', key });
+      handler.selectFeatureHandle(0, key);
+    });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
