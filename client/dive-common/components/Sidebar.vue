@@ -49,6 +49,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isStereoDataset: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup() {
@@ -230,6 +234,7 @@ export default defineComponent({
             <template slot="settings">
               <TrackSettingsPanel
                 :all-types="allTypesRef"
+                :is-stereo-dataset="isStereoDataset"
               />
             </template>
           </TrackList>
@@ -313,6 +318,7 @@ export default defineComponent({
           <template slot="settings">
             <TrackSettingsPanel
               :all-types="allTypesRef"
+              :is-stereo-dataset="isStereoDataset"
             />
           </template>
           <template #header-trailing>
@@ -431,6 +437,73 @@ export default defineComponent({
   border-right: 1px solid #444;
   flex-shrink: 0;
   background-color: #1e1e1e;
+}
+
+.confidence-row {
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.horizontal-details-panel {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+
+  /* Always show scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #666;
+  }
+}
+
+/* Override overflow-hidden on TrackDetailsPanel when in horizontal mode */
+.details-panel-scrollable {
+  overflow: visible !important;
+}
+
+.horizontal-types-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Always show scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #666;
+  }
+}
+
+.horizontal-sidebar {
+  position: relative;
+  border-right: 1px solid #444;
+  flex-shrink: 0;
+  background-color: #1e1e1e;
+}
+
+.swap-button-horizontal {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
 }
 
 .confidence-row {

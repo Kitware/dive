@@ -1,4 +1,5 @@
 /* eslint-disable class-methods-use-this */
+import geo, { GeoEvent } from 'geojs';
 import { cloneDeep } from 'lodash';
 
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
@@ -24,7 +25,23 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point', 'line'],
     });
-    this.featureLayer = layer.createFeature('line');
+    this.featureLayer = layer
+      .createFeature('line', { selectionAPI: true })
+      .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
+        if (e.mouse.buttonsDown.left) {
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+            this.bus.$emit('annotation-clicked', e.data.trackId, false);
+          }
+        } else if (e.mouse.buttonsDown.right) {
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+            this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+          }
+        }
+      });
+    this.featureLayer.geoOn(
+      geo.event.feature.mouseclick_order,
+      this.featureLayer.mouseOverOrderClosestBorder,
+    );
     super.initialize();
   }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, computed, Ref,
+  defineComponent, defineAsyncComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
@@ -37,6 +37,7 @@ import { getResponseError } from 'vue-media-annotator/utils';
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
@@ -53,6 +54,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
@@ -64,6 +66,12 @@ import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+
+// NativeVideoAnnotator uses electron APIs - only load in desktop app
+// The webpackIgnore comment prevents bundling in web builds
+const NativeVideoAnnotator = defineAsyncComponent(
+  () => import(/* webpackIgnore: true */ 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue'),
+);
 
 export interface ImageDataItem {
   url: string;
@@ -80,6 +88,7 @@ export default defineComponent({
     Sidebar,
     LayerManager,
     VideoAnnotator,
+    NativeVideoAnnotator,
     ImageAnnotator,
     LargeImageAnnotator,
     ConfidenceFilter,
@@ -145,8 +154,10 @@ export default defineComponent({
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
+    const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
+    const nativeVideoPath: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
     } = useApi();
@@ -163,6 +174,19 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+    const editorMenuRef = ref();
+
+    /**
+     * Forward text query service ready status to EditorMenu
+     * Called by ViewerLoader when text query service initialization completes
+     */
+    function onTextQueryServiceReady(success: boolean, error?: string) {
+      if (editorMenuRef.value?.onTextQueryServiceReady) {
+        editorMenuRef.value.onTextQueryServiceReady(success, error);
+      }
+    }
+
+    const sideBarCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const getInitialSidebarMode = (): 'left' | 'bottom' | 'collapsed' => {
       const defaultMode = clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed';
@@ -256,9 +280,11 @@ export default defineComponent({
       setSVGFilters,
     } = useImageEnhancements();
 
+    const segmentationRecipe = new SegmentationPointClick();
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
+      segmentationRecipe,
     ];
 
     const vuetify = inject('vuetify') as Vuetify;
@@ -325,6 +351,7 @@ export default defineComponent({
       selectedKey,
       selectedCamera,
       editingTrack,
+      segmentationPoints,
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
@@ -332,6 +359,9 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
+        emit('stereo-annotation-complete', params);
+      },
     });
 
     const {
@@ -758,6 +788,7 @@ export default defineComponent({
           setImageEnhancements(meta.imageEnhancements);
         }
         datasetName.value = meta.name;
+        subType.value = meta.subType || null;
         initTime({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
@@ -775,6 +806,9 @@ export default defineComponent({
           imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
+          }
+          if (subCameraMeta.nativeVideoPath) {
+            nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
@@ -923,6 +957,10 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
+    // Update segmentation recipe when frame changes to show only current frame's points
+    watch(() => time.frame.value, (newFrame) => {
+      segmentationRecipe.handleFrameChange(newFrame);
+    });
 
     function handleResize() {
       if (controlsRef.value) {
@@ -991,6 +1029,7 @@ export default defineComponent({
         annotationSet: toRef(props, 'currentSet'),
         annotationSets: sets,
         comparisonSets: toRef(props, 'comparisonSets'),
+        segmentationPoints,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -1164,6 +1203,9 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
+      editorMenuRef,
+      onTextQueryServiceReady,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -1174,6 +1216,7 @@ export default defineComponent({
       clientSettings,
       datasetName,
       datasetType,
+      subType,
       editingTrack,
       editingMode,
       editingDetails,
@@ -1192,12 +1235,14 @@ export default defineComponent({
       showUserSettingsDialog,
       playbackComponent,
       recipes,
+      segmentationRecipe,
       selectedFeatureHandle,
       selectedTrackId,
       editingGroupId,
       selectedKey,
       trackFilters,
       videoUrl,
+      nativeVideoPath,
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
@@ -1344,6 +1389,7 @@ export default defineComponent({
         </v-tooltip>
 
         <EditorMenu
+          ref="editorMenuRef"
           v-bind="{
             editingMode,
             visibleModes,
@@ -1359,6 +1405,9 @@ export default defineComponent({
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @text-query-init="$emit('text-query-init')"
+          @text-query="$emit('text-query', $event)"
+          @text-query-all-frames="$emit('text-query-all-frames', $event)"
         >
           <template slot="delete-controls">
             <delete-controls
@@ -1366,6 +1415,8 @@ export default defineComponent({
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
+              @add-hole="handler.addHole"
+              @add-polygon="handler.addPolygon"
             />
           </template>
           <template
@@ -1484,6 +1535,7 @@ export default defineComponent({
     >
       <sidebar
         v-if="sidebarMode === 'left'"
+        :is-stereo-dataset="subType === 'stereo'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
@@ -1534,14 +1586,17 @@ export default defineComponent({
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                  : datasetType === 'video'
+                    ? (nativeVideoPath[camera] ? 'native-video-annotator' : 'video-annotator')
+                    : 'large-image-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
+                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime,
                   frameRate,
                   originalFps,

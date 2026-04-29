@@ -67,6 +67,11 @@ interface AnnotationSettings {
     enabled: boolean;
     delaySeconds: number;
   };
+  stereoSettings: {
+    interactiveModeEnabled: boolean;
+    loading: boolean;
+    loadingMessage: string;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -142,6 +147,11 @@ const defaultSettings: AnnotationSettings = {
     enabled: false, // Disabled by default for backward compatibility
     delaySeconds: 60,
   },
+  stereoSettings: {
+    interactiveModeEnabled: false,
+    loading: false,
+    loadingMessage: '',
+  },
 };
 const MIN_AUTO_SAVE_DELAY_SECONDS = 10;
 
@@ -162,7 +172,16 @@ function loadStoredSettings(): Partial<AnnotationSettings> {
 function saveSettings() {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+      // Exclude transient stereo fields from persistence
+      const toSave = {
+        ...clientSettings,
+        stereoSettings: {
+          ...clientSettings.stereoSettings,
+          loading: false,
+          loadingMessage: '',
+        },
+      };
+      localStorage.setItem('Settings', JSON.stringify(toSave));
     }
   } catch (e) {
     console.warn('Failed to save settings to localStorage:', e);
