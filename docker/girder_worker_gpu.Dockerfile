@@ -21,20 +21,18 @@ ENV TINI_VERSION=v0.19.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
-# Install python
-RUN export DEBIAN_FRONTEND=noninteractive && \
-  apt update && \
-  apt-get install software-properties-common -y && \
-  add-apt-repository ppa:deadsnakes/ppa && \
-  apt-get update && \
-  apt-get install -qy python3.11 libpython3.11 python3.11-venv libc6 build-essential cargo build-essential libssl-dev libffi-dev python3-libtiff libvips-dev libgdal-dev python3-dev npm && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
 
+
+# VIAME tooling expects `python` to stay on the image default (3.10).
 RUN ln -fs /usr/bin/python3.10 /usr/bin/python
 WORKDIR /opt/dive/src
 
 # Use a globally accessible uv binary (works before/after USER switch)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install interpreter outside /root so user `dive` can run the venv (see USER dive below).
+ENV UV_PYTHON_INSTALL_DIR=/opt/dive/local/uv-python
+ENV UV_PYTHON=3.11
+RUN uv python install 3.11
 ENV VIRTUAL_ENV="/opt/dive/local/venv"
 ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
