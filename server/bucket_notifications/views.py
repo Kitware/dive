@@ -11,6 +11,7 @@ from girder.models.assetstore import Assetstore
 from girder.models.folder import Folder
 from girder.models.user import User
 
+from dive_tasks.local_tasks import import_assetstore_path_async
 from dive_utils.types import AssetstoreModel, GirderModel
 
 from .constants import AssetstoreRuleMarker
@@ -73,14 +74,14 @@ class BucketNotification(Resource):
             # All the chain of parent directories exist
             realImportPath = importPath
 
-        Assetstore().importData(
-            store,
-            target,
+        import_assetstore_path_async.delay(
+            str(store['_id']),
+            str(target['_id']),
             'folder',
-            {'importPath': realImportPath},
-            None,
-            owner,
+            realImportPath,
+            str(owner['_id']),
             force_recursive=False,
+            leaf_folders_as_items=False,
         )
 
     @access.admin
