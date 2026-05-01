@@ -6,7 +6,7 @@ x-worker: &base-worker
   build:
     context: .
     dockerfile: docker/girder_worker.Dockerfile
-  image: kitware/viame-worker:${TAG:-girder-5}
+  image: dive/viame-worker:girder-5-cpu
   volumes:
     - addons:/tmp/addons:ro # readonly
   labels:
@@ -147,7 +147,7 @@ services:
     build:
       context: .
       dockerfile: docker/girder_worker_gpu.Dockerfile
-    image: kitware/viame-worker:${TAG:-latest}
+    image: dev/viame-worker:girder-5gpu
     restart: always
     deploy:
       resources:
@@ -184,7 +184,7 @@ services:
     build:
       context: .
       dockerfile: docker/girder_worker_gpu.Dockerfile
-    image: kitware/viame-worker:${TAG:-latest}
+    image: dev/viame-worker:gpu
     restart: always
     deploy:
       resources:
