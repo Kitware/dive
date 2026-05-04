@@ -51,6 +51,7 @@ import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
+import UserSettingsDialog from './UserSettingsDialog.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -68,6 +69,7 @@ export default defineComponent({
     LargeImageAnnotator,
     ConfidenceFilter,
     UserGuideButton,
+    UserSettingsDialog,
     EditorMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
@@ -138,6 +140,7 @@ export default defineComponent({
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
     const sideBarCollapsed = ref(false);
+    const showUserSettingsDialog = ref(false);
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -412,9 +415,8 @@ export default defineComponent({
         handler.stopLinking();
       }
     });
-    async function save(setVal?: string, exitEditingMode = false) {
-      // Only exit editing mode if explicitly requested (e.g., manual save)
-      // Auto-save should NOT disrupt the user's editing session
+    async function save(setVal?: string, exitEditingMode = true) {
+      // Manual save exits editing by default; auto-save opts out.
       saveInProgress.value = true;
       if (exitEditingMode && editingTrack.value) {
         handler.trackSelect(selectedTrackId.value, false);
@@ -468,16 +470,20 @@ export default defineComponent({
 
     watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
 
-    // Auto-save annotations when enabled. Skips firing while a save is
-    // already in flight; the saveInProgress watcher below re-arms it.
-    const debouncedAutoSave = debounce(
+    // Auto-save annotations when enabled, but never while editing a track.
+    // Delay is configurable in settings and applied dynamically.
+    const getAutoSaveDelayMs = () => (
+      Math.max(1, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000
+    );
+    let debouncedAutoSave = debounce(
       async () => {
         if (readonlyState.value) return;
+        if (editingTrack.value) return;
         if (pendingSaveCount.value === 0) return;
         if (saveInProgress.value) return;
-        await save(props.currentSet);
+        await save(props.currentSet, false);
       },
-      2000,
+      getAutoSaveDelayMs(),
       { trailing: true, leading: false },
     );
 
@@ -489,6 +495,7 @@ export default defineComponent({
           && newCount > oldCount
           && newCount > 0
           && !readonlyState.value
+          && !editingTrack.value
         ) {
           debouncedAutoSave();
         }
@@ -503,6 +510,44 @@ export default defineComponent({
         && clientSettings.autoSaveSettings.enabled
         && pendingSaveCount.value > 0
         && !readonlyState.value
+        && !editingTrack.value
+      ) {
+        debouncedAutoSave();
+      }
+    });
+
+    watch(editingTrack, (isEditing) => {
+      if (isEditing) {
+        debouncedAutoSave.cancel();
+        return;
+      }
+      if (
+        clientSettings.autoSaveSettings.enabled
+        && pendingSaveCount.value > 0
+        && !readonlyState.value
+      ) {
+        debouncedAutoSave();
+      }
+    });
+
+    watch(() => clientSettings.autoSaveSettings.delaySeconds, () => {
+      debouncedAutoSave.cancel();
+      debouncedAutoSave = debounce(
+        async () => {
+          if (readonlyState.value) return;
+          if (editingTrack.value) return;
+          if (pendingSaveCount.value === 0) return;
+          if (saveInProgress.value) return;
+          await save(props.currentSet, false);
+        },
+        getAutoSaveDelayMs(),
+        { trailing: true, leading: false },
+      );
+      if (
+        clientSettings.autoSaveSettings.enabled
+        && pendingSaveCount.value > 0
+        && !readonlyState.value
+        && !editingTrack.value
       ) {
         debouncedAutoSave();
       }
@@ -901,6 +946,7 @@ export default defineComponent({
       progress,
       progressValue,
       saveInProgress,
+      showUserSettingsDialog,
       playbackComponent,
       recipes,
       selectedFeatureHandle,
@@ -1101,6 +1147,19 @@ export default defineComponent({
 
       <slot name="title-right" />
       <user-guide-button annotating />
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <div v-on="on">
+            <v-btn
+              icon
+              @click="showUserSettingsDialog = true"
+            >
+              <v-icon>mdi-cog</v-icon>
+            </v-btn>
+          </div>
+        </template>
+        <span>User settings</span>
+      </v-tooltip>
 
       <v-tooltip
         bottom
@@ -1123,16 +1182,30 @@ export default defineComponent({
                 :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
                 @click="save(currentSet)"
               >
-                <v-icon>
-                  {{ clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save' }}
+                <v-icon :class="{ 'mdi-spin': saveInProgress }">
+                  {{
+                    saveInProgress
+                      ? 'mdi-loading'
+                      : (clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save')
+                  }}
                 </v-icon>
               </v-btn>
             </div>
           </v-badge>
         </template>
-        <span>Read only mode, cannot save changes</span>
+        <span>
+          {{
+            readonlyState
+              ? 'Read only mode, cannot save changes'
+              : (saveInProgress ? 'Saving changes...' : 'Save changes')
+          }}
+        </span>
       </v-tooltip>
     </v-app-bar>
+    <UserSettingsDialog
+      :value="showUserSettingsDialog"
+      @input="showUserSettingsDialog = $event"
+    />
 
     <v-row
       no-gutters
