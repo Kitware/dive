@@ -34,17 +34,16 @@ classifiers = [
   "Natural Language :: English",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.11",
 ]
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.10,<3.12"
 dependencies = [
-  "cheroot>=8.4.5",
   "click>=8.1.3",
-  "girder>=3.2.8,<4",
-  "girder_jobs>=3.2.8,<4",
-  "girder_worker>=0.10.3,<1",
+  "girder==5.0.4",
+  "girder_jobs==5.0.4",
+  "girder_worker==5.0.4",
+  "girder-plugin-worker==5.0.4",
   "girder_worker_utils>=0.9.0,<1",
   "pydantic==1.10.13",
   "pyrabbit2==1.0.7",
@@ -54,7 +53,8 @@ dependencies = [
   "urllib3<1.27",
   "bitarray>=2.9.2",
   "simplejpeg>=1.7.2",
-  "girder-large-image>=1.28.1,<1.30",
+  "large-image==1.34.2a180",
+  "girder-large-image==1.34.2a180",
   "cherrypy>=18.9.0",
   "numpy==1.24.4",
 ]
@@ -67,14 +67,14 @@ dev = [
 
 [project.optional-dependencies]
 large-image = [
-  "large-image>=1.28.1,<1.30",
-  "large-image-tasks>=1.28.1,<1.30",
-  "large-image-converter>=1.28.1,<1.30",
-  "large-image-source-pil>=1.28.1,<1.30",
-  "large-image-source-gdal>=1.28.1,<1.30",
-  "large-image-source-tiff>=1.28.1,<1.30",
-  "large-image-source-ometiff>=1.28.1,<1.30",
-  "large-image-source-openjpeg>=1.28.1,<1.30",
+  "large-image",
+  "large-image-tasks",
+  "large-image-converter",
+  "large-image-source-pil",
+  "large-image-source-gdal",
+  "large-image-source-tiff",
+  "large-image-source-ometiff",
+  "large-image-source-openjpeg",
   "gdal",
   "pylibtiff",
 ]
@@ -116,6 +116,7 @@ allow-direct-references = true
 
 [tool.uv]
 conflicts = []
+prerelease = "allow"
 
 [[tool.uv.index]]
 name = "large_image_wheels"

@@ -9,7 +9,7 @@ from dive_utils.constants import UserPrivateQueueEnabledMarker
 dive_username = os.environ.get('DIVE_USERNAME', None)
 dive_password = os.environ.get('DIVE_PASSWORD', None)
 dive_api_url = os.environ.get('DIVE_API_URL', 'https://viame.kitware.com/api/v1')
-broker_url = os.environ.get('CELERY_BROKER_URL', None)
+broker_url = os.environ.get('GIRDER_WORKER_BROKER', None)
 
 if dive_username and dive_password:
     info(
@@ -42,7 +42,7 @@ if dive_username and dive_password:
     task_default_queue = queue_name
 
 if broker_url is None:
-    raise RuntimeError('CELERY_BROKER_URL must be set')
+    raise RuntimeError('GIRDER_WORKER_BROKER must be set')
 
 worker_send_task_events = False
 # https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-worker_prefetch_multiplier

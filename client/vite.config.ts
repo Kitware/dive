@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    base: mode === 'production' ? '/static/viame/' : '/',
+    base: '/',
     test: {
       globals: true,
     },
