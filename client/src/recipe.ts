@@ -28,6 +28,8 @@ interface Recipe {
   icon: Ref<string>;
   active: Ref<boolean>;
   toggleable: Ref<boolean>;
+  /** Whether the recipe is currently loading (e.g., initializing models) */
+  loading?: Ref<boolean>;
   bus: Vue;
   update: (
     mode: 'in-progress' | 'editing',
@@ -52,6 +54,8 @@ interface Recipe {
   activate: () => unknown;
   mousetrap: () => Mousetrap[];
   deactivate: () => void;
+  /** Optional method to confirm/lock the current annotation (e.g., for segmentation) */
+  confirm?: () => void;
 }
 
 export default Recipe;

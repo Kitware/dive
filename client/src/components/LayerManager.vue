@@ -39,7 +39,9 @@ import {
   useSelectedCamera,
   useAttributes,
   useComparisonSets,
+  useSegmentationPoints,
 } from '../provides';
+import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -89,7 +91,8 @@ export default defineComponent({
       return trackStyleManager.typeStyling.value;
     });
 
-    const annotator = injectAggregateController().value.getController(props.camera);
+    const aggregateController = injectAggregateController();
+    const annotator = aggregateController.value.getController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
 
@@ -153,6 +156,20 @@ export default defineComponent({
       typeStyling: typeStylingRef,
       type: 'rectangle',
     });
+
+    // Segmentation points layer for displaying prompt points during point-click segmentation
+    const segmentationPointsRef = useSegmentationPoints();
+    const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
+
+    // Watch for segmentation points updates - only show points for current frame
+    watch([segmentationPointsRef, frameNumberRef], ([newPoints, currentFrame]) => {
+      // Only display points if they belong to the current frame
+      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame) {
+        segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
+      } else {
+        segmentationPointsLayer.clear();
+      }
+    }, { deep: true });
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
@@ -388,6 +405,7 @@ export default defineComponent({
         typeStylingRef,
         toRef(props, 'colorBy'),
         selectedCamera,
+        selectedKeyRef,
       ],
       () => {
         updateLayers(
@@ -435,6 +453,23 @@ export default defineComponent({
       );
     });
 
+    /** Watch for resize events to redraw layers after view mode changes */
+    watch(
+      () => aggregateController.value.resizeTrigger.value,
+      () => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      },
+    );
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // If the camera isn't selected yet we ignore the click
       if (selectedCamera.value !== props.camera) {
@@ -443,20 +478,108 @@ export default defineComponent({
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        handler.trackSelect(trackId, editing, modifiers);
+        // When entering editing mode (right-click), use trackEdit so the
+        // geometry type is auto-detected (e.g. LineString vs rectangle).
+        if (editing && trackId !== null) {
+          handler.trackEdit(trackId);
+        } else {
+          handler.trackSelect(trackId, editing, modifiers);
+        }
+      } else if (editing && trackId !== null) {
+        // Right-click on another detection while in creation mode:
+        // cancel creation and switch to editing the clicked detection
+        editAnnotationLayer.disable();
+        handler.trackEdit(trackId);
       }
     };
 
     //Sync of internal geoJS state with the application
-    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      handler.trackSelect(selectedTrackIdRef.value, editing);
+    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
+      if (deselect) {
+        handler.trackSelect(null, false);
+      } else {
+        handler.trackSelect(selectedTrackIdRef.value, editing);
+      }
+    });
+    // Handle right-click to confirm/lock annotation in Point mode (segmentation)
+    editAnnotationLayer.bus.$on('confirm-annotation', () => {
+      handler.confirmRecipe();
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    // Handle right-click polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+      // If in creation mode, cancel it first so we can select the polygon
+      if (editAnnotationLayer.getMode() === 'creation') {
+        handler.cancelCreation();
+      }
+      // Set the polygon key for the right-clicked polygon
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the selected polygon
+      // This is especially important when already editing the same track
+      // since annotation-right-clicked won't be emitted in that case
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    lineLayer.bus.$on('annotation-clicked', Clicked);
+    lineLayer.bus.$on('annotation-right-clicked', Clicked);
+    // Handle polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      // If in creation mode, don't interrupt - let the edit layer handle clicks for placing points
+      // This is important for hole drawing where left-clicks place hole vertices
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the newly selected polygon
+      // Use nextTick to ensure the selectedKey ref has been updated
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
+    // Handle right-click outside polygons to finalize/cancel creation
+    polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
+      if (editAnnotationLayer.getMode() === 'creation') {
+        // Cancel creation and go back to editing the default polygon
+        handler.cancelCreation();
+        handler.selectFeatureHandle(-1, '');
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
+    });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
@@ -492,8 +615,59 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on(
       'update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+      (index: number, _type: EditAnnotationTypes, key?: string) => {
+        // When deselecting (index -1), don't change the key - it may have been
+        // set by polygon-right-clicked/polygon-clicked for multi-polygon selection
+        if (index >= 0 && key !== undefined) {
+          handler.selectFeatureHandle(index, key);
+        } else {
+          // Just update the handle index, preserve the current key
+          handler.selectFeatureHandle(index, selectedKeyRef.value);
+        }
+      },
     );
+    // Handle clicks outside the edit polygon to allow selecting other polygons
+    editAnnotationLayer.bus.$on('click-outside-edit', (geo: { x: number; y: number }) => {
+      // Check which polygon was clicked by iterating through formatted data
+      const point: [number, number] = [geo.x, geo.y];
+      const polygonData = polyAnnotationLayer.formattedData;
+
+      // Find the polygon that contains the click point
+      const clickedPolygon = polygonData.find((data) => {
+        const coords = data.polygon.coordinates[0] as [number, number][];
+        // Ray casting algorithm
+        let inside = false;
+        for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+          const xi = coords[i][0];
+          const yi = coords[i][1];
+          const xj = coords[j][0];
+          const yj = coords[j][1];
+          const intersect = ((yi > point[1]) !== (yj > point[1]))
+            && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      });
+
+      if (clickedPolygon) {
+        const polygonKey = clickedPolygon.polygonKey || '';
+        // Select the clicked polygon
+        handler.selectFeatureHandle(-1, polygonKey);
+        // Force layer update to load the newly selected polygon
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
+    });
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

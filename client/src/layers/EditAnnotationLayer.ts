@@ -69,6 +69,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   selectedKey?: string;
 
+  selectedPolygonIndex: number;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
@@ -80,6 +82,17 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
+  /* Track if the last click was a right-click or shift-click for Point mode */
+  lastClickWasBackground: boolean;
+
+  /* Track shift key state from native DOM events (more reliable than GeoJS events) */
+  lastShiftKeyState: boolean;
+
+  /* Bound event handlers for cleanup */
+  private boundTrackShiftKey: ((e: MouseEvent) => void) | null = null;
+
+  private boundHandleContextMenu: ((e: MouseEvent) => void) | null = null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   arrowFeatureLayer: any;
 
@@ -90,16 +103,91 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.skipNextExternalUpdate = false;
     this._mode = 'editing';
     this.selectedKey = '';
+    this.selectedPolygonIndex = 0;
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
     this.shapeInProgress = null;
     this.disableModeSync = false;
     this.leftButtonCheckTimeout = -1;
+    this.lastClickWasBackground = false;
+    this.lastShiftKeyState = false;
     this.unrotatedGeoJSONCoords = null;
+
+    // Bind event handlers once (listeners are added/removed dynamically based on type)
+    this.boundTrackShiftKey = this.trackShiftKey.bind(this);
+    this.boundHandleContextMenu = this.handleContextMenu.bind(this);
+
+    // Add listeners if starting in Point mode
+    if (this.type === 'Point') {
+      this.addPointModeListeners();
+    }
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
+  }
+
+  /**
+   * Add event listeners needed for Point mode (segmentation).
+   */
+  private addPointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.addEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.addEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Remove event listeners used for Point mode.
+   */
+  private removePointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.removeEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.removeEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Track shift key state from native DOM mousedown events.
+   * This is more reliable than GeoJS events for detecting shift+click.
+   */
+  trackShiftKey(e: MouseEvent) {
+    this.lastShiftKeyState = e.shiftKey;
+    // Also track middle-click (button 1) from native events for background points
+    if (e.button === 1 && this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = true;
+    }
+  }
+
+  /**
+   * Handle right-click context menu in Point mode.
+   * In segmentation mode, right-click confirms/locks the annotation.
+   * Prevents browser context menu.
+   */
+  handleContextMenu(e: MouseEvent) {
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Emit right-click event with screen coordinates so LayerManager can
+      // check if an annotation is under the cursor and select it.
+      // On Windows/Electron, GeoJS mouseclick may not fire for right-button,
+      // so this provides a reliable fallback for annotation selection.
+      this.bus.$emit('right-click-point-mode', { x: e.clientX, y: e.clientY });
+    }
+  }
+
+  /**
+   * Clean up event listeners when the layer is destroyed.
+   */
+  destroy() {
+    this.removePointModeListeners();
+    this.boundTrackShiftKey = null;
+    this.boundHandleContextMenu = null;
   }
 
   /**
@@ -130,6 +218,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e),
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        // Right-click in creation mode (non-Point): cancel and fully deselect.
+        // Point mode has its own right-click handler (handleContextMenu).
+        if (e.buttonsDown.right && this.getMode() === 'creation' && this.type !== 'Point') {
+          this.shapeInProgress = null;
+          this.bus.$emit('editing-annotation-sync', false, true);
+          return;
+        }
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
         if (!this.disableModeSync && (e.buttonsDown.left)
@@ -137,6 +232,35 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
           const newIndex = this.hoverHandleIndex;
+          // If not hovering over an edit handle and not on the edit polygon,
+          // emit event so other layers can handle the click (e.g., selecting different polygon)
+          if (newIndex < 0 && this.type === 'Polygon') {
+            const annotations = this.featureLayer.annotations();
+            if (annotations.length > 0) {
+              const annotation = annotations[0];
+              const geojson = annotation.geojson();
+              if (geojson && geojson.geometry && geojson.geometry.type === 'Polygon') {
+                const coords = geojson.geometry.coordinates[0] as [number, number][];
+                const point: [number, number] = [e.geo.x, e.geo.y];
+                // Ray casting algorithm to check if point is inside polygon
+                let inside = false;
+                for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+                  const xi = coords[i][0];
+                  const yi = coords[i][1];
+                  const xj = coords[j][0];
+                  const yj = coords[j][1];
+                  const intersect = ((yi > point[1]) !== (yj > point[1]))
+                    && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+                  if (intersect) inside = !inside;
+                }
+                if (!inside) {
+                  // Click is outside the current edit polygon - emit passthrough event
+                  this.bus.$emit('click-outside-edit', e.geo);
+                  return;
+                }
+              }
+            }
+          }
           // Click features like a toggle: unselect if it's clicked twice.
           if (newIndex === this.selectedHandleIndex) {
             this.selectedHandleIndex = -1;
@@ -184,10 +308,56 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
-    // Allow middle click movement when placing points
-    if (e.mouse.buttons.middle && !e.propogated) {
+    // Allow middle click movement when placing points (except in Point mode where it creates background points)
+    if (e.mouse.buttons.middle && !e.propogated && this.type !== 'Point') {
       return;
     }
+    // Right-click should never add vertices - cancel/confirm is handled by
+    // mouseclick (line/polygon cancel) and contextmenu (Point confirm)
+    if (e.mouse.buttons.right) {
+      return;
+    }
+
+    // Track if this is a background point (shift+click or middle-click) for Point mode
+    // Check both GeoJS event modifiers and our native DOM event tracking for reliability
+    // Preserve the value if it was already set to true by trackShiftKey (native event)
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = this.lastClickWasBackground
+        || e.mouse.buttons.middle
+        || e.mouse.modifiers.shift
+        || this.lastShiftKeyState;
+    }
+
+    // Handle middle-click in Point mode - GeoJS doesn't create points on middle-click,
+    // so we need to manually create the point and emit the event
+    if (this.type === 'Point' && this.getMode() === 'creation' && e.mouse.buttons.middle) {
+      const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)],
+        },
+        properties: {
+          background: true,
+        },
+      };
+
+      // Emit the point creation event directly
+      this.bus.$emit(
+        'update:geojson',
+        'editing',
+        true, // geometryCompleteEvent - point is complete
+        pointGeojson,
+        this.type,
+        this.selectedKey,
+        this.skipNextFunc(),
+      );
+
+      // Reset background flag for next point
+      this.lastClickWasBackground = false;
+      return;
+    }
+
     if (this.getMode() === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
       if (this.shapeInProgress === null) {
         // Initialize a new in-progress shape
@@ -205,6 +375,25 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       } else {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
+        // Auto-complete LineString after 2 points (simple line with 2 endpoints)
+        if (coords.length >= 2) {
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress!,
+            properties: {},
+          };
+          this.shapeInProgress = null;
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true, // geometryCompleteEvent - line is complete
+            feature,
+            this.type,
+            this.selectedKey,
+          );
+          return;
+        }
       }
       this.bus.$emit(
         'update:geojson',
@@ -281,9 +470,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * Set the current Editing type for switching between editing polygons or rects.
-   * */
+   * Also manages event listeners that are only needed for Point mode (segmentation).
+   */
   setType(type: EditAnnotationTypes) {
+    const wasPoint = this.type === 'Point';
+    const isPoint = type === 'Point';
     this.type = type;
+
+    // Add or remove Point mode listeners based on type change
+    if (!wasPoint && isPoint) {
+      this.addPointModeListeners();
+    } else if (wasPoint && !isPoint) {
+      this.removePointModeListeners();
+    }
   }
 
   setKey(key: string) {
@@ -336,6 +535,82 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * Attempt to finalize any in-progress annotation before switching tracks.
+   * Handles:
+   * - Polygon with 3+ vertices tracked in shapeInProgress
+   * - GeoJS-managed annotations (rectangles) in creation/done state
+   * - Discards invalid partial shapes (polygon < 3 vertices, line with 1 point)
+   * Returns true if a shape was finalized.
+   */
+  finalizeInProgress(): boolean {
+    // Handle shapeInProgress (polygon/line tracked manually)
+    if (this.shapeInProgress && this.getMode() === 'creation') {
+      if (this.shapeInProgress.type === 'Polygon') {
+        const coords = this.shapeInProgress.coordinates as GeoJSON.Position[][];
+        if (coords[0] && coords[0].length >= 3) {
+          const ring = coords[0];
+          const first = ring[0];
+          const last = ring[ring.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            ring.push([...first]);
+          }
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress,
+            properties: {},
+          };
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            feature,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          this.shapeInProgress = null;
+          return true;
+        }
+      }
+      // Discard invalid partial shapes (polygon < 3 vertices, line with 1 point)
+      this.shapeInProgress = null;
+      return false;
+    }
+
+    // Handle GeoJS-managed annotations (rectangles, completed shapes)
+    // Skip Point mode — segmentation manages its own polygon via the recipe,
+    // not through the edit layer's GeoJS annotation.
+    if (this.featureLayer && this.type !== 'Point') {
+      const annotations = this.featureLayer.annotations();
+      if (annotations.length > 0) {
+        const annotation = annotations[0];
+        const geoJSONData = annotation.geojson();
+        if (geoJSONData && geoJSONData.geometry) {
+          if (this.type === 'rectangle') {
+            geoJSONData.geometry.coordinates[0] = reOrdergeoJSON(
+              geoJSONData.geometry.coordinates[0] as GeoJSON.Position[],
+            );
+          }
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            geoJSONData,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Removes the current annotation and resets the mode when completed editing
    */
   disable() {
@@ -359,23 +634,50 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * retrieves geoJSON data based on the key and type
-   * @param frameData
+   * @param track
+   * @param polygonIndex optional index to get a specific polygon when multiple exist
    */
-  getGeoJSONData(track: FrameDataTrack) {
-    let geoJSONData;
+  getGeoJSONData(
+    track: FrameDataTrack,
+    polygonIndex?: number,
+  ): GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined {
+    let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
     if (track && track.features && track.features.geometry) {
+      const matchingFeatures: (GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString)[] = [];
       track.features.geometry.features.forEach((feature) => {
         if (feature.geometry
             && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
-          if (feature.properties && feature.properties.key !== 'undefined') {
-            if (feature.properties.key === this.selectedKey) {
-              geoJSONData = feature.geometry;
-            }
+          // Get the feature key, defaulting to '' for undefined/null keys
+          const featureKey = feature.properties?.key ?? '';
+          if (featureKey === this.selectedKey) {
+            matchingFeatures.push(
+              feature.geometry as GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString,
+            );
           }
         }
       });
+      // If polygonIndex is specified and valid, use it; otherwise use first match
+      if (polygonIndex !== undefined && polygonIndex >= 0 && polygonIndex < matchingFeatures.length) {
+        geoJSONData = matchingFeatures[polygonIndex];
+      } else if (matchingFeatures.length > 0) {
+        [geoJSONData] = matchingFeatures;
+      }
     }
     return geoJSONData;
+  }
+
+  /**
+   * Set which polygon index to edit when multiple polygons exist
+   */
+  setPolygonIndex(index: number) {
+    this.selectedPolygonIndex = index;
+  }
+
+  /**
+   * Get the currently selected polygon index
+   */
+  getPolygonIndex() {
+    return this.selectedPolygonIndex;
   }
 
   /** overrides default function to disable and clear anotations before drawing again */
@@ -477,6 +779,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
+        if (this.type === 'rectangle') {
+          geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
+            geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
+          );
+        }
+        // For Point mode, add background property if it was a right-click or shift-click
+        if (this.type === 'Point' && this.lastClickWasBackground) {
+          geoJSONData[0].properties = {
+            ...geoJSONData[0].properties,
+            background: true,
+          };
+          this.lastClickWasBackground = false; // Reset for next point
+        }
 
         this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
         this.formattedData = geoJSONData;
