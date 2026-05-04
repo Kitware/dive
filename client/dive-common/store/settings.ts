@@ -50,6 +50,7 @@ interface AnnotationSettings {
   };
   autoSaveSettings: {
     enabled: boolean;
+    delaySeconds: number;
   };
 }
 
@@ -111,6 +112,7 @@ const defaultSettings: AnnotationSettings = {
   },
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
+    delaySeconds: 60,
   },
 };
 

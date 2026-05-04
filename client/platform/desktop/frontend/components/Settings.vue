@@ -6,8 +6,6 @@ import {
 import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';
-
-import { clientSettings } from 'dive-common/store/settings';
 import { autoDiscover } from '../store/dataset';
 import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
@@ -73,7 +71,6 @@ export default defineComponent({
       appversion,
       arch,
       autoDiscoverState,
-      clientSettings,
       gitHash,
       platform,
       settings,
@@ -179,34 +176,6 @@ export default defineComponent({
             </v-icon>
             Save
           </v-btn>
-        </v-card-text>
-
-        <v-card-title>Annotation Settings</v-card-title>
-        <v-card-text>
-          <v-row>
-            <v-col>
-              <v-switch
-                v-model="clientSettings.multiCamSettings.showToolbar"
-                color="primary"
-                label="Show multi-camera toolbar"
-                hint="Show multi-camera editing tools in the top toolbar when a track is selected"
-                persistent-hint
-                class="my-0"
-              />
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-switch
-                v-model="clientSettings.autoSaveSettings.enabled"
-                color="primary"
-                label="Auto-save annotations"
-                hint="Automatically save annotation changes after a short delay. Changes are batched to reduce server requests."
-                persistent-hint
-                class="my-0"
-              />
-            </v-col>
-          </v-row>
         </v-card-text>
 
         <v-card-title>Platform support</v-card-title>
