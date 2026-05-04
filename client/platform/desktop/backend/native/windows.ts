@@ -38,8 +38,7 @@ const DefaultSettings: Settings = {
 
 const ViameWindowsConstants = {
   setup: 'setup_viame.bat',
-  trainingExe: 'viame.exe',
-  kwiverExe: 'kwiver.exe',
+  viameExe: 'viame.exe',
   shell: true,
 };
 
@@ -62,23 +61,30 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
     return `${setupScriptPath} does not exist`;
   }
 
+  const viameExePath = npath.join(settings.viamePath, 'bin', ViameWindowsConstants.viameExe);
+  const viameExists = await fs.pathExists(viameExePath);
+  if (!viameExists) {
+    return `${viameExePath} does not exist`;
+  }
+
   const modifiedCommand = `"${setupScriptPath.replace(/\\/g, '\\')}"`;
-  const kwiverExistsOnPath = observeChild(spawn(`${modifiedCommand} && kwiver.exe help`, {
-    shell: true,
-  }));
+  const viameOnPath = observeChild(spawn(
+    `${modifiedCommand} && ${ViameWindowsConstants.viameExe} help`,
+    { shell: true },
+  ));
   return new Promise((resolve) => {
-    kwiverExistsOnPath.on('exit', (code) => {
+    viameOnPath.on('exit', (code) => {
       if (code === 0) {
         resolve(true);
       } else {
-        resolve('kwiver failed to initialize');
+        resolve('viame failed to initialize');
       }
     });
   });
 }
 
 // Mock the validate call when starting jobs because it just takes too long to run.
-// TODO: maybe perform a lightweight check or some other test that doesn't spawn() kwiver
+// TODO: maybe perform a lightweight check or some other test that doesn't spawn() viame
 const validateFake = () => Promise.resolve(true as const);
 
 async function runPipeline(

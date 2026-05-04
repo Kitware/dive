@@ -242,17 +242,17 @@ export default defineComponent({
             === false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
           <span v-if="settingsAreValid === false">
-            Checking for Kwiver
+            Checking for VIAME
             <v-progress-linear
               indeterminate
               color="yellow darken-2"
             />
           </span>
           <span v-else-if="settingsAreValid === true">
-            Kwiver initialization succeeded
+            VIAME initialization succeeded
           </span>
           <span v-else>
-            Could not initialize kwiver: {{ settingsAreValid }}
+            Could not initialize VIAME: {{ settingsAreValid }}
           </span>
         </v-alert>
 

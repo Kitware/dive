@@ -81,8 +81,8 @@ class Config:
         assert self.viame_install_path.exists(), "VIAME Base install directory missing."
         self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
         assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_training_executable = self.viame_install_path / "bin" / "viame"
-        assert self.viame_training_executable.is_file(), "VIAME Executable missing"
+        self.viame_executable = self.viame_install_path / "bin" / "viame"
+        assert self.viame_executable.is_file(), "VIAME Executable missing"
 
         # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
@@ -417,7 +417,7 @@ def train_pipeline(self: Task, params: TrainingJob):
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-            f"{shlex.quote(str(conf.viame_training_executable))} train",
+            f"{shlex.quote(str(conf.viame_executable))} train",
             "--input-list",
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
