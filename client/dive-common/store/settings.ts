@@ -48,6 +48,10 @@ interface AnnotationSettings {
   multiCamSettings: {
     showToolbar: boolean;
   };
+  autoSaveSettings: {
+    enabled: boolean;
+    delaySeconds: number;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -105,6 +109,10 @@ const defaultSettings: AnnotationSettings = {
   },
   multiCamSettings: {
     showToolbar: true,
+  },
+  autoSaveSettings: {
+    enabled: false, // Disabled by default for backward compatibility
+    delaySeconds: 60,
   },
 };
 
