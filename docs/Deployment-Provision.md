@@ -111,7 +111,7 @@ These are all the variables that can be provided with `--extra-vars`.
 | DIVE_PASSWORD | null | Required for scenario 3. Password for private queue processor |
 | WORKER_CONCURRENCY | `2` | Optional for scenario 3. Max concurrnet jobs. **Change this to 1 if you run training** |
 | DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Optional for scenario 3. Remote URL to authenticate against. |
-| KWIVER_DEFAULT_LOG_LEVEL | `warn` | Optional for scenario 3. kwiver log level |
+| KWIVER_DEFAULT_LOG_LEVEL | `warn` | Optional for scenario 3. Log level for VIAME pipeline jobs (same env name as the Kwiver stack) |
 
 ### Run Ansible
 
@@ -159,10 +159,10 @@ docker run --gpus=all --rm nvidia/cuda:11.0-base nvidia-smi
 # Test regular nvidia runtime
 nvidia-smi
 
-# For Scenario 2 and 3, check KWIVER installation
+# For Scenario 2 and 3, check that the VIAME CLI is available (DIVE jobs use `viame runner` / `viame train`)
 cd /opt/noaa/viame
 source setup_viame.sh
-kwiver
+viame --help
 
 # For Scenario 3, you can check to see if the worker is started
 # You should see "celery@identifier ready." in the logs
