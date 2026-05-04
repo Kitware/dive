@@ -33,8 +33,11 @@ docker-compose build
 # Option 2) Pull pre-build images
 docker-compose pull
 
-# Start the project
+# Start the project in default mode (GPU-enabled workers)
 docker-compose up -d
+
+# Start the project in CPU-only mode
+docker-compose --profile cpu up -d
 
 # The web server has hot reload, so code changes will
 # immediately trigger a server restart.
@@ -49,6 +52,15 @@ docker-compose up girder_worker_training
 ```
 
 Access the server at <http://localhost:8010>
+
+### Worker profiles and feature availability
+
+Docker Compose now separates workers by profile:
+
+* **Default mode:** runs `girder_worker_default` plus `girder_worker_pipelines` and `girder_worker_training`.
+* **`--profile cpu`:** runs `girder_worker_default` only.
+
+If GPU workers are not present, DIVE disables pipeline/training actions in the web interface and rejects related API job launch requests.
 
 To work on the Vue client, see development instructions in `../client`.
 

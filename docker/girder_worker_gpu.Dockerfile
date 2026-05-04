@@ -1,20 +1,38 @@
-FROM python:3.11-bookworm AS worker
+# ========================
+# == SERVER BUILD STAGE ==
+# ========================
+# ====================
+# == FFMPEG FETCHER ==
+# ====================
+FROM python:3.8-bookworm AS ffmpeg-builder
+RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+RUN mkdir /tmp/ffextracted
+RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
 
-# install architecture-compatible tini and ffmpeg
-RUN apt-get update && \
-  apt-get install -qy tini ffmpeg && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
+# =================
+# == GPU WORKER ==
+# =================
+FROM kitware/viame:gpu-algorithms-web AS worker
+# VIAME install at /opt/noaa/viame/
+# VIAME pipelines at /opt/noaa/viame/configs/pipelines/
 
-# use distro-provided tini binary for current architecture
-RUN ln -sf /usr/bin/tini /tini
+# install tini init system
+ENV TINI_VERSION=v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
 
 
 
-RUN ln -fs /usr/bin/python3.11 /usr/bin/python
+# VIAME tooling expects `python` to stay on the image default (3.10).
+RUN ln -fs /usr/bin/python3.10 /usr/bin/python
 WORKDIR /opt/dive/src
 
 # Use a globally accessible uv binary (works before/after USER switch)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install interpreter outside /root so user `dive` can run the venv (see USER dive below).
+ENV UV_PYTHON_INSTALL_DIR=/opt/dive/local/uv-python
+ENV UV_PYTHON=3.11
+RUN uv python install 3.11
 ENV VIRTUAL_ENV="/opt/dive/local/venv"
 ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -24,12 +42,9 @@ ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
 COPY server/pyproject.toml server/uv.lock /opt/dive/src/
 # Install dependencies only
 RUN uv sync --frozen --no-install-project --no-dev
-# Build girder client, including plugins like worker/jobs
-# RUN girder build
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/
-    
 
 # Create user "dive" 1099:1099 to align with base image permissions.
 # https://github.com/VIAME/VIAME/blob/master/cmake/build_server_docker.sh#L123
@@ -44,9 +59,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy the built python installation
 # Copy ffmpeg
-RUN install -d /opt/dive/local/ffmpeg && \
-  ln -sf /usr/bin/ffmpeg /opt/dive/local/ffmpeg/ffmpeg && \
-  ln -sf /usr/bin/ffprobe /opt/dive/local/ffmpeg/ffprobe
+COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/ffmpeg/
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 
