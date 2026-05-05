@@ -53,6 +53,7 @@
     "vuex": "^3.0.1"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.26.0",
     "@types/body-parser": "^1.19.0",
     "@types/cors": "^2.8.9",
     "@types/csv-parse": "^1.2.2",
@@ -106,6 +107,8 @@
     "vite": "^5.4.20",
     "vitest": "^3.2.4",
     "vue-template-compiler": "^2.7.16",
+    "webpack": "^5.95.0",
+    "wslink": "^2.0.0",
     "xml-js": "^1.6.11",
     "yargs": "^16.1.0"
   },
