@@ -418,6 +418,7 @@ export default defineComponent({
                     v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
                     left
+                    :open-delay="250"
                     :disabled="!pipeline?.metadata?.description"
                     max-width="400"
                     content-class="pipeline-description-tooltip"
@@ -467,3 +468,10 @@ export default defineComponent({
     />
   </div>
 </template>
+
+<style>
+.pipeline-description-tooltip.v-tooltip__content {
+  background: #3a3a3a !important;
+  opacity: 1 !important;
+}
+</style>
