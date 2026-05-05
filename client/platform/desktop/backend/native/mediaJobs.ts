@@ -216,6 +216,9 @@ async function convertMedia(
   ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
   const job = observeChild(spawn(ffmpegPath, ffmpegArgs, { shell: false }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to start conversion process');
+  }
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
@@ -237,6 +240,11 @@ async function convertMedia(
     args.meta.transcodingJobKey = jobBase.key;
   }
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
+  // Emit an initial update immediately so UI reflects "converting" before ffmpeg writes logs.
+  updater({
+    ...jobBase,
+    body: ['Conversion job started'],
+  });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));

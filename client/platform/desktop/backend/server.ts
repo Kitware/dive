@@ -41,7 +41,7 @@ function makeMediaUrl(filepath: string): string {
   if (!addr) {
     throw new Error('server has not initialized yet');
   }
-  return `http://${addr.address}:${addr.port}/api/media?path=${filepath}`;
+  return `http://${addr.address}:${addr.port}/api/media?path=${encodeURIComponent(filepath)}`;
 }
 
 /* LOAD metadata */
