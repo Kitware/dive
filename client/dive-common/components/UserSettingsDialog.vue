@@ -11,8 +11,10 @@ export default defineComponent({
     },
   },
   setup() {
+    const isDesktopRuntime = typeof window !== 'undefined' && 'diveDesktop' in window;
     return {
       clientSettings,
+      isDesktopRuntime,
     };
   },
 });
@@ -28,6 +30,7 @@ export default defineComponent({
       <v-card-title>User Settings</v-card-title>
       <v-card-text>
         <v-switch
+          v-if="isDesktopRuntime"
           v-model="clientSettings.multiCamSettings.showToolbar"
           color="primary"
           class="my-0"

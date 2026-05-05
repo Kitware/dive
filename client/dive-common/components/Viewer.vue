@@ -919,6 +919,27 @@ export default defineComponent({
     const disableAnnotationFilters = computed(() => (
       trackFilters.disableAnnotationFilters.value
     ));
+    const saveTooltipText = computed(() => {
+      if (readonlyState.value) {
+        return 'Read only mode, cannot save changes';
+      }
+      if (saveInProgress.value) {
+        return 'Saving changes...';
+      }
+      const changeLabel = pendingSaveCount.value === 1 ? 'change' : 'changes';
+      let tooltip = `Save ${pendingSaveCount.value} ${changeLabel}`;
+      if (clientSettings.autoSaveSettings.enabled) {
+        tooltip += `. Auto-save is on (delay: ${clientSettings.autoSaveSettings.delaySeconds} seconds)`;
+      }
+      return tooltip;
+    });
+    const showMultiCamToolbar = computed(() => (
+      typeof window !== 'undefined'
+      && 'diveDesktop' in window
+      && multiCamList.value.length > 1
+      && clientSettings.multiCamSettings.showToolbar
+      && selectedCamera.value !== multiCamList.value[0]
+    ));
 
     return {
       /* props */
@@ -963,6 +984,8 @@ export default defineComponent({
       imageEnhancementOutputs,
       isDefaultImage,
       disableAnnotationFilters,
+      saveTooltipText,
+      showMultiCamToolbar,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1102,7 +1125,7 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
+            v-if="showMultiCamToolbar"
             slot="multicam-controls"
           >
             <multi-cam-toolbar />
@@ -1163,7 +1186,6 @@ export default defineComponent({
 
       <v-tooltip
         bottom
-        :disabled="!readonlyState"
       >
         <template #activator="{ on }">
           <v-badge
@@ -1176,29 +1198,24 @@ export default defineComponent({
             offset-x="14"
             offset-y="18"
           >
-            <div v-on="on">
-              <v-btn
-                icon
-                :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-                @click="save(currentSet)"
-              >
-                <v-icon :class="{ 'mdi-spin': saveInProgress }">
-                  {{
-                    saveInProgress
-                      ? 'mdi-loading'
-                      : (clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save')
-                  }}
-                </v-icon>
-              </v-btn>
-            </div>
+            <v-btn
+              icon
+              :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
+              v-on="on"
+              @click="save(currentSet)"
+            >
+              <v-icon :class="{ 'mdi-spin': saveInProgress }">
+                {{
+                  saveInProgress
+                    ? 'mdi-loading'
+                    : (clientSettings.autoSaveSettings.enabled ? 'mdi-content-save-cog' : 'mdi-content-save')
+                }}
+              </v-icon>
+            </v-btn>
           </v-badge>
         </template>
         <span>
-          {{
-            readonlyState
-              ? 'Read only mode, cannot save changes'
-              : (saveInProgress ? 'Saving changes...' : 'Save changes')
-          }}
+          {{ saveTooltipText }}
         </span>
       </v-tooltip>
     </v-app-bar>
