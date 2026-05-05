@@ -156,7 +156,8 @@ async function runPipeline(
   viameConstants: ViameConstants,
   forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline, frameRange } = runPipelineArgs;
+  const { datasetId, pipeline } = runPipelineArgs;
+  const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -317,9 +318,10 @@ async function runPipeline(
   }
 
   // Add any custom pipeline parameters
-  if (runPipelineArgs.pipelineParams) {
+  const kwiverParams = runPipelineArgs.pipelineParams?.kwiverParams;
+  if (kwiverParams) {
     const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
-    Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
+    Object.entries(kwiverParams).forEach(([key, value]) => {
       command.push(`-s ${key}="${escapeValue(value)}"`);
     });
   }

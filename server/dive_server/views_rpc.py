@@ -10,7 +10,7 @@ from girder.models.token import Token
 
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, TypeMarker
-from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
+from dive_utils.types import PipelineDescription, PipelineParams, TrainingModelTuneArgs
 
 from . import crud, crud_rpc, worker_capabilities
 
@@ -49,42 +49,24 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
-        .param(
-            "startFrame",
-            "Start frame (inclusive) for frame range filtering",
-            paramType="query",
-            dataType="integer",
-            required=False,
-        )
-        .param(
-            "endFrame",
-            "End frame (inclusive) for frame range filtering",
-            paramType="query",
-            dataType="integer",
-            required=False,
-        )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
         .jsonParam(
             "pipelineParams",
-            "Optional KWIVER -s parameter overrides from pipeline specified parameters",
+            "Optional pipeline parameter groups (kwiverParams and runtimeParams)",
             required=False,
             default=None,
         )
     )
-<<<<<<< HEAD
-    def run_pipeline_task(self, folder, forceTranscoded, startFrame, endFrame, pipeline: PipelineDescription, pipelineParams):
-        frame_range = None
-        if startFrame is not None and endFrame is not None:
-            frame_range = (startFrame, endFrame)
-        return crud_rpc.run_pipeline(
-            self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range, pipelineParams
-        )
-=======
-    def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription, pipelineParams: dict[str, str]):
+    def run_pipeline_task(
+        self,
+        folder,
+        forceTranscoded,
+        pipeline: PipelineDescription,
+        pipelineParams: Optional[PipelineParams],
+    ):
         worker_capabilities.require_pipeline_worker()
         return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams)
->>>>>>> main
-    
+
     @access.user
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")

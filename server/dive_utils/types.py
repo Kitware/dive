@@ -7,6 +7,8 @@ __all__ = [
     "DiveParam",
     "GirderModel",
     "PipelineDescription",
+    "PipelineParams",
+    "PipelineRuntimeParams",
     "PipelineJob",
     "PipelineCategory",
     "PipeMetadata",
@@ -87,6 +89,15 @@ class PipelineDescription(TypedDict):
     folderId: Optional[str]
 
 
+class PipelineRuntimeParams(TypedDict, total=False):
+    frameRange: Optional[Tuple[int, int]]
+
+
+class PipelineParams(TypedDict, total=False):
+    kwiverParams: Dict[str, str]
+    runtimeParams: PipelineRuntimeParams
+
+
 class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
 
@@ -98,8 +109,8 @@ class PipelineJob(TypedDict):
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]
-    frame_range: Optional[Tuple[int, int]]
-    pipeline_params: Optional[Dict[str, str]]
+    runtime_params: Optional[PipelineRuntimeParams]
+    kwiver_params: Optional[Dict[str, str]]
 
 
 class TrainingJob(TypedDict):

@@ -245,7 +245,8 @@ def run_pipeline(self: Task, params: PipelineJob):
     output_folder_id = str(params["output_folder"])
     input_revision = params["input_revision"]
     force_transcoded = params.get('force_transcoded', False)
-    frame_range = params.get('frame_range', None)
+    runtime_params = params.get('runtime_params') or {}
+    frame_range = runtime_params.get('frameRange')
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -326,10 +327,10 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
-        # Apply user-provided pipeline parameter overrides from pipeline params
-        pipeline_params = params.get('pipeline_params')
-        if pipeline_params:
-            for key, value in pipeline_params.items():
+        # Apply user-provided KWIVER parameter overrides.
+        kwiver_params = params.get('kwiver_params')
+        if kwiver_params:
+            for key, value in kwiver_params.items():
                 command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
         manager.updateStatus(JobStatus.RUNNING)

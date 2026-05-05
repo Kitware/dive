@@ -209,7 +209,10 @@ export default defineComponent({
       await _runPipelineRequest(() => Promise.all(
         datasetIds.map((id) => {
           const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
-          return runPipeline(id, pipeline, frameRange, additionalConfig);
+          return runPipeline(id, pipeline, {
+            kwiverParams: additionalConfig,
+            runtimeParams: frameRange ? { frameRange } : undefined,
+          });
         }),
       ));
     }

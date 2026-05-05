@@ -1,6 +1,6 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
-import { Pipe } from 'dive-common/apispec';
+import type { Pipe, PipelineParams } from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
@@ -10,18 +10,13 @@ function postProcess(folderId: string, skipJobs = false, skipTranscoding = false
   });
 }
 
-function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>) {
+function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams) {
   const params: Record<string, unknown> = {
     folderId: itemId,
     pipeline,
   };
-  if (frameRange) {
-    const [startFrame, endFrame] = frameRange;
-    params.startFrame = startFrame;
-    params.endFrame = endFrame;
-  }
-  if (additionalConfig) {
-    params.pipelineParams = additionalConfig;
+  if (pipelineParams) {
+    params.pipelineParams = pipelineParams;
   }
   return girderRest.post('dive_rpc/pipeline', null, { params });
 }

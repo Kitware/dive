@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 
 import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
-  Pipe, Pipelines, SaveAttributeArgs,
+  Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
 } from 'dive-common/apispec';
 
@@ -118,13 +118,12 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return window.diveDesktop.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<void> {
+async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<void> {
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
-    frameRange: frameRange || undefined,
-    pipelineParams: additionalConfig,
+    pipelineParams,
   };
   gpuJobQueue.enqueue(args);
 }
