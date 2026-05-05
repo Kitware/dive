@@ -373,9 +373,12 @@ async function loadMetadata(
       const transcodedVideo = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
       if (await fs.pathExists(transcodedVideo)) {
         videoUrl = makeMediaUrl(transcodedVideo);
-      } else {
+      } else if (projectMetaData.originalBasePath && projectMetaData.originalVideoFile) {
         const originalVideo = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
         videoUrl = makeMediaUrl(originalVideo);
+      } else {
+        // Some legacy/test metadata only has a transcoded filename.
+        videoUrl = makeMediaUrl(transcodedVideo);
       }
     } else {
       const video = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
