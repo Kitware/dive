@@ -521,14 +521,11 @@ def convert_video(
             print('Expected 1 video stream, found {}'.format(len(videostream)))
             print('Using first Video Stream found')
 
-        # Extract average framerate
-        avgFpsString: str = videostream[0]["avg_frame_rate"]
-        originalFps = None
-        if avgFpsString:
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
-        else:
-            raise Exception('Expected key avg_frame_rate in ffprobe')
+        format_info = jsoninfo.get('format') or {}
+        format_name = format_info.get('format_name') or ''
+
+        # Extract framerate (avg_frame_rate, else r_frame_rate for e.g. MPEG-TS)
+        avgFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
 
         if requestedFps == -1:
             newAnnotationFps = originalFps
@@ -537,8 +534,15 @@ def convert_video(
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
+        # Skip remux/transcode only for h264 in a browser-friendly container (not mpegts/mpeg/ps).
+        can_skip_transcode = (
+            skip_transcoding
+            and videostream[0]['codec_name'] == 'h264'
+            and utils.container_allows_skip_transcoding(format_name)
+        )
+
         # lets determine if we don't need to transcode this file
-        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+        if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.addMetadataToItem(
@@ -565,7 +569,11 @@ def convert_video(
         elif skip_transcoding:
             print('Transcoding cannot be skipped:')
             print(f'Codec Name: {videostream[0]["codec_name"]}')
-            print('Codec name is not h264 so file will be transcoded')
+            print(f'format_name: {format_name}')
+            if videostream[0]['codec_name'] != 'h264':
+                print('Codec is not h264; file will be transcoded')
+            elif not utils.container_allows_skip_transcoding(format_name):
+                print('Container is not web-safe (e.g. mpegts); file will be transcoded')
 
         command = [
             "ffmpeg",

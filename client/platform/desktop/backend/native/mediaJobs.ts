@@ -58,6 +58,31 @@ interface CheckMediaResults {
   videoDimensions: { width: number; height: number };
 }
 
+function frameRateStringFromProbeStream(stream: {
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
+}): string {
+  const parseable = (s: string | undefined): s is string => {
+    if (!s || s === '0/0') return false;
+    const parts = s.split('/').map((v) => Number.parseInt(v, 10));
+    return (
+      parts.length === 2
+      && !Number.isNaN(parts[0])
+      && !Number.isNaN(parts[1])
+      && parts[1] !== 0
+    );
+  };
+  if (parseable(stream.avg_frame_rate)) {
+    return stream.avg_frame_rate;
+  }
+  if (parseable(stream.r_frame_rate)) {
+    return stream.r_frame_rate;
+  }
+  throw Error(
+    'FFProbe found no usable frame rate (avg_frame_rate / r_frame_rate)',
+  );
+}
+
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
     file,
@@ -138,11 +163,11 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
 
   if (ffprobeJSON && ffprobeJSON.streams?.length) {
     const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
-    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
-      throw Error('FFProbe found that video stream has no avg_frame_rate');
+    if (videoStream.length === 0) {
+      throw Error('FFProbe found no video stream');
     }
 
-    const originalFpsString = videoStream[0].avg_frame_rate;
+    const originalFpsString = frameRateStringFromProbeStream(videoStream[0]);
     const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
     const websafe = videoStream
