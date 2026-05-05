@@ -17,7 +17,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
-from dive_tasks.frame_alignment import check_and_fix_frame_alignment
+from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
@@ -521,14 +521,11 @@ def convert_video(
             print('Expected 1 video stream, found {}'.format(len(videostream)))
             print('Using first Video Stream found')
 
-        # Extract average framerate
-        avgFpsString: str = videostream[0]["avg_frame_rate"]
-        originalFps = None
-        if avgFpsString:
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
-        else:
-            raise Exception('Expected key avg_frame_rate in ffprobe')
+        format_info = jsoninfo.get('format') or {}
+        format_name = format_info.get('format_name') or ''
+
+        # Extract framerate (avg_frame_rate, else r_frame_rate for e.g. MPEG-TS)
+        originalFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
 
         if requestedFps == -1:
             newAnnotationFps = originalFps
@@ -537,8 +534,21 @@ def convert_video(
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
+        source_misaligned = False
+        if skip_transcoding:
+            source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
+
+        # Skip remux/transcode only for browser-safe sources, matching desktop checks.
+        can_skip_transcode = (
+            skip_transcoding
+            and videostream[0]['codec_name'] == 'h264'
+            and videostream[0].get('sample_aspect_ratio') == '1:1'
+            and utils.container_allows_skip_transcoding(format_name)
+            and not source_misaligned
+        )
+
         # lets determine if we don't need to transcode this file
-        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+        if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.addMetadataToItem(
@@ -547,7 +557,7 @@ def convert_video(
                     "source_video": False,  # even though it is, this for requesting
                     "transcoder": "ffmpeg",
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     "codec": "h264",
                 },
             )
@@ -556,7 +566,7 @@ def convert_video(
                 {
                     constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     constants.FPSMarker: newAnnotationFps,
                     "ffprobe_info": videostream[0],
                 },
@@ -565,7 +575,18 @@ def convert_video(
         elif skip_transcoding:
             print('Transcoding cannot be skipped:')
             print(f'Codec Name: {videostream[0]["codec_name"]}')
-            print('Codec name is not h264 so file will be transcoded')
+            print(f'format_name: {format_name}')
+            if videostream[0]['codec_name'] != 'h264':
+                print('Codec is not h264; file will be transcoded')
+            elif videostream[0].get('sample_aspect_ratio') != '1:1':
+                print(
+                    'Sample aspect ratio is not 1:1; file will be transcoded '
+                    '(desktop-parity rule)'
+                )
+            elif not utils.container_allows_skip_transcoding(format_name):
+                print('Container is not web-safe (e.g. mpegts); file will be transcoded')
+            elif source_misaligned:
+                print('Frame timestamps are misaligned; file will be transcoded')
 
         command = [
             "ffmpeg",
@@ -601,14 +622,14 @@ def convert_video(
                 "source_video": False,
                 "transcoder": "ffmpeg",
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 "codec": "h264",
             },
         )
         source_metadata = {
             "source_video": True,
             constants.OriginalFPSMarker: originalFps,
-            constants.OriginalFPSStringMarker: avgFpsString,
+            constants.OriginalFPSStringMarker: originalFpsString,
             "codec": videostream[0]["codec_name"],
         }
         if misaligned_flag:
@@ -622,7 +643,7 @@ def convert_video(
             {
                 constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 constants.FPSMarker: newAnnotationFps,
                 "ffprobe_info": videostream[0],
             },
