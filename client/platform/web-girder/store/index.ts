@@ -8,6 +8,7 @@ import Dataset from './Dataset';
 import Brand from './Brand';
 import User from './User';
 import Jobs, { init as JobsInit } from './Jobs';
+import Config from './Config';
 
 Vue.use(Vuex);
 
@@ -18,6 +19,7 @@ const store = new Vuex.Store<RootState>({
     Dataset,
     Jobs,
     User,
+    Config,
   },
 });
 

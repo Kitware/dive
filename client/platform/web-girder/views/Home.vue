@@ -74,6 +74,7 @@ export default defineComponent({
   },
   computed: {
     ...mapState('Location', ['selected', 'location']),
+    ...mapState('Config', ['pipelinesEnabled', 'trainingEnabled']),
     ...mapGetters('Location', ['locationIsViameFolder']),
     selectedViameFolderIds() {
       return this.selected.filter(
@@ -173,6 +174,7 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
+                  v-if="trainingEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
@@ -181,6 +183,7 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
+                  v-if="pipelinesEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },

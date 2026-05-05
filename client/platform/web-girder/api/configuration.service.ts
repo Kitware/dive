@@ -46,6 +46,16 @@ export type GroupBy = 'user' | 'month' | undefined;
 
 export type AddOns = [string, string, string, boolean][];
 
+export interface DiveConfiguration {
+  distributedWorker?: string;
+  pipelinesEnabled?: boolean;
+  trainingEnabled?: boolean;
+}
+
+function getConfig() {
+  return girderRest.get<DiveConfiguration>('dive_configuration');
+}
+
 function getBrandData() {
   return girderRest.get<BrandData>('dive_configuration/brand_data');
 }
@@ -87,6 +97,7 @@ function getStats(dateRange?: DateRange, overrideDateTime?: string, groupBy?: Gr
 
 export {
   getBrandData,
+  getConfig,
   putBrandData,
   getPipelineList,
   getTrainingConfigurations,
