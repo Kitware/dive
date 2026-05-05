@@ -117,7 +117,8 @@ export default defineComponent({
     function updateTimeFilterMin(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
-        trackFilters.setTimeFilters([value, current[1]]);
+        const newMin = Math.max(0, Math.min(value, current[1]));
+        trackFilters.setTimeFilters([newMin, current[1]]);
         saveTimeFilter();
       }
     }
@@ -125,7 +126,8 @@ export default defineComponent({
     function updateTimeFilterMax(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
-        trackFilters.setTimeFilters([current[0], value]);
+        const newMax = Math.min(mediaController.maxFrame.value, Math.max(value, current[0]));
+        trackFilters.setTimeFilters([current[0], newMax]);
         saveTimeFilter();
       }
     }
@@ -285,7 +287,7 @@ export default defineComponent({
                 hide-details
                 outlined
                 :min="0"
-                :max="mediaController.maxFrame.value"
+                :max="timeFilterMax"
                 @blur="applyMinFrame"
                 @keydown.enter="applyMinFrame"
               />
@@ -294,7 +296,7 @@ export default defineComponent({
               <v-slider
                 :value="timeFilterMin"
                 :min="0"
-                :max="mediaController.maxFrame.value"
+                :max="timeFilterMax"
                 step="1"
                 dense
                 hide-details
@@ -328,7 +330,7 @@ export default defineComponent({
                 dense
                 hide-details
                 outlined
-                :min="0"
+                :min="timeFilterMin"
                 :max="mediaController.maxFrame.value"
                 @blur="applyMaxFrame"
                 @keydown.enter="applyMaxFrame"
@@ -337,7 +339,7 @@ export default defineComponent({
             <v-col>
               <v-slider
                 :value="timeFilterMax"
-                :min="0"
+                :min="timeFilterMin"
                 :max="mediaController.maxFrame.value"
                 step="1"
                 dense
