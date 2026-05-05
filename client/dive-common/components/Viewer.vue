@@ -473,7 +473,7 @@ export default defineComponent({
     // Auto-save annotations when enabled, but never while editing a track.
     // Delay is configurable in settings and applied dynamically.
     const getAutoSaveDelayMs = () => (
-      Math.max(1, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000
+      Math.max(10, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000
     );
     let debouncedAutoSave = debounce(
       async () => {

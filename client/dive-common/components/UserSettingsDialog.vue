@@ -54,7 +54,7 @@ export default defineComponent({
           hint="Number of seconds to wait after edits before auto-save runs."
           persistent-hint
           type="number"
-          min="1"
+          min="10"
           step="1"
           :disabled="!clientSettings.autoSaveSettings.enabled"
         />
