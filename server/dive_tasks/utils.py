@@ -342,12 +342,12 @@ def upload_exported_zipped_dataset(
         transcoded_video = list(gc.listItem(root_folderId, name=video["filename"]))
         if len(transcoded_video) == 1:
             ffprobe = meta["ffprobe_info"]
-            avgFpsString, originalFps = fps_from_ffprobe_stream(ffprobe)
+            originalFpsString, originalFps = fps_from_ffprobe_stream(ffprobe)
 
             transcoded_metadata = {
                 "codec": "h264",
                 "originalFps": originalFps,
-                "originalFpsString": avgFpsString,
+                "originalFpsString": originalFpsString,
                 "source_video": False,
                 "transcoder": "ffmpeg",
             }
@@ -361,12 +361,12 @@ def upload_exported_zipped_dataset(
                     source_metadata = {
                         "codec": ffprobe["codec_name"],
                         "originalFps": originalFps,
-                        "originalFpsString": avgFpsString,
+                        "originalFpsString": originalFpsString,
                         "source_video": False,
                     }
                     gc.addMetadataToItem(str(item['_id']), source_metadata)
             root_meta["originalFps"] = originalFps
-            root_meta["originalFpsString"] = avgFpsString
+            root_meta["originalFpsString"] = originalFpsString
 
     # Need to tag folder Level data (annotate, and others)
     root_meta[constants.DatasetMarker] = True
