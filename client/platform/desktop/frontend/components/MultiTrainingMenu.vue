@@ -335,6 +335,7 @@ export default defineComponent({
             <template #item="{ item, on, attrs }">
               <v-tooltip
                 left
+                :open-delay="250"
                 :disabled="!item.description"
                 max-width="300"
                 content-class="pipeline-description-tooltip"

@@ -418,6 +418,7 @@ export default defineComponent({
                     v-for="pipeline in pipelines[pipeType].pipes"
                     :key="`${pipeline.name}-${pipeline.pipe}`"
                     left
+                    :open-delay="250"
                     :disabled="!pipeline?.metadata?.description"
                     max-width="400"
                     content-class="pipeline-description-tooltip"
