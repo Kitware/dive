@@ -6,8 +6,6 @@ import {
 import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';
-
-import { clientSettings } from 'dive-common/store/settings';
 import { autoDiscover } from '../store/dataset';
 import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
@@ -73,7 +71,6 @@ export default defineComponent({
       appversion,
       arch,
       autoDiscoverState,
-      clientSettings,
       gitHash,
       platform,
       settings,
@@ -181,22 +178,6 @@ export default defineComponent({
           </v-btn>
         </v-card-text>
 
-        <v-card-title>Annotation Settings</v-card-title>
-        <v-card-text>
-          <v-row>
-            <v-col>
-              <v-switch
-                v-model="clientSettings.multiCamSettings.showToolbar"
-                color="primary"
-                label="Show multi-camera toolbar"
-                hint="Show multi-camera editing tools in the top toolbar when a track is selected"
-                persistent-hint
-                class="my-0"
-              />
-            </v-col>
-          </v-row>
-        </v-card-text>
-
         <v-card-title>Platform support</v-card-title>
         <v-card-subtitle>
           Not all checks must pass in order to use this application.
@@ -242,17 +223,17 @@ export default defineComponent({
             === false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
           <span v-if="settingsAreValid === false">
-            Checking for Kwiver
+            Checking for VIAME
             <v-progress-linear
               indeterminate
               color="yellow darken-2"
             />
           </span>
           <span v-else-if="settingsAreValid === true">
-            Kwiver initialization succeeded
+            VIAME initialization succeeded
           </span>
           <span v-else>
-            Could not initialize kwiver: {{ settingsAreValid }}
+            Could not initialize VIAME: {{ settingsAreValid }}
           </span>
         </v-alert>
 

@@ -98,6 +98,7 @@ export default defineComponent({
     const viewerRef = ref();
     const store = useStore();
     const brandData = toRef(store.state.Brand, 'brandData');
+    const pipelinesEnabled = toRef(store.state.Config, 'pipelinesEnabled');
     const revisionNum = computed(() => {
       const parsed = Number.parseInt(props.revision, 10);
       if (Number.isNaN(parsed)) return undefined;
@@ -238,6 +239,7 @@ export default defineComponent({
       largeImageWarning,
       typeList,
       timeFilter,
+      pipelinesEnabled,
     };
   },
 });
@@ -273,6 +275,7 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
+        v-if="pipelinesEnabled"
         v-bind="{ buttonOptions, menuOptions, typeList }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
