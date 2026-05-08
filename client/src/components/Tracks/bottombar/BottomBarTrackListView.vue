@@ -28,8 +28,8 @@ export default defineComponent({
   },
   setup(props) {
     const readOnlyMode = useReadOnlyMode();
-    const allTypes = useTrackFilters().allTypes;
-    const typeStyling = useTrackStyleManager().typeStyling;
+    const { allTypes } = useTrackFilters();
+    const { typeStyling } = useTrackStyleManager();
     const columnVisibility = computed(
       () => clientSettings.trackSettings.trackListSettings.columnVisibility,
     );

@@ -33,7 +33,7 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
-    const allTypes = useTrackFilters().allTypes;
+    const { allTypes } = useTrackFilters();
     const cameraStore = useCameraStore();
 
     const editingType = ref(false);

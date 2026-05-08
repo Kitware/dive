@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, computed, Ref, ref,
+  defineComponent, reactive, computed, ref,
   watch,
 } from 'vue';
 

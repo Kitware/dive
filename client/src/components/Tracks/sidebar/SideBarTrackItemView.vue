@@ -128,7 +128,9 @@ export default defineComponent({
       <v-spacer />
       <TypePicker
         :value="trackType"
-        v-bind="{ lockTypes, readOnlyMode, allTypes, selected }"
+        v-bind="{
+          lockTypes, readOnlyMode, allTypes, selected,
+        }"
         @input="setTrackType($event)"
       />
     </v-row>

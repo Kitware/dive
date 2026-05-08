@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, PropType, computed } from 'vue';
+import { defineComponent, computed } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import TrackItem from '../TrackItem.vue';
 import { useReadOnlyMode, useTrackFilters, useTrackStyleManager } from '../../../provides';
@@ -25,8 +25,8 @@ export default defineComponent({
   },
   setup(props) {
     const readOnlyMode = useReadOnlyMode();
-    const allTypes = useTrackFilters().allTypes;
-    const typeStyling = useTrackStyleManager().typeStyling;
+    const { allTypes } = useTrackFilters();
+    const { typeStyling } = useTrackStyleManager();
     const columnVisibility = computed(
       () => clientSettings.trackSettings.trackListSettings.columnVisibility,
     );
