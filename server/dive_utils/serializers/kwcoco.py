@@ -6,7 +6,7 @@ KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
