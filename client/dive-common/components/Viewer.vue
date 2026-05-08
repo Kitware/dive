@@ -1019,7 +1019,6 @@ export default defineComponent({
       && 'diveDesktop' in window
       && multiCamList.value.length > 1
       && clientSettings.multiCamSettings.showToolbar
-      && selectedCamera.value !== multiCamList.value[0]
     ));
 
     function seekToFrame(frame: number) {
