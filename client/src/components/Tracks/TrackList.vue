@@ -18,9 +18,10 @@ import {
   useTrackStyleManager,
   useMultiSelectList,
   useCameraStore,
-} from '../provides';
-import useVirtualScrollTo from '../use/useVirtualScrollTo';
-import TrackItem from './TrackItem.vue';
+} from '../../provides';
+import useVirtualScrollTo from '../../use/useVirtualScrollTo';
+import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
+import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
 /* Magic numbers involved in height calculation */
 const TrackListHeaderHeight = 52;
@@ -31,7 +32,10 @@ type SortDirection = 'asc' | 'desc';
 export default defineComponent({
   name: 'TrackList',
 
-  components: { TrackItem },
+  components: {
+    SideBarTrackListView,
+    BottomBarTrackListView,
+  },
 
   props: {
     newTrackMode: {
@@ -249,14 +253,6 @@ export default defineComponent({
       }));
     });
 
-    const newTrackColor: Ref<string> = computed(() => {
-      if (props.newTrackType !== 'unknown') {
-        return typeStylingRef.value.color(props.newTrackType);
-      }
-      // Return default color
-      return '';
-    });
-
     const getAnnotation = (id: AnnotationId) => cameraStore.getAnyPossibleTrack(id);
 
     watch(
@@ -361,10 +357,6 @@ export default defineComponent({
 
     const virtualHeight = computed(() => props.height - TrackListHeaderHeight);
 
-    const columnVisibility = computed(
-      () => clientSettings.trackSettings.trackListSettings.columnVisibility,
-    );
-
     function handleSort(key: SortKey) {
       if (sortKey.value === key) {
         // Toggle direction between desc and asc
@@ -386,9 +378,7 @@ export default defineComponent({
       data,
       getItemProps,
       mouseTrap,
-      newTrackColor,
       filteredTracks: finalFilteredTracks,
-      readOnlyMode,
       trackAdd,
       virtualHeight,
       virtualListItems,
@@ -398,349 +388,62 @@ export default defineComponent({
       sortDirection,
       handleSort,
       sortIcon,
-      columnVisibility,
     };
   },
 });
 </script>
 
 <template>
-  <div class="d-flex flex-column">
-    <!-- Compact header for bottom layout -->
-    <div
-      v-if="compact"
-      class="compact-header d-flex flex-column px-2 py-1"
-    >
-      <div class="d-flex align-center">
-        <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
-        <v-spacer />
-        <v-menu
-          v-model="data.columnSettingsActive"
-          :close-on-content-click="false"
-          :nudge-bottom="28"
-        >
-          <template #activator="{ on, attrs }">
-            <v-btn
-              icon
-              x-small
-              class="mr-2"
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-icon
-                x-small
-                :color="data.columnSettingsActive ? 'accent' : 'default'"
-              >
-                mdi-view-column
-              </v-icon>
-            </v-btn>
-          </template>
-          <slot
-            v-if="data.columnSettingsActive"
-            name="column-settings"
-          />
-        </v-menu>
-        <v-menu
-          v-model="data.settingsActive"
-          :close-on-content-click="false"
-          :nudge-bottom="28"
-        >
-          <template #activator="{ on, attrs }">
-            <v-btn
-              icon
-              x-small
-              class="mr-2"
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-icon
-                x-small
-                :color="data.settingsActive ? 'accent' : 'default'"
-              >
-                mdi-cog
-              </v-icon>
-            </v-btn>
-          </template>
-          <slot
-            v-if="data.settingsActive"
-            name="settings"
-          />
-        </v-menu>
-        <v-tooltip
-          open-delay="100"
-          bottom
-        >
-          <template #activator="{ on }">
-            <v-btn
-              :disabled="filteredTracks.length === 0 || readOnlyMode"
-              icon
-              x-small
-              class="mr-2"
-              v-on="on"
-              @click="multiDelete()"
-            >
-              <v-icon
-                x-small
-                color="error"
-              >
-                mdi-delete
-              </v-icon>
-            </v-btn>
-          </template>
-          <span>Delete visible items</span>
-        </v-tooltip>
-        <v-tooltip
-          open-delay="200"
-          bottom
-          max-width="200"
-        >
-          <template #activator="{ on }">
-            <v-btn
-              :disabled="readOnlyMode"
-              outlined
-              x-small
-              :color="newTrackColor"
-              v-on="on"
-              @click="trackAdd()"
-            >
-              <v-icon x-small>
-                mdi-plus
-              </v-icon>
-            </v-btn>
-          </template>
-          <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
-        </v-tooltip>
-      </div>
-      <!-- Column headers row -->
-      <div class="compact-column-headers d-flex align-center px-1 mt-1">
-        <span class="col-spacer" />
-        <span
-          class="col-header col-id sortable"
-          :class="{ active: sortKey === 'id' }"
-          @click="handleSort('id')"
-        >
-          ID
-          <v-icon
-            v-if="sortIcon('id')"
-            x-small
-          >{{ sortIcon('id') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.type !== false"
-          class="col-header col-type sortable"
-          :class="{ active: sortKey === 'type' }"
-          @click="handleSort('type')"
-        >
-          Type
-          <v-icon
-            v-if="sortIcon('type')"
-            x-small
-          >{{ sortIcon('type') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.confidence !== false"
-          class="col-header col-conf sortable"
-          :class="{ active: sortKey === 'confidence' }"
-          @click="handleSort('confidence')"
-        >
-          Conf
-          <v-icon
-            v-if="sortIcon('confidence')"
-            x-small
-          >{{ sortIcon('confidence') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.startFrame"
-          class="col-header col-start sortable"
-          :class="{ active: sortKey === 'start' }"
-          @click="handleSort('start')"
-        >
-          Start
-          <v-icon
-            v-if="sortIcon('start')"
-            x-small
-          >{{ sortIcon('start') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.endFrame"
-          class="col-header col-end sortable"
-          :class="{ active: sortKey === 'end' }"
-          @click="handleSort('end')"
-        >
-          End
-          <v-icon
-            v-if="sortIcon('end')"
-            x-small
-          >{{ sortIcon('end') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.startTimestamp"
-          class="col-header col-timestamp sortable"
-          :class="{ active: sortKey === 'startTime' }"
-          @click="handleSort('startTime')"
-        >
-          Start Time
-          <v-icon
-            v-if="sortIcon('startTime')"
-            x-small
-          >{{ sortIcon('startTime') }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.endTimestamp"
-          class="col-header col-timestamp sortable"
-          :class="{ active: sortKey === 'endTime' }"
-          @click="handleSort('endTime')"
-        >
-          End Time
-          <v-icon
-            v-if="sortIcon('endTime')"
-            x-small
-          >{{ sortIcon('endTime') }}</v-icon>
-        </span>
-        <span
-          v-for="attrKey in columnVisibility?.attributeColumns || []"
-          :key="attrKey"
-          class="col-header col-attribute sortable"
-          :class="{ active: sortKey === attrKey }"
-          @click="handleSort(attrKey)"
-        >
-          {{ attrKey.split('_').pop() }}
-          <v-icon
-            v-if="sortIcon(attrKey)"
-            x-small
-          >{{ sortIcon(attrKey) }}</v-icon>
-        </span>
-        <span
-          v-if="columnVisibility?.notes"
-          class="col-header col-notes sortable"
-          :class="{ active: sortKey === 'notes' }"
-          @click="handleSort('notes')"
-        >
-          Notes
-          <v-icon
-            v-if="sortIcon('notes')"
-            x-small
-          >{{ sortIcon('notes') }}</v-icon>
-        </span>
-        <v-spacer />
-        <span class="col-header col-actions">Actions</span>
-      </div>
-    </div>
-    <!-- Standard header -->
-    <v-subheader
-      v-else
-      class="flex-grow-1 trackHeader px-2"
-    >
-      <v-container class="py-2">
-        <v-row align="center">
-          Tracks ({{ filteredTracks.length }})
-          <v-spacer />
-          <v-menu
-            v-model="data.settingsActive"
-            :close-on-content-click="false"
-            :nudge-bottom="28"
-          >
-            <template #activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                class="mr-2"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon
-                  small
-                  :color="data.settingsActive ? 'accent' : 'default'"
-                >
-                  mdi-cog
-                </v-icon>
-              </v-btn>
-            </template>
-            <slot
-              v-if="data.settingsActive"
-              name="settings"
-            />
-          </v-menu>
-          <v-tooltip
-            open-delay="100"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-btn
-                :disabled="filteredTracks.length === 0 || readOnlyMode"
-                icon
-                small
-                class="mr-2"
-                v-on="on"
-                @click="multiDelete()"
-              >
-                <v-icon
-                  small
-                  color="error"
-                >
-                  mdi-delete
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Delete visible items</span>
-          </v-tooltip>
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-btn
-                :disabled="readOnlyMode"
-                outlined
-                x-small
-                class="mr-2"
-                :color="newTrackColor"
-                v-on="on"
-                @click="trackAdd()"
-              >
-                <v-icon small>
-                  mdi-plus
-                </v-icon>
-                {{ newTrackMode }}
-              </v-btn>
-            </template>
-            <span>Default Type: {{ newTrackType }}</span>
-          </v-tooltip>
-        </v-row>
-      </v-container>
-    </v-subheader>
-    <datalist id="allTypesOptions">
-      <option
-        v-for="type in allTypes"
-        :key="type"
-        :value="type"
-      >
-        {{ type }}
-      </option>
-    </datalist>
-    <v-virtual-scroll
-      ref="virtualList"
-      v-mousetrap="mouseTrap"
-      :class="compact ? 'tracks-compact' : 'tracks'"
-      :items="virtualListItems"
-      :item-height="data.itemHeight"
-      :height="virtualHeight"
-      bench="1"
-    >
-      <template #default="{ item }">
-        <track-item
-          v-bind="getItemProps(item)"
-          :lock-types="lockTypes"
-          :disabled="disabled"
-          :compact="compact"
-          :column-visibility="columnVisibility"
-          :fps="fps"
-          @seek="$emit('track-seek', $event)"
-        />
-      </template>
-    </v-virtual-scroll>
-  </div>
+  <bottom-bar-track-list-view
+    v-if="compact"
+    :data="data"
+    :filtered-tracks="filteredTracks"
+    :new-track-mode="newTrackMode"
+    :new-track-type="newTrackType"
+    :track-add="trackAdd"
+    :multi-delete="multiDelete"
+    :virtual-list-items="virtualListItems"
+    :get-item-props="getItemProps"
+    :lock-types="lockTypes"
+    :disabled="disabled"
+    :fps="fps"
+    :virtual-list-ref="virtualList"
+    :mouse-trap="mouseTrap"
+    :virtual-height="virtualHeight"
+    :sort-key="sortKey"
+    :handle-sort="handleSort"
+    :sort-icon="sortIcon"
+    @track-seek="$emit('track-seek', $event)"
+  >
+    <template #settings>
+      <slot name="settings" />
+    </template>
+    <template #column-settings>
+      <slot name="column-settings" />
+    </template>
+  </bottom-bar-track-list-view>
+  <side-bar-track-list-view
+    v-else
+    :data="data"
+    :filtered-tracks="filteredTracks"
+    :new-track-mode="newTrackMode"
+    :new-track-type="newTrackType"
+    :track-add="trackAdd"
+    :multi-delete="multiDelete"
+    :virtual-list-items="virtualListItems"
+    :get-item-props="getItemProps"
+    :lock-types="lockTypes"
+    :disabled="disabled"
+    :fps="fps"
+    :virtual-list-ref="virtualList"
+    :mouse-trap="mouseTrap"
+    :virtual-height="virtualHeight"
+    @track-seek="$emit('track-seek', $event)"
+  >
+    <template #settings>
+      <slot name="settings" />
+    </template>
+  </side-bar-track-list-view>
 </template>
 
 <style lang="scss">
