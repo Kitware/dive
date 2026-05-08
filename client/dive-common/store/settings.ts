@@ -63,6 +63,10 @@ interface AnnotationSettings {
   layoutSettings: {
     sidebarPosition: 'left' | 'bottom';
   };
+  autoSaveSettings: {
+    enabled: boolean;
+    delaySeconds: number;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -134,7 +138,12 @@ const defaultSettings: AnnotationSettings = {
   layoutSettings: {
     sidebarPosition: 'left',
   },
+  autoSaveSettings: {
+    enabled: false, // Disabled by default for backward compatibility
+    delaySeconds: 60,
+  },
 };
+const MIN_AUTO_SAVE_DELAY_SECONDS = 10;
 
 // Utility to safely load from localStorage
 function loadStoredSettings(): Partial<AnnotationSettings> {
@@ -161,7 +170,12 @@ function saveSettings() {
 }
 
 function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
-  return merge(cloneDeep(defaultSettings), obj);
+  const hydrated = merge(cloneDeep(defaultSettings), obj);
+  hydrated.autoSaveSettings.delaySeconds = Math.max(
+    MIN_AUTO_SAVE_DELAY_SECONDS,
+    Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
+  );
+  return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));

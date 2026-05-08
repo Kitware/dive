@@ -90,7 +90,7 @@ export default defineComponent({
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
         }
         const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
@@ -112,7 +112,7 @@ export default defineComponent({
           });
         } else {
           // Queue conversion job
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
           // Display new data and await transcoding to complete
           const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
