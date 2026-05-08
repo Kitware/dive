@@ -17,6 +17,7 @@ const cocoInput = {
       track_id: 7,
       dive_detection_attributes: { occluded: true, quality: 'low' },
       dive_track_attributes: { source: 'reviewed' },
+      dive_notes: ['primary note', 'secondary note'],
       segmentation: [
         [10, 20, 40, 20, 40, 60, 10, 60],
       ],
@@ -42,6 +43,7 @@ const annotationSchema: AnnotationSchema = {
           frame: 0,
           bounds: [100, 200, 150, 280],
           attributes: { visibility: 'poor' },
+          notes: ['exported note'],
         },
       ],
     },
@@ -89,6 +91,7 @@ describe('COCO serializer', () => {
     expect(track.end).toBe(1);
     expect(track.attributes).toEqual({ source: 'reviewed' });
     expect(track.features[0].attributes).toEqual({ occluded: true, quality: 'low' });
+    expect(track.features[0].notes).toEqual(['primary note', 'secondary note']);
     expect(track.features[0].geometry?.features.length).toBe(4);
     const geometryTypes = track.features[0].geometry?.features.map((f) => f.geometry.type) || [];
     expect(geometryTypes).toEqual(expect.arrayContaining(['Polygon', 'Point', 'LineString']));
@@ -100,10 +103,12 @@ describe('COCO serializer', () => {
     expect(out.info.dive_extensions).toEqual([
       'dive_detection_attributes',
       'dive_track_attributes',
+      'dive_notes',
     ]);
     expect(out.annotations).toHaveLength(1);
     expect(out.annotations[0].dive_detection_attributes).toEqual({ visibility: 'poor' });
     expect(out.annotations[0].dive_track_attributes).toEqual({ reviewer: 'alice' });
+    expect(out.annotations[0].dive_notes).toEqual(['exported note']);
   });
 });
 

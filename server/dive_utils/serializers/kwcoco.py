@@ -41,13 +41,14 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     return trackId, filename, frame, bounds
 
 
-def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict, dict, list]:
+def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict, dict, list, List[str]]:
     """
     Parse a single KWCOCO annotation into its composite track and detection parts
     """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}
+    notes: List[str] = []
 
     category_id = annotation['category_id']
     score = annotation.get('score', 1.0)  # may not exist, default to 1.0
@@ -126,7 +127,13 @@ def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict,
     if isinstance(track_attributes_value, dict):
         track_attributes.update(track_attributes_value)
 
-    return features, attributes, track_attributes, [confidence_pair]
+    note_values = annotation.get('dive_notes', annotation.get('notes', []))
+    if isinstance(note_values, list):
+        notes.extend([str(value).strip() for value in note_values if str(value).strip()])
+    elif isinstance(note_values, str) and note_values.strip():
+        notes.append(note_values.strip())
+
+    return features, attributes, track_attributes, [confidence_pair], notes
 
 
 def _parse_annotation_for_tracks(
@@ -137,6 +144,7 @@ def _parse_annotation_for_tracks(
         attributes,
         track_attributes,
         confidence_pairs,
+        notes,
     ) = _parse_annotation(annotation, meta)
     trackId, filename, frame, bounds = annotation_info(annotation, meta)
 
@@ -144,6 +152,7 @@ def _parse_annotation_for_tracks(
         frame=frame,
         bounds=bounds,
         attributes=attributes or None,
+        notes=notes or None,
         fishLength=None,
         **features,
     )
@@ -349,6 +358,8 @@ def export_dive_as_coco(
                 annotation['dive_detection_attributes'] = feature.attributes
             if track.attributes:
                 annotation['dive_track_attributes'] = track.attributes
+            if feature.notes:
+                annotation['dive_notes'] = feature.notes
             if segmentation:
                 annotation['segmentation'] = segmentation
             if keypoints:
@@ -367,7 +378,11 @@ def export_dive_as_coco(
     return {
         'info': {
             'description': f'DIVE export for {dataset_name}',
-            'dive_extensions': ['dive_detection_attributes', 'dive_track_attributes'],
+            'dive_extensions': [
+                'dive_detection_attributes',
+                'dive_track_attributes',
+                'dive_notes',
+            ],
         },
         'images': list(images.values()),
         'annotations': coco_annotations,
