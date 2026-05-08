@@ -173,7 +173,7 @@ export default defineComponent({
       />
     </template>
     <template #right-sidebar="{ sidebarMode }">
-      <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
+      <SidebarContext :sidebar-mode="sidebarMode">
         <template #default="{ name, subCategory }">
           <component
             :is="name"

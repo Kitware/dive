@@ -169,9 +169,9 @@ export default defineComponent({
       :wrap-bottom-controls="wrapBottomControls"
     >
       <template slot="timelineControls">
-        <div :style="{ 'min-width': bottomLayout ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
+        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
           <v-tooltip
-            v-if="!bottomLayout"
+            v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >
@@ -321,7 +321,7 @@ export default defineComponent({
       </template>
       <template #bottomControlsActivator="{ activatorId }">
         <v-btn
-          v-if="bottomLayout"
+          v-if="bottomLayout && wrapBottomControls"
           :id="activatorId"
           icon
           small
@@ -424,7 +424,7 @@ export default defineComponent({
             />
           </span>
           <v-tooltip
-            v-if="!bottomLayout"
+            v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >

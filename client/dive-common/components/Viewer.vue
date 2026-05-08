@@ -1395,7 +1395,7 @@ export default defineComponent({
           <template #activator="{ on }">
             <v-icon
               v-on="on"
-              @click="context.toggle(null)"
+              @click="context.toggle(undefined)"
             >
               {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
             </v-icon>
@@ -1462,14 +1462,15 @@ export default defineComponent({
       @input="showUserSettingsDialog = $event"
     />
 
-    <!-- Left sidebar layout -->
+    <!-- Standard layout (left sidebar visible or hidden) -->
     <v-row
-      v-if="sidebarMode === 'left'"
+      v-if="sidebarMode === 'left' || sidebarMode === 'collapsed'"
       no-gutters
       class="fill-height"
       style="min-width: 700px;"
     >
       <sidebar
+        v-if="sidebarMode === 'left'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
@@ -1586,122 +1587,125 @@ export default defineComponent({
       />
     </v-row>
 
-    <!-- Bottom sidebar layout or collapsed -->
+    <!-- Bottom sidebar layout -->
     <div
-      v-else
+      v-else-if="sidebarMode === 'bottom'"
       class="d-flex flex-column fill-height"
       style="min-width: 700px;"
     >
-      <div
-        v-if="progress.loaded"
-        v-mousetrap="[
-          { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
-          { bind: 'r', handler: () => resetAggregateZoom() },
-          { bind: 'esc', handler: () => handler.trackAbort() },
-          { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
-          { bind: 'a', handler: () => sidebarMode === 'bottom' && toggleBottomRightPanel() },
-        ]"
-        class="d-flex flex-column grow"
-        style="min-height: 0;"
-      >
-        <!-- Video/annotator area -->
-        <div class="d-flex grow" style="min-height: 0;">
-          <div
-            v-for="camera in multiCamList"
-            :key="camera"
-            class="d-flex flex-column grow"
-            @mousedown.left="changeCamera(camera, $event)"
-            @mouseup.right="changeCamera(camera, $event)"
-          >
-            <component
-              :is="datasetType === 'image-sequence' ? 'image-annotator'
-                : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
-              v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
-              ref="subPlaybackComponent"
-              class="fill-height"
-              :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
-              v-bind="{
-                imageData: imageData[camera],
-                videoUrl: videoUrl[camera],
-                updateTime,
-                frameRate,
-                originalFps,
-                camera,
-                imageEnhancementOutputs,
-                isDefaultImage,
-                getTiles,
-                getTileURL,
-              }"
-              @large-image-warning="$emit('large-image-warning', true)"
+      <div class="d-flex grow" style="min-height: 0;">
+        <div
+          v-if="progress.loaded"
+          v-mousetrap="[
+            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'r', handler: () => resetAggregateZoom() },
+            { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
+            { bind: 'a', handler: () => sidebarMode === 'bottom' && toggleBottomRightPanel() },
+          ]"
+          class="d-flex flex-column grow"
+          style="min-height: 0; min-width: 0;"
+        >
+          <!-- Video/annotator area -->
+          <div class="d-flex grow" style="min-height: 0;">
+            <div
+              v-for="camera in multiCamList"
+              :key="camera"
+              class="d-flex flex-column grow"
+              @mousedown.left="changeCamera(camera, $event)"
+              @mouseup.right="changeCamera(camera, $event)"
             >
-              <LayerManager :camera="camera" />
-            </component>
+              <component
+                :is="datasetType === 'image-sequence' ? 'image-annotator'
+                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                ref="subPlaybackComponent"
+                class="fill-height"
+                :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
+                v-bind="{
+                  imageData: imageData[camera],
+                  videoUrl: videoUrl[camera],
+                  updateTime,
+                  frameRate,
+                  originalFps,
+                  camera,
+                  imageEnhancementOutputs,
+                  isDefaultImage,
+                  getTiles,
+                  getTileURL,
+                }"
+                @large-image-warning="$emit('large-image-warning', true)"
+              >
+                <LayerManager :camera="camera" />
+              </component>
+            </div>
           </div>
+          <BottomPanel
+            :sidebar-mode="sidebarMode"
+            :controls-ref="controlsRef"
+            :controls-collapsed.sync="controlsCollapsed"
+            :line-chart-data="lineChartData"
+            :event-chart-data="eventChartData"
+            :group-chart-data="groupChartData"
+            :dataset-type="datasetType"
+            :is-default-image="isDefaultImage"
+            :client-settings="clientSettings"
+            :track-filters="trackFilters"
+            :attributes="attributes"
+            :frame-rate="frameRate"
+            :readonly-state="readonlyState"
+            :disable-annotation-filters="disableAnnotationFilters"
+            :prompt-visible="visible"
+            :confidence-filters="confidenceFilters"
+            :aggregate-seek="seekToFrame"
+            :track-style-manager="trackStyleManager"
+            :bottom-right-panel-view="bottomRightPanelView"
+            :toggle-bottom-right-panel="toggleBottomRightPanel"
+            :selected-track-for-details="selectedTrackForDetails ?? undefined"
+            :show-confidence-first="showConfidenceFirst"
+            :show-track-attributes-first="showTrackAttributesFirst"
+            :edit-individual="editIndividual ?? undefined"
+            :set-edit-individual="setEditIndividual"
+            :reset-edit-individual="resetEditIndividual"
+            :add-attribute="addAttribute"
+            :edit-attribute="editAttribute"
+            :save-threshold="saveThreshold"
+          />
         </div>
-        <BottomPanel
+        <div
+          v-else
+          class="d-flex justify-center align-center fill-height grow"
+          style="min-width: 0;"
+        >
+          <v-alert
+            v-if="loadError"
+            type="error"
+            prominent
+            max-width="60%"
+          >
+            <p class="ma-2">
+              {{ loadError }}
+            </p>
+          </v-alert>
+          <v-progress-circular
+            v-else
+            :indeterminate="progressValue === 0"
+            :value="progressValue"
+            size="100"
+            width="15"
+            color="light-blue"
+            class="main-progress-linear"
+            rotate="-90"
+          >
+            <span v-if="progressValue === 0">Loading</span>
+            <span v-else>{{ progressValue }}%</span>
+          </v-progress-circular>
+        </div>
+        <slot
+          name="right-sidebar"
           :sidebar-mode="sidebarMode"
-          :controls-ref="controlsRef"
-          :controls-collapsed.sync="controlsCollapsed"
-          :line-chart-data="lineChartData"
-          :event-chart-data="eventChartData"
-          :group-chart-data="groupChartData"
-          :dataset-type="datasetType"
-          :is-default-image="isDefaultImage"
-          :client-settings="clientSettings"
-          :track-filters="trackFilters"
-          :attributes="attributes"
-          :frame-rate="frameRate"
-          :readonly-state="readonlyState"
-          :disable-annotation-filters="disableAnnotationFilters"
-          :prompt-visible="visible"
-          :confidence-filters="confidenceFilters"
-          :aggregate-seek="seekToFrame"
-          :track-style-manager="trackStyleManager"
-          :bottom-right-panel-view="bottomRightPanelView"
-          :toggle-bottom-right-panel="toggleBottomRightPanel"
-          :selected-track-for-details="selectedTrackForDetails ?? undefined"
-          :show-confidence-first="showConfidenceFirst"
-          :show-track-attributes-first="showTrackAttributesFirst"
-          :edit-individual="editIndividual ?? undefined"
-          :set-edit-individual="setEditIndividual"
-          :reset-edit-individual="resetEditIndividual"
-          :add-attribute="addAttribute"
-          :edit-attribute="editAttribute"
-          :save-threshold="saveThreshold"
         />
       </div>
-      <div
-        v-else
-        class="d-flex justify-center align-center fill-height"
-      >
-        <v-alert
-          v-if="loadError"
-          type="error"
-          prominent
-          max-width="60%"
-        >
-          <p class="ma-2">
-            {{ loadError }}
-          </p>
-        </v-alert>
-        <v-progress-circular
-          v-else
-          :indeterminate="progressValue === 0"
-          :value="progressValue"
-          size="100"
-          width="15"
-          color="light-blue"
-          class="main-progress-linear"
-          rotate="-90"
-        >
-          <span v-if="progressValue === 0">Loading</span>
-          <span v-else>{{ progressValue }}%</span>
-        </v-progress-circular>
-      </div>
-      <slot
-        name="right-sidebar"
-        :sidebar-mode="sidebarMode"
-      />
     </div>
     <!-- Attribute editor dialog for bottom panel -->
     <v-dialog

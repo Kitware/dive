@@ -8,9 +8,9 @@ export default defineComponent({
       type: Number,
       default: 300,
     },
-    bottomMode: {
-      type: Boolean,
-      default: false,
+    sidebarMode: {
+      type: String,
+      default: 'left',
     },
   },
   setup(props) {
@@ -19,7 +19,7 @@ export default defineComponent({
       value,
     })));
     const sidebarStyle = computed(() => {
-      if (props.bottomMode) {
+      if (props.sidebarMode === 'bottom') {
         // In bottom mode, use fixed positioning to overlay on the right side
         // Position above the bottom bar (260px) and below the top bar + visibility controls (~112px)
         return {
@@ -49,7 +49,7 @@ export default defineComponent({
       :width="width"
       tile
       outlined
-      class="d-flex flex-column"
+      class="d-flex flex-column context-sidebar-panel"
       :style="sidebarStyle"
     >
       <div class="d-flex align-center mx-1">
@@ -85,6 +85,10 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.context-sidebar-panel {
+  transition: none !important;
+}
+
 .sidebar-content {
   overflow-y: auto;
 }
