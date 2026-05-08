@@ -15,6 +15,8 @@ export interface AggregateMediaController {
   volume: Readonly<Ref<number>>;
   cameras: Readonly<Ref<string[]>>;
   cameraSync: Readonly<Ref<boolean>>;
+  /** Incremented when the viewer is resized, used to trigger layer redraws */
+  resizeTrigger: Readonly<Ref<number>>;
 
   pause: () => void;
   play: () => void;

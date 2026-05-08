@@ -5,6 +5,7 @@ import {
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
+import type { AxiosError } from 'axios';
 import { cloneDeep, debounce } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
@@ -28,6 +29,8 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  TrackList,
+  FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -38,9 +41,18 @@ import HeadTail from 'dive-common/recipes/headtail';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
+import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
+import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
+import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
+import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
+import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
+import AttributeEditor from 'dive-common/components/Attributes/AttributeEditor.vue';
 import DeleteControls from 'dive-common/components/DeleteControls.vue';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
+import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
@@ -58,9 +70,12 @@ export interface ImageDataItem {
   filename: string;
 }
 
+const SIDEBAR_MODE_STORAGE_KEY = 'dive.viewer.sidebarMode';
+
 export default defineComponent({
   components: {
     ControlsContainer,
+    BottomPanel,
     DeleteControls,
     Sidebar,
     LayerManager,
@@ -73,6 +88,15 @@ export default defineComponent({
     EditorMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
+    TrackList,
+    FilterList,
+    TypeSettingsPanel,
+    TrackSettingsPanel,
+    TrackListColumnSettings,
+    TrackDetailsPanel,
+    ConfidenceSubsection,
+    AttributeSubsection,
+    AttributeEditor,
   },
 
   // TODO: remove this in vue 3
@@ -99,7 +123,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const { prompt } = usePrompt();
+    const { prompt, visible } = usePrompt();
     const loadError = ref('');
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
@@ -139,8 +163,64 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
-    const sideBarCollapsed = ref(false);
+    // Sidebar mode: 'left', 'bottom', or 'collapsed'
+    const getInitialSidebarMode = (): 'left' | 'bottom' | 'collapsed' => {
+      const defaultMode = clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed';
+      if (typeof window === 'undefined') {
+        return defaultMode;
+      }
+      try {
+        const saved = window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY);
+        if (saved === 'left' || saved === 'bottom' || saved === 'collapsed') {
+          return saved;
+        }
+      } catch {
+        // Ignore localStorage read failures and use default.
+      }
+      return defaultMode;
+    };
+    const sidebarMode = ref<'left' | 'bottom' | 'collapsed'>(getInitialSidebarMode());
+    // Right panel view in bottom mode: 'filters' or 'details'
+    const bottomRightPanelView = ref<'filters' | 'details'>('filters');
+    const toggleBottomRightPanel = () => {
+      bottomRightPanelView.value = bottomRightPanelView.value === 'filters' ? 'details' : 'filters';
+    };
+    const cycleSidebarMode = () => {
+      if (sidebarMode.value === 'left') {
+        sidebarMode.value = 'bottom';
+        clientSettings.layoutSettings.sidebarPosition = 'bottom';
+      } else if (sidebarMode.value === 'bottom') {
+        sidebarMode.value = 'collapsed';
+        // Keep setting as 'bottom' when collapsed (collapsed is a temporary state)
+      } else {
+        sidebarMode.value = 'left';
+        clientSettings.layoutSettings.sidebarPosition = 'left';
+      }
+    };
+    const sidebarModeIcon = computed(() => {
+      if (sidebarMode.value === 'left') return 'mdi-page-layout-sidebar-left';
+      if (sidebarMode.value === 'bottom') return 'mdi-page-layout-footer';
+      return 'mdi-checkbox-blank-outline';
+    });
+    const sidebarModeTooltip = computed(() => {
+      if (sidebarMode.value === 'left') return 'Sidebar: Left (click to cycle)';
+      if (sidebarMode.value === 'bottom') return 'Sidebar: Bottom (click to cycle)';
+      return 'Sidebar: Hidden (click to cycle)';
+    });
     const showUserSettingsDialog = ref(false);
+
+    watch(sidebarMode, (mode) => {
+      if (mode === 'left' || mode === 'bottom') {
+        clientSettings.layoutSettings.sidebarPosition = mode;
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, mode);
+        } catch {
+          // Ignore localStorage write failures.
+        }
+      }
+    }, { immediate: true });
 
     const progressValue = computed(() => {
       if (progress.total > 0 && (progress.progress !== progress.total)) {
@@ -441,7 +521,8 @@ export default defineComponent({
         }, saveSet);
       } catch (err) {
         let text = 'Unable to Save Data';
-        if (err.response && err.response.status === 403) {
+        const saveErr = err as { response?: { status?: number } };
+        if (saveErr.response && saveErr.response.status === 403) {
           text = 'You do not have permission to Save Data to this Folder.';
         }
         await prompt({
@@ -812,7 +893,7 @@ export default defineComponent({
         progress.loaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
-        errorEl.innerHTML = getResponseError(err);
+        errorEl.innerHTML = getResponseError(err as AxiosError);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
         throw err;
@@ -847,7 +928,7 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sideBarCollapsed], async () => {
+    watch([controlsCollapsed, sidebarMode], async () => {
       await nextTick();
       handleResize();
     });
@@ -938,8 +1019,133 @@ export default defineComponent({
       && 'diveDesktop' in window
       && multiCamList.value.length > 1
       && clientSettings.multiCamSettings.showToolbar
-      && selectedCamera.value !== multiCamList.value[0]
     ));
+
+    function seekToFrame(frame: number) {
+      try {
+        aggregateController.value.seek(frame);
+      } catch {
+        // Ignore seek requests while controllers are initializing.
+      }
+    }
+
+    function resetAggregateZoom() {
+      try {
+        aggregateController.value.resetZoom();
+      } catch {
+        // Ignore reset requests while controllers are initializing.
+      }
+    }
+
+    // For bottom panel details view
+    const selectedTrackForDetails = computed(() => {
+      if (selectedTrackId.value !== null) {
+        return cameraStore.getAnyTrack(selectedTrackId.value);
+      }
+      return null;
+    });
+
+    // Determine if confidence should be shown first (multiple types) or last (0-1 types)
+    const showConfidenceFirst = computed(() => {
+      if (selectedTrackForDetails.value) {
+        return selectedTrackForDetails.value.confidencePairs.length > 1;
+      }
+      return false;
+    });
+
+    // Check if track has any track-level attributes set
+    const hasTrackAttributes = computed(() => {
+      if (selectedTrackForDetails.value && selectedTrackForDetails.value.attributes) {
+        const attrs = selectedTrackForDetails.value.attributes;
+        // Check if any non-userAttributes keys exist with values
+        return Object.keys(attrs).some(
+          (key) => key !== 'userAttributes' && attrs[key] !== undefined,
+        );
+      }
+      return false;
+    });
+
+    // Determine attribute order: true = track first, false = detection first
+    // If track has attributes, show track first; otherwise show detection first
+    const showTrackAttributesFirst = computed(() => hasTrackAttributes.value);
+
+    // Attribute editing state for bottom panel
+    const editIndividual: Ref<Attribute | null> = ref(null);
+    const editingAttribute: Ref<Attribute | null> = ref(null);
+    const editingError: Ref<string | null> = ref(null);
+
+    function setEditIndividual(attribute: Attribute | null) {
+      editIndividual.value = attribute;
+    }
+
+    function resetEditIndividual(event: MouseEvent) {
+      if (editIndividual.value) {
+        const path = event.composedPath() as HTMLElement[];
+        const inputs = ['INPUT', 'SELECT'];
+        if (
+          path.find(
+            (item: HTMLElement) => (item.classList && item.classList.contains('v-input'))
+              || inputs.includes(item.nodeName),
+          )
+        ) {
+          return;
+        }
+        editIndividual.value = null;
+      }
+    }
+
+    function addAttribute(type: 'Track' | 'Detection') {
+      const belongs = type.toLowerCase() as 'track' | 'detection';
+      editingAttribute.value = {
+        belongs,
+        datatype: 'text',
+        name: `New${type}Attribute`,
+        key: '',
+      };
+    }
+
+    function editAttribute(attribute: Attribute) {
+      editingAttribute.value = attribute;
+    }
+
+    async function closeAttributeEditor() {
+      editingAttribute.value = null;
+      editingError.value = null;
+    }
+
+    async function saveAttributeHandler({ data, oldAttribute, close }: {
+      oldAttribute?: Attribute;
+      data: Attribute;
+      close: boolean;
+    }) {
+      editingError.value = null;
+      if (!oldAttribute && attributes.value.some((attribute) => (
+        attribute.name === data.name
+        && attribute.belongs === data.belongs))) {
+        editingError.value = 'Attribute with that name exists';
+        return;
+      }
+      try {
+        await setAttribute({ data, oldAttribute });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value && close) {
+        closeAttributeEditor();
+      }
+    }
+
+    async function deleteAttributeHandler(data: Attribute) {
+      editingError.value = null;
+      try {
+        await deleteAttribute({ data });
+      } catch (err) {
+        editingError.value = (err as Error).message;
+      }
+      if (!editingError.value) {
+        closeAttributeEditor();
+      }
+    }
 
     return {
       /* props */
@@ -949,7 +1155,12 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
-      sideBarCollapsed,
+      sidebarMode,
+      cycleSidebarMode,
+      sidebarModeIcon,
+      sidebarModeTooltip,
+      bottomRightPanelView,
+      toggleBottomRightPanel,
       colorBy,
       clientSettings,
       datasetName,
@@ -984,8 +1195,27 @@ export default defineComponent({
       imageEnhancementOutputs,
       isDefaultImage,
       disableAnnotationFilters,
+      trackStyleManager,
+      visible,
+      selectedTrackForDetails,
+      showConfidenceFirst,
+      showTrackAttributesFirst,
+      attributes,
+      /* Attribute editing for bottom panel */
+      editIndividual,
+      editingAttribute,
+      editingError,
+      setEditIndividual,
+      resetEditIndividual,
+      addAttribute,
+      editAttribute,
+      closeAttributeEditor,
+      saveAttributeHandler,
+      deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
+      seekToFrame,
+      resetAggregateZoom,
       /* large image methods */
       getTiles,
       getTileURL,
@@ -1093,12 +1323,12 @@ export default defineComponent({
           <template #activator="{ on }">
             <v-icon
               v-on="on"
-              @click="sideBarCollapsed = !sideBarCollapsed"
+              @click="cycleSidebarMode"
             >
-              {{ sideBarCollapsed ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
+              {{ sidebarModeIcon }}
             </v-icon>
           </template>
-          <span>Collapse Side Panel</span>
+          <span>{{ sidebarModeTooltip }}</span>
         </v-tooltip>
 
         <EditorMenu
@@ -1125,14 +1355,20 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar"
-            slot="multicam-controls"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
+            slot="multicam-controls-left"
+          >
+            <multi-cam-toolbar />
+          </template>
+          <template
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
+            slot="multicam-controls-right"
           >
             <multi-cam-toolbar />
           </template>
         </EditorMenu>
         <v-select
-          v-if="multiCamList.length > 1"
+          v-if="showMultiCamToolbar && multiCamList.length > 1"
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
@@ -1153,11 +1389,12 @@ export default defineComponent({
         />
         <v-tooltip
           bottom
+          :z-index="20"
         >
           <template #activator="{ on }">
             <v-icon
               v-on="on"
-              @click="context.toggle()"
+              @click="context.toggle(undefined)"
             >
               {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
             </v-icon>
@@ -1224,15 +1461,17 @@ export default defineComponent({
       @input="showUserSettingsDialog = $event"
     />
 
+    <!-- Standard layout (left sidebar visible or hidden) -->
     <v-row
+      v-if="sidebarMode === 'left' || sidebarMode === 'collapsed'"
       no-gutters
       class="fill-height"
       style="min-width: 700px;"
     >
       <sidebar
-        v-if="!sideBarCollapsed"
+        v-if="sidebarMode === 'left'"
         @import-types="trackFilters.importTypes($event)"
-        @track-seek="aggregateController.seek($event)"
+        @track-seek="seekToFrame($event)"
       >
         <template>
           <v-divider />
@@ -1264,7 +1503,7 @@ export default defineComponent({
           v-if="progress.loaded"
           v-mousetrap="[
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
-            { bind: 'r', handler: () => aggregateController.resetZoom() },
+            { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
           ]"
@@ -1341,8 +1580,148 @@ export default defineComponent({
           </v-progress-circular>
         </div>
       </v-col>
-      <slot name="right-sidebar" />
+      <slot
+        name="right-sidebar"
+        :sidebar-mode="sidebarMode"
+      />
     </v-row>
+
+    <!-- Bottom sidebar layout -->
+    <div
+      v-else-if="sidebarMode === 'bottom'"
+      class="d-flex flex-column fill-height"
+      style="min-width: 700px;"
+    >
+      <div class="d-flex grow" style="min-height: 0;">
+        <div
+          v-if="progress.loaded"
+          v-mousetrap="[
+            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'r', handler: () => resetAggregateZoom() },
+            { bind: 'esc', handler: () => handler.trackAbort() },
+            { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
+            { bind: 'a', handler: () => sidebarMode === 'bottom' && toggleBottomRightPanel() },
+          ]"
+          class="d-flex flex-column grow"
+          style="min-height: 0; min-width: 0;"
+        >
+          <!-- Video/annotator area -->
+          <div class="d-flex grow" style="min-height: 0;">
+            <div
+              v-for="camera in multiCamList"
+              :key="camera"
+              class="d-flex flex-column grow"
+              @mousedown.left="changeCamera(camera, $event)"
+              @mouseup.right="changeCamera(camera, $event)"
+            >
+              <component
+                :is="datasetType === 'image-sequence' ? 'image-annotator'
+                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                ref="subPlaybackComponent"
+                class="fill-height"
+                :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
+                v-bind="{
+                  imageData: imageData[camera],
+                  videoUrl: videoUrl[camera],
+                  updateTime,
+                  frameRate,
+                  originalFps,
+                  camera,
+                  imageEnhancementOutputs,
+                  isDefaultImage,
+                  getTiles,
+                  getTileURL,
+                }"
+                @large-image-warning="$emit('large-image-warning', true)"
+              >
+                <LayerManager :camera="camera" />
+              </component>
+            </div>
+          </div>
+          <BottomPanel
+            :sidebar-mode="sidebarMode"
+            :controls-ref="controlsRef"
+            :controls-collapsed.sync="controlsCollapsed"
+            :line-chart-data="lineChartData"
+            :event-chart-data="eventChartData"
+            :group-chart-data="groupChartData"
+            :dataset-type="datasetType"
+            :is-default-image="isDefaultImage"
+            :client-settings="clientSettings"
+            :track-filters="trackFilters"
+            :attributes="attributes"
+            :frame-rate="frameRate"
+            :readonly-state="readonlyState"
+            :disable-annotation-filters="disableAnnotationFilters"
+            :prompt-visible="visible"
+            :confidence-filters="confidenceFilters"
+            :aggregate-seek="seekToFrame"
+            :track-style-manager="trackStyleManager"
+            :bottom-right-panel-view="bottomRightPanelView"
+            :toggle-bottom-right-panel="toggleBottomRightPanel"
+            :selected-track-for-details="selectedTrackForDetails ?? undefined"
+            :show-confidence-first="showConfidenceFirst"
+            :show-track-attributes-first="showTrackAttributesFirst"
+            :edit-individual="editIndividual ?? undefined"
+            :set-edit-individual="setEditIndividual"
+            :reset-edit-individual="resetEditIndividual"
+            :add-attribute="addAttribute"
+            :edit-attribute="editAttribute"
+            :save-threshold="saveThreshold"
+          />
+        </div>
+        <div
+          v-else
+          class="d-flex justify-center align-center fill-height grow"
+          style="min-width: 0;"
+        >
+          <v-alert
+            v-if="loadError"
+            type="error"
+            prominent
+            max-width="60%"
+          >
+            <p class="ma-2">
+              {{ loadError }}
+            </p>
+          </v-alert>
+          <v-progress-circular
+            v-else
+            :indeterminate="progressValue === 0"
+            :value="progressValue"
+            size="100"
+            width="15"
+            color="light-blue"
+            class="main-progress-linear"
+            rotate="-90"
+          >
+            <span v-if="progressValue === 0">Loading</span>
+            <span v-else>{{ progressValue }}%</span>
+          </v-progress-circular>
+        </div>
+        <slot
+          name="right-sidebar"
+          :sidebar-mode="sidebarMode"
+        />
+      </div>
+    </div>
+    <!-- Attribute editor dialog for bottom panel -->
+    <v-dialog
+      :value="editingAttribute != null"
+      max-width="550"
+      @click:outside="closeAttributeEditor"
+      @keydown.esc.stop="closeAttributeEditor"
+    >
+      <AttributeEditor
+        v-if="editingAttribute != null"
+        :selected-attribute="editingAttribute"
+        :error="editingError ?? undefined"
+        @close="closeAttributeEditor"
+        @save="saveAttributeHandler"
+        @delete="deleteAttributeHandler"
+      />
+    </v-dialog>
   </v-main>
 </template>
 
@@ -1367,6 +1746,50 @@ html {
 
 .text-xs-center {
   text-align: center !important;
+}
+
+.bottom-panel-section {
+  background-color: #1e1e1e;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin: 4px;
+}
+
+.confidence-row-bottom {
+  background-color: #262626;
+  border-top: 1px solid #444;
+  flex-shrink: 0;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+
+  /* Match title styling with Tracks header */
+  .text-body-2 {
+    font-size: 14px !important;
+    font-weight: 600;
+    color: white !important;
+  }
+}
+
+.bottom-filter-list {
+  /* Match title styling with Tracks header */
+  #type-header b {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+  }
+}
+
+.right-panel-header {
+  background-color: #262626;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.right-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
 }
 
 </style>
