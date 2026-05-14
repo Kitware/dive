@@ -7,7 +7,7 @@ import { GirderModel, mixins } from '@girder/components/src';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { getSharedWithMeFolders } from '../api';
-import { useStore } from '../store/types';
+import { useLocation } from '../store/useLocation';
 
 export default defineComponent({
   name: 'DataShared',
@@ -19,9 +19,9 @@ export default defineComponent({
       sortBy: ['created'],
       sortDesc: [true],
     } as DataOptions);
-    const store = useStore();
-    const { getters } = store;
-    const locationStore = store.state.Location;
+    const {
+      location, selected, locationIsViameFolder,
+    } = useLocation();
 
     const headers = [
       { text: 'File Name', value: 'name' },
@@ -65,10 +65,11 @@ export default defineComponent({
     return {
       isAnnotationFolder,
       dataList,
-      getters,
       updateOptions,
       total,
-      locationStore,
+      location,
+      selected,
+      locationIsViameFolder,
       clientSettings,
       itemsPerPageOptions,
       ...toRefs(tableOptions),
@@ -81,8 +82,8 @@ export default defineComponent({
 
 <template>
   <v-data-table
-    v-model="locationStore.selected"
-    :selectable="!getters['Location/locationIsViameFolder']"
+    v-model="selected"
+    :selectable="!locationIsViameFolder"
     :headers="headers"
     :page.sync="page"
     :items-per-page.sync="clientSettings.rowsPerPage"

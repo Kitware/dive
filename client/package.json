@@ -49,8 +49,7 @@
     "vue": "^2.7.16",
     "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
-    "vuetify": "^2.7.1",
-    "vuex": "^3.0.1"
+    "vuetify": "^2.7.1"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.26.0",
