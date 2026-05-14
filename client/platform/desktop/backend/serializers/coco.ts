@@ -27,6 +27,8 @@ type CocoAnnotation = {
   segmentation?: number[][];
   dive_detection_attributes?: Record<string, unknown>;
   dive_track_attributes?: Record<string, unknown>;
+  dive_notes?: string[];
+  notes?: string[] | string;
   attributes?: Record<string, unknown>;
   track_attributes?: Record<string, unknown>;
 };
@@ -174,6 +176,17 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     if (featureAttributes && typeof featureAttributes === 'object') {
       feature.attributes = featureAttributes;
     }
+    const noteField = annotation.dive_notes ?? annotation.notes;
+    if (Array.isArray(noteField)) {
+      const normalized = noteField
+        .map((entry) => `${entry}`.trim())
+        .filter((entry) => entry.length > 0);
+      if (normalized.length) {
+        feature.notes = normalized;
+      }
+    } else if (typeof noteField === 'string' && noteField.trim()) {
+      feature.notes = [noteField.trim()];
+    }
     const geometry = buildFeatureGeometry(annotation, category);
     if (geometry) {
       feature.geometry = geometry;
@@ -241,6 +254,7 @@ async function serializeFile(
         score,
         ...(feature.attributes ? { dive_detection_attributes: feature.attributes } : {}),
         ...(track.attributes ? { dive_track_attributes: track.attributes } : {}),
+        ...(feature.notes && feature.notes.length > 0 ? { dive_notes: feature.notes } : {}),
       });
       annotationId += 1;
     });
@@ -254,7 +268,7 @@ async function serializeFile(
   const output: CocoDocument = {
     info: {
       description: `DIVE export for ${meta.name}`,
-      dive_extensions: ['dive_detection_attributes', 'dive_track_attributes'],
+      dive_extensions: ['dive_detection_attributes', 'dive_track_attributes', 'dive_notes'],
     },
     images: Array.from(images.values()),
     annotations,

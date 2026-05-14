@@ -2,6 +2,17 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
+interface ColumnVisibilitySettings {
+  type: boolean;
+  confidence: boolean;
+  startFrame: boolean;
+  endFrame: boolean;
+  startTimestamp: boolean;
+  endTimestamp: boolean;
+  notes: boolean;
+  attributeColumns: string[]; // Array of attribute keys to show as columns
+}
+
 interface AnnotationSettings {
   typeSettings: {
     trackSortDir: 'a-z' | 'count' | 'frame count';
@@ -31,6 +42,7 @@ interface AnnotationSettings {
     trackListSettings: {
       autoZoom?: boolean;
       filterDetectionsByFrame?: boolean;
+      columnVisibility?: ColumnVisibilitySettings;
     }
   };
   groupSettings: {
@@ -47,6 +59,13 @@ interface AnnotationSettings {
   };
   multiCamSettings: {
     showToolbar: boolean;
+  };
+  layoutSettings: {
+    sidebarPosition: 'left' | 'bottom';
+  };
+  autoSaveSettings: {
+    enabled: boolean;
+    delaySeconds: number;
   };
 }
 
@@ -71,6 +90,16 @@ const defaultSettings: AnnotationSettings = {
     trackListSettings: {
       autoZoom: false,
       filterDetectionsByFrame: false,
+      columnVisibility: {
+        type: true,
+        confidence: true,
+        startFrame: true,
+        endFrame: true,
+        startTimestamp: false,
+        endTimestamp: false,
+        notes: true,
+        attributeColumns: [],
+      },
     },
   },
   groupSettings: {
@@ -106,7 +135,15 @@ const defaultSettings: AnnotationSettings = {
   multiCamSettings: {
     showToolbar: true,
   },
+  layoutSettings: {
+    sidebarPosition: 'left',
+  },
+  autoSaveSettings: {
+    enabled: false, // Disabled by default for backward compatibility
+    delaySeconds: 60,
+  },
 };
+const MIN_AUTO_SAVE_DELAY_SECONDS = 10;
 
 // Utility to safely load from localStorage
 function loadStoredSettings(): Partial<AnnotationSettings> {
@@ -133,7 +170,12 @@ function saveSettings() {
 }
 
 function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
-  return merge(cloneDeep(defaultSettings), obj);
+  const hydrated = merge(cloneDeep(defaultSettings), obj);
+  hydrated.autoSaveSettings.delaySeconds = Math.max(
+    MIN_AUTO_SAVE_DELAY_SECONDS,
+    Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
+  );
+  return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
@@ -151,4 +193,5 @@ watch(clientSettings, saveSettings, { deep: true });
 export {
   clientSettings,
   AnnotationSettings,
+  ColumnVisibilitySettings,
 };

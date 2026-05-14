@@ -11,8 +11,10 @@
   "scripts": {
     "dev": "npm run serve",
     "dev:electron": "npm run serve:electron",
+    "dev:electron:windows": "npm run serve:electron:windows",
     "serve": "vite",
     "serve:electron": "mkdir -p /tmp/dive-electron && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DISABLE_SECURITY_WARNINGS=true TMPDIR=/tmp/dive-electron XDG_RUNTIME_DIR=/tmp/dive-electron electron-vite dev --entry=.electron/main/background.js",
+    "serve:electron:windows": "cross-env ELECTRON_DISABLE_SECURITY_WARNINGS=true electron-vite dev --entry=.electron/main/background.js",
     "build:web": "vite build",
     "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
@@ -51,6 +53,7 @@
     "vuex": "^3.0.1"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.26.0",
     "@types/body-parser": "^1.19.0",
     "@types/cors": "^2.8.9",
     "@types/csv-parse": "^1.2.2",
@@ -104,6 +107,8 @@
     "vite": "^5.4.20",
     "vitest": "^3.2.4",
     "vue-template-compiler": "^2.7.16",
+    "webpack": "^5.95.0",
+    "wslink": "^2.0.0",
     "xml-js": "^1.6.11",
     "yargs": "^16.1.0"
   },

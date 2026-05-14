@@ -144,6 +144,8 @@ services:
     << : *base-worker
     profiles:
       - gpu
+    volumes:
+      - addons:/tmp/addons:rw
     build:
       context: .
       dockerfile: docker/girder_worker_gpu.Dockerfile
@@ -184,7 +186,7 @@ services:
     build:
       context: .
       dockerfile: docker/girder_worker_gpu.Dockerfile
-    image: dev/viame-worker:gpu
+    image: kitware/viame-worker:gpu
     restart: always
     deploy:
       resources:

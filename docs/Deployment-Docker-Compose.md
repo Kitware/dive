@@ -197,8 +197,8 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training`.  Ignored in standalone mode. |
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Lower this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
-| GIRDER_WORKER_BROKER | `amqp://guest:guest@default/` | rabbitmq connection string. Ignored in standalone mode. |
-| KWIVER_DEFAULT_LOG_LEVEL | `warn` | kwiver log level |
+| CELERY_BROKER_URL | `amqp://guest:guest@default/` | rabbitmq connection string. Ignored in standalone mode. |
+| KWIVER_DEFAULT_LOG_LEVEL | `warn` | Log level for VIAME pipeline jobs (env name unchanged; used by the Kwiver logging stack) |
 | DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |
 | DIVE_PASSWORD | null | Password for private queue processor. Providing this enables standalone mode. |
 | DIVE_API_URL  | `https://viame.kitware.com/api/v1` | Remote URL to authenticate against |

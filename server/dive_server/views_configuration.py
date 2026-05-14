@@ -182,13 +182,17 @@ class ConfigurationResource(Resource):
         )
     )
     def upgrade_pipelines(self, force: bool, urls: List[str]):
+        worker_capabilities.require_pipeline_worker()
         token = Token().createToken(user=self.getCurrentUser(), days=1)
         Setting().set(constants.SETTINGS_CONST_JOBS_CONFIGS, None)
-        tasks.upgrade_pipelines.delay(
-            urls=urls,
-            force=force,
-            girder_job_title="Upgrade Pipelines",
-            girder_client_token=str(token["_id"]),
+        tasks.upgrade_pipelines.apply_async(
+            queue='pipelines',
+            kwargs=dict(
+                urls=urls,
+                force=force,
+                girder_job_title="Upgrade Pipelines",
+                girder_client_token=str(token["_id"]),
+            ),
         )
 
     @access.admin

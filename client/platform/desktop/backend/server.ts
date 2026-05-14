@@ -36,12 +36,19 @@ const supportedMediaTypes = [
   'image/webp',
 ];
 
+function formatHostForUrl(host: string): string {
+  if (host.includes(':') && !host.startsWith('[')) {
+    return `[${host}]`;
+  }
+  return host;
+}
+
 function makeMediaUrl(filepath: string): string {
   const addr = server.address() as AddressInfo | null;
   if (!addr) {
     throw new Error('server has not initialized yet');
   }
-  return `http://${addr.address}:${addr.port}/api/media?path=${filepath}`;
+  return `http://${formatHostForUrl(addr.address)}:${addr.port}/api/media?path=${encodeURIComponent(filepath)}`;
 }
 
 /* LOAD metadata */
