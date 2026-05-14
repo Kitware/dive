@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 
 from bson.objectid import ObjectId
 import cherrypy
 from girder.api.rest import getApiUrl
-from girder.models.collection import Collection
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -82,8 +81,13 @@ def process_assetstore_import(event, meta: dict):
         foldername = base_name
         # resuse existing folder if it already exists with same name
         dest = Folder().createFolder(parentFolder, foldername, creator=user, reuseExisting=True)
-        now = datetime.now()
-        if now - dest['created'] > timedelta(hours=1):
+        created = dest['created']
+        if getattr(created, 'tzinfo', None) is None:
+            created = created.replace(tzinfo=timezone.utc)
+        else:
+            created = created.astimezone(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if now - created > timedelta(hours=1):
             # Remove the old  referenced item, replace it with the new one.
             oldItem = Item().findOne({'folderId': dest['_id'], 'name': item['name']})
             if oldItem is not None:
@@ -180,6 +184,14 @@ def process_dangling_annotation_files(folder, user):
         process_dangling_annotation_files(child, user)
 
 
+def _job_cherrypy_callback_url() -> str:
+    """REST handlers have a CherryPy request; Celery workers do not."""
+    try:
+        return cherrypy.url()
+    except Exception:
+        return getWorkerApiUrl()
+
+
 def convert_video_recursive(folder, user):
     token = Token().createToken(user=user, days=2)
 
@@ -198,43 +210,44 @@ def convert_video_recursive(folder, user):
     job = Job().createLocalJob(
         module='dive_tasks.dive_batch_postprocess',
         function='batchPostProcessingTaskLauncher',
-        kwargs={'params': dive_batch_postprocess_task_params, 'url': cherrypy.url()},
+        kwargs={'params': dive_batch_postprocess_task_params, 'url': _job_cherrypy_callback_url()},
         title='Batch process Dive Batch Postprocess',
         type='DIVE Batch Postprocess',
         user=user,
         public=True,
         asynchronous=True,
     )
-    job = Job().save(job)
-    Job().scheduleJob(job)
+    # Run on the ``local`` Celery queue instead of scheduleLocal + daemon thread.
+    # importDataTask completes right after this; a daemon thread is often killed or
+    # never updates the job, so the document stays INACTIVE.
+    from dive_tasks.local_tasks import run_batch_postprocess_job
+
+    run_batch_postprocess_job.delay(str(job['_id']))
 
 
-class DIVES3Imports:
-    destinationId = None
-    destinationType = None
+def run_post_assetstore_import(event):
+    """
+    Run after Assetstore.importData completes.
 
-    def process_s3_import_before(self, event):
-        self.destinationId = event.info.get('params', {}).get('destinationId')
-        self.destinationType = event.info.get('params', {}).get('destinationType')
-
-    def process_s3_import_after(self, event):
-        if self.destinationType == 'folder' and self.destinationId is not None:
-            # go through all sub folders and add a new script to convert
-            destinationFolder = Folder().findOne({"_id": ObjectId(self.destinationId)})
-            userId = destinationFolder['creatorId'] or destinationFolder['baseParentId']
-            user = User().findOne({'_id': ObjectId(userId)})
-            process_dangling_annotation_files(destinationFolder, user)
-            convert_video_recursive(destinationFolder, user)
-        if self.destinationType == 'collection' and self.destinationId is not None:
-            destinationCollection = Collection().findOne({"_id": ObjectId(self.destinationId)})
-            userId = destinationCollection['creatorId'] or destinationCollection['baseParentId']
-            user = User().findOne({'_id': ObjectId(userId)})
-            child_folders = Folder().find({'parentId': ObjectId(self.destinationId)})
-            for child in child_folders:
-                process_dangling_annotation_files(child, user)
-                convert_video_recursive(child, user)
-        self.destinationId = None
-        self.destinationType = None
+    Bound on Celery ``local`` workers via ``dive_tasks.worker_girder_events``.
+    Admin and bucket-notification imports both run import in that process, not on Girder web.
+    """
+    info = event.info
+    parent = info.get('parent')
+    parentType = info.get('parentType')
+    user = info.get('user')
+    if not parent or not parentType or not user:
+        return
+    userId = parent['creatorId'] or parent['baseParentId']
+    owner = User().findOne({'_id': ObjectId(userId)})
+    if parentType == 'folder':
+        process_dangling_annotation_files(parent, owner)
+        convert_video_recursive(parent, owner)
+    elif parentType in ('collection', 'user'):
+        child_folders = Folder().find({'parentId': parent['_id']})
+        for child in child_folders:
+            process_dangling_annotation_files(child, owner)
+            convert_video_recursive(child, owner)
 
 
 def process_fs_import(event):
