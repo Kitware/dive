@@ -1,12 +1,12 @@
 <script lang="ts">
 import {
-  defineComponent, reactive, toRefs, onBeforeUnmount, toRef,
+  defineComponent, reactive, toRefs, onBeforeUnmount,
 } from 'vue';
 import { GirderAuthentication } from '@girder/components/src';
 
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { useRouter } from 'vue-router/composables';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
 
 export default defineComponent({
   name: 'Login',
@@ -19,8 +19,7 @@ export default defineComponent({
       userDialog: true,
     });
     const router = useRouter();
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
+    const { brandData } = useBrand();
     const girderRest = useGirderRest();
     function onLogin() {
       if (girderRest.token) {

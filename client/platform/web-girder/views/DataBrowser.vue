@@ -7,9 +7,12 @@ import {
 } from '@girder/components/src';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
-import { useStore, LocationType } from '../store/types';
+import { LocationType } from '../store/types';
+import { useLocation } from '../store/useLocation';
+import { useJobs } from '../store/useJobs';
 import Upload from './Upload.vue';
 import eventBus from '../eventBus';
+import { reportHandledPromiseRejection } from '../reportHandledPromiseRejection';
 
 import DiveGirderBrowser from './DiveGirderBrowser.vue';
 
@@ -21,14 +24,17 @@ export default defineComponent({
 
   setup() {
     const fileManager = ref();
-    const store = useStore();
     const uploading = ref(false);
     const uploaderDialog = ref(false);
-    const locationStore = store.state.Location;
-    const { getters } = store;
+    const {
+      location, selected, locationIsViameFolder, setRouteFromLocation,
+    } = useLocation();
+    const jobs = useJobs();
 
-    function setLocation(location: LocationType) {
-      store.dispatch('Location/setRouteFromLocation', location);
+    function setLocation(loc: LocationType) {
+      setRouteFromLocation(loc).catch((reason) => {
+        reportHandledPromiseRejection('DataBrowser: setRouteFromLocation', reason);
+      });
     }
 
     function handleNotification() {
@@ -48,10 +54,10 @@ export default defineComponent({
     }
 
     const shouldShowUpload = computed(() => (
-      locationStore.location
-      && !getters['Location/locationIsViameFolder']
-      && getLocationType(locationStore.location) === 'folder'
-      && !locationStore.selected.length
+      location.value
+      && !locationIsViameFolder.value
+      && getLocationType(location.value) === 'folder'
+      && !selected.value.length
     ));
 
     eventBus.$on('refresh-data-browser', handleNotification);
@@ -61,8 +67,10 @@ export default defineComponent({
 
     return {
       fileManager,
-      locationStore,
-      getters,
+      location,
+      selected,
+      locationIsViameFolder,
+      jobs,
       shouldShowUpload,
       uploaderDialog,
       uploading,
@@ -81,12 +89,12 @@ export default defineComponent({
 <template>
   <DiveGirderBrowser
     ref="fileManager"
-    v-model="locationStore.selected"
-    :selectable="!getters['Location/locationIsViameFolder']"
+    v-model="selected"
+    :selectable="!locationIsViameFolder"
     :new-folder-enabled="
-      !locationStore.selected.length && !getters['Location/locationIsViameFolder']
+      !selected.length && !locationIsViameFolder
     "
-    :location="locationStore.location"
+    :location="location"
     :items-per-page.sync="clientSettings.rowsPerPage"
     :items-per-page-options="itemsPerPageOptions"
     @update:location="setLocation($event)"
@@ -115,7 +123,7 @@ export default defineComponent({
           </v-btn>
         </template>
         <Upload
-          :location="locationStore.location"
+          :location="location"
           @update:uploading="updateUploading"
           @close="uploaderDialog = false"
         />
@@ -124,7 +132,7 @@ export default defineComponent({
     <template #row="{ item }">
       <span>{{ item.name }}</span>
       <v-icon
-        v-if="getters['Jobs/datasetRunningState'](item._id)"
+        v-if="jobs.getDatasetRunningState(item._id)"
         color="warning"
         class="rotate"
       >

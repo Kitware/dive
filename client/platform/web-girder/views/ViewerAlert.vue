@@ -1,14 +1,12 @@
 <script lang="ts">
-import { useStore } from 'platform/web-girder/store/types';
-import { defineComponent, ref, toRef } from 'vue';
+import { useBrand } from 'platform/web-girder/store/useBrand';
+import { defineComponent, ref } from 'vue';
 
 export default defineComponent({
   name: 'ViewerAlert',
   setup() {
-    const store = useStore();
+    const { brandData } = useBrand();
     const dialog = ref(false);
-
-    const brandData = toRef(store.state.Brand, 'brandData');
 
     return {
       dialog,
