@@ -64,6 +64,12 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
+        // WebSocket for Girder notifications (not under /api; see notificatonBus.ts).
+        '/notifications': {
+          target: apiProxyTarget,
+          secure: false,
+          ws: true,
+        },
       },
     },
     optimizeDeps: {
