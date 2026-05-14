@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, watch, toRef,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from 'vue';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
@@ -8,7 +8,7 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -31,8 +31,7 @@ export default defineComponent({
   },
 
   setup(props) {
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
+    const { brandData } = useBrand();
     const { getTrainingConfigurations, runTraining } = useApi();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);

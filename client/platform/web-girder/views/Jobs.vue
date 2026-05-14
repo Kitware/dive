@@ -1,11 +1,12 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, toRef, watch,
+  defineComponent, ref, watch,
 } from 'vue';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
-import { useStore } from '../store/types';
+import { useConfig } from '../store/useConfig';
+import { useJobs } from '../store/useJobs';
 
 export default defineComponent({
   name: 'Jobs',
@@ -14,13 +15,11 @@ export default defineComponent({
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
     const restClient = useGirderRest();
-    const store = useStore();
+    const { distributedWorkerEnabled } = useConfig();
+    const { runningJobIds } = useJobs();
     const outstandingJobs = ref(0);
-    const distributedWorkerEnabled = computed(
-      () => store.state.Config.distributedWorkerEnabled,
-    );
 
-    watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
+    watch(runningJobIds, () => {
       restClient.get('job/queued').then(({ data }) => {
         outstandingJobs.value = data.outstanding;
       });

@@ -6,7 +6,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { Pipelines, useApi, Pipe } from 'dive-common/apispec';
 import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
-import { useStore } from 'platform/web-girder/store/types';
+import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'TrainedModels',
@@ -16,13 +16,13 @@ export default defineComponent({
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
-    const store = useStore();
+    const { getPipelinesEnabled, getTrainingEnabled } = useConfig();
 
     const unsortedPipelines = ref({} as Pipelines);
     const search = ref('');
 
     onBeforeMount(async () => {
-      if (!store.state.Config.pipelinesEnabled && !store.state.Config.trainingEnabled) {
+      if (!getPipelinesEnabled() && !getTrainingEnabled()) {
         router.push('/');
         return;
       }

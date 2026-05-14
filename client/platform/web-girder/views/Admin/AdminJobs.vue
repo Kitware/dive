@@ -12,7 +12,7 @@ import { all, getByValue, Status } from '@girder/components/src/components/Job/s
 import moment from 'moment';
 import { isObject } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useStore } from 'platform/web-girder/store/types';
+import { useJobs } from 'platform/web-girder/store/useJobs';
 
 const JobStatus = all();
 const JobStatusMap = {
@@ -32,7 +32,7 @@ export default defineComponent({
   setup() {
     const limit = ref(50);
     const offset = ref(0);
-    const store = useStore();
+    const jobs = useJobs();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
     const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training', 'DIVE Batch Postprocess']);
@@ -104,7 +104,7 @@ export default defineComponent({
       await getData();
     });
 
-    watch(() => store.getters['Jobs/runningJobIds'], async (prev: boolean, current: boolean) => {
+    watch(() => jobs.runningJobIds.value, async (prev: boolean, current: boolean) => {
       if (prev !== current) {
         await getData();
       }

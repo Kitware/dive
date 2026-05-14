@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch, Ref, PropType,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -9,7 +9,11 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
+import { useConfig } from 'platform/web-girder/store/useConfig';
+import { useDataset } from 'platform/web-girder/store/useDataset';
+import { useLocation } from 'platform/web-girder/store/useLocation';
+import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useApi } from 'dive-common/apispec';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
@@ -95,16 +99,17 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const router = useRouter();
     const viewerRef = ref();
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
-    const pipelinesEnabled = toRef(store.state.Config, 'pipelinesEnabled');
+    const { brandData } = useBrand();
+    const { pipelinesEnabled } = useConfig();
+    const { meta: datasetMeta } = useDataset();
+    const jobs = useJobs();
+    const { locationRoute } = useLocation();
     const revisionNum = computed(() => {
       const parsed = Number.parseInt(props.revision, 10);
       if (Number.isNaN(parsed)) return undefined;
       return parsed;
     });
-    const { getters } = store;
-    const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+    const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
 
     const typeList: Ref<string[]> = ref([]);
 
@@ -115,7 +120,7 @@ export default defineComponent({
     findType();
     const runningPipelines = computed(() => {
       const results: string[] = [];
-      if (getters['Jobs/datasetRunningState'](props.id)) {
+      if (jobs.getDatasetRunningState(props.id)) {
         results.push(props.id);
       }
       return results;
@@ -138,7 +143,7 @@ export default defineComponent({
             positiveButton: 'Reload',
             negativeButton: '',
           });
-          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: props.id });
           if (result) {
             viewerRef.value.reloadAnnotations();
           }
@@ -149,7 +154,7 @@ export default defineComponent({
               'either failed or was cancelled by the user',
             ],
           });
-          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: props.id });
         }
       }
     });
@@ -220,7 +225,9 @@ export default defineComponent({
       menuOptions,
       revisionNum,
       viewerRef,
-      getters,
+      jobs,
+      locationRoute,
+      datasetMeta,
       currentJob,
       runningPipelines,
       routeRevision,
@@ -240,7 +247,7 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :current-set="set"
-    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    :read-only-mode="!!jobs.getDatasetRunningState(id)"
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
@@ -254,7 +261,7 @@ export default defineComponent({
         class="mx-2"
         style="flex-basis:0; flex-grow:0;"
       >
-        <v-tab :to="getters['Location/locationRoute']">
+        <v-tab :to="locationRoute">
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
@@ -272,7 +279,7 @@ export default defineComponent({
       <ImportAnnotations
         :button-options="buttonOptions"
         :menu-options="menuOptions"
-        :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || revisionNum !== undefined"
+        :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
         :dataset-id="id"
         block-on-unsaved
       />
@@ -282,7 +289,7 @@ export default defineComponent({
         block-on-unsaved
       />
       <Clone
-        v-if="$store.state.Dataset.meta"
+        v-if="datasetMeta"
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         :revision="revisionNum"
