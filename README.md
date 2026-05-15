@@ -21,10 +21,11 @@ DIVE is a web interface for performing data management, video annotation, and ru
 * [Server Development Docs](server/README.md)
 * [Deployment Overview](https://kitware.github.io/dive/Deployment-Overview/)
 * [Running with Docker Compose](https://kitware.github.io/dive/Deployment-Docker-Compose/)
+* [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/)
 
 ## Technologies Used
 
-DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) for data management and has a typical girder + girder worker + docker architecture.  See docker scripts for additional details.
+DIVE uses [Girder](https://girder.readthedocs.io/en/stable/) 5 for data management and has a typical Girder + Girder Worker + Docker architecture (MongoDB, RabbitMQ, and Redis). See [Running with Docker Compose](https://kitware.github.io/dive/Deployment-Docker-Compose/) and [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/) for deployment details.
 
 * The client application is a standard [@vue/cli](https://cli.vuejs.org/) application.
 * The job runner is built on celery and [Girder Worker](https://girder-worker.readthedocs.io/en/latest/).  Command-line executables for VIAME and FFmpeg are built inside the worker docker image.
