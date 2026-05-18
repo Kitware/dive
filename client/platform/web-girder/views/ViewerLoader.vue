@@ -120,14 +120,13 @@ export default defineComponent({
     };
     findType();
 
-    // Watch the viewer's trackFilters.timeFilters and sync to local ref
-    watchEffect(() => {
-      if (viewerRef.value?.trackFilters?.timeFilters?.value) {
-        timeFilter.value = viewerRef.value.trackFilters.timeFilters.value;
-      } else {
-        timeFilter.value = null;
-      }
-    });
+    watch(
+      () => viewerRef.value?.trackFilters?.timeFilters?.value,
+      (value) => {
+        timeFilter.value = value ?? null;
+      },
+      { immediate: true },
+    );
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (jobs.getDatasetRunningState(props.id)) {
