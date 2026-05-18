@@ -5,10 +5,13 @@
 | control    | description |
 | ---------- | ------------|
 | Left Click | select track/detection |
+| ++ctrl++ + Left Click | add or remove track from multi-selection (bulk edit) |
 | Right Click | toggle edit mode |
 | Middle Click | pan camera |
 | Scroll Wheel | zoom |
 | Mouse Drag | pan |
+| ++alt++ + mouse drag | lasso-select tracks for bulk edit (release mouse to confirm) |
+| ++ctrl++ + ++alt++ + mouse drag | lasso-select and add tracks to the current multi-selection |
 | ++shift++ + mouse drag | select area to zoom |
 | ++arrow-up++ | select previous track in list |
 | ++arrow-down++ | select next track in list     |
