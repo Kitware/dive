@@ -248,60 +248,26 @@ describe('web-girder store composables', () => {
       expect(parent.name).toBe('Parent');
     });
 
-    it('loadDataset loads multi type parent with multiCamMedia', async () => {
-      vi.spyOn(api, 'resolveDatasetFolderId').mockResolvedValue({
-        folderId: 'm1',
-        compositeId: null,
-      });
-      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
-        if (id === 'm1') {
-          return {
-            data: {
-              parentId: 'p1',
-              parentCollection: 'folder',
-            },
-          } as never;
-        }
-        if (id === 'p1') {
-          return {
-            data: {
-              _id: 'p1',
-              _modelType: 'folder',
-              name: 'Parent',
-            },
-          } as never;
-        }
-        throw new Error(`unexpected getFolder(${id})`);
-      });
+    it('loadDataset rejects multi type', async () => {
+      vi.spyOn(api, 'getFolder').mockResolvedValue({
+        data: { parentId: 'p', parentCollection: 'folder' },
+      } as never);
       vi.spyOn(api, 'getDataset').mockResolvedValue({
         data: {
-          id: 'm1',
+          id: 'm',
           type: MultiType,
-          name: 'Stereo',
-          fps: 5,
+          name: '',
+          fps: 1,
           imageData: [],
           createdAt: '',
-          subType: 'stereo',
-          multiCamMedia: {
-            defaultDisplay: 'left',
-            cameras: {
-              left: { type: 'image-sequence', imageData: [], videoUrl: '' },
-              right: { type: 'image-sequence', imageData: [], videoUrl: '' },
-            },
-          },
-          annotate: true,
+          subType: null,
+          multiCamMedia: null,
+          annotate: false,
         },
       } as never);
-      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({
-        data: { imageData: [] },
-      } as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({ data: {} } as never);
 
-      const meta = await useDataset().loadDataset('m1');
-      expect(meta.type).toBe(MultiType);
-      expect(meta.subType).toBe('stereo');
-      expect(meta.multiCamMedia?.defaultDisplay).toBe('left');
-      expect(meta.imageData).toEqual([]);
-      expect(meta.videoUrl).toBeUndefined();
+      await expect(useDataset().loadDataset('m1')).rejects.toThrow('multi is not supported');
     });
   });
 

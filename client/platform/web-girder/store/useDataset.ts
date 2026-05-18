@@ -1,9 +1,7 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
 import type { GirderMetadata } from 'platform/web-girder/constants';
 import { ref } from 'vue';
-import {
-  getDataset, getDatasetMedia, getFolder, resolveDatasetFolderId,
-} from 'platform/web-girder/api';
+import { getDataset, getDatasetMedia, getFolder } from 'platform/web-girder/api';
 import { MultiType } from 'dive-common/constants';
 
 import { useLocation } from './useLocation';
@@ -20,22 +18,18 @@ export function useDataset() {
   }
 
   async function loadDataset(datasetId: string): Promise<GirderMetadata> {
-    const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
     const [folder, metaStatic, media] = await Promise.all([
-      getFolder(folderId),
+      getFolder(datasetId),
       getDataset(datasetId),
       getDatasetMedia(datasetId),
     ]);
     const dsMeta: GirderMetadata = {
       ...metaStatic.data,
       ...media.data,
-      id: compositeId ?? metaStatic.data.id,
       videoUrl: media.data.video?.url,
     };
-    if (dsMeta.type === MultiType && !compositeId) {
-      dsMeta.multiCamMedia = metaStatic.data.multiCamMedia;
-      dsMeta.imageData = [];
-      dsMeta.videoUrl = undefined;
+    if (dsMeta.type === MultiType) {
+      throw new Error('multi is not supported on web yet');
     }
     setMeta(dsMeta);
     const { parentId, parentCollection } = folder.data;

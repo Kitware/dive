@@ -4,7 +4,6 @@ import type { SaveDetectionsArgs } from 'dive-common/apispec';
 
 import girderRest from 'platform/web-girder/plugins/girder';
 import { AnnotationsCurrentVersion } from 'platform/desktop/constants';
-import { resolveDatasetFolderId } from './multicamResolve';
 
 export interface Revision {
   additions: Readonly<number>;
@@ -28,8 +27,7 @@ export interface Label {
   }>;
 }
 
-async function loadDetections(datasetId: string, revision?: number, set?: string) {
-  const { folderId } = await resolveDatasetFolderId(datasetId);
+async function loadDetections(folderId: string, revision?: number, set?: string) {
   const params: Record<string, unknown> = { folderId };
   if (revision !== undefined) {
     params.revision = revision;
@@ -45,14 +43,13 @@ async function loadDetections(datasetId: string, revision?: number, set?: string
   };
 }
 
-async function loadRevisions(
-  datasetId: string,
+function loadRevisions(
+  folderId: string,
   limit?: number,
   offset?: number,
   sort?: string,
   set?: string,
 ) {
-  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.get<Revision[]>('dive_annotation/revision', {
     params: {
       folderId, sortdir: -1, limit, offset, sort, set,
@@ -60,8 +57,7 @@ async function loadRevisions(
   });
 }
 
-async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
-  const { folderId } = await resolveDatasetFolderId(datasetId);
+function saveDetections(folderId: string, args: SaveDetectionsArgs) {
   return girderRest.patch('dive_annotation', args, {
     params: { folderId },
   });
