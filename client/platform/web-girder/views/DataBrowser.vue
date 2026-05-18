@@ -6,6 +6,11 @@ import {
   getLocationType, GirderModel,
 } from '@girder/components/src';
 import { itemsPerPageOptions } from 'dive-common/constants';
+import {
+  getMultiCamIcon,
+  getMultiCamSubType,
+  getMultiCamTooltip,
+} from 'dive-common/multicamDisplay';
 import { clientSettings } from 'dive-common/store/settings';
 import { LocationType } from '../store/types';
 import { useLocation } from '../store/useLocation';
@@ -53,6 +58,10 @@ export default defineComponent({
       return item._modelType === 'folder' && item.meta.annotate;
     }
 
+    function multiCamSubType(item: GirderModel) {
+      return getMultiCamSubType(item.meta);
+    }
+
     const shouldShowUpload = computed(() => (
       location.value
       && !locationIsViameFolder.value
@@ -78,6 +87,9 @@ export default defineComponent({
       itemsPerPageOptions,
       /* methods */
       isAnnotationFolder,
+      multiCamSubType,
+      getMultiCamIcon,
+      getMultiCamTooltip,
       handleNotification,
       setLocation,
       updateUploading,
@@ -138,6 +150,22 @@ export default defineComponent({
       >
         mdi-autorenew
       </v-icon>
+      <v-tooltip
+        v-if="multiCamSubType(item)"
+        bottom
+      >
+        <template #activator="{ on, attrs }">
+          <v-icon
+            small
+            class="ml-2 mr-0"
+            v-bind="attrs"
+            v-on="on"
+          >
+            {{ getMultiCamIcon(multiCamSubType(item)) }}
+          </v-icon>
+        </template>
+        <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
+      </v-tooltip>
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"
