@@ -705,7 +705,12 @@ def test_export_dive_as_coco_single_dataset():
             "confidencePairs": [["fish", 0.9]],
             "attributes": {"gear": "trawl"},
             "features": [
-                {"frame": 0, "bounds": [10, 20, 30, 60], "attributes": {"occluded": True}}
+                {
+                    "frame": 0,
+                    "bounds": [10, 20, 30, 60],
+                    "attributes": {"occluded": True},
+                    "notes": ["net near reef"],
+                }
             ],
         }
     ]
@@ -718,6 +723,8 @@ def test_export_dive_as_coco_single_dataset():
     assert coco["annotations"][0]["bbox"] == [10, 20, 20, 40]
     assert coco["annotations"][0]["dive_detection_attributes"] == {"occluded": True}
     assert coco["annotations"][0]["dive_track_attributes"] == {"gear": "trawl"}
+    assert coco["annotations"][0]["dive_notes"] == ["net near reef"]
+    assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
 def test_import_dive_attribute_extensions():
@@ -732,6 +739,7 @@ def test_import_dive_attribute_extensions():
                 "track_id": 5,
                 "dive_detection_attributes": {"visibility": "poor"},
                 "dive_track_attributes": {"reviewed": True},
+                "dive_notes": ["first pass", "manual review"],
             }
         ],
         "categories": [{"id": 1, "name": "fish"}],
@@ -740,4 +748,5 @@ def test_import_dive_attribute_extensions():
     track = converted["tracks"]["5"]
     assert track["attributes"]["reviewed"] is True
     assert track["features"][0]["attributes"]["visibility"] == "poor"
+    assert track["features"][0]["notes"] == ["first pass", "manual review"]
 

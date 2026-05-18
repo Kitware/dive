@@ -253,10 +253,17 @@ async function cancelJob(job: DesktopJob): Promise<void> {
 let _axiosClient: AxiosInstance; // do not use elsewhere
 let _baseURL: string | null = null;
 
+function formatHostForUrl(host: string) {
+  if (host.includes(':') && !host.startsWith('[')) {
+    return `[${host}]`;
+  }
+  return host;
+}
+
 async function getClient(): Promise<AxiosInstance> {
   if (_axiosClient === undefined) {
     const addr = await window.diveDesktop.invoke('server-info');
-    _baseURL = `http://${addr.address}:${addr.port}/api`;
+    _baseURL = `http://${formatHostForUrl(addr.address)}:${addr.port}/api`;
     _axiosClient = axios.create({ baseURL: _baseURL });
   }
   return _axiosClient;

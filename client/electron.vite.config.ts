@@ -94,6 +94,11 @@ export default defineConfig(({ mode }) => {
             secure: false,
             ws: true,
           },
+          '/notifications': {
+            target: apiProxyTarget,
+            secure: false,
+            ws: true,
+          },
         },
       },
       optimizeDeps: {

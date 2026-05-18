@@ -7,6 +7,14 @@ There are several important python packages in this application
 * `scripts` has general command-line utilities
 * `dive_utils` is shared code between the above packages
 
+## Girder 5 stack
+
+The server targets **Girder 5** (`girder`, `girder_jobs`, `girder_worker`, and related plugins pinned in `pyproject.toml`). Docker Compose adds **Redis** for notifications (`GIRDER_NOTIFICATION_REDIS_URL`); the web client receives job updates over WebSockets.
+
+When developing with `docker-compose.override.yml`, a **`localworker`** service runs Celery on the `local` queue in addition to the standard workers.
+
+Upgrading an existing deployment: [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/).
+
 ## Prerequisites
 
 Set up your system as described in the [Basic Deployment](https://kitware.github.io/dive/Deployment-Docker-Compose/)

@@ -8,7 +8,7 @@ import subprocess
 from subprocess import Popen
 import tempfile
 import threading
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
@@ -30,6 +30,62 @@ def make_directory(path: Path):
 
 class CanceledError(RuntimeError):
     pass
+
+
+def fps_from_ffprobe_stream(video_stream: dict) -> Tuple[str, float]:
+    """
+    Return (fps_string, fps_float) from an ffprobe video stream dict.
+    Prefer avg_frame_rate; fall back to r_frame_rate when avg is missing or 0/0
+    (common for MPEG-TS and similar).
+    """
+
+    def _parse_rational(s: str) -> Optional[Tuple[int, int]]:
+        if not s or s == "0/0":
+            return None
+        parts = s.split("/")
+        if len(parts) != 2:
+            return None
+        try:
+            num, den = int(parts[0]), int(parts[1])
+        except ValueError:
+            return None
+        if den == 0:
+            return None
+        return num, den
+
+    avg = str(video_stream.get("avg_frame_rate") or "")
+    r_rate = str(video_stream.get("r_frame_rate") or "")
+
+    pair = _parse_rational(avg)
+    used = avg
+    if pair is None:
+        pair = _parse_rational(r_rate)
+        used = r_rate
+    if pair is None:
+        raise Exception(
+            "Could not determine frame rate from ffprobe "
+            "(avg_frame_rate and r_frame_rate missing or unusable)"
+        )
+    num, den = pair
+    return used, num / den
+
+
+# ffprobe "format_name" is a comma-separated list of demuxer names. Only these
+# are treated as browser-friendly when skip_transcoding is requested (H.264 in
+# MPEG-TS / MPEG-PS is still h264 but must be remuxed — see convert_video).
+# Matches dive-common websafeVideoTypes (mp4 / webm); other containers transcode.
+_WEBSAFE_SKIP_TRANSCODE_FORMAT_FRAGMENTS = frozenset({'mp4', 'webm'})
+
+
+def container_allows_skip_transcoding(format_name: str) -> bool:
+    """
+    True if ffprobe format_name indicates a container we can skip remuxing for
+    (mp4 or webm demuxer tags, same as websafe video MIME types in the client).
+    """
+    if not format_name or not str(format_name).strip():
+        return False
+    parts = {p.strip() for p in str(format_name).split(',') if p.strip()}
+    return bool(parts & _WEBSAFE_SKIP_TRANSCODE_FORMAT_FRAGMENTS)
 
 
 def authenticate_urllib(gc: GirderClient):
@@ -286,14 +342,12 @@ def upload_exported_zipped_dataset(
         transcoded_video = list(gc.listItem(root_folderId, name=video["filename"]))
         if len(transcoded_video) == 1:
             ffprobe = meta["ffprobe_info"]
-            avgFpsString = ffprobe["avg_frame_rate"]
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
+            originalFpsString, originalFps = fps_from_ffprobe_stream(ffprobe)
 
             transcoded_metadata = {
                 "codec": "h264",
                 "originalFps": originalFps,
-                "originalFpsString": avgFpsString,
+                "originalFpsString": originalFpsString,
                 "source_video": False,
                 "transcoder": "ffmpeg",
             }
@@ -307,12 +361,12 @@ def upload_exported_zipped_dataset(
                     source_metadata = {
                         "codec": ffprobe["codec_name"],
                         "originalFps": originalFps,
-                        "originalFpsString": avgFpsString,
+                        "originalFpsString": originalFpsString,
                         "source_video": False,
                     }
                     gc.addMetadataToItem(str(item['_id']), source_metadata)
             root_meta["originalFps"] = originalFps
-            root_meta["originalFpsString"] = avgFpsString
+            root_meta["originalFpsString"] = originalFpsString
 
     # Need to tag folder Level data (annotate, and others)
     root_meta[constants.DatasetMarker] = True

@@ -2,7 +2,7 @@ FROM python:3.11-bookworm AS worker
 
 # install architecture-compatible tini and ffmpeg
 RUN apt-get update && \
-  apt-get install -qy tini ffmpeg && \
+  apt-get install -qy tini ffmpeg git && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # use distro-provided tini binary for current architecture
@@ -24,8 +24,6 @@ ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
 COPY server/pyproject.toml server/uv.lock /opt/dive/src/
 # Install dependencies only
 RUN uv sync --frozen --no-install-project --no-dev
-# Build girder client, including plugins like worker/jobs
-# RUN girder build
 
 # Copy full source code and install
 COPY server/ /opt/dive/src/

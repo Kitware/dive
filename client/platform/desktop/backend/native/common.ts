@@ -368,10 +368,18 @@ async function loadMetadata(
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
   } else if (projectMetaData.type === 'video') {
-    /* If the video has been transcoded, use that video */
+    /* Use transcoded output only after it exists on disk. */
     if (projectMetaData.transcodedVideoFile) {
-      const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
-      videoUrl = makeMediaUrl(video);
+      const transcodedVideo = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
+      if (await fs.pathExists(transcodedVideo)) {
+        videoUrl = makeMediaUrl(transcodedVideo);
+      } else if (projectMetaData.originalBasePath && projectMetaData.originalVideoFile) {
+        const originalVideo = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
+        videoUrl = makeMediaUrl(originalVideo);
+      } else {
+        // Some legacy/test metadata only has a transcoded filename.
+        videoUrl = makeMediaUrl(transcodedVideo);
+      }
     } else {
       const video = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
       videoUrl = makeMediaUrl(video);

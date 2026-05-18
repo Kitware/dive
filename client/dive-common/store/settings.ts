@@ -2,6 +2,17 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 
+interface ColumnVisibilitySettings {
+  type: boolean;
+  confidence: boolean;
+  startFrame: boolean;
+  endFrame: boolean;
+  startTimestamp: boolean;
+  endTimestamp: boolean;
+  notes: boolean;
+  attributeColumns: string[]; // Array of attribute keys to show as columns
+}
+
 interface AnnotationSettings {
   typeSettings: {
     trackSortDir: 'a-z' | 'count' | 'frame count';
@@ -31,6 +42,7 @@ interface AnnotationSettings {
     trackListSettings: {
       autoZoom?: boolean;
       filterDetectionsByFrame?: boolean;
+      columnVisibility?: ColumnVisibilitySettings;
     }
   };
   groupSettings: {
@@ -47,6 +59,9 @@ interface AnnotationSettings {
   };
   multiCamSettings: {
     showToolbar: boolean;
+  };
+  layoutSettings: {
+    sidebarPosition: 'left' | 'bottom';
   };
   autoSaveSettings: {
     enabled: boolean;
@@ -75,6 +90,16 @@ const defaultSettings: AnnotationSettings = {
     trackListSettings: {
       autoZoom: false,
       filterDetectionsByFrame: false,
+      columnVisibility: {
+        type: true,
+        confidence: true,
+        startFrame: true,
+        endFrame: true,
+        startTimestamp: false,
+        endTimestamp: false,
+        notes: true,
+        attributeColumns: [],
+      },
     },
   },
   groupSettings: {
@@ -109,6 +134,9 @@ const defaultSettings: AnnotationSettings = {
   },
   multiCamSettings: {
     showToolbar: true,
+  },
+  layoutSettings: {
+    sidebarPosition: 'left',
   },
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
@@ -165,4 +193,5 @@ watch(clientSettings, saveSettings, { deep: true });
 export {
   clientSettings,
   AnnotationSettings,
+  ColumnVisibilitySettings,
 };

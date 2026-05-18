@@ -1,18 +1,20 @@
 """adds functionality to existing girder views"""
 
 import types
+
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import boundHandler, Resource
+from girder.api.rest import Resource, boundHandler
 from girder.constants import AccessType, SortDir, TokenScope
-from girder.models.user import User
 from girder.models.folder import Folder
+from girder.models.user import User
 from girder_jobs.models import job
 from girder_worker.utils import JobStatus
 
 from dive_utils import constants
 
 from . import crud_override
+
 
 @access.user
 @boundHandler
@@ -67,6 +69,7 @@ def countJobs(self):
         'outstanding': outstanding,
     }
 
+
 @access.user
 @autoDescribeRoute(
     Description("List shared folders to the user.")
@@ -80,19 +83,11 @@ def countJobs(self):
         required=False,
     )
 )
-def list_shared_folders(
-    limit: int,
-    offset: int,
-    sort,
-    onlyNonAccessibles: bool
-):
+def list_shared_folders(limit: int, offset: int, sort, onlyNonAccessibles: bool):
     return crud_override.list_shared_folders(
-        Resource().getCurrentUser(),
-        limit,
-        offset,
-        sort,
-        onlyNonAccessibles
+        Resource().getCurrentUser(), limit, offset, sort, onlyNonAccessibles
     )
+
 
 @access.user
 @autoDescribeRoute(
@@ -102,7 +97,4 @@ def list_shared_folders(
     .errorResponse('Read access was denied for the folder.', 403)
 )
 def get_root_path_or_relative(folder):
-    return crud_override.get_root_path_or_relative(
-        Resource().getCurrentUser(),
-        folder
-    )
+    return crud_override.get_root_path_or_relative(Resource().getCurrentUser(), folder)

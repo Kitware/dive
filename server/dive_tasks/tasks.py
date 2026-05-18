@@ -1,5 +1,6 @@
 from contextlib import suppress
 import json
+import logging
 import os
 from pathlib import Path
 import shlex
@@ -17,11 +18,19 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
-from dive_tasks.frame_alignment import check_and_fix_frame_alignment
+from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
+from dive_utils.types import (
+    AvailableJobSchema,
+    ExportTrainedPipelineJob,
+    GirderModel,
+    PipelineJob,
+    TrainingJob,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def filter_csv_by_frame_range(csv_path: str, frame_range: Tuple[int, int]) -> str:
@@ -108,6 +117,22 @@ def get_gpu_environment() -> Dict[str, str]:
     return env
 
 
+_VIAME_WORKER_QUEUES = frozenset({'pipelines', 'training'})
+
+
+def _worker_requires_viame_install() -> bool:
+    """
+    Only pipeline/training workers need a local VIAME install.
+
+    Default (``celery``), ``local``, and dev ``localworker`` processes do not;
+    they never call :class:`Config` today, but this keeps :meth:`Config.__init__`
+    safe if a task is misrouted.
+    """
+    queues = os.environ.get('WORKER_WATCHING_QUEUES', '')
+    watched = {q.strip() for q in queues.split(',') if q.strip()}
+    return bool(watched & _VIAME_WORKER_QUEUES)
+
+
 class Config:
     def __init__(self):
         self.gpu_process_env = get_gpu_environment()
@@ -124,17 +149,14 @@ class Config:
             'warn',
         )
 
-        self.viame_install_path = Path(self.viame_install_directory)
-        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
-        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
-        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_executable = self.viame_install_path / "bin" / "viame"
-        assert self.viame_executable.is_file(), "VIAME Executable missing"
-
-        # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
+        self.viame_install_path = Path(self.viame_install_directory)
+        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
+        self.viame_executable = self.viame_install_path / "bin" / "viame"
         self.viame_pipeline_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
+
+        if _worker_requires_viame_install():
+            self.require_viame_install()
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
@@ -145,6 +167,12 @@ class Config:
         self.gpu_process_env['SPROKIT_PIPE_INCLUDE_PATH'] = str(
             self.addon_extracted_path / self.pipeline_subdir
         )
+
+    def require_viame_install(self) -> None:
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
+        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
+        assert self.viame_executable.is_file(), "VIAME Executable missing"
+        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
 
     def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
@@ -177,22 +205,28 @@ def upgrade_pipelines(
     for addon in urls:
         download_name = urlparse(addon).path.replace(os.path.sep, '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
-        if not zipfile_path.exists() or force:
-            # Update the zipfile if force option set or file not exists
-            manager.write(f'Downloading {addon} to {zipfile_path}\n')
-            # TODO wrap try catch
-            request.urlretrieve(addon, filename=zipfile_path)
-        else:
-            manager.write(f'Skipping download of {zipfile_path}\n')
-        addons_to_update_update.append(zipfile_path)
+        had_existing_zip = zipfile_path.exists()
+        try:
+            if not had_existing_zip or force:
+                manager.write(f'Downloading {addon} to {zipfile_path}\n')
+                request.urlretrieve(addon, filename=zipfile_path)
+            else:
+                manager.write(f'Skipping download of {zipfile_path}\n')
+            addons_to_update_update.append(zipfile_path)
+        except Exception as exc:
+            logger.exception('Failed to download addon %s', addon)
+            manager.write(f'Failed to download {addon}: {exc}\nSkipping.\n')
+            if zipfile_path.exists() and not had_existing_zip:
+                zipfile_path.unlink(missing_ok=True)
         if utils.check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
             return
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
-    # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
+    # Seed base pipelines from the VIAME image when available (GPU workers only).
+    if conf.viame_pipeline_path.exists():
+        shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
@@ -228,6 +262,7 @@ def upgrade_pipelines(
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -362,6 +397,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 @app.task(bind=True, acks_late=True, ignore_results=True)
 def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -425,6 +461,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
 def train_pipeline(self: Task, params: TrainingJob):
     """Train a pipeline by making a call to viame train"""
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -589,14 +626,11 @@ def convert_video(
             print('Expected 1 video stream, found {}'.format(len(videostream)))
             print('Using first Video Stream found')
 
-        # Extract average framerate
-        avgFpsString: str = videostream[0]["avg_frame_rate"]
-        originalFps = None
-        if avgFpsString:
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
-        else:
-            raise Exception('Expected key avg_frame_rate in ffprobe')
+        format_info = jsoninfo.get('format') or {}
+        format_name = format_info.get('format_name') or ''
+
+        # Extract framerate (avg_frame_rate, else r_frame_rate for e.g. MPEG-TS)
+        originalFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
 
         if requestedFps == -1:
             newAnnotationFps = originalFps
@@ -605,8 +639,21 @@ def convert_video(
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
+        source_misaligned = False
+        if skip_transcoding:
+            source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
+
+        # Skip remux/transcode only for browser-safe sources, matching desktop checks.
+        can_skip_transcode = (
+            skip_transcoding
+            and videostream[0]['codec_name'] == 'h264'
+            and videostream[0].get('sample_aspect_ratio') == '1:1'
+            and utils.container_allows_skip_transcoding(format_name)
+            and not source_misaligned
+        )
+
         # lets determine if we don't need to transcode this file
-        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+        if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.addMetadataToItem(
@@ -615,7 +662,7 @@ def convert_video(
                     "source_video": False,  # even though it is, this for requesting
                     "transcoder": "ffmpeg",
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     "codec": "h264",
                 },
             )
@@ -624,7 +671,7 @@ def convert_video(
                 {
                     constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     constants.FPSMarker: newAnnotationFps,
                     "ffprobe_info": videostream[0],
                 },
@@ -633,7 +680,18 @@ def convert_video(
         elif skip_transcoding:
             print('Transcoding cannot be skipped:')
             print(f'Codec Name: {videostream[0]["codec_name"]}')
-            print('Codec name is not h264 so file will be transcoded')
+            print(f'format_name: {format_name}')
+            if videostream[0]['codec_name'] != 'h264':
+                print('Codec is not h264; file will be transcoded')
+            elif videostream[0].get('sample_aspect_ratio') != '1:1':
+                print(
+                    'Sample aspect ratio is not 1:1; file will be transcoded '
+                    '(desktop-parity rule)'
+                )
+            elif not utils.container_allows_skip_transcoding(format_name):
+                print('Container is not web-safe (e.g. mpegts); file will be transcoded')
+            elif source_misaligned:
+                print('Frame timestamps are misaligned; file will be transcoded')
 
         command = [
             "ffmpeg",
@@ -669,14 +727,14 @@ def convert_video(
                 "source_video": False,
                 "transcoder": "ffmpeg",
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 "codec": "h264",
             },
         )
         source_metadata = {
             "source_video": True,
             constants.OriginalFPSMarker: originalFps,
-            constants.OriginalFPSStringMarker: avgFpsString,
+            constants.OriginalFPSStringMarker: originalFpsString,
             "codec": videostream[0]["codec_name"],
         }
         if misaligned_flag:
@@ -690,7 +748,7 @@ def convert_video(
             {
                 constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 constants.FPSMarker: newAnnotationFps,
                 "ffprobe_info": videostream[0],
             },
