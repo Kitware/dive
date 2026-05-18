@@ -101,12 +101,28 @@ def verify_dataset(folder: GirderModel):
     if not asbool(fromMeta(folder, constants.DatasetMarker, False)):
         raise RestException('Source folder is not a valid DIVE dataset', code=404)
     dstype = fromMeta(folder, 'type')
-    if dstype not in [constants.ImageSequenceType, constants.VideoType, constants.LargeImageType]:
+    valid_types = [
+        constants.ImageSequenceType,
+        constants.VideoType,
+        constants.LargeImageType,
+        constants.MultiType,
+    ]
+    if dstype not in valid_types:
         raise ValueError(f'Source folder is marked as dataset but has invalid type {dstype}')
-    if dstype == constants.VideoType:
+    if dstype in (constants.VideoType, constants.MultiType):
         fps = fromMeta(folder, 'fps')
         if type(fps) not in [int, float]:
-            raise ValueError(f'Video missing numerical fps, found {fps}')
+            raise ValueError(f'Dataset missing numerical fps, found {fps}')
+    if dstype == constants.MultiType:
+        multi_cam = fromMeta(folder, constants.MultiCamMarker)
+        if not multi_cam or not multi_cam.get('defaultDisplay'):
+            raise ValueError('Multi camera dataset missing multiCam.defaultDisplay')
+        cameras = multi_cam.get('cameras') or {}
+        if not cameras:
+            raise ValueError('Multi camera dataset missing multiCam.cameras')
+        for name, cam in cameras.items():
+            if not cam.get('folderId'):
+                raise ValueError(f'Multi camera entry "{name}" missing folderId')
     return True
 
 
