@@ -395,6 +395,7 @@ export default defineComponent({
               </template>
               <span>Delete visible items</span>
             </v-tooltip>
+            <slot name="header-trailing" />
           </div>
         </v-col>
       </v-row>

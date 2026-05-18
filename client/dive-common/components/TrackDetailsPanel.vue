@@ -303,11 +303,14 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader class="pl-2">
-      {{ multiSelectInProgress
-        ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
-        : 'Track Editor'
-      }}
+    <v-subheader class="pl-2 d-flex align-center">
+      <span>{{
+        multiSelectInProgress
+          ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
+          : 'Track Editor'
+      }}</span>
+      <v-spacer />
+      <slot name="header-trailing" />
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"

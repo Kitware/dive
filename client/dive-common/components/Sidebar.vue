@@ -172,16 +172,6 @@ export default defineComponent({
     :enable-slot="enableSlot"
   >
     <template #default="{ topHeight, bottomHeight }">
-      <v-btn
-        v-mousetrap="mouseTrap"
-        small
-        icon
-        title="press `a`"
-        class="swap-button"
-        @click="swapTabs"
-      >
-        <v-icon>mdi-swap-horizontal</v-icon>
-      </v-btn>
       <v-slide-x-transition>
         <div
           v-if="data.currentTab === 'tracks'"
@@ -202,6 +192,27 @@ export default defineComponent({
                 :all-types="allTypesRef"
                 @import-types="$emit('import-types', $event)"
               />
+            </template>
+            <template #header-trailing>
+              <v-tooltip
+                open-delay="100"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-btn
+                    v-mousetrap="mouseTrap"
+                    icon
+                    small
+                    v-on="on"
+                    @click="swapTabs"
+                  >
+                    <v-icon small>
+                      mdi-swap-horizontal
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <span>Switch to Track Editor (press `a`)</span>
+              </v-tooltip>
             </template>
           </FilterList>
           <slot v-if="enableSlot" />
@@ -235,7 +246,29 @@ export default defineComponent({
           @commit-merge="commitMerge"
           @create-group="groupAdd"
           @delete-selected-tracks="handleDeleteSelectedTracks"
-        />
+        >
+          <template #header-trailing>
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  v-mousetrap="mouseTrap"
+                  icon
+                  small
+                  v-on="on"
+                  @click="swapTabs"
+                >
+                  <v-icon small>
+                    mdi-swap-horizontal
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Switch to Type Filter and Track List (press `a`)</span>
+            </v-tooltip>
+          </template>
+        </track-details-panel>
       </v-slide-x-transition>
     </template>
   </StackedVirtualSidebarContainer>
@@ -246,20 +279,6 @@ export default defineComponent({
     class="horizontal-sidebar d-flex flex-column"
     :style="{ width: `${width}px`, height: '100%' }"
   >
-    <v-tooltip bottom>
-      <template #activator="{ on }">
-        <v-btn
-          small
-          icon
-          class="swap-button-horizontal"
-          v-on="on"
-          @click="cycleHorizontalTabs"
-        >
-          <v-icon>{{ horizontalTabIcon }}</v-icon>
-        </v-btn>
-      </template>
-      <span>{{ horizontalTabTooltip }}</span>
-    </v-tooltip>
     <!-- Detection List Tab -->
     <div
       v-if="data.horizontalTab === 'tracks'"
@@ -267,7 +286,7 @@ export default defineComponent({
       style="overflow: hidden; width: 100%;"
     >
       <!-- Mini confidence slider at top -->
-      <div class="confidence-row px-2 py-1 pr-10">
+      <div class="confidence-row px-2 py-1">
         <ConfidenceFilter
           :confidence.sync="confidenceFilters.default"
           :disabled="disableAnnotationFilters"
@@ -296,6 +315,24 @@ export default defineComponent({
               :all-types="allTypesRef"
             />
           </template>
+          <template #header-trailing>
+            <v-tooltip bottom>
+              <template #activator="{ on }">
+                <v-btn
+                  icon
+                  x-small
+                  class="ml-1"
+                  v-on="on"
+                  @click="cycleHorizontalTabs"
+                >
+                  <v-icon x-small>
+                    {{ horizontalTabIcon }}
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>{{ horizontalTabTooltip }}</span>
+            </v-tooltip>
+          </template>
         </TrackList>
       </div>
     </div>
@@ -316,7 +353,25 @@ export default defineComponent({
         @commit-merge="commitMerge"
         @create-group="groupAdd"
         @delete-selected-tracks="handleDeleteSelectedTracks"
-      />
+      >
+        <template #header-trailing>
+          <v-tooltip bottom>
+            <template #activator="{ on }">
+              <v-btn
+                icon
+                x-small
+                v-on="on"
+                @click="cycleHorizontalTabs"
+              >
+                <v-icon x-small>
+                  {{ horizontalTabIcon }}
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>{{ horizontalTabTooltip }}</span>
+          </v-tooltip>
+        </template>
+      </track-details-panel>
     </div>
     <!-- Type Filters Tab -->
     <div
@@ -338,6 +393,23 @@ export default defineComponent({
             @import-types="$emit('import-types', $event)"
           />
         </template>
+        <template #header-trailing>
+          <v-tooltip bottom>
+            <template #activator="{ on }">
+              <v-btn
+                icon
+                small
+                v-on="on"
+                @click="cycleHorizontalTabs"
+              >
+                <v-icon small>
+                  {{ horizontalTabIcon }}
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>{{ horizontalTabTooltip }}</span>
+          </v-tooltip>
+        </template>
       </FilterList>
     </div>
   </div>
@@ -354,25 +426,11 @@ export default defineComponent({
   bottom: 0;
 }
 
-.swap-button {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  z-index: 1;
-}
-
 .horizontal-sidebar {
   position: relative;
   border-right: 1px solid #444;
   flex-shrink: 0;
   background-color: #1e1e1e;
-}
-
-.swap-button-horizontal {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  z-index: 1;
 }
 
 .confidence-row {
