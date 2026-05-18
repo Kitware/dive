@@ -15,7 +15,6 @@ import { useDataset } from 'platform/web-girder/store/useDataset';
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { DatasetType, SubType } from 'dive-common/apispec';
 import { useApi } from 'dive-common/apispec';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
@@ -112,20 +111,12 @@ export default defineComponent({
     });
     const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
 
-    const typeList: Ref<DatasetType[]> = ref([]);
-    const subTypeList = computed((): SubType[] => {
-      const subType = datasetMeta.value?.subType;
-      return subType ? [subType] : [];
-    });
-    const cameraNumbers = computed(() => {
-      const count = Object.keys(datasetMeta.value?.multiCamMedia?.cameras ?? {}).length;
-      return [count > 0 ? count : 1];
-    });
+    const typeList: Ref<string[]> = ref([]);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
     const findType = async () => {
       const meta = await loadMetadata(props.id);
-      typeList.value = [meta.type as DatasetType];
+      typeList.value = [meta.type];
     };
     findType();
 
@@ -252,8 +243,6 @@ export default defineComponent({
       routeSet,
       largeImageWarning,
       typeList,
-      subTypeList,
-      cameraNumbers,
       timeFilter,
       pipelinesEnabled,
     };
@@ -292,13 +281,7 @@ export default defineComponent({
     <template #title-right>
       <RunPipelineMenu
         v-if="pipelinesEnabled"
-        v-bind="{
-          buttonOptions,
-          menuOptions,
-          typeList,
-          subTypeList,
-          cameraNumbers,
-        }"
+        v-bind="{ buttonOptions, menuOptions, typeList }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"

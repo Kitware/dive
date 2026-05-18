@@ -253,40 +253,6 @@ class MetadataMutable(BaseModel):
         return any([value.get(key, False) for key in keys])
 
 
-class MediaResource(BaseModel):
-    url: str
-    id: str
-    filename: str
-
-
-class MultiCamCameraMeta(BaseModel):
-    """Per-camera entry stored on the parent folder meta.multiCam.cameras."""
-
-    folderId: str
-    type: str
-
-
-class MultiCamMetaStorage(BaseModel):
-    """Parent-folder multiCam metadata (storage shape)."""
-
-    defaultDisplay: str
-    cameras: Dict[str, MultiCamCameraMeta]
-    calibrationItemId: Optional[str] = None
-
-
-class MultiCamMediaCamera(BaseModel):
-    """Per-camera media returned to the client (matches dive-common MultiCamMedia)."""
-
-    type: str
-    imageData: List[MediaResource] = Field(default_factory=list)
-    videoUrl: str = ''
-
-
-class MultiCamMedia(BaseModel):
-    cameras: Dict[str, MultiCamMediaCamera]
-    defaultDisplay: str
-
-
 class GirderMetadataStatic(MetadataMutable):
     # Required
     id: str
@@ -302,8 +268,12 @@ class GirderMetadataStatic(MetadataMutable):
     originalFps: Optional[Union[float, int]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
-    subType: Optional[Literal['stereo', 'multicam']] = None
-    multiCamMedia: Optional[MultiCamMedia] = None
+
+
+class MediaResource(BaseModel):
+    url: str
+    id: str
+    filename: str
 
 
 class DatasetSourceMedia(BaseModel):
