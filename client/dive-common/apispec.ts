@@ -125,7 +125,10 @@ interface FrameImage {
 }
 
 export interface MultiCamImportFolderArgs {
+  datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
+  /** Display order for cameras (matches sourceList / UI order). */
+  cameraOrder?: string[];
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
@@ -154,6 +157,8 @@ interface MultiCamMedia {
     videoUrl: string;
   }>;
   defaultDisplay: string; // Default camera for displaying the MultiCamMedia
+  /** Camera names in display order (import / UI order). */
+  cameraOrder?: string[];
 }
 
 interface MediaImportResponse {

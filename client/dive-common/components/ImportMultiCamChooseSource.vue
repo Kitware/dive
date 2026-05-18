@@ -20,6 +20,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    hideActions: {
+      type: Boolean,
+      default: false,
+    },
   },
 });
 </script>
@@ -41,6 +45,7 @@ export default defineComponent({
       :value="value"
     />
     <v-btn
+      v-if="!hideActions"
       color="primary"
       class="mr-3"
       @click="$emit('open')"
@@ -51,7 +56,7 @@ export default defineComponent({
       </v-icon>
     </v-btn>
     <v-btn
-      v-if="dataType === 'image-sequence'"
+      v-if="dataType === 'image-sequence' && !hideActions"
       color="primary"
       @click="$emit('open-text')"
     >
