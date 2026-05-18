@@ -292,7 +292,13 @@ export default defineComponent({
     <template #title-right>
       <RunPipelineMenu
         v-if="pipelinesEnabled"
-        v-bind="{ buttonOptions, menuOptions, typeList, subTypeList, cameraNumbers }"
+        v-bind="{
+          buttonOptions,
+          menuOptions,
+          typeList,
+          subTypeList,
+          cameraNumbers,
+        }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"

@@ -11,13 +11,13 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 - [ ] **Server: clone & export** — Extend `createSoftClone` and `export_datasets_zipstream` to recurse into child cameras; include calibration
 - [ ] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
 - [ ] **Web API** — Add `createMulticamDataset`, `uploadCalibration` helpers in `client/platform/web-girder/api/dataset.service.ts`
-- [ ] **Web store** — Remove the `multi is not supported` guard in `useDataset.ts` and attach `multiCamMedia`
-- [ ] **Web API: ID rewrite** — Rewrite `${parentId}/${camera}` to child folder id inside `getDataset` / `getDatasetMedia`
+- [x] **Web store** — Remove the `multi is not supported` guard in `useDataset.ts` and attach `multiCamMedia`
+- [x] **Web API: ID rewrite** — Rewrite `${parentId}/${camera}` to child folder id inside `getDataset` / `getDatasetMedia`
 - [ ] **Web upload** — Replace `multiCamImportCheck` / `multiCamImport` stubs; orchestrate per-camera uploads + call create_multicam endpoint
 - [ ] **Web calibration shims** — Provide `getLastCalibration` / `saveCalibration` shims so `ImportMultiCamDialog` works without desktop
-- [ ] **Web ViewerLoader** — Wire `subTypeList` + `camNumbers` into `RunPipelineMenu`
+- [x] **Web ViewerLoader** — Wire `subTypeList` + `camNumbers` into `RunPipelineMenu`
 - [ ] **Web export & clone** — Drop multi-guard in `Export.vue` and verify `Clone.vue` handles parent folders
-- [ ] **dive-common Viewer** — Drop `'diveDesktop' in window` gate so MultiCamToolbar/camera dropdown work on web
+- [x] **dive-common Viewer** — Drop `'diveDesktop' in window` gate so MultiCamToolbar/camera dropdown work on web
 - [ ] **Tests & docs** — Server multicam integration test, success-path frontend test, update `docs/Multicamera-data.md` / `docs/Web-Version.md`
 
 ---
