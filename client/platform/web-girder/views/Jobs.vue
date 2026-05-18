@@ -206,9 +206,11 @@ export default defineComponent({
       --gpus all \
       --ipc host \
       --volume "/opt/noaa/viame:/tmp/addons/extracted:ro" \
+      -e "WORKER_CONCURRENCY=2" \
       -e "DIVE_USERNAME=username" \
       -e "DIVE_PASSWORD=CHANGEME" \
-      kitware/viame-worker:latest</pre>
+      -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
+      kitware/viame-worker:girder-5</pre>
         </v-card-text>
       </v-card>
     </v-card>

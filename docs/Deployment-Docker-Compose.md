@@ -8,12 +8,18 @@ Start here once you have SSH access and `sudo` privileges for a server or VM.
 
 ## Container Images
 
-A DIVE Web deployment consists of 2 main services.
+A DIVE Web deployment consists of 2 main application images (Girder 5 builds use the `girder-5` tag unless overridden with `TAG` in `.env`):
 
-* [kitware/viame-web](https://hub.docker.com/r/kitware/viame-web) - the web server
-* [kitware/viame-worker](https://hub.docker.com/r/kitware/viame-worker) - the queue worker
+* [kitware/viame-web](https://hub.docker.com/r/kitware/viame-web) — Girder web server and bundled Vue client
+* [kitware/viame-worker](https://hub.docker.com/r/kitware/viame-worker) — Celery workers for transcoding, pipelines, and training
 
-In addition, a database (MongoDB) and a queue service (RabbitMQ) are required.
+Infrastructure services required by the stack:
+
+* **MongoDB** — Girder database
+* **RabbitMQ** — Celery message broker
+* **Redis** — Girder notification fan-out (job status and UI updates over WebSockets)
+
+Upgrading from Girder 3? See [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).
 
 ![DIVE-Web-Architecture-Diagram.svg](images/Diagrams/DIVE-Web-Architecture-Diagram.svg)
 
@@ -106,11 +112,15 @@ It's possible to split your web server and task runner between multiple nodes.  
 
 * Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
 * Clone the dive repository on both, and set up `.env` on both with the same configuration.
-* Be sure that `WORKER_API_URL` and `CELERY_BROKER_URL` in particular are uncommented and set to the IP or domain name of your web server.  This is how the worker will talk to the web server, so the web server must be network accessible from the worker.
+* On worker nodes, uncomment and set:
+    * `GIRDER_WORKER_BROKER` — RabbitMQ URL reachable on the web server (e.g. `amqp://guest:guest@your-web-host/default`)
+    * `GIRDER_SETTING_WORKER_API_URL` — Girder API URL on the web server (e.g. `http://your-web-host:8080/api/v1`)
+    * `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web server if workers use the same notification settings as Compose (e.g. `redis://your-web-host:6379`)
+* The web server must be network-accessible from workers for the API URL and from workers to RabbitMQ and Redis.
 
 ``` bash
 ## On the web server
-docker-compose -f docker-compose.yml up -d girder rabbit
+docker-compose -f docker-compose.yml up -d girder rabbit mongo redis
 
 ## On the GPU server(s)
 docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
@@ -172,8 +182,11 @@ This image contains both the backend and client.
 | GIRDER_MONGO_URI | `mongodb://mongo:27017/girder` | a mongodb connection string |
 | GIRDER_ADMIN_USER | `admin` | admin username |
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
-| CELERY_BROKER_URL | `amqp://guest:guest@default/` | rabbitmq connection string |
-| WORKER_API_URL | `http://girder:8080/api/v1` | Address for workers to reach web server |
+| GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string (Celery broker) |
+| GIRDER_WORKER_BACKEND | `rpc://guest:guest@localhost/` | Celery result backend (RPC) |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder REST API URL used by workers |
+| GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis URL for notification fan-out |
+| GIRDER_STATIC_ROOT_DIR | `/opt/dive/clients/girder` | Built web client static files (set in image/Compose) |
 
 There is additional configuration for the RabbitMQ Management plugin. It only matters if you intend to allow individual users to configure private job runners in standalone mode, and can otherwise be ignored.
 
@@ -181,7 +194,7 @@ There is additional configuration for the RabbitMQ Management plugin. It only ma
 |----------|---------|-------------|
 | RABBITMQ_MANAGEMENT_USERNAME | `guest` | Management API username |
 | RABBITMQ_MANAGEMENT_PASSWORD | `guest` | Management API password |
-| RABBITMQ_MANAGEMENT_VHOST | `default` | Virtual host should match `CELERY_BROKER_URL` |
+| RABBITMQ_MANAGEMENT_VHOST | `default` | Virtual host should match `GIRDER_WORKER_BROKER` |
 | RABBITMQ_MANAGEMENT_URL | `http://rabbit:15672/` | Management API Url |
 
 You can also pass [girder configuration](https://girder.readthedocs.io/en/latest/) and [celery configuration](https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-broker_connection_timeout).
@@ -197,7 +210,9 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_WATCHING_QUEUES | null | one of `celery`, `pipelines`, `training`.  Ignored in standalone mode. |
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Lower this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
-| CELERY_BROKER_URL | `amqp://guest:guest@default/` | rabbitmq connection string. Ignored in standalone mode. |
+| GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string. Ignored in standalone mode. |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder API URL (split/multi-node deployments). Ignored in standalone mode when using `DIVE_API_URL`. |
+| GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis for notifications when running workers in Compose |
 | KWIVER_DEFAULT_LOG_LEVEL | `warn` | Log level for VIAME pipeline jobs (env name unchanged; used by the Kwiver logging stack) |
 | DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |
 | DIVE_PASSWORD | null | Password for private queue processor. Providing this enables standalone mode. |
@@ -228,5 +243,9 @@ docker run --rm --name dive_worker \
   -e "DIVE_USERNAME=CHANGEME" \
   -e "DIVE_PASSWORD=CHANGEME" \
   -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
-  kitware/viame-worker:latest
+  kitware/viame-worker:girder-5
 ```
+
+### Development: `localworker`
+
+With `docker-compose.override.yml`, Compose also starts a **`localworker`** service that runs `celery -A girder_worker.app worker -Q local` for development tasks. It is not required for production; see [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).

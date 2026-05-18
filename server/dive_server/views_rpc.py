@@ -60,7 +60,7 @@ class RpcResource(Resource):
     def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription, pipelineParams: dict[str, str]):
         worker_capabilities.require_pipeline_worker()
         return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams)
-    
+
     @access.user
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")
