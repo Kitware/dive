@@ -1027,7 +1027,6 @@ export default defineComponent({
     });
     const showMultiCamToolbar = computed(() => (
       typeof window !== 'undefined'
-      && 'diveDesktop' in window
       && multiCamList.value.length > 1
       && clientSettings.multiCamSettings.showToolbar
     ));
