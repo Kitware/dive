@@ -12,6 +12,24 @@ export default defineComponent({
               name: 'Select Track', icon: 'mdi-mouse', actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a detection/track',
             },
             {
+              name: 'Multi-select Track',
+              icon: 'mdi-mouse',
+              actions: ['Ctrl + Left Click Mouse'],
+              description: 'Add or remove a track from multi-selection for bulk edit',
+            },
+            {
+              name: 'Lasso Select',
+              icon: 'mdi-mouse',
+              actions: ['Alt + Mouse Drag'],
+              description: 'Draw around tracks to multi-select; release the mouse to confirm',
+            },
+            {
+              name: 'Lasso Add to Selection',
+              icon: 'mdi-mouse',
+              actions: ['Ctrl + Alt + Mouse Drag'],
+              description: 'Lasso-select tracks and add them to the current multi-selection',
+            },
+            {
               name: 'Zoom In/Out', icon: 'mdi-mouse', actions: ['Scrollwheel Up/Down'], description: 'use scrollwheel to zoom in and out',
             },
             {
