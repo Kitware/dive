@@ -115,6 +115,12 @@ You can view data shared with you by selecting the ==:material-share-variant: Sh
 
 ![Shared With Me Tab](images/Sharing/ShareTab.png)
 
+This tab lists **private** datasets and folders that another user granted you access to through [Access Control](#granting-access-to-others). It is a shortcut to data you can open but do not own.
+
+!!! note
+
+    **Shared With Me** does not include public datasets. Data in another user's ==:material-folder: Public== folder is already visible to all registered users and can be edited when the owner allows it, but those items are not listed here. Use ==Browse Data== or a direct link to open public datasets from other accounts.
+
 ## Sharing URLs
 
 You can copy and paste any URL from the address bar and share with collaborators.  This includes folders in the data browser as well as direct links to the annotation editor.
