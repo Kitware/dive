@@ -61,6 +61,9 @@ services:
       context: .
       dockerfile: docker/girder.Dockerfile
     image: kitware/viame-web:${TAG:-girder-5}
+    profiles:
+      - gpu
+      - cpu
     depends_on:
       - mongo
     entrypoint: celery -A girder_worker.app worker -Q local
