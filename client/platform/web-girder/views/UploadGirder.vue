@@ -176,9 +176,7 @@ export default Vue.extend({
       files.push(this.convertFileToInternal(meta));
       files.push(this.convertFileToInternal(annotationFile));
       files = files.filter((item) => item !== null);
-      const folder = await this.createUploadFolder(
-        name, parseInt(fps, 10), type, parentFolderId,
-      );
+      const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);
       }

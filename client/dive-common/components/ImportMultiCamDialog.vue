@@ -1,6 +1,6 @@
 <script lang="ts">
 import Vue, {
-  computed, defineComponent, onMounted, ref, Ref, PropType, toRef,
+  computed, defineComponent, onMounted, ref, Ref, PropType,
 } from 'vue';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
 import {
@@ -17,7 +17,6 @@ import {
   isValidCameraName,
   organizeSubfolderCameras,
   pickDefaultMulticamCamera,
-  type SubfolderCameraAssignment,
 } from 'dive-common/multicamSubfolderLayout';
 
 import ImportMultiCamCameraGroup from 'dive-common/components/ImportMultiCamCameraGroup.vue';
@@ -78,7 +77,6 @@ export default defineComponent({
       listImmediateSubfolders,
       resolveMulticamCameraSourcePath,
     } = useApi();
-    const enableSubfolderImport = toRef(props, 'enableSubfolderImport');
     const importType: Ref<'multi' | 'keyword' | 'subfolders' | ''> = ref('');
     const folderList: Ref<Record<string, { sourcePath: string; trackFile: string}>> = ref({});
     const parentFolderName = ref('');
@@ -318,7 +316,8 @@ export default defineComponent({
           grouped = groupFilesByImmediateSubfolder(ret.fileList, parentPath);
           folderNames = [...grouped.keys()];
         } else {
-          parentPath = ret.filePaths[0];
+          const [firstPath] = ret.filePaths;
+          parentPath = firstPath;
           folderNames = await listImmediateSubfolders!(parentPath);
         }
 
@@ -334,7 +333,7 @@ export default defineComponent({
           datasetName.value = parentFolderName.value;
         }
 
-        let assignments: SubfolderCameraAssignment[] = organized.assignments;
+        let { assignments } = organized;
         if (useDesktopDiscovery) {
           assignments = applyParentPathToAssignments(parentPath, assignments);
           if (resolveMulticamCameraSourcePath) {
@@ -367,11 +366,9 @@ export default defineComponent({
           }
           Vue.set(subfolderOriginalNames.value, cameraName, organized.assignments[i].folderName);
           Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
-          Vue.set(
-            pendingImportPayloads.value,
-            cameraName,
-            await props.importMedia(sourcePath),
-          );
+          // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
+          const mediaPayload = await props.importMedia(sourcePath);
+          Vue.set(pendingImportPayloads.value, cameraName, mediaPayload);
         }
         defaultDisplay.value = pickDefaultMulticamCamera(
           registryPayload.map((item) => item.cameraName),
@@ -560,7 +557,6 @@ export default defineComponent({
       subfolderOriginalNames,
       datasetName,
       datasetNameRules,
-      enableSubfolderImport,
       //Methods
       open,
       openParentFolder,

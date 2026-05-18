@@ -345,6 +345,7 @@ export default defineComponent({
           if (!files?.length) {
             throw new Error(`No media files found for camera "${cameraName}"`);
           }
+          // eslint-disable-next-line no-await-in-loop -- validate then upload each camera sequentially
           const validation = (await validateUploadGroup(files.map((f) => f.name))).data;
           if (!validation.ok) {
             throw new Error(validation.message || `Invalid files for camera "${cameraName}"`);
