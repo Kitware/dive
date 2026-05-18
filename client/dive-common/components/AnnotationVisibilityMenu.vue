@@ -69,6 +69,9 @@ export default defineComponent({
       isExpanded.value = !isExpanded.value;
     };
 
+    // Force distinct v-menu instances when toggling collapsed/expanded (Vue 2 patch reuse)
+    const layoutKey = computed(() => (isExpanded.value ? 'expanded' : 'collapsed'));
+
     const viewButtons = computed((): ButtonData[] => (
       /* Only geometry primitives can be visible types right now */
       [
@@ -126,6 +129,7 @@ export default defineComponent({
 
     return {
       isExpanded,
+      layoutKey,
       viewButtons,
       isVisible,
       toggleVisible,
@@ -142,6 +146,7 @@ export default defineComponent({
     <!-- Dropdown mode when collapsed -->
     <v-menu
       v-if="!isExpanded"
+      :key="`visibility-${layoutKey}`"
       offset-y
       :close-on-content-click="false"
       min-width="300"
@@ -249,7 +254,11 @@ export default defineComponent({
     </v-menu>
 
     <!-- Full button mode when expanded -->
-    <template v-else>
+    <span
+      v-else
+      :key="`visibility-${layoutKey}`"
+      class="visibility-expanded d-inline-flex align-center flex-wrap"
+    >
       <span class="mr-1 px-3 py-1">
         <v-icon class="pr-1">
           mdi-eye
@@ -314,6 +323,7 @@ export default defineComponent({
         </v-btn>
       </template>
       <v-menu
+        key="track-tail-settings"
         open-on-hover
         bottom
         offset-y
@@ -361,7 +371,7 @@ export default defineComponent({
           >
         </v-card>
       </v-menu>
-    </template>
+    </span>
   </span>
 </template>
 
