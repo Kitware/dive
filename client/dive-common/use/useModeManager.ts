@@ -238,6 +238,27 @@ export default function useModeManager({
     _selectKey(key);
   }
 
+  function handleLassoSelect(
+    trackIds: AnnotationId[],
+    modifiers: { ctrl: boolean } = { ctrl: false },
+  ) {
+    if (creating || trackIds.length === 0) {
+      return;
+    }
+    creating = false;
+    if (modifiers?.ctrl) {
+      const selected = new Set(multiSelectList.value);
+      trackIds.forEach((id) => selected.add(id));
+      multiSelectList.value = Array.from(selected);
+    } else {
+      multiSelectList.value = [...trackIds];
+    }
+    editingMultiTrack.value = true;
+    selectedTrackId.value = null;
+    editingTrack.value = false;
+    editingGroupId.value = null;
+  }
+
   function handleSelectTrack(
     trackId: AnnotationId | null,
     edit = false,
@@ -867,6 +888,7 @@ export default function useModeManager({
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
+      lassoSelect: handleLassoSelect,
       trackSelectNext: handleSelectNext,
       updateRectBounds: handleUpdateRectBounds,
       updateGeoJSON: handleUpdateGeoJSON,
