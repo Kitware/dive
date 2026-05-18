@@ -7,14 +7,14 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 - [x] **Server: constants & models** — Add `MultiType` + multiCam/subType/calibration markers and pydantic models (`server/dive_utils/constants.py`, `server/dive_utils/models.py`)
 - [x] **Server: verify_dataset** — Relax `verify_dataset` to accept `type=multi`; keep fps mirrored from default-display camera
 - [x] **Server: get_dataset / multiCamMedia** — Extend `crud_dataset.get_dataset` to embed `multiCamMedia` by fanning out to child `get_media` calls
-- [ ] **Server: create multicam** — Implement `POST /dive_dataset/multicam` and `crud_dataset.create_multicam` to move child folders + write parent meta + attach calibration
+- [x] **Server: create multicam** — Implement `POST /dive_dataset/multicam` and `crud_dataset.create_multicam` to move child folders + write parent meta + attach calibration
 - [ ] **Server: clone & export** — Extend `createSoftClone` and `export_datasets_zipstream` to recurse into child cameras; include calibration
 - [ ] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
-- [ ] **Web API** — Add `createMulticamDataset`, `uploadCalibration` helpers in `client/platform/web-girder/api/dataset.service.ts`
+- [x] **Web API** — Add `createMulticamDataset`, `uploadCalibration` helpers in `client/platform/web-girder/api/dataset.service.ts`
 - [x] **Web store** — Remove the `multi is not supported` guard in `useDataset.ts` and attach `multiCamMedia`
 - [x] **Web API: ID rewrite** — Rewrite `${parentId}/${camera}` to child folder id inside `getDataset` / `getDatasetMedia`
-- [ ] **Web upload** — Replace `multiCamImportCheck` / `multiCamImport` stubs; orchestrate per-camera uploads + call create_multicam endpoint
-- [ ] **Web calibration shims** — Provide `getLastCalibration` / `saveCalibration` shims so `ImportMultiCamDialog` works without desktop
+- [x] **Web upload** — Replace `multiCamImportCheck` / `multiCamImport` stubs; orchestrate per-camera uploads + call create_multicam endpoint
+- [x] **Web calibration shims** — Provide `getLastCalibration` / `saveCalibration` shims so `ImportMultiCamDialog` works without desktop
 - [x] **Web ViewerLoader** — Wire `subTypeList` + `camNumbers` into `RunPipelineMenu`
 - [ ] **Web export & clone** — Drop multi-guard in `Export.vue` and verify `Clone.vue` handles parent folders
 - [x] **dive-common Viewer** — Drop `'diveDesktop' in window` gate so MultiCamToolbar/camera dropdown work on web
