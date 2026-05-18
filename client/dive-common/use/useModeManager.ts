@@ -2,7 +2,7 @@ import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
-import Track, { TrackId } from 'vue-media-annotator/track';
+import Track, { AdditionalPoint, TrackId } from 'vue-media-annotator/track';
 import {
   RectBounds,
   updateBounds,
@@ -50,6 +50,8 @@ interface SetAnnotationStateArgs {
   editing?: EditAnnotationTypes;
   key?: string;
   recipeName?: string;
+  /** When true, changing the point name does not migrate data from the previous label (e.g. "New Point"). */
+  skipAdditionalPointRename?: boolean;
 }
 /**
  * The point of this composition function is to define and manage the transition betwee
@@ -76,7 +78,7 @@ export default function useModeManager({
   let creating = false;
   const { prompt } = usePrompt();
   const annotationModes = reactive({
-    visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
+    visible: ['rectangle', 'Polygon', 'LineString', 'text', 'additionalPoints'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
   });
   const trackSettings = toRef(clientSettings, 'trackSettings');
@@ -156,6 +158,16 @@ export default function useModeManager({
               return 'Creating';
             } if (annotationModes.editing === 'rectangle') {
               return 'Editing';
+            } if (annotationModes.editing === 'additionalPoints') {
+              if (!feature.bounds?.length) {
+                return 'disabled';
+              }
+              const additionalPoints = feature.additionalPoints || {};
+              const key = selectedKey.value;
+              if (!key) {
+                return 'Creating';
+              }
+              return (additionalPoints[key]?.length || 0) > 0 ? 'Editing' : 'Creating';
             }
             return (feature.geometry?.features.filter((item) => item.geometry.type === annotationModes.editing).length ? 'Editing' : 'Creating');
           }
@@ -449,6 +461,50 @@ export default function useModeManager({
     key?: string,
     preventInterrupt?: () => void,
   ) {
+    if (annotationModes.editing === 'additionalPoints') {
+      if (data.geometry.type !== 'Point') {
+        return;
+      }
+      if (selectedTrackId.value === null) {
+        return;
+      }
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      if (!track) {
+        return;
+      }
+      const label = (key || selectedKey.value || '').trim();
+      if (!label) {
+        return;
+      }
+      const [x, y] = data.geometry.coordinates;
+      const roundedPoint: AdditionalPoint = {
+        coordinates: [Math.round(x), Math.round(y)],
+        label,
+      };
+      const { features, interpolate } = track.canInterpolate(frameNum);
+      const [real] = features;
+      const currentFeature = real || null;
+      if (!currentFeature?.bounds) {
+        return;
+      }
+      if (!currentFeature.keyframe) {
+        track.setFeature({
+          frame: frameNum,
+          flick: flickNum,
+          keyframe: true,
+          interpolate: _shouldInterpolate(interpolate),
+          bounds: currentFeature.bounds,
+        });
+      }
+      const current = track.getAdditionalPoints(frameNum, label) as AdditionalPoint[];
+      if (current.length > 0) {
+        track.updateAdditionalPoint(frameNum, label, 0, roundedPoint);
+      } else {
+        track.addAdditionalPoint(frameNum, label, roundedPoint);
+      }
+      _nudgeEditingCanary();
+      return;
+    }
     /**
      * Declare aggregate update collector. Each recipe
      * will have the opportunity to modify this object.
@@ -574,6 +630,10 @@ export default function useModeManager({
 
   /* If any recipes are active, allow them to remove a point */
   function handleRemovePoint() {
+    if (annotationModes.editing === 'additionalPoints') {
+      handleRemoveAnnotation();
+      return;
+    }
     if (selectedTrackId.value !== null && selectedFeatureHandle.value !== -1) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
@@ -596,6 +656,51 @@ export default function useModeManager({
 
   /* If any recipes are active, remove the geometry they added */
   function handleRemoveAnnotation() {
+    if (annotationModes.editing === 'additionalPoints') {
+      if (selectedTrackId.value !== null && selectedKey.value) {
+        const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+        const { frame } = aggregateController.value;
+        if (track) {
+          const deletedKey = selectedKey.value.trim();
+          const apBefore = track.getAdditionalPoints(frame.value) as Record<string, AdditionalPoint[]>;
+          const keysBefore = Object.keys(apBefore)
+            .filter((k) => (apBefore[k]?.length || 0) > 0)
+            .sort((a, b) => a.localeCompare(b));
+          const idx = keysBefore.indexOf(deletedKey);
+
+          track.setAdditionalPoints(frame.value, selectedKey.value, []);
+          _nudgeEditingCanary();
+
+          const apAfter = track.getAdditionalPoints(frame.value) as Record<string, AdditionalPoint[]>;
+          const keysAfter = Object.keys(apAfter)
+            .filter((k) => (apAfter[k]?.length || 0) > 0)
+            .sort((a, b) => a.localeCompare(b));
+
+          let nextKey: string | undefined;
+          if (idx >= 0) {
+            // Prefer the next name in the sorted list (same order as the editor combobox).
+            if (idx + 1 < keysBefore.length) {
+              const candidate = keysBefore[idx + 1];
+              if (keysAfter.includes(candidate)) {
+                nextKey = candidate;
+              }
+            }
+            // Was last (or next missing): select the previous name in the list.
+            if (nextKey === undefined && idx > 0) {
+              const candidate = keysBefore[idx - 1];
+              if (keysAfter.includes(candidate)) {
+                nextKey = candidate;
+              }
+            }
+          }
+          if (nextKey === undefined && keysAfter.length > 0) {
+            [nextKey] = keysAfter;
+          }
+          _selectKey(nextKey);
+        }
+      }
+      return;
+    }
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
@@ -721,14 +826,39 @@ export default function useModeManager({
   }
 
   function handleSetAnnotationState({
-    visible, editing, key, recipeName,
+    visible, editing, key, recipeName, skipAdditionalPointRename,
   }: SetAnnotationStateArgs) {
     if (visible) {
       annotationModes.visible = visible;
     }
     if (editing) {
+      const prevEditing = annotationModes.editing;
       annotationModes.editing = editing;
-      _selectKey(key);
+      if (editing === 'additionalPoints') {
+        const newKey = (
+          typeof key === 'string' && key.trim() !== ''
+            ? key.trim()
+            : (selectedKey.value || 'point')
+        ).trim() || 'point';
+        const oldKey = (selectedKey.value || '').trim();
+        if (
+          !skipAdditionalPointRename
+          && prevEditing === 'additionalPoints'
+          && oldKey
+          && newKey
+          && oldKey !== newKey
+          && selectedTrackId.value !== null
+        ) {
+          const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+          const { frame } = aggregateController.value;
+          if (track?.renameAdditionalPointsLabel(frame.value, oldKey, newKey)) {
+            _nudgeEditingCanary();
+          }
+        }
+        _selectKey(newKey);
+      } else {
+        _selectKey(key);
+      }
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {

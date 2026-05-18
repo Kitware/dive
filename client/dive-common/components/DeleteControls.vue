@@ -57,7 +57,7 @@ export default Vue.extend({
         point {{ selectedFeatureHandle }}
       </span>
       <span v-else-if="editingMode">
-        {{ editingMode }}
+        {{ editingMode === 'additionalPoints' ? 'point' : editingMode }}
       </span>
       <span v-else>unselected</span>
       <v-icon
