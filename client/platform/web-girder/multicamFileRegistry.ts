@@ -1,5 +1,9 @@
 /** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
 
+import { openFromDisk } from './utils';
+
+const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
+
 const filesByKey = new Map<string, File[]>();
 const annotationFilesByKey = new Map<string, File>();
 const calibrationFilesByKey = new Map<string, File>();
@@ -105,4 +109,30 @@ export function clearMulticamFileRegistry(): void {
   filesByKey.clear();
   annotationFilesByKey.clear();
   calibrationFilesByKey.clear();
+}
+
+export async function openFromDiskWithRegistry(
+  datasetType: Parameters<typeof openFromDisk>[0],
+  directory?: boolean,
+) {
+  const ret = await openFromDisk(datasetType, directory);
+  if (!ret.canceled && ret.fileList?.length) {
+    if (datasetType === 'annotation') {
+      stashAnnotationFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'calibration') {
+      stashCalibrationFile(ret.filePaths[0], ret.fileList[0]);
+    } else {
+      stashFileSelection(ret);
+    }
+  }
+  return ret;
+}
+
+export function getLastCalibration(): Promise<string | null> {
+  return Promise.resolve(localStorage.getItem(LAST_CALIBRATION_STORAGE_KEY));
+}
+
+export function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
+  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, path);
+  return Promise.resolve({ savedPath: path, updatedDatasetIds: [] });
 }

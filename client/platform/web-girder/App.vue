@@ -28,7 +28,11 @@ import {
   getTiles,
   getTileURL,
 } from './api';
-import { openFromDisk } from './utils';
+import {
+  getLastCalibration,
+  openFromDiskWithRegistry,
+  saveCalibration,
+} from './multicamFileRegistry';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 export default defineComponent({
@@ -59,7 +63,9 @@ export default defineComponent({
       saveAttributes: unwrap(saveAttributes),
       saveAttributeTrackFilters: unwrap(saveAttributeTrackFilters),
       loadMetadata,
-      openFromDisk,
+      openFromDisk: openFromDiskWithRegistry,
+      getLastCalibration,
+      saveCalibration,
       importAnnotationFile,
       getTiles,
       getTileURL,
