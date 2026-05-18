@@ -10,8 +10,10 @@ This documentation section provides a reference guide to the annotation interfac
 * **[Track List](UI-Track-List.md)** - List of all the tracks as well as providing a way to perform editing functions on those tracks.
 * **[Timeline](UI-Timeline.md)** - timeline view of tracks and detections, as well as an interface to control the current frame along the video/image-sequence
 * **[Attributes](UI-Attributes.md)** - Attributes panel used to assign attributes to individual tracks or detections.
-* **Context Sidebar** - The right sidebar has several different view modes for different types of tasks.
+* **Context Sidebar** - Open from the [editing bar](UI-Navigation-Editing-Bar.md#context-sidebar-web) (Web). The right sidebar has several view modes selected from a dropdown at the top of the panel.
+    * **[Revision History](Web-Version.md#revision-history)** (Web) - Inspect and check out past saved annotation states.
     * **Threshold Controls** - Advance thresholding of annotation confidence values per-type.
     * **Image Enhancement** - Adjust the image threshold range.
     * **[Group Manager](UI-Group-Manager.md)** - Controls for creating, managing, and filtering multi-annotation groups.
+    * **[Annotation Sets](Annotation-Sets.md)** - Parallel annotation versions on the same dataset (web only): switch sets, create named copies, and compare overlays.
     * **[Attributes Details Panel](UI-AttributeDetails.md)** - Attributes panel used to filter or generate graphs of attributes.
