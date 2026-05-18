@@ -76,6 +76,22 @@ function clone({
   });
 }
 
+function createGirderFolder({
+  folderId, name, description,
+}: {
+  folderId: string;
+  name: string;
+  description?: string;
+}) {
+  return girderRest.post<GirderModel>('/folder', null, {
+    params: {
+      parentId: folderId,
+      name,
+      description,
+    },
+  });
+}
+
 function makeViameFolder({
   folderId, name, fps, type,
 }: {
@@ -160,8 +176,68 @@ function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
 
+export interface CreateMulticamDatasetArgs {
+  parentFolderId: string;
+  name: string;
+  fps: number;
+  type: 'video' | 'image-sequence';
+  subType: 'stereo' | 'multicam';
+  defaultDisplay: string;
+  cameras: Record<string, { folderId: string }>;
+  cameraOrder?: string[];
+  calibrationFileId?: string;
+}
+
+function createMulticamDataset(args: CreateMulticamDatasetArgs) {
+  const {
+    parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
+  } = args;
+  return girderRest.post<GirderModel>(
+    'dive_dataset/multicam',
+    {
+      name,
+      fps,
+      type,
+      subType,
+      defaultDisplay,
+      cameras,
+      cameraOrder,
+      calibrationFileId,
+    },
+    {
+      params: { parentFolderId },
+    },
+  );
+}
+
+async function uploadCalibrationItem(parentFolderId: string, file: File): Promise<string> {
+  const itemResp = await girderRest.post<GirderModel>('/item', null, {
+    params: { folderId: parentFolderId, name: file.name },
+  });
+  const itemId = itemResp.data._id;
+  const fileResp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'item',
+      parentId: itemId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+    },
+  });
+  await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: fileResp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  return itemId;
+}
+
 export {
   clone,
+  createGirderFolder,
+  createMulticamDataset,
   getDataset,
   getDatasetList,
   getDatasetMedia,
@@ -170,5 +246,6 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   saveMetadata,
+  uploadCalibrationItem,
   validateUploadGroup,
 };

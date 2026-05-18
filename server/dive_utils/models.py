@@ -271,6 +271,7 @@ class MultiCamMetaStorage(BaseModel):
 
     defaultDisplay: str
     cameras: Dict[str, MultiCamCameraMeta]
+    cameraOrder: List[str] = Field(default_factory=list)
     calibrationItemId: Optional[str] = None
 
 
@@ -285,6 +286,7 @@ class MultiCamMediaCamera(BaseModel):
 class MultiCamMedia(BaseModel):
     cameras: Dict[str, MultiCamMediaCamera]
     defaultDisplay: str
+    cameraOrder: List[str] = Field(default_factory=list)
 
 
 class GirderMetadataStatic(MetadataMutable):

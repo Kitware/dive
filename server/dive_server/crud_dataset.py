@@ -93,6 +93,15 @@ def list_datasets(
     return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
 
+def _multicam_camera_order(multi_cam: dict) -> List[str]:
+    """Return camera names in display order (stored order, else dict insertion order)."""
+    cameras_meta = multi_cam.get('cameras') or {}
+    stored_order = multi_cam.get('cameraOrder') or []
+    if stored_order:
+        return [name for name in stored_order if name in cameras_meta]
+    return list(cameras_meta.keys())
+
+
 def get_multi_cam_media(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.MultiCamMedia:
@@ -104,8 +113,10 @@ def get_multi_cam_media(
     if not default_display:
         raise ValueError('Multi camera dataset missing defaultDisplay')
     cameras_meta = multi_cam.get('cameras') or {}
+    camera_order = _multicam_camera_order(multi_cam)
     cameras: Dict[str, models.MultiCamMediaCamera] = {}
-    for name, cam_info in cameras_meta.items():
+    for name in camera_order:
+        cam_info = cameras_meta[name]
         folder_id = cam_info.get('folderId')
         if not folder_id:
             raise ValueError(f'Camera "{name}" missing folderId')
@@ -126,6 +137,7 @@ def get_multi_cam_media(
     return models.MultiCamMedia(
         defaultDisplay=default_display,
         cameras=cameras,
+        cameraOrder=camera_order,
     )
 
 
@@ -460,6 +472,176 @@ def get_dataset_query(
     if len(optional_query_parts):
         return {'$and': [base_query, {'$or': optional_query_parts}]}
     return base_query
+
+
+class CreateMulticamArgs(BaseModel):
+    name: str
+    fps: float
+    type: str
+    subType: str
+    defaultDisplay: str
+    cameras: Dict[str, Dict[str, str]]
+    cameraOrder: Optional[List[str]] = None
+    calibrationFileId: Optional[str] = None
+
+    class Config:
+        extra = 'forbid'
+
+
+def _child_media_frame_count(
+    child: types.GirderModel, user: types.GirderUserModel, media_type: str
+) -> int:
+    if media_type == constants.ImageSequenceType:
+        return len(crud.valid_images(child, user))
+    if media_type == constants.VideoType:
+        video_item = Item().findOne(
+            {
+                'folderId': child['_id'],
+                'meta.codec': 'h264',
+                'meta.source_video': {'$in': [None, False]},
+            }
+        )
+        if video_item is None:
+            raise RestException(
+                f'Camera folder "{child["name"]}" does not contain a processed video',
+                code=400,
+            )
+        return 1
+    raise RestException(f'Unsupported camera media type: {media_type}', code=400)
+
+
+def create_multicam(
+    user: types.GirderUserModel,
+    parent_folder: types.GirderModel,
+    data: dict,
+) -> types.GirderModel:
+    """Finalize a multicam dataset whose camera folders already live under parent_folder."""
+    validated: CreateMulticamArgs = crud.get_validated_model(CreateMulticamArgs, **data)
+    if parent_folder['name'] != validated.name:
+        raise RestException(
+            f'Dataset folder name "{parent_folder["name"]}" does not match "{validated.name}"',
+            code=400,
+        )
+    cameras = validated.cameras
+    if not cameras:
+        raise RestException('At least one camera is required', code=400)
+
+    camera_names = list(cameras.keys())
+    if validated.subType == 'stereo':
+        if len(camera_names) != 2:
+            raise RestException('Stereo datasets require exactly 2 cameras', code=400)
+    elif validated.subType == 'multicam':
+        if len(camera_names) < 2 or len(camera_names) > 3:
+            raise RestException('Multicam datasets require 2 or 3 cameras', code=400)
+    else:
+        raise RestException(f'Invalid subType: {validated.subType}', code=400)
+
+    if validated.defaultDisplay not in cameras:
+        raise RestException(
+            f'defaultDisplay "{validated.defaultDisplay}" is not a camera name',
+            code=400,
+        )
+
+    if validated.type not in (constants.ImageSequenceType, constants.VideoType):
+        raise RestException(
+            f'Multicam type must be image-sequence or video, not {validated.type}',
+            code=400,
+        )
+
+    if validated.cameraOrder is not None:
+        camera_order = validated.cameraOrder
+        if set(camera_order) != set(cameras.keys()):
+            raise RestException(
+                'cameraOrder must list each camera name exactly once',
+                code=400,
+            )
+    else:
+        camera_order = list(cameras.keys())
+
+    loaded_children: Dict[str, types.GirderModel] = {}
+    frame_counts: List[int] = []
+    for name in camera_order:
+        cam = cameras[name]
+        folder_id = cam.get('folderId')
+        if not folder_id:
+            raise RestException(f'Camera "{name}" missing folderId', code=400)
+        child = Folder().load(folder_id, level=AccessType.WRITE, user=user)
+        if child is None:
+            raise RestException(f'Camera folder {folder_id} was not found', code=404)
+        if str(child.get('parentId')) != str(parent_folder['_id']):
+            raise RestException(
+                f'Camera folder "{name}" must be a direct child of the dataset folder',
+                code=400,
+            )
+        crud.verify_dataset(child)
+        child_type = fromMeta(child, constants.TypeMarker)
+        if child_type != validated.type:
+            raise RestException(
+                f'Camera "{name}" has type {child_type}, expected {validated.type}',
+                code=400,
+            )
+        child_fps = fromMeta(child, constants.FPSMarker)
+        if child_fps != validated.fps:
+            raise RestException(
+                f'Camera "{name}" has fps {child_fps}, expected {validated.fps}',
+                code=400,
+            )
+        frame_counts.append(_child_media_frame_count(child, user, validated.type))
+        loaded_children[name] = child
+
+    if len(set(frame_counts)) > 1:
+        expected = frame_counts[0]
+        raise RestException(
+            f'All cameras must have the same number of frames (expected {expected})',
+            code=400,
+        )
+
+    default_child = loaded_children[validated.defaultDisplay]
+    parent_folder_doc = parent_folder
+    multi_cam_cameras: Dict[str, Dict[str, str]] = {}
+    for name in camera_order:
+        child = loaded_children[name]
+        if child['name'] != name:
+            child['name'] = name
+            Folder().save(child)
+        multi_cam_cameras[name] = {
+            'folderId': str(child['_id']),
+            'type': validated.type,
+        }
+
+    calibration_item_id = None
+    if validated.calibrationFileId:
+        if validated.subType != 'stereo':
+            raise RestException('Calibration is only supported for stereo datasets', code=400)
+        cal_item = Item().load(validated.calibrationFileId, level=AccessType.WRITE, user=user)
+        if cal_item is None:
+            raise RestException('Calibration file was not found', code=404)
+        if not constants.npzRegex.search(cal_item['name']):
+            raise RestException('Calibration file must be a .npz file', code=400)
+        auxiliary = crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
+        Item().move(cal_item, auxiliary)
+        calibration_item_id = str(cal_item['_id'])
+
+    parent_folder_doc['meta'] = {
+        constants.DatasetMarker: True,
+        constants.TypeMarker: constants.MultiType,
+        constants.SubTypeMarker: validated.subType,
+        constants.FPSMarker: fromMeta(default_child, constants.FPSMarker),
+        constants.MultiCamMarker: {
+            'defaultDisplay': validated.defaultDisplay,
+            'cameraOrder': camera_order,
+            'cameras': multi_cam_cameras,
+            **(
+                {constants.CalibrationItemIdMarker: calibration_item_id}
+                if calibration_item_id
+                else {}
+            ),
+        },
+        constants.ConfidenceFiltersMarker: {'default': 0.1},
+    }
+    Folder().save(parent_folder_doc)
+    crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
+    return parent_folder_doc
 
 
 def validate_files(files: List[str]):
