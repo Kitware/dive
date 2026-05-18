@@ -68,6 +68,7 @@ services:
       - mongo
     entrypoint: celery -A girder_worker.app worker -Q local
     environment:
+      - "WORKER_WATCHING_QUEUES=local"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"

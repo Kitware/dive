@@ -67,6 +67,22 @@ def get_gpu_environment() -> Dict[str, str]:
     return env
 
 
+_VIAME_WORKER_QUEUES = frozenset({'pipelines', 'training'})
+
+
+def _worker_requires_viame_install() -> bool:
+    """
+    Only pipeline/training workers need a local VIAME install.
+
+    Default (``celery``), ``local``, and dev ``localworker`` processes do not;
+    they never call :class:`Config` today, but this keeps :meth:`Config.__init__`
+    safe if a task is misrouted.
+    """
+    queues = os.environ.get('WORKER_WATCHING_QUEUES', '')
+    watched = {q.strip() for q in queues.split(',') if q.strip()}
+    return bool(watched & _VIAME_WORKER_QUEUES)
+
+
 class Config:
     def __init__(self):
         self.gpu_process_env = get_gpu_environment()
@@ -83,17 +99,14 @@ class Config:
             'warn',
         )
 
-        self.viame_install_path = Path(self.viame_install_directory)
-        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
-        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
-        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_executable = self.viame_install_path / "bin" / "viame"
-        assert self.viame_executable.is_file(), "VIAME Executable missing"
-
-        # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
+        self.viame_install_path = Path(self.viame_install_directory)
+        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
+        self.viame_executable = self.viame_install_path / "bin" / "viame"
         self.viame_pipeline_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
+
+        if _worker_requires_viame_install():
+            self.require_viame_install()
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
@@ -104,6 +117,12 @@ class Config:
         self.gpu_process_env['SPROKIT_PIPE_INCLUDE_PATH'] = str(
             self.addon_extracted_path / self.pipeline_subdir
         )
+
+    def require_viame_install(self) -> None:
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
+        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
+        assert self.viame_executable.is_file(), "VIAME Executable missing"
+        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
 
     def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
@@ -150,8 +169,9 @@ def upgrade_pipelines(
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
-    # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
+    # Seed base pipelines from the VIAME image when available (GPU workers only).
+    if conf.viame_pipeline_path.exists():
+        shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
@@ -187,6 +207,7 @@ def upgrade_pipelines(
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -300,6 +321,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 @app.task(bind=True, acks_late=True, ignore_results=True)
 def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -363,6 +385,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
 def train_pipeline(self: Task, params: TrainingJob):
     """Train a pipeline by making a call to viame train"""
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
