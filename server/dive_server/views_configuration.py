@@ -182,10 +182,11 @@ class ConfigurationResource(Resource):
         )
     )
     def upgrade_pipelines(self, force: bool, urls: List[str]):
+        worker_capabilities.require_pipeline_worker()
         token = Token().createToken(user=self.getCurrentUser(), days=1)
         Setting().set(constants.SETTINGS_CONST_JOBS_CONFIGS, None)
         tasks.upgrade_pipelines.apply_async(
-            queue='celery',
+            queue='pipelines',
             kwargs=dict(
                 urls=urls,
                 force=force,

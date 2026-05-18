@@ -1,5 +1,6 @@
 from contextlib import suppress
 import json
+import logging
 import os
 from pathlib import Path
 import shlex
@@ -28,6 +29,8 @@ from dive_utils.types import (
     PipelineJob,
     TrainingJob,
 )
+
+logger = logging.getLogger(__name__)
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -155,14 +158,19 @@ def upgrade_pipelines(
     for addon in urls:
         download_name = urlparse(addon).path.replace(os.path.sep, '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
-        if not zipfile_path.exists() or force:
-            # Update the zipfile if force option set or file not exists
-            manager.write(f'Downloading {addon} to {zipfile_path}\n')
-            # TODO wrap try catch
-            request.urlretrieve(addon, filename=zipfile_path)
-        else:
-            manager.write(f'Skipping download of {zipfile_path}\n')
-        addons_to_update_update.append(zipfile_path)
+        had_existing_zip = zipfile_path.exists()
+        try:
+            if not had_existing_zip or force:
+                manager.write(f'Downloading {addon} to {zipfile_path}\n')
+                request.urlretrieve(addon, filename=zipfile_path)
+            else:
+                manager.write(f'Skipping download of {zipfile_path}\n')
+            addons_to_update_update.append(zipfile_path)
+        except Exception as exc:
+            logger.exception('Failed to download addon %s', addon)
+            manager.write(f'Failed to download {addon}: {exc}\nSkipping.\n')
+            if zipfile_path.exists() and not had_existing_zip:
+                zipfile_path.unlink(missing_ok=True)
         if utils.check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
             return
