@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, toRef, computed, Ref,
-  reactive, watch, inject, nextTick, onBeforeUnmount, PropType,
+  reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -21,7 +21,7 @@ import {
   CameraStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
-import { provideAnnotator } from 'vue-media-annotator/provides';
+import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
   ImageAnnotator,
@@ -53,7 +53,7 @@ import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
-import { useModeManager, useSave } from 'dive-common/use';
+import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -304,6 +304,9 @@ export default defineComponent({
     });
 
     clientSettingsSetup(trackFilters.allTypes);
+
+    const lassoMode = useLassoMode();
+    provide(LassoModeSymbol, lassoMode);
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -1182,6 +1185,8 @@ export default defineComponent({
       lineChartData,
       loadError,
       multiSelectActive,
+      lassoModeActive: lassoMode.lassoModeActive,
+      lassoDrawing: lassoMode.lassoDrawing,
       pendingSaveCount,
       progress,
       progressValue,
@@ -1349,6 +1354,8 @@ export default defineComponent({
             multiSelectActive,
             editingDetails,
             groupEditActive: editingGroupId !== null,
+            lassoModeActive: !readonlyState && lassoModeActive,
+            lassoDrawing: !readonlyState && lassoDrawing,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
