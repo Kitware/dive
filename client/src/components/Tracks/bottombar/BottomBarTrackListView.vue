@@ -136,6 +136,7 @@ export default defineComponent({
           </template>
           <span>Delete visible items</span>
         </v-tooltip>
+        <slot name="header-trailing" />
         <v-tooltip
           open-delay="200"
           bottom

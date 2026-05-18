@@ -421,6 +421,9 @@ export default defineComponent({
     <template #column-settings>
       <slot name="column-settings" />
     </template>
+    <template #header-trailing>
+      <slot name="header-trailing" />
+    </template>
   </bottom-bar-track-list-view>
   <side-bar-track-list-view
     v-else

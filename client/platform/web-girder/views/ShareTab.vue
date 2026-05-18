@@ -39,10 +39,28 @@ export default defineComponent({
       Browse Data
     </v-tab>
     <v-tab :to="{ name: 'shared' }">
-      <v-icon class="tab-icon">
-        mdi-share-variant
-      </v-icon>
-      Shared with Me
+      <v-tooltip
+        bottom
+        open-delay="200"
+        max-width="320"
+      >
+        <template #activator="{ on, attrs }">
+          <span
+            class="d-inline-flex align-center"
+            v-bind="attrs"
+            v-on="on"
+          >
+            <v-icon class="tab-icon">
+              mdi-share-variant
+            </v-icon>
+            Shared with Me
+          </span>
+        </template>
+        <span>
+          Private datasets another user shared with you through access control.
+          Public datasets editable by all users are not listed here.
+        </span>
+      </v-tooltip>
     </v-tab>
     <v-tab :to="{ name: 'summary' }">
       <v-icon class="tab-icon">

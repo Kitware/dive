@@ -22,6 +22,12 @@ The navigation bar is the row of controls at the very top of the window.
 
 The editing bar is the second row below navigation.
 
+### Context sidebar (Web)
+
+On the right side of the editing bar, ==:material-chevron-left-box:== (or ==:material-chevron-right-box:== when open) toggles the **context sidebar** — advanced tools and settings panels on the right side of the viewer.
+
+Use the dropdown at the top of that panel to switch tools, including [Revision History](Web-Version.md#revision-history), Group Manager, threshold controls, and (when applicable) [Annotation Sets](Annotation-Sets.md).
+
 ### Editing Status Indicator
 
 ![Editing Status Indicator](images/EditBar/StatusIndicator.png)

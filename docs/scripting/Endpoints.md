@@ -33,10 +33,20 @@ Operating on the Annotations for a specific DIVE Dataset Id.  These incloude get
 #### `dive_annotation/track`
 - **Method:** GET
 - **Usage:** This endpoint is used to get detailed information about specific tracks within a dataset, including their attributes and associated detections.  There are options to retrieve the annotations at specific revisions
+- **Query parameters:** `revision` (optional), `set` (optional string). Omit `set` for the default annotation collection.
+
+#### `dive_annotation/group`
+- **Method:** GET
+- **Usage:** Same as `dive_annotation/track`, but returns group annotations. Supports `revision` and `set` query parameters.
+
+#### `dive_annotation/sets`
+- **Method:** GET
+- **Usage:** Returns the list of named annotation set strings that exist for the dataset (excluding the default collection).
 
 #### `dive_annotation/revision`
 - **Method:** GET
 - **Usage:** This endpoint is used to access the list of revisions for annotations.  I.E everytime a user modified the annotations through a pipeline or through saving changes
+- **Query parameters:** `set` (optional string) limits the revision log to changes made while editing that set.
 
 #### `dive_annotation/rollback`
 - **Method:** POST
@@ -45,6 +55,7 @@ Operating on the Annotations for a specific DIVE Dataset Id.  These incloude get
 #### `dive_annotation`
 - **Method:** PATCH
 - **Usage:** This endpoint is used to modify existing annotations, such as updating track information or adding new attributes.
+- **Body:** Include optional `set` in the JSON body to target a named annotation set. Omit `set` for the default collection. See [Annotation Sets](Annotation-Sets.md).
 
 
 ####  `dive_annotation/export`
@@ -59,6 +70,7 @@ These are remote procedural calls to run jobs or perform actions that may be a b
 ####  `dive_rpc/postprocess/{id}`
 - **Method:** POST
 - **Usage:** This endpoint is used to trigger postprocessing tasks on a dataset.  It is a requirement that after new data is uploaded this endpoint is called to transcode data and process any uploaded CSV or JSON files to generate attributes and the base annotations.  After uploading any data this endpoint should be called with `skipJobs = True` to process the annotation file and update the attributes.
+- **Parameters:** Optional `set` directs imported annotation files into a named set instead of default.
 
 #### `dive_rpc/pipeline`
 - **Method:** POST

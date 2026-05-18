@@ -38,6 +38,7 @@ Freeform or multi-select attributes | ✔️ | ✔️
 Image enhancement (thresholding) | ✔️ | ✔️
 Advanced per-type annotation confidence threshoding | ✔️ | ✔️
 Review save history and load previous states | ✔️ | ❌
+Multiple parallel annotation sets on one dataset | ✔️ | ❌
 | **VIAME Integration** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️

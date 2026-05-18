@@ -115,6 +115,12 @@ You can view data shared with you by selecting the ==:material-share-variant: Sh
 
 ![Shared With Me Tab](images/Sharing/ShareTab.png)
 
+This tab lists **private** datasets and folders that another user granted you access to through [Access Control](#granting-access-to-others). It is a shortcut to data you can open but do not own.
+
+!!! note
+
+    **Shared With Me** does not include public datasets. Data in another user's ==:material-folder: Public== folder is already visible to all registered users and can be edited when the owner allows it, but those items are not listed here. Use ==Browse Data== or a direct link to open public datasets from other accounts.
+
 ## Sharing URLs
 
 You can copy and paste any URL from the address bar and share with collaborators.  This includes folders in the data browser as well as direct links to the annotation editor.
@@ -151,7 +157,8 @@ A clone is a **shallow copy** of a dataset.
 
 Revision history is accessible through the annotation UI in the Web version.  Each time you press ==:material-content-save: Save==, a new revision of your annotation state is created.  It is possible to inspect (or "check out") past revisions.  The viewer will be in **read-only mode** when past revisions are checked out because only the most recent revision can be modified.
 
-* Click ==:material-history: History== in the [Navigation Bar area](UI-Navigation-Editing-Bar.md) to open the Revision History panel.
+* Open the [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web) from the editing bar (==:material-chevron-left-box:== **Menus for Advanced Tools/Settings**).
+* In the panel dropdown at the top, select **Revision History**.
     * Each row shows the revision datetime, the action that caused it, and the number of additions and deletions.
     * Click a row to check out a previous revision
 * Click ==:material-download: Download== when a previous revision is checked out to download the annotation CSV from that revision.
