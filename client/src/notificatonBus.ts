@@ -16,30 +16,22 @@ export interface GirderNotification {
 /**
  * Based on Girder Web Components NotificationBus, but simpler.
  * Register notifications directly on the girderRest instance using
- * the EventSource api.
+ * the WebSocket api.
  *
  * @param rc Girder RestClient
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default function registerNotifications(_rc: any) {
   const rc: AugmentedRestClient = _rc; // TODO remove after types fixed
-  const ES = window.EventSource;
-  const withCredentials = true;
-  const timeoutSeconds = 300;
   const retryMsDefault = 8_000;
-  let since = new Date();
-  let lastConnectionAttempt = new Date();
-  let eventSourceInstance: EventSource | null = null;
+  let webSocketInstance: WebSocket | null = null;
 
   function connected() {
-    return !!eventSourceInstance;
+    return !!webSocketInstance && webSocketInstance.readyState === WebSocket.OPEN;
   }
 
   function emitNotification(notification: GirderNotification) {
-    const { type, updated } = notification;
-    if (updated) {
-      since = new Date(Math.max(+since, +new Date(updated)));
-    }
+    const { type } = notification;
     for (let i = type.indexOf('.'); i !== -1; i = type.indexOf('.', i + 1)) {
       rc.$emit(`message:${type.substring(0, i)}`, notification);
     }
@@ -47,28 +39,29 @@ export default function registerNotifications(_rc: any) {
     rc.$emit('message', notification);
   }
 
-  function onSseMessage(e: MessageEvent) {
+  function onWebSocketMessage(e: MessageEvent) {
     emitNotification(JSON.parse(e.data));
   }
 
   function disconnect() {
-    if (eventSourceInstance) {
-      eventSourceInstance.close();
+    if (webSocketInstance) {
+      webSocketInstance.close();
     }
-    eventSourceInstance = null;
+    webSocketInstance = null;
   }
 
-  function onSseError() {
-    const nowSeconds = Math.ceil(Date.now() / 1000);
-    const lastSeconds = Math.ceil(+lastConnectionAttempt / 1000);
-    let retryMs = retryMsDefault;
-    /** If time since last success is at least half the timeout, it's probably just a timeout */
-    if ((nowSeconds - lastSeconds) > (timeoutSeconds * 0.5)) {
-      retryMs = 0;
-    }
+  function onWebSocketError() {
     disconnect();
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    window.setTimeout(connect, retryMs);
+    window.setTimeout(connect, retryMsDefault);
+  }
+
+  function onWebSocketClose() {
+    webSocketInstance = null;
+    // Attempt to reconnect after a delay
+    if (rc.user) {
+      window.setTimeout(connect, retryMsDefault);
+    }
   }
 
   function connect() {
@@ -78,12 +71,20 @@ export default function registerNotifications(_rc: any) {
     if (!rc.user) {
       return;
     }
-    lastConnectionAttempt = new Date();
-    const sinceSeconds = Math.ceil(+since / 1000);
-    const url = `${rc.apiRoot}/notification/stream?since=${sinceSeconds}&timeout=${timeoutSeconds}`;
-    eventSourceInstance = new ES(url, { withCredentials });
-    eventSourceInstance.onmessage = onSseMessage;
-    eventSourceInstance.onerror = onSseError;
+    // Get the token from RestClient
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { token } = rc as any;
+    if (!token) {
+      return;
+    }
+    // Construct WebSocket URL from current location
+    const { protocol, host } = window.location;
+    const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${wsProtocol}//${host}/notifications/me?token=${token}`;
+    webSocketInstance = new WebSocket(url);
+    webSocketInstance.onmessage = onWebSocketMessage;
+    webSocketInstance.onerror = onWebSocketError;
+    webSocketInstance.onclose = onWebSocketClose;
   }
 
   rc.$on('login', connect);

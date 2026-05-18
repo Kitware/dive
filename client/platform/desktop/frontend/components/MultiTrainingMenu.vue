@@ -19,9 +19,12 @@ import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants
 import { clientSettings } from 'dive-common/store/settings';
 
 import { useRouter } from 'vue-router/composables';
-import npath from 'path';
-import { dialog, app } from '@electron/remote';
 import { datasets } from '../store/dataset';
+
+function joinPath(dir: string, filename: string) {
+  const separator = dir.includes('\\') ? '\\' : '/';
+  return `${dir.replace(/[\\/]+$/, '')}${separator}${filename}`;
+}
 
 export default defineComponent({
   setup() {
@@ -179,9 +182,9 @@ export default defineComponent({
 
     async function exportModel(item: Pipe) {
       try {
-        const location = await dialog.showSaveDialog({
+        const location = await window.diveDesktop.showSaveDialog({
           title: 'Export Model',
-          defaultPath: npath.join(app.getPath('home'), 'model.onnx'),
+          defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), 'model.onnx'),
         });
         if (!location.canceled && location.filePath) {
           await exportTrainedPipeline(location.filePath!, item);
@@ -324,14 +327,34 @@ export default defineComponent({
             dense
             label="Configuration File (Required)"
             :items="data.trainingConfigurations.training.configs"
+            item-text="name"
+            item-value="name"
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template #item="row">
-              {{ simplifyTrainingName(row.item) }}
+            <template #item="{ item, on, attrs }">
+              <v-tooltip
+                left
+                :open-delay="250"
+                :disabled="!item.description"
+                max-width="300"
+                content-class="pipeline-description-tooltip"
+              >
+                <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                  <v-list-item
+                    v-bind="{ ...attrs, ...tooltipAttrs }"
+                    v-on="{ ...on, ...tooltipOn }"
+                  >
+                    <v-list-item-content>
+                      <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
+                    </v-list-item-content>
+                  </v-list-item>
+                </template>
+                <span>{{ item.description }}</span>
+              </v-tooltip>
             </template>
             <template #selection="{ item }">
-              {{ simplifyTrainingName(item) }}
+              {{ simplifyTrainingName(item.name) }}
             </template>
           </v-select>
         </v-col>

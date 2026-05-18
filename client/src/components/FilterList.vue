@@ -326,7 +326,7 @@ export default defineComponent({
       >
         <v-col
           id="type-header"
-          class="d-flex flex-row align-center py-0 mr-8"
+          class="d-flex flex-row align-center py-0 pr-2"
         >
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
@@ -365,37 +365,37 @@ export default defineComponent({
             </template>
             <span>Toggle Type TotalCount:FrameCount Type Name</span>
           </v-tooltip>
-          <v-spacer />
-          <tooltip-btn
-            :icon="sortingMethodIcons[data.sortingMethod]"
-            :tooltip-text="`Sort types by Total Count, Alphabetically or Frame Count, current: ${sortingMethods[data.sortingMethod]}`"
-            @click="clickSortToggle"
-          />
-          <slot name="settings" />
-          <v-tooltip
-            open-delay="100"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-btn
-                class="hover-show-child"
-                :disabled="checkedTypesRef.length === 0 || readOnlyMode"
-                icon
-                small
-                v-on="on"
-                @click="clickDelete()"
-              >
-                <v-icon
+          <div class="type-header-actions d-flex align-center ml-auto">
+            <tooltip-btn
+              :icon="sortingMethodIcons[data.sortingMethod]"
+              :tooltip-text="`Sort types by Total Count, Alphabetically or Frame Count, current: ${sortingMethods[data.sortingMethod]}`"
+              @click="clickSortToggle"
+            />
+            <slot name="settings" />
+            <v-tooltip
+              open-delay="100"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-btn
+                  class="hover-show-child"
+                  :disabled="checkedTypesRef.length === 0 || readOnlyMode"
+                  icon
                   small
-                  color="error"
+                  v-on="on"
+                  @click="clickDelete()"
                 >
-                  mdi-delete
-                </v-icon>
-              </v-btn>
-            </template>
-            <span>Delete visible items</span>
-          </v-tooltip>
-          <v-spacer />
+                  <v-icon
+                    small
+                    color="error"
+                  >
+                    mdi-delete
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Delete visible items</span>
+            </v-tooltip>
+          </div>
         </v-col>
       </v-row>
     </v-container>
@@ -456,6 +456,10 @@ export default defineComponent({
 .type-checkbox {
   max-width: 80%;
   overflow-wrap: anywhere;
+}
+
+.type-header-actions {
+  flex-shrink: 0;
 }
 
 .hover-show-parent {

@@ -56,6 +56,7 @@ class Feature(BaseModel):
     keyframe: Optional[bool] = None
     # Point annotations keyed by type/label; multiple points per label per detection
     additionalPoints: Optional[Dict[str, List[AdditionalPointDict]]] = None
+    notes: Optional[List[str]] = None
 
 
 class BaseAnnotation(BaseModel):

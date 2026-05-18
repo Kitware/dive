@@ -1,4 +1,4 @@
-/// <reference types="jest" />
+/// <reference types="vitest" />
 import fs from 'fs-extra';
 import { NistFile, exportNist, convertNisttoJSON } from 'platform/desktop/backend/serializers/nist';
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';

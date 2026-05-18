@@ -54,7 +54,7 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
-    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration' | 'trackJSON'; forceSave?: boolean}) {
+    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration' | 'trackJSON' | 'coco'; forceSave?: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
         savePrompt.value = false;
@@ -71,6 +71,10 @@ export default defineComponent({
           const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
           data.err = null;
           data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter, 'json');
+        } else if (type === 'coco') {
+          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
+          data.err = null;
+          data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter, 'coco');
         } else if (type === 'configuration') {
           data.outPath = await exportConfiguration(props.id);
         }
@@ -225,6 +229,14 @@ export default defineComponent({
                 @click="doExport({ type: 'trackJSON' })"
               >
                 <span>TRACK JSON</span>
+              </v-btn>
+              <v-btn
+                depressed
+                block
+                class="my-1"
+                @click="doExport({ type: 'coco' })"
+              >
+                <span>COCO JSON</span>
               </v-btn>
             </v-col>
           </v-row>

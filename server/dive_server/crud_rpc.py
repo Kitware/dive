@@ -7,11 +7,11 @@ from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.notification import Notification
 from girder.models.setting import Setting
 from girder.models.token import Token
+from girder.notification import Notification
 from girder_jobs.models.job import Job, JobStatus
-from girder_worker.girder_plugin.status import CustomJobStatus
+from girder_plugin_worker.status import CustomJobStatus
 from pydantic import BaseModel
 import pymongo
 
@@ -20,7 +20,6 @@ from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
-from dive_utils.types import PipelineDescription
 
 from . import crud_dataset
 
@@ -66,8 +65,10 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines: Dict[str, types.PipelineCategory] = {}
     pipelines[constants.TrainedPipelineCategory] = {"pipes": [], "description": ""}
-    
-    trained_pipelines_query = {f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}}
+
+    trained_pipelines_query = {
+        f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}
+    }
     query = {'$and': [trained_pipelines_query, Folder().permissionClauses(user, AccessType.READ)]}
     models = [
         {'$match': query},
@@ -125,7 +126,14 @@ def _load_dynamic_models(user: types.GirderUserModel) -> Dict[str, types.Trainin
         for item in Folder().childItems(folder):
             is_training_model = False
             match = None
-            match = next((extension for extension in TrainingModelExtensions if item['name'].endswith(extension)), None)
+            match = next(
+                (
+                    extension
+                    for extension in TrainingModelExtensions
+                    if item['name'].endswith(extension)
+                ),
+                None,
+            )
             if match is not None:
                 is_training_model = True
             if is_training_model and not item['name'].startswith('embedded_') and match:
@@ -191,12 +199,15 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
+    pipeline_params: dict[str, str] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
 
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
+    :param force_transcoded: Force transcoding input.
+    :param pipeline_params: Dict of key values containing user specified settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -234,6 +245,7 @@ def run_pipeline(
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
+        'pipeline_params': pipeline_params,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
@@ -253,13 +265,13 @@ def run_pipeline(
     Job().copyAccessPolicies(folder, newjob.job)
     Job().save(newjob.job)
     # Inform Client of new Job added in inactive state
-    Notification().createNotification(
+    Notification(
         type='job_status',
         data=newjob.job,
         user=user,
-        expires=datetime.now() + timedelta(seconds=30),
-    )
+    ).flush()
     return newjob.job
+
 
 def export_trained_pipeline(
     user: types.GirderUserModel,
@@ -297,13 +309,13 @@ def export_trained_pipeline(
     Job().copyAccessPolicies(model_folder, newjob.job)
     Job().save(newjob.job)
     # Inform Client of new Job added in inactive state
-    Notification().createNotification(
+    Notification(
         type='job_status',
         data=newjob.job,
         user=user,
-        expires=datetime.now() + timedelta(seconds=30),
-    )
+    ).flush()
     return newjob.job
+
 
 def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     """Ensure that the user has a training results folder."""
@@ -685,7 +697,7 @@ def postprocess(
             newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
             Job().save(newjob.job)
             created_job_ids.append(newjob.job['_id'])
-            
+
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
         elif largeImageItems.count() > 0:

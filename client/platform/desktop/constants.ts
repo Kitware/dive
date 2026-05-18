@@ -89,6 +89,9 @@ export interface JsonMeta extends DatasetMetaMutable {
   // relative to originalBasePath
   originalVideoFile: string;
 
+  // large image (e.g. GeoTIFF) file path, relative to originalBasePath
+  originalLargeImageFile?: string;
+
   // output of web safe transcoding
   // relative to project path
   transcodedVideoFile: string;
@@ -172,6 +175,8 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
+  /** Optional parameters to pass to the pipeline via -s flags */
+  pipelineParams?: Record<string, string>;
   outputDatasetName?: string;
 }
 
@@ -265,7 +270,7 @@ export interface ExportDatasetArgs {
     exclude: boolean;
     path: string;
     typeFilter: Set<string>;
-    type?: 'csv' | 'json';
+    type?: 'csv' | 'json' | 'coco';
   }
 
 export interface ExportConfigurationArgs {

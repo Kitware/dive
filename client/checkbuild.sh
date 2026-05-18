@@ -6,14 +6,14 @@ set -e # exit immediately on fail
 # CI Checks locally in parallel to verify that a commit will pass
 # in much less time than CI would take.
 
-yarn install --frozen-lockfile
+npm ci
 
-yarn test
+npm test
 
-yarn lint &
+npm run lint &
 
-yarn build:web &
-yarn build:lib &
-yarn build:cli &
+npm run build:web &
+npm run build:cli &
+npm run build:electron &
 
 time wait 

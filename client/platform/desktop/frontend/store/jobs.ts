@@ -1,7 +1,6 @@
 /**
  * Job Manager
  */
-import { ipcRenderer } from 'electron';
 import {
   ref, Ref, set, computed,
   reactive,
@@ -85,29 +84,29 @@ function setOrGetConversionJob(datasetId: string, status?: boolean) {
 }
 
 function init() {
-  ipcRenderer.on('job-update', (event, args: DesktopJobUpdate) => {
+  window.diveDesktop.on('job-update', (args: DesktopJobUpdate) => {
     updateHistory(args);
     if (args.jobType === 'conversion') {
       setOrGetConversionJob(args.datasetIds[0], !args.endTime);
     }
   });
-  ipcRenderer.on('cancel-job', (event, args: DesktopJob) => {
+  window.diveDesktop.on('cancel-job', (args: DesktopJob) => {
     updateHistory({
       ...args, body: ['Job cancelled by user'], exitCode: cancelledJobExitCode, endTime: new Date(), cancelledJob: true,
     });
   });
-  ipcRenderer.on('filter-complete', (event, args: JsonMeta) => {
+  window.diveDesktop.on('filter-complete', (args: JsonMeta) => {
     setRecents(args);
   });
 }
 
 init();
 
-const gpuJobQueue = new AsyncGpuJobQueue(ipcRenderer);
+const gpuJobQueue = new AsyncGpuJobQueue(window.diveDesktop);
 gpuJobQueue.init();
 const reactiveGpuQueue = reactive(gpuJobQueue);
 
-const cpuJobQueue = new AsyncCpuJobQueue(ipcRenderer);
+const cpuJobQueue = new AsyncCpuJobQueue(window.diveDesktop);
 cpuJobQueue.init();
 const reactiveCpuQueue = reactive(cpuJobQueue);
 

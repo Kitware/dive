@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import Vue, { ref, computed } from 'vue';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
@@ -78,7 +77,7 @@ async function autoDiscover() {
   /* Make sure settings are ready on backend */
   await initializedSettings;
   /* Nothing came from localStorage, try to populate from autodiscovery */
-  const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
+  const discovered: JsonMeta[] = await window.diveDesktop.invoke('autodiscover-data');
   discovered.forEach((d) => setRecents(d));
 }
 

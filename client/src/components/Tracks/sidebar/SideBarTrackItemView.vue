@@ -1,162 +1,49 @@
 <script lang="ts">
-import {
-  defineComponent, computed, PropType, ref,
-} from 'vue';
+import { computed, defineComponent } from 'vue';
 import context from 'dive-common/store/context';
-import TooltipBtn from './TooltipButton.vue';
-import TypePicker from './TypePicker.vue';
+import TooltipBtn from '../../TooltipButton.vue';
+import TypePicker from '../../TypePicker.vue';
 import {
-  useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore, useTrackStyleManager,
-} from '../provides';
-import Track from '../track';
-import useVuetify from '../use/useVuetify';
+  useCameraStore,
+  useHandler,
+  useReadOnlyMode,
+  useTrackFilters,
+  useTrackStyleManager,
+} from '../../../provides';
 
 export default defineComponent({
-  name: 'TrackItem',
-
+  name: 'SideBarTrackItemView',
   components: { TooltipBtn, TypePicker },
-
   props: {
-    solo: {
-      type: Boolean,
-      default: false,
-    },
-    trackType: {
-      type: String,
-      required: true,
-    },
-    track: {
-      type: Object as PropType<Track>,
-      required: true,
-    },
-    inputValue: {
-      type: Boolean,
-      required: true,
-    },
-    selected: {
-      type: Boolean,
-      required: true,
-    },
-    secondarySelected: {
-      type: Boolean,
-      required: true,
-    },
-    editing: {
-      type: Boolean,
-      required: true,
-    },
-    merging: {
-      type: Boolean,
-      default: false,
-    },
-    color: {
-      type: String,
-      required: true,
-    },
-    lockTypes: {
-      type: Boolean,
-      default: false,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
+    solo: { type: Boolean, default: false },
+    lockTypes: { type: Boolean, default: false },
+    selected: { type: Boolean, required: true },
+    trackType: { type: String, required: true },
+    itemStyle: { type: Object, required: true },
+    color: { type: String, required: true },
+    track: { type: Object, required: true },
+    inputValue: { type: Boolean, required: true },
+    disabled: { type: Boolean, default: false },
+    isTrack: { type: Boolean, required: true },
+    feature: { type: Object, required: true },
+    keyframeDisabled: { type: Boolean, required: true },
+    frame: { type: Number, required: true },
+    merging: { type: Boolean, default: false },
+    toggleKeyframe: { type: Function, required: true },
+    clickToggleInterpolation: { type: Function, required: true },
+    toggleInterpolation: { type: Function, required: true },
+    toggleAllInterpolation: { type: Function, required: true },
+    gotoPrevious: { type: Function, required: true },
+    gotoNext: { type: Function, required: true },
+    editing: { type: Boolean, required: true },
   },
-
-  setup(props, { emit }) {
-    const vuetify = useVuetify();
-    const { frame: frameRef } = useTime();
+  setup(props) {
     const handler = useHandler();
     const trackFilters = useTrackFilters();
-    const allTypesRef = trackFilters.allTypes;
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
     const { typeStyling } = useTrackStyleManager();
-    const multiCam = ref(cameraStore.camMap.value.size > 1);
-    /**
-     * Use of revision is safe because it will only create a
-     * dependency when track is selected.  DO NOT use this computed
-     * value except inside if (props.selected === true) blocks!
-     */
-    const feature = computed(() => {
-      if (props.track.revision.value) {
-        const { features, interpolate } = props.track.canInterpolate(frameRef.value);
-        const [real, lower, upper] = features;
-        return {
-          real,
-          lower,
-          upper,
-          shouldInterpolate: interpolate,
-          targetKeyframe: real?.keyframe ? real : (lower || upper),
-          isKeyframe: real?.keyframe,
-        };
-      }
-      return {
-        real: null,
-        lower: null,
-        upper: null,
-        targetKeyframe: null,
-        shouldInterpolate: false,
-        isKeyframe: false,
-      };
-    });
-
-    /* isTrack distinguishes between track and detection */
-    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
-
-    /* Sets styling for the selected track */
-    const style = computed(() => {
-      if (props.selected) {
-        return {
-          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
-        };
-      }
-      if (props.secondarySelected) {
-        return {
-          'background-color': '#3a3a3a',
-        };
-      }
-      return {};
-    });
-
-    const keyframeDisabled = computed(() => (
-      !feature.value.real && !feature.value.shouldInterpolate)
-      || (props.track.length === 1 && frameRef.value === props.track.begin));
-
-    function toggleKeyframe() {
-      if (!keyframeDisabled.value) {
-        props.track.toggleKeyframe(frameRef.value);
-      }
-    }
-
-    function toggleInterpolation() {
-      props.track.toggleInterpolation(frameRef.value);
-    }
-
-    function toggleAllInterpolation() {
-      props.track.toggleInterpolationForAllGaps(frameRef.value);
-    }
-
-    function clickToggleInterpolation(event: MouseEvent) {
-      if (event.ctrlKey) {
-        toggleAllInterpolation();
-      } else {
-        toggleInterpolation();
-      }
-    }
-    function gotoNext() {
-      const nextFrame = props.track.getNextKeyframe(frameRef.value + 1);
-      if (nextFrame !== undefined) {
-        emit('seek', nextFrame);
-      }
-    }
-
-    function gotoPrevious() {
-      const previousFrame = props.track.getPreviousKeyframe(frameRef.value - 1);
-      if (previousFrame !== undefined) {
-        emit('seek', previousFrame);
-      }
-    }
+    const multiCam = computed(() => cameraStore.camMap.value.size > 1);
 
     function setTrackType(type: string) {
       cameraStore.setTrackType(props.track.id, type);
@@ -168,34 +55,21 @@ export default defineComponent({
       }
     }
 
-    function handleClicked(event: PointerEvent) {
+    function handleClicked(event: MouseEvent) {
       const modifiers = event.ctrlKey ? { ctrl: true } : undefined;
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
     return {
-      /* data */
-      feature,
-      isTrack,
-      style,
-      frame: frameRef,
-      allTypes: allTypesRef,
-      keyframeDisabled,
-      trackFilters,
-      readOnlyMode,
-      multiCam,
-      /* methods */
-      gotoNext,
-      gotoPrevious,
+      allTypes: trackFilters.allTypes,
       handler,
-      openMultiCamTools,
-      toggleInterpolation,
-      clickToggleInterpolation,
-      toggleAllInterpolation,
-      toggleKeyframe,
-      setTrackType,
-      typeStyling,
       handleClicked,
+      multiCam,
+      openMultiCamTools,
+      readOnlyMode,
+      setTrackType,
+      trackFilters,
+      typeStyling,
     };
   },
 });
@@ -204,7 +78,7 @@ export default defineComponent({
 <template>
   <div
     class="track-item d-flex flex-column align-start hover-show-parent px-1"
-    :style="style"
+    :style="itemStyle"
   >
     <v-row
       class="pt-2 justify-center item-row"
@@ -214,9 +88,7 @@ export default defineComponent({
       <div
         v-if="solo"
         class="type-color-box"
-        :style="{
-          backgroundColor: color,
-        }"
+        :style="{ backgroundColor: color }"
       />
       <v-checkbox
         v-else
@@ -243,7 +115,7 @@ export default defineComponent({
             {{ track.trackId }}
           </div>
         </template>
-        <span> {{ track.trackId }} </span>
+        <span>{{ track.trackId }}</span>
       </v-tooltip>
       <v-chip
         v-if="track.set"
@@ -253,7 +125,6 @@ export default defineComponent({
       >
         {{ track.set }}
       </v-chip>
-
       <v-spacer />
       <TypePicker
         :value="trackType"
@@ -294,22 +165,16 @@ export default defineComponent({
             tooltip-text="Split Track"
             @click="handler.trackSplit(track.trackId, frame)"
           />
-
           <tooltip-btn
             v-if="isTrack && !readOnlyMode"
-            :icon="(feature.isKeyframe)
-              ? 'mdi-star'
-              : 'mdi-star-outline'"
+            :icon="feature.isKeyframe ? 'mdi-star' : 'mdi-star-outline'"
             :disabled="keyframeDisabled"
             tooltip-text="Toggle keyframe"
             @click="toggleKeyframe"
           />
-
           <tooltip-btn
             v-if="isTrack && !readOnlyMode"
-            :icon="(feature.shouldInterpolate)
-              ? 'mdi-vector-selection'
-              : 'mdi-selection-off'"
+            :icon="feature.shouldInterpolate ? 'mdi-vector-selection' : 'mdi-selection-off'"
             tooltip-text="Toggle interpolation, ctrl+click to toggle all interpolation"
             @click="clickToggleInterpolation($event)"
           />
@@ -329,19 +194,16 @@ export default defineComponent({
           tooltip-text="Seek to track beginning"
           @click="$emit('seek', track.begin)"
         />
-
         <tooltip-btn
           icon="mdi-chevron-left"
           tooltip-text="Seek to previous keyframe"
           @click="gotoPrevious"
         />
-
         <tooltip-btn
           icon="mdi-chevron-right"
           tooltip-text="Seek to next keyframe"
           @click="gotoNext"
         />
-
         <tooltip-btn
           icon="mdi-chevron-double-right"
           tooltip-text="Seek to track end"
@@ -354,10 +216,9 @@ export default defineComponent({
         tooltip-text="Seek to detection"
         @click="$emit('seek', track.begin)"
       />
-
       <tooltip-btn
         v-if="!merging"
-        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
+        icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"

@@ -83,6 +83,7 @@ export function useMediaController() {
   let state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
+  const resizeTrigger: Ref<number> = ref(0);
   function clear() {
     geoViewers = {};
     containers = {};
@@ -111,6 +112,7 @@ export function useMediaController() {
    * onResize resets the zoom of a camera when its window size changes.
    */
   function onResize() {
+    let resized = false;
     subControllers.forEach((mc) => {
       const camera = cameraControllerSymbols[mc.cameraName.value].toString();
       const geoViewerRef = geoViewers[camera];
@@ -121,12 +123,19 @@ export function useMediaController() {
       const size = containerRef.value.getBoundingClientRect();
       const mapSize = geoViewerRef.value.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
+        resized = true;
         window.requestAnimationFrame(() => {
           geoViewerRef.value.size(size);
           mc.resetZoom();
         });
       }
     });
+    // Trigger layer redraw after resize
+    if (resized) {
+      window.requestAnimationFrame(() => {
+        resizeTrigger.value += 1;
+      });
+    }
   }
 
   function toggleSynchronizeCameras(val: boolean) {
@@ -172,6 +181,24 @@ export function useMediaController() {
     setVolume(level: number): void;
     setSpeed(level: number): void;
   }) {
+    // Clean up existing controller for this camera if it exists (e.g., when view mode switches)
+    const existingIndex = subControllers.findIndex((c) => c.cameraName.value === cameraName);
+    if (existingIndex !== -1) {
+      subControllers.splice(existingIndex, 1);
+      const existingSymbol = cameraControllerSymbols[cameraName];
+      if (existingSymbol) {
+        const existingCamera = existingSymbol.toString();
+        const cameraIndex = cameras.value.indexOf(existingSymbol);
+        if (cameraIndex !== -1) {
+          cameras.value.splice(cameraIndex, 1);
+        }
+        delete geoViewers[existingCamera];
+        delete containers[existingCamera];
+        delete imageCursors[existingCamera];
+        delete state[existingCamera];
+      }
+    }
+
     const cameraSymbol = Symbol(`media-controller-${cameraName}`);
     cameraControllerSymbols[cameraName] = cameraSymbol;
     const camera = cameraSymbol.toString();
@@ -423,7 +450,7 @@ export function useMediaController() {
       resetMapDimensions,
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
-
+      resizeTrigger,
     };
 
     subControllers.push(mediaController);
@@ -461,6 +488,7 @@ export function useMediaController() {
       getController,
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
+      resizeTrigger,
     };
   });
 

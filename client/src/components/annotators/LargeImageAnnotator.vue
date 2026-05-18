@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, ref, onUnmounted, PropType, toRef, watch,
+  defineComponent, ref, onUnmounted, PropType, toRef, watch, computed,
 } from 'vue';
 import geo from 'geojs';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
@@ -22,6 +22,21 @@ function loadImageFunc(imageDataItem: LargeImageDataItem, img: HTMLImageElement)
   // eslint-disable-next-line no-param-reassign
   img.src = imageDataItem.url;
 }
+
+function shellEscapePath(path: string): string {
+  return `"${path.replace(/"/g, '\\"')}"`;
+}
+
+function buildOutputFilename(inputFilename: string): string {
+  const separator = Math.max(inputFilename.lastIndexOf('/'), inputFilename.lastIndexOf('\\'));
+  const dirname = separator >= 0 ? inputFilename.slice(0, separator + 1) : '';
+  const basename = separator >= 0 ? inputFilename.slice(separator + 1) : inputFilename;
+  const extIndex = basename.lastIndexOf('.');
+  const hasExt = extIndex > 0;
+  const nameOnly = hasExt ? basename.slice(0, extIndex) : basename;
+  return `${dirname}${nameOnly || 'converted'}_cog_scaled.tif`;
+}
+
 export default defineComponent({
   name: 'LargeImageAnnotator',
   props: {
@@ -63,9 +78,14 @@ export default defineComponent({
     },
     getTileURL: {
       type: Function as PropType<
-      (itemId: string, x: number, y: number,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      level: number, query: Record<string, any>) => string>,
+      (
+        itemId: string,
+        x: number,
+        y: number,
+        level: number,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        query: Record<string, any>,
+      ) => string>,
       required: true,
     },
     imageEnhancementOutputs: {
@@ -85,6 +105,9 @@ export default defineComponent({
   setup(props) {
     const loadingVideo = ref(false);
     const loadingImage = ref(true);
+    const tileLoadError = ref('');
+    const tileLoadErrorWidth = ref<number | null>(null);
+    const copiedConversionCommand = ref(false);
     const cameraInitializer = injectCameraInitializer();
     // eslint-disable-next-line prefer-const
     let geoSpatial = false;
@@ -101,6 +124,61 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
+    const updateTileLoadErrorWidth = () => {
+      const containerWidth = container.value?.getBoundingClientRect().width;
+      tileLoadErrorWidth.value = typeof containerWidth === 'number'
+        ? containerWidth
+        : null;
+    };
+    let tileLoadErrorResizeObserver: ResizeObserver | null = null;
+    watch(container, (containerEl, previousEl) => {
+      if (tileLoadErrorResizeObserver && previousEl) {
+        tileLoadErrorResizeObserver.unobserve(previousEl);
+      }
+      if (!containerEl) {
+        tileLoadErrorWidth.value = null;
+        return;
+      }
+      if (!tileLoadErrorResizeObserver) {
+        tileLoadErrorResizeObserver = new ResizeObserver(() => {
+          updateTileLoadErrorWidth();
+        });
+      }
+      tileLoadErrorResizeObserver.observe(containerEl);
+      updateTileLoadErrorWidth();
+    }, { immediate: true });
+    const tileLoadErrorStyle = computed(() => {
+      if (tileLoadErrorWidth.value === null) {
+        return {};
+      }
+      const width = `${Math.round(tileLoadErrorWidth.value)}px`;
+      return {
+        width,
+        maxWidth: width,
+      };
+    });
+    const conversionInputFilename = computed(() => (
+      props.imageData[data.frame]?.filename
+      || props.imageData[0]?.filename
+      || 'input.tif'
+    ));
+    const hasPreconversionGuidance = computed(() => /overview|pre-convert|gdal/i.test(tileLoadError.value));
+    const gdalTranslateCommand = computed(() => {
+      const inputFilename = conversionInputFilename.value;
+      const outputFilename = buildOutputFilename(inputFilename);
+      return `gdal_translate ${shellEscapePath(inputFilename)} ${shellEscapePath(outputFilename)} -of COG -ot Byte -scale <min> <max> 0 255 -co BLOCKSIZE=256 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co BIGTIFF=IF_SAFER -co NUM_THREADS=ALL_CPUS -co OVERVIEWS=IGNORE_EXISTING -co RESAMPLING=LANCZOS -co OVERVIEW_RESAMPLING=AVERAGE`;
+    });
+    const copyConversionCommand = async () => {
+      try {
+        await navigator.clipboard.writeText(gdalTranslateCommand.value);
+        copiedConversionCommand.value = true;
+        window.setTimeout(() => {
+          copiedConversionCommand.value = false;
+        }, 1500);
+      } catch (err) {
+        console.warn('Unable to copy GDAL command to clipboard', err);
+      }
+    };
     let projection: string | undefined;
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
@@ -134,12 +212,12 @@ export default defineComponent({
     }
     function _getTileURL(itemId: string, proj?: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const returnFunc = (level: number, x: number, y: number, params: any) => {
+      const returnFunc = (x: number, y: number, level: number, params: any) => {
         const updatedParams = { ...params, encoding: 'PNG' };
         if (proj) {
           updatedParams.projection = proj;
         }
-        return props.getTileURL(itemId, level, x, y, updatedParams);
+        return props.getTileURL(itemId, x, y, level, updatedParams);
       };
       return returnFunc;
     }
@@ -155,7 +233,7 @@ export default defineComponent({
       );
       local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
       local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
-      local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+      local.nextLayer._options.tileHeight = newParams.layer.tileHeight;
       local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
       local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
       local.nextLayer.url(_getTileURL(props.imageData[frame].id));
@@ -165,7 +243,16 @@ export default defineComponent({
      * When the component is unmounted, cancel all outstanding
      * requests for image load.
      */
-    onUnmounted(() => Array.from(local.pendingImgs).forEach(forceUnload));
+    onUnmounted(() => {
+      Array.from(local.pendingImgs).forEach(forceUnload);
+      if (tileLoadErrorResizeObserver && container.value) {
+        tileLoadErrorResizeObserver.unobserve(container.value);
+      }
+      if (tileLoadErrorResizeObserver) {
+        tileLoadErrorResizeObserver.disconnect();
+        tileLoadErrorResizeObserver = null;
+      }
+    });
     async function seek(f: number) {
       if (!data.ready) {
         return;
@@ -211,7 +298,7 @@ export default defineComponent({
             geoViewer.value.onIdle(() => {
               local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
               local.currentLayer._options.tileWidth = newParams.layer.tileWidth;
-              local.currentLayer._options.tileHeight = newParams.layer.tileWidth;
+              local.currentLayer._options.tileHeight = newParams.layer.tileHeight;
               local.currentLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
               local.currentLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
               local.currentLayer.url(_getTileURL(props.imageData[newFrame].id));
@@ -266,6 +353,8 @@ export default defineComponent({
       { deep: true },
     );
     async function init() {
+      tileLoadError.value = '';
+      copiedConversionCommand.value = false;
       data.maxFrame = props.imageData.length - 1;
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
@@ -293,7 +382,20 @@ export default defineComponent({
       //const baseData = await props.getTiles(props.imageData[data.frame].id);
       //geoSpatial = !(!baseData.geospatial || !baseData.bounds);
       projection = geoSpatial ? 'EPSG:3857' : undefined;
-      const resp = await props.getTiles(props.imageData[data.frame].id, projection);
+      let resp;
+      try {
+        resp = await props.getTiles(props.imageData[data.frame].id, projection);
+      } catch (err) {
+        const fallbackMessage = 'Unable to load large-image tiles. This file may need to be pre-converted before viewing.';
+        const message = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
+          || (err as { message?: string })?.message
+          || fallbackMessage;
+        tileLoadError.value = message;
+        loadingVideo.value = false;
+        loadingImage.value = false;
+        data.ready = false;
+        return;
+      }
       local.levels = resp.levels;
       local.width = resp.sizeX;
       local.height = resp.sizeY;
@@ -373,7 +475,7 @@ export default defineComponent({
           local.nextLayer = geoViewer.value.createLayer('osm', { ...localParams, ...newParams.layer });
           local.nextLayer._options.maxLevel = newParams.layer.maxLevel;
           local.nextLayer._options.tileWidth = newParams.layer.tileWidth;
-          local.nextLayer._options.tileHeight = newParams.layer.tileWidth;
+          local.nextLayer._options.tileHeight = newParams.layer.tileHeight;
           local.nextLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
           local.nextLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
           local.nextLayer.url(_getTileURL(props.imageData[data.frame + 1].id, projection));
@@ -408,6 +510,13 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
+      tileLoadError,
+      tileLoadErrorStyle,
+      conversionInputFilename,
+      hasPreconversionGuidance,
+      gdalTranslateCommand,
+      copyConversionCommand,
+      copiedConversionCommand,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -493,6 +602,46 @@ export default defineComponent({
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     >
+      <v-alert
+        v-if="tileLoadError"
+        type="error"
+        outlined
+        class="tile-load-error"
+        :style="tileLoadErrorStyle"
+      >
+        <div class="tile-load-error__message">
+          {{ tileLoadError }}
+        </div>
+        <div
+          v-if="hasPreconversionGuidance"
+          class="tile-load-error__guidance"
+        >
+          <div class="mt-2">
+            Run <code>gdalinfo --stats "{{ conversionInputFilename }}"</code> and note the min/max
+            values for each band, then replace <code>&lt;min&gt;</code> and <code>&lt;max&gt;</code>
+            below and run the command to convert the file.
+          </div>
+          <v-textarea
+            class="mt-2"
+            outlined
+            readonly
+            no-resize
+            rows="3"
+            hide-details
+            :value="gdalTranslateCommand"
+          />
+          <div class="d-flex justify-end mt-2">
+            <v-btn
+              small
+              color="error"
+              outlined
+              @click="copyConversionCommand"
+            >
+              {{ copiedConversionCommand ? 'Copied' : 'Copy command' }}
+            </v-btn>
+          </div>
+        </div>
+      </v-alert>
       <div class="loadingSpinnerContainer">
         <v-progress-circular
           v-if="loadingVideo || loadingImage"
@@ -512,4 +661,15 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import "./annotator.scss";
+
+.tile-load-error {
+  margin: 8px 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tile-load-error__message {
+  white-space: normal;
+}
 </style>

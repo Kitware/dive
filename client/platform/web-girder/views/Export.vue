@@ -172,6 +172,15 @@ export default defineComponent({
               format: 'dive_json',
             },
           }),
+          exportDetectionsUrlCocoJSON: getUri({
+            url: 'dive_annotation/export',
+            params: {
+              ...params,
+              folderId: singleDataSetId.value,
+              revisionId: revisionId.value,
+              format: 'coco_json',
+            },
+          }),
           exportConfigurationUrl: getUri({
             url: `dive_dataset/${singleDataSetId.value}/configuration`,
           }),
@@ -386,6 +395,23 @@ export default defineComponent({
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
                   >DIVE TrackJSON</span>
+                  <span
+                    v-else
+                  >detections unavailable</span>
+                </v-btn>
+                <v-btn
+                  depressed
+                  block
+                  class="mt-2"
+                  :disabled="!exportUrls.exportDetectionsUrl"
+                  @click="doExport({
+                    url: exportUrls
+                      && exportUrls.exportDetectionsUrlCocoJSON,
+                  })"
+                >
+                  <span
+                    v-if="exportUrls.exportDetectionsUrl"
+                  >COCO JSON</span>
                   <span
                     v-else
                   >detections unavailable</span>

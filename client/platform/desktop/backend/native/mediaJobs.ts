@@ -58,6 +58,31 @@ interface CheckMediaResults {
   videoDimensions: { width: number; height: number };
 }
 
+function frameRateStringFromProbeStream(stream: {
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
+}): string {
+  const parseable = (s: string | undefined): s is string => {
+    if (!s || s === '0/0') return false;
+    const parts = s.split('/').map((v) => Number.parseInt(v, 10));
+    return (
+      parts.length === 2
+      && !Number.isNaN(parts[0])
+      && !Number.isNaN(parts[1])
+      && parts[1] !== 0
+    );
+  };
+  if (parseable(stream.avg_frame_rate)) {
+    return stream.avg_frame_rate;
+  }
+  if (parseable(stream.r_frame_rate)) {
+    return stream.r_frame_rate;
+  }
+  throw Error(
+    'FFProbe found no usable frame rate (avg_frame_rate / r_frame_rate)',
+  );
+}
+
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
     file,
@@ -138,11 +163,11 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
 
   if (ffprobeJSON && ffprobeJSON.streams?.length) {
     const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
-    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
-      throw Error('FFProbe found that video stream has no avg_frame_rate');
+    if (videoStream.length === 0) {
+      throw Error('FFProbe found no video stream');
     }
 
-    const originalFpsString = videoStream[0].avg_frame_rate;
+    const originalFpsString = frameRateStringFromProbeStream(videoStream[0]);
     const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
     const websafe = videoStream
@@ -191,6 +216,9 @@ async function convertMedia(
   ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
   const job = observeChild(spawn(ffmpegPath, ffmpegArgs, { shell: false }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to start conversion process');
+  }
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
@@ -212,6 +240,11 @@ async function convertMedia(
     args.meta.transcodingJobKey = jobBase.key;
   }
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
+  // Emit an initial update immediately so UI reflects "converting" before ffmpeg writes logs.
+  updater({
+    ...jobBase,
+    body: ['Conversion job started'],
+  });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));

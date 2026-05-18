@@ -1,8 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    /* Jest requires es5, not sure why */
-    "target": "es5",
+    /* Keep spec config aligned with the app/test TypeScript baseline */
+    "target": "ES2018",
     "module": "commonjs",
   },
 }

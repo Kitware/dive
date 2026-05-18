@@ -9,14 +9,14 @@ QUEUE_ARGUMENT=
 CONCURRENCY_ARGUMENT=
 
 if [ -n "$WORKER_WATCHING_QUEUES" ]; then
-    QUEUE_ARGUMENT="--queues $WORKER_WATCHING_QUEUES"
+    QUEUE_ARGUMENT="-Q $WORKER_WATCHING_QUEUES"
 fi
 
 if [ -n "$WORKER_CONCURRENCY" ]; then
     CONCURRENCY_ARGUMENT="--concurrency $WORKER_CONCURRENCY"
 fi
 
-exec poetry run python \
+exec uv run --no-sync python \
     -m dive_tasks \
     -l info \
     --without-gossip --without-mingle \

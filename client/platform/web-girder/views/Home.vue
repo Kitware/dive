@@ -1,15 +1,17 @@
-<script>
+<script lang="ts">
 import {
   defineComponent,
   ref,
+  computed,
 } from 'vue';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
-import { mapGetters, mapState } from 'vuex';
-
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useConfig } from '../store/useConfig';
+import { useJobs } from '../store/useJobs';
+import { useLocation } from '../store/useLocation';
 import RunTrainingMenu from './RunTrainingMenu.vue';
 
 import { deleteResources } from '../api';
@@ -18,7 +20,6 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import { useStore } from '../store/types';
 import eventBus from '../eventBus';
 
 const buttonOptions = {
@@ -53,66 +54,84 @@ export default defineComponent({
   setup() {
     const loading = ref(false);
     const { prompt } = usePrompt();
-    const store = useStore();
-    const { getters } = store;
+    const {
+      location, selected, locationIsViameFolder, setSelected,
+    } = useLocation();
+    const { pipelinesEnabled, trainingEnabled } = useConfig();
+    const jobs = useJobs();
 
     const clearSelected = () => {
-      store.commit('Location/setSelected', []);
+      setSelected([]);
     };
+
+    const runningPipelines = computed(() => {
+      const results = [];
+      const inputs = locationIsViameFolder.value && location.value
+        ? [(location.value as { _id: string })._id]
+        : selected.value.filter(
+          ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+        ).map(({ _id }) => _id);
+      inputs.forEach((item) => {
+        if (jobs.getDatasetRunningState(item)) {
+          results.push(item);
+        }
+      });
+      return results;
+    });
+
+    const selectedViameFolderIds = computed(() => selected.value.filter(
+      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+    ).map(({ _id }) => _id));
+
+    const selectedViameFolderNames = computed(() => selected.value.filter(
+      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+    ).map(({ name }) => name));
+
+    const selectedFileIds = computed(() => selected.value.filter(
+      (element) => element._modelType === 'item',
+    ).map(({ _id }) => _id));
+
+    const includesLargeImage = computed(() => (selected.value.filter(
+      ({ meta }) => meta && meta.type === 'large-image',
+    )).length > 0);
+
+    const locationInputs = computed(() => (
+      locationIsViameFolder.value && location.value
+        ? [(location.value as { _id: string })._id]
+        : selectedViameFolderIds.value
+    ));
+
+    const locationInputNames = computed(() => (
+      locationIsViameFolder.value && location.value
+        ? [(location.value as { name: string }).name]
+        : selectedViameFolderNames.value
+    ));
+
+    const selectedDescription = computed(() => (location.value as { description?: string } | null)?.description);
 
     return {
       // data
       buttonOptions,
       menuOptions,
       loading,
+      location,
+      selected,
+      locationIsViameFolder,
+      pipelinesEnabled,
+      trainingEnabled,
+      runningPipelines,
+      selectedViameFolderIds,
+      selectedViameFolderNames,
+      selectedFileIds,
+      includesLargeImage,
+      locationInputs,
+      locationInputNames,
+      selectedDescription,
       // methods
       prompt,
       clearSelected,
       eventBus,
-      getters,
     };
-  },
-  computed: {
-    ...mapState('Location', ['selected', 'location']),
-    ...mapGetters('Location', ['locationIsViameFolder']),
-    selectedViameFolderIds() {
-      return this.selected.filter(
-        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      ).map(({ _id }) => _id);
-    },
-    selectedViameFolderNames() {
-      return this.selected.filter(
-        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      ).map(({ name }) => name);
-    },
-    selectedFileIds() {
-      return this.selected.filter(
-        (element) => element._modelType === 'item',
-      ).map(({ _id }) => _id);
-    },
-    includesLargeImage() {
-      return (this.selected.filter(
-        ({ meta }) => meta && meta.type === 'large-image',
-      )).length > 0;
-    },
-    locationInputs() {
-      return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
-    },
-    locationInputNames() {
-      return this.locationIsViameFolder ? [this.location.name] : this.selectedViameFolderNames;
-    },
-    selectedDescription() {
-      return this.location?.description;
-    },
-    runningPipelines() {
-      const results = [];
-      this.locationInputs.forEach((item) => {
-        if (this.getters['Jobs/datasetRunningState'](item)) {
-          results.push(item);
-        }
-      });
-      return results;
-    },
   },
   methods: {
     async deleteSelection() {
@@ -145,7 +164,6 @@ export default defineComponent({
     },
   },
 });
-
 </script>
 
 <template>
@@ -173,6 +191,7 @@ export default defineComponent({
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
                 <run-training-menu
+                  v-if="trainingEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
@@ -181,6 +200,7 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
+                  v-if="pipelinesEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },

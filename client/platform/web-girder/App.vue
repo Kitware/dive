@@ -8,7 +8,8 @@
 import { defineComponent } from 'vue';
 import { provideApi } from 'dive-common/apispec';
 import { useRoute } from 'vue-router/composables';
-import { useStore } from 'platform/web-girder/store/types';
+import { useDataset } from 'platform/web-girder/store/useDataset';
+import { useLocation } from 'platform/web-girder/store/useLocation';
 import type { GirderMetadata } from './constants';
 import {
   getPipelineList,
@@ -28,18 +29,22 @@ import {
   getTileURL,
 } from './api';
 import { openFromDisk } from './utils';
+import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 export default defineComponent({
   name: 'App',
   components: {},
   setup() {
     const route = useRoute();
-    const store = useStore();
+    const { loadDataset } = useDataset();
+    const { setLocationFromRoute } = useLocation();
     async function loadMetadata(datasetId: string): Promise<GirderMetadata> {
-      return store.dispatch('Dataset/load', datasetId);
+      return loadDataset(datasetId);
     }
 
-    store.dispatch('Location/setLocationFromRoute', route);
+    setLocationFromRoute(route).catch((reason) => {
+      reportHandledPromiseRejection('App: setLocationFromRoute', reason);
+    });
 
     provideApi({
       getPipelineList: unwrap(getPipelineList),

@@ -67,6 +67,7 @@ nav:
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
+      - Large Image Desktop Support: Large-Image-Support.md
       - MultiCamera Data (beta): Multicamera-data.md
     - Screenshots: Screenshots.md
     - Support: Support.md
@@ -76,6 +77,7 @@ nav:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md
     - Running with Docker Compose: Deployment-Docker-Compose.md
+    - Upgrading to Girder 5: Deployment-Girder-5-Upgrade.md
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Scripting: 

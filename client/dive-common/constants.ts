@@ -76,9 +76,16 @@ const fileVideoTypes = [
 const largeImageTypes = [
   'image/geotiff',
   'image/tiff',
+  'image/tif',
   'image/x-tiff',
   'image/nitf',
   'image/ntf',
+];
+
+const largeImageDesktopTypes = [
+  'geotiff',
+  'tiff',
+  'tif',
 ];
 
 const websafeImageTypes = [
@@ -149,6 +156,7 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   largeImageTypes,
+  largeImageDesktopTypes,
   inputAnnotationFileTypes,
   listFileTypes,
   zipFileTypes,

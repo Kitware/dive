@@ -1,6 +1,4 @@
 import { ref, computed } from 'vue';
-import { ipcRenderer } from 'electron';
-import { app } from '@electron/remote';
 import { Settings } from 'platform/desktop/constants';
 import { cloneDeep } from 'lodash';
 import * as semver from 'semver';
@@ -9,7 +7,7 @@ const SettingsKey = 'desktop.settings';
 const VersionKey = 'desktop.currentVersion';
 
 const settings = ref(null as Settings | null);
-const currentVersion = app.getVersion();
+const currentVersion = window.diveDesktop.getAppVersionSync();
 const knownVersion = ref(window.localStorage.getItem(VersionKey));
 
 /**
@@ -41,14 +39,14 @@ const downgradedVersion = computed(() => {
 });
 
 function getDefaultSettings(): Promise<Settings> {
-  return ipcRenderer.invoke('default-settings');
+  return window.diveDesktop.invoke('default-settings');
 }
 
 function validateSettings(s: Settings | null): Promise<string | boolean> {
   if (s === null) {
     return Promise.resolve(false);
   }
-  return ipcRenderer.invoke('validate-settings', s);
+  return window.diveDesktop.invoke('validate-settings', s);
 }
 
 // Type Guard https://www.typescriptlang.org/docs/handbook/advanced-types.html
@@ -94,14 +92,14 @@ async function init() {
     settingsValue.readonlyMode = settingsValue.overrides.readonlyMode;
   }
   settings.value = settingsValue;
-  ipcRenderer.send('update-settings', settings.value);
+  window.diveDesktop.send('update-settings', settings.value);
   return settings.value;
 }
 
 async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
   settings.value = cloneDeep(s);
-  ipcRenderer.send('update-settings', settings.value);
+  window.diveDesktop.send('update-settings', settings.value);
 }
 
 async function acknowledgeVersion() {

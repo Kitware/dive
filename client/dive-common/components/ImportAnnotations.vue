@@ -166,7 +166,7 @@ export default defineComponent({
             <li> Viame CSV Files </li>
             <li> DIVE Annotation JSON </li>
             <li> DIVE Configuration JSON</li>
-            <li> KWCOCO JSON files </li>
+            <li> COCO / KWCOCO JSON files </li>
           </ul>
           <a
             href="https://kitware.github.io/dive/DataFormats/"

@@ -6,7 +6,7 @@ import {
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes, LargeImageType,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes, largeImageDesktopTypes, LargeImageType,
 } from 'dive-common/constants';
 
 import {
@@ -70,6 +70,7 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
+    const isDesktopMode = navigator.userAgent.includes('Electron');
     const { prompt } = usePrompt();
 
     const addPendingZipUpload = (name: string, allFiles: File[]) => {
@@ -233,6 +234,9 @@ export default defineComponent({
       } if (type === 'video') {
         return websafeVideoTypes.concat(otherVideoTypes);
       } if (type === 'large-image') {
+        if (isDesktopMode) {
+          return largeImageDesktopTypes.map((item) => `.${item}`).join(',');
+        }
         return largeImageTypes;
       }
       return websafeImageTypes.concat(otherImageTypes);

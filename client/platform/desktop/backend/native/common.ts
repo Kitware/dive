@@ -17,22 +17,26 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
+  PipeMetadata,
+  PipelineParamType,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType, JsonMetaRegEx,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
@@ -65,6 +69,93 @@ const YAMLFileName = /^.*\.ya?ml$/i;
 async function readLines(filePath: string): Promise<string[]> {
   const rawBuffer = await fs.readFile(filePath, 'utf-8');
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
+}
+
+/**
+ * Extract metadata from a .pipe file header.
+ */
+async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
+  const metadata: PipeMetadata = {};
+  metadata.diveParams = [];
+  try {
+    const lines = await readLines(filePath);
+    let inDescription = false;
+    let contextStack: string[] = [];
+    let fullDescription = '';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+([\w-]+)/i);
+      if (processMatch) {
+        contextStack = [processMatch[1]];
+        return;
+      }
+
+      const blockMatch = trimmed.match(/^block\s+([\w:-]+)/i);
+      if (blockMatch) {
+        contextStack.push(blockMatch[1]);
+        return;
+      }
+
+      if (trimmed.toLowerCase() === 'endblock') {
+        contextStack.pop();
+        return;
+      }
+
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const pipelineTypeArgs = args.slice(1);
+
+        const paramLineMatch = trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i);
+        if (paramLineMatch) {
+          const localKey = paramLineMatch[1];
+          const defaultValue = paramLineMatch[2].trim();
+          const fullKey = [...contextStack, localKey].join(':');
+          metadata.diveParams!.push({
+            label,
+            type,
+            type_props: pipelineTypeArgs,
+            key: fullKey,
+            default: defaultValue,
+          });
+        }
+      }
+
+      // --- Description extraction (Multiline) ---
+      if (/^#\s*Description:\s*/i.test(line)) {
+        inDescription = true;
+        fullDescription = line.replace(/^#\s*Description:\s*/i, '').trim();
+        return;
+      }
+
+      if (inDescription) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output):/i.test(line) || !line.startsWith('#')) {
+          inDescription = false;
+        } else {
+          fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
+          return;
+        }
+      }
+
+      // --- Input / Output extraction ---
+      if (/^#\s*Input:\s*/i.test(line)) {
+        metadata.inputType = line.split(':')[1]?.trim();
+      }
+      if (/^#\s*Output:\s*/i.test(line)) {
+        metadata.outputType = line.split(':')[1]?.trim();
+      }
+    });
+    metadata.description = fullDescription.trim() || undefined;
+  } catch (error) {
+    console.error(`Error while reading ${filePath} metadata`, error);
+  }
+
+  return metadata;
 }
 
 /**
@@ -277,10 +368,18 @@ async function loadMetadata(
     imageData = defaultDisplay.imageData;
     videoUrl = defaultDisplay.videoUrl;
   } else if (projectMetaData.type === 'video') {
-    /* If the video has been transcoded, use that video */
+    /* Use transcoded output only after it exists on disk. */
     if (projectMetaData.transcodedVideoFile) {
-      const video = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
-      videoUrl = makeMediaUrl(video);
+      const transcodedVideo = npath.join(projectDirData.basePath, projectMetaData.transcodedVideoFile);
+      if (await fs.pathExists(transcodedVideo)) {
+        videoUrl = makeMediaUrl(transcodedVideo);
+      } else if (projectMetaData.originalBasePath && projectMetaData.originalVideoFile) {
+        const originalVideo = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
+        videoUrl = makeMediaUrl(originalVideo);
+      } else {
+        // Some legacy/test metadata only has a transcoded filename.
+        videoUrl = makeMediaUrl(transcodedVideo);
+      }
     } else {
       const video = npath.join(projectMetaData.originalBasePath, projectMetaData.originalVideoFile);
       videoUrl = makeMediaUrl(video);
@@ -300,6 +399,13 @@ async function loadMetadata(
         };
       });
     }
+  } else if (projectMetaData.type === 'large-image' && projectMetaData.originalLargeImageFile) {
+    const tiffPath = npath.join(projectMetaData.originalBasePath, projectMetaData.originalLargeImageFile);
+    imageData = [{
+      url: makeMediaUrl(tiffPath),
+      id: datasetId,
+      filename: npath.basename(tiffPath),
+    }];
   } else {
     throw new Error(`unexpected project type for id="${datasetId}" type="${projectMetaData.type}"`);
   }
@@ -356,7 +462,8 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
 
   /* TODO: fetch trained pipelines */
   const ret: Pipelines = {};
-  pipes.forEach((p) => {
+
+  await Promise.all(pipes.map(async (p) => {
     const parts = cleanString(p.replace('.pipe', '')).split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
@@ -365,10 +472,16 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }
-    const pipeInfo = {
+
+    // Extract description and metadata from the pipe file
+    const pipeFilePath = npath.join(pipelinePath, p);
+    const metadata = await extractPipeMetadata(pipeFilePath);
+
+    const pipeInfo: Pipe = {
       name: pipeName,
       type: pipeType,
       pipe: p,
+      metadata,
     };
     if (pipeType in ret) {
       ret[pipeType].pipes.push(pipeInfo);
@@ -378,7 +491,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
         description: '',
       };
     }
-  });
+  }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
   const allowedTrainedPatterns = new RegExp([
@@ -460,10 +573,17 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   if (!exists) {
     throw new Error(`Path does not exist: ${pipelinePath}`);
   }
-  let configs = await fs.readdir(pipelinePath);
-  configs = configs
+  let configNames = await fs.readdir(pipelinePath);
+  configNames = configNames
     .filter((p) => (p.match(allowedPatterns) && !p.match(disallowedPatterns)))
     .sort((a, b) => (a === defaultTrainingConfiguration ? -1 : a.localeCompare(b)));
+
+  const configs: TrainingConfig[] = await Promise.all(configNames.map(async (name) => {
+    const configFilePath = npath.join(pipelinePath, name);
+    const { description } = (await extractPipeMetadata(configFilePath));
+    return { name, description };
+  }));
+
   // Get Model files in the pipeline directory
   const modelList = getFilesWithExtensions(pipelinePath, allowedModelExtensions);
   const models: TrainingConfigs['models'] = {};
@@ -476,7 +596,7 @@ async function getTrainingConfigs(settings: Settings): Promise<TrainingConfigs> 
   });
   return {
     training: {
-      default: configs[0],
+      default: configNames[0],
       configs,
     },
     models,
@@ -655,6 +775,10 @@ async function _ingestFilePath(
       // DIVE Json metadata config file
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
       metadataConfig = true;
+    } else if (coco.isCocoJson(jsonObject)) {
+      const [parsedAnnotations, parsedMeta] = await coco.parseFile(path);
+      annotations = parsedAnnotations;
+      merge(meta, parsedMeta);
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
@@ -930,6 +1054,8 @@ async function bulkMediaImport(path: string): Promise<DesktopMediaImportResponse
  */
 async function beginMediaImport(path: string): Promise<DesktopMediaImportResponse> {
   let datasetType: DatasetType;
+  const fileExtension = npath.extname(path).replace(/^\./, '').toLowerCase();
+  const isDesktopLargeImage = largeImageDesktopTypes.includes(fileExtension);
 
   const exists = fs.existsSync(path);
   if (!exists) {
@@ -943,6 +1069,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     const mimetype = mime.lookup(path);
     if (mimetype && mimetype === 'text/plain') {
       datasetType = 'image-sequence';
+    } else if (isDesktopLargeImage) {
+      datasetType = 'large-image';
     } else {
       datasetType = 'video';
     }
@@ -977,6 +1105,10 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     // get parent folder, since videos reference a file directly
     jsonMeta.originalBasePath = npath.dirname(path);
   }
+  if (datasetType === 'large-image') {
+    jsonMeta.originalBasePath = npath.dirname(path);
+    jsonMeta.originalLargeImageFile = npath.basename(path);
+  }
 
   /* Path to search for other related data like annotations */
   let relatedDataSearchPath = jsonMeta.originalBasePath;
@@ -984,7 +1116,9 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
-  if (jsonMeta.type === 'video') {
+  if (jsonMeta.type === 'large-image') {
+    // No conversion for large images; tile serving is done on demand via geotiff
+  } else if (jsonMeta.type === 'video') {
     jsonMeta.originalVideoFile = npath.basename(path);
     const mimetype = mime.lookup(path);
     if (mimetype) {
@@ -1022,8 +1156,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
       relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
-  } else {
-    throw new Error('only video and image-sequence types are supported');
+  } else if (datasetType !== 'large-image') {
+    throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
   const { trackFileAbsPath, metaFileAbsPath } = await
@@ -1222,6 +1356,28 @@ async function finalizeMediaImport(
   return conversionJobArgs;
 }
 
+/**
+ * Get the absolute path to the large image (e.g. GeoTIFF) file for a dataset.
+ * Returns null if the dataset is not type 'large-image' or path is missing.
+ */
+async function getLargeImagePath(settings: Settings, datasetId: string): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    if (meta.type !== 'large-image' || !meta.originalLargeImageFile) {
+      console.warn(
+        `[tiles] getLargeImagePath: no path for dataset "${datasetId}" (meta.type=${meta.type}, hasOriginalLargeImageFile=${!!meta.originalLargeImageFile})`,
+      );
+      return null;
+    }
+    const path = npath.join(meta.originalBasePath, meta.originalLargeImageFile);
+    return path;
+  } catch (err) {
+    console.warn(`[tiles] getLargeImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1234,6 +1390,11 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
       header: true,
+    });
+  }
+  if (args.type === 'coco') {
+    return coco.serializeFile(args.path, data, meta, args.typeFilter, {
+      excludeBelowThreshold: args.exclude,
     });
   }
   return viameSerializers.serializeFile(args.path, data, meta, args.typeFilter, {
@@ -1333,6 +1494,7 @@ export {
   getTrainingConfigs,
   getProjectDir,
   getValidatedProjectDir,
+  getLargeImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,

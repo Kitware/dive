@@ -10,11 +10,12 @@ function postProcess(folderId: string, skipJobs = false, skipTranscoding = false
   });
 }
 
-function runPipeline(itemId: string, pipeline: Pipe) {
+function runPipeline(itemId: string, pipeline: Pipe, additionalConfig?: Record<string, string>) {
   return girderRest.post('dive_rpc/pipeline', null, {
     params: {
       folderId: itemId,
       pipeline,
+      pipelineParams: additionalConfig,
     },
   });
 }

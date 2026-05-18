@@ -1,5 +1,4 @@
 <script lang="ts">
-import { join } from 'path';
 import moment from 'moment';
 import {
   computed, defineComponent, ref, Ref, watch,
@@ -91,7 +90,7 @@ export default defineComponent({
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
         }
         const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
@@ -113,7 +112,7 @@ export default defineComponent({
           });
         } else {
           // Queue conversion job
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
           // Display new data and await transcoding to complete
           const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
@@ -174,6 +173,9 @@ export default defineComponent({
       if (recent.type === 'video') {
         return 'mdi-file-video';
       }
+      if (recent.type === 'large-image') {
+        return 'mdi-map';
+      }
       if (recent.imageListPath) {
         return 'mdi-view-list-outline';
       }
@@ -201,6 +203,14 @@ export default defineComponent({
       router.push({ name: 'viewer', params: { id: recent.id } });
     }
 
+    function parseRecentDate(value: string) {
+      if (!value) {
+        return moment.invalid();
+      }
+      const normalized = value.replace(/\s+\([^)]*\)$/, '');
+      return moment(normalized, [moment.ISO_8601, moment.RFC_2822, 'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ'], true);
+    }
+
     const headers: DataTableHeader[] = [
       {
         text: 'Type',
@@ -217,7 +227,7 @@ export default defineComponent({
         text: 'Accessed',
         value: 'accessedAt',
         sortable: true,
-        sort: (a: string, b: string) => Date.parse(b) - Date.parse(a),
+        sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
       },
       {
@@ -227,7 +237,10 @@ export default defineComponent({
         width: 40,
       },
     ];
-    const toDisplayString = (dateString: string) => moment(dateString).format('MM/DD/YY HH:mm');
+    const toDisplayString = (dateString: string) => {
+      const parsed = parseRecentDate(dateString);
+      return parsed.isValid() ? parsed.format('MM/DD/YY HH:mm') : dateString;
+    };
 
     return {
       // methods
@@ -236,7 +249,6 @@ export default defineComponent({
       finalizeBulkImport,
       finalizeImport,
       multiCamImport,
-      join,
       setOrGetConversionJob,
       openMultiCamDialog,
       getTypeIcon,
@@ -412,6 +424,13 @@ export default defineComponent({
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
+            />
+            <ImportButton
+              name="Open Large Image (TIFF)"
+              icon="mdi-map"
+              open-type="large-image"
+              class="my-3"
+              @open="open($event)"
             />
           </v-col>
         </v-row>

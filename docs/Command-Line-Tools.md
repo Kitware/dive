@@ -2,7 +2,7 @@
 
 !!! note
 
-    This page is **not related** to the VIAME command line (i.e. `kwiver`, `viame_train_detector`)
+    This page is **not related** to the VIAME install command line (e.g. `viame`, `kwiver`)
 
 Some of the DIVE data conversion features are exposed through `dive`.  
 
@@ -18,13 +18,13 @@ Follow the docs in the [Debug Utils and Command Line Tools](https://github.com/K
 ``` bash
 git clone https://github.com/Kitware/dive.git
 cd dive/server
-poetry install
+uv sync
 ```
 
 ## Usage
 
 ``` bash
-~$ poetry run dive convert --help
+~$ uv run dive convert --help
 
 # Usage: dive convert [OPTIONS] COMMAND [ARGS]...
 

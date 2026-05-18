@@ -1,9 +1,9 @@
 <!-- eslint-disable max-len -->
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, Ref,
+  defineComponent, ref, PropType, Ref, computed,
 } from 'vue';
-import { useStore } from 'platform/web-girder/store/types';
+import { useUser } from 'platform/web-girder/store/useUser';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { useCameraStore, useTrackStyleManager } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
@@ -20,8 +20,8 @@ export default defineComponent({
   setup(props, { emit }) {
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const cameraStore = useCameraStore();
-    const store = useStore();
-    const user = (store.state.User.user?.login || '') as string;
+    const { user } = useUser();
+    const userLogin = computed(() => user.value?.login || '');
 
     const predeterminedValues = ref(props.attribute.values || []);
 
@@ -39,7 +39,7 @@ export default defineComponent({
             if (!props.attribute.user && track.attributes[props.attribute.name]) {
               valueMap[track.attributes[props.attribute.name] as string] = true;
             } else if (props.attribute.user && track.attributes.userAttributes) {
-              const userAttr = (track.attributes.userAttributes[user]) as StringKeyObject;
+              const userAttr = (track.attributes.userAttributes[userLogin.value]) as StringKeyObject;
               if (userAttr[props.attribute.name]) {
                 valueMap[userAttr[props.attribute.name] as string] = true;
               }
@@ -50,7 +50,7 @@ export default defineComponent({
                 if (!props.attribute.user && feature.attributes[props.attribute.name]) {
                   valueMap[feature.attributes[props.attribute.name] as string] = true;
                 } else if (props.attribute.user && feature.attributes.userAttributes) {
-                  const userAttr = (feature.attributes.userAttributes[user]) as StringKeyObject;
+                  const userAttr = (feature.attributes.userAttributes[userLogin.value]) as StringKeyObject;
                   if (userAttr[props.attribute.name]) {
                     valueMap[userAttr[props.attribute.name] as string] = true;
                   }

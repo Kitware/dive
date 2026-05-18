@@ -24,7 +24,7 @@ import {
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import type Track from 'src/track';
-import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
+import TrackItem from 'vue-media-annotator/components/Tracks/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
 import RangeEditor from 'vue-media-annotator/components/RangeEditor.vue';
