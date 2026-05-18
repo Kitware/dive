@@ -11,10 +11,13 @@ import {
   MultiCamImportKeywordArgs,
 } from 'dive-common/apispec';
 import {
+  applyParentPathToAssignments,
   commonPathPrefix,
   groupFilesByImmediateSubfolder,
   isValidCameraName,
   organizeSubfolderCameras,
+  pickDefaultMulticamCamera,
+  type SubfolderCameraAssignment,
 } from 'dive-common/multicamSubfolderLayout';
 
 import ImportMultiCamCameraGroup from 'dive-common/components/ImportMultiCamCameraGroup.vue';
@@ -69,7 +72,11 @@ export default defineComponent({
 
   setup(props, { emit }) {
     const {
-      openFromDisk, getLastCalibration, saveCalibration,
+      openFromDisk,
+      getLastCalibration,
+      saveCalibration,
+      listImmediateSubfolders,
+      resolveMulticamCameraSourcePath,
     } = useApi();
     const enableSubfolderImport = toRef(props, 'enableSubfolderImport');
     const importType: Ref<'multi' | 'keyword' | 'subfolders' | ''> = ref('');
@@ -98,20 +105,14 @@ export default defineComponent({
     });
 
     const syncDefaultDisplay = () => {
-      const keys = Object.keys(folderList.value);
+      const keys = orderedCameraKeys.value.length
+        ? orderedCameraKeys.value
+        : Object.keys(folderList.value);
       if (!keys.length) {
         return;
       }
       if (!keys.includes(defaultDisplay.value)) {
-        if (keys.includes('center')) {
-          defaultDisplay.value = 'center';
-        } else if (keys.includes('port')) {
-          defaultDisplay.value = 'port';
-        } else if (keys.includes('left')) {
-          defaultDisplay.value = 'left';
-        } else {
-          [defaultDisplay.value] = keys;
-        }
+        defaultDisplay.value = pickDefaultMulticamCamera(keys, { preferLeftForStereo: props.stereo });
       }
     };
 
@@ -297,28 +298,58 @@ export default defineComponent({
 
     async function openParentFolder() {
       const ret = await openFromDisk(props.dataType, true);
-      if (ret.canceled || !ret.fileList?.length) {
+      if (ret.canceled) {
         return;
       }
-      const paths = ret.fileList.map((f) => f.webkitRelativePath || f.name);
-      const effectiveRoot = ret.root || commonPathPrefix(paths);
-      const grouped = groupFilesByImmediateSubfolder(ret.fileList, effectiveRoot);
-      const folderNames = [...grouped.keys()];
+      const useDesktopDiscovery = !ret.fileList?.length && !!ret.filePaths?.[0]
+        && !!listImmediateSubfolders;
+      if (!ret.fileList?.length && !useDesktopDiscovery) {
+        return;
+      }
+
       await importRequest(async () => {
+        let parentPath = '';
+        let grouped: Map<string, File[]> | undefined;
+        let folderNames: string[] = [];
+
+        if (ret.fileList?.length) {
+          const paths = ret.fileList.map((f) => f.webkitRelativePath || f.name);
+          parentPath = ret.root || commonPathPrefix(paths);
+          grouped = groupFilesByImmediateSubfolder(ret.fileList, parentPath);
+          folderNames = [...grouped.keys()];
+        } else {
+          parentPath = ret.filePaths[0];
+          folderNames = await listImmediateSubfolders!(parentPath);
+        }
+
         const organized = organizeSubfolderCameras(folderNames);
         if (organized.error) {
           throw new Error(organized.error);
         }
-        parentFolderName.value = effectiveRoot.split('/').pop() || effectiveRoot || 'parent folder';
+
+        const parentLabel = parentPath.split(/[/\\]/).pop() || parentPath || 'parent folder';
+        parentFolderName.value = parentLabel;
         subfolderLayoutLabel.value = organized.layoutLabel;
         if (!datasetName.value.trim()) {
           datasetName.value = parentFolderName.value;
         }
 
-        const registryPayload = organized.assignments.map((assignment) => ({
+        let assignments: SubfolderCameraAssignment[] = organized.assignments;
+        if (useDesktopDiscovery) {
+          assignments = applyParentPathToAssignments(parentPath, assignments);
+          if (resolveMulticamCameraSourcePath) {
+            const mediaType = props.dataType === VideoType ? 'video' : 'image-sequence';
+            assignments = await Promise.all(assignments.map(async (assignment) => ({
+              ...assignment,
+              sourcePath: await resolveMulticamCameraSourcePath(assignment.sourcePath, mediaType),
+            })));
+          }
+        }
+
+        const registryPayload = assignments.map((assignment) => ({
           cameraName: assignment.cameraName,
           sourcePath: assignment.sourcePath,
-          files: grouped.get(assignment.folderName) ?? [],
+          files: grouped?.get(assignment.folderName) ?? [],
         }));
         if (props.registerSubfolderCameras) {
           props.registerSubfolderCameras(registryPayload);
@@ -331,7 +362,7 @@ export default defineComponent({
 
         for (let i = 0; i < registryPayload.length; i += 1) {
           const { cameraName, sourcePath, files } = registryPayload[i];
-          if (!files.length) {
+          if (grouped && !files.length) {
             throw new Error(`Subfolder "${organized.assignments[i].folderName}" has no media files`);
           }
           Vue.set(subfolderOriginalNames.value, cameraName, organized.assignments[i].folderName);
@@ -342,7 +373,10 @@ export default defineComponent({
             await props.importMedia(sourcePath),
           );
         }
-        defaultDisplay.value = organized.defaultDisplay;
+        defaultDisplay.value = pickDefaultMulticamCamera(
+          registryPayload.map((item) => item.cameraName),
+          { preferLeftForStereo: props.stereo },
+        );
         syncDefaultDisplay();
       });
     }
@@ -368,7 +402,8 @@ export default defineComponent({
       }
 
       Vue.set(folderList.value, newKey, {
-        sourcePath: importType.value === 'subfolders' ? newKey : sourcePath,
+        // Web registry keys by subfolder name; desktop keeps absolute paths.
+        sourcePath: (importType.value === 'subfolders' && !listImmediateSubfolders) ? newKey : sourcePath,
         trackFile: entry.trackFile,
       });
       Vue.delete(folderList.value, oldKey);

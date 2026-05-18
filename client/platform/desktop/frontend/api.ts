@@ -170,6 +170,20 @@ function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return window.diveDesktop.invoke('import-media', { path });
 }
 
+function listImmediateSubfolders(parentPath: string): Promise<string[]> {
+  return window.diveDesktop.invoke('list-immediate-subfolders', { path: parentPath });
+}
+
+function resolveMulticamCameraSourcePath(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<string> {
+  return window.diveDesktop.invoke('resolve-multicam-camera-source-path', {
+    path: subfolderPath,
+    mediaType,
+  });
+}
+
 function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
   return window.diveDesktop.invoke('bulk-import-media', { path });
 }
@@ -353,6 +367,8 @@ export {
   finalizeImport,
   convert,
   importMedia,
+  listImmediateSubfolders,
+  resolveMulticamCameraSourcePath,
   bulkImportMedia,
   deleteDataset,
   checkDataset,
