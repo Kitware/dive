@@ -5,14 +5,20 @@ import {
 } from 'dive-common/apispec';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
+import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
 
 interface HTMLFile extends File {
   webkitRelativePath?: string;
 }
 
-function getDataset(folderId: string) {
-  return girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+async function getDataset(datasetId: string) {
+  const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
+  const response = await girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+  if (compositeId) {
+    response.data.id = compositeId;
+  }
+  return response;
 }
 
 async function getDatasetList(
@@ -50,7 +56,8 @@ export interface DatasetSourceMedia {
   sourceVideo?: MediaResource;
 }
 
-function getDatasetMedia(folderId: string) {
+async function getDatasetMedia(datasetId: string) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
 }
 
@@ -123,15 +130,21 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
   return false;
 }
 
-function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attributes`, args);
 }
 
-function saveAttributeTrackFilters(folderId: string, args: SaveAttributeTrackFilterArgs) {
+async function saveAttributeTrackFilters(
+  datasetId: string,
+  args: SaveAttributeTrackFilterArgs,
+) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
-function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
+async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
 }
 
