@@ -112,12 +112,21 @@ export default defineComponent({
     const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
 
     const typeList: Ref<string[]> = ref([]);
+    const timeFilter: Ref<[number, number] | null> = ref(null);
 
     const findType = async () => {
       const meta = await loadMetadata(props.id);
       typeList.value = [meta.type];
     };
     findType();
+
+    watch(
+      () => viewerRef.value?.trackFilters?.timeFilters?.value,
+      (value) => {
+        timeFilter.value = value ?? null;
+      },
+      { immediate: true },
+    );
     const runningPipelines = computed(() => {
       const results: string[] = [];
       if (jobs.getDatasetRunningState(props.id)) {
@@ -234,6 +243,7 @@ export default defineComponent({
       routeSet,
       largeImageWarning,
       typeList,
+      timeFilter,
       pipelinesEnabled,
     };
   },
@@ -275,6 +285,7 @@ export default defineComponent({
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
+        :time-filter="timeFilter"
       />
       <ImportAnnotations
         :button-options="buttonOptions"

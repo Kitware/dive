@@ -199,7 +199,7 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
-    pipeline_params: dict[str, str] = None,
+    pipeline_params: Optional[types.PipelineParams] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -207,7 +207,7 @@ def run_pipeline(
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
     :param force_transcoded: Force transcoding input.
-    :param pipeline_params: Dict of key values containing user specified settings.
+    :param pipeline_params: Grouped pipeline params for runtime and KWIVER settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -236,6 +236,9 @@ def run_pipeline(
 
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
+    runtime_params = (pipeline_params or {}).get("runtimeParams")
+    kwiver_params = (pipeline_params or {}).get("kwiverParams")
+
     params: types.PipelineJob = {
         "pipeline": pipeline,
         "input_folder": folder_id_str,
@@ -245,7 +248,8 @@ def run_pipeline(
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
-        'pipeline_params': pipeline_params,
+        'runtime_params': runtime_params,
+        'kwiver_params': kwiver_params,
     }
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),

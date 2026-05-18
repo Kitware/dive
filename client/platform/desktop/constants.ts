@@ -1,6 +1,6 @@
 import type {
   DatasetMeta, DatasetMetaMutable, DatasetType,
-  Pipe, SubType, MediaImportResponse,
+  Pipe, SubType, MediaImportResponse, PipelineParams,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
@@ -175,8 +175,7 @@ export interface RunPipeline extends JobArgs {
   type: JobType.RunPipeline;
   datasetId: string;
   pipeline: Pipe;
-  /** Optional parameters to pass to the pipeline via -s flags */
-  pipelineParams?: Record<string, string>;
+  pipelineParams?: PipelineParams;
   outputDatasetName?: string;
 }
 

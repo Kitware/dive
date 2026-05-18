@@ -4,9 +4,9 @@ import * as d3 from 'd3';
 import {
   ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, PropType,
 } from 'vue';
-import { DatasetType } from 'dive-common/apispec';
+import { DatasetType, useApi } from 'dive-common/apispec';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
-import { useTrackFilters, useTime } from '../../provides';
+import { useTrackFilters, useTime, useDatasetId } from '../../provides';
 
 type TimeFilterType = 'start' | 'end' | null;
 
@@ -34,6 +34,8 @@ export default defineComponent({
   setup(props, { emit }) {
     const trackFilters = useTrackFilters();
     const { frameRate } = useTime();
+    const { saveMetadata } = useApi();
+    const datasetId = useDatasetId();
 
     const init = ref(!!props.maxFrame || 1);
     const mounted = ref(false);
@@ -318,6 +320,7 @@ export default defineComponent({
         draggingTimeFilter.value = null;
         dragTooltipFrame.value = null;
         dragTooltipPosition.value = null;
+        saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
         return;
       }
       if (dragging.value) {
@@ -386,6 +389,7 @@ export default defineComponent({
         draggingTimeFilter.value = null;
         dragTooltipFrame.value = null;
         dragTooltipPosition.value = null;
+        saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
       }
     }
 

@@ -192,6 +192,9 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     )
     for name, value in validated.dict(exclude_none=True).items():
         dsFolder['meta'][name] = value
+    # exclude_none drops explicit null; client sends timeFilters: null to disable.
+    if 'timeFilters' in data and data['timeFilters'] is None:
+        dsFolder['meta'].pop('timeFilters', None)
     Folder().save(dsFolder)
     return dsFolder['meta']
 

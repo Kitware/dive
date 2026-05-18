@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, watch,
+  computed, defineComponent, ref, watch, Ref,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -85,6 +85,16 @@ export default defineComponent({
       return props.id;
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const timeFilter: Ref<[number, number] | null> = ref(null);
+
+    watch(
+      () => viewerRef.value?.trackFilters?.timeFilters?.value,
+      (value) => {
+        timeFilter.value = value ?? null;
+      },
+      { immediate: true },
+    );
+
     const runningPipelines = computed(() => {
       const results: string[] = [];
       // Check if any running job contains the root props.id
@@ -120,6 +130,7 @@ export default defineComponent({
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
+      timeFilter,
     };
   },
 });
@@ -159,6 +170,7 @@ export default defineComponent({
         :camera-numbers="camNumbers"
         :running-pipelines="runningPipelines"
         :read-only-mode="readOnlyMode"
+        :time-filter="timeFilter"
         v-bind="{ buttonOptions, menuOptions }"
       />
       <ImportAnnotations
