@@ -4,9 +4,9 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 
 ## Implementation Checklist
 
-- [ ] **Server: constants & models** — Add `MultiType` + multiCam/subType/calibration markers and pydantic models (`server/dive_utils/constants.py`, `server/dive_utils/models.py`)
-- [ ] **Server: verify_dataset** — Relax `verify_dataset` to accept `type=multi`; keep fps mirrored from default-display camera
-- [ ] **Server: get_dataset / multiCamMedia** — Extend `crud_dataset.get_dataset` to embed `multiCamMedia` by fanning out to child `get_media` calls
+- [x] **Server: constants & models** — Add `MultiType` + multiCam/subType/calibration markers and pydantic models (`server/dive_utils/constants.py`, `server/dive_utils/models.py`)
+- [x] **Server: verify_dataset** — Relax `verify_dataset` to accept `type=multi`; keep fps mirrored from default-display camera
+- [x] **Server: get_dataset / multiCamMedia** — Extend `crud_dataset.get_dataset` to embed `multiCamMedia` by fanning out to child `get_media` calls
 - [ ] **Server: create multicam** — Implement `POST /dive_dataset/multicam` and `crud_dataset.create_multicam` to move child folders + write parent meta + attach calibration
 - [ ] **Server: clone & export** — Extend `createSoftClone` and `export_datasets_zipstream` to recurse into child cameras; include calibration
 - [ ] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
