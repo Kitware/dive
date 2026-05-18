@@ -8,7 +8,7 @@ For general deployment steps, see [Running with Docker Compose](Deployment-Docke
 
 | Change | Action required |
 |--------|-----------------|
-| **Girder 5** | Pull or build images tagged `girder-5` (see `TAG` in `.env`). |
+| **Girder 5** | Pull or build `kitware/viame-web` and `kitware/viame-worker` images (default tag `latest`; see `TAG` in `.env`). |
 | **Redis** | Add a Redis service; required for job and UI notifications. |
 | **Notifications** | The web client uses WebSockets (not the legacy Girder EventStream). Ensure browsers can reach the Girder API and that Redis is running. |
 | **Environment variables** | Rename broker and worker API settings (table below). |
@@ -32,7 +32,7 @@ Update your `.env` (and any external orchestration) to use Girder 5 names:
 
 1. **Back up** MongoDB and any asset store data before upgrading.
 2. **Merge or checkout** the Girder 5 branch and copy `.env.default` changes into your `.env`.
-3. **Set image tag**, for example `TAG=girder-5`, or pull images that publish that tag.
+3. **Set image tag** if needed (for example `TAG=latest` in `.env`), then pull images.
 4. **Add Redis** — use the `redis` service from `docker-compose.yml` or an external Redis instance and set `GIRDER_NOTIFICATION_REDIS_URL` on `girder` and all worker services.
 5. **Rename variables** in `.env` per the table above.
 6. **Multi-node deployments:** set `GIRDER_WORKER_BROKER` to your RabbitMQ URL and `GIRDER_SETTING_WORKER_API_URL` to your Girder API URL on every worker host; workers must reach Redis used by the web tier if they rely on notification-related features configured in Compose.

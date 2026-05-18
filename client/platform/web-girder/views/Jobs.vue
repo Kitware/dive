@@ -210,7 +210,7 @@ export default defineComponent({
       -e "DIVE_USERNAME=username" \
       -e "DIVE_PASSWORD=CHANGEME" \
       -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
-      kitware/viame-worker:girder-5</pre>
+      kitware/viame-worker:gpu</pre>
         </v-card-text>
       </v-card>
     </v-card>

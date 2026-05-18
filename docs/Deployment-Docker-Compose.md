@@ -8,7 +8,7 @@ Start here once you have SSH access and `sudo` privileges for a server or VM.
 
 ## Container Images
 
-A DIVE Web deployment consists of 2 main application images (Girder 5 builds use the `girder-5` tag unless overridden with `TAG` in `.env`):
+A DIVE Web deployment consists of 2 main application images (default tag `latest`; override with `TAG` in `.env`):
 
 * [kitware/viame-web](https://hub.docker.com/r/kitware/viame-web) — Girder web server and bundled Vue client
 * [kitware/viame-worker](https://hub.docker.com/r/kitware/viame-worker) — Celery workers for transcoding, pipelines, and training
@@ -243,7 +243,7 @@ docker run --rm --name dive_worker \
   -e "DIVE_USERNAME=CHANGEME" \
   -e "DIVE_PASSWORD=CHANGEME" \
   -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
-  kitware/viame-worker:girder-5
+  kitware/viame-worker:latest
 ```
 
 ### Development: `localworker`
