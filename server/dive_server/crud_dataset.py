@@ -93,17 +93,62 @@ def list_datasets(
     return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
 
+def get_multi_cam_media(
+    dsFolder: types.GirderModel, user: types.GirderUserModel
+) -> models.MultiCamMedia:
+    """Build MultiCamMedia by loading media for each child camera folder."""
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker)
+    if not multi_cam:
+        raise ValueError('Multi camera dataset missing multiCam metadata')
+    default_display = multi_cam.get('defaultDisplay')
+    if not default_display:
+        raise ValueError('Multi camera dataset missing defaultDisplay')
+    cameras_meta = multi_cam.get('cameras') or {}
+    cameras: Dict[str, models.MultiCamMediaCamera] = {}
+    for name, cam_info in cameras_meta.items():
+        folder_id = cam_info.get('folderId')
+        if not folder_id:
+            raise ValueError(f'Camera "{name}" missing folderId')
+        child = Folder().load(folder_id, level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder {folder_id} for "{name}" was not found',
+                code=404,
+            )
+        child_media = get_media(child, user)
+        cam_type = cam_info.get('type') or fromMeta(child, constants.TypeMarker)
+        video_url = child_media.video.url if child_media.video else ''
+        cameras[name] = models.MultiCamMediaCamera(
+            type=cam_type,
+            imageData=child_media.imageData,
+            videoUrl=video_url,
+        )
+    return models.MultiCamMedia(
+        defaultDisplay=default_display,
+        cameras=cameras,
+    )
+
+
 def get_dataset(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.GirderMetadataStatic:
     """Transform a girder folder into a dataset metadata object"""
     crud.verify_dataset(dsFolder)
+    meta = dict(dsFolder.get('meta', {}))
+    source_type = fromMeta(dsFolder, constants.TypeMarker)
+    multi_cam_media = None
+    if source_type == constants.MultiType:
+        multi_cam_media = get_multi_cam_media(dsFolder, user)
+    sub_type = meta.pop(constants.SubTypeMarker, None)
+    meta.pop(constants.MultiCamMarker, None)
     return models.GirderMetadataStatic(
         id=str(dsFolder['_id']),
         createdAt=str(dsFolder['created']),
         name=dsFolder['name'],
         foreign_media_id=dsFolder.get(constants.ForeignMediaIdMarker, None),
-        **dsFolder['meta'],
+        subType=sub_type,
+        multiCamMedia=multi_cam_media,
+        **meta,
     )
 
 
@@ -115,7 +160,10 @@ def get_media(
     imageData: List[models.MediaResource] = []
     crud.verify_dataset(dsFolder)
     source_type = fromMeta(dsFolder, constants.TypeMarker)
-    print(f'Source Type: {source_type}')
+    if source_type == constants.MultiType:
+        return models.DatasetSourceMedia(
+            imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
+        )
     if source_type == constants.VideoType:
         # Find a video tagged with an h264 codec left by the transcoder
         videoItem = Item().findOne(
