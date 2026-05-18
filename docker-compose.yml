@@ -134,8 +134,7 @@ services:
       - cpu
     deploy: {}
     volumes:
-      # readwrite because this worker does addon updates
-      - addons:/tmp/addons:rw
+      - addons:/tmp/addons:ro
     environment:
       - "WORKER_WATCHING_QUEUES=celery"
       - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-3}"

@@ -130,7 +130,7 @@ In this split setup, `girder_worker_default` handles standard queue jobs while t
 
 ## Addon management
 
-After initial deployment, DIVE Server will require an addon upgrade in order to download and scan for VIAME addons. Run this by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{server_url}:{server_port}/api/v1`.
+After initial deployment, DIVE Server will require an addon upgrade in order to download and scan for VIAME addons. This job runs on the `pipelines` worker so base pipelines are seeded from `/opt/noaa/viame/configs/pipelines/` in the VIAME image. A GPU pipeline worker must be online. Run the upgrade by issuing a <u>`POST /dive_configuration/upgrade_pipelines`</u> request from the swagger UI at `http://{server_url}:{server_port}/api/v1`.
 
 * Whether you `force` or not, only those pipelines from addons from the exact urls passed will be enabled on the server.
 * An old addon can be disabled by simply omitting its download from the upgrade payload.
