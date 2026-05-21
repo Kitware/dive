@@ -30,6 +30,7 @@ ImportMultiCamDialog.vue          Shell: platform props, ctx wiring, errors, act
 ├── useImportMultiCamDialog.ts    Builds ctx (state + handlers); emits import payload
 ├── importMultiCamContext.ts      ImportMultiCamContext type + `ctx` prop definition
 ├── validateMulticamImageSets.ts  Pure validation (unit tested)
+├── multicamSubfolderLayout.ts    Subfolder camera naming and layout (unit tested)
 │
 ├── ImportMultiCamTypeSelector.vue
 ├── ImportMultiCamMultiFolder.vue
@@ -44,8 +45,6 @@ ImportMultiCamDialog.vue          Shell: platform props, ctx wiring, errors, act
     ├── ImportMultiCamChooseAnnotation.vue
     └── ImportMultiCamAddType.vue
 ```
-
-Subfolder layout rules live in `dive-common/multicamSubfolderLayout.ts`.
 
 ## Shared context (`ctx`)
 
@@ -124,7 +123,7 @@ The composable uses `useApi()` for `openFromDisk`, optional calibration persiste
 ## Tests
 
 - `validateMulticamImageSets.spec.ts` — image count, glob overlap, keyword pattern rules
-- `multicamSubfolderLayout.spec.ts` — parent-folder camera naming and layout (sibling module)
+- `multicamSubfolderLayout.spec.ts` — parent-folder camera naming and layout
 
 ## Re-exports
 

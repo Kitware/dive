@@ -21,7 +21,7 @@ import {
   isValidCameraName,
   organizeSubfolderCameras,
   pickDefaultMulticamCamera,
-} from 'dive-common/multicamSubfolderLayout';
+} from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import {

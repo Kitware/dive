@@ -1,6 +1,6 @@
 <!--
   "Add Camera" control: validates alphanumeric camera name (no duplicates) and emits
-  add-new. Naming rules match multicamSubfolderLayout isValidCameraName.
+  add-new. Naming rules match ImportMultiCamDialog/multicamSubfolderLayout isValidCameraName.
 -->
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
