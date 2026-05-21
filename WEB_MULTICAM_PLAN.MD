@@ -9,7 +9,7 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 - [x] **Server: get_dataset / multiCamMedia** — Extend `crud_dataset.get_dataset` to embed `multiCamMedia` by fanning out to child `get_media` calls
 - [x] **Server: create multicam** — Implement `POST /dive_dataset/multicam` and `crud_dataset.create_multicam` to move child folders + write parent meta + attach calibration
 - [ ] **Server: clone & export** — Extend `createSoftClone` and `export_datasets_zipstream` to recurse into child cameras; include calibration
-- [ ] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
+- [x] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
 - [x] **Web API** — Add `createMulticamDataset`, `uploadCalibration` helpers in `client/platform/web-girder/api/dataset.service.ts`
 - [x] **Web store** — Remove the `multi is not supported` guard in `useDataset.ts` and attach `multiCamMedia`
 - [x] **Web API: ID rewrite** — Rewrite `${parentId}/${camera}` to child folder id inside `getDataset` / `getDatasetMedia`
