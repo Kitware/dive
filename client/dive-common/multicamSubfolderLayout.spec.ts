@@ -7,6 +7,7 @@ import {
   isValidCameraName,
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
+  preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
   sortSubfolderCameraNames,
 } from './multicamSubfolderLayout';
@@ -95,6 +96,14 @@ describe('organizeSubfolderCameras', () => {
     expect(result.defaultDisplay).toBe('LeftCam');
   });
 
+  it('orders left before right for stereo parent-folder import', () => {
+    const result = organizeSubfolderCameras(['right', 'left'], { preferLeftForStereo: true });
+    expect(result.error).toBeNull();
+    expect(result.assignments.map((a) => a.cameraName)).toEqual(['left', 'right']);
+    expect(result.layoutLabel).toBe('left, right');
+    expect(result.defaultDisplay).toBe('left');
+  });
+
   it('rejects invalid folder names', () => {
     const result = organizeSubfolderCameras(['good', 'bad name']);
     expect(result.error).toMatch(/letters and numbers only/);
@@ -163,9 +172,27 @@ describe('sortSubfolderCameraNames', () => {
   });
 });
 
+describe('preferLeftSubfolderFirst', () => {
+  it('moves an exact "left" folder to the front', () => {
+    expect(preferLeftSubfolderFirst(['right', 'left'])).toEqual(['left', 'right']);
+    expect(preferLeftSubfolderFirst(['RIGHT', 'LEFT'])).toEqual(['LEFT', 'RIGHT']);
+  });
+
+  it('leaves order unchanged when left is already first or absent', () => {
+    expect(preferLeftSubfolderFirst(['left', 'right'])).toEqual(['left', 'right']);
+    expect(preferLeftSubfolderFirst(['cam1', 'cam2'])).toEqual(['cam1', 'cam2']);
+    expect(preferLeftSubfolderFirst(['LeftCam', 'RightCam'])).toEqual(['LeftCam', 'RightCam']);
+  });
+});
+
 describe('orderSubfolderCameraNames', () => {
   it('preserves discovery order for arbitrary names', () => {
     expect(orderSubfolderCameraNames(['right', 'left'])).toEqual(['right', 'left']);
+  });
+
+  it('puts left first for stereo parent-folder import', () => {
+    expect(orderSubfolderCameraNames(['right', 'left'], { preferLeftFirst: true })).toEqual(['left', 'right']);
+    expect(orderSubfolderCameraNames(['RIGHT', 'LEFT'], { preferLeftFirst: true })).toEqual(['LEFT', 'RIGHT']);
   });
 
   it('uses preferred order when STAR, CENTER, and PORT are all present', () => {

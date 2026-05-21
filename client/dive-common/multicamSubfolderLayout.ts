@@ -76,22 +76,40 @@ export function sortSubfolderCameraNames(names: string[]): string[] {
   });
 }
 
+/** Move the subfolder named "left" (case-insensitive) to the front when present. */
+export function preferLeftSubfolderFirst(names: string[]): string[] {
+  const leftIndex = names.findIndex((name) => name.toLowerCase() === 'left');
+  if (leftIndex <= 0) {
+    return names;
+  }
+  const left = names[leftIndex];
+  return [left, ...names.filter((_, index) => index !== leftIndex)];
+}
+
 /** Preserve discovery order unless STAR/CENTER/PORT are all present (then use preferred order). */
-export function orderSubfolderCameraNames(names: string[]): string[] {
+export function orderSubfolderCameraNames(
+  names: string[],
+  options?: { preferLeftFirst?: boolean },
+): string[] {
   const lower = new Set(names.map((n) => n.toLowerCase()));
   const usePreferredOrder = PREFERRED_SUBFOLDER_ORDER.every((preferred) => lower.has(preferred.toLowerCase()));
+  let ordered: string[];
   if (usePreferredOrder) {
-    return sortSubfolderCameraNames(names);
+    ordered = sortSubfolderCameraNames(names);
+  } else {
+    const seen = new Set<string>();
+    ordered = [];
+    names.forEach((name) => {
+      const key = name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        ordered.push(name);
+      }
+    });
   }
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-  names.forEach((name) => {
-    const key = name.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      ordered.push(name);
-    }
-  });
+  if (options?.preferLeftFirst) {
+    return preferLeftSubfolderFirst(ordered);
+  }
   return ordered;
 }
 
@@ -116,7 +134,10 @@ export function applyParentPathToAssignments(
   }));
 }
 
-export function organizeSubfolderCameras(folderNames: string[]): OrganizeSubfolderCamerasResult {
+export function organizeSubfolderCameras(
+  folderNames: string[],
+  options?: { preferLeftForStereo?: boolean },
+): OrganizeSubfolderCamerasResult {
   const empty: OrganizeSubfolderCamerasResult = {
     assignments: [],
     layoutLabel: '',
@@ -134,7 +155,9 @@ export function organizeSubfolderCameras(folderNames: string[]): OrganizeSubfold
       error: `Duplicate subfolder name "${duplicate}"`,
     };
   }
-  const unique = orderSubfolderCameraNames(trimmed);
+  const unique = orderSubfolderCameraNames(trimmed, {
+    preferLeftFirst: options?.preferLeftForStereo,
+  });
 
   if (unique.length < 2 || unique.length > 3) {
     return {
@@ -165,7 +188,9 @@ export function organizeSubfolderCameras(folderNames: string[]): OrganizeSubfold
   return {
     assignments,
     layoutLabel: cameraNames.join(', '),
-    defaultDisplay: pickDefaultMulticamCamera(cameraNames),
+    defaultDisplay: pickDefaultMulticamCamera(cameraNames, {
+      preferLeftForStereo: options?.preferLeftForStereo,
+    }),
     error: null,
   };
 }

@@ -270,7 +270,9 @@ export function useImportMultiCamDialog(
         folderNames = await listImmediateSubfolders!(parentPath);
       }
 
-      const organized = organizeSubfolderCameras(folderNames);
+      const organized = organizeSubfolderCameras(folderNames, {
+        preferLeftForStereo: props.stereo,
+      });
       if (organized.error) {
         throw new Error(organized.error);
       }
