@@ -16,7 +16,7 @@ export interface OrganizeSubfolderCamerasResult {
   error: string | null;
 }
 
-/** Same rules as manual "Add Camera" in ImportMultiCamAddType. */
+/** Same rules as manual "Add Camera" in ImportMultiCamDialog/ImportMultiCamAddType. */
 export const CAMERA_NAME_PATTERN = /^[a-zA-Z0-9]+$/;
 
 /** Preferred camera order when subfolders use these names (case-insensitive). */
