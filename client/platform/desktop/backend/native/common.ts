@@ -1000,6 +1000,56 @@ async function findTrackandMetaFileinFolder(path: string) {
 }
 
 /**
+ * List immediate child directories of a parent folder (for multicam subfolder import).
+ */
+async function listImmediateSubfolders(parentPath: string): Promise<string[]> {
+  if (!await fs.pathExists(parentPath)) {
+    throw new Error(`Directory not found: ${parentPath}`);
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    throw new Error(`Not a directory: ${parentPath}`);
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  return children
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name);
+}
+
+/**
+ * Resolve the import path for one camera subfolder (directory or first video file).
+ */
+async function resolveMulticamCameraSourcePath(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<string> {
+  if (mediaType === 'image-sequence') {
+    return subfolderPath;
+  }
+  const stat = await fs.stat(subfolderPath);
+  if (!stat.isDirectory()) {
+    return subfolderPath;
+  }
+  const entries = await fs.readdir(subfolderPath, { withFileTypes: true });
+  const videoPaths: string[] = [];
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.isFile()) {
+      return;
+    }
+    const fullPath = npath.join(subfolderPath, entry.name);
+    const mimetype = mime.lookup(fullPath);
+    if (mimetype && (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype))) {
+      videoPaths.push(fullPath);
+    }
+  }));
+  videoPaths.sort((a, b) => a.localeCompare(b));
+  if (!videoPaths.length) {
+    throw new Error(`No video file found in ${subfolderPath}`);
+  }
+  return videoPaths[0];
+}
+
+/**
  * Attempt a media import on the provided path, which may or may not be a valid dataset.
  */
 async function attemptMediaImport(path: string) {
@@ -1510,6 +1560,8 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
+  listImmediateSubfolders,
+  resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,
   saveLastCalibration,

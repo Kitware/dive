@@ -26,6 +26,7 @@ def _multi_parent_folder():
             'subType': 'stereo',
             'multiCam': {
                 'defaultDisplay': 'left',
+                'cameraOrder': ['left', 'right'],
                 'cameras': {
                     'left': {'folderId': 'left-id', 'type': 'image-sequence'},
                     'right': {'folderId': 'right-id', 'type': 'image-sequence'},
@@ -101,6 +102,7 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
     assert result.subType == 'stereo'
     assert result.multiCamMedia is not None
     assert result.multiCamMedia.defaultDisplay == 'left'
+    assert result.multiCamMedia.cameraOrder == ['left', 'right']
     assert set(result.multiCamMedia.cameras.keys()) == {'left', 'right'}
     assert result.multiCamMedia.cameras['left'].imageData[0].filename == 'left.png'
     assert 'multiCam' not in result.dict()

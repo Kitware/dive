@@ -34,6 +34,7 @@ class DatasetResource(Resource):
         Folder().exposeFields(AccessType.READ, constants.ForeignMediaIdMarker)
 
         self.route("POST", (), self.create_dataset)
+        self.route("POST", ("multicam",), self.create_multicam)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", (":id", "media"), self.get_media)
@@ -90,6 +91,33 @@ class DatasetResource(Resource):
         return crud_dataset.createSoftClone(
             self.getCurrentUser(), cloneSource, parentFolder, name, revision
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Finalize a multicamera dataset from uploaded child folders")
+        .modelParam(
+            "parentFolderId",
+            description="Multicam dataset folder containing the per-camera child folders",
+            paramType="query",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+            required=True,
+        )
+        .jsonParam(
+            "data",
+            description="schema: CreateMulticamArgs",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def create_multicam(self, parentFolder, data):
+        folder = crud_dataset.create_multicam(
+            self.getCurrentUser(),
+            parentFolder,
+            data,
+        )
+        return folder
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(

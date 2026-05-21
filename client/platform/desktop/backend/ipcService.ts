@@ -143,6 +143,15 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('list-immediate-subfolders', async (event, { path }: { path: string }) => (
+    common.listImmediateSubfolders(path)
+  ));
+
+  ipcMain.handle('resolve-multicam-camera-source-path', async (
+    event,
+    { path, mediaType }: { path: string; mediaType: 'image-sequence' | 'video' },
+  ) => common.resolveMulticamCameraSourcePath(path, mediaType));
+
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
     return ret;
