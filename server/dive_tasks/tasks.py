@@ -20,12 +20,15 @@ from girder_worker.utils import JobManager, JobStatus
 from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
+from dive_tasks.multicam_pipeline import build_multicam_kwiver_settings
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
 from dive_utils.types import (
     AvailableJobSchema,
     ExportTrainedPipelineJob,
     GirderModel,
+    MulticamCameraJob,
+    MulticamPipelineJob,
     PipelineJob,
     TrainingJob,
 )
@@ -259,6 +262,35 @@ def upgrade_pipelines(
     gc.put('dive_configuration/installed_addons', json={'downloaded': downloaded})
 
 
+def _resolve_pipeline_path(
+    conf: 'Config',
+    gc: GirderClient,
+    pipeline: dict,
+    trained_pipeline_path: Path,
+) -> Path:
+    if pipeline["type"] == constants.TrainedPipelineCategory:
+        gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_path))
+        return trained_pipeline_path / pipeline["pipe"]
+    return conf.get_extracted_pipeline_path() / pipeline["pipe"]
+
+
+def _append_frame_range_video_settings(
+    command: List[str],
+    input_folder: GirderModel,
+    frame_range: Tuple[int, int],
+    pipeline_pipe: str,
+) -> None:
+    command.append(f"-s downsampler:start_frame={shlex.quote(str(frame_range[0]))}")
+    command.append(f"-s downsampler:end_frame={shlex.quote(str(frame_range[1]))}")
+    input_fps = fromMeta(input_folder, constants.FPSMarker)
+    original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
+    is_native = original_fps is None or input_fps >= original_fps
+    command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
+    renumber = pipeline_pipe.startswith(("transcode_", "filter_"))
+    command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
+    command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -282,6 +314,8 @@ def run_pipeline(self: Task, params: PipelineJob):
     force_transcoded = params.get('force_transcoded', False)
     runtime_params = params.get('runtime_params') or {}
     frame_range = runtime_params.get('frameRange')
+    multicam_params = params  # type: MulticamPipelineJob
+    multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -292,17 +326,106 @@ def run_pipeline(self: Task, params: PipelineJob):
         track_output_file = str(output_path / 'track_output.csv')
         img_list_path = input_path / 'img_list_file.txt'
 
-        if pipeline["type"] == constants.TrainedPipelineCategory:
-            gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_path))
-            pipeline_path = trained_pipeline_path / pipeline["pipe"]
-        else:
-            pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
+        pipeline_path = _resolve_pipeline_path(conf, gc, pipeline, trained_pipeline_path)
 
         assert pipeline_path.exists(), (
             "Requested pipeline could not be found."
             " Make sure that VIAME is installed correctly and all addons have loaded."
             f" Job asked for {pipeline_path} but it does not exist"
         )
+
+        if multicam_cameras:
+            input_folder = gc.getFolder(input_folder_id)
+            input_fps = fromMeta(input_folder, constants.FPSMarker)
+            default_display = multicam_params['multicam_default_display']
+            requires_input = multicam_params.get('multicam_requires_input', False)
+            camera_media: Dict[str, Tuple[List[str], str]] = {}
+
+            for cam_index, camera in enumerate(multicam_cameras, start=1):
+                cam_input_path = utils.make_directory(input_path / camera['name'])
+                media_list, media_type = utils.download_source_media(
+                    gc, camera['folder_id'], cam_input_path, force_transcoded
+                )
+                if frame_range is not None and media_type == constants.ImageSequenceType:
+                    media_list = filter_image_list_by_frame_range(media_list, frame_range)
+                camera_media[camera['name']] = (media_list, media_type)
+                if requires_input and camera.get('input_revision') is not None:
+                    gt_path = _working_directory_path / f'detections{cam_index}.csv'
+                    utils.download_revision_csv(
+                        gc, camera['folder_id'], camera['input_revision'], gt_path
+                    )
+
+            arg_file_pair, out_files = build_multicam_kwiver_settings(
+                _working_directory_path,
+                multicam_cameras,
+                camera_media,
+                requires_input=requires_input,
+            )
+
+            command = [
+                f". {shlex.quote(str(conf.viame_setup_script))} &&",
+                f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
+                "viame runner",
+                f"-p {shlex.quote(str(pipeline_path))}",
+            ]
+            if input_type == constants.VideoType:
+                command.extend([
+                    '-s input:video_reader:type=vidl_ffmpeg',
+                    f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
+                ])
+                if frame_range is not None:
+                    _append_frame_range_video_settings(
+                        command, input_folder, frame_range, pipeline['pipe']
+                    )
+            for arg, file_name in arg_file_pair.items():
+                command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
+
+            calibration_item_id = multicam_params.get('calibration_item_id')
+            if calibration_item_id:
+                cal_dir = utils.make_directory(_working_directory_path / 'calibration')
+                gc.downloadItem(calibration_item_id, str(cal_dir))
+                cal_files = list(cal_dir.glob('*.npz'))
+                if cal_files:
+                    cal_path = shlex.quote(str(cal_files[0]))
+                    command.append(f'-s measurer:calibration_file={cal_path}')
+                    command.append(f'-s calibration_reader:file={cal_path}')
+
+            kwiver_params = params.get('kwiver_params')
+            if kwiver_params:
+                for key, value in kwiver_params.items():
+                    command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
+
+            manager.updateStatus(JobStatus.RUNNING)
+            popen_kwargs = {
+                'args': " ".join(command),
+                'shell': True,
+                'executable': '/bin/bash',
+                'cwd': output_path,
+                'env': conf.gpu_process_env,
+            }
+            utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            for camera in multicam_cameras:
+                cam_name = camera['name']
+                output_name = out_files[cam_name]
+                output_file = _working_directory_path / output_name
+                if not output_file.exists() or not output_file.stat().st_size:
+                    detector_name = output_name.replace('computed_tracks', 'computed_detections')
+                    detector_path = _working_directory_path / detector_name
+                    if detector_path.exists() and detector_path.stat().st_size:
+                        output_file = detector_path
+                if frame_range is not None and camera_media[cam_name][1] == constants.VideoType:
+                    output_file = Path(
+                        filter_csv_by_frame_range(str(output_file), frame_range)
+                    )
+                newfile = gc.uploadFileToFolder(camera['folder_id'], str(output_file))
+                gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+                gc.post(
+                    f'dive_rpc/postprocess/{camera["folder_id"]}',
+                    data={"skipJobs": True},
+                )
+            return
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
@@ -325,16 +448,9 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
             ]
             if frame_range is not None:
-                command.append(f"-s downsampler:start_frame={shlex.quote(str(frame_range[0]))}")
-                command.append(f"-s downsampler:end_frame={shlex.quote(str(frame_range[1]))}")
-                original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
-                is_native = original_fps is None or input_fps >= original_fps
-                command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
-                # Transcode/filter pipes: output frames renumbered relative to new range
-                # All other pipes: output frames relative to original video
-                renumber = pipeline["pipe"].startswith(("transcode_", "filter_"))
-                command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
-                command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
+                _append_frame_range_video_settings(
+                    command, input_folder, frame_range, pipeline['pipe']
+                )
         elif input_type == constants.ImageSequenceType:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
