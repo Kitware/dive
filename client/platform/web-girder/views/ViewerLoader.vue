@@ -12,11 +12,12 @@ import context from 'dive-common/store/context';
 import { useBrand } from 'platform/web-girder/store/useBrand';
 import { useConfig } from 'platform/web-girder/store/useConfig';
 import { useDataset } from 'platform/web-girder/store/useDataset';
+import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandledPromiseRejection';
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { DatasetType, SubType } from 'dive-common/apispec';
-import { useApi } from 'dive-common/apispec';
+import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
@@ -96,13 +97,12 @@ export default defineComponent({
   },
 
   setup(props) {
-    const { loadMetadata } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
     const viewerRef = ref();
     const { brandData } = useBrand();
     const { pipelinesEnabled } = useConfig();
-    const { meta: datasetMeta } = useDataset();
+    const { meta: datasetMeta, loadDataset } = useDataset();
     const jobs = useJobs();
     const { locationRoute } = useLocation();
     const revisionNum = computed(() => {
@@ -112,22 +112,19 @@ export default defineComponent({
     });
     const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
 
-    const typeList: Ref<DatasetType[]> = ref([]);
-    const subTypeList = computed((): SubType[] => {
-      const subType = datasetMeta.value?.subType;
-      return subType ? [subType] : [];
+    const typeList = computed((): DatasetType[] => {
+      const t = datasetMeta.value?.type;
+      return t ? [t as DatasetType] : [];
     });
-    const cameraNumbers = computed(() => {
-      const count = Object.keys(datasetMeta.value?.multiCamMedia?.cameras ?? {}).length;
-      return [count > 0 ? count : 1];
-    });
+    const subTypeList = computed((): SubType[] => [datasetMeta.value?.subType ?? null]);
+    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value)]);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
-    const findType = async () => {
-      const meta = await loadMetadata(props.id);
-      typeList.value = [meta.type as DatasetType];
-    };
-    findType();
+    watch(() => props.id, (datasetId) => {
+      loadDataset(datasetId).catch((reason) => {
+        reportHandledPromiseRejection('ViewerLoader: loadDataset', reason);
+      });
+    }, { immediate: true });
 
     watch(
       () => viewerRef.value?.trackFilters?.timeFilters?.value,

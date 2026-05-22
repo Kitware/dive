@@ -37,7 +37,12 @@ export function useDataset() {
       dsMeta.imageData = [];
       dsMeta.videoUrl = undefined;
     }
-    setMeta(dsMeta);
+    // Only update the shared store for the parent dataset. Per-camera composite
+    // loads (parentId/cameraName) must not overwrite multicam metadata used by
+    // ViewerLoader pipeline filters and other chrome.
+    if (!compositeId) {
+      setMeta(dsMeta);
+    }
     const { parentId, parentCollection } = folder.data;
     if (parentId && parentCollection) {
       await useLocation().hydrate({

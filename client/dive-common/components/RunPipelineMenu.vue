@@ -23,6 +23,7 @@ import {
   LargeImageType,
   pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
@@ -86,7 +87,6 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
-    const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
@@ -131,36 +131,12 @@ export default defineComponent({
       unsortedPipelines.value = await getPipelineList();
     });
 
-    const pipelines = computed(() => {
-      const sortedPipelines = {} as Pipelines;
-      Object.entries(unsortedPipelines.value).forEach(([name, category]) => {
-        category.pipes.sort((a, b) => {
-          const aName = a.name.toLowerCase();
-          const bName = b.name.toLowerCase();
-          if (aName > bName) {
-            return 1;
-          }
-          if (aName < bName) {
-            return -1;
-          }
-          return 0;
-        });
-        // Filter out unsupported pipelines based on subTypeList
-        // measurement can only be operated on stereo subtypes
-        if (props.subTypeList.every((item) => item === 'stereo') && (name === stereoPipelineMarker)) {
-          sortedPipelines[name] = category;
-        } else if (props.subTypeList.every((item) => item === 'multicam') && (multiCamPipelineMarkers.includes(name))) {
-          const pipelineExpectedCameraCount = name.split('-')[0];
-          if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
-            sortedPipelines[name] = category;
-          }
-        }
-        if (name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
-          sortedPipelines[name] = category;
-        }
-      });
-      return sortedPipelines;
-    });
+    const pipelines = computed(() => filterPipelinesForDatasets(
+      unsortedPipelines.value,
+      props.subTypeList,
+      props.cameraNumbers,
+      props.typeList,
+    ));
 
     const pipelinesNotRunnable = computed(() => (
       props.selectedDatasetIds.length < 1 || pipelines.value === null

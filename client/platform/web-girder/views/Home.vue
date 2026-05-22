@@ -8,6 +8,8 @@ import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import type { SubType } from 'dive-common/apispec';
+import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
@@ -79,13 +81,31 @@ export default defineComponent({
       return results;
     });
 
-    const selectedViameFolderIds = computed(() => selected.value.filter(
+    const selectedViameFolders = computed(() => selected.value.filter(
       ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-    ).map(({ _id }) => _id));
+    ));
 
-    const selectedViameFolderNames = computed(() => selected.value.filter(
-      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-    ).map(({ name }) => name));
+    const selectedViameFolderIds = computed(() => selectedViameFolders.value.map(({ _id }) => _id));
+
+    const selectedViameFolderNames = computed(() => selectedViameFolders.value.map(({ name }) => name));
+
+    const pipelineTargetFolders = computed(() => (
+      locationIsViameFolder.value && location.value
+        ? [location.value]
+        : selectedViameFolders.value
+    ));
+
+    const subTypeList = computed((): SubType[] => pipelineTargetFolders.value.map(
+      (item) => item.meta?.subType ?? null,
+    ));
+
+    const cameraNumbers = computed(() => pipelineTargetFolders.value.map(
+      (item) => getMultiCamCameraCount(item.meta),
+    ));
+
+    const datasetTypeList = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.type ?? null,
+    ));
 
     const selectedFileIds = computed(() => selected.value.filter(
       (element) => element._modelType === 'item',
@@ -122,6 +142,9 @@ export default defineComponent({
       runningPipelines,
       selectedViameFolderIds,
       selectedViameFolderNames,
+      subTypeList,
+      cameraNumbers,
+      datasetTypeList,
       selectedFileIds,
       includesLargeImage,
       locationInputs,
@@ -205,6 +228,9 @@ export default defineComponent({
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
                     menuOptions,
+                    subTypeList,
+                    cameraNumbers,
+                    typeList: datasetTypeList,
                   }"
                   :selected-dataset-ids="locationInputs"
                   :selected-dataset-name="locationInputNames"
