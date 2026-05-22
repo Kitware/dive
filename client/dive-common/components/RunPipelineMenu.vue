@@ -273,6 +273,8 @@ export default defineComponent({
   <div>
     <v-menu
       max-width="230"
+      max-height="none"
+      content-class="pipeline-menu-content"
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
@@ -365,17 +367,19 @@ export default defineComponent({
               target="_blank"
             >docs</a>
             for more information about these options.
-          </v-card-text>
-          <v-row class="px-3">
+          <v-row class="px-3 pipeline-categories-row">
             <v-col
-              v-for="pipeType in Object.keys(pipelines)"
+              v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
               :key="pipeType"
               cols="12"
+              :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
             >
               <v-menu
                 :key="pipeType"
                 offset-x
                 right
+                max-height="none"
+                content-class="pipeline-menu-content"
               >
                 <template #activator="{ on }">
                   <v-btn
@@ -397,7 +401,7 @@ export default defineComponent({
                 <v-list
                   dense
                   outlined
-                  style="overflow-y: auto; max-height: 85vh"
+                  class="pipeline-submenu-list"
                 >
                   <v-tooltip
                     v-for="pipeline in pipelines[pipeType].pipes"
@@ -428,6 +432,7 @@ export default defineComponent({
               </v-menu>
             </v-col>
           </v-row>
+          </v-card-text>
         </v-card>
       </template>
     </v-menu>
@@ -455,6 +460,24 @@ export default defineComponent({
 </template>
 
 <style>
+/* Vuetify sets overflow-y: auto on .v-menu__content; scroll only on the list */
+.pipeline-menu-content.v-menu__content {
+  overflow-y: visible;
+  overflow-x: visible;
+  contain: none;
+  max-height: none !important;
+}
+
+.pipeline-submenu-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.pipeline-category-col--last {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
 .pipeline-description-tooltip.v-tooltip__content {
   background: #3a3a3a !important;
   opacity: 1 !important;
