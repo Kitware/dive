@@ -367,71 +367,71 @@ export default defineComponent({
               target="_blank"
             >docs</a>
             for more information about these options.
-          <v-row class="px-3 pipeline-categories-row">
-            <v-col
-              v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
-              :key="pipeType"
-              cols="12"
-              :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
-            >
-              <v-menu
+            <v-row class="px-3 pipeline-categories-row">
+              <v-col
+                v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
                 :key="pipeType"
-                offset-x
-                right
-                max-height="none"
-                content-class="pipeline-menu-content"
+                cols="12"
+                :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
               >
-                <template #activator="{ on }">
-                  <v-btn
-                    depressed
-                    block
-                    v-on="on"
-                  >
-                    {{ pipeTypeDisplay(pipeType) }}
-                    <v-icon
-                      right
-                      color="accent"
-                      class="ml-2"
-                    >
-                      mdi-menu-right
-                    </v-icon>
-                  </v-btn>
-                </template>
-
-                <v-list
-                  dense
-                  outlined
-                  class="pipeline-submenu-list"
+                <v-menu
+                  :key="pipeType"
+                  offset-x
+                  right
+                  max-height="none"
+                  content-class="pipeline-menu-content"
                 >
-                  <v-tooltip
-                    v-for="pipeline in pipelines[pipeType].pipes"
-                    :key="`${pipeline.name}-${pipeline.pipe}`"
-                    left
-                    :open-delay="250"
-                    :disabled="!pipeline?.metadata?.description"
-                    max-width="400"
-                    content-class="pipeline-description-tooltip"
-                  >
-                    <template #activator="{ on, attrs }">
-                      <v-list-item
-                        v-bind="attrs"
-                        v-on="on"
-                        @click="runPipelineOnSelectedItem(pipeline)"
+                  <template #activator="{ on }">
+                    <v-btn
+                      depressed
+                      block
+                      v-on="on"
+                    >
+                      {{ pipeTypeDisplay(pipeType) }}
+                      <v-icon
+                        right
+                        color="accent"
+                        class="ml-2"
                       >
-                        <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                          {{ pipeline.name }}
-                          <v-icon style="margin-left: 20px">
-                            {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
-                          </v-icon>
-                        </v-list-item-title>
-                      </v-list-item>
-                    </template>
-                    <RunPipelineToast :pipeline="pipeline" />
-                  </v-tooltip>
-                </v-list>
-              </v-menu>
-            </v-col>
-          </v-row>
+                        mdi-menu-right
+                      </v-icon>
+                    </v-btn>
+                  </template>
+
+                  <v-list
+                    dense
+                    outlined
+                    class="pipeline-submenu-list"
+                  >
+                    <v-tooltip
+                      v-for="pipeline in pipelines[pipeType].pipes"
+                      :key="`${pipeline.name}-${pipeline.pipe}`"
+                      left
+                      :open-delay="250"
+                      :disabled="!pipeline?.metadata?.description"
+                      max-width="400"
+                      content-class="pipeline-description-tooltip"
+                    >
+                      <template #activator="{ on, attrs }">
+                        <v-list-item
+                          v-bind="attrs"
+                          v-on="on"
+                          @click="runPipelineOnSelectedItem(pipeline)"
+                        >
+                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
+                            {{ pipeline.name }}
+                            <v-icon style="margin-left: 20px">
+                              {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                            </v-icon>
+                          </v-list-item-title>
+                        </v-list-item>
+                      </template>
+                      <RunPipelineToast :pipeline="pipeline" />
+                    </v-tooltip>
+                  </v-list>
+                </v-menu>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
       </template>
