@@ -36,6 +36,8 @@ DIVE Desktop supports single- and multi-camera datasets.
 * **Stereo Datasets** are for datasets collected from a camera rig with a left and right camera.  These datasets can be used with certain specialty VIAME pipelines. Their physical relationship may be described by a camera transform `.npz` file (numpy transformation matrix).
 * **Multi-Cam Datasets** are for more generic multi-camera rig setups.  They may have overlapping fields of view.
 
+Shared viewer behavior (camera selection, linked tracks, MultiCamera Tools, and pipelines) is documented in [Multicamera and Stereo Data](Multicamera-data.md). The [web version](Web-Version.md#uploading-multicamera-and-stereo-data) supports the same import types with a few desktop-only advanced options.
+
 ### Importing Datasets
 
 Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :material-file-video:== to begin a single camera default import.  Click the ==:material-chevron-down:== dropdown button to show additional import options.
