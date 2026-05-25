@@ -38,7 +38,7 @@ export default defineComponent({
       autoZoom: 'Automatically zoom to the track when selected',
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       autoSave: 'Automatically save annotation changes after a short delay. Changes are batched to reduce server requests.',
-      stereoInteractiveMode: 'When enabled, annotations created on one camera are automatically warped to the other camera using stereo disparity',
+      stereoInteractiveMode: 'When enabled, annotations created on one camera are automatically warped to the other camera using stereo disparity. Line annotations also get a stereo measurement (length, midpoint, range, RMS) that is recomputed whenever the line is drawn, edited, or linked across cameras.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList

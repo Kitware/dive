@@ -320,11 +320,18 @@ function _parseFeature(row: string[]) {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
   };
-  if (rowInfo.fishLength !== -1) {
+  if (rowInfo.fishLength !== -1 && Number.isFinite(rowInfo.fishLength)) {
     feature.fishLength = rowInfo.fishLength;
   }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
+  }
+  // Surface the VIAME length column (col 8) as a 'length' detection attribute so
+  // stereo length measurements are visible/editable in the Attributes panel.
+  // The attribute is the canonical source on export (see serialize), so this
+  // round-trips through the length column rather than an (atr) column.
+  if (feature.fishLength !== undefined) {
+    feature.attributes = { ...(feature.attributes || {}), length: feature.fishLength };
   }
   if (rowData.geoFeatureCollection.features.length > 0) {
     feature.geometry = rowData.geoFeatureCollection;
@@ -656,18 +663,30 @@ async function serialize(
               column2 = moment.utc((feature.frame / meta.fps) * 1000).format('HH:mm:ss.SSSSSS');
             }
 
+            // The 'length' detection attribute is the editable source of truth
+            // for the VIAME length column (col 8); fall back to fishLength.
+            const lengthAttr = feature.attributes?.length;
+            const lengthValue = (lengthAttr !== undefined && lengthAttr !== null)
+              ? Number(lengthAttr)
+              : feature.fishLength;
+
             const row = [
               track.id,
               column2,
               feature.frame,
               ...(feature.bounds as number[]),
               sortedPairs[0][1], // always take highest confidence to be track confidence
-              feature.fishLength || -1,
+              (lengthValue !== undefined && Number.isFinite(lengthValue)) ? lengthValue : -1,
               ...flattenDeep(sortedPairs),
             ];
 
             /* Feature Attributes */
             Object.entries(feature.attributes || {}).forEach(([key, val]) => {
+              // 'length' is written to the dedicated length column above; don't
+              // duplicate it as an (atr) column.
+              if (key === 'length') {
+                return;
+              }
               row.push(`${AtrToken} ${key} ${val}`);
             });
             /* Track Attributes */

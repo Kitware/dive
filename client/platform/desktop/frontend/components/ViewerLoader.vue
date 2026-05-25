@@ -18,6 +18,7 @@ import {
   segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
+  stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
@@ -520,6 +521,9 @@ export default defineComponent({
     const stereoLoadingMessage = ref('Loading stereo model...');
     const stereoLoadingError = ref('');
     const stereoEnabled = ref(false);
+    // Transient notification reporting the latest computed stereo length
+    const stereoLengthSnackbar = ref(false);
+    const stereoLengthMessage = ref('');
 
     // Cache image path getters per camera for stereo frame setting
     const stereoImagePathGetters = ref({} as Record<string, (frameNum: number) => string>);
@@ -673,6 +677,225 @@ export default defineComponent({
     }
 
     /**
+     * Extract the two endpoints of a 2-point LineString from a track's feature
+     * at the given frame. Returns null if there is no such line.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function getStereoLineEndpoints(track: any, frameNum: number)
+      : [[number, number], [number, number]] | null {
+      if (!track) return null;
+      const [feature] = track.getFeature(frameNum);
+      if (!feature || !feature.geometry) return null;
+      const lineFeat = feature.geometry.features.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length === 2,
+      );
+      if (!lineFeat) return null;
+      const c = lineFeat.geometry.coordinates as [number, number][];
+      return [c[0], c[1]];
+    }
+
+    // Detection attribute names for the standard VIAME stereo measurement,
+    // matching the keys produced by the interactive stereo service. 'length' is
+    // additionally stored in the VIAME CSV length column (feature.fishLength).
+    const STEREO_MEASUREMENT_ATTRS = [
+      'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+    ];
+
+    /**
+     * Ensure the standard stereo measurement attributes are defined as numeric
+     * detection attributes so they're visible in the Attributes panel.
+     */
+    function ensureMeasurementAttributes() {
+      const viewer = viewerRef.value;
+      if (!viewer || !viewer.handler || !viewer.handler.setAttribute) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const existing = (viewer.attributes || []) as any[];
+      STEREO_MEASUREMENT_ATTRS.forEach((name) => {
+        if (!existing.find((a) => a.name === name && a.belongs === 'detection')) {
+          viewer.handler.setAttribute({
+            data: {
+              belongs: 'detection',
+              datatype: 'number',
+              name,
+              key: `detection_${name}`,
+            },
+          });
+        }
+      });
+      // Track-level average length (mean of the per-frame lengths along the track).
+      if (!existing.find((a) => a.name === 'avg_length' && a.belongs === 'track')) {
+        viewer.handler.setAttribute({
+          data: {
+            belongs: 'track',
+            datatype: 'number',
+            name: 'avg_length',
+            key: 'track_avg_length',
+          },
+        });
+      }
+    }
+
+    /**
+     * Recompute the average stereo length along a whole track and store it as
+     * the track-level 'avg_length' attribute. The per-frame lengths are gathered
+     * from the track (needs nothing but the track); the aggregation itself is
+     * done in VIAME by viame::core::aggregate_lengths (the same helper the
+     * pair_stereo_tracks pipeline uses), reached via the stereo service.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function updateTrackAverageLength(track: any) {
+      if (!track) return;
+      const frames = track.featureIndex || [];
+      const lengths: number[] = [];
+      for (let i = 0; i < frames.length; i += 1) {
+        const feature = track.features[frames[i]];
+        if (feature && Number.isFinite(feature.fishLength)) {
+          lengths.push(feature.fishLength);
+        }
+      }
+      if (lengths.length === 0) return;
+
+      const response = await stereoAggregateLengths({ lengths });
+      if (response.success && Number.isFinite(response.avgLength)) {
+        track.setAttribute('avg_length', Math.round((response.avgLength as number) * 100) / 100);
+      }
+    }
+
+    /**
+     * Recompute the track-level average length for both camera tracks of a
+     * linked pair. Called once per measurement event (after per-frame lengths
+     * have been written).
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function updateStereoTrackAverages(cameraStore: any, trackId: number) {
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length < 2) return;
+      const [leftCamera, rightCamera] = cameras;
+      await updateTrackAverageLength(cameraStore.getPossibleTrack(trackId, leftCamera));
+      await updateTrackAverageLength(cameraStore.getPossibleTrack(trackId, rightCamera));
+    }
+
+    /**
+     * Store a full stereo measurement on a track feature. length is written to
+     * the canonical fishLength (VIAME CSV length column) and to a 'length'
+     * attribute; the remaining standard measurements (midpoint x/y/z, range,
+     * RMS) are stored as detection attributes.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function applyStereoMeasurement(track: any, frameNum: number, measurement: any) {
+      if (!track || !measurement) return;
+      const round2 = (v: number) => Math.round(v * 100) / 100;
+      const { length } = measurement;
+      if (length !== undefined && Number.isFinite(length)) {
+        const [feature] = track.getFeature(frameNum);
+        if (feature && feature.keyframe) {
+          // Merge fishLength without disturbing existing geometry/bounds
+          track.setFeature({ frame: frameNum, fishLength: round2(length) });
+        }
+      }
+      STEREO_MEASUREMENT_ATTRS.forEach((name) => {
+        const v = measurement[name];
+        if (v !== undefined && Number.isFinite(v)) {
+          track.setFeatureAttribute(frameNum, name, round2(v));
+        }
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function reportStereoMeasurement(measurement: any) {
+      if (!measurement || !Number.isFinite(measurement.length)) return;
+      const round2 = (v: number) => Math.round(v * 100) / 100;
+      const parts = [`Stereo length: ${round2(measurement.length)}`];
+      if (Number.isFinite(measurement.midpoint_range)) {
+        parts.push(`range: ${round2(measurement.midpoint_range)}`);
+      }
+      stereoLengthMessage.value = parts.join('  •  ');
+      stereoLengthSnackbar.value = true;
+    }
+
+    /**
+     * Triangulate and store the stereo measurement for one frame of a track that
+     * has a 2-point line on both cameras. Returns the measurement, or null if
+     * either side lacks a line (or the service fails).
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function measureStereoLineAtFrame(cameraStore: any, trackId: number, frameNum: number) {
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length < 2) return null;
+      const [leftCamera, rightCamera] = cameras;
+      const leftTrack = cameraStore.getPossibleTrack(trackId, leftCamera);
+      const rightTrack = cameraStore.getPossibleTrack(trackId, rightCamera);
+      const leftLine = getStereoLineEndpoints(leftTrack, frameNum);
+      const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
+      if (!leftLine || !rightLine) return null;
+
+      const response = await stereoMeasureLine({ leftLine, rightLine });
+      if (response.success && response.measurement) {
+        ensureMeasurementAttributes();
+        applyStereoMeasurement(leftTrack, frameNum, response.measurement);
+        applyStereoMeasurement(rightTrack, frameNum, response.measurement);
+        return response.measurement;
+      }
+      return null;
+    }
+
+    /**
+     * Recompute the stereo measurement for a line annotation that exists on both
+     * cameras (e.g. after the user edited or drew one side) and update both tracks.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function autoUpdateStereoLength(cameraStore: any, trackId: number, frameNum: number) {
+      const measurement = await measureStereoLineAtFrame(cameraStore, trackId, frameNum);
+      if (measurement) {
+        reportStereoMeasurement(measurement);
+        await updateStereoTrackAverages(cameraStore, trackId);
+      }
+    }
+
+    /**
+     * Handle two detections being linked across cameras (multicam link tool).
+     * Recompute the stereo measurement for every frame where both the left and
+     * right tracks now have a 2-point line.
+     */
+    async function handleStereoTrackLinked(trackId: number) {
+      if (!stereoEnabled.value) return;
+      const viewer = viewerRef.value;
+      if (!viewer) return;
+      const { cameraStore, multiCamList } = viewer;
+      if (multiCamList.length < 2) return;
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length < 2) return;
+
+      const [leftCamera, rightCamera] = cameras;
+      const leftTrack = cameraStore.getPossibleTrack(trackId, leftCamera);
+      const rightTrack = cameraStore.getPossibleTrack(trackId, rightCamera);
+      if (!leftTrack || !rightTrack) return;
+
+      // Frames present in either track (each frame's line presence is re-checked
+      // inside measureStereoLineAtFrame).
+      const frames = Array.from(new Set<number>([
+        ...(leftTrack.featureIndex || []),
+        ...(rightTrack.featureIndex || []),
+      ]));
+
+      let lastMeasurement = null;
+      for (let i = 0; i < frames.length; i += 1) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const measurement = await measureStereoLineAtFrame(cameraStore, trackId, frames[i]);
+          if (measurement) lastMeasurement = measurement;
+        } catch (err) {
+          console.warn('[Stereo] Link measurement failed:', err);
+        }
+      }
+      if (lastMeasurement) {
+        reportStereoMeasurement(lastMeasurement);
+        await updateStereoTrackAverages(cameraStore, trackId);
+      }
+    }
+
+    /**
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
      */
@@ -696,6 +919,17 @@ export default defineComponent({
       if (existingTrack) {
         const [feature] = existingTrack.getFeature(params.frameNum);
         if (feature !== null) {
+          // Both cameras already have this annotation. Recompute the stereo
+          // measurement from the current (possibly edited) left+right lines
+          // instead of re-warping, preserving the user's manual corrections on
+          // both sides. Enabled whenever interactive stereo mode is on.
+          if (params.type === 'line') {
+            try {
+              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            } catch (err) {
+              console.warn('[Stereo] Measurement update failed:', err);
+            }
+          }
           return;
         }
       }
@@ -756,6 +990,16 @@ export default defineComponent({
               keyframe: true,
               interpolate: false,
             }, lineGeometry);
+
+            // Report and store the full stereo measurement on both cameras
+            if (response.measurement) {
+              ensureMeasurementAttributes();
+              const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+              applyStereoMeasurement(sourceTrack, params.frameNum, response.measurement);
+              applyStereoMeasurement(track, params.frameNum, response.measurement);
+              reportStereoMeasurement(response.measurement);
+              await updateStereoTrackAverages(cameraStore, params.trackId);
+            }
           }
         } else if (params.type === 'box') {
           // Convert box bounds to 4 corner points
@@ -928,8 +1172,11 @@ export default defineComponent({
       stereoLoadingDialog,
       stereoLoadingMessage,
       stereoLoadingError,
+      stereoLengthSnackbar,
+      stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      handleStereoTrackLinked,
     };
   },
 });
@@ -947,6 +1194,7 @@ export default defineComponent({
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @stereo-track-linked="handleStereoTrackLinked"
     >
       <template #title>
         <v-tabs
@@ -1037,6 +1285,14 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-snackbar
+      v-model="stereoLengthSnackbar"
+      :timeout="4000"
+      bottom
+      right
+    >
+      {{ stereoLengthMessage }}
+    </v-snackbar>
   </div>
 </template>
 

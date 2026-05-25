@@ -371,18 +371,54 @@ interface StereoTransferLineRequest {
   line: [[number, number], [number, number]];
 }
 
+interface StereoMeasurement {
+  length: number;
+  midpoint_x: number;
+  midpoint_y: number;
+  midpoint_z: number;
+  midpoint_range: number;
+  stereo_rms: number;
+}
+
 interface StereoTransferLineResponse {
   id: string;
   success: boolean;
   error?: string;
   transferredLine?: [[number, number], [number, number]];
   originalLine?: [[number, number], [number, number]];
+  length?: number;
+  measurement?: StereoMeasurement;
   depthInfo?: {
     depthPoint1: number | null;
     depthPoint2: number | null;
     disparityPoint1: number;
     disparityPoint2: number;
   };
+}
+
+interface StereoMeasureLineRequest {
+  leftLine: [[number, number], [number, number]];
+  rightLine: [[number, number], [number, number]];
+}
+
+interface StereoMeasureLineResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  length?: number;
+  measurement?: StereoMeasurement;
+}
+
+interface StereoAggregateLengthsRequest {
+  lengths: number[];
+  method?: string;
+}
+
+interface StereoAggregateLengthsResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  avgLength?: number;
 }
 
 interface StereoTransferPointsRequest {
@@ -423,6 +459,14 @@ async function stereoTransferLine(request: StereoTransferLineRequest): Promise<S
 
 async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
   return ipcRenderer.invoke('stereo-transfer-points', request);
+}
+
+async function stereoMeasureLine(request: StereoMeasureLineRequest): Promise<StereoMeasureLineResponse> {
+  return ipcRenderer.invoke('stereo-measure-line', request);
+}
+
+async function stereoAggregateLengths(request: StereoAggregateLengthsRequest): Promise<StereoAggregateLengthsResponse> {
+  return ipcRenderer.invoke('stereo-aggregate-lengths', request);
 }
 
 async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
@@ -578,6 +622,8 @@ export {
   stereoGetStatus,
   stereoTransferLine,
   stereoTransferPoints,
+  stereoMeasureLine,
+  stereoAggregateLengths,
   stereoSetCalibration,
   stereoIsEnabled,
   onStereoDisparityReady,

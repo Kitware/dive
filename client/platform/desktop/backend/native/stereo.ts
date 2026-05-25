@@ -48,6 +48,19 @@ export interface StereoTransferLineRequest {
   line: [[number, number], [number, number]];
 }
 
+/**
+ * Full stereo measurement for a line, mirroring VIAME's compute_stereo_measurement.
+ * All values are in calibration units (e.g. mm). Keys match VIAME's attribute names.
+ */
+export interface StereoMeasurement {
+  length: number;
+  midpoint_x: number;
+  midpoint_y: number;
+  midpoint_z: number;
+  midpoint_range: number;
+  stereo_rms: number;
+}
+
 /** Response from transfer line request */
 export interface StereoTransferLineResponse {
   id: string;
@@ -55,12 +68,49 @@ export interface StereoTransferLineResponse {
   error?: string;
   transferredLine?: [[number, number], [number, number]];
   originalLine?: [[number, number], [number, number]];
+  /** Triangulated 3D length of the line in calibration units (e.g. mm). */
+  length?: number;
+  /** Full stereo measurement (length, midpoint, range, RMS). */
+  measurement?: StereoMeasurement;
   depthInfo?: {
     depthPoint1: number | null;
     depthPoint2: number | null;
     disparityPoint1: number;
     disparityPoint2: number;
   };
+}
+
+/** Request to triangulate the length of a line already corresponded on both images */
+export interface StereoMeasureLineRequest {
+  leftLine: [[number, number], [number, number]];
+  rightLine: [[number, number], [number, number]];
+}
+
+/** Response from a measure-line request */
+export interface StereoMeasureLineResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  /** Triangulated 3D length in calibration units (e.g. mm). */
+  length?: number;
+  /** Full stereo measurement (length, midpoint, range, RMS). */
+  measurement?: StereoMeasurement;
+}
+
+/** Request to aggregate per-detection lengths along a track into a single value */
+export interface StereoAggregateLengthsRequest {
+  lengths: number[];
+  /** 'average' (default), 'average_iqr', or 'median'. */
+  method?: string;
+}
+
+/** Response from an aggregate-lengths request */
+export interface StereoAggregateLengthsResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  /** Aggregated length in calibration units (e.g. mm). */
+  avgLength?: number;
 }
 
 /** Request to transfer multiple points */
@@ -551,12 +601,103 @@ export class StereoServiceManager extends EventEmitter {
           error: response.error,
           transferredLine: response.transferred_line,
           originalLine: response.original_line,
+          length: response.length,
+          measurement: response.measurement,
           depthInfo: response.depth_info ? {
             depthPoint1: response.depth_info.depth_point1,
             depthPoint2: response.depth_info.depth_point2,
             disparityPoint1: response.depth_info.disparity_point1,
             disparityPoint2: response.depth_info.disparity_point2,
           } : undefined,
+        }),
+        reject,
+        timeout,
+      });
+
+      const requestLine = `${JSON.stringify(fullRequest)}\n`;
+      this.process!.stdin!.write(requestLine);
+    });
+  }
+
+  /**
+   * Triangulate the 3D length of a line whose endpoints are already known on
+   * both images (no matching performed). Used to recompute length when a stereo
+   * line annotation that exists on both cameras is edited.
+   */
+  async measureLine(request: StereoMeasureLineRequest): Promise<StereoMeasureLineResponse> {
+    if (!this.isEnabled()) {
+      return {
+        id: '',
+        success: false,
+        error: 'Stereo service is not enabled',
+      };
+    }
+
+    const id = this.generateRequestId();
+    const fullRequest = {
+      id,
+      command: 'measure_line',
+      left_line: request.leftLine,
+      right_line: request.rightLine,
+    };
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error('measure_line request timed out'));
+      }, this.requestTimeoutMs);
+
+      this.pendingRequests.set(id, {
+        resolve: (response) => resolve({
+          id: response.id,
+          success: response.success,
+          error: response.error,
+          length: response.length,
+          measurement: response.measurement,
+        }),
+        reject,
+        timeout,
+      });
+
+      const requestLine = `${JSON.stringify(fullRequest)}\n`;
+      this.process!.stdin!.write(requestLine);
+    });
+  }
+
+  /**
+   * Aggregate per-detection lengths along a track into a single value
+   * (mean / IQR-trimmed mean / median) via the shared C++ helper. Needs only
+   * the list of lengths gathered from the track.
+   */
+  async aggregateLengths(request: StereoAggregateLengthsRequest): Promise<StereoAggregateLengthsResponse> {
+    if (!this.isEnabled()) {
+      return {
+        id: '',
+        success: false,
+        error: 'Stereo service is not enabled',
+      };
+    }
+
+    const id = this.generateRequestId();
+    const fullRequest = {
+      id,
+      command: 'aggregate_lengths',
+      lengths: request.lengths,
+      method: request.method || 'average',
+    };
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error('aggregate_lengths request timed out'));
+      }, this.requestTimeoutMs);
+
+      this.pendingRequests.set(id, {
+        resolve: (response) => resolve({
+          id: response.id,
+          success: response.success,
+          error: response.error,
+          avgLength: response.avg_length,
         }),
         reject,
         timeout,

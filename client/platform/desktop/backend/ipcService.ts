@@ -36,6 +36,8 @@ import {
   StereoSetFrameRequest,
   StereoTransferLineRequest,
   StereoTransferPointsRequest,
+  StereoMeasureLineRequest,
+  StereoAggregateLengthsRequest,
 } from './native/stereo';
 
 // defaults to linux if win32 doesn't exist
@@ -402,6 +404,18 @@ export default function register() {
   ipcMain.handle('stereo-transfer-points', async (_, args: StereoTransferPointsRequest) => {
     const stereoService = getStereoServiceManager();
     const result = await stereoService.transferPoints(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-measure-line', async (_, args: StereoMeasureLineRequest) => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.measureLine(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-aggregate-lengths', async (_, args: StereoAggregateLengthsRequest) => {
+    const stereoService = getStereoServiceManager();
+    const result = await stereoService.aggregateLengths(args);
     return result;
   });
 
