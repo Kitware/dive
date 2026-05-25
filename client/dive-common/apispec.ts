@@ -42,6 +42,8 @@ interface DiveParam {
   type_props?: string[];
   key: string;
   default: string;
+  /** True if the user must supply a value before the pipeline can run. */
+  required?: boolean;
 }
 
 interface PipeMetadata {
