@@ -1,4 +1,7 @@
+import { parseCompositeDatasetId, parentDatasetId } from 'dive-common/compositeDatasetId';
 import girderRest from 'platform/web-girder/plugins/girder';
+
+export { parseCompositeDatasetId, parentDatasetId };
 
 interface MultiCamCameraMeta {
   folderId: string;
@@ -16,10 +19,6 @@ export interface ResolvedDatasetId {
 }
 
 const multiCamMetaCache = new Map<string, MultiCamStorageMeta>();
-
-import { parseCompositeDatasetId, parentDatasetId } from 'dive-common/compositeDatasetId';
-
-export { parseCompositeDatasetId, parentDatasetId };
 
 async function fetchMultiCamMeta(parentId: string): Promise<MultiCamStorageMeta> {
   const cached = multiCamMetaCache.get(parentId);

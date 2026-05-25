@@ -46,8 +46,6 @@ const pipelines = {
   'common_image_stabilizer.pipe': '',
   'common_short_term_tracker.pipe': '',
   'common_stabilized_iou_tracker.pipe': '',
-  'common_stereo_fish_tracker.pipe': '',
-  'common_stereo_input.pipe': '',
   'database_apply_svm_models.pipe': '',
   'detector_default.pipe': '',
   'detector_extract_chips.pipe': '',
@@ -421,11 +419,6 @@ describe('native.common', () => {
     expect(pipes.detector.pipes).toHaveLength(4);
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.utility.pipes).toHaveLength(4);
-    expect(pipes.stereo.pipes).toHaveLength(2);
-    expect(pipes.stereo.pipes.map((p) => p.pipe).sort()).toEqual([
-      'common_stereo_fish_tracker.pipe',
-      'common_stereo_input.pipe',
-    ]);
     expect(pipes.trained).toBeUndefined();
   });
 

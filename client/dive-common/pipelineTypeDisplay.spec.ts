@@ -1,8 +1,7 @@
-import { pipelineTypeDisplay } from './pipelineTypeDisplay';
+import pipelineTypeDisplay from './pipelineTypeDisplay';
 
 describe('pipelineTypeDisplay', () => {
-  it('labels stereoscopic and measurement categories', () => {
-    expect(pipelineTypeDisplay('stereo')).toBe('Stereoscopic');
+  it('labels measurement category', () => {
     expect(pipelineTypeDisplay('measurement')).toBe('Measurement');
   });
 

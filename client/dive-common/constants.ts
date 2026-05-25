@@ -130,8 +130,8 @@ const zipFileTypes = [
 ];
 
 const stereoPipelineMarker = 'measurement';
-const commonStereoPipelineMarker = 'stereo';
-const stereoDatasetPipelineMarkers = [stereoPipelineMarker, commonStereoPipelineMarker];
+/** Legacy common_stereo category key; never shown in the run-pipeline menu. */
+const hiddenPipelineCategories = ['stereo'];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
@@ -163,8 +163,7 @@ export {
   listFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
-  commonStereoPipelineMarker,
-  stereoDatasetPipelineMarkers,
+  hiddenPipelineCategories,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   JsonMetaRegEx,

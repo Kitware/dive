@@ -11,12 +11,12 @@ import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import {
   itemsPerPageOptions,
-  stereoDatasetPipelineMarkers,
+  stereoPipelineMarker,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
-import { pipelineTypeDisplay } from 'dive-common/pipelineTypeDisplay';
+import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonMetaCache } from '../store/dataset';
@@ -101,8 +101,9 @@ function getAvailableItems(): JsonMetaCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
   }
-  if (stereoDatasetPipelineMarkers.includes(selectedPipelineType.value)) {
-    // Only allow stereo datasets for measurement and common_stereo pipeline types.
+  if (selectedPipelineType.value === stereoPipelineMarker) {
+    // Only allow stereo datasets to be included for bulk pipeline
+    // operations if the selected pipeline type is a measurement.
     return Object.values(datasets.value).filter((dataset: JsonMetaCache) => (
       dataset.type === MultiType && dataset.cameraNumber === 2
     ));

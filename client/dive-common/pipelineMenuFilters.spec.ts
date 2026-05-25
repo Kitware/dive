@@ -1,16 +1,12 @@
-import {
-  filterPipelinesForDatasets,
-  getMultiCamCameraCount,
-  isStereoscopicSelection,
-} from './pipelineMenuFilters';
+import { filterPipelinesForDatasets, getMultiCamCameraCount } from './pipelineMenuFilters';
 import type { Pipelines } from './apispec';
 
 const samplePipelines: Pipelines = {
   measurement: { description: '', pipes: [{ name: 'gmm', type: 'measurement', pipe: 'measurement_gmm.pipe' }] },
-  stereo: { description: '', pipes: [{ name: 'fish tracker', type: 'stereo', pipe: 'common_stereo_fish_tracker.pipe' }] },
   '2-cam': { description: '', pipes: [{ name: 'detector', type: '2-cam', pipe: 'detector_2-cam.pipe' }] },
   '3-cam': { description: '', pipes: [{ name: 'detector', type: '3-cam', pipe: 'detector_3-cam.pipe' }] },
   detector: { description: '', pipes: [{ name: 'default', type: 'detector', pipe: 'detector_default.pipe' }] },
+  stereo: { description: '', pipes: [{ name: 'fish tracker', type: 'stereo', pipe: 'common_stereo_fish_tracker.pipe' }] },
 };
 
 describe('pipelineMenuFilters', () => {
@@ -26,7 +22,7 @@ describe('pipelineMenuFilters', () => {
     })).toBe(3);
   });
 
-  it('hides measurement, stereo, and multicam categories when subTypeList is empty', () => {
+  it('hides measurement and multicam categories when subTypeList is empty', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, [], [1]);
     expect(filtered.measurement).toBeUndefined();
     expect(filtered.stereo).toBeUndefined();
@@ -35,26 +31,17 @@ describe('pipelineMenuFilters', () => {
     expect(filtered.detector).toBeDefined();
   });
 
-  it('shows measurement and stereo only for all-stereo selection', () => {
+  it('never shows legacy common_stereo category', () => {
+    const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
+    expect(filtered.stereo).toBeUndefined();
+    expect(filtered.measurement).toBeDefined();
+  });
+
+  it('shows measurement only for all-stereo selection', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
     expect(filtered.measurement).toBeDefined();
-    expect(filtered.stereo).toBeDefined();
     expect(filtered['2-cam']).toBeUndefined();
     expect(filtered.detector).toBeDefined();
-  });
-
-  it('shows stereoscopic pipelines for legacy 2-camera multi without subType', () => {
-    expect(isStereoscopicSelection([null], [2], ['multi'])).toBe(true);
-    const filtered = filterPipelinesForDatasets(samplePipelines, [null], [2], ['multi']);
-    expect(filtered.measurement).toBeDefined();
-    expect(filtered.stereo).toBeDefined();
-    expect(filtered['2-cam']).toBeUndefined();
-  });
-
-  it('hides stereo category when selection is not all-stereo', () => {
-    const filtered = filterPipelinesForDatasets(samplePipelines, ['multicam'], [2], ['multi']);
-    expect(filtered.stereo).toBeUndefined();
-    expect(filtered.measurement).toBeUndefined();
   });
 
   it('shows matching multicam category only when all datasets share camera count', () => {
@@ -91,7 +78,6 @@ describe('pipelineMenuFilters', () => {
   it('hides special categories for non-multicam subtypes', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, [null], [1]);
     expect(filtered.measurement).toBeUndefined();
-    expect(filtered.stereo).toBeUndefined();
     expect(filtered['2-cam']).toBeUndefined();
     expect(filtered.detector).toBeDefined();
   });
