@@ -130,6 +130,8 @@ const zipFileTypes = [
 ];
 
 const stereoPipelineMarker = 'measurement';
+const commonStereoPipelineMarker = 'stereo';
+const stereoDatasetPipelineMarkers = [stereoPipelineMarker, commonStereoPipelineMarker];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
@@ -161,6 +163,8 @@ export {
   listFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
+  commonStereoPipelineMarker,
+  stereoDatasetPipelineMarkers,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   JsonMetaRegEx,

@@ -124,6 +124,8 @@ AnnotationFileFutureProcessMarker = "importAnnotationFile"
 # Other constants
 TrainedPipelineCategory = "trained"
 StereoPipelineMarker = "measurement"
+CommonStereoPipelineMarker = "stereo"
+StereoDatasetPipelineMarkers = (StereoPipelineMarker, CommonStereoPipelineMarker)
 MultiCamPipelineMarkers = ("2-cam", "3-cam")
 
 # The name of the folder where any user specific data should be stored

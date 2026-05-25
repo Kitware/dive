@@ -20,7 +20,7 @@ def pipeline_requires_input(pipeline: PipelineDescription) -> bool:
 def is_stereo_or_multicam_pipeline(pipeline: PipelineDescription) -> bool:
     pipeline_type = pipeline['type']
     return (
-        pipeline_type == constants.StereoPipelineMarker
+        pipeline_type in constants.StereoDatasetPipelineMarkers
         or pipeline_type in constants.MultiCamPipelineMarkers
     )
 

@@ -18,12 +18,14 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
 import RunPipelineToast from 'dive-common/components/RunPipelineToast.vue';
 import {
-  stereoPipelineMarker,
+  stereoDatasetPipelineMarkers,
   multiCamPipelineMarkers,
   LargeImageType,
   pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
+import { pipelineTypeDisplay } from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
@@ -163,8 +165,8 @@ export default defineComponent({
       let datasetIds = props.selectedDatasetIds;
       if (props.cameraNumbers.length === 1 && props.cameraNumbers[0] > 1
       && (!multiCamPipelineMarkers.includes(pipeline.type)
-      && stereoPipelineMarker !== pipeline.type)) {
-        const cameraNames = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+      && !stereoDatasetPipelineMarkers.includes(pipeline.type))) {
+        const cameraNames = props.selectedDatasetIds.map((item) => parentDatasetId(item));
         const result = await prompt({
           title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
           text: ['Running a single pipeline on multi-camera data can produce conflicting track Ids',
@@ -177,8 +179,8 @@ export default defineComponent({
         }
       }
       if (multiCamPipelineMarkers.includes(pipeline.type)
-      || stereoPipelineMarker === pipeline.type) {
-        datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+      || stereoDatasetPipelineMarkers.includes(pipeline.type)) {
+        datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
       }
       selectedPipeline.value = pipeline;
       const frameRange = props.timeFilter;
@@ -230,20 +232,6 @@ export default defineComponent({
       selectedPipeline.value = null; // reset selected pipeline state
     }
 
-    function pipeTypeDisplay(pipeType: string) {
-      switch (pipeType) {
-        case 'trained':
-          return 'trained';
-        case 'utility':
-        case 'generate':
-          return 'utilities';
-        case 'transcode':
-          return 'transcoders';
-        default:
-          return `${pipeType}s`;
-      }
-    }
-
     return {
       jobState,
       pipelines,
@@ -251,7 +239,7 @@ export default defineComponent({
       includesLargeImage,
       successMessage,
       dismissLaunchDialog,
-      pipeTypeDisplay,
+      pipeTypeDisplay: pipelineTypeDisplay,
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
       singlePipelineValue,

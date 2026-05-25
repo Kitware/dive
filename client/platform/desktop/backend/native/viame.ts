@@ -17,7 +17,7 @@ import sendToRenderer from 'platform/desktop/background';
 
 import {
   MultiType,
-  stereoPipelineMarker,
+  stereoDatasetPipelineMarkers,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
@@ -218,7 +218,7 @@ async function runPipeline(
   }
 
   let command: string[] = [];
-  const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
+  const stereoOrMultiCam = (stereoDatasetPipelineMarkers.includes(pipeline.type)
     || multiCamPipelineMarkers.includes(pipeline.type));
 
   if (metaType === 'video') {
@@ -313,7 +313,7 @@ async function runPipeline(
       command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
       command.push(`-s calibration_reader:file="${meta.multiCam.calibration}"`);
     }
-  } else if (pipeline.type === stereoPipelineMarker) {
+  } else if (stereoDatasetPipelineMarkers.includes(pipeline.type)) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
   }
 

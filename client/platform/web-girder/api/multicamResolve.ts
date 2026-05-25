@@ -17,19 +17,9 @@ export interface ResolvedDatasetId {
 
 const multiCamMetaCache = new Map<string, MultiCamStorageMeta>();
 
-export function parseCompositeDatasetId(datasetId: string): {
-  parentId: string;
-  cameraName: string | null;
-} {
-  const slash = datasetId.indexOf('/');
-  if (slash === -1) {
-    return { parentId: datasetId, cameraName: null };
-  }
-  return {
-    parentId: datasetId.slice(0, slash),
-    cameraName: datasetId.slice(slash + 1),
-  };
-}
+import { parseCompositeDatasetId, parentDatasetId } from 'dive-common/compositeDatasetId';
+
+export { parseCompositeDatasetId, parentDatasetId };
 
 async function fetchMultiCamMeta(parentId: string): Promise<MultiCamStorageMeta> {
   const cached = multiCamMetaCache.get(parentId);

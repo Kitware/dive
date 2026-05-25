@@ -41,6 +41,17 @@ def test_parse_pipe_type_and_name_one_cam_stays_detector():
     )
 
 
+def test_parse_pipe_type_and_name_common_stereo():
+    assert parse_pipe_type_and_name('common_stereo_fish_tracker') == (
+        'stereo',
+        'fish tracker',
+    )
+    assert parse_pipe_type_and_name('common_stereo_input') == (
+        'stereo',
+        'input',
+    )
+
+
 def test_load_static_pipelines_includes_measurement_and_multicam(tmp_path: Path):
     (tmp_path / 'measurement_fully_auto_gmm_motion.pipe').write_text('# Description: test\n')
     (tmp_path / 'utility_register_frames_2-cam.pipe').write_text('')
@@ -54,4 +65,6 @@ def test_load_static_pipelines_includes_measurement_and_multicam(tmp_path: Path)
     assert '2-cam' in pipedict
     assert '3-cam' in pipedict
     assert 'detector' in pipedict
+    assert 'stereo' in pipedict
+    assert pipedict['stereo']['pipes'][0]['type'] == 'stereo'
     assert 'common' not in pipedict

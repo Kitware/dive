@@ -42,6 +42,13 @@ export function useDataset() {
     // ViewerLoader pipeline filters and other chrome.
     if (!compositeId) {
       setMeta(dsMeta);
+    } else if (!meta.value && metaStatic.data.type === MultiType) {
+      // Landing on a camera URL first: prime parent meta so pipeline filters see subType.
+      setMeta({
+        ...metaStatic.data,
+        imageData: [],
+        videoUrl: undefined,
+      });
     }
     const { parentId, parentCollection } = folder.data;
     if (parentId && parentCollection) {

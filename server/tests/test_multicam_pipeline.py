@@ -17,6 +17,9 @@ def test_is_stereo_or_multicam_pipeline():
     assert is_stereo_or_multicam_pipeline(
         {'name': 'm', 'type': constants.StereoPipelineMarker, 'pipe': 'x.pipe'}
     )
+    assert is_stereo_or_multicam_pipeline(
+        {'name': 'fish tracker', 'type': constants.CommonStereoPipelineMarker, 'pipe': 'x.pipe'}
+    )
     assert is_stereo_or_multicam_pipeline({'name': '2', 'type': '2-cam', 'pipe': 'x.pipe'})
     assert not is_stereo_or_multicam_pipeline({'name': 'd', 'type': 'detector', 'pipe': 'x.pipe'})
 

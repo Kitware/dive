@@ -11,11 +11,12 @@ import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import {
   itemsPerPageOptions,
-  stereoPipelineMarker,
+  stereoDatasetPipelineMarkers,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
+import { pipelineTypeDisplay } from 'dive-common/pipelineTypeDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonMetaCache } from '../store/dataset';
@@ -31,6 +32,7 @@ const pipelineTypes = computed(() => (
   // bulk pipeline operations.
   Object.keys(unsortedPipelines.value)
     .filter((key) => !multiCamPipelineMarkers.includes(key))
+    .map((value) => ({ text: pipelineTypeDisplay(value), value }))
 ));
 const selectedPipeline: Ref<Pipe | null> = ref(null);
 const pipesForSelectedType = computed(() => {
@@ -99,9 +101,8 @@ function getAvailableItems(): JsonMetaCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
   }
-  if (selectedPipelineType.value === stereoPipelineMarker) {
-    // Only allow stereo datasets to be included for bulk pipeline
-    // operations if the selected pipeline type is a measurement.
+  if (stereoDatasetPipelineMarkers.includes(selectedPipelineType.value)) {
+    // Only allow stereo datasets for measurement and common_stereo pipeline types.
     return Object.values(datasets.value).filter((dataset: JsonMetaCache) => (
       dataset.type === MultiType && dataset.cameraNumber === 2
     ));
@@ -180,6 +181,8 @@ onBeforeMount(async () => {
             <v-select
               v-model="selectedPipelineType"
               :items="pipelineTypes"
+              item-text="text"
+              item-value="value"
               outlined
               persistent-hint
               dense

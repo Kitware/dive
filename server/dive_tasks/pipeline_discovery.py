@@ -21,7 +21,7 @@ DisallowedTrainingConfigs = (
 # Align with desktop getPipelineList allow patterns (common.ts).
 AllowedStaticPipelines = (
     r"^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_.+|"
-    r"^measurement_.+|.*[23]-cam.+"
+    r"^measurement_.+|^common_stereo_.+|.*[23]-cam.+"
 )
 
 DisallowedStaticPipelines = (
@@ -43,6 +43,8 @@ def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
     Matches desktop: 2-cam/3-cam pipelines use their own category; 1-cam stay under
     detector/tracker/utility prefixes.
     """
+    if pipe_stem.startswith('common_stereo_'):
+        return 'stereo', pipe_stem[len('common_stereo_') :].replace('_', ' ')
     parts = pipe_stem.split('_')
     if len(parts) > 1 and parts[-1] == 'cam' and parts[-2] != '1':
         pipe_type = f'{parts[-2]}-cam'

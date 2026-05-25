@@ -453,7 +453,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_.+|.*[2,3]-cam.+/;
+  const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_.+|^common_stereo_.+|.*[2,3]-cam.+/;
   const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -464,11 +464,14 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const ret: Pipelines = {};
 
   await Promise.all(pipes.map(async (p) => {
-    const parts = cleanString(p.replace('.pipe', '')).split('_');
+    const pipeStem = cleanString(p.replace('.pipe', ''));
+    const parts = pipeStem.split('_');
     let pipeType = parts[0];
     let pipeName = parts.slice(1).join(' ');
-    // Extract out only 2-cam and 3-cam pipelines to own category, 1-cam remain in tracker/detector
-    if (parts.length > 1 && parts[parts.length - 1] === 'cam' && parts[parts.length - 2] !== '1') {
+    if (pipeStem.startsWith('common_stereo_')) {
+      pipeType = 'stereo';
+      pipeName = pipeStem.slice('common_stereo_'.length).replace(/_/g, ' ');
+    } else if (parts.length > 1 && parts[parts.length - 1] === 'cam' && parts[parts.length - 2] !== '1') {
       pipeType = `${parts[parts.length - 2]}-cam`;
       pipeName = parts.join(' ');
     }

@@ -366,6 +366,41 @@ describe('web-girder store composables', () => {
       expect(meta.value?.type).toBe(MultiType);
       expect(meta.value?.multiCamMedia?.cameraOrder).toEqual(['cam1', 'cam2', 'cam3']);
     });
+
+    it('loadDataset composite id primes parent meta when store is empty', async () => {
+      const { loadDataset, meta, setMeta } = useDataset();
+      setMeta(null);
+      vi.spyOn(api, 'resolveDatasetFolderId').mockResolvedValue({
+        folderId: 'child1',
+        compositeId: 'm1/left',
+      });
+      vi.spyOn(api, 'getFolder').mockResolvedValue({
+        data: { parentId: 'p1', parentCollection: 'folder' },
+      } as never);
+      vi.spyOn(api, 'getDataset').mockResolvedValue({
+        data: {
+          id: 'm1',
+          type: MultiType,
+          name: 'Stereo',
+          fps: 5,
+          imageData: [],
+          createdAt: '',
+          subType: 'stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: { left: {}, right: {} },
+          },
+          annotate: true,
+        },
+      } as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({
+        data: { imageData: [{ url: 'x' }] },
+      } as never);
+
+      await loadDataset('m1/left');
+      expect(meta.value?.subType).toBe('stereo');
+      expect(meta.value?.type).toBe(MultiType);
+    });
   });
 
   describe('useJobs', () => {
