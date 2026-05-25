@@ -521,6 +521,14 @@ export default defineComponent({
         trackStore.insert(newTrack, { imported: false });
       }
       handler.trackSelect(newTrack.id);
+
+      // In interactive stereo mode, a freshly linked pair should get its stereo
+      // measurement (length, midpoint, range, RMS) computed for every frame
+      // where both cameras now have a line. The desktop loader owns the stereo
+      // service, so delegate via an event.
+      if (clientSettings.stereoSettings.interactiveModeEnabled) {
+        emit('stereo-track-linked', baseTrack);
+      }
     }
     watch(linkingTrack, () => {
       if (linkingTrack.value !== null && selectedTrackId.value !== null) {
