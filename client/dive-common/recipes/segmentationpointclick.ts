@@ -329,6 +329,10 @@ export default class SegmentationPointClick implements Recipe {
         // Emit event to notify that prediction is ready
         // Include frameNum so listeners can update the correct frame
         // Includes mask data for display during editing
+        // controlPoints carries the click points/labels so interactive-stereo
+        // mode can auto-generate the other-camera annotation immediately on a
+        // fresh prediction (the frame-change re-emit above omits them, so
+        // merely navigating does not re-trigger stereo work).
         this.bus.$emit('prediction-ready', {
           polygon: response.polygon,
           bounds: response.bounds,
@@ -336,6 +340,10 @@ export default class SegmentationPointClick implements Recipe {
           frameNum,
           rleMask: response.rleMask,
           maskShape: response.maskShape,
+          controlPoints: this.points.length > 0 ? {
+            points: [...this.points],
+            labels: [...this.pointLabels],
+          } : undefined,
         } as SegmentationPredictionResult & { score?: number });
       } else {
         // Prediction returned an error - handle point rejection

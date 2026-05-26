@@ -5,6 +5,7 @@ import type {
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
 } from 'dive-common/apispec';
 
@@ -269,27 +270,33 @@ async function cancelJob(job: DesktopJob): Promise<void> {
  */
 
 async function segmentationInitialize(): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('segmentation-initialize');
+  return window.diveDesktop.invoke('segmentation-initialize');
 }
 
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
-  return ipcRenderer.invoke('segmentation-predict', request);
+  return window.diveDesktop.invoke('segmentation-predict', request);
+}
+
+async function segmentationStereoSegment(
+  request: SegmentationStereoSegmentRequest,
+): Promise<SegmentationStereoSegmentResponse> {
+  return window.diveDesktop.invoke('segmentation-stereo-segment', request);
 }
 
 async function segmentationSetImage(imagePath: string): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('segmentation-set-image', imagePath);
+  return window.diveDesktop.invoke('segmentation-set-image', imagePath);
 }
 
 async function segmentationClearImage(): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('segmentation-clear-image');
+  return window.diveDesktop.invoke('segmentation-clear-image');
 }
 
 async function segmentationShutdown(): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('segmentation-shutdown');
+  return window.diveDesktop.invoke('segmentation-shutdown');
 }
 
 async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
-  return ipcRenderer.invoke('segmentation-is-ready');
+  return window.diveDesktop.invoke('segmentation-is-ready');
 }
 
 /**
@@ -298,11 +305,11 @@ async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
  */
 
 async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
-  return ipcRenderer.invoke('segmentation-text-query', request);
+  return window.diveDesktop.invoke('segmentation-text-query', request);
 }
 
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
-  return ipcRenderer.invoke('segmentation-refine', request);
+  return window.diveDesktop.invoke('segmentation-refine', request);
 }
 
 /**
@@ -439,56 +446,55 @@ interface StereoTransferPointsResponse {
   disparityValues?: number[];
 }
 
-async function stereoEnable(calibration?: StereoCalibration): Promise<{ success: boolean; error?: string }> {
-  return ipcRenderer.invoke('stereo-enable', { calibration });
+async function stereoEnable(
+  calibration?: StereoCalibration,
+  calibrationFile?: string,
+): Promise<{ success: boolean; error?: string }> {
+  return window.diveDesktop.invoke('stereo-enable', { calibration, calibrationFile });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('stereo-disable');
+  return window.diveDesktop.invoke('stereo-disable');
 }
 
 async function stereoSetFrame(request: StereoSetFrameRequest): Promise<StereoSetFrameResponse> {
-  return ipcRenderer.invoke('stereo-set-frame', request);
+  return window.diveDesktop.invoke('stereo-set-frame', request);
 }
 
 async function stereoGetStatus(): Promise<StereoStatusResponse> {
-  return ipcRenderer.invoke('stereo-get-status');
+  return window.diveDesktop.invoke('stereo-get-status');
 }
 
 async function stereoTransferLine(request: StereoTransferLineRequest): Promise<StereoTransferLineResponse> {
-  return ipcRenderer.invoke('stereo-transfer-line', request);
+  return window.diveDesktop.invoke('stereo-transfer-line', request);
 }
 
 async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
-  return ipcRenderer.invoke('stereo-transfer-points', request);
+  return window.diveDesktop.invoke('stereo-transfer-points', request);
 }
 
 async function stereoMeasureLine(request: StereoMeasureLineRequest): Promise<StereoMeasureLineResponse> {
-  return ipcRenderer.invoke('stereo-measure-line', request);
+  return window.diveDesktop.invoke('stereo-measure-line', request);
 }
 
 async function stereoAggregateLengths(request: StereoAggregateLengthsRequest): Promise<StereoAggregateLengthsResponse> {
-  return ipcRenderer.invoke('stereo-aggregate-lengths', request);
+  return window.diveDesktop.invoke('stereo-aggregate-lengths', request);
 }
 
 async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
-  return ipcRenderer.invoke('stereo-set-calibration', { calibration });
+  return window.diveDesktop.invoke('stereo-set-calibration', { calibration });
 }
 
 async function stereoIsEnabled(): Promise<{ enabled: boolean }> {
-  return ipcRenderer.invoke('stereo-is-enabled');
+  return window.diveDesktop.invoke('stereo-is-enabled');
 }
 
 function onStereoDisparityReady(callback: (data: unknown) => void): () => void {
-  const handler = (_event: unknown, data: unknown) => callback(data);
-  ipcRenderer.on('stereo-disparity-ready', handler);
-  return () => ipcRenderer.removeListener('stereo-disparity-ready', handler);
+  return window.diveDesktop.on('stereo-disparity-ready', (data: unknown) => callback(data));
 }
 
 function onStereoDisparityError(callback: (data: unknown) => void): () => void {
-  const handler = (_event: unknown, data: unknown) => callback(data);
-  ipcRenderer.on('stereo-disparity-error', handler);
-  return () => ipcRenderer.removeListener('stereo-disparity-error', handler);
+  return window.diveDesktop.on('stereo-disparity-error', (data: unknown) => callback(data));
 }
 
 /**
@@ -618,6 +624,7 @@ export {
   /* Segmentation APIs */
   segmentationInitialize,
   segmentationPredict,
+  segmentationStereoSegment,
   segmentationSetImage,
   segmentationClearImage,
   segmentationShutdown,

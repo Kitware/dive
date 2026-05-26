@@ -1134,6 +1134,23 @@ export default function useModeManager({
       }, polygonGeometry);
 
       _nudgeEditingCanary();
+
+      // Interactive stereo: as soon as the left polygon is predicted, generate
+      // the other-camera polygon + head/tail lines + measurement automatically,
+      // without waiting for the user to finalize the detection. Only fired for
+      // fresh predictions (controlPoints present), so navigating frames or
+      // restoring a pending preview does not re-trigger stereo work.
+      if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
+          && selectedTrackId.value !== null && result.controlPoints) {
+        onStereoAnnotationComplete({
+          type: 'segmentation',
+          camera: selectedCamera.value,
+          trackId: selectedTrackId.value as number,
+          frameNum: targetFrame,
+          points: result.controlPoints.points,
+          labels: result.controlPoints.labels,
+        });
+      }
     }
   }
 
@@ -1196,18 +1213,9 @@ export default function useModeManager({
           interpolate,
         }, polygonGeometry);
 
-        // Stereo: emit segmentation annotation complete for each frame
-        if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
-            && selectedTrackId.value !== null && frameResult.controlPoints) {
-          onStereoAnnotationComplete({
-            type: 'segmentation',
-            camera: selectedCamera.value,
-            trackId: selectedTrackId.value as number,
-            frameNum,
-            points: frameResult.controlPoints.points,
-            labels: frameResult.controlPoints.labels,
-          });
-        }
+        // Note: the other-camera (stereo) annotation is generated earlier, on
+        // each fresh prediction (handleSegmentationPredictionReady), so there is
+        // no need to regenerate it on confirm.
       }
     });
 
