@@ -314,7 +314,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     force_transcoded = params.get('force_transcoded', False)
     runtime_params = params.get('runtime_params') or {}
     frame_range = runtime_params.get('frameRange')
-    multicam_params = params  # type: MulticamPipelineJob
+    multicam_params: MulticamPipelineJob = params
     multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
@@ -337,7 +337,6 @@ def run_pipeline(self: Task, params: PipelineJob):
         if multicam_cameras:
             input_folder = gc.getFolder(input_folder_id)
             input_fps = fromMeta(input_folder, constants.FPSMarker)
-            default_display = multicam_params['multicam_default_display']
             requires_input = multicam_params.get('multicam_requires_input', False)
             camera_media: Dict[str, Tuple[List[str], str]] = {}
 
@@ -409,16 +408,17 @@ def run_pipeline(self: Task, params: PipelineJob):
             for camera in multicam_cameras:
                 cam_name = camera['name']
                 output_name = out_files[cam_name]
-                output_file = _working_directory_path / output_name
+                # Multicam KWIVER args use basename-only writers; viame cwd is output_path,
+                # so CSVs are created under output/, not the temp directory root.
+                output_file = output_path / output_name
                 if not output_file.exists() or not output_file.stat().st_size:
                     detector_name = output_name.replace('computed_tracks', 'computed_detections')
-                    detector_path = _working_directory_path / detector_name
+                    detector_path = output_path / detector_name
                     if detector_path.exists() and detector_path.stat().st_size:
                         output_file = detector_path
                 if frame_range is not None and camera_media[cam_name][1] == constants.VideoType:
-                    output_file = Path(
-                        filter_csv_by_frame_range(str(output_file), frame_range)
-                    )
+                    filtered_path = filter_csv_by_frame_range(str(output_file), frame_range)
+                    output_file = Path(filtered_path)
                 newfile = gc.uploadFileToFolder(camera['folder_id'], str(output_file))
                 gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
                 gc.post(
