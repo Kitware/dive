@@ -2,8 +2,6 @@
 import {
   defineComponent, onBeforeUnmount, PropType, ref, watch,
 } from 'vue';
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { ipcRenderer } from 'electron';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
@@ -100,7 +98,7 @@ export default defineComponent({
      */
     async function getApiBaseUrl(): Promise<string> {
       if (baseApiUrl) return baseApiUrl;
-      const addr = await ipcRenderer.invoke('server-info');
+      const addr = await window.diveDesktop.invoke('server-info') as { address: string; port: number };
       baseApiUrl = `http://${addr.address}:${addr.port}/api`;
       return baseApiUrl;
     }

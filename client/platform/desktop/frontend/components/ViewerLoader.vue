@@ -1,5 +1,4 @@
 <script lang="ts">
-import npath from 'path';
 import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick, watchEffect,
 } from 'vue';
@@ -15,7 +14,8 @@ import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeMana
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
 import { SEGMENTATION_NO_SAM_WARNING } from 'dive-common/recipes/segmentationpointclick';
 import {
-  segmentationPredict, segmentationInitialize, segmentationIsReady, loadMetadata, textQuery,
+  segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
+  loadMetadata, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
@@ -26,6 +26,17 @@ import JobTab from './JobTab.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
+
+// Renderer-safe path helpers. Node's 'path' module is externalized in the
+// renderer (contextIsolation), so npath.* is unavailable here.
+function isAbsolutePath(p: string): boolean {
+  return /^([A-Za-z]:[\\/]|[\\/])/.test(p);
+}
+function joinPath(base: string, file: string): string {
+  if (!base) return file;
+  const sep = base.includes('\\') ? '\\' : '/';
+  return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
+}
 
 const buttonOptions = {
   outlined: true,
@@ -146,14 +157,14 @@ export default defineComponent({
       } = meta;
       return (frameNum: number): string => {
         if (type === 'video') {
-          return npath.join(originalBasePath, originalVideoFile || '');
+          return joinPath(originalBasePath, originalVideoFile || '');
         }
         if (originalImageFiles && originalImageFiles[frameNum]) {
           const imagePath = originalImageFiles[frameNum];
-          if (npath.isAbsolute(imagePath)) {
+          if (isAbsolutePath(imagePath)) {
             return imagePath;
           }
-          return npath.join(originalBasePath, imagePath);
+          return joinPath(originalBasePath, imagePath);
         }
         return '';
       };
@@ -173,18 +184,22 @@ export default defineComponent({
         const meta = await loadMetadata(props.id);
 
         let getImagePath: (frameNum: number) => string;
+        let getFrameTime: ((frameNum: number) => number | undefined) | undefined;
 
         if (meta.multiCamMedia) {
           // Multicam: load per-camera metadata and build per-camera getters
           const { cameras } = meta.multiCamMedia;
           const cameraNames = Object.keys(cameras);
+          let multiCamIsVideo = false;
           for (let i = 0; i < cameraNames.length; i += 1) {
             const cam = cameraNames[i];
             // eslint-disable-next-line no-await-in-loop
             const camMeta = await loadMetadata(`${props.id}/${cam}`);
             stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
             if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
+            if (camMeta.type === 'video') multiCamIsVideo = true;
           }
+          stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
           // Dynamic getter that reads selectedCamera at call time
           getImagePath = (frameNum: number): string => {
             const cam = viewerRef.value?.selectedCamera;
@@ -193,6 +208,16 @@ export default defineComponent({
             }
             return '';
           };
+          // Video frame-time getter keyed on the selected camera's fps. Both
+          // stereo cameras share one fps; fall back to dataset / any-camera fps.
+          getFrameTime = multiCamIsVideo
+            ? (frameNum: number): number | undefined => {
+              const cam = viewerRef.value?.selectedCamera;
+              const fps = (cam ? stereoCameraFps.value[cam] : undefined)
+                || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+              return fps ? frameNum / fps : undefined;
+            }
+            : undefined;
         } else {
           // Single cam: use base metadata directly
           const singleGetter = buildImagePathGetter(meta);
@@ -206,12 +231,10 @@ export default defineComponent({
             fps: meta.fps,
             originalFps: meta.originalFps,
           };
+          getFrameTime = cachedMeta.type === 'video' && cachedMeta.fps
+            ? (frameNum: number) => frameNum / (cachedMeta!.fps || 1)
+            : undefined;
         }
-
-        // Build frame time getter for video seek support
-        const getFrameTime = cachedMeta?.type === 'video' && cachedMeta.fps
-          ? (fNum: number) => fNum / (cachedMeta!.fps || 1)
-          : undefined;
 
         // Initialize the recipe
         viewerRef.value.segmentationRecipe.initialize({
@@ -537,6 +560,9 @@ export default defineComponent({
 
     // Calibration file path for stereo matching
     let stereoCalibrationFile: string | undefined;
+    // Dataset-level FPS fallback for video frame-time computation, used when a
+    // per-camera metadata entry has no fps (both stereo cameras share one fps).
+    let stereoDatasetFps: number | undefined;
 
     /**
      * Load multicam metadata for both cameras to build image path getters.
@@ -549,6 +575,8 @@ export default defineComponent({
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+        // Capture the dataset-level fps as a fallback for per-camera frame times.
+        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
 
         // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
         if (Object.keys(stereoImagePathGetters.value).length > 0) return;
@@ -587,28 +615,38 @@ export default defineComponent({
           stereoEnabled.value = true;
           stereoLoadingDialog.value = false;
 
-          // Kick off disparity computation for the current frame
-          const viewer = viewerRef.value;
-          const frameNum = viewer?.aggregateController?.frame?.value;
-          if (frameNum !== undefined) {
-            const cameras = Object.keys(stereoImagePathGetters.value);
-            if (cameras.length >= 2) {
-              const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
-              const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
-              if (leftPath && rightPath) {
-                lastStereoFrame = frameNum;
-                const fps0 = stereoCameraFps.value[cameras[0]];
-                const ft = fps0 ? frameNum / fps0 : undefined;
-                stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
-                  console.warn('[Stereo] Failed to set initial frame:', err);
-                });
+          // Kick off disparity computation for the current frame. A failure here
+          // must NOT tear down the already-enabled service -- it can be retried on
+          // the next frame change -- so swallow it with a warning of its own.
+          try {
+            const viewer = viewerRef.value;
+            const frameNum = viewer?.aggregateController?.frame?.value;
+            if (frameNum !== undefined) {
+              const cameras = Object.keys(stereoImagePathGetters.value);
+              if (cameras.length >= 2) {
+                const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
+                const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
+                if (leftPath && rightPath) {
+                  lastStereoFrame = frameNum;
+                  const fps0 = stereoCameraFps.value[cameras[0]]
+                    || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+                  const ft = fps0 ? frameNum / fps0 : undefined;
+                  stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
+                    console.warn('[Stereo] Failed to set initial frame:', err);
+                  });
+                }
               }
             }
+          } catch (err) {
+            console.warn('[Stereo] Failed to kick off initial disparity:', err);
           }
         } catch (err) {
           stereoEnabled.value = false;
           clientSettings.stereoSettings.interactiveModeEnabled = false;
           stereoLoadingError.value = err instanceof Error ? err.message : String(err);
+          // Surface the failure: log it and keep the dialog open so it is visible.
+          console.error('[Stereo] Failed to enable interactive stereo:', err);
+          stereoLoadingDialog.value = true;
         }
       } else {
         try {
@@ -632,7 +670,8 @@ export default defineComponent({
       const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
 
       if (leftPath && rightPath) {
-        const fps0 = stereoCameraFps.value[cameras[0]];
+        const fps0 = stereoCameraFps.value[cameras[0]]
+          || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
         const ft = fps0 ? frameNum / fps0 : undefined;
         stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
           console.warn('[Stereo] Failed to set frame:', err);
@@ -693,6 +732,47 @@ export default defineComponent({
       if (!lineFeat) return null;
       const c = lineFeat.geometry.coordinates as [number, number][];
       return [c[0], c[1]];
+    }
+
+    /**
+     * Extract the outer ring of the first Polygon in a track's feature at a frame.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function getStereoPolygon(track: any, frameNum: number): [number, number][] | null {
+      if (!track) return null;
+      const [feature] = track.getFeature(frameNum);
+      if (!feature || !feature.geometry) return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const polyFeat = feature.geometry.features.find((f: any) => f.geometry.type === 'Polygon');
+      if (!polyFeat) return null;
+      const ring = polyFeat.geometry.coordinates[0];
+      return ring && ring.length >= 3 ? (ring as [number, number][]) : null;
+    }
+
+    /**
+     * Add a head/tail line (LineString + head/tail points) to a track's existing
+     * feature at a frame. Preserves any existing geometry (e.g. a segmentation
+     * polygon) and replaces any prior line/head/tail so re-running is idempotent.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function applyStereoLine(track: any, frameNum: number, line: [[number, number], [number, number]]) {
+      if (!track) return;
+      const [feature] = track.getFeature(frameNum);
+      if (!feature || !feature.keyframe || !feature.geometry) return;
+      const [p1, p2] = line;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const preserved = (feature.geometry.features || []).filter((f: any) => {
+        if (f.geometry.type === 'LineString') return false;
+        const key = f.properties?.key;
+        return key !== HeadPointKey && key !== TailPointKey;
+      });
+      const lineGeometry: GeoJSON.Feature[] = [
+        ...preserved,
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: line }, properties: { key: '' } },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [p1[0], p1[1]] }, properties: { key: HeadPointKey } },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [p2[0], p2[1]] }, properties: { key: TailPointKey } },
+      ];
+      track.setFeature({ frame: frameNum, keyframe: true }, lineGeometry);
     }
 
     // Detection attribute names for the standard VIAME stereo measurement,
@@ -1075,64 +1155,77 @@ export default defineComponent({
             }, polyGeometry);
           }
         } else if (params.type === 'segmentation') {
-          // Transfer control points to the other camera
-          const response = await stereoTransferPoints({ points: params.points });
-          if (!response.success || !response.transferredPoints) {
-            throw new Error(response.error || 'Segmentation point transfer returned no result');
-          }
-
-          // Get the image path for the other camera at this frame
+          // Single round-trip to the segmentation service: it warps the seed to
+          // the other camera (configured stereo backend, with median sampling
+          // when enabled), segments there, and optionally derives head/tail lines
+          // on both cameras plus the measurement.
+          const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const sourcePolygon = getStereoPolygon(sourceTrack, params.frameNum);
+          const sourceImagePath = stereoImagePathGetters.value[params.camera]?.(params.frameNum);
           const otherImagePath = stereoImagePathGetters.value[otherCamera]?.(params.frameNum);
-          if (!otherImagePath) {
-            throw new Error('No image path for other camera');
+          if (!sourceImagePath || !otherImagePath) {
+            throw new Error('No image path for one of the stereo cameras');
+          }
+          // Both stereo cameras share one fps: per-camera -> dataset -> any camera.
+          const segFps = stereoCameraFps.value[params.camera]
+            || stereoDatasetFps
+            || Object.values(stereoCameraFps.value)[0];
+          const segFrameTime = segFps ? params.frameNum / segFps : undefined;
+
+          const response = await segmentationStereoSegment({
+            polygon: sourcePolygon || undefined,
+            points: params.points,
+            pointLabels: params.labels,
+            sourceImagePath,
+            otherImagePath,
+            calibrationFile: stereoCalibrationFile,
+            frameTime: segFrameTime,
+          });
+          if (!response.success) {
+            throw new Error(response.error || 'Stereo segmentation returned no result');
           }
 
-          // Run segmentation prediction with warped control points on the other camera's image
-          try {
-            const segResponse = await segmentationPredict({
-              imagePath: otherImagePath,
-              points: response.transferredPoints,
-              pointLabels: params.labels,
-            });
-
-            if (segResponse.polygon && segResponse.polygon.length >= 3) {
-              // Close polygon if needed
-              const closedPolygon = [...segResponse.polygon];
-              const first = closedPolygon[0];
-              const last = closedPolygon[closedPolygon.length - 1];
-              if (first[0] !== last[0] || first[1] !== last[1]) {
-                closedPolygon.push([...first] as [number, number]);
-              }
-
-              const segGeometry: GeoJSON.Feature[] = [{
-                type: 'Feature',
-                geometry: {
-                  type: 'Polygon',
-                  coordinates: [closedPolygon],
-                },
-                properties: { key: '' },
-              }];
-
-              const segBounds = segResponse.bounds || [
-                Math.min(...segResponse.polygon.map((p: [number, number]) => p[0])),
-                Math.min(...segResponse.polygon.map((p: [number, number]) => p[1])),
-                Math.max(...segResponse.polygon.map((p: [number, number]) => p[0])),
-                Math.max(...segResponse.polygon.map((p: [number, number]) => p[1])),
-              ] as [number, number, number, number];
-
-              const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
-              if (track) {
-                track.setFeature({
-                  frame: params.frameNum,
-                  flick: 0,
-                  bounds: segBounds,
-                  keyframe: true,
-                  interpolate: false,
-                }, segGeometry);
-              }
+          // Draw the segmented polygon on the other camera.
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+          if (track && response.polygon && response.polygon.length >= 3) {
+            const closedPolygon = [...response.polygon];
+            const first = closedPolygon[0];
+            const last = closedPolygon[closedPolygon.length - 1];
+            if (first[0] !== last[0] || first[1] !== last[1]) {
+              closedPolygon.push([...first] as [number, number]);
             }
-          } catch (segErr) {
-            throw new Error(`Segmentation on other camera failed: ${segErr}`);
+            const segGeometry: GeoJSON.Feature[] = [{
+              type: 'Feature',
+              geometry: { type: 'Polygon', coordinates: [closedPolygon] },
+              properties: { key: '' },
+            }];
+            const segBounds = response.bounds || [
+              Math.min(...response.polygon.map((p: [number, number]) => p[0])),
+              Math.min(...response.polygon.map((p: [number, number]) => p[1])),
+              Math.max(...response.polygon.map((p: [number, number]) => p[0])),
+              Math.max(...response.polygon.map((p: [number, number]) => p[1])),
+            ] as [number, number, number, number];
+            track.setFeature({
+              frame: params.frameNum,
+              flick: 0,
+              bounds: segBounds,
+              keyframe: true,
+              interpolate: false,
+            }, segGeometry);
+          }
+
+          // Optionally add a head/tail line to each camera and store the
+          // length/measurement attributes (as the line-transfer flow does).
+          if (response.generateLine) {
+            if (response.lineSource) applyStereoLine(sourceTrack, params.frameNum, response.lineSource);
+            if (track && response.lineOther) applyStereoLine(track, params.frameNum, response.lineOther);
+            if (response.measurement) {
+              ensureMeasurementAttributes();
+              applyStereoMeasurement(sourceTrack, params.frameNum, response.measurement);
+              applyStereoMeasurement(track, params.frameNum, response.measurement);
+              reportStereoMeasurement(response.measurement);
+              await updateStereoTrackAverages(cameraStore, params.trackId);
+            }
           }
         }
         // Success — hide loading dialog
