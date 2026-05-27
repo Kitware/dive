@@ -28,6 +28,9 @@ This python project uses [uv](https://astral.sh/uv/) for Python dependency manag
 ```bash
 # Optional, for intellisense or whatever.  Not required for docker-compose
 uv sync
+
+# Include dev tools (tox, tox-uv, MkDocs, …) so `uv run tox` and doc targets work from this directory
+uv sync --group dev
 ```
 
 ### Running in development with docker
@@ -95,10 +98,10 @@ uv run tox
 # automatically format all code to comply to linting checks
 uv run tox -e format
 
-# run mkdocs and serve the documentation page
+# run MkDocs dev server (from ./server; default http://127.0.0.1:8090/ — use `tox -e docs -- -a HOST:PORT` to override)
 uv run tox -e docs
 
-# creates docs in the /site folder for eventual deployment
+# one-shot static build into ../site at the repository root
 uv run tox -e builddocs
 ```
 

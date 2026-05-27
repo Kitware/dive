@@ -63,6 +63,10 @@ dependencies = [
 dev = [
   "opencv-python>=4.5.5",
   "tox>=3.25.0",
+  "tox-uv>=1.0.0",
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=8.2.1",
+  "pymdown-extensions>=10.0",
 ]
 
 [project.optional-dependencies]
