@@ -13,6 +13,7 @@ import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator
 import Recipe from 'vue-media-annotator/recipe';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
+import Sam2EmbedPanel from './Sam2EmbedPanel.vue';
 
 interface ButtonData {
   id: string;
@@ -28,6 +29,7 @@ export default defineComponent({
   name: 'EditorMenu',
   components: {
     AnnotationVisibilityMenu,
+    Sam2EmbedPanel,
   },
   props: {
     editingTrack: {
@@ -74,8 +76,20 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    sam2Mode: {
+      type: Boolean,
+      default: false,
+    },
+    sam2CaptureReady: {
+      type: Boolean,
+      default: true,
+    },
+    captureFrame: {
+      type: Function as PropType<() => HTMLCanvasElement | null | Promise<HTMLCanvasElement | null>>,
+      required: true,
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon', 'update:sam2Mode'],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -142,7 +156,12 @@ export default defineComponent({
       ];
     });
 
-    const mousetrap = computed((): Mousetrap[] => flatten(editButtons.value.map((b) => b.mousetrap || [])));
+    const mousetrap = computed((): Mousetrap[] => {
+      if (props.sam2Mode) {
+        return [];
+      }
+      return flatten(editButtons.value.map((b) => b.mousetrap || []));
+    });
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
 
@@ -153,6 +172,9 @@ export default defineComponent({
     const editButtonsMenuKey = computed(() => `${props.editingMode}-${editButtons.value.length}-${activeEditButton.value?.id || ''}`);
 
     const editingHeader = computed(() => {
+      if (props.sam2Mode) {
+        return { text: 'SAM2 mode', icon: 'mdi-auto-fix', color: 'amber' };
+      }
       if (props.lassoDrawing) {
         return { text: 'Lasso Selection', icon: 'mdi-gesture', color: 'info' };
       }
@@ -234,7 +256,10 @@ export default defineComponent({
           <div
             style="line-height: 1.22em; font-size: 10px;"
           >
-            <span v-if="lassoDrawing">
+            <span v-if="sam2Mode">
+              SAM2 runs locally in your browser. Capture the current frame, then Embed image. Turn the wand off to return to editing.
+            </span>
+            <span v-else-if="lassoDrawing">
               Release the mouse to select all tracks inside the lasso.
             </span>
             <span v-else-if="lassoModeActive">
@@ -255,94 +280,118 @@ export default defineComponent({
           </div>
         </div>
       </div>
-      <!-- Collapsed mode for edit buttons -->
-      <v-menu
-        v-if="!isEditButtonsExpanded"
-        :key="editButtonsMenuKey"
-        offset-y
-        :close-on-content-click="false"
-      >
-        <template #activator="{ on, attrs }">
+      <v-tooltip bottom>
+        <template #activator="{ on }">
           <v-btn
-            v-bind="attrs"
-            :disabled="!editingMode"
-            :outlined="!activeEditButton?.active"
-            :color="activeEditButton?.active ? editingHeader.color : ''"
-            class="mx-1"
+            icon
             small
+            class="mr-1"
+            :color="sam2Mode ? 'amber' : undefined"
+            :disabled="!sam2CaptureReady"
             v-on="on"
+            @click="$emit('update:sam2Mode', !sam2Mode)"
           >
-            <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-icon>mdi-auto-fix</v-icon>
+          </v-btn>
+        </template>
+        <span>Toggle SAM2 (browser). While on, Edit Types are hidden here and the status shows SAM2 mode.</span>
+      </v-tooltip>
+      <!-- Collapsed / expanded edit tools (hidden in SAM2 mode) -->
+      <template v-if="!sam2Mode">
+        <v-menu
+          v-if="!isEditButtonsExpanded"
+          :key="editButtonsMenuKey"
+          offset-y
+          :close-on-content-click="false"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :disabled="!editingMode"
+              :outlined="!activeEditButton?.active"
+              :color="activeEditButton?.active ? editingHeader.color : ''"
+              class="mx-1"
+              small
+              v-on="on"
+            >
+              <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
+              <v-icon>{{ activeEditButton?.icon }}</v-icon>
+              <v-btn
+                icon
+                x-small
+                class="ml-1 expand-toggle"
+                @click.stop="toggleEditButtonsExpanded"
+              >
+                <v-icon small>
+                  mdi-chevron-right
+                </v-icon>
+              </v-btn>
+            </v-btn>
+          </template>
+          <v-list dense>
+            <v-list-item
+              v-for="button in editButtons"
+              :key="`${button.id}-menu`"
+            >
+              <v-list-item-icon>
+                <v-btn
+                  :disabled="!editingMode"
+                  :outlined="!button.active"
+                  :color="button.active ? editingHeader.color : ''"
+                  class="mx-1"
+                  small
+                  @click="button.click"
+                >
+                  <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                  <v-icon>{{ button.icon }}</v-icon>
+                </v-btn>
+              </v-list-item-icon>
+              <v-list-item-content>
+                <v-list-item-title>{{ button.id }}</v-list-item-title>
+              </v-list-item-content>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <!-- Expanded mode for edit buttons -->
+        <template v-else>
+          <span class="mr-1 px-3 py-1">
+            <v-icon class="pr-1">
+              mdi-pencil
+            </v-icon>
+            <span class="text-subtitle-2">
+              Edit Types
+            </span>
             <v-btn
               icon
               x-small
               class="ml-1 expand-toggle"
-              @click.stop="toggleEditButtonsExpanded"
+              @click="toggleEditButtonsExpanded"
             >
               <v-icon small>
-                mdi-chevron-right
+                mdi-chevron-left
               </v-icon>
             </v-btn>
-          </v-btn>
-        </template>
-        <v-list dense>
-          <v-list-item
-            v-for="button in editButtons"
-            :key="`${button.id}-menu`"
-          >
-            <v-list-item-icon>
-              <v-btn
-                :disabled="!editingMode"
-                :outlined="!button.active"
-                :color="button.active ? editingHeader.color : ''"
-                class="mx-1"
-                small
-                @click="button.click"
-              >
-                <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon>{{ button.icon }}</v-icon>
-              </v-btn>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>{{ button.id }}</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
-      <!-- Expanded mode for edit buttons -->
-      <template v-else>
-        <span class="mr-1 px-3 py-1">
-          <v-icon class="pr-1">
-            mdi-pencil
-          </v-icon>
-          <span class="text-subtitle-2">
-            Edit Types
           </span>
           <v-btn
-            icon
-            x-small
-            class="ml-1 expand-toggle"
-            @click="toggleEditButtonsExpanded"
+            v-for="button in editButtons"
+            :key="button.id + 'view'"
+            :disabled="!editingMode"
+            :outlined="!button.active"
+            :color="button.active ? editingHeader.color : ''"
+            class="mx-1"
+            small
+            @click="button.click"
           >
-            <v-icon small>mdi-chevron-left</v-icon>
+            <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+            <v-icon>{{ button.icon }}</v-icon>
           </v-btn>
-        </span>
-        <v-btn
-          v-for="button in editButtons"
-          :key="button.id + 'view'"
-          :disabled="!editingMode"
-          :outlined="!button.active"
-          :color="button.active ? editingHeader.color : ''"
-          class="mx-1"
-          small
-          @click="button.click"
-        >
-          <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
-        </v-btn>
+        </template>
       </template>
+      <sam2-embed-panel
+        v-else
+        :capture-frame="captureFrame"
+      />
       <slot name="delete-controls" />
       <slot name="multicam-controls-left" />
       <v-spacer />

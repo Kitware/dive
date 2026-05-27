@@ -28,6 +28,10 @@ ensureValidWorkingDirectory();
 
 // To support a broader number of systems.
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
+// SAM3 (Transformers.js WebGPU) needs `navigator.gpu` in the renderer. Chromium disables
+// WebGPU by default in embedded contexts until this flag is set (standalone Chrome uses
+// chrome://flags; Electron has no UI for that).
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.

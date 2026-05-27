@@ -103,6 +103,7 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+        exclude: ['@huggingface/transformers'],
       },
       build: {
         outDir: 'dist_desktop',

@@ -129,7 +129,8 @@ export default defineComponent({
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
-    const playbackComponent = ref(undefined as Vue | undefined);
+    const subPlaybackComponent = ref(undefined as Vue | Vue[] | undefined);
+    const sam2Mode = ref(false);
     const readonlyState = computed(() => props.readOnlyMode
     || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
     const sets: Ref<string[]> = ref([]);
@@ -1040,6 +1041,45 @@ export default defineComponent({
       }
     }
 
+    async function captureLargeImageFrame(): Promise<HTMLCanvasElement | null> {
+      try {
+        const mc = aggregateController.value.getController(selectedCamera.value);
+        const map = mc.geoViewerRef.value;
+        if (!map || typeof map.screenshot !== 'function') {
+          return null;
+        }
+        const def = map.screenshot(null, 'canvas', undefined, { wait: 'idle', attribution: false });
+        const canvas = await Promise.resolve(def);
+        return canvas instanceof HTMLCanvasElement ? canvas : null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function captureFrameForSam(): Promise<HTMLCanvasElement | null> {
+      if (!progress.loaded) {
+        return null;
+      }
+      if (datasetType.value === 'large-image') {
+        return captureLargeImageFrame();
+      }
+      const raw = subPlaybackComponent.value;
+      let list: Vue[];
+      if (Array.isArray(raw)) {
+        list = raw;
+      } else if (raw) {
+        list = [raw];
+      } else {
+        list = [];
+      }
+      const idx = Math.max(0, multiCamList.value.indexOf(selectedCamera.value));
+      const inst = list[idx] as Vue & { captureFullFrameCanvas?: () => HTMLCanvasElement | null };
+      if (inst && typeof inst.captureFullFrameCanvas === 'function') {
+        return inst.captureFullFrameCanvas() ?? null;
+      }
+      return null;
+    }
+
     function resetAggregateZoom() {
       try {
         aggregateController.value.resetZoom();
@@ -1192,7 +1232,9 @@ export default defineComponent({
       progressValue,
       saveInProgress,
       showUserSettingsDialog,
-      playbackComponent,
+      subPlaybackComponent,
+      sam2Mode,
+      captureFrameForSam,
       recipes,
       selectedFeatureHandle,
       selectedTrackId,
@@ -1357,6 +1399,9 @@ export default defineComponent({
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
           }"
+          :sam2-mode.sync="sam2Mode"
+          :sam2-capture-ready="progress.loaded"
+          :capture-frame="captureFrameForSam"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
