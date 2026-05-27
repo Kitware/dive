@@ -5,6 +5,7 @@ import {
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
+import { resizeAndPadBox } from '../../sam2/imageUtils';
 
 export interface ImageDataItem {
   url: string;
@@ -388,6 +389,35 @@ export default defineComponent({
     watch(toRef(props, 'imageData'), () => {
       init();
     });
+    /**
+     * Full-resolution current frame (letterboxed to square) for client-side models (e.g. SAM2).
+     */
+    function captureFullFrameCanvas(): HTMLCanvasElement | null {
+      if (!data.ready) {
+        return null;
+      }
+      const imgInternal = local.imgs[data.frame];
+      if (!imgInternal) {
+        return null;
+      }
+      const img = imgInternal.image;
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      if (nw <= 0 || nh <= 0) {
+        return null;
+      }
+      const largestDim = Math.max(nw, nh);
+      const box = resizeAndPadBox({ h: nh, w: nw }, { h: largestDim, w: largestDim });
+      const canvas = document.createElement('canvas');
+      canvas.width = largestDim;
+      canvas.height = largestDim;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return null;
+      }
+      ctx.drawImage(img, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
+      return canvas;
+    }
     return {
       data,
       loadingVideo,
@@ -395,6 +425,7 @@ export default defineComponent({
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
+      captureFullFrameCanvas,
     };
   },
 });

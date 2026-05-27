@@ -5,6 +5,7 @@ import {
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
+import { resizeAndPadBox } from '../../sam2/imageUtils';
 /**
  * For MPEG codecs, the PTS (Presentation Timestamp)
  * should be forced ahead 1 tick. currentTime has a finite
@@ -267,12 +268,37 @@ export default defineComponent({
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
     video.addEventListener('error', logError);
+    /**
+     * Current video frame at native resolution (letterboxed to square) for client-side models (e.g. SAM2).
+     */
+    function captureFullFrameCanvas(): HTMLCanvasElement | null {
+      if (!data.ready || video.videoWidth <= 0 || video.videoHeight <= 0) {
+        return null;
+      }
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        return null;
+      }
+      const nw = video.videoWidth;
+      const nh = video.videoHeight;
+      const largestDim = Math.max(nw, nh);
+      const box = resizeAndPadBox({ h: nh, w: nw }, { h: largestDim, w: largestDim });
+      const canvas = document.createElement('canvas');
+      canvas.width = largestDim;
+      canvas.height = largestDim;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return null;
+      }
+      ctx.drawImage(video, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
+      return canvas;
+    }
     return {
       data,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
       mediaController,
+      captureFullFrameCanvas,
     };
   },
 });
