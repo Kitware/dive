@@ -178,7 +178,6 @@ export default defineComponent({
       try {
         // Load metadata to get image paths
         const meta = await loadMetadata(props.id);
-        const { originalBasePath, originalImageFiles, type } = meta;
 
         let getImagePath: (frameNum: number) => string;
         let getFrameTime: ((frameNum: number) => number | undefined) | undefined;
@@ -239,6 +238,7 @@ export default defineComponent({
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           predictFn: (request: SegmentationPredictRequest, _frameNum: number) => segmentationPredict(request),
           getImagePath,
+          getFrameTime,
           // Initialize the segmentation service when the recipe is activated (user clicks Segment button)
           // Check if already ready to avoid showing loading indicator unnecessarily
           initializeServiceFn: async () => {
@@ -504,10 +504,12 @@ export default defineComponent({
     /**
      * Load multicam metadata for both cameras to build image path getters
      */
-    async function loadStereoMetadata() {
+    async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadMetadata(props.id);
-        if (!meta.multiCamMedia) return;
+        // Single-camera datasets have no stereo pair: report no stereo so the
+        // caller does not load the stereo service.
+        if (!meta.multiCamMedia) return false;
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
@@ -515,7 +517,7 @@ export default defineComponent({
         stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
 
         // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return;
+        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
 
         const { cameras } = meta.multiCamMedia;
         const cameraNames = Object.keys(cameras);
@@ -543,8 +545,10 @@ export default defineComponent({
             return '';
           };
         }
+        return true;
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
+        return false;
       }
     }
 
@@ -559,8 +563,16 @@ export default defineComponent({
         stereoLoadingError.value = '';
 
         try {
-          await loadStereoMetadata();
-          const result = await stereoEnable();
+          const hasStereo = await loadStereoMetadata();
+          if (!hasStereo) {
+            // Single-camera dataset: nothing to enable. Do NOT spin up the
+            // stereo service; just reset the toggle.
+            stereoEnabled.value = false;
+            clientSettings.stereoSettings.interactiveModeEnabled = false;
+            stereoLoadingDialog.value = false;
+            return;
+          }
+          const result = await stereoEnable(undefined, stereoCalibrationFile);
           if (!result.success) {
             throw new Error(result.error || 'Failed to enable stereo service');
           }

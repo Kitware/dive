@@ -80,6 +80,9 @@ export class InteractiveServiceManager extends EventEmitter {
   /** Whether interactive stereo has been enabled in the running process. */
   private stereoEnabled = false;
 
+  /** Whether the segmentation backend + model have been initialized (warmed). */
+  private segInitialized = false;
+
   // Generous timeout: the first request of each feature lazily loads its model.
   private readonly requestTimeoutMs = 300000;
 
@@ -91,6 +94,11 @@ export class InteractiveServiceManager extends EventEmitter {
   /** Is interactive stereo currently enabled? */
   isEnabled(): boolean {
     return this.stereoEnabled && this.isReady();
+  }
+
+  /** Has the segmentation backend/model been initialized (warmed up)? */
+  isSegmentationReady(): boolean {
+    return this.segInitialized && this.isReady();
   }
 
   private generateRequestId(): string {
@@ -257,9 +265,17 @@ export class InteractiveServiceManager extends EventEmitter {
 
   // ----------------------------------------------------- segmentation API
 
-  /** Start (or no-op if running) the shared process. */
+  /**
+   * Start the shared process and initialize + warm up the segmentation models.
+   * Called when the user enters point-segmentation mode, so SAM loads on mode
+   * entry rather than on the first click. Idempotent.
+   */
   async initialize(settings: Settings): Promise<void> {
     await this.ensureStarted(settings);
+    if (!this.segInitialized) {
+      await this.sendRequest({ command: 'init_segmentation' }, 'Segmentation init');
+      this.segInitialized = true;
+    }
   }
 
   async predict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
@@ -537,6 +553,7 @@ export class InteractiveServiceManager extends EventEmitter {
 
     this.process = null;
     this.stereoEnabled = false;
+    this.segInitialized = false;
     this.emit('shutdown');
   }
 

@@ -286,7 +286,7 @@ export default function register() {
     const segService = getInteractiveServiceManager();
 
     // Auto-initialize if not ready
-    if (!segService.isReady()) {
+    if (!segService.isSegmentationReady()) {
       await segService.initialize(settings.get());
     }
 
@@ -298,7 +298,7 @@ export default function register() {
     const segService = getInteractiveServiceManager();
 
     // Auto-initialize if not ready
-    if (!segService.isReady()) {
+    if (!segService.isSegmentationReady()) {
       await segService.initialize(settings.get());
     }
 
@@ -309,7 +309,7 @@ export default function register() {
   ipcMain.handle('segmentation-set-image', async (_, imagePath: string) => {
     const segService = getInteractiveServiceManager();
 
-    if (!segService.isReady()) {
+    if (!segService.isSegmentationReady()) {
       await segService.initialize(settings.get());
     }
 
@@ -333,7 +333,7 @@ export default function register() {
 
   ipcMain.handle('segmentation-is-ready', () => {
     const segService = getInteractiveServiceManager();
-    return { ready: segService.isReady() };
+    return { ready: segService.isSegmentationReady() };
   });
 
   ipcMain.handle('segmentation-text-query', async (_, args: {
@@ -348,7 +348,7 @@ export default function register() {
     const segService = getInteractiveServiceManager();
 
     // Auto-initialize if not ready
-    if (!segService.isReady()) {
+    if (!segService.isSegmentationReady()) {
       await segService.initialize(settings.get());
     }
 
@@ -371,7 +371,7 @@ export default function register() {
     const segService = getInteractiveServiceManager();
 
     // Auto-initialize if not ready
-    if (!segService.isReady()) {
+    if (!segService.isSegmentationReady()) {
       await segService.initialize(settings.get());
     }
 
@@ -383,9 +383,7 @@ export default function register() {
    * Interactive Stereo Service
    */
 
-  ipcMain.handle('stereo-enable', async (
-    event, args?: { calibration?: StereoCalibration; calibrationFile?: string },
-  ) => {
+  ipcMain.handle('stereo-enable', async (event, args?: { calibration?: StereoCalibration; calibrationFile?: string }) => {
     const stereoService = getInteractiveServiceManager();
 
     // Forward async disparity events to the renderer. The manager is a
