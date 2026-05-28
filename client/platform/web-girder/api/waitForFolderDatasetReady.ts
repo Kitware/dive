@@ -1,3 +1,4 @@
+/* eslint-disable import/prefer-default-export -- single-purpose polling helper */
 import { all } from '@girder/components/src/components/Job/status';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { getFolder } from './girder.service';
@@ -15,13 +16,19 @@ const TERMINAL_JOB_STATUSES = [
  */
 export async function waitForFolderDatasetReady(
   folderId: string,
+  options?: {
+    pollIntervalMs?: number;
+    timeoutMs?: number;
+    /** Called with average job completion fraction in [0, 1] when jobs report progress. */
+    onProgress?: (fraction: number) => void;
+  },
   jobIds: string[] = [],
-  options?: { pollIntervalMs?: number; timeoutMs?: number },
 ): Promise<void> {
   const pollIntervalMs = options?.pollIntervalMs ?? 1000;
   const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;
   const deadline = Date.now() + timeoutMs;
 
+  /* eslint-disable no-await-in-loop -- poll folder and jobs until ready or timeout */
   while (Date.now() < deadline) {
     const { data: folder } = await getFolder(folderId);
     if (folder.meta?.annotate) {
@@ -31,10 +38,24 @@ export async function waitForFolderDatasetReady(
     if (jobIds.length) {
       const jobs = await Promise.all(
         jobIds.map(async (jobId) => {
-          const { data: job } = await girderRest.get<{ status: number; title?: string }>(`job/${jobId}`);
+          const { data: job } = await girderRest.get<{
+            status: number;
+            title?: string;
+            progress?: { current: number; total: number };
+          }>(`job/${jobId}`);
           return job;
         }),
       );
+      if (options?.onProgress) {
+        const jobsWithProgress = jobs.filter((job) => job.progress?.total);
+        if (jobsWithProgress.length) {
+          const fraction = jobsWithProgress.reduce(
+            (sum, job) => sum + job.progress!.current / job.progress!.total,
+            0,
+          ) / jobsWithProgress.length;
+          options.onProgress(fraction);
+        }
+      }
       const allTerminal = jobs.every((job) => TERMINAL_JOB_STATUSES.includes(job.status));
       if (allTerminal) {
         const failed = jobs.filter((job) => job.status !== JobStatus.SUCCESS.value);

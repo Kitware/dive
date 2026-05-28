@@ -264,9 +264,9 @@ export function useImportMultiCamDialog(
       if (ret.fileList?.length) {
         const paths = ret.fileList.map((f) => f.webkitRelativePath || f.name);
         parentPath = ret.root || commonPathPrefix(paths);
-        grouped = groupParentFolderByCamera(ret.fileList, parentPath, {
+        grouped = groupParentFolderByCamera(ret.fileList, {
           allowRootLevelVideos: props.dataType === VideoType,
-        });
+        }, parentPath);
         folderNames = [...grouped.keys()];
       } else {
         const [firstPath] = ret.filePaths;

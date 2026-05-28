@@ -1,6 +1,6 @@
 <script lang='ts'>
 import {
-  defineComponent, Ref, ref, computed,
+  defineComponent, Ref, ref, computed, onBeforeUnmount,
 } from 'vue';
 import { useRouter } from 'vue-router/composables';
 
@@ -91,6 +91,25 @@ function isMultiCamFolderArgs(args: MultiCamImportArgs): args is MultiCamImportF
   return 'sourceList' in args;
 }
 
+const MULTICAM_PROGRESS_START = 2;
+const MULTICAM_PROGRESS_END = 98;
+/** Share of each camera's progress bar allocated to Girder file upload vs server processing. */
+const MULTICAM_CAMERA_UPLOAD_WEIGHT = 0.72;
+
+interface MulticamImportProgress {
+  percent: number;
+  message: string;
+}
+
+function multicamCameraSlotPercent(
+  cameraIndex: number,
+  totalCameras: number,
+  subFraction: number,
+): number {
+  const span = (MULTICAM_PROGRESS_END - MULTICAM_PROGRESS_START) / totalCameras;
+  return MULTICAM_PROGRESS_START + (cameraIndex * span) + (subFraction * span);
+}
+
 export default defineComponent({
   components: { ImportButton, ImportMultiCamDialog, UploadGirder },
   props: {
@@ -106,7 +125,44 @@ export default defineComponent({
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
     const multicamImporting = ref(false);
+    const multicamImportProgress = ref<MulticamImportProgress | null>(null);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
+    let multicamUploadProgressTimer: ReturnType<typeof setInterval> | null = null;
+
+    const clearMulticamUploadProgressTimer = () => {
+      if (multicamUploadProgressTimer !== null) {
+        clearInterval(multicamUploadProgressTimer);
+        multicamUploadProgressTimer = null;
+      }
+    };
+
+    const setMulticamImportProgress = (percent: number, message: string) => {
+      multicamImportProgress.value = {
+        percent: Math.max(0, Math.min(100, Math.round(percent))),
+        message,
+      };
+    };
+
+    const trackMulticamCameraUploadProgress = (
+      cameraIndex: number,
+      totalCameras: number,
+      cameraName: string,
+    ) => {
+      clearMulticamUploadProgressTimer();
+      multicamUploadProgressTimer = setInterval(() => {
+        const uploadPct = girderUpload.value?.totalProgressPercent ?? 0;
+        setMulticamImportProgress(
+          multicamCameraSlotPercent(
+            cameraIndex,
+            totalCameras,
+            (uploadPct / 100) * MULTICAM_CAMERA_UPLOAD_WEIGHT,
+          ),
+          `Uploading ${cameraName} (${cameraIndex + 1} of ${totalCameras})`,
+        );
+      }, 250);
+    };
+
+    onBeforeUnmount(clearMulticamUploadProgressTimer);
     const isDesktopMode = navigator.userAgent.includes('Electron');
     const { prompt } = usePrompt();
     const router = useRouter();
@@ -324,6 +380,7 @@ export default defineComponent({
       }
 
       multicamImporting.value = true;
+      multicamImportProgress.value = { percent: 0, message: 'Preparing import…' };
       preUploadErrorMessage.value = null;
       try {
         const datasetName = args.datasetName?.trim();
@@ -333,6 +390,7 @@ export default defineComponent({
         const fps = args.type === VideoType
           ? DefaultVideoFPS
           : (clientSettings.annotationFPS || 1);
+        setMulticamImportProgress(MULTICAM_PROGRESS_START, 'Creating dataset folder…');
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
           name: datasetName,
@@ -345,6 +403,7 @@ export default defineComponent({
         const cameraEntries = cameraOrder
           .filter((name) => args.sourceList[name])
           .map((name) => [name, args.sourceList[name]] as const);
+        const totalCameras = cameraEntries.length;
 
         for (let i = 0; i < cameraEntries.length; i += 1) {
           const [cameraName, source] = cameraEntries[i];
@@ -364,6 +423,7 @@ export default defineComponent({
           const annotationFile = source.trackFile
             ? getAnnotationFile(source.trackFile)
             : undefined;
+          trackMulticamCameraUploadProgress(i, totalCameras, cameraName);
           // eslint-disable-next-line no-await-in-loop
           const { folder, jobIds } = await uploadComponent.uploadCameraDataset({
             name: cameraName,
@@ -374,13 +434,38 @@ export default defineComponent({
             skipTranscoding: true,
             parentFolderId: datasetFolder._id,
           });
+          clearMulticamUploadProgressTimer();
+          setMulticamImportProgress(
+            multicamCameraSlotPercent(i, totalCameras, MULTICAM_CAMERA_UPLOAD_WEIGHT),
+            `Processing ${cameraName} (${i + 1} of ${totalCameras})`,
+          );
           // eslint-disable-next-line no-await-in-loop -- finalize only after post-process marks folder as a dataset
-          await waitForFolderDatasetReady(folder._id, jobIds);
+          await waitForFolderDatasetReady(folder._id, {
+            onProgress: (fraction) => {
+              const processShare = 1 - MULTICAM_CAMERA_UPLOAD_WEIGHT;
+              setMulticamImportProgress(
+                multicamCameraSlotPercent(
+                  i,
+                  totalCameras,
+                  MULTICAM_CAMERA_UPLOAD_WEIGHT + fraction * processShare,
+                ),
+                `Processing ${cameraName} (${i + 1} of ${totalCameras})`,
+              );
+            },
+          }, jobIds);
+          setMulticamImportProgress(
+            multicamCameraSlotPercent(i + 1, totalCameras, 0),
+            totalCameras > 1 && i + 1 < totalCameras
+              ? `Finished ${cameraName}, starting next camera…`
+              : `Finished ${cameraName}`,
+          );
           cameras[cameraName] = { folderId: folder._id };
         }
 
+        setMulticamImportProgress(92, 'Finalizing multicam dataset…');
         let calibrationFileId: string | undefined;
         if (args.calibrationFile) {
+          setMulticamImportProgress(94, 'Uploading calibration…');
           const calFile = getCalibrationFile(args.calibrationFile);
           if (!calFile) {
             throw new Error(
@@ -396,6 +481,7 @@ export default defineComponent({
         }
 
         const subType = stereo.value ? 'stereo' : 'multicam';
+        setMulticamImportProgress(97, 'Linking cameras…');
         const { data: parentFolder } = await createMulticamDataset({
           parentFolderId: datasetFolder._id,
           name: datasetName,
@@ -408,6 +494,7 @@ export default defineComponent({
           calibrationFileId,
         });
 
+        setMulticamImportProgress(100, 'Opening viewer…');
         clearMulticamFileRegistry();
         await router.push({ name: 'viewer', params: { id: parentFolder._id } });
         close();
@@ -415,7 +502,9 @@ export default defineComponent({
         preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
         await errorHandler({ err, name: 'Multicam import' });
       } finally {
+        clearMulticamUploadProgressTimer();
         multicamImporting.value = false;
+        multicamImportProgress.value = null;
       }
     };
     // Filter to show how many files are left to upload
@@ -504,6 +593,7 @@ export default defineComponent({
       importMultiCamDialog,
       girderUpload,
       multicamImporting,
+      multicamImportProgress,
       uploading,
       clientSettings,
       //methods
@@ -544,12 +634,19 @@ export default defineComponent({
         outlined
       >
         <v-card-title class="text-h5">
-          Importing multicam dataset
+          {{ multicamImportProgress?.message ?? 'Importing multicam dataset' }}
           <v-progress-linear
-            indeterminate
+            :value="multicamImportProgress?.percent ?? 0"
             color="light-blue"
             class="mt-3"
+            height="8"
           />
+          <div
+            v-if="multicamImportProgress"
+            class="text-caption mt-1 grey--text text--lighten-1"
+          >
+            {{ multicamImportProgress.percent }}%
+          </div>
         </v-card-title>
       </v-card>
       <ImportMultiCamDialog

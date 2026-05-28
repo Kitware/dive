@@ -120,18 +120,13 @@ export function getCalibrationFile(key: string): File | undefined {
   if (!key) {
     return undefined;
   }
-  for (const lookupKey of calibrationLookupKeys(key)) {
-    const file = calibrationFilesByKey.get(lookupKey);
-    if (file) {
-      return file;
-    }
+  const lookupMatch = calibrationLookupKeys(key)
+    .map((lookupKey) => calibrationFilesByKey.get(lookupKey))
+    .find((file) => file !== undefined);
+  if (lookupMatch) {
+    return lookupMatch;
   }
-  for (const file of calibrationFilesByKey.values()) {
-    if (file.name === key) {
-      return file;
-    }
-  }
-  return undefined;
+  return [...calibrationFilesByKey.values()].find((file) => file.name === key);
 }
 
 export function clearMulticamFileRegistry(): void {
