@@ -20,7 +20,12 @@ from girder_worker.utils import JobManager, JobStatus
 from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
-from dive_tasks.multicam_pipeline import build_multicam_kwiver_settings
+from dive_tasks.multicam_pipeline import (
+    append_stereo_calibration_kwiver_settings,
+    build_multicam_kwiver_settings,
+    find_downloaded_calibration_file,
+    is_stereo_measurement_pipeline,
+)
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
 from dive_utils.types import (
@@ -380,14 +385,22 @@ def run_pipeline(self: Task, params: PipelineJob):
                 command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
 
             calibration_item_id = multicam_params.get('calibration_item_id')
-            if calibration_item_id:
+            if calibration_item_id and is_stereo_measurement_pipeline(pipeline):
+                cal_item = gc.getItem(calibration_item_id)
                 cal_dir = utils.make_directory(_working_directory_path / 'calibration')
-                gc.downloadItem(calibration_item_id, str(cal_dir))
-                cal_files = list(cal_dir.glob('*.npz'))
-                if cal_files:
-                    cal_path = shlex.quote(str(cal_files[0]))
-                    command.append(f'-s measurer:calibration_file={cal_path}')
-                    command.append(f'-s calibration_reader:file={cal_path}')
+                gc.downloadItem(
+                    calibration_item_id,
+                    str(cal_dir),
+                    name=cal_item.get('name'),
+                )
+                cal_path = find_downloaded_calibration_file(cal_dir)
+                if cal_path is not None:
+                    append_stereo_calibration_kwiver_settings(command, cal_path)
+                else:
+                    manager.write(
+                        f'Warning: calibration item {calibration_item_id} '
+                        f'has no recognized calibration file under {cal_dir}\n'
+                    )
 
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:

@@ -3,6 +3,7 @@ import type { GirderModel } from '@girder/components/src';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
+import { calibrationFileMarker } from 'dive-common/constants';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
@@ -211,8 +212,13 @@ function createMulticamDataset(args: CreateMulticamDatasetArgs) {
 }
 
 async function uploadCalibrationItem(parentFolderId: string, file: File): Promise<string> {
+  const calibrationMeta = { [calibrationFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
-    params: { folderId: parentFolderId, name: file.name },
+    params: {
+      folderId: parentFolderId,
+      name: file.name,
+      metadata: JSON.stringify(calibrationMeta),
+    },
   });
   const itemId = itemResp.data._id;
   const fileResp = await girderRest.post('/file', null, {
@@ -231,6 +237,8 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
     },
     headers: { 'Content-Type': 'application/octet-stream' },
   });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, calibrationMeta);
   return itemId;
 }
 

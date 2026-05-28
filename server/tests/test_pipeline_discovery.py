@@ -55,6 +55,16 @@ def test_load_static_pipelines_includes_measurement_and_multicam(tmp_path: Path)
     assert 'detector' in pipedict
 
 
+def test_load_static_pipelines_excludes_seagis(tmp_path: Path):
+    (tmp_path / 'detector_seagis_motion.pipe').write_text('')
+    (tmp_path / 'detector_gmm_motion.pipe').write_text('')
+
+    pipedict = load_static_pipelines(tmp_path)
+    assert 'detector' in pipedict
+    assert len(pipedict['detector']['pipes']) == 1
+    assert 'seagis' not in pipedict['detector']['pipes'][0]['pipe'].lower()
+
+
 def test_load_static_pipelines_excludes_common_stereo(tmp_path: Path):
     (tmp_path / 'common_stereo_fish_tracker.pipe').write_text('')
     (tmp_path / 'common_stereo_input.pipe').write_text('')

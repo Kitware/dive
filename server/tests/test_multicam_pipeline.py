@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from dive_tasks.multicam_pipeline import (
+    append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
+    find_downloaded_calibration_file,
+    is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
     pipeline_requires_input,
 )
@@ -19,6 +22,36 @@ def test_is_stereo_or_multicam_pipeline():
     )
     assert is_stereo_or_multicam_pipeline({'name': '2', 'type': '2-cam', 'pipe': 'x.pipe'})
     assert not is_stereo_or_multicam_pipeline({'name': 'd', 'type': 'detector', 'pipe': 'x.pipe'})
+
+
+def test_is_stereo_measurement_pipeline():
+    assert is_stereo_measurement_pipeline(
+        {'name': 'm', 'type': constants.StereoPipelineMarker, 'pipe': 'measurement_x.pipe'}
+    )
+    assert not is_stereo_measurement_pipeline({'name': '2', 'type': '2-cam', 'pipe': 'x.pipe'})
+
+
+def test_find_downloaded_calibration_file(tmp_path: Path):
+    (tmp_path / 'stereo-cal.json').write_text('{}', encoding='utf-8')
+    assert find_downloaded_calibration_file(tmp_path) == (tmp_path / 'stereo-cal.json').resolve()
+
+    nested_dir = tmp_path / 'nested'
+    nested_dir.mkdir()
+    item_dir = nested_dir / 'item'
+    item_dir.mkdir()
+    (item_dir / 'calibration.npz').write_bytes(b'')
+    assert find_downloaded_calibration_file(nested_dir) == (item_dir / 'calibration.npz').resolve()
+
+    assert find_downloaded_calibration_file(tmp_path / 'empty') is None
+
+
+def test_append_stereo_calibration_kwiver_settings():
+    command: list = []
+    append_stereo_calibration_kwiver_settings(command, Path('/work/stereo-cal.json'))
+    assert command == [
+        '-s measurer:calibration_file=/work/stereo-cal.json',
+        '-s calibration_reader:file=/work/stereo-cal.json',
+    ]
 
 
 def test_build_multicam_kwiver_settings_image_sequence(tmp_path: Path):

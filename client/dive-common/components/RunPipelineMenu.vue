@@ -83,6 +83,11 @@ export default defineComponent({
       type: Array as unknown as PropType<[number, number] | null>,
       default: null,
     },
+    /** Case-insensitive substrings; matching categories/pipes are omitted from the menu. */
+    excludePipelineTerms: {
+      type: Array as PropType<string[]>,
+      default: () => ([]),
+    },
   },
 
   setup(props) {
@@ -138,6 +143,7 @@ export default defineComponent({
       props.subTypeList,
       props.cameraNumbers,
       props.typeList,
+      props.excludePipelineTerms,
     ));
 
     const pipelinesNotRunnable = computed(() => (

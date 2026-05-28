@@ -10,6 +10,7 @@ import {
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
+import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
@@ -154,6 +155,7 @@ export default defineComponent({
       prompt,
       clearSelected,
       eventBus,
+      webExcludedPipelineTerms,
     };
   },
   methods: {
@@ -235,6 +237,7 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                   :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
+                  :exclude-pipeline-terms="webExcludedPipelineTerms"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"

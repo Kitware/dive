@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,6 +24,35 @@ def is_stereo_or_multicam_pipeline(pipeline: PipelineDescription) -> bool:
         pipeline_type == constants.StereoPipelineMarker
         or pipeline_type in constants.MultiCamPipelineMarkers
     )
+
+
+def is_stereo_measurement_pipeline(pipeline: PipelineDescription) -> bool:
+    return pipeline['type'] == constants.StereoPipelineMarker
+
+
+def find_downloaded_calibration_file(directory: Path) -> Optional[Path]:
+    """
+    Locate a stereoscopic calibration file under directory after Girder download.
+
+    Matches extensions allowed for web stereo calibration uploads.
+    """
+    matches: List[Path] = []
+    for path in directory.rglob('*'):
+        if path.is_file() and constants.stereoCalibrationRegex.search(path.name):
+            matches.append(path.resolve())
+    if not matches:
+        return None
+    return sorted(matches, key=lambda p: (len(p.parts), str(p)))[0]
+
+
+def append_stereo_calibration_kwiver_settings(
+    command: List[str],
+    calibration_path: Path,
+) -> None:
+    """Append KWIVER settings used by desktop for stereoscopic calibration input."""
+    cal_path = shlex.quote(str(calibration_path))
+    command.append(f'-s measurer:calibration_file={cal_path}')
+    command.append(f'-s calibration_reader:file={cal_path}')
 
 
 def build_multicam_kwiver_settings(

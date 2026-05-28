@@ -1,4 +1,4 @@
-import type { Pipelines, SubType } from 'dive-common/apispec';
+import type { Pipe, Pipelines, SubType } from 'dive-common/apispec';
 import {
   MultiType,
   hiddenPipelineCategories,
@@ -68,6 +68,32 @@ function shouldShowMultiCamPipelineCategory(
   return subTypeList.every((item) => item === 'multicam');
 }
 
+function pipelineMatchesExcludedTerm(pipe: Pipe, terms: string[]): boolean {
+  const hay = `${pipe.name} ${pipe.type} ${pipe.pipe}`.toLowerCase();
+  return terms.some((term) => hay.includes(term.toLowerCase()));
+}
+
+/** Remove categories or pipes whose names contain any excluded term (e.g. seagis on web). */
+export function excludePipelinesMatchingTerms(
+  pipelines: Pipelines,
+  terms: string[],
+): Pipelines {
+  if (!terms.length) {
+    return pipelines;
+  }
+  const result = {} as Pipelines;
+  Object.entries(pipelines).forEach(([categoryName, category]) => {
+    if (terms.some((term) => categoryName.toLowerCase().includes(term.toLowerCase()))) {
+      return;
+    }
+    const pipes = category.pipes.filter((pipe) => !pipelineMatchesExcludedTerm(pipe, terms));
+    if (pipes.length) {
+      result[categoryName] = { ...category, pipes };
+    }
+  });
+  return result;
+}
+
 /**
  * Filter pipeline categories for the run-pipeline menu (matches desktop behavior).
  *
@@ -80,6 +106,7 @@ export function filterPipelinesForDatasets(
   subTypeList: SubType[],
   cameraNumbers: number[],
   datasetTypes?: (string | null | undefined)[],
+  excludePipelineTerms: string[] = [],
 ): Pipelines {
   const sortedPipelines = {} as Pipelines;
   const allStereo = subTypeList.length > 0 && subTypeList.every((item) => item === 'stereo');
@@ -106,5 +133,5 @@ export function filterPipelinesForDatasets(
     }
   });
 
-  return sortedPipelines;
+  return excludePipelinesMatchingTerms(sortedPipelines, excludePipelineTerms);
 }

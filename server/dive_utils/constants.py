@@ -113,6 +113,8 @@ TypeMarker = "type"
 SubTypeMarker = "subType"
 MultiCamMarker = "multiCam"
 CalibrationItemIdMarker = "calibrationItemId"
+# Girder item meta: marks stereoscopic calibration files in the dataset base folder
+CalibrationFileMarker = "calibrationFile"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 MarkForPostProcess = "MarkForPostProcess"

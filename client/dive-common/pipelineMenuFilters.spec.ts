@@ -1,4 +1,8 @@
-import { filterPipelinesForDatasets, getMultiCamCameraCount } from './pipelineMenuFilters';
+import {
+  excludePipelinesMatchingTerms,
+  filterPipelinesForDatasets,
+  getMultiCamCameraCount,
+} from './pipelineMenuFilters';
 import type { Pipelines } from './apispec';
 
 const samplePipelines: Pipelines = {
@@ -79,6 +83,35 @@ describe('pipelineMenuFilters', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, [null], [1]);
     expect(filtered.measurement).toBeUndefined();
     expect(filtered['2-cam']).toBeUndefined();
+    expect(filtered.detector).toBeDefined();
+  });
+
+  it('removes pipelines whose names contain excluded terms', () => {
+    const withSeagis: typeof samplePipelines = {
+      ...samplePipelines,
+      detector: {
+        description: '',
+        pipes: [
+          ...samplePipelines.detector.pipes,
+          { name: 'seagis tracker', type: 'detector', pipe: 'detector_seagis_motion.pipe' },
+        ],
+      },
+    };
+    const filtered = excludePipelinesMatchingTerms(withSeagis, ['seagis']);
+    expect(filtered.detector.pipes).toHaveLength(1);
+    expect(filtered.detector.pipes[0].name).toBe('default');
+  });
+
+  it('applies excludePipelineTerms in filterPipelinesForDatasets', () => {
+    const withSeagis: typeof samplePipelines = {
+      ...samplePipelines,
+      utility: {
+        description: '',
+        pipes: [{ name: 'seagis utility', type: 'utility', pipe: 'utility_seagis_tool.pipe' }],
+      },
+    };
+    const filtered = filterPipelinesForDatasets(withSeagis, [null], [1], undefined, ['seagis']);
+    expect(filtered.utility).toBeUndefined();
     expect(filtered.detector).toBeDefined();
   });
 });

@@ -18,6 +18,7 @@ import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { DatasetType, SubType } from 'dive-common/apispec';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
+import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
@@ -253,6 +254,7 @@ export default defineComponent({
       cameraNumbers,
       timeFilter,
       pipelinesEnabled,
+      webExcludedPipelineTerms,
     };
   },
 });
@@ -300,6 +302,7 @@ export default defineComponent({
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
         :time-filter="timeFilter"
+        :exclude-pipeline-terms="webExcludedPipelineTerms"
       />
       <ImportAnnotations
         :button-options="buttonOptions"

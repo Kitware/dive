@@ -28,6 +28,7 @@ DisallowedStaticPipelines = (
     r"common_stereo_.*\.pipe|"
     # Remove utilities pipes which hold no meaning in web
     r".*local.*|"
+    r".*seagis.*|"
     r".*hough.*|"
     r".*_svm_models\.pipe|"
     r"detector_extract_chips\.pipe|"
@@ -160,8 +161,8 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipelist = [
         path
         for path in search_path.glob("./*.pipe")
-        if re.match(AllowedStaticPipelines, path.name)
-        and not re.match(DisallowedStaticPipelines, path.name)
+        if re.match(AllowedStaticPipelines, path.name, re.IGNORECASE)
+        and not re.match(DisallowedStaticPipelines, path.name, re.IGNORECASE)
     ]
 
     for pipe_path in pipelist:

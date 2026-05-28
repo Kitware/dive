@@ -15,7 +15,7 @@ from girder_plugin_worker.status import CustomJobStatus
 from pydantic import BaseModel
 import pymongo
 
-from dive_server import crud, crud_annotation
+from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
@@ -295,7 +295,19 @@ def run_pipeline(
                 code=400,
             )
         input_type = default_cam['media_type']
-        calibration_item_id = multi_cam.get(constants.CalibrationItemIdMarker)
+        calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(
+            folder, pipeline
+        )
+        needs_calibration = (
+            fromMeta(folder, constants.SubTypeMarker) == 'stereo'
+            and pipeline.get('type') == constants.StereoPipelineMarker
+        )
+        if needs_calibration and calibration_item_id is None:
+            raise RestException(
+                'Stereo calibration file was not found in the dataset folder. '
+                'Import or upload a calibration file with the calibrationFile marker.',
+                code=404,
+            )
 
     params: types.MulticamPipelineJob = {
         "pipeline": pipeline,
