@@ -24,6 +24,7 @@ import {
   createMulticamDataset,
   uploadCalibrationItem,
   validateUploadGroup,
+  waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
 import {
   clearMulticamFileRegistry,
@@ -35,6 +36,10 @@ import {
   renameCameraFolderFiles,
   stashCameraFolderFiles,
 } from 'platform/web-girder/multicamFileRegistry';
+import {
+  isAllowedStereoCalibrationFilename,
+  stereoCalibrationAllowedExtensionsLabel,
+} from 'platform/web-girder/multicamCalibration';
 import { openFromDisk } from 'platform/web-girder/utils';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -79,7 +84,7 @@ interface GirderUpload {
     meta?: File | null;
     annotationFile?: File | null;
     skipTranscoding?: boolean;
-  }) => Promise<{ _id: string }>;
+  }) => Promise<{ folder: { _id: string }; jobIds: string[] }>;
 }
 
 function isMultiCamFolderArgs(args: MultiCamImportArgs): args is MultiCamImportFolderArgs {
@@ -325,7 +330,9 @@ export default defineComponent({
         if (!datasetName) {
           throw new Error('Dataset name is required');
         }
-        const fps = clientSettings.annotationFPS || DefaultVideoFPS;
+        const fps = args.type === VideoType
+          ? DefaultVideoFPS
+          : (clientSettings.annotationFPS || 1);
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
           name: datasetName,
@@ -358,7 +365,7 @@ export default defineComponent({
             ? getAnnotationFile(source.trackFile)
             : undefined;
           // eslint-disable-next-line no-await-in-loop
-          const folder = await uploadComponent.uploadCameraDataset({
+          const { folder, jobIds } = await uploadComponent.uploadCameraDataset({
             name: cameraName,
             fps,
             type: args.type,
@@ -367,6 +374,8 @@ export default defineComponent({
             skipTranscoding: true,
             parentFolderId: datasetFolder._id,
           });
+          // eslint-disable-next-line no-await-in-loop -- finalize only after post-process marks folder as a dataset
+          await waitForFolderDatasetReady(folder._id, jobIds);
           cameras[cameraName] = { folderId: folder._id };
         }
 
@@ -374,7 +383,14 @@ export default defineComponent({
         if (args.calibrationFile) {
           const calFile = getCalibrationFile(args.calibrationFile);
           if (!calFile) {
-            throw new Error('Calibration file was not found');
+            throw new Error(
+              'Calibration file was not found. Use "Choose calibration" in the import dialog to select the file again.',
+            );
+          }
+          if (stereo.value && !isAllowedStereoCalibrationFilename(calFile.name)) {
+            throw new Error(
+              `Stereoscopic calibration must be ${stereoCalibrationAllowedExtensionsLabel()}.`,
+            );
           }
           calibrationFileId = await uploadCalibrationItem(datasetFolder._id, calFile);
         }

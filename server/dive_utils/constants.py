@@ -56,6 +56,8 @@ jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 npzRegex = re.compile(r"\.npz$", re.IGNORECASE)
+# Stereo/multicam calibration uploads (aligned with dive-common calibrationFileTypes)
+stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
 # .json or .csv file
 possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)

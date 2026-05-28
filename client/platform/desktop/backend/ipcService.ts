@@ -147,6 +147,11 @@ export default function register() {
     common.listImmediateSubfolders(path)
   ));
 
+  ipcMain.handle('list-parent-folder-cameras', async (
+    event,
+    { path, mediaType }: { path: string; mediaType: 'image-sequence' | 'video' },
+  ) => common.listParentFolderCameras(path, mediaType));
+
   ipcMain.handle('resolve-multicam-camera-source-path', async (
     event,
     { path, mediaType }: { path: string; mediaType: 'image-sequence' | 'video' },

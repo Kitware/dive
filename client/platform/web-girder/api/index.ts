@@ -8,6 +8,7 @@ export * from './dataset.service';
 export * from './girder.service';
 export * from './multicamResolve';
 export * from './rpc.service';
+export * from './waitForFolderDatasetReady';
 export * from './largeImage.service';
 
 /**

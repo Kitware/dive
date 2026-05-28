@@ -35,7 +35,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
@@ -1016,6 +1016,56 @@ async function listImmediateSubfolders(parentPath: string): Promise<string[]> {
     .map((entry) => entry.name);
 }
 
+function isVideoFilePath(filePath: string): boolean {
+  const mimetype = mime.lookup(filePath);
+  if (mimetype && (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype))) {
+    return true;
+  }
+  const ext = npath.extname(filePath).replace(/^\./, '').toLowerCase();
+  return fileVideoTypes.includes(ext);
+}
+
+/**
+ * Discover cameras under a parent folder: immediate subfolders, or separate video files
+ * in the parent when importing video and there are no subfolders.
+ */
+async function listParentFolderCameras(
+  parentPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<{ name: string; sourcePath: string }[]> {
+  const subfolders = await listImmediateSubfolders(parentPath);
+  const separator = parentPath.includes('\\') ? '\\' : '/';
+  const normalized = parentPath.replace(/[\\/]+$/, '');
+  if (subfolders.length >= 2) {
+    return subfolders.map((name) => ({
+      name,
+      sourcePath: `${normalized}${separator}${name}`,
+    }));
+  }
+  if (mediaType === 'video' && subfolders.length === 0) {
+    const children = await fs.readdir(parentPath, { withFileTypes: true });
+    const videoPaths: string[] = [];
+    children.forEach((entry) => {
+      if (!entry.isFile()) {
+        return;
+      }
+      const fullPath = npath.join(parentPath, entry.name);
+      if (isVideoFilePath(fullPath)) {
+        videoPaths.push(fullPath);
+      }
+    });
+    videoPaths.sort((a, b) => a.localeCompare(b));
+    return videoPaths.map((fullPath) => ({
+      name: npath.parse(fullPath).name,
+      sourcePath: fullPath,
+    }));
+  }
+  return subfolders.map((name) => ({
+    name,
+    sourcePath: `${normalized}${separator}${name}`,
+  }));
+}
+
 /**
  * Resolve the import path for one camera subfolder (directory or first video file).
  */
@@ -1561,6 +1611,7 @@ export {
   saveAttributeTrackFilters,
   findImagesInFolder,
   listImmediateSubfolders,
+  listParentFolderCameras,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,

@@ -174,6 +174,13 @@ function listImmediateSubfolders(parentPath: string): Promise<string[]> {
   return window.diveDesktop.invoke('list-immediate-subfolders', { path: parentPath });
 }
 
+function listParentFolderCameras(
+  parentPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<{ name: string; sourcePath: string }[]> {
+  return window.diveDesktop.invoke('list-parent-folder-cameras', { path: parentPath, mediaType });
+}
+
 function resolveMulticamCameraSourcePath(
   subfolderPath: string,
   mediaType: 'image-sequence' | 'video',
@@ -368,6 +375,7 @@ export {
   convert,
   importMedia,
   listImmediateSubfolders,
+  listParentFolderCameras,
   resolveMulticamCameraSourcePath,
   bulkImportMedia,
   deleteDataset,

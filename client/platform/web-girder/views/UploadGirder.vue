@@ -144,6 +144,7 @@ export default Vue.extend({
       }
     },
     async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
+      let jobIds = [];
       // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
@@ -151,9 +152,11 @@ export default Vue.extend({
           results: data.results,
         });
         try {
-          await postProcess(folder._id, false, skipTranscoding);
+          const { data: postprocessResult } = await postProcess(folder._id, false, skipTranscoding);
+          jobIds = postprocessResult.job_ids ?? [];
         } catch (err) {
           this.$emit('error', { err, name });
+          throw err;
         }
       };
       // Sets the files used by the fileUploader mixin
@@ -164,6 +167,7 @@ export default Vue.extend({
         postUpload,
         uploadCls: GirderUploadManager,
       });
+      return { folder, jobIds };
     },
     /**
      * Upload a single camera dataset folder (used by multicam import).
@@ -180,8 +184,8 @@ export default Vue.extend({
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);
       }
-      await this.uploadFiles(name, folder, files, [], skipTranscoding);
-      return folder;
+      const { folder: uploadedFolder, jobIds } = await this.uploadFiles(name, folder, files, [], skipTranscoding);
+      return { folder: uploadedFolder, jobIds };
     },
   },
 });

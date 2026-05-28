@@ -17,7 +17,7 @@ import {
 import {
   applyParentPathToAssignments,
   commonPathPrefix,
-  groupFilesByImmediateSubfolder,
+  groupParentFolderByCamera,
   isValidCameraName,
   organizeSubfolderCameras,
   pickDefaultMulticamCamera,
@@ -51,7 +51,7 @@ export function useImportMultiCamDialog(
     openFromDisk,
     getLastCalibration,
     saveCalibration,
-    listImmediateSubfolders,
+    listParentFolderCameras,
     resolveMulticamCameraSourcePath,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
@@ -249,7 +249,7 @@ export function useImportMultiCamDialog(
       return;
     }
     const useDesktopDiscovery = !ret.fileList?.length && !!ret.filePaths?.[0]
-      && !!listImmediateSubfolders;
+      && !!listParentFolderCameras;
     if (!ret.fileList?.length && !useDesktopDiscovery) {
       return;
     }
@@ -258,16 +258,21 @@ export function useImportMultiCamDialog(
       let parentPath = '';
       let grouped: Map<string, File[]> | undefined;
       let folderNames: string[] = [];
+      let desktopCameras: { name: string; sourcePath: string }[] | undefined;
+      const mediaType = props.dataType === VideoType ? 'video' : 'image-sequence';
 
       if (ret.fileList?.length) {
         const paths = ret.fileList.map((f) => f.webkitRelativePath || f.name);
         parentPath = ret.root || commonPathPrefix(paths);
-        grouped = groupFilesByImmediateSubfolder(ret.fileList, parentPath);
+        grouped = groupParentFolderByCamera(ret.fileList, parentPath, {
+          allowRootLevelVideos: props.dataType === VideoType,
+        });
         folderNames = [...grouped.keys()];
       } else {
         const [firstPath] = ret.filePaths;
         parentPath = firstPath;
-        folderNames = await listImmediateSubfolders!(parentPath);
+        desktopCameras = await listParentFolderCameras!(parentPath, mediaType);
+        folderNames = desktopCameras.map((camera) => camera.name);
       }
 
       const organized = organizeSubfolderCameras(folderNames, {
@@ -286,9 +291,19 @@ export function useImportMultiCamDialog(
 
       let { assignments } = organized;
       if (useDesktopDiscovery) {
-        assignments = applyParentPathToAssignments(parentPath, assignments);
+        if (desktopCameras?.length) {
+          assignments = assignments.map((assignment) => {
+            const discovered = desktopCameras?.find(
+              (camera) => camera.name === assignment.folderName,
+            );
+            return discovered
+              ? { ...assignment, sourcePath: discovered.sourcePath }
+              : assignment;
+          });
+        } else {
+          assignments = applyParentPathToAssignments(parentPath, assignments);
+        }
         if (resolveMulticamCameraSourcePath) {
-          const mediaType = props.dataType === VideoType ? 'video' : 'image-sequence';
           assignments = await Promise.all(assignments.map(async (assignment) => ({
             ...assignment,
             sourcePath: await resolveMulticamCameraSourcePath(assignment.sourcePath, mediaType),
@@ -313,7 +328,7 @@ export function useImportMultiCamDialog(
       for (let i = 0; i < registryPayload.length; i += 1) {
         const { cameraName, sourcePath, files } = registryPayload[i];
         if (grouped && !files.length) {
-          throw new Error(`Subfolder "${organized.assignments[i].folderName}" has no media files`);
+          throw new Error(`Camera "${organized.assignments[i].folderName}" has no media files`);
         }
         Vue.set(subfolderOriginalNames.value, cameraName, organized.assignments[i].folderName);
         Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
@@ -350,7 +365,7 @@ export function useImportMultiCamDialog(
     }
 
     Vue.set(folderList.value, newKey, {
-      sourcePath: (importType.value === 'subfolders' && !listImmediateSubfolders) ? newKey : sourcePath,
+      sourcePath: (importType.value === 'subfolders' && !listParentFolderCameras) ? newKey : sourcePath,
       trackFile: entry.trackFile,
     });
     Vue.delete(folderList.value, oldKey);

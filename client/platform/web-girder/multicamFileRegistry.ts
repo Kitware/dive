@@ -97,12 +97,41 @@ export function getAnnotationFile(key: string): File | undefined {
   return annotationFilesByKey.get(key);
 }
 
+function calibrationLookupKeys(key: string): string[] {
+  const keys = new Set<string>();
+  if (key) {
+    keys.add(key);
+    const base = key.split(/[/\\]/).pop();
+    if (base) {
+      keys.add(base);
+    }
+  }
+  return [...keys];
+}
+
 export function stashCalibrationFile(key: string, file: File): void {
-  calibrationFilesByKey.set(key, file);
+  calibrationLookupKeys(key).forEach((lookupKey) => {
+    calibrationFilesByKey.set(lookupKey, file);
+  });
+  calibrationFilesByKey.set(file.name, file);
 }
 
 export function getCalibrationFile(key: string): File | undefined {
-  return calibrationFilesByKey.get(key);
+  if (!key) {
+    return undefined;
+  }
+  for (const lookupKey of calibrationLookupKeys(key)) {
+    const file = calibrationFilesByKey.get(lookupKey);
+    if (file) {
+      return file;
+    }
+  }
+  for (const file of calibrationFilesByKey.values()) {
+    if (file.name === key) {
+      return file;
+    }
+  }
+  return undefined;
 }
 
 export function clearMulticamFileRegistry(): void {
@@ -129,10 +158,20 @@ export async function openFromDiskWithRegistry(
 }
 
 export function getLastCalibration(): Promise<string | null> {
-  return Promise.resolve(localStorage.getItem(LAST_CALIBRATION_STORAGE_KEY));
+  const stored = localStorage.getItem(LAST_CALIBRATION_STORAGE_KEY);
+  if (!stored) {
+    return Promise.resolve(null);
+  }
+  // Browser sessions cannot restore File objects from localStorage; only prefill when
+  // the user already chose a calibration file in this session.
+  if (getCalibrationFile(stored)) {
+    return Promise.resolve(stored);
+  }
+  return Promise.resolve(null);
 }
 
 export function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
-  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, path);
-  return Promise.resolve({ savedPath: path, updatedDatasetIds: [] });
+  const savedPath = path.split(/[/\\]/).pop() || path;
+  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, savedPath);
+  return Promise.resolve({ savedPath, updatedDatasetIds: [] });
 }

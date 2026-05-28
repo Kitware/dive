@@ -46,13 +46,13 @@ async function openFromDisk(
   if (!['calibration', 'annotation', 'zip'].includes(datasetType)) {
     input.multiple = true;
   }
-  if (directory && datasetType === 'image-sequence') {
+  if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
     input.setAttribute('webkitdirectory', '');
     input.multiple = true;
   }
   if (datasetType === 'image-sequence' && !directory) {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
-  } else if (datasetType === 'image-sequence' && directory) {
+  } else if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
     input.accept = '';
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');

@@ -99,6 +99,42 @@ def test_create_multicam_rejects_mismatched_frame_counts(_verify, folder_cls, va
         crud_dataset.create_multicam(user, _dataset_parent(), data)
 
 
+@patch('dive_server.crud_dataset.Item')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_accepts_video_fps_sentinel(_verify, folder_cls, _aux, item_cls):
+    user = {'login': 'tester'}
+    dataset_parent = _dataset_parent()
+    left = _child_folder('left-id', 'left', fps=10.0, media_type='video')
+    right = _child_folder('right-id', 'right', fps=10.0, media_type='video')
+
+    folder_cls.return_value.load.side_effect = lambda fid, **kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[fid]
+    item_cls.return_value.findOne.return_value = {'_id': 'video-item'}
+
+    data = {
+        'name': 'stereo-set',
+        'fps': -1,
+        'type': 'video',
+        'subType': 'stereo',
+        'defaultDisplay': 'left',
+        'cameraOrder': ['left', 'right'],
+        'cameras': {
+            'left': {'folderId': 'left-id'},
+            'right': {'folderId': 'right-id'},
+        },
+    }
+
+    result = crud_dataset.create_multicam(user, dataset_parent, data)
+
+    assert result == dataset_parent
+    saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
+    assert saved_meta[constants.FPSMarker] == 10.0
+
+
 @patch('dive_server.crud_dataset.crud.valid_images')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')

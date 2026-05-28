@@ -1,3 +1,5 @@
+import { fileVideoTypes } from 'dive-common/constants';
+
 /** Assign immediate child folders to multicam cameras (one camera per subfolder). */
 
 export interface SubfolderCameraAssignment {
@@ -162,7 +164,7 @@ export function organizeSubfolderCameras(
   if (unique.length < 2 || unique.length > 3) {
     return {
       ...empty,
-      error: `Expected 2 or 3 camera subfolders, found ${unique.length} (${unique.join(', ')})`,
+      error: `Expected 2 or 3 cameras (subfolders or video files), found ${unique.length} (${unique.join(', ')})`,
     };
   }
 
@@ -260,4 +262,63 @@ export function groupFilesByImmediateSubfolder(
   });
 
   return groups;
+}
+
+export function isVideoFileName(fileName: string): boolean {
+  const parts = fileName.split('.');
+  if (parts.length < 2) {
+    return false;
+  }
+  const ext = parts.pop()?.toLowerCase() ?? '';
+  return fileVideoTypes.includes(ext);
+}
+
+/**
+ * Group video files that sit directly in the selected parent folder (one camera per file).
+ * Camera keys are the file stem (basename without extension).
+ */
+export function groupRootLevelVideoFiles(
+  fileList: File[],
+  root = '',
+): Map<string, File[]> {
+  const groups = new Map<string, File[]>();
+  const paths = fileList.map((file) => file.webkitRelativePath || file.name);
+  const effectiveRoot = root || commonPathPrefix(paths);
+
+  fileList.forEach((file, index) => {
+    const rel = paths[index];
+    const path = stripPathPrefix(rel, effectiveRoot);
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length !== 1 || !isVideoFileName(parts[0])) {
+      return;
+    }
+    const stem = parts[0].replace(/\.[^.]+$/, '');
+    const existing = groups.get(stem) ?? [];
+    existing.push(file);
+    groups.set(stem, existing);
+  });
+
+  return groups;
+}
+
+/**
+ * Group a parent-folder selection by camera: prefer immediate subfolders; for video imports,
+ * fall back to separate video files in the parent folder when there are not enough subfolders.
+ */
+export function groupParentFolderByCamera(
+  fileList: File[],
+  root = '',
+  options?: { allowRootLevelVideos?: boolean },
+): Map<string, File[]> {
+  const subfolderGroups = groupFilesByImmediateSubfolder(fileList, root);
+  if (subfolderGroups.size >= 2) {
+    return subfolderGroups;
+  }
+  if (options?.allowRootLevelVideos) {
+    const videoGroups = groupRootLevelVideoFiles(fileList, root);
+    if (videoGroups.size >= 2) {
+      return videoGroups;
+    }
+  }
+  return subfolderGroups;
 }

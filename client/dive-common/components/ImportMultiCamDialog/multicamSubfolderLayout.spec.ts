@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   applyParentPathToAssignments,
   groupFilesByImmediateSubfolder,
+  groupParentFolderByCamera,
+  groupRootLevelVideoFiles,
   isValidCameraName,
+  isVideoFileName,
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
   preferLeftSubfolderFirst,
@@ -115,8 +118,63 @@ describe('organizeSubfolderCameras', () => {
   });
 
   it('rejects wrong folder count', () => {
-    expect(organizeSubfolderCameras(['only']).error).toMatch(/Expected 2 or 3/);
-    expect(organizeSubfolderCameras(['a', 'b', 'c', 'd']).error).toMatch(/Expected 2 or 3/);
+    expect(organizeSubfolderCameras(['only']).error).toMatch(/Expected 2 or 3 cameras/);
+    expect(organizeSubfolderCameras(['a', 'b', 'c', 'd']).error).toMatch(/Expected 2 or 3 cameras/);
+  });
+});
+
+describe('isVideoFileName', () => {
+  it('recognizes common video extensions', () => {
+    expect(isVideoFileName('left.mp4')).toBe(true);
+    expect(isVideoFileName('right.MOV')).toBe(true);
+    expect(isVideoFileName('notes.txt')).toBe(false);
+  });
+});
+
+describe('groupRootLevelVideoFiles', () => {
+  const mk = (path: string) => ({ webkitRelativePath: path, name: path.split('/').pop() } as File);
+
+  it('groups videos directly under the parent folder by file stem', () => {
+    const groups = groupRootLevelVideoFiles([
+      mk('stereo/left.mp4'),
+      mk('stereo/right.mp4'),
+      mk('stereo/readme.txt'),
+    ], 'stereo');
+    expect([...groups.keys()].sort()).toEqual(['left', 'right']);
+    expect(groups.get('left')?.length).toBe(1);
+    expect(groups.get('right')?.length).toBe(1);
+  });
+});
+
+describe('groupParentFolderByCamera', () => {
+  const mk = (path: string) => ({ webkitRelativePath: path, name: path.split('/').pop() } as File);
+
+  it('prefers subfolders when at least two exist', () => {
+    const groups = groupParentFolderByCamera([
+      mk('set/left/a.mp4'),
+      mk('set/right/b.mp4'),
+      mk('set/left_cam.mp4'),
+    ], 'set', { allowRootLevelVideos: true });
+    expect([...groups.keys()].sort()).toEqual(['left', 'right']);
+  });
+
+  it('falls back to root-level videos when there are no subfolders', () => {
+    const groups = groupParentFolderByCamera([
+      mk('stereo/left.mp4'),
+      mk('stereo/right.mp4'),
+    ], 'stereo', { allowRootLevelVideos: true });
+    expect([...groups.keys()].sort()).toEqual(['left', 'right']);
+    const organized = organizeSubfolderCameras([...groups.keys()], { preferLeftForStereo: true });
+    expect(organized.error).toBeNull();
+    expect(organized.assignments.map((a) => a.cameraName)).toEqual(['left', 'right']);
+  });
+
+  it('does not use root-level videos when subfolder import is disabled', () => {
+    const groups = groupParentFolderByCamera([
+      mk('stereo/left.mp4'),
+      mk('stereo/right.mp4'),
+    ], 'stereo');
+    expect(groups.size).toBe(0);
   });
 });
 

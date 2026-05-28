@@ -230,6 +230,11 @@ interface Api {
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
+  /** Desktop: subfolders or root-level video files under a parent folder (multicam import). */
+  listParentFolderCameras?(
+    parentPath: string,
+    mediaType: 'image-sequence' | 'video',
+  ): Promise<{ name: string; sourcePath: string }[]>;
   /** Desktop: folder path for image-sequence, or first video file inside the folder for video. */
   resolveMulticamCameraSourcePath?(
     subfolderPath: string,

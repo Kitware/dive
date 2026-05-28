@@ -560,6 +560,7 @@ def create_multicam(
 
     loaded_children: Dict[str, types.GirderModel] = {}
     frame_counts: List[int] = []
+    child_fps_by_name: Dict[str, float] = {}
     for name in camera_order:
         cam = cameras[name]
         folder_id = cam.get('folderId')
@@ -581,13 +582,27 @@ def create_multicam(
                 code=400,
             )
         child_fps = fromMeta(child, constants.FPSMarker)
-        if child_fps != validated.fps:
-            raise RestException(
-                f'Camera "{name}" has fps {child_fps}, expected {validated.fps}',
-                code=400,
-            )
+        child_fps_by_name[name] = child_fps
         frame_counts.append(_child_media_frame_count(child, user, validated.type))
         loaded_children[name] = child
+
+    use_video_fps = (
+        validated.type == constants.VideoType and validated.fps == -1
+    )
+    if use_video_fps:
+        unique_fps = set(child_fps_by_name.values())
+        if len(unique_fps) > 1:
+            raise RestException(
+                'All cameras must have the same fps when using video-derived frame rate',
+                code=400,
+            )
+    else:
+        for name, child_fps in child_fps_by_name.items():
+            if child_fps != validated.fps:
+                raise RestException(
+                    f'Camera "{name}" has fps {child_fps}, expected {validated.fps}',
+                    code=400,
+                )
 
     if len(set(frame_counts)) > 1:
         expected = frame_counts[0]
@@ -616,8 +631,11 @@ def create_multicam(
         cal_item = Item().load(validated.calibrationFileId, level=AccessType.WRITE, user=user)
         if cal_item is None:
             raise RestException('Calibration file was not found', code=404)
-        if not constants.npzRegex.search(cal_item['name']):
-            raise RestException('Calibration file must be a .npz file', code=400)
+        if not constants.stereoCalibrationRegex.search(cal_item['name']):
+            raise RestException(
+                'Calibration file must be .npz, .json, .cam, .yml, or .zip',
+                code=400,
+            )
         auxiliary = crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
         Item().move(cal_item, auxiliary)
         calibration_item_id = str(cal_item['_id'])
