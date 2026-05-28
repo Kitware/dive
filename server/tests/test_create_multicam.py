@@ -164,12 +164,13 @@ def test_create_multicam_rejects_wrong_default_display(_verify, folder_cls, vali
         crud_dataset.create_multicam(user, _dataset_parent(), data)
 
 
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset.Item')
 @patch('dive_server.crud_dataset.crud.valid_images')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
 def test_create_multicam_marks_calibration_in_dataset_folder(
-    _verify, folder_cls, valid_images_mock, item_cls,
+    _verify, folder_cls, valid_images_mock, item_cls, _aux,
 ):
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()

@@ -307,8 +307,8 @@ export function groupRootLevelVideoFiles(
  */
 export function groupParentFolderByCamera(
   fileList: File[],
-  root = '',
   options?: { allowRootLevelVideos?: boolean },
+  root = '',
 ): Map<string, File[]> {
   const subfolderGroups = groupFilesByImmediateSubfolder(fileList, root);
   if (subfolderGroups.size >= 2) {

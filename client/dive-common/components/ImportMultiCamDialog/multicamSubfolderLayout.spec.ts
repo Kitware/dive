@@ -154,7 +154,7 @@ describe('groupParentFolderByCamera', () => {
       mk('set/left/a.mp4'),
       mk('set/right/b.mp4'),
       mk('set/left_cam.mp4'),
-    ], 'set', { allowRootLevelVideos: true });
+    ], { allowRootLevelVideos: true }, 'set');
     expect([...groups.keys()].sort()).toEqual(['left', 'right']);
   });
 
@@ -162,7 +162,7 @@ describe('groupParentFolderByCamera', () => {
     const groups = groupParentFolderByCamera([
       mk('stereo/left.mp4'),
       mk('stereo/right.mp4'),
-    ], 'stereo', { allowRootLevelVideos: true });
+    ], { allowRootLevelVideos: true }, 'stereo');
     expect([...groups.keys()].sort()).toEqual(['left', 'right']);
     const organized = organizeSubfolderCameras([...groups.keys()], { preferLeftForStereo: true });
     expect(organized.error).toBeNull();
@@ -173,7 +173,7 @@ describe('groupParentFolderByCamera', () => {
     const groups = groupParentFolderByCamera([
       mk('stereo/left.mp4'),
       mk('stereo/right.mp4'),
-    ], 'stereo');
+    ], undefined, 'stereo');
     expect(groups.size).toBe(0);
   });
 });

@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
   describe, expect, it, beforeEach, vi,
 } from 'vitest';
@@ -36,7 +37,6 @@ describe('multicamFileRegistry calibration', () => {
   });
 
   it('does not restore last calibration from localStorage without a session File', async () => {
-    const file = new File(['{}'], 'cal.json', { type: 'application/json' });
     await saveCalibration('cal.json');
     clearMulticamFileRegistry();
     await expect(getLastCalibration()).resolves.toBeNull();
