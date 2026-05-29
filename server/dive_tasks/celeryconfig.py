@@ -58,6 +58,6 @@ task_ignore_result = True
 
 # https://docs.celeryproject.org/en/stable/userguide/configuration.html#std-setting-task_reject_on_worker_lost
 # Run tasks at least once, rescheduling them if the worker crashes.
-# TODO: Required to pin to rabbitmq 3.8.14 because of https://github.com/Kitware/dive/issues/995
+# Late acks require RabbitMQ consumer_timeout to be raised (see docker-compose.yml).
 task_reject_on_worker_lost = True
 task_acks_late = True
