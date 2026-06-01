@@ -191,8 +191,6 @@ def _parse_annotation(
         coord_lists = _extract_polygon_coords_lists(segmentation)
         if coord_lists:
             viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
-        elif segmentation:
-            raise ValueError('Incorrect polygon segmentation')
 
     # DIVE extension fields for non-standard COCO attributes.
     detection_attributes = annotation.get('dive_detection_attributes', annotation.get('attributes', {}))
