@@ -67,7 +67,6 @@ export default defineComponent({
         }
         return [];
       }),
-      trackSelect: () => null,
     });
 
     const virtualListItems = computed(() => {

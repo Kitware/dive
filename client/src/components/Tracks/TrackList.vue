@@ -86,7 +86,7 @@ export default defineComponent({
     const { frame: frameRef, isPlaying } = useTime();
     const multiSelectList = useMultiSelectList();
     const {
-      trackSplit, removeTrack, trackAdd, trackSelect,
+      trackSplit, removeTrack, trackAdd, trackSelect, trackSelectNext,
     } = useHandler();
 
     const data = reactive({
@@ -270,7 +270,10 @@ export default defineComponent({
       filteredListRef: finalFilteredTracks,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,
-      trackSelect,
+      selectNext: (delta) => trackSelectNext(
+        delta,
+        finalFilteredTracks.value.map((filtered) => filtered.annotation),
+      ),
     });
 
     function getItemProps(item: typeof virtualListItems.value[number]) {
