@@ -51,38 +51,36 @@ export default function useVirtualScrollTo({
   scrollToSelected();
 
   function scrollPreventDefault(
-    element: HTMLElement,
+    _element: HTMLElement,
     keyEvent: KeyboardEvent,
     direction: 'up' | 'down',
   ): void {
-    if (virtualList.value !== null && element === virtualList.value.$el) {
-      if (filteredListRef.value.length === 0) {
-        return;
-      }
-      const index = filteredListRef.value.findIndex((item) => item.annotation.id === selectedIdRef.value);
-      if (index === -1 && direction === 'up') {
+    if (filteredListRef.value.length === 0) {
+      return;
+    }
+    const index = filteredListRef.value.findIndex((item) => item.annotation.id === selectedIdRef.value);
+    if (index === -1 && direction === 'up') {
+      const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
+      trackSelect(newId, false);
+    } else if (index === -1 && direction === 'down') {
+      const newId = filteredListRef.value[0].annotation.id;
+      trackSelect(newId, false);
+    } else if (direction === 'up') {
+      if (index > 0) {
+        trackSelect(filteredListRef.value[index - 1].annotation.id, false);
+      } else {
         const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
         trackSelect(newId, false);
-      } else if (index === -1 && direction === 'down') {
-        const newId = filteredListRef.value[0].annotation.id;
-        trackSelect(newId, false);
-      } else if (direction === 'up') {
-        if (index > 0) {
-          trackSelect(filteredListRef.value[index - 1].annotation.id, false);
-        } else {
-          const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
-          trackSelect(newId, false);
-        }
-      } else if (direction === 'down') {
-        if (index === filteredListRef.value.length - 1) {
-          trackSelect(filteredListRef.value[0].annotation.id, false);
-        } else {
-          const newId = filteredListRef.value[index + 1].annotation.id;
-          trackSelect(newId, false);
-        }
       }
-      keyEvent.preventDefault();
+    } else if (direction === 'down') {
+      if (index === filteredListRef.value.length - 1) {
+        trackSelect(filteredListRef.value[0].annotation.id, false);
+      } else {
+        const newId = filteredListRef.value[index + 1].annotation.id;
+        trackSelect(newId, false);
+      }
     }
+    keyEvent.preventDefault();
   }
 
   watch(selectedIdRef, scrollTo);
