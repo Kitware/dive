@@ -261,12 +261,14 @@ For COCO files not produced by DIVE:
 
 * Supported:
   * Bounding boxes (`bbox`)
-  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`)
+  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`); if `bbox` is
+    omitted, DIVE derives it from the polygon's axis-aligned bounds
   * Head/tail keypoints from category keypoint labels
 * Partially supported:
   * COCO has no direct equivalent for DIVE groups, so groups are not represented in COCO export.
-* Unsupported:
-  * Run-length encoded segmentations (RLE)
+* Partially supported:
+  * Run-length encoded segmentations (RLE): bounding boxes and other fields import,
+    but masks are skipped and a warning is shown.
 
 ### Example COCO Annotation with DIVE Extensions
 

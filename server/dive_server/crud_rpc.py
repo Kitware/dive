@@ -480,13 +480,13 @@ def _get_data_by_type(
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
-        converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        converted, attributes, coco_warnings = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return {
             'annotations': converted,
             'meta': None,
             'attributes': attributes,
             'type': as_type,
-        }, warnings
+        }, coco_warnings or warnings
     if as_type == crud.FileType.DIVE_CONF:
         return {
             'annotations': None,
@@ -547,6 +547,8 @@ def process_items(
                 aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
+            if isinstance(e, ValueError):
+                raise RestException(f'Failed to import {file["name"]}: {e}') from e
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
         if results is None:
