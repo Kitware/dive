@@ -131,7 +131,7 @@ export interface Handler {
   /* select tracks enclosed by a lasso polygon */
   lassoSelect(trackIds: AnnotationId[], modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
-  trackSelectNext(delta: number): void;
+  trackSelectNext(delta: number, filteredOverride?: readonly { id: AnnotationId }[]): void;
   /* split track */
   trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
   /* Add new empty track and select it */

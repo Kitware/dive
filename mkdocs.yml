@@ -27,7 +27,12 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.highlight:
       linenums: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        # Must use fence_code_format for Material’s built-in Mermaid.js (not fence_div_format)
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.emoji:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
@@ -74,6 +79,8 @@ nav:
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
   - Data Formats: DataFormats.md
+  - Developer Guide:
+    - Codebase architecture: Architecture-For-New-Developers.md
   - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md

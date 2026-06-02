@@ -1,5 +1,5 @@
 <script lang="ts">
-import {
+import Vue, {
   defineComponent, reactive, computed, ref,
   watch,
 } from 'vue';
@@ -86,7 +86,7 @@ export default defineComponent({
     const { frame: frameRef, isPlaying } = useTime();
     const multiSelectList = useMultiSelectList();
     const {
-      trackSplit, removeTrack, trackAdd, trackSelect,
+      trackSplit, removeTrack, trackAdd, trackSelect, trackSelectNext,
     } = useHandler();
 
     const data = reactive({
@@ -270,8 +270,16 @@ export default defineComponent({
       filteredListRef: finalFilteredTracks,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,
-      trackSelect,
+      selectNext: (delta) => trackSelectNext(
+        delta,
+        finalFilteredTracks.value.map((filtered) => filtered.annotation),
+      ),
     });
+
+    /** Template refs cannot be passed as props (Vue unwraps them to null). */
+    function setVirtualListRef(instance: Vue | null): void {
+      virtualScroll.virtualList.value = instance;
+    }
 
     function getItemProps(item: typeof virtualListItems.value[number]) {
       const confidencePair = item.filteredTrack.annotation.getType(
@@ -382,7 +390,7 @@ export default defineComponent({
       trackAdd,
       virtualHeight,
       virtualListItems,
-      virtualList: virtualScroll.virtualList,
+      setVirtualListRef,
       multiDelete,
       sortKey,
       sortDirection,
@@ -407,7 +415,7 @@ export default defineComponent({
     :lock-types="lockTypes"
     :disabled="disabled"
     :fps="fps"
-    :virtual-list-ref="virtualList"
+    :set-virtual-list-ref="setVirtualListRef"
     :mouse-trap="mouseTrap"
     :virtual-height="virtualHeight"
     :sort-key="sortKey"
@@ -438,7 +446,7 @@ export default defineComponent({
     :lock-types="lockTypes"
     :disabled="disabled"
     :fps="fps"
-    :virtual-list-ref="virtualList"
+    :set-virtual-list-ref="setVirtualListRef"
     :mouse-trap="mouseTrap"
     :virtual-height="virtualHeight"
     @track-seek="$emit('track-seek', $event)"
