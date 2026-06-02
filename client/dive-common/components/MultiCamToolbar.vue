@@ -109,6 +109,13 @@ export default defineComponent({
     // Can link when there are cameras without the track
     const canLink = computed(() => linkableCameras.value.length > 0);
 
+    // When only one camera can be linked, skip the picker menu
+    const singleLinkableCamera = computed(
+      () => (linkableCameras.value.length === 1 ? linkableCameras.value[0] : null),
+    );
+
+    const useLinkMenu = computed(() => canLink.value && linkableCameras.value.length > 1);
+
     // The opposite camera (first camera that isn't the currently selected one)
     const oppositeCamera = computed(() => cameras.value.find(
       (cam) => cam !== selectedCamera.value,
@@ -171,6 +178,12 @@ export default defineComponent({
       }
     };
 
+    const linkToAvailableCamera = () => {
+      if (singleLinkableCamera.value) {
+        startLinkingToCamera(singleLinkableCamera.value);
+      }
+    };
+
     const toggleExpanded = () => {
       isExpanded.value = !isExpanded.value;
     };
@@ -188,17 +201,26 @@ export default defineComponent({
       ];
 
       if (canLink.value) {
-        buttons.push({
-          id: 'link',
-          icon: 'mdi-link-variant-plus',
-          tooltip: 'Link track to camera',
-          menu: {
-            items: linkableCameras.value.map((cam) => ({
-              label: `Link to ${cam}`,
-              action: () => startLinkingToCamera(cam),
-            })),
-          },
-        });
+        if (singleLinkableCamera.value) {
+          buttons.push({
+            id: 'link',
+            icon: 'mdi-link-variant-plus',
+            tooltip: `Link track to ${singleLinkableCamera.value}`,
+            action: linkToAvailableCamera,
+          });
+        } else {
+          buttons.push({
+            id: 'link',
+            icon: 'mdi-link-variant-plus',
+            tooltip: 'Link track to camera',
+            menu: {
+              items: linkableCameras.value.map((cam) => ({
+                label: `Link to ${cam}`,
+                action: () => startLinkingToCamera(cam),
+              })),
+            },
+          });
+        }
       } else {
         buttons.push({
           id: 'unlink',
@@ -251,6 +273,8 @@ export default defineComponent({
       currentCameraHasTrack,
       currentCameraHasDetection,
       linkableCameras,
+      singleLinkableCamera,
+      useLinkMenu,
       canUnlink,
       canLink,
       oppositeCamera,
@@ -258,6 +282,7 @@ export default defineComponent({
       deleteTrackFromCamera,
       unlinkCurrentCamera,
       startLinkingToCamera,
+      linkToAvailableCamera,
       editOnCamera,
       editOnOppositeCamera,
       isExpanded,
@@ -386,7 +411,7 @@ export default defineComponent({
       <!-- Link/Unlink button - switches between modes -->
       <!-- Link mode: when there are cameras without the track -->
       <v-menu
-        v-if="canLink"
+        v-if="useLinkMenu"
         offset-y
       >
         <template #activator="{ on, attrs }">
@@ -416,6 +441,22 @@ export default defineComponent({
           </v-list-item>
         </v-list>
       </v-menu>
+      <v-tooltip
+        v-else-if="canLink"
+        bottom
+      >
+        <template #activator="{ on }">
+          <v-btn
+            small
+            class="mx-1 mode-button"
+            v-on="on"
+            @click="linkToAvailableCamera"
+          >
+            <v-icon>mdi-link-variant-plus</v-icon>
+          </v-btn>
+        </template>
+        <span>Link track to {{ singleLinkableCamera }}</span>
+      </v-tooltip>
       <!-- Unlink mode: when current camera has track and multiple cameras have it -->
       <v-tooltip
         v-else

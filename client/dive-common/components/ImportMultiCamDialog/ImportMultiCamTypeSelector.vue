@@ -40,7 +40,7 @@ export default defineComponent({
       <v-radio
         v-if="enableSubfolderImport"
         value="subfolders"
-        label="Parent folder: each immediate subfolder is a camera"
+        label="Parent folder: subfolders or separate video files per camera"
       />
       <v-radio
         v-if="dataType === 'image-sequence'"

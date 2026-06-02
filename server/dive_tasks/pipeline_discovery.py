@@ -18,21 +18,43 @@ AllowedTrainingConfigs = r"train_.*\.conf$"
 DisallowedTrainingConfigs = (
     r".*(_nf|\.continue)\.viame_csv\.conf$|.*\.continue\.conf$|.*\.habcam\.conf$|.*\.kw18\.conf$"
 )
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
+# Align with desktop getPipelineList allow patterns (common.ts).
+AllowedStaticPipelines = (
+    r"^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_.+|"
+    r"^measurement_.+|.*[23]-cam.+"
+)
 
 DisallowedStaticPipelines = (
+    r"common_stereo_.*\.pipe|"
     # Remove utilities pipes which hold no meaning in web
     r".*local.*|"
+    r".*seagis.*|"
     r".*hough.*|"
     r".*_svm_models\.pipe|"
     r"detector_extract_chips\.pipe|"
     # Remove tracker pipelines which hold no meaning in web
     r"tracker_stabilized_iou\.pipe|"
-    r"tracker_short_term\.pipe|"
-    # Remove seal and sea lion specialized pipelines un-runnable in web
-    r"detector_arctic_.*fusion.*\.pipe|"
-    r".*[2|3]-cam\.pipe"
+    r"tracker_short_term\.pipe"
 )
+
+
+def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
+    """
+    Derive pipeline category and display name from a .pipe stem.
+
+    Matches desktop: 2-cam/3-cam pipelines use their own category; 1-cam stay under
+    detector/tracker/utility prefixes.
+    """
+    parts = pipe_stem.split('_')
+    if len(parts) > 1 and parts[-1] == 'cam' and parts[-2] != '1':
+        pipe_type = f'{parts[-2]}-cam'
+        return pipe_type, ' '.join(parts)
+    multicam_suffix = re.search(r'(?:^|_)([23])-cam$', pipe_stem)
+    if multicam_suffix:
+        pipe_type = f'{multicam_suffix.group(1)}-cam'
+        return pipe_type, pipe_stem.replace('_', ' ')
+    pipe_type = parts[0]
+    return pipe_type, ' '.join(parts[1:])
 
 
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
@@ -139,18 +161,19 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipelist = [
         path
         for path in search_path.glob("./*.pipe")
-        if re.match(AllowedStaticPipelines, path.name)
-        and not re.match(DisallowedStaticPipelines, path.name)
+        if re.match(AllowedStaticPipelines, path.name, re.IGNORECASE)
+        and not re.match(DisallowedStaticPipelines, path.name, re.IGNORECASE)
     ]
 
     for pipe_path in pipelist:
         pipe = pipe_path.name
-        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+        pipe_stem = pipe.replace('.pipe', '')
+        pipe_type, pipe_name = parse_pipe_type_and_name(pipe_stem)
 
         metadata = extract_pipe_metadata(pipe_path)
 
         pipe_info: PipelineDescription = {
-            "name": " ".join(nameparts),
+            "name": pipe_name,
             "type": pipe_type,
             "pipe": pipe,
             "metadata": metadata,

@@ -167,7 +167,8 @@ def stream_subprocess(
 
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
-            line_str = line.decode('utf-8')
+            # Pipeline tools may emit Latin-1 / CP1252 (e.g. 0xa0 NBSP) in log lines.
+            line_str = line.decode('utf-8', errors='replace')
             manager.write(line_str)
             if keep_stdout:
                 stdout += line_str
@@ -187,7 +188,7 @@ def stream_subprocess(
 
         if code > 0:
             stderr_file.seek(0)
-            stderr = stderr_file.read().decode()
+            stderr = stderr_file.read().decode('utf-8', errors='replace')
             raise RuntimeError(
                 'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
             )

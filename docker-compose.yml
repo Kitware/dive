@@ -6,7 +6,7 @@ x-worker: &base-worker
   build:
     context: .
     dockerfile: docker/girder_worker.Dockerfile
-  image: dive/viame-worker:cpu
+  image: kitware/viame-worker:cpu
   volumes:
     - addons:/tmp/addons:ro # readonly
   labels:
@@ -43,6 +43,8 @@ services:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
       - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
       - RABBITMQ_DISTRIBUTED_WORKER=${RABBITMQ_DISTRIBUTED_WORKER:-0}
+      # Allow long pipeline/training jobs to run with acks_late (5 days; default is 30 minutes).
+      - "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit consumer_timeout 432000000"
 
   mongo:
     image: mongo:5.0
@@ -152,7 +154,7 @@ services:
     build:
       context: .
       dockerfile: docker/girder_worker_gpu.Dockerfile
-    image: dev/viame-worker:gpu
+    image: kitware/viame-worker:gpu
     restart: always
     deploy:
       resources:

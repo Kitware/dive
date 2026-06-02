@@ -2,23 +2,39 @@
 
 Bring stereo/multicam parity to the Girder/web platform by modeling multicam as a Girder parent folder of type `multi` containing one DIVE child folder per camera, adding server endpoints + metadata to expose `multiCamMedia`, reproducing the desktop `ImportMultiCamDialog` upload flow on the web, and removing the existing "not supported on web" guards.
 
+## Phase status
+
+| Phase | Scope | Status |
+|-------|--------|--------|
+| **1** | Server data model + read path | **Done** (merged) |
+| **2** | Web viewer read-only multicam | **Done** (merged) |
+| **3** | Web upload + `POST /dive_dataset/multicam` | **Done** (merged) |
+| **4** | Pipelines + calibration | **Done** — merge `multicam-web-features-phase-4` → `multicam-web-feature` |
+| **5** | Export, clone, integration tests | **Next** |
+
 ## Implementation Checklist
 
-- [x] **Server: constants & models** — Add `MultiType` + multiCam/subType/calibration markers and pydantic models (`server/dive_utils/constants.py`, `server/dive_utils/models.py`)
-- [x] **Server: verify_dataset** — Relax `verify_dataset` to accept `type=multi`; keep fps mirrored from default-display camera
-- [x] **Server: get_dataset / multiCamMedia** — Extend `crud_dataset.get_dataset` to embed `multiCamMedia` by fanning out to child `get_media` calls
-- [x] **Server: create multicam** — Implement `POST /dive_dataset/multicam` and `crud_dataset.create_multicam` to move child folders + write parent meta + attach calibration
-- [ ] **Server: clone & export** — Extend `createSoftClone` and `export_datasets_zipstream` to recurse into child cameras; include calibration
-- [ ] **Server: pipelines** — Add multicam/stereo pipeline dispatch in `crud_rpc` that fans inputs/outputs per camera and passes calibration for stereo
-- [x] **Web API** — Add `createMulticamDataset`, `uploadCalibration` helpers in `client/platform/web-girder/api/dataset.service.ts`
-- [x] **Web store** — Remove the `multi is not supported` guard in `useDataset.ts` and attach `multiCamMedia`
-- [x] **Web API: ID rewrite** — Rewrite `${parentId}/${camera}` to child folder id inside `getDataset` / `getDatasetMedia`
-- [x] **Web upload** — Replace `multiCamImportCheck` / `multiCamImport` stubs; orchestrate per-camera uploads + call create_multicam endpoint
-- [x] **Web calibration shims** — Provide `getLastCalibration` / `saveCalibration` shims so `ImportMultiCamDialog` works without desktop
-- [x] **Web ViewerLoader** — Wire `subTypeList` + `camNumbers` into `RunPipelineMenu`
-- [ ] **Web export & clone** — Drop multi-guard in `Export.vue` and verify `Clone.vue` handles parent folders
-- [x] **dive-common Viewer** — Drop `'diveDesktop' in window` gate so MultiCamToolbar/camera dropdown work on web
-- [ ] **Tests & docs** — Server multicam integration test, success-path frontend test, update `docs/Multicamera-data.md` / `docs/Web-Version.md`
+### Phases 1–4 (complete)
+
+- [x] **Server: constants & models** — `MultiType`, multiCam/subType/calibration markers, pydantic models (`server/dive_utils/constants.py`, `server/dive_utils/types.py`)
+- [x] **Server: verify_dataset** — Accept `type=multi`; validate `multiCam` cameras + `fps` on parent
+- [x] **Server: get_dataset / multiCamMedia** — `get_multi_cam_media` embedded in `get_dataset` responses
+- [x] **Server: create multicam** — `POST /dive_dataset/multicam` + `crud_dataset.create_multicam` (move children, parent meta, calibration)
+- [x] **Server: pipelines** — `crud_rpc` dispatches stereo/multicam jobs; `dive_tasks/multicam_pipeline.py` + `tasks.run_pipeline` fan out per-camera media, detections, and calibration for measurement pipelines; `pipeline_discovery.py` includes measurement / 2-cam / 3-cam and excludes web-inapplicable pipes (e.g. seagis)
+- [x] **Web API** — `createMulticamDataset`, calibration upload, `multicamResolve` for `${parentId}/${camera}` (`client/platform/web-girder/api/`)
+- [x] **Web store** — `useDataset.ts` loads `multi` + `multiCamMedia`; browse path resolves multicam root
+- [x] **Web upload** — `multiCamImport` / `multiCamImportCheck` in `Upload.vue`; stereoscopic + multicam import from upload dialog
+- [x] **Web calibration shims** — `getLastCalibration` / `saveCalibration` for `ImportMultiCamDialog` on web
+- [x] **Web ViewerLoader / Home** — `subTypeList` + `cameraNumbers` on `RunPipelineMenu`; pipeline menu filters by stereo vs multicam and camera count (`pipelineMenuFilters.ts`)
+- [x] **dive-common Viewer** — MultiCam toolbar / camera dropdown on web (no `diveDesktop` gate); data browser stereo/multicam icons (`multicamDisplay.ts`)
+- [x] **Tests (unit)** — `server/tests/test_create_multicam.py`, `test_multicam_dataset.py`, `test_multicam_pipeline.py`, `test_pipeline_discovery.py`; frontend success paths in `webGirderStoreComposables.spec.ts`
+- [x] **Docs (user-facing)** — `docs/Multicamera-data.md` (web vs desktop matrix), `docs/Web-Version.md` (stereo/multicam upload)
+
+### Phase 5 (remaining)
+
+- [ ] **Server: clone & export** — Extend `createSoftClone` to recurse child camera folders and rewrite `multiCam.cameras[*].folderId`; extend `export_datasets_zipstream` for `type=multi` (per-camera paths, `multiCam.json`, calibration)
+- [ ] **Web export & clone** — Remove `MultiType` throw in `Export.vue`; wire export to new server zip behavior; verify or restrict clone for multicam parents (`createSoftClone` today is shallow — cloned parents still reference original child folder IDs)
+- [ ] **Tests (integration)** — Multicam create + full export path in `server/tests/integration/test_download_extract.py`
 
 ---
 
@@ -28,13 +44,14 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 
 - Allow a Girder user to upload N cameras (stereo = exactly 2, multicam = 2 or 3) in a single import flow and produce a viewable, annotatable multicam dataset that uses the existing `dive-common` multicam viewer code path.
 - Persist a stereo calibration file (`.npz`) per parent dataset and surface it to pipelines.
-- Let multicam datasets be cloned, exported, and run through multicam/stereo pipelines from the web UI.
-- Reach feature parity with the desktop multicam behavior described in [docs/Multicamera-data.md](docs/Multicamera-data.md).
+- Let multicam datasets run through multicam/stereo pipelines from the web UI. **Done (Phase 4).**
+- Let multicam datasets be cloned and exported from the web UI. **Phase 5.**
+- Reach feature parity with the desktop multicam behavior described in [docs/Multicamera-data.md](docs/Multicamera-data.md) except where noted below.
 
-**Non-Goals (Phase 1)**
+**Non-Goals / deferred**
 
-- Glob/keyword pattern import (desktop's `MultiCamImportKeywordArgs`). Phase 2.
-- Per-camera revision divergence (we will rev each camera folder independently, no cross-camera revision linking).
+- Glob/keyword pattern import (desktop's `MultiCamImportKeywordArgs`) — web shows an explicit error in `Upload.vue`; still desktop-only.
+- Per-camera revision divergence (revisions remain per child folder; no cross-camera revision linking).
 - Mixing camera media types (all cameras must be either `image-sequence` or all `video`, matching desktop).
 
 ## 2. Data Model
@@ -46,93 +63,63 @@ flowchart TD
   Parent["Parent Folder<br/>meta.annotate=true<br/>meta.type=multi<br/>meta.subType=stereo|multicam<br/>meta.multiCam={cameras, defaultDisplay, calibrationItemId}"]
   Left["Child: left<br/>meta.type=video|image-sequence<br/>(full DIVE dataset)"]
   Right["Child: right<br/>meta.type=video|image-sequence<br/>(full DIVE dataset)"]
-  CalFile[".npz calibration file<br/>(Girder item under parent aux)"]
+  CalFile[".npz calibration file<br/>(Girder item under parent)"]
   Parent --> Left
   Parent --> Right
   Parent --> CalFile
 ```
 
-Key meta on the parent (new):
+Key meta on the parent:
 
 - `type = "multi"`
 - `subType = "stereo" | "multicam"`
-- `multiCam = { defaultDisplay: str, cameras: { [name]: { folderId: str, type: "video"|"image-sequence" } }, calibrationItemId?: str }`
-- `fps`: copied from `defaultDisplay` camera (kept for compatibility with `verify_dataset`)
+- `multiCam = { defaultDisplay, cameras: { [name]: { folderId, type } }, cameraOrder?, calibrationItemId? }`
+- `fps`: copied from `defaultDisplay` camera (compatibility with `verify_dataset`)
 - `annotate = true`
 
-Child folders are unchanged from today: standard DIVE datasets, named after the camera (`left`, `right`, `camera1`, ...). They are uniquely identified by their own ObjectId. Annotations are stored against the child folder ID.
+Child folders are standard DIVE datasets, named after the camera (`left`, `right`, `camera1`, ...). Annotations are stored against the child folder ID.
 
-ID composition: the frontend already uses `${baseId}/${camera}` (see [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) lines 766-789). We will keep this composite ID convention but make the web `loadMetadata` / `loadDetections` resolve `${parentId}/${cameraName}` to the actual child folder ObjectId on the way to Girder.
+ID composition: the frontend uses `${baseId}/${camera}` ([client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue)). Web resolves this via [client/platform/web-girder/api/multicamResolve.ts](client/platform/web-girder/api/multicamResolve.ts) in `getDataset` / `getDatasetMedia`.
 
 ## 3. Server Changes (Girder / Python)
 
-### 3.1 Constants & Models
+### 3.1 Constants & Models — done
 
-- [server/dive_utils/constants.py](server/dive_utils/constants.py): add `MultiType = "multi"`, `MultiCamMarker = "multiCam"`, `SubTypeMarker = "subType"`, `CalibrationMarker = "calibrationItemId"`, plus a `npzRegex`.
-- [server/dive_utils/models.py](server/dive_utils/models.py):
-  - Add `MultiCamCamera`, `MultiCamMediaCamera`, and `MultiCamMeta` pydantic models matching the frontend `MultiCamMedia` shape in [client/dive-common/apispec.ts](client/dive-common/apispec.ts) lines 150-157.
-  - Extend `GirderMetadataStatic` with `subType: Optional[Literal['stereo','multicam']]` and `multiCamMedia: Optional[MultiCamMediaResponse]`.
-  - Extend `DatasetSourceMedia` (or add a sibling response model) so `get_media` can return per-camera arrays when type is `multi`.
+- [server/dive_utils/constants.py](server/dive_utils/constants.py): `MultiType`, `MultiCamMarker`, `SubTypeMarker`, calibration markers, `StereoPipelineMarker` (`measurement`), `MultiCamPipelineMarkers` (`2-cam`, `3-cam`), `stereoCalibrationRegex`.
+- [server/dive_utils/types.py](server/dive_utils/types.py): multicam job / media types used by RPC and Celery tasks.
 
-### 3.2 CRUD: relaxations
+### 3.2 CRUD: relaxations — done
 
-- [server/dive_server/crud.py](server/dive_server/crud.py) `verify_dataset` (lines 99-110): allow `MultiType` (no `fps` requirement at parent — fps lives on the children, but mirror it on the parent on creation for backwards-compatibility with callers that read it).
-- `getCloneRoot` already follows `ForeignMediaIdMarker`; we will set `ForeignMediaIdMarker` on a cloned parent and clone each child folder individually, preserving the parent/child shape.
+- [server/dive_server/crud.py](server/dive_server/crud.py) `verify_dataset`: accepts `MultiType` and validates `multiCam` structure.
 
-### 3.3 New endpoint: create multicam
+### 3.3 Create multicam endpoint — done
 
-Add to [server/dive_server/views_dataset.py](server/dive_server/views_dataset.py):
+`POST /dive_dataset/multicam` in [server/dive_server/views_dataset.py](server/dive_server/views_dataset.py) → `crud_dataset.create_multicam(...)`.
 
-```
-POST /dive_dataset/multicam
-  body: {
-    parentFolderId: str,
-    name: str,
-    fps: number,
-    type: "video" | "image-sequence",
-    subType: "stereo" | "multicam",
-    defaultDisplay: str,
-    cameras: { [name]: { folderId: str } },     # each child folder must already exist & contain media
-    calibrationFileId?: str,                    # optional, for stereo
-  }
-```
+### 3.4 Media: multiCamMedia — done
 
-Implemented in `crud_dataset.create_multicam(...)`:
-
-1. Create parent folder under `parentFolderId`.
-2. Write parent meta (DatasetMarker, type=multi, subType, multiCam, fps copied from default camera).
-3. For each `cameras[name].folderId`, `Folder().move(child, parentFolder)`, rename to `name`, validate that it is a valid DIVE dataset with the same `type`, same frame count (or video duration), and same fps.
-4. If `calibrationFileId` is given (only for `stereo`), validate `.npz`, move the item into the parent's auxiliary folder, store its id under `meta.multiCam.calibrationItemId`.
-
-This flow assumes the cameras have already been uploaded as ordinary single-camera DIVE datasets via the existing upload (`UploadGirder.vue`), which matches the chosen "full upload flow" UX (Section 4.2): upload N child datasets via the existing path inside the dialog, then call this endpoint to link them.
-
-### 3.4 Media: expose multiCamMedia
-
-In [server/dive_server/crud_dataset.py](server/dive_server/crud_dataset.py):
-
-- `get_dataset` (lines 96-107): when `type == multi`, include `multiCamMedia` built by iterating `meta.multiCam.cameras` and calling the existing `get_media` for each child folder, then mapping into the `MultiCamMedia` shape the frontend expects.
-- `get_media` (lines 110-176): for `multi`, return an empty `imageData` (the per-camera media is keyed in `multiCamMedia`); or alternatively raise and require the client to call `/media` on each child id. Recommendation: have `get_meta` embed `multiCamMedia` (cleanest, single round trip).
+- `get_dataset` embeds `multiCamMedia` via `get_multi_cam_media` when `type == multi`.
 
 ### 3.5 Pipelines, postprocess, export, clone
 
-- **Pipelines** ([server/dive_server/crud_rpc.py](server/dive_server/crud_rpc.py)): a multicam pipeline run is dispatched on the parent folder; the job needs to fan out per-camera inputs (mirrors desktop's `writeMultiCamStereoPipelineArgs` in [client/platform/desktop/backend/native/multiCamUtils.ts](client/platform/desktop/backend/native/multiCamUtils.ts) lines 78-139). New helper `crud_rpc.run_multicam_pipeline(parent, pipeline)` that walks `meta.multiCam.cameras`, materializes per-camera input lists, includes the calibration file when `subType == stereo`, and writes outputs back to each child folder.
-- **Postprocess**: child folders already postprocess themselves. Adding a multicam parent only needs to set `ConfidenceFiltersMarker` and skip the existing image/video-specific branches.
-- **Export** ([server/dive_server/crud_dataset.py](server/dive_server/crud_dataset.py) `export_datasets_zipstream`): when a parent of type `multi` is exported, recurse into each child folder and place its export under `<parent>/<cameraName>/`. Include `multiCam.json` at the parent level. Include the calibration file when present.
-- **Clone** (`createSoftClone`, lines 25-53): when source is `multi`, also clone each child folder (recursively, preserving names) and rewrite `meta.multiCam.cameras[name].folderId` on the cloned parent to point at the cloned children. Calibration item is referenced by id; we either copy it or share by reference (recommend copy).
+| Area | Status | Notes |
+|------|--------|--------|
+| **Pipelines** | **Done** | `crud_rpc` builds multicam job args; `dive_tasks/tasks.py` downloads per-camera media + optional detections; `multicam_pipeline.py` builds KWIVER `-s` settings; stereo measurement jobs attach calibration via `resolve_stereo_calibration_item_id` |
+| **Pipeline discovery** | **Done** | `pipeline_discovery.py` allowlist matches desktop; seagis and other web-inapplicable pipes filtered |
+| **Postprocess** | **Done** | Child folders postprocess independently (unchanged) |
+| **Export** | **Phase 5** | `export_datasets_zipstream` does not recurse multicam children yet |
+| **Clone** | **Phase 5** | `createSoftClone` does not clone child cameras or rewrite `multiCam.cameras`; UI clone may produce broken multicam datasets until fixed |
 
 ## 4. Frontend Changes (web-girder)
 
-### 4.1 API + Store
+### 4.1 API + Store — done
 
-- [client/platform/web-girder/api/dataset.service.ts](client/platform/web-girder/api/dataset.service.ts):
-  - Add `createMulticamDataset(args)` POSTing to the new endpoint.
-  - Add `uploadCalibration(parentFolderId, file)`.
-  - `getDatasetMedia` already returns child media; add `getDatasetMultiCamMedia(parentFolderId)` thin wrapper that returns the per-camera media map from `getDataset` meta.
-- [client/platform/web-girder/store/useDataset.ts](client/platform/web-girder/store/useDataset.ts) lines 31-33: remove the throw; when `dsMeta.type === MultiType`, attach `multiCamMedia` from the static metadata response and skip the single-camera `videoUrl`/`imageData` assignment.
+- `createMulticamDataset`, calibration helpers, `${parentId}/${camera}` resolution in [client/platform/web-girder/api/dataset.service.ts](client/platform/web-girder/api/dataset.service.ts).
+- [client/platform/web-girder/store/useDataset.ts](client/platform/web-girder/store/useDataset.ts) loads `multi` + `multiCamMedia`.
 
-### 4.2 Upload UX — full flow
+### 4.2 Upload UX — done
 
-Replace the `multiCamImportCheck` and `multiCamImport` TODOs in [client/platform/web-girder/views/Upload.vue](client/platform/web-girder/views/Upload.vue) lines 247-259.
+Stereoscopic / MultiCam paths in [client/platform/web-girder/views/Upload.vue](client/platform/web-girder/views/Upload.vue) orchestrate per-camera upload then `POST /dive_dataset/multicam`.
 
 ```mermaid
 sequenceDiagram
@@ -149,69 +136,53 @@ sequenceDiagram
     W->>G: (optional) upload + import per-camera annotation file
   end
   W->>G: (optional) upload calibration npz
-  W->>G: POST dive_dataset/multicam {cameras, defaultDisplay, subType, calibrationFileId}
+  W->>G: POST dive_dataset/multicam
   G-->>W: parent folder id
   W->>U: navigate to /viewer/<parentId>
 ```
 
-UI work:
+### 4.3 Viewer + pipelines UI — done
 
-- Reuse [client/dive-common/components/ImportMultiCamDialog.vue](client/dive-common/components/ImportMultiCamDialog.vue) by giving it a web-flavored `importMedia` and a web `openFromDisk` — the dialog only depends on `useApi().openFromDisk`, `getLastCalibration`, `saveCalibration`. Provide web shims for the last two (no-ops or local-storage backed).
-- The dialog currently calls `openFromDisk('image-sequence', directory: true)`; on web that already opens a directory picker via [client/platform/web-girder/utils.ts](client/platform/web-girder/utils.ts). Need to confirm directory-mode actually returns `webkitdirectory` `File[]`.
-- After the dialog emits `begin-multicam-import`, drive an orchestrator in Upload.vue that uploads each camera using the existing `UploadGirder.vue` mixin code (loop, not concurrent at first), then calls the new endpoint.
+- [client/platform/web-girder/views/ViewerLoader.vue](client/platform/web-girder/views/ViewerLoader.vue) and [Home.vue](client/platform/web-girder/views/Home.vue): `subTypeList`, `cameraNumbers` → `RunPipelineMenu`.
+- [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue): MultiCam toolbar on web when `multiCamList.length > 1`.
+- [client/dive-common/pipelineMenuFilters.ts](client/dive-common/pipelineMenuFilters.ts): measurement for all-stereo selection; 2-cam / 3-cam for matching multicam count; `webExcludedPipelineTerms` includes `seagis`.
 
-### 4.3 Viewer + sidebar/toolbar
+### 4.4 Export + Clone — Phase 5
 
-- [client/platform/web-girder/views/ViewerLoader.vue](client/platform/web-girder/views/ViewerLoader.vue):
-  - Wire `subTypeList` and `camNumbers` props on `RunPipelineMenu` (mirrors desktop [client/platform/desktop/frontend/components/ViewerLoader.vue](client/platform/desktop/frontend/components/ViewerLoader.vue) lines 46-47).
-  - Read `datasetMeta.subType` and `Object.keys(datasetMeta.multiCamMedia?.cameras ?? {}).length`.
-- [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) line 1028-1033: `showMultiCamToolbar` is currently gated on `'diveDesktop' in window`. Remove that condition so the toolbar/camera dropdown work on web too.
+- [client/platform/web-girder/views/Export.vue](client/platform/web-girder/views/Export.vue) L211: still throws `Cannot export multicamera dataset` (documented limitation in user docs).
+- [client/platform/web-girder/views/Clone.vue](client/platform/web-girder/views/Clone.vue): no multicam-specific guard; server clone is not multicam-aware yet — treat as unsupported until Phase 5.
 
-### 4.4 Export + Clone + Pipelines
+### 4.5 ID resolution — done
 
-- [client/platform/web-girder/views/Export.vue](client/platform/web-girder/views/Export.vue) line 211: replace the throw with a multicam export URL that points to the new server zip behavior; the existing UI can stay the same since the server zip handles per-camera.
-- [client/platform/web-girder/views/Clone.vue](client/platform/web-girder/views/Clone.vue): the server clone already recurses; verify the UI's "include annotations" path still works against a parent.
-- `RunPipelineMenu` will already filter stereo/multicam pipelines correctly once `subTypeList` and `cameraNumbers` are passed (see [client/dive-common/components/RunPipelineMenu.vue](client/dive-common/components/RunPipelineMenu.vue) lines 148-203).
+Implemented in [client/platform/web-girder/api/multicamResolve.ts](client/platform/web-girder/api/multicamResolve.ts) (option 1 from original plan).
 
-### 4.5 ID resolution for `${baseId}/${camera}`
+## 5. dive-common Touch Points — done
 
-The frontend in [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) line 770 calls `loadMetadata(\`${baseMulticamDatasetId}/${camera}\`)`. The desktop intercepts that string; the web Girder REST client cannot, because the URL would 404.
+- `useApi()` web shims for calibration + multicam import.
+- Viewer multicam path unchanged for desktop; web uses resolved folder IDs.
 
-Two clean options, pick one in implementation:
+## 6. Stereo Calibration — done
 
-- **(Preferred) Rewrite at the API service**: in [client/platform/web-girder/api/dataset.service.ts](client/platform/web-girder/api/dataset.service.ts), make `getDataset` and `getDatasetMedia` detect a `/` in the id, look up the parent meta from a tiny client cache (or fetch parent), resolve `cameraName -> folderId`, and call the real endpoint with the resolved id. This keeps `Viewer.vue` unchanged.
-- Add an explicit `cameraFolderId` map prop to `Viewer.vue`. More invasive; affects desktop too.
-
-The plan uses option 1.
-
-## 5. dive-common Touch Points
-
-- [client/dive-common/apispec.ts](client/dive-common/apispec.ts): no API surface changes needed; `MultiCamImportArgs` already exists. Just make sure `useApi()` for web provides shim `getLastCalibration`/`saveCalibration` (currently desktop-only, see lines 233-234).
-- [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) line 1028: drop `'diveDesktop' in window` gate (also covers MultiCamToolbar).
-
-## 6. Stereo Calibration
-
-- Stored as a Girder Item in the parent folder's auxiliary folder (`crud.get_or_create_auxiliary_folder`).
-- Referenced by `meta.multiCam.calibrationItemId`.
-- Download URL surfaced as `multiCamMedia.calibrationUrl` so pipeline jobs and the desktop importer can fetch it.
-- Upload in the web dialog reuses the existing single-file upload pattern from `Upload.vue`'s annotation upload code.
+- Calibration item under parent folder; `meta.multiCam.calibrationItemId` (and item `calibrationFile` marker).
+- Pipeline jobs: `calibration_item_id` on measurement pipelines; worker downloads `.npz` and sets KWIVER `measurer:calibration_file` / `calibration_reader:file`.
 
 ## 7. Permissions, Revisions, Sets
 
-- Parent folder permissions propagate to children via standard Girder semantics. Validate during `create_multicam` that the user has WRITE on each child being moved.
-- Annotation revisions remain per-camera; the UI already supports this via per-camera `loadDetections` calls in [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) lines 783-789.
-- Annotation sets work per-camera; we will surface the parent's "current set" route param but loadDetections is called against each camera independently.
+- WRITE validated on child folders during `create_multicam`.
+- Revisions and sets remain per-camera (viewer loads detections per `${parentId}/${camera}`).
 
 ## 8. Migration / Backward Compatibility
 
-- No data migration needed; existing single-camera datasets are unaffected (the `multi` type is new).
-- Tests:
-  - Server: extend [server/tests/integration/test_download_extract.py](server/tests/integration/test_download_extract.py) with a multicam create+download path.
-  - Frontend: extend [client/platform/web-girder/store/webGirderStoreComposables.spec.ts](client/platform/web-girder/store/webGirderStoreComposables.spec.ts) (which already mocks a `multi` failure case at line 270) to a success case.
+- No migration; existing single-camera datasets unchanged.
+- **Tests**
+  - [x] Server unit: create multicam, multicam media, pipeline helpers, pipeline discovery
+  - [x] Frontend: `webGirderStoreComposables.spec.ts` success paths for `multi` / stereo / 3-cam
+  - [ ] Integration: multicam create + export in `server/tests/integration/test_download_extract.py`
 
-## 9. Documentation
+## 9. Documentation — done (user); Phase 5 may add export/clone
 
-- Update [docs/Multicamera-data.md](docs/Multicamera-data.md) to add a "Web Version" section and a flowchart for the upload/import process. Cross-link from [docs/Web-Version.md](docs/Web-Version.md).
+- [docs/Multicamera-data.md](docs/Multicamera-data.md) — web vs desktop capability table, web import steps
+- [docs/Web-Version.md](docs/Web-Version.md) — stereo/multicam upload section
 
 ## 10. Phased Rollout
 
@@ -223,31 +194,57 @@ flowchart LR
   P2[Phase 2: Web viewer read-only multicam]
   P3[Phase 3: Web upload + create endpoint]
   P4[Phase 4: Pipelines + calibration]
-  P5[Phase 5: Export, clone, docs]
+  P5[Phase 5: Export, clone, integration tests]
   P1 --> P2 --> P3 --> P4 --> P5
+  style P1 fill:#9f9,stroke:#333
+  style P2 fill:#9f9,stroke:#333
+  style P3 fill:#9f9,stroke:#333
+  style P4 fill:#9f9,stroke:#333
+  style P5 fill:#ff9,stroke:#333
 ```
 
 ## 11. Open Risks
 
-- The aggregate media controller in `dive-common` assumes synchronized frame counts across cameras; the create endpoint must reject mismatched lengths up front (matches desktop validation in [client/dive-common/components/ImportMultiCamDialog.vue](client/dive-common/components/ImportMultiCamDialog.vue) lines 152-175).
-- `webkitdirectory` directory uploads behave differently across browsers; the upload orchestrator must handle the file-list-based fallback the same way the existing `Upload.vue` does today.
-- Removing the `diveDesktop` gate in `Viewer.vue` could change behavior for desktop users; we will keep the multicam-toolbar behind `multiCamList.length > 1` only, which it already checks.
+- Synchronized frame counts across cameras are enforced at create time (matches desktop `ImportMultiCamDialog` validation).
+- `webkitdirectory` behavior varies by browser; upload orchestrator uses the same file-list fallbacks as single-camera upload.
+- **Clone before Phase 5:** cloning a multicam parent may reference original child folder IDs — do not rely on clone for multicam until server work lands.
+- **Export:** explicitly blocked in web UI until Phase 5; per-camera annotation export may still be available from the viewer for the active camera.
 
-## 12. Current State (Reference)
+## 12. Current State (as of Phase 4 complete)
 
-The following guards and stubs exist today and are targeted by this plan:
+### Shipped on web
 
-| Location | Issue |
-|----------|--------|
-| [client/platform/web-girder/store/useDataset.ts](client/platform/web-girder/store/useDataset.ts) L31-33 | `throw new Error('multi is not supported on web yet')` |
-| [client/platform/web-girder/views/Upload.vue](client/platform/web-girder/views/Upload.vue) L247-259 | `multiCamImportCheck` / `multiCamImport` are TODO stubs |
-| [client/platform/web-girder/views/Export.vue](client/platform/web-girder/views/Export.vue) L211 | `Cannot export multicamera dataset` |
-| [client/dive-common/components/Viewer.vue](client/dive-common/components/Viewer.vue) L1028-1033 | MultiCam toolbar gated on `'diveDesktop' in window` |
-| [server/dive_server/crud.py](server/dive_server/crud.py) L99-110 | `verify_dataset` rejects non image-sequence/video/large-image types |
-| Server generally | No `multi` type, no `multiCam` metadata, no multicam create endpoint |
+| Capability | Status |
+|------------|--------|
+| Import stereo (2 cameras + `.npz` calibration) | ✔️ |
+| Import multicam (2 or 3 cameras) | ✔️ |
+| View / annotate / MultiCamera Tools | ✔️ |
+| Run measurement pipelines (stereo) | ✔️ |
+| Run 2-cam / 3-cam pipelines (multicam) | ✔️ |
+| Run standard single-camera pipelines on one view | ✔️ |
+| Data browser stereo / multicam indicators | ✔️ |
+| Seagis pipelines hidden on web | ✔️ |
+
+### Still outstanding (Phase 5)
+
+| Capability | Status |
+|------------|--------|
+| Export full multicam dataset as one `.zip` | ❌ (`Export.vue` guard + server zip) |
+| Multicam-aware clone (child folders + meta rewrite) | ❌ |
+| Glob / keyword multicam import | ❌ (by design; desktop-only) |
+
+### Key implementation files (reference)
+
+| Area | Files |
+|------|--------|
+| Server create / media | `server/dive_server/crud_dataset.py`, `views_dataset.py` |
+| Server pipelines / jobs | `server/dive_server/crud_rpc.py`, `server/dive_tasks/tasks.py`, `server/dive_tasks/multicam_pipeline.py`, `server/dive_tasks/pipeline_discovery.py` |
+| Web upload | `client/platform/web-girder/views/Upload.vue`, `multicamFileRegistry.ts` |
+| Web viewer / pipelines UI | `ViewerLoader.vue`, `pipelineMenuFilters.ts`, `multicamDisplay.ts` |
+| Shared viewer | `client/dive-common/components/Viewer.vue`, `MultiCamToolbar.vue` |
 
 Desktop reference implementation:
 
 - Import: [client/platform/desktop/backend/native/multiCamImport.ts](client/platform/desktop/backend/native/multiCamImport.ts)
-- Media URLs: [client/platform/desktop/backend/native/multiCamUtils.ts](client/platform/desktop/backend/native/multiCamUtils.ts)
+- Pipeline args: [client/platform/desktop/backend/native/multiCamUtils.ts](client/platform/desktop/backend/native/multiCamUtils.ts)
 - User docs: [docs/Multicamera-data.md](docs/Multicamera-data.md)

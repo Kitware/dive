@@ -56,6 +56,8 @@ jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 npzRegex = re.compile(r"\.npz$", re.IGNORECASE)
+# Stereo/multicam calibration uploads (aligned with dive-common calibrationFileTypes)
+stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
 # .json or .csv file
 possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
@@ -111,6 +113,8 @@ TypeMarker = "type"
 SubTypeMarker = "subType"
 MultiCamMarker = "multiCam"
 CalibrationItemIdMarker = "calibrationItemId"
+# Girder item meta: marks stereoscopic calibration files in the dataset base folder
+CalibrationFileMarker = "calibrationFile"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 MarkForPostProcess = "MarkForPostProcess"
@@ -123,6 +127,8 @@ AnnotationFileFutureProcessMarker = "importAnnotationFile"
 
 # Other constants
 TrainedPipelineCategory = "trained"
+StereoPipelineMarker = "measurement"
+MultiCamPipelineMarkers = ("2-cam", "3-cam")
 
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)

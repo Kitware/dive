@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cherrypy
+from bson.objectid import InvalidId, ObjectId
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -11,7 +12,7 @@ from girder.utility import ziputil
 from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
-from dive_utils import TRUTHY_META_VALUES, constants, fromMeta, models, types
+from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 
 
 def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
@@ -510,6 +511,80 @@ def _child_media_frame_count(
     raise RestException(f'Unsupported camera media type: {media_type}', code=400)
 
 
+def _mongo_id(value: str):
+    """Coerce a Girder id string to ObjectId for MongoDB queries."""
+    try:
+        return ObjectId(value)
+    except InvalidId:
+        return value
+
+
+def _item_has_calibration_marker(cal_item: dict) -> bool:
+    """True when the Girder item is marked as a stereoscopic calibration file."""
+    return asbool(cal_item.get('meta', {}).get(constants.CalibrationFileMarker))
+
+
+def _calibration_items_in_folder_root(folder_id: str):
+    """
+    Yield calibration file items stored in the dataset folder root.
+
+    Camera media lives in child folders; only direct items on folder_id are considered.
+    Scans all folder items and matches meta.calibrationFile in Python so boolean/string
+    metadata values both work.
+    """
+    for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
+        if _item_has_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
+            cal_item['name']
+        ):
+            yield cal_item
+
+
+def find_calibration_item_id(folder_id: str) -> Optional[str]:
+    """Return the most recent marked calibration file item in the dataset folder root."""
+    for cal_item in _calibration_items_in_folder_root(folder_id):
+        return str(cal_item['_id'])
+    return None
+
+
+def resolve_stereo_calibration_item_id(
+    parent_folder: types.GirderModel,
+    pipeline: types.PipelineDescription,
+) -> Optional[str]:
+    """
+    Resolve stereoscopic calibration item id for pipeline input.
+
+    Returns an item in the dataset folder root with meta.calibrationFile set. Only
+    measurement pipelines on stereo datasets use calibration input.
+    """
+    if fromMeta(parent_folder, constants.SubTypeMarker) != 'stereo':
+        return None
+    if pipeline.get('type') != constants.StereoPipelineMarker:
+        return None
+
+    folder_id = str(parent_folder['_id'])
+    item_id = find_calibration_item_id(folder_id)
+    if item_id is not None:
+        return item_id
+
+    # Legacy imports may have calibrationItemId on multiCam without item meta set.
+    multi_cam = fromMeta(parent_folder, constants.MultiCamMarker, default={})
+    if not isinstance(multi_cam, dict):
+        multi_cam = {}
+    cached_id = multi_cam.get(constants.CalibrationItemIdMarker)
+    if not cached_id:
+        return None
+    cal_item = Item().findOne({'_id': _mongo_id(cached_id)})
+    if cal_item is None:
+        return None
+    if str(cal_item.get('folderId')) != folder_id:
+        return None
+    if not constants.stereoCalibrationRegex.search(cal_item['name']):
+        return None
+    if not _item_has_calibration_marker(cal_item):
+        Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
+    return str(cal_item['_id'])
+
+
 def create_multicam(
     user: types.GirderUserModel,
     parent_folder: types.GirderModel,
@@ -560,6 +635,7 @@ def create_multicam(
 
     loaded_children: Dict[str, types.GirderModel] = {}
     frame_counts: List[int] = []
+    child_fps_by_name: Dict[str, float] = {}
     for name in camera_order:
         cam = cameras[name]
         folder_id = cam.get('folderId')
@@ -581,13 +657,27 @@ def create_multicam(
                 code=400,
             )
         child_fps = fromMeta(child, constants.FPSMarker)
-        if child_fps != validated.fps:
-            raise RestException(
-                f'Camera "{name}" has fps {child_fps}, expected {validated.fps}',
-                code=400,
-            )
+        child_fps_by_name[name] = child_fps
         frame_counts.append(_child_media_frame_count(child, user, validated.type))
         loaded_children[name] = child
+
+    use_video_fps = (
+        validated.type == constants.VideoType and validated.fps == -1
+    )
+    if use_video_fps:
+        unique_fps = set(child_fps_by_name.values())
+        if len(unique_fps) > 1:
+            raise RestException(
+                'All cameras must have the same fps when using video-derived frame rate',
+                code=400,
+            )
+    else:
+        for name, child_fps in child_fps_by_name.items():
+            if child_fps != validated.fps:
+                raise RestException(
+                    f'Camera "{name}" has fps {child_fps}, expected {validated.fps}',
+                    code=400,
+                )
 
     if len(set(frame_counts)) > 1:
         expected = frame_counts[0]
@@ -616,10 +706,17 @@ def create_multicam(
         cal_item = Item().load(validated.calibrationFileId, level=AccessType.WRITE, user=user)
         if cal_item is None:
             raise RestException('Calibration file was not found', code=404)
-        if not constants.npzRegex.search(cal_item['name']):
-            raise RestException('Calibration file must be a .npz file', code=400)
-        auxiliary = crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
-        Item().move(cal_item, auxiliary)
+        if str(cal_item.get('folderId')) != str(parent_folder_doc['_id']):
+            raise RestException(
+                'Calibration file must be stored in the dataset folder',
+                code=400,
+            )
+        if not constants.stereoCalibrationRegex.search(cal_item['name']):
+            raise RestException(
+                'Calibration file must be .npz, .json, .cam, .yml, or .zip',
+                code=400,
+            )
+        Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
         calibration_item_id = str(cal_item['_id'])
 
     parent_folder_doc['meta'] = {

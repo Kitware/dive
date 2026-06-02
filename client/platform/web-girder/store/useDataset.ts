@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import {
   getDataset, getDatasetMedia, getFolder, resolveDatasetFolderId,
 } from 'platform/web-girder/api';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { MultiType } from 'dive-common/constants';
 
 import { useLocation } from './useLocation';
@@ -37,12 +38,33 @@ export function useDataset() {
       dsMeta.imageData = [];
       dsMeta.videoUrl = undefined;
     }
-    setMeta(dsMeta);
-    const { parentId, parentCollection } = folder.data;
-    if (parentId && parentCollection) {
+    // Only update the shared store for the parent dataset. Per-camera composite
+    // loads (parentId/cameraName) must not overwrite multicam metadata used by
+    // ViewerLoader pipeline filters and other chrome.
+    if (!compositeId) {
+      setMeta(dsMeta);
+    } else if (!meta.value && metaStatic.data.type === MultiType) {
+      // Landing on a camera URL first: prime parent meta so pipeline filters see subType.
+      setMeta({
+        ...metaStatic.data,
+        imageData: [],
+        videoUrl: undefined,
+      });
+    }
+    let browseParentId = folder.data.parentId;
+    let browseParentCollection = folder.data.parentCollection;
+    if (metaStatic.data.type === MultiType || compositeId) {
+      const multiCamRootId = parentDatasetId(datasetId);
+      const multiCamRootFolder = multiCamRootId === folderId
+        ? folder
+        : (await getFolder(multiCamRootId));
+      browseParentId = multiCamRootFolder.data.parentId;
+      browseParentCollection = multiCamRootFolder.data.parentCollection;
+    }
+    if (browseParentId && browseParentCollection) {
       await useLocation().hydrate({
-        _id: parentId,
-        _modelType: parentCollection,
+        _id: browseParentId,
+        _modelType: browseParentCollection,
       });
     } else {
       throw new Error(`dataset ${datasetId} was not a valid girder folder`);

@@ -15,9 +15,9 @@ The script generateSampleData.py creates a folder structure containing:
 
 - Videos: MP4 format, H.264 codec, random duration (5–30 seconds), 1280x720 resolution.
 - Image Sequences: Extracted frames from temporary videos, stored as sequential JPGs.
-- Annotations: Each video or image sequence is accompanied by a JSON annotation file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame.
-    - Videos: the annotation json file has the same name as the Video file just with the extension '.json'
-    - Image Sequences: just requires that there be a any .json file in the same folder and it will import it as the annotations
+- Annotations: Each video or image sequence is accompanied by either a DIVE track JSON (`.json`) or VIAME CSV (`.csv`) file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
+    - Videos: the annotation file has the same basename as the video, with extension `.json` or `.csv`
+    - Image Sequences: any `.json` or `.csv` file in the same folder as the frames is imported as annotations
 
 Usage
 ```bash

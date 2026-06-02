@@ -19,7 +19,7 @@ export default defineComponent({
     lockTypes: { type: Boolean, required: true },
     disabled: { type: Boolean, required: true },
     fps: { type: Number, default: null },
-    virtualListRef: { type: null, required: true },
+    setVirtualListRef: { type: Function, required: true },
     mouseTrap: { type: Array, required: true },
     virtualHeight: { type: Number, required: true },
     sortKey: { type: String, required: true },
@@ -283,7 +283,7 @@ export default defineComponent({
       </option>
     </datalist>
     <v-virtual-scroll
-      :ref="virtualListRef"
+      :ref="setVirtualListRef"
       v-mousetrap="mouseTrap"
       class="tracks-compact"
       :items="virtualListItems"
