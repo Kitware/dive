@@ -779,9 +779,10 @@ async function _ingestFilePath(
       merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
       metadataConfig = true;
     } else if (coco.isCocoJson(jsonObject)) {
-      const [parsedAnnotations, parsedMeta] = await coco.parseFile(path);
+      const [parsedAnnotations, parsedMeta, cocoWarnings] = await coco.parseFile(path);
       annotations = parsedAnnotations;
       merge(meta, parsedMeta);
+      warnings = warnings.concat(cocoWarnings);
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
