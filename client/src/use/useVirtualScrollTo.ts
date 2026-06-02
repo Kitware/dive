@@ -29,11 +29,17 @@ export default function useVirtualScrollTo({
         const offset = filteredListRef.value.findIndex(
           (filtered) => filtered.annotation.id === id,
         );
+        const scrollEl = virtualList.value.$el;
         if (offset === -1) {
-          virtualList.value.$el.scrollTop = 0;
+          scrollEl.scrollTop = 0;
         } else {
           // try to show the selected track as the third track in the list
-          virtualList.value.$el.scrollTop = (offset * itemHeight) - (2 * itemHeight);
+          scrollEl.scrollTop = Math.max(0, (offset * itemHeight) - (2 * itemHeight));
+        }
+        // Programmatic scrollTop does not always emit a scroll event.
+        const { onScroll } = virtualList.value as Vue & { onScroll?: () => void };
+        if (typeof onScroll === 'function') {
+          onScroll();
         }
       }
     }
@@ -61,7 +67,9 @@ export default function useVirtualScrollTo({
     keyEvent.preventDefault();
   }
 
-  watch(selectedIdRef, scrollTo);
+  watch(selectedIdRef, (id) => {
+    Vue.nextTick(() => scrollTo(id));
+  });
   watch(filteredListRef, scrollToSelected);
   watch(multiSelectList, scrollToSelected);
 
