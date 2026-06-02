@@ -16,15 +16,108 @@ type CocoCategory = {
   keypoints?: string[];
 };
 
+const RLE_SEGMENTATION_WARNING = (
+  'The COCO file included run-length encoded segmentation masks that are not supported. '
+  + 'Bounding boxes and other annotation data were imported, but masks were skipped.'
+);
+
+function hasValidBbox(annotation: CocoAnnotation): boolean {
+  const { bbox } = annotation;
+  return Array.isArray(bbox) && bbox.length === 4;
+}
+
+function extractPolygonCoordsLists(
+  segmentation: CocoAnnotation['segmentation'],
+): [number, number][][] {
+  if (!segmentation || !Array.isArray(segmentation)) {
+    return [];
+  }
+  const polygons = (
+    segmentation.length > 0 && typeof segmentation[0] === 'number'
+      ? [segmentation as number[]]
+      : segmentation
+  ) as Array<number[] | Record<string, unknown>>;
+  const coordLists: [number, number][][] = [];
+  polygons.forEach((polygon) => {
+    if (Array.isArray(polygon)) {
+      const coords: [number, number][] = [];
+      for (let i = 0; i + 1 < polygon.length; i += 2) {
+        coords.push([polygon[i], polygon[i + 1]]);
+      }
+      if (coords.length) {
+        coordLists.push(coords);
+      }
+    }
+  });
+  return coordLists;
+}
+
+function bboxFromPoints(points: [number, number][]): [number, number, number, number] {
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const xMin = Math.min(...xs);
+  const yMin = Math.min(...ys);
+  return [xMin, yMin, Math.max(...xs) - xMin, Math.max(...ys) - yMin];
+}
+
+function annotationHasImportableBounds(annotation: CocoAnnotation): boolean {
+  if (hasValidBbox(annotation)) {
+    return true;
+  }
+  if (hasRleSegmentation(annotation)) {
+    return false;
+  }
+  return extractPolygonCoordsLists(annotation.segmentation).length > 0;
+}
+
+function missingBoundsError(annotationIds: Array<number | string>): string {
+  const shown = annotationIds.slice(0, 10).join(', ');
+  const extra = annotationIds.length > 10 ? ` (and ${annotationIds.length - 10} more)` : '';
+  return (
+    `${annotationIds.length} COCO annotation(s) cannot be imported because they have no bbox and `
+    + `no usable polygon segmentation (ids: ${shown}${extra}). `
+    + 'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
+    + 'Annotations with only RLE segmentation masks still require a bbox.'
+  );
+}
+
+function resolveCocoBbox(annotation: CocoAnnotation): [number, number, number, number] {
+  if (hasValidBbox(annotation)) {
+    return annotation.bbox as [number, number, number, number];
+  }
+  const allPoints = extractPolygonCoordsLists(annotation.segmentation).flat();
+  if (allPoints.length) {
+    return bboxFromPoints(allPoints);
+  }
+  throw new Error(missingBoundsError([annotation.id]));
+}
+
+function validateAnnotationBounds(annotations: CocoAnnotation[]): void {
+  const missingIds = annotations
+    .filter((annotation) => !annotationHasImportableBounds(annotation))
+    .map((annotation) => annotation.id);
+  if (missingIds.length) {
+    throw new Error(missingBoundsError(missingIds));
+  }
+}
+
 type CocoAnnotation = {
   id: number;
   image_id: number;
   category_id: number;
-  bbox: [number, number, number, number];
+  bbox?: [number, number, number, number];
   score?: number;
   track_id?: number;
+  /**
+   * COCO `iscrowd` flag (0 or 1). In the COCO spec, 0 means a single instance with
+   * polygon `segmentation` ([[x1, y1, ...]]); 1 means a crowd region whose
+   * `segmentation` is run-length encoded (RLE) as an object (e.g. { counts, size }).
+   * DIVE does not import RLE masks: when `iscrowd` is truthy, or `segmentation` is
+   * a dict, polygon/mask geometry is skipped (bbox and other fields still import).
+   */
+  iscrowd?: number;
   keypoints?: number[];
-  segmentation?: number[][];
+  segmentation?: number[][] | Record<string, unknown>;
   dive_detection_attributes?: Record<string, unknown>;
   dive_track_attributes?: Record<string, unknown>;
   dive_notes?: string[];
@@ -40,39 +133,35 @@ type CocoDocument = {
   categories: CocoCategory[];
 };
 
+/** True when segmentation is COCO RLE (crowd / `iscrowd: 1`), which DIVE does not decode. */
+function hasRleSegmentation(annotation: CocoAnnotation): boolean {
+  if (annotation.iscrowd) {
+    return true;
+  }
+  const { segmentation } = annotation;
+  return Boolean(segmentation) && !Array.isArray(segmentation);
+}
+
 function buildFeatureGeometry(
   annotation: CocoAnnotation,
   category?: CocoCategory,
-): GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties> | undefined {
+): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
+  if (hasRleSegmentation(annotation)) {
+    return { rleSkipped: true };
+  }
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
-  const { segmentation } = annotation;
-  if (segmentation) {
-    if (!Array.isArray(segmentation)) {
-      throw new Error('Run-length encoded COCO segmentation is not supported');
-    }
-    const polygons = (
-      segmentation.length > 0 && typeof segmentation[0] === 'number'
-        ? [segmentation]
-        : segmentation
-    ) as number[][];
-    polygons.forEach((polygon) => {
-      const coords: number[][] = [];
-      for (let i = 0; i + 1 < polygon.length; i += 2) {
-        coords.push([polygon[i], polygon[i + 1]]);
-      }
-      if (coords.length) {
-        geometryFeatures.push({
-          type: 'Feature',
-          properties: { key: '' },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [coords],
-          },
-        });
-      }
+  const coordLists = extractPolygonCoordsLists(annotation.segmentation);
+  coordLists.forEach((coords) => {
+    geometryFeatures.push({
+      type: 'Feature',
+      properties: { key: '' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [coords],
+      },
     });
-  }
+  });
 
   const keypoints = annotation.keypoints || [];
   if (Array.isArray(keypoints) && keypoints.length >= 3) {
@@ -110,10 +199,15 @@ function buildFeatureGeometry(
     }
   }
 
-  if (!geometryFeatures.length) return undefined;
+  if (!geometryFeatures.length) {
+    return { rleSkipped: false };
+  }
   return {
-    type: 'FeatureCollection' as const,
-    features: geometryFeatures,
+    geometry: {
+      type: 'FeatureCollection' as const,
+      features: geometryFeatures,
+    },
+    rleSkipped: false,
   };
 }
 
@@ -134,7 +228,7 @@ function imageFrameMap(document: CocoDocument): Record<number, number> {
   return map;
 }
 
-async function parseFile(path: string): Promise<[AnnotationSchema, Record<string, unknown>]> {
+async function parseFile(path: string): Promise<[AnnotationSchema, Record<string, unknown>, string[]]> {
   const parsed = await fs.readJSON(path);
   if (!isCocoJson(parsed)) {
     throw new Error('JSON does not match COCO format');
@@ -142,11 +236,14 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   const categoriesById = Object.fromEntries(parsed.categories.map((c) => [c.id, c]));
   const frameByImageId = imageFrameMap(parsed);
   const tracks: AnnotationSchema['tracks'] = {};
+  let skippedRleMasks = false;
+
+  validateAnnotationBounds(parsed.annotations);
 
   parsed.annotations.forEach((annotation) => {
     const frame = frameByImageId[annotation.image_id];
     if (frame === undefined) return;
-    const [x, y, w, h] = annotation.bbox;
+    const [x, y, w, h] = resolveCocoBbox(annotation);
     const bounds: [number, number, number, number] = [x, y, x + w, y + h];
     const trackId = annotation.track_id ?? annotation.id;
     const category = categoriesById[annotation.category_id];
@@ -187,7 +284,10 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     } else if (typeof noteField === 'string' && noteField.trim()) {
       feature.notes = [noteField.trim()];
     }
-    const geometry = buildFeatureGeometry(annotation, category);
+    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category);
+    if (rleSkipped) {
+      skippedRleMasks = true;
+    }
     if (geometry) {
       feature.geometry = geometry;
     }
@@ -197,7 +297,8 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
 
   const annotations: AnnotationSchema = { version: 2, tracks, groups: {} };
   const processed = processTrackAttributes(Object.values(annotations.tracks));
-  return [annotations, { attributes: processed.attributes }];
+  const warnings = skippedRleMasks ? [RLE_SEGMENTATION_WARNING] : [];
+  return [annotations, { attributes: processed.attributes }, warnings];
 }
 
 function frameNameForExport(frame: number, meta: JsonMeta): string {
