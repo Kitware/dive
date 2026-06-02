@@ -5,6 +5,8 @@
 #     "faker",
 # ]
 # ///
+import csv
+import datetime
 import random
 import subprocess
 import json
@@ -17,6 +19,7 @@ fake = Faker()
 
 FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
+VIDEO_FPS = 30
 
 def create_random_video(file_path: Path, duration: int):
     """Create a random test video using ffmpeg (MP4 container, H.264 codec)."""
@@ -109,8 +112,8 @@ def geometry_bounds(coords):
     ys = [pt[1] for pt in coords]
     return [min(xs), min(ys), max(xs), max(ys)]
 
-def generate_annotation_json(num_frames: int, output_file: Path):
-    """Generate annotation JSON with moving/scaling geometry."""
+def build_tracks(num_frames: int):
+    """Build track dict keyed by string id (DIVE annotation schema)."""
     num_tracks = random.randint(3, 5)
     tracks = {}
 
@@ -120,62 +123,152 @@ def generate_annotation_json(num_frames: int, output_file: Path):
         begin = 0
         end = num_frames - 1
 
-        # Initial position and motion
-        x, y = random.randint(100, FRAME_WIDTH-100), random.randint(100, FRAME_HEIGHT-100)
+        x, y = random.randint(100, FRAME_WIDTH - 100), random.randint(100, FRAME_HEIGHT - 100)
         dx, dy = random.choice([-5, 5]), random.choice([-3, 3])
         base_size = random.randint(40, 80)
         growth_rate = random.uniform(0.05, 0.15)
 
         features = []
         for frame in range(num_frames):
-            # Update position and bounce
             x += dx
             y += dy
-            if x < 50 or x > FRAME_WIDTH-50:
+            if x < 50 or x > FRAME_WIDTH - 50:
                 dx *= -1
                 x += dx
-            if y < 50 or y > FRAME_HEIGHT-50:
+            if y < 50 or y > FRAME_HEIGHT - 50:
                 dy *= -1
                 y += dy
 
-            # Smooth scaling
             scale = 0.5 * (1 + math.sin(growth_rate * frame))
             size = base_size * (0.75 + 0.5 * scale)
 
-            # Create moving geometry
             output_data = generate_geometry(shape_type, x, y, size)
             geom = output_data['geojson']
             coords = output_data['coords']
             bounds = geometry_bounds(coords)
 
-            feature = {
+            features.append({
                 "frame": frame,
                 "bounds": bounds,
                 "keyframe": True,
-                "geometry": geom
-            }
-            features.append(feature)
+                "geometry": geom,
+            })
 
         tracks[str(track_id)] = {
             "id": track_id,
             "meta": {"shape": shape_type},
             "attributes": {},
-            "confidencePairs": [[fake.word(), float(random.randrange(0, 100)/100)]],
+            "confidencePairs": [[fake.word(), float(random.randrange(0, 100) / 100)]],
             "begin": begin,
             "end": end,
-            "features": features
+            "features": features,
         }
 
+    return tracks
+
+
+def _viame_timestamp(frame: int, fps: int) -> str:
+    return datetime.datetime.fromtimestamp(
+        frame / fps, datetime.timezone.utc
+    ).strftime(r'%H:%M:%S.%f')
+
+
+def _append_viame_geometry_columns(columns: list, geometry: dict):
+    """Append (poly) tokens for polygon geometry (VIAME CSV format)."""
+    if not geometry or geometry.get("type") != "FeatureCollection":
+        return
+    for geo_feature in geometry.get("features", []):
+        geom = geo_feature.get("geometry", {})
+        if geom.get("type") != "Polygon":
+            continue
+        coordinates = [
+            coord
+            for ring in geom.get("coordinates", [])
+            for point in ring
+            for coord in point
+        ]
+        columns.append(f"(poly) {' '.join(str(round(c)) for c in coordinates)}")
+
+
+def generate_annotation_viame_csv(
+    tracks: dict,
+    output_file: Path,
+    *,
+    fps: int = VIDEO_FPS,
+    frame_filenames: list = None,
+):
+    """Write tracks as a VIAME CSV annotation file."""
+    with open(output_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "# 1: Detection or Track-id",
+            "2: Video or Image Identifier",
+            "3: Unique Frame Identifier",
+            "4-7: Img-bbox(TL_x",
+            "TL_y",
+            "BR_x",
+            "BR_y)",
+            "8: Detection or Length Confidence",
+            "9: Target Length (0 or -1 if invalid)",
+            "10-11+: Repeated Species",
+            "Confidence Pairs or Attributes",
+        ])
+        writer.writerow(["# metadata", f"fps: {json.dumps(fps)}"])
+
+        for track in tracks.values():
+            confidence_pairs = sorted(
+                track["confidencePairs"], key=lambda item: item[1], reverse=True
+            )
+            for feature in track["features"]:
+                columns = [
+                    track["id"],
+                    "",
+                    feature["frame"],
+                    *[round(v) for v in feature["bounds"]],
+                    confidence_pairs[0][1],
+                    -1,
+                ]
+                if frame_filenames is not None and feature["frame"] < len(frame_filenames):
+                    columns[1] = frame_filenames[feature["frame"]]
+                elif fps:
+                    columns[1] = _viame_timestamp(feature["frame"], fps)
+
+                for pair in confidence_pairs:
+                    columns.extend(pair)
+
+                _append_viame_geometry_columns(columns, feature.get("geometry"))
+                writer.writerow(columns)
+
+
+def generate_annotation_json(tracks: dict, output_file: Path):
+    """Write tracks as a DIVE track JSON annotation file."""
     annotation = {
         "tracks": tracks,
         "groups": {},
-        "version": 2
+        "version": 2,
     }
     with open(output_file, "w") as f:
         json.dump(annotation, f, indent=2)
 
+
+def write_annotations(
+    num_frames: int,
+    output_file: Path,
+    *,
+    use_viame_csv: bool,
+    frame_filenames: list = None,
+):
+    """Write annotations as either DIVE JSON or VIAME CSV."""
+    tracks = build_tracks(num_frames)
+    if use_viame_csv:
+        generate_annotation_viame_csv(
+            tracks, output_file, frame_filenames=frame_filenames
+        )
+    else:
+        generate_annotation_json(tracks, output_file)
+
 def create_video_content(base_dir: Path, max_videos: int, counter: dict, total: int):
-    """Create videos and associated JSON annotations."""
+    """Create videos and associated JSON or VIAME CSV annotations."""
     if counter['count'] >= total:
         return
     num_videos = random.randint(1, max_videos)
@@ -188,11 +281,16 @@ def create_video_content(base_dir: Path, max_videos: int, counter: dict, total: 
         create_random_video(video_path, duration)
         counter['count'] += 1
 
-        # Generate annotation JSON
-        generate_annotation_json(duration * 30, video_path.with_suffix(".json"))
+        use_viame_csv = random.choice([True, False])
+        ext = ".csv" if use_viame_csv else ".json"
+        write_annotations(
+            duration * VIDEO_FPS,
+            video_path.with_suffix(ext),
+            use_viame_csv=use_viame_csv,
+        )
 
 def create_image_sequence_content(base_dir: Path, counter: dict, total: int):
-    """Create image sequence from a temporary video and generate JSON annotations."""
+    """Create image sequence from a temporary video and generate JSON or VIAME CSV annotations."""
     if counter['count'] >= total:
         return
     duration = random.randint(5, 30)
@@ -203,9 +301,17 @@ def create_image_sequence_content(base_dir: Path, counter: dict, total: int):
     tmp_video.unlink()
     counter['count'] += 1
 
-    # Generate annotation JSON for image sequence folder
-    annotation_file = seq_folder / (seq_folder.stem + ".json")
-    generate_annotation_json(duration * 30, annotation_file)
+    num_frames = duration * VIDEO_FPS
+    frame_filenames = [p.name for p in sorted(seq_folder.glob("frame_*.jpg"))]
+    use_viame_csv = random.choice([True, False])
+    ext = ".csv" if use_viame_csv else ".json"
+    annotation_file = seq_folder / (seq_folder.stem + ext)
+    write_annotations(
+        num_frames,
+        annotation_file,
+        use_viame_csv=use_viame_csv,
+        frame_filenames=frame_filenames if use_viame_csv else None,
+    )
 
 def create_folder_structure(base_dir: Path, depth: int, max_depth: int,
                             max_videos: int, counter: dict, total: int):
