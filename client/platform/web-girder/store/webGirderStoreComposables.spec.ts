@@ -302,6 +302,9 @@ describe('web-girder store composables', () => {
       expect(meta.multiCamMedia?.defaultDisplay).toBe('left');
       expect(meta.imageData).toEqual([]);
       expect(meta.videoUrl).toBeUndefined();
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
     });
 
     it('loadDataset composite id does not overwrite parent meta in store', async () => {
@@ -315,9 +318,30 @@ describe('web-girder store composables', () => {
         }
         throw new Error(`unexpected resolve ${datasetId}`);
       });
-      vi.spyOn(api, 'getFolder').mockResolvedValue({
-        data: { parentId: 'p1', parentCollection: 'folder' },
-      } as never);
+      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
+        if (id === 'child2') {
+          return {
+            data: { parentId: 'm1', parentCollection: 'folder' },
+          } as never;
+        }
+        if (id === 'm1') {
+          return {
+            data: {
+              _id: 'm1',
+              _modelType: 'folder',
+              parentId: 'p1',
+              parentCollection: 'folder',
+              name: 'Multi',
+            },
+          } as never;
+        }
+        if (id === 'p1') {
+          return {
+            data: { _id: 'p1', _modelType: 'folder', name: 'Parent' },
+          } as never;
+        }
+        throw new Error(`unexpected getFolder(${id})`);
+      });
       vi.spyOn(api, 'getDataset').mockImplementation(async () => ({
         data: {
           id: 'm1',
@@ -365,6 +389,9 @@ describe('web-girder store composables', () => {
       expect(childMeta.type).toBe(VideoType);
       expect(meta.value?.type).toBe(MultiType);
       expect(meta.value?.multiCamMedia?.cameraOrder).toEqual(['cam1', 'cam2', 'cam3']);
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
     });
 
     it('loadDataset composite id primes parent meta when store is empty', async () => {
@@ -374,9 +401,30 @@ describe('web-girder store composables', () => {
         folderId: 'child1',
         compositeId: 'm1/left',
       });
-      vi.spyOn(api, 'getFolder').mockResolvedValue({
-        data: { parentId: 'p1', parentCollection: 'folder' },
-      } as never);
+      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
+        if (id === 'child1') {
+          return {
+            data: { parentId: 'm1', parentCollection: 'folder' },
+          } as never;
+        }
+        if (id === 'm1') {
+          return {
+            data: {
+              _id: 'm1',
+              _modelType: 'folder',
+              parentId: 'p1',
+              parentCollection: 'folder',
+              name: 'Stereo',
+            },
+          } as never;
+        }
+        if (id === 'p1') {
+          return {
+            data: { _id: 'p1', _modelType: 'folder', name: 'Parent' },
+          } as never;
+        }
+        throw new Error(`unexpected getFolder(${id})`);
+      });
       vi.spyOn(api, 'getDataset').mockResolvedValue({
         data: {
           id: 'm1',
@@ -400,6 +448,9 @@ describe('web-girder store composables', () => {
       await loadDataset('m1/left');
       expect(meta.value?.subType).toBe('stereo');
       expect(meta.value?.type).toBe(MultiType);
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
     });
   });
 

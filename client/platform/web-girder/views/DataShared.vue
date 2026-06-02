@@ -109,8 +109,27 @@ export default defineComponent({
   >
     <!-- eslint-disable-next-line -->
     <template v-slot:item.name="{ item }">
-      <div class="filename" @click="$router.push({ name: 'home', params: { routeType: 'folder', routeId: item._id } })">
-        <v-icon class="mb-1 mr-1">
+      <div
+        class="filename"
+        @click="$router.push({ name: 'home', params: { routeType: 'folder', routeId: item._id } })"
+      >
+        <v-tooltip
+          v-if="multiCamSubType(item)"
+          bottom
+        >
+          <template #activator="{ on, attrs }">
+            <v-icon
+              small
+              class="mr-1"
+              v-bind="attrs"
+              v-on="on"
+            >
+              {{ getMultiCamIcon(multiCamSubType(item)) }}
+            </v-icon>
+          </template>
+          <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
+        </v-tooltip>
+        <v-icon class="mr-1">
           mdi-folder{{ item.public ? '' : '-key' }}
         </v-icon>
         {{ item.name }}
@@ -118,22 +137,6 @@ export default defineComponent({
     </template>
     <template #item.type="{ item }">
       {{ item.type }}
-      <v-tooltip
-        v-if="multiCamSubType(item)"
-        bottom
-      >
-        <template #activator="{ on, attrs }">
-          <v-icon
-            small
-            class="ml-2 mr-0"
-            v-bind="attrs"
-            v-on="on"
-          >
-            {{ getMultiCamIcon(multiCamSubType(item)) }}
-          </v-icon>
-        </template>
-        <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
-      </v-tooltip>
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"
@@ -154,6 +157,8 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .filename {
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   opacity: 0.8;
 

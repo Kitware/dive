@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import {
   getDataset, getDatasetMedia, getFolder, resolveDatasetFolderId,
 } from 'platform/web-girder/api';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { MultiType } from 'dive-common/constants';
 
 import { useLocation } from './useLocation';
@@ -50,11 +51,20 @@ export function useDataset() {
         videoUrl: undefined,
       });
     }
-    const { parentId, parentCollection } = folder.data;
-    if (parentId && parentCollection) {
+    let browseParentId = folder.data.parentId;
+    let browseParentCollection = folder.data.parentCollection;
+    if (metaStatic.data.type === MultiType || compositeId) {
+      const multiCamRootId = parentDatasetId(datasetId);
+      const multiCamRootFolder = multiCamRootId === folderId
+        ? folder
+        : (await getFolder(multiCamRootId));
+      browseParentId = multiCamRootFolder.data.parentId;
+      browseParentCollection = multiCamRootFolder.data.parentCollection;
+    }
+    if (browseParentId && browseParentCollection) {
       await useLocation().hydrate({
-        _id: parentId,
-        _modelType: parentCollection,
+        _id: browseParentId,
+        _modelType: browseParentCollection,
       });
     } else {
       throw new Error(`dataset ${datasetId} was not a valid girder folder`);
