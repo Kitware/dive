@@ -2,6 +2,8 @@ import {
   getMultiCamIcon,
   getMultiCamSubType,
   getMultiCamTooltip,
+  isMultiCamDatasetMeta,
+  isMultiCamTrainingTarget,
   orderedMultiCamCameraNames,
 } from './multicamDisplay';
 
@@ -32,5 +34,22 @@ describe('multicamDisplay', () => {
       defaultDisplay: 'left',
       cameras: { left: {}, right: {} },
     })).toEqual(['left', 'right']);
+  });
+
+  it('detects multicam dataset meta for training guards', () => {
+    expect(isMultiCamDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
+    expect(isMultiCamDatasetMeta({ type: 'video', subType: null })).toBe(false);
+  });
+
+  it('disables training for multicam parent and child camera selection', () => {
+    const parent = {
+      _id: 'parent-id',
+      meta: { type: 'multi', subType: 'multicam' },
+    };
+    const left = { _id: 'left-id', parentId: 'parent-id', meta: { type: 'video' } };
+    expect(isMultiCamTrainingTarget([parent], null)).toBe(true);
+    expect(isMultiCamTrainingTarget([], parent)).toBe(true);
+    expect(isMultiCamTrainingTarget([left], parent)).toBe(true);
+    expect(isMultiCamTrainingTarget([{ meta: { type: 'video' }, parentId: 'other' }], parent)).toBe(false);
   });
 });

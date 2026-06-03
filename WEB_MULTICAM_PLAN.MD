@@ -10,7 +10,7 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 | **2** | Web viewer read-only multicam | **Done** (merged) |
 | **3** | Web upload + `POST /dive_dataset/multicam` | **Done** (merged) |
 | **4** | Pipelines + calibration | **Done** — merge `multicam-web-features-phase-4` → `multicam-web-feature` |
-| **5** | Export, clone, integration tests | **Next** |
+| **5** | Export, clone, integration tests | **In progress** (server + web export/clone landed; integration test pending) |
 
 ## Implementation Checklist
 
@@ -32,8 +32,8 @@ Bring stereo/multicam parity to the Girder/web platform by modeling multicam as 
 
 ### Phase 5 (remaining)
 
-- [ ] **Server: clone & export** — Extend `createSoftClone` to recurse child camera folders and rewrite `multiCam.cameras[*].folderId`; extend `export_datasets_zipstream` for `type=multi` (per-camera paths, `multiCam.json`, calibration)
-- [ ] **Web export & clone** — Remove `MultiType` throw in `Export.vue`; wire export to new server zip behavior; verify or restrict clone for multicam parents (`createSoftClone` today is shallow — cloned parents still reference original child folder IDs)
+- [x] **Server: clone & export** — `createSoftClone` recurses child cameras and rewrites `multiCam.cameras[*].folderId`; copies calibration; `export_datasets_zipstream` exports `multiCam.json`, calibration, and per-camera subfolders
+- [x] **Web export & clone** — Removed `MultiType` throw in `Export.vue`; clone uses multicam-aware `createSoftClone`
 - [ ] **Tests (integration)** — Multicam create + full export path in `server/tests/integration/test_download_extract.py`
 
 ---
@@ -229,8 +229,8 @@ flowchart LR
 
 | Capability | Status |
 |------------|--------|
-| Export full multicam dataset as one `.zip` | ❌ (`Export.vue` guard + server zip) |
-| Multicam-aware clone (child folders + meta rewrite) | ❌ |
+| Export full multicam dataset as one `.zip` | ✔️ |
+| Multicam-aware clone (child folders + meta rewrite) | ✔️ |
 | Glob / keyword multicam import | ❌ (by design; desktop-only) |
 
 ### Key implementation files (reference)

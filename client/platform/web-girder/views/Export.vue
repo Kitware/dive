@@ -137,6 +137,22 @@ export default defineComponent({
       }
       if (singleDataSetId.value) {
         const isMulticam = dataset.value?.type === MultiType;
+        let exportMediaUrl;
+        if (isMulticam) {
+          exportMediaUrl = undefined;
+        } else if (dataset.value?.type === 'video') {
+          exportMediaUrl = datasetMedia.value?.video?.url;
+        } else {
+          exportMediaUrl = getUri({
+            url: 'dive_dataset/export',
+            params: {
+              ...params,
+              includeDetections: false,
+              includeMedia: true,
+              folderIds: JSON.stringify([singleDataSetId.value]),
+            },
+          });
+        }
         return {
           exportAllUrl: getUri({
             url: 'dive_dataset/export',
@@ -147,17 +163,7 @@ export default defineComponent({
               includeDetections: true,
             },
           }),
-          exportMediaUrl: isMulticam || dataset.value?.type === 'video'
-            ? (isMulticam ? undefined : datasetMedia.value?.video?.url)
-            : getUri({
-              url: 'dive_dataset/export',
-              params: {
-                ...params,
-                includeDetections: false,
-                includeMedia: true,
-                folderIds: JSON.stringify([singleDataSetId.value]),
-              },
-            }),
+          exportMediaUrl,
           exportDetectionsUrl: getUri({
             url: 'dive_annotation/export',
             params: {

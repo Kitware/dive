@@ -44,3 +44,39 @@ export function orderedMultiCamCameraNames(multiCamMedia: MultiCamMediaLike | nu
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {
   return subType === 'stereo' || subType === 'multicam';
 }
+
+export type DatasetMetaLike = {
+  type?: string;
+  subType?: string;
+};
+
+export type FolderMetaLike = {
+  meta?: DatasetMetaLike;
+  parentId?: string;
+  _id?: string;
+};
+
+/** True when folder meta describes a stereoscopic or multicam parent dataset. */
+export function isMultiCamDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
+  return getMultiCamSubType(meta) !== null;
+}
+
+/**
+ * Whether training should be disabled for the current data browser selection.
+ * Covers the multicam parent, browsing inside it with no selection, and per-camera child folders.
+ */
+export function isMultiCamTrainingTarget(
+  folders: FolderMetaLike[],
+  browseLocation: FolderMetaLike | null,
+): boolean {
+  if (folders.some((folder) => isMultiCamDatasetMeta(folder.meta))) {
+    return true;
+  }
+  if (!browseLocation || !isMultiCamDatasetMeta(browseLocation.meta) || !browseLocation._id) {
+    return false;
+  }
+  if (folders.length === 0) {
+    return true;
+  }
+  return folders.every((folder) => folder.parentId === browseLocation._id);
+}
