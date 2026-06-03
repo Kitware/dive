@@ -62,7 +62,7 @@ For camera selection, linked tracks, MultiCamera Tools, and pipeline details, se
 
 !!! note
 
-    Glob/keyword-based multicam import and full multicam dataset export are [desktop-only](Multicamera-data.md) for now.
+    Glob/keyword-based multicam import is [desktop-only](Multicamera-data.md) for now. Full multicam dataset export is available on web from the data browser download menu.
 
 ## Download or export data
 
