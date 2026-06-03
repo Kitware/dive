@@ -136,16 +136,19 @@ export default defineComponent({
         };
       }
       if (singleDataSetId.value) {
+        const isMulticam = dataset.value?.type === MultiType;
         return {
           exportAllUrl: getUri({
             url: 'dive_dataset/export',
             params: {
               ...params,
               folderIds: JSON.stringify([singleDataSetId.value]),
+              includeMedia: true,
+              includeDetections: true,
             },
           }),
-          exportMediaUrl: dataset.value?.type === 'video'
-            ? datasetMedia.value?.video?.url
+          exportMediaUrl: isMulticam || dataset.value?.type === 'video'
+            ? (isMulticam ? undefined : datasetMedia.value?.video?.url)
             : getUri({
               url: 'dive_dataset/export',
               params: {
@@ -205,10 +208,11 @@ export default defineComponent({
       };
     });
 
+    const isMulticamDataset = computed(() => dataset.value?.type === MultiType);
+
     const mediaType = computed(() => {
-      if (dataset.value === null) return null;
+      if (dataset.value === null || isMulticamDataset.value) return null;
       const { type } = dataset.value;
-      if (type === MultiType) throw new Error('Cannot export multicamera dataset');
       return {
         [ImageSequenceType]: 'Image Sequence',
         [VideoType]: 'Video',
@@ -242,6 +246,7 @@ export default defineComponent({
       isDownloadButtonDisplayed,
       isDatasetDownload,
       isFilesDownload,
+      isMulticamDataset,
     };
   },
 });
@@ -316,25 +321,32 @@ export default defineComponent({
           {{ error }}
         </v-alert>
 
-        <template v-if="dataset !== null && mediaType !== null">
-          <v-card-text class="pb-0">
-            Zip all {{ mediaType }} files only
-          </v-card-text>
-          <v-card-actions>
-            <v-btn
-              depressed
-              block
-              target="_blank"
-              rel="noopener"
-              :disabled="!exportUrls.exportMediaUrl"
-              :href="exportUrls.exportMediaUrl"
-            >
-              {{ mediaType }}
-            </v-btn>
-          </v-card-actions>
+        <template v-if="dataset !== null && (mediaType !== null || isMulticamDataset)">
+          <template v-if="mediaType !== null">
+            <v-card-text class="pb-0">
+              Zip all {{ mediaType }} files only
+            </v-card-text>
+            <v-card-actions>
+              <v-btn
+                depressed
+                block
+                target="_blank"
+                rel="noopener"
+                :disabled="!exportUrls.exportMediaUrl"
+                :href="exportUrls.exportMediaUrl"
+              >
+                {{ mediaType }}
+              </v-btn>
+            </v-card-actions>
+          </template>
 
           <v-card-text class="pb-2">
-            <div>Get latest annotation csv only</div>
+            <div v-if="isMulticamDataset">
+              Get latest annotations for all cameras (zip)
+            </div>
+            <div v-else>
+              Get latest annotation csv only
+            </div>
             <template v-if="dataset.confidenceFilters || true">
               <v-checkbox
                 v-model="excludeBelowThreshold"
@@ -445,7 +457,12 @@ export default defineComponent({
           </v-card-actions>
 
           <v-card-text class="pb-0">
-            Zip all media, detections, and edit history recursively from all sub-folders
+            <span v-if="isMulticamDataset">
+              Zip all cameras: media, annotations, calibration, and dataset metadata
+            </span>
+            <span v-else>
+              Zip all media, detections, and edit history recursively from all sub-folders
+            </span>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
