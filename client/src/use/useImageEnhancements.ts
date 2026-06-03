@@ -3,13 +3,21 @@ import {
   ref, Ref, set as VueSet,
 } from 'vue';
 
+export interface PercentileStretch {
+  lowPercentile: number;
+  highPercentile: number;
+  min?: number;
+  max?: number;
+}
+
 // Expecting this may be a placeholder for more complicated client side enhancements
 // or more image filters
 export interface ImageEnhancements {
     brightness: number;
     contrast: number;
     saturation: number;
-    sharpen: number
+    sharpen: number;
+    percentileStretch?: PercentileStretch;
   }
 
 export interface ImageEnhancementOutputs {
@@ -65,6 +73,8 @@ export default function useImageEnhancements() {
     && imageEnhancements.value.contrast === 1
     && imageEnhancements.value.saturation === 1
     && imageEnhancements.value.sharpen === 0
+    && imageEnhancements.value.percentileStretch?.min == null
+    && imageEnhancements.value.percentileStretch?.max == null
   ));
 
   const setImageEnhancements = (enhancements: ImageEnhancements) => {
@@ -73,6 +83,7 @@ export default function useImageEnhancements() {
       contrast: enhancements.contrast,
       saturation: enhancements.saturation,
       sharpen: enhancements.sharpen,
+      percentileStretch: enhancements.percentileStretch,
     };
   };
 

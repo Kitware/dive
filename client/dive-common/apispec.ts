@@ -7,7 +7,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
-import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import { ImageEnhancements, PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -278,4 +278,5 @@ export {
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,
+  PercentileStretch,
 };
