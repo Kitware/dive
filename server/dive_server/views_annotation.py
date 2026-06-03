@@ -10,9 +10,9 @@ from girder.exceptions import RestException
 from girder.models.folder import Folder
 
 from dive_utils import constants, fromMeta, models, setContentDisposition
+from dive_utils.serializers import kwcoco
 
 from . import crud, crud_annotation, crud_dataset
-from dive_utils.serializers import kwcoco
 
 DatasetModelParam = {
     'description': "dataset id",

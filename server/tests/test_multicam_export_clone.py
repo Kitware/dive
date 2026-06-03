@@ -6,6 +6,14 @@ from dive_server import crud_dataset
 from dive_utils import constants
 
 
+def _join_zip_maker(maker) -> bytes:
+    if not callable(maker):
+        return b''
+    return b''.join(
+        chunk if isinstance(chunk, bytes) else chunk.encode('utf-8') for chunk in maker()
+    )
+
+
 def _multi_parent_folder():
     return {
         '_id': 'parent-id',
@@ -42,7 +50,7 @@ def _child_folder(folder_id: str, name: str):
 
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
-@patch('dive_server.crud_dataset.createSoftClone')
+@patch('dive_server.crud_dataset._create_single_camera_soft_clone')
 @patch('dive_server.crud_dataset.Folder')
 def test_create_multicam_soft_clone_rewrites_camera_folder_ids(
     folder_cls, create_soft_clone_mock, _aux, _clone_ann
@@ -81,7 +89,7 @@ def test_create_multicam_soft_clone_rewrites_camera_folder_ids(
 @patch('dive_server.crud_dataset.find_calibration_item_id')
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
-@patch('dive_server.crud_dataset.createSoftClone')
+@patch('dive_server.crud_dataset._create_single_camera_soft_clone')
 @patch('dive_server.crud_dataset.Folder')
 def test_create_multicam_soft_clone_copies_calibration(
     folder_cls,
@@ -130,7 +138,7 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     z = MagicMock()
 
     def add_file_side_effect(_maker, path):
-        yield path.encode('utf-8')
+        yield str(path).encode('utf-8')
 
     z.addFile.side_effect = add_file_side_effect
     zip_gen_cls.return_value = z
@@ -139,8 +147,12 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     get_multi_cam_media_mock.return_value = MagicMock()
 
     stream = crud_dataset.export_datasets_zipstream(
-        [parent], user, includeMedia=True, includeDetections=True,
-        excludeBelowThreshold=False, typeFilter=None,
+        [parent],
+        user,
+        includeMedia=True,
+        includeDetections=True,
+        excludeBelowThreshold=False,
+        typeFilter=None,
     )
     chunks = list(stream())
 
@@ -183,7 +195,7 @@ def test_export_multicam_integration_zip_paths(
 
     class RecordingZip:
         def addFile(self, maker, path):
-            zip_entries[str(path)] = b''.join(maker())
+            zip_entries[str(path)] = _join_zip_maker(maker)
 
             def _gen():
                 yield b''
@@ -217,8 +229,12 @@ def test_export_multicam_integration_zip_paths(
     with patch('dive_server.crud_dataset.get_multi_cam_media') as get_mcm:
         get_mcm.return_value = MagicMock()
         stream = crud_dataset.export_datasets_zipstream(
-            [parent], user, includeMedia=True, includeDetections=False,
-            excludeBelowThreshold=False, typeFilter=None,
+            [parent],
+            user,
+            includeMedia=True,
+            includeDetections=False,
+            excludeBelowThreshold=False,
+            typeFilter=None,
         )
         list(stream())
 
@@ -243,7 +259,7 @@ def test_export_multicam_annotations_zip_csv(zip_gen_cls, csv_gen_mock, folder_c
     class RecordingZip:
         def addFile(self, maker, path):
             paths.append(str(path))
-            content = b''.join(maker()) if callable(maker) else b''
+            content = _join_zip_maker(maker)
 
             def _gen():
                 yield content or b'csv'

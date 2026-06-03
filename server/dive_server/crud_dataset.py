@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
-import cherrypy
 from bson.objectid import InvalidId, ObjectId
+import cherrypy
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -77,7 +77,9 @@ def _create_multicam_soft_clone(
                 f'Camera folder for "{cam_name}" was not found',
                 code=404,
             )
-        cloned_child = createSoftClone(owner, child, cloned_folder, cam_name, revision)
+        cloned_child = _create_single_camera_soft_clone(
+            owner, child, cloned_folder, cam_name, revision
+        )
         new_cameras[cam_name] = {
             'folderId': str(cloned_child['_id']),
             'type': cam_info.get('type') or fromMeta(child, constants.TypeMarker),
@@ -100,19 +102,14 @@ def _create_multicam_soft_clone(
     return cloned_folder
 
 
-def createSoftClone(
+def _create_single_camera_soft_clone(
     owner: types.GirderUserModel,
     source_folder: types.GirderModel,
     parent_folder: types.GirderModel,
     name: str,
     revision: Optional[int],
 ):
-    """Create a no-copy clone of folder with source_id for owner"""
-    if fromMeta(source_folder, constants.TypeMarker) == constants.MultiType:
-        return _create_multicam_soft_clone(
-            owner, source_folder, parent_folder, name, revision
-        )
-
+    """Create a no-copy clone of a single-camera folder."""
     if len(name) == 0:
         raise RestException('Must supply non-empty name for clone')
 
@@ -134,6 +131,20 @@ def createSoftClone(
     crud.get_or_create_auxiliary_folder(cloned_folder, owner)
     crud_annotation.clone_annotations(source_folder, cloned_folder, owner, revision)
     return cloned_folder
+
+
+def createSoftClone(
+    owner: types.GirderUserModel,
+    source_folder: types.GirderModel,
+    parent_folder: types.GirderModel,
+    name: str,
+    revision: Optional[int],
+):
+    """Create a no-copy clone of folder with source_id for owner"""
+    if fromMeta(source_folder, constants.TypeMarker) == constants.MultiType:
+        return _create_multicam_soft_clone(owner, source_folder, parent_folder, name, revision)
+
+    return _create_single_camera_soft_clone(owner, source_folder, parent_folder, name, revision)
 
 
 def list_datasets(
@@ -417,9 +428,7 @@ def _filtered_annotation_tracks(
         if excludeBelowThreshold and not track.exceeds_thresholds(thresholds):
             continue
         if typeFilter:
-            confidence_pairs = [
-                item for item in track.confidencePairs if item[0] in typeFilter
-            ]
+            confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
             if not confidence_pairs:
                 continue
         updated_tracks[track_id] = tracks[track_id]
@@ -447,9 +456,7 @@ def _coco_json_export_text(
     typeFilter: Iterable[str],
 ) -> str:
     filtered_tracks = list(
-        _filtered_annotation_tracks(
-            dsFolder, revision, excludeBelowThreshold, typeFilter
-        ).values()
+        _filtered_annotation_tracks(dsFolder, revision, excludeBelowThreshold, typeFilter).values()
     )
     image_filenames = {}
     dataset_type = fromMeta(dsFolder, constants.TypeMarker)
@@ -488,7 +495,7 @@ def export_multicam_annotations_zipstream(
         multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
 
         def makeMultiCamJson():
-            yield json.dumps(multi_cam, indent=2)
+            yield json.dumps(multi_cam, indent=2).encode('utf-8')
 
         for data in z.addFile(makeMultiCamJson, Path(f'{zip_path}multiCam.json')):
             yield data
@@ -536,9 +543,7 @@ def export_multicam_annotations_zipstream(
                         nested_type_filter,
                     )
 
-                for data in z.addFile(
-                    makeCocoJson, Path(f'{child_path}{child["name"]}.coco.json')
-                ):
+                for data in z.addFile(makeCocoJson, Path(f'{child_path}{child["name"]}.coco.json')):
                     yield data
         yield z.footer()
 
@@ -658,7 +663,7 @@ def _yield_multicam_dataset_export(
     multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
 
     def makeMultiCamJson():
-        yield json.dumps(multi_cam, indent=2)
+        yield json.dumps(multi_cam, indent=2).encode('utf-8')
 
     for data in z.addFile(makeMultiCamJson, Path(f'{zip_path}multiCam.json')):
         yield data
@@ -1000,9 +1005,7 @@ def create_multicam(
         frame_counts.append(_child_media_frame_count(child, user, validated.type))
         loaded_children[name] = child
 
-    use_video_fps = (
-        validated.type == constants.VideoType and validated.fps == -1
-    )
+    use_video_fps = validated.type == constants.VideoType and validated.fps == -1
     if use_video_fps:
         unique_fps = set(child_fps_by_name.values())
         if len(unique_fps) > 1:

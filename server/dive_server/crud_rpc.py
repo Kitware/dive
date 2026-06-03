@@ -289,9 +289,7 @@ def run_pipeline(
                 code=400,
             )
         input_type = default_cam['media_type']
-        calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(
-            folder, pipeline
-        )
+        calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(folder, pipeline)
         needs_calibration = (
             fromMeta(folder, constants.SubTypeMarker) == 'stereo'
             and pipeline.get('type') == constants.StereoPipelineMarker
@@ -430,6 +428,7 @@ def run_training(
         folder = Folder().load(folderId, level=AccessType.READ, user=user)
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
+        crud.assert_training_allowed_folder(user, folder)
         crud.getCloneRoot(user, folder)
         dataset_input_list.append((folderId, crud_annotation.RevisionLogItem().latest(folder)))
 
