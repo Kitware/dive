@@ -48,12 +48,13 @@ def _child_folder(folder_id: str, name: str):
     }
 
 
+@patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset._create_single_camera_soft_clone')
 @patch('dive_server.crud_dataset.Folder')
 def test_create_multicam_soft_clone_rewrites_camera_folder_ids(
-    folder_cls, create_soft_clone_mock, _aux, _clone_ann
+    folder_cls, create_soft_clone_mock, _aux, _clone_ann, _find_cal
 ):
     owner = {'login': 'tester'}
     source = _multi_parent_folder()
@@ -129,12 +130,19 @@ def test_create_multicam_soft_clone_copies_calibration(
 @patch('dive_server.crud_dataset._yield_single_dataset_export')
 @patch('dive_server.crud_dataset._yield_calibration_files')
 @patch('dive_server.crud_dataset.get_multi_cam_media')
+@patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.ziputil.ZipGenerator')
 def test_export_multicam_zip_includes_multicam_json_and_cameras(
-    zip_gen_cls, get_multi_cam_media_mock, yield_cal_mock, yield_single_mock
+    zip_gen_cls, folder_cls, get_multi_cam_media_mock, yield_cal_mock, yield_single_mock
 ):
     parent = _multi_parent_folder()
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
     user = {'login': 'tester'}
+    folder_cls.return_value.load.side_effect = lambda fid, **kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[fid]
     z = MagicMock()
 
     def add_file_side_effect(_maker, path):
@@ -238,11 +246,11 @@ def test_export_multicam_integration_zip_paths(
         )
         list(stream())
 
-    assert './stereo-dataset/multiCam.json' in zip_entries
-    assert './stereo-dataset/meta.json' in zip_entries
-    assert './stereo-dataset/left/meta.json' in zip_entries
-    assert './stereo-dataset/right/meta.json' in zip_entries
-    multi_cam = json.loads(zip_entries['./stereo-dataset/multiCam.json'].decode())
+    assert 'stereo-dataset/multiCam.json' in zip_entries
+    assert 'stereo-dataset/meta.json' in zip_entries
+    assert 'stereo-dataset/left/meta.json' in zip_entries
+    assert 'stereo-dataset/right/meta.json' in zip_entries
+    multi_cam = json.loads(zip_entries['stereo-dataset/multiCam.json'].decode())
     assert multi_cam['defaultDisplay'] == 'left'
 
 
@@ -281,7 +289,7 @@ def test_export_multicam_annotations_zip_csv(zip_gen_cls, csv_gen_mock, folder_c
     )
     list(stream())
 
-    assert './stereo-dataset/multiCam.json' in paths
-    assert './stereo-dataset/left/annotations.viame.csv' in paths
-    assert './stereo-dataset/right/annotations.viame.csv' in paths
+    assert 'stereo-dataset/multiCam.json' in paths
+    assert 'stereo-dataset/left/annotations.viame.csv' in paths
+    assert 'stereo-dataset/right/annotations.viame.csv' in paths
     assert csv_gen_mock.call_count == 2
