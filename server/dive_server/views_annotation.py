@@ -11,7 +11,7 @@ from girder.models.folder import Folder
 
 from dive_utils import constants, fromMeta, models, setContentDisposition
 
-from . import crud, crud_annotation
+from . import crud, crud_annotation, crud_dataset
 from dive_utils.serializers import kwcoco
 
 DatasetModelParam = {
@@ -138,6 +138,18 @@ class AnnotationResource(Resource):
         typeFilter: Optional[List[str]],
     ):
         crud.verify_dataset(folder)
+
+        if fromMeta(folder, constants.TypeMarker) == constants.MultiType:
+            gen = crud_dataset.export_multicam_annotations_zipstream(
+                folder,
+                self.getCurrentUser(),
+                format,
+                excludeBelowThreshold,
+                typeFilter,
+                revisionId,
+            )
+            setContentDisposition(f'{folder["name"]}.zip', mime='application/zip')
+            return gen
 
         if format == 'viame_csv':
             filename, gen = crud_annotation.get_annotation_csv_generator(
