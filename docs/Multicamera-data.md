@@ -11,7 +11,7 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 | Run stereo / multicam VIAME pipelines | ✔️ | ✔️ |
 | Run single-camera pipelines on one view | ✔️ | ✔️ |
 | Glob / keyword pattern import | ❌ | ✔️ |
-| Export full multicam dataset as one `.zip` | ❌ | ✔️ |
+| Export full multicam dataset as one `.zip` | ✔️ | ✔️ |
 
 See [Loading MultiCamera data](#loading-multicamera-data) below for platform-specific import steps. The rest of this page describes behavior that is shared between web and desktop.
 
@@ -35,7 +35,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
 
 !!! note
 
-    **Web limitations:** glob/keyword pattern import (desktop's advanced folder layout options) is not supported on web yet. Export of an entire multicam dataset as a single archive is also not yet available on web; you can still export annotations for the currently selected camera (see [Import/Export](#importexport) below).
+    **Web limitations:** glob/keyword pattern import (desktop's advanced folder layout options) is not supported on web yet. You can export the full multicam dataset from the dataset browser download menu, or export annotations for the currently selected camera from the viewer (see [Import/Export](#importexport) below).
 
 For general web upload concepts (permissions, transcoding, zip import), see [Uploading data](Web-Version.md#uploading-data).
 
@@ -82,7 +82,14 @@ When a track is selected it will easily show the existing detections and tracks 
 
 Importing and exporting of data works similarly to a single dataset except that it occurs on the currently selected camera. Selecting the "Starboard" camera and clicking export will only export the annotations for the "Starboard" camera. Similarly importing annotations will only occur on the selected camera as well.
 
-On web, full-dataset export (all cameras and media in one archive) for multicam parents is not yet supported. Use per-camera export as above, or export from DIVE Desktop.
+On web, a full dataset export zip (from **Download → Everything**) can be re-imported with the standard zip upload flow; DIVE detects `multiCam.json` and restores each camera folder before finalizing the multicam parent dataset.
+
+On web, use the data browser **Download** menu on a multicam parent dataset:
+
+- **VIAME CSV**, **DIVE TrackJSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).
+- **Everything** downloads all camera media, all camera annotations, calibration (stereo), and metadata in one zip.
+
+Per-camera export from the viewer still exports only the active camera.
 
 ## Running Pipelines
 

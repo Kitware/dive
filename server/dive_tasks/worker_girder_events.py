@@ -13,11 +13,7 @@ that on the web server, so we bind the same handler here.
 from girder import events
 from girder_jobs import scheduleLocal
 
-from dive_server.event import (
-    process_fs_import,
-    process_s3_import,
-    run_post_assetstore_import,
-)
+from dive_server.event import process_fs_import, process_s3_import, run_post_assetstore_import
 
 
 def _register():

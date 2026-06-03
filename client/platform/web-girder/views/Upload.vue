@@ -22,6 +22,7 @@ import {
 import {
   createGirderFolder,
   createMulticamDataset,
+  deleteResources,
   uploadCalibrationItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
@@ -382,6 +383,8 @@ export default defineComponent({
       multicamImporting.value = true;
       multicamImportProgress.value = { percent: 0, message: 'Preparing import…' };
       preUploadErrorMessage.value = null;
+      let datasetFolderId: string | null = null;
+      let multicamLinked = false;
       try {
         const datasetName = args.datasetName?.trim();
         if (!datasetName) {
@@ -396,6 +399,7 @@ export default defineComponent({
           name: datasetName,
           description: 'Multicamera dataset',
         });
+        datasetFolderId = datasetFolder._id;
         const cameras: Record<string, { folderId: string }> = {};
         const cameraOrder = args.cameraOrder?.length
           ? args.cameraOrder
@@ -493,6 +497,7 @@ export default defineComponent({
           cameraOrder,
           calibrationFileId,
         });
+        multicamLinked = true;
 
         setMulticamImportProgress(100, 'Opening viewer…');
         clearMulticamFileRegistry();
@@ -500,6 +505,13 @@ export default defineComponent({
         close();
       } catch (err) {
         preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
+        if (datasetFolderId && !multicamLinked) {
+          try {
+            await deleteResources([{ _id: datasetFolderId, _modelType: 'folder' }]);
+          } catch (cleanupErr) {
+            await errorHandler({ err: cleanupErr, name: 'Multicam import cleanup' });
+          }
+        }
         await errorHandler({ err, name: 'Multicam import' });
       } finally {
         clearMulticamUploadProgressTimer();

@@ -26,9 +26,7 @@ def check_and_fix_frame_alignment(
     return file_path
 
 
-def is_frame_misaligned(
-    task: Task, file_path: Path, context: Dict, manager: JobManager
-) -> bool:
+def is_frame_misaligned(task: Task, file_path: Path, context: Dict, manager: JobManager) -> bool:
     command = [
         "ffprobe",
         str(file_path),

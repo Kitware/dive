@@ -126,6 +126,23 @@ def verify_dataset(folder: GirderModel):
     return True
 
 
+def assert_training_allowed_folder(user: GirderUserModel, folder: GirderModel):
+    """Reject training on multicamera parents and their per-camera child folders."""
+    if fromMeta(folder, constants.TypeMarker) == constants.MultiType:
+        raise RestException(
+            'Training is not supported on stereoscopic or multicamera datasets',
+            code=400,
+        )
+    parent_id = folder.get('parentId')
+    if parent_id:
+        parent = Folder().load(parent_id, level=AccessType.READ, user=user)
+        if parent is not None and fromMeta(parent, constants.TypeMarker) == constants.MultiType:
+            raise RestException(
+                'Training is not supported on cameras within a multicamera dataset',
+                code=400,
+            )
+
+
 def getCloneRoot(owner: GirderModel, source_folder: GirderModel):
     """Get the source media folder associated with a clone"""
     verify_dataset(source_folder)

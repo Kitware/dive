@@ -1,9 +1,6 @@
 from pathlib import Path
 
-from dive_tasks.pipeline_discovery import (
-    load_static_pipelines,
-    parse_pipe_type_and_name,
-)
+from dive_tasks.pipeline_discovery import load_static_pipelines, parse_pipe_type_and_name
 
 
 def test_parse_pipe_type_and_name_measurement():

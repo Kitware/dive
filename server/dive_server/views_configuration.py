@@ -272,10 +272,8 @@ class ConfigurationResource(Resource):
                 start_dt = datetime.fromisoformat(start_str.strip())
                 end_dt = datetime.fromisoformat(end_str.strip())
             except ValueError:
-                raise RestException(
-                    "Invalid overrideDateTime format. Use ISO format:\
-                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'"
-                )
+                raise RestException("Invalid overrideDateTime format. Use ISO format:\
+                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'")
         elif dateRange and dateRange in date_map:
             start_dt = end_dt - date_map[dateRange]
         else:

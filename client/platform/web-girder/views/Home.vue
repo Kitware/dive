@@ -9,9 +9,11 @@ import {
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import type { SubType } from 'dive-common/apispec';
+import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { isGirderModel } from '../store/types';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
 import { useLocation } from '../store/useLocation';
@@ -116,6 +118,13 @@ export default defineComponent({
       ({ meta }) => meta && meta.type === 'large-image',
     )).length > 0);
 
+    const includesMultiCamDataset = computed(() => isMultiCamTrainingTarget(
+      pipelineTargetFolders.value,
+      locationIsViameFolder.value && isGirderModel(location.value)
+        ? location.value
+        : null,
+    ));
+
     const locationInputs = computed(() => (
       locationIsViameFolder.value && location.value
         ? [(location.value as { _id: string })._id]
@@ -148,6 +157,7 @@ export default defineComponent({
       datasetTypeList,
       selectedFileIds,
       includesLargeImage,
+      includesMultiCamDataset,
       locationInputs,
       locationInputNames,
       selectedDescription,
@@ -219,7 +229,7 @@ export default defineComponent({
                   v-if="trainingEnabled"
                   v-bind="{
                     buttonOptions:
-                      { ...buttonOptions, disabled: includesLargeImage },
+                      { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
