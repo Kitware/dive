@@ -1,18 +1,12 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from girder.constants import AccessType
 from girder.exceptions import RestException
+import pytest
 
 from dive_server import crud, crud_dataset
 from dive_utils import constants
-from dive_utils.models import (
-    DatasetSourceMedia,
-    GirderMetadataStatic,
-    MediaResource,
-    MultiCamMedia,
-    MultiCamMediaCamera,
-)
+from dive_utils.models import DatasetSourceMedia, GirderMetadataStatic, MediaResource
 
 
 def _multi_parent_folder():
@@ -111,12 +105,8 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
 
     folder_cls.return_value.load.side_effect = load_folder
 
-    left_image = MediaResource(
-        id='img-left', url='/api/v1/.../left.png', filename='left.png'
-    )
-    right_image = MediaResource(
-        id='img-right', url='/api/v1/.../right.png', filename='right.png'
-    )
+    left_image = MediaResource(id='img-left', url='/api/v1/.../left.png', filename='left.png')
+    right_image = MediaResource(id='img-right', url='/api/v1/.../right.png', filename='right.png')
 
     def media_for_child(child_folder, child_user):
         if child_folder['_id'] == 'left-id':

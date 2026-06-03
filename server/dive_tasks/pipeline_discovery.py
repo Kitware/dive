@@ -58,9 +58,7 @@ def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
 
 
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
-    metadata: PipeMetadata = {
-        "diveParams": []
-    }
+    metadata: PipeMetadata = {"diveParams": []}
 
     context_stack: List[str] = []
     in_description = False
@@ -89,27 +87,34 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         context_stack.pop()
                     continue
 
-                dive_match = re.search(r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE)
+                dive_match = re.search(
+                    r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
+                )
                 if dive_match:
                     label, raw_args = dive_match.groups()
                     args = [arg.strip() for arg in raw_args.split(',')]
                     param_type = args[0]
                     pipeline_type_args = args[1:]
 
-                    param_line_match = re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed,
-                                                re.IGNORECASE)
+                    param_line_match = re.match(
+                        r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)',
+                        trimmed,
+                        re.IGNORECASE,
+                    )
                     if param_line_match:
                         local_key = param_line_match.group(1)
                         default_val = param_line_match.group(2).strip()
                         full_key = ":".join(context_stack + [local_key])
 
-                        metadata["diveParams"].append({
-                            "label": label,
-                            "type": param_type,
-                            "type_props": pipeline_type_args,
-                            "key": full_key,
-                            "default": default_val
-                        })
+                        metadata["diveParams"].append(
+                            {
+                                "label": label,
+                                "type": param_type,
+                                "type_props": pipeline_type_args,
+                                "key": full_key,
+                                "default": default_val,
+                            }
+                        )
 
                 # --- Description extraction (Multiline) ---
                 desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)
@@ -122,10 +127,10 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
 
                 if in_description:
                     is_stop_condition = (
-                            re.match(r'^#\s*$', line_raw) or
-                            re.match(r'^#\s*=', line_raw) or
-                            re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE) or
-                            not line_raw.startswith('#')
+                        re.match(r'^#\s*$', line_raw)
+                        or re.match(r'^#\s*=', line_raw)
+                        or re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE)
+                        or not line_raw.startswith('#')
                     )
 
                     if is_stop_condition:

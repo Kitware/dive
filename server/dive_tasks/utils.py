@@ -272,10 +272,8 @@ def upload_zipped_flat_media_files(
         gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
     else:
         manager.write(f"Message: {validation['message']}\n")
-        manager.write(
-            "Please check the documentation for Zip files at:\
-                 https://kitware.github.io/dive/Web-Version/#zip-files\n"
-        )
+        manager.write("Please check the documentation for Zip files at:\
+                 https://kitware.github.io/dive/Web-Version/#zip-files\n")
         raise Exception("Could not Validate media Files")
 
 

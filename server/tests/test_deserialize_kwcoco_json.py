@@ -680,7 +680,7 @@ def test_read_kwcoco_json(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    (converted, attributes, _) = kwcoco.load_coco_as_tracks_and_attributes(input)
+    converted, attributes, _ = kwcoco.load_coco_as_tracks_and_attributes(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
@@ -855,4 +855,3 @@ def test_import_polygon_and_rle_segmentation():
     assert rle_track["features"][0]["bounds"] == [400, 200, 600, 260]
     assert "geometry" not in rle_track["features"][0]
     assert len(warnings) == 1
-

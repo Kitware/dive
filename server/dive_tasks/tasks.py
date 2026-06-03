@@ -71,7 +71,9 @@ def filter_csv_by_frame_range(csv_path: str, frame_range: Tuple[int, int]) -> st
     return filtered_path
 
 
-def filter_image_list_by_frame_range(image_list: List[str], frame_range: Tuple[int, int]) -> List[str]:
+def filter_image_list_by_frame_range(
+    image_list: List[str], frame_range: Tuple[int, int]
+) -> List[str]:
     """Filter an image list to only include images within frame range.
 
     Args:
@@ -85,7 +87,8 @@ def filter_image_list_by_frame_range(image_list: List[str], frame_range: Tuple[i
     # Ensure we don't go out of bounds
     start_frame = max(0, start_frame)
     end_frame = min(end_frame, len(image_list) - 1)
-    return image_list[start_frame:end_frame + 1]
+    return image_list[start_frame : end_frame + 1]
+
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -373,10 +376,12 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-p {shlex.quote(str(pipeline_path))}",
             ]
             if input_type == constants.VideoType:
-                command.extend([
-                    '-s input:video_reader:type=vidl_ffmpeg',
-                    f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
-                ])
+                command.extend(
+                    [
+                        '-s input:video_reader:type=vidl_ffmpeg',
+                        f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
+                    ]
+                )
                 if frame_range is not None:
                     _append_frame_range_video_settings(
                         command, input_folder, frame_range, pipeline['pipe']
@@ -468,7 +473,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
             if frame_range is not None:
-                filtered_media_list = filter_image_list_by_frame_range(input_media_list, frame_range)
+                filtered_media_list = filter_image_list_by_frame_range(
+                    input_media_list, frame_range
+                )
             with open(img_list_path, "w+") as img_list_file:
                 img_list_file.write('\n'.join(filtered_media_list))
             command = [
@@ -569,7 +576,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             "viame runner",
             f"-p {shlex.quote(str(convert_to_onnx_pipeline_path))}",
             f"-s onnx_convert:model_path={shlex.quote(str(model_file))}",
-            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}",
         ]
 
         manager.updateStatus(JobStatus.RUNNING)
@@ -1005,10 +1012,8 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
             sum_compress_size = sum([data.compress_size for data in zipObj.filelist])
             ratio = sum_file_size / sum_compress_size
             if ratio > 600:
-                manager.write(
-                    f"Compression ratio is exceedingly high at {ratio}\n\
-                    Please contact an admin at viame-web@kitware.com if this is a valid zip file"
-                )
+                manager.write(f"Compression ratio is exceedingly high at {ratio}\n\
+                    Please contact an admin at viame-web@kitware.com if this is a valid zip file")
                 raise Exception("High Compression Ratio for Zip File")
 
             for fileName in listOfFileNames:

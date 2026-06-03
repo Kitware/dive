@@ -730,10 +730,8 @@ def export_datasets_zipstream(
                 else:
                     get_media(dsFolder, user)
             except (RestException, ValueError):
-                failed_datasets.append(
-                    f"Dataset: {dsFolder['name']} was not found. \
-                        This may be a cloned dataset where the source was deleted.\n"
-                )
+                failed_datasets.append(f"Dataset: {dsFolder['name']} was not found. \
+                        This may be a cloned dataset where the source was deleted.\n")
                 continue
 
             try:
@@ -762,10 +760,8 @@ def export_datasets_zipstream(
                     ):
                         yield data
             except RestException:
-                failed_datasets.append(
-                    f"Dataset: {dsFolder['name']} was not found. \
-                        This may be a cloned dataset where the source was deleted.\n"
-                )
+                failed_datasets.append(f"Dataset: {dsFolder['name']} was not found. \
+                        This may be a cloned dataset where the source was deleted.\n")
                 continue
         if len(failed_datasets) > 0:
 

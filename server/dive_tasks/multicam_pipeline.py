@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 import shlex
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from dive_utils import constants

@@ -112,7 +112,8 @@ def process_assetstore_import(event, meta: dict):
         user = User().findOne({'_id': ObjectId(userId)})
         base_name = os.path.splitext(item['name'])[0]
         foldername = base_name
-        # check if folder with foldername exists in the parentFolder location this would be a video folder then
+        # check if folder with foldername exists in the parentFolder location;
+        # this would be a video folder then
         possible_video_folder = Folder().findOne(
             {'parentId': parentFolder['_id'], 'name': foldername}
         )
@@ -123,7 +124,8 @@ def process_assetstore_import(event, meta: dict):
 
         parent_type_marker = parentFolder['meta'].get(TypeMarker, False)
         if not parent_type_marker:
-            # Files haven't been process yet so we don't know if this annotation file is for a video or a image sequence
+            # Files haven't been process yet so we don't know if this annotation file
+            # is for a video or a image sequence
             meta = {
                 AnnotationFileFutureProcessMarker: True,
             }

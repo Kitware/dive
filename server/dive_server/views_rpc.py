@@ -65,7 +65,9 @@ class RpcResource(Resource):
         pipelineParams: Optional[PipelineParams],
     ):
         worker_capabilities.require_pipeline_worker()
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams)
+        return crud_rpc.run_pipeline(
+            self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams
+        )
 
     @access.user
     @autoDescribeRoute(
@@ -91,15 +93,20 @@ class RpcResource(Resource):
     )
     def export_pipeline_onnx(self, modelFolderId, exportFolderId):
         worker_capabilities.require_pipeline_worker()
-        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
+        return crud_rpc.export_trained_pipeline(
+            self.getCurrentUser(), modelFolderId, exportFolderId
+        )
 
     @access.user
     @autoDescribeRoute(
         Description("Run training on a folder")
         .jsonParam(
             "body",
-            description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content.  Optionally a model that can be used for fine tune training",
+            description=(
+                "JSON object with Array of folderIds to run training on"
+                " and labels.txt file content.  Optionally a model that can be used"
+                " for fine tune training"
+            ),
             paramType="body",
             schema={
                 "folderIds": List[str],

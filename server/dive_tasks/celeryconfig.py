@@ -12,8 +12,7 @@ dive_api_url = os.environ.get('DIVE_API_URL', 'https://viame.kitware.com/api/v1'
 broker_url = os.environ.get('GIRDER_WORKER_BROKER', None)
 
 if dive_username and dive_password:
-    info(
-        """
+    info("""
      _    _________    __  _________   _       __           __
     | |  / /  _/   |  /  |/  / ____/  | |     / /___  _____/ /_____  _____
     | | / // // /| | / /|_/ / __/     | | /| / / __ \/ ___/ //_/ _ \/ ___/
@@ -26,8 +25,7 @@ if dive_username and dive_password:
     Documentation: https://kitware.github.io/dive/Deployment-Docker-Compose/
     Issues: https://github.com/Kitware/dive/issues
     Support: please email viame-web@kitware.com
-    """
-    )
+    """)
     # Fetch Celery broker credentials from server
     diveclient = GirderClient(apiUrl=dive_api_url)
     diveclient.authenticate(username=dive_username, password=dive_password)

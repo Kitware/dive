@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
 from girder.exceptions import RestException
+import pytest
 
-from dive_server import crud, crud_dataset
+from dive_server import crud_dataset
 from dive_utils import constants
 
 
@@ -170,7 +170,11 @@ def test_create_multicam_rejects_wrong_default_display(_verify, folder_cls, vali
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
 def test_create_multicam_marks_calibration_in_dataset_folder(
-    _verify, folder_cls, valid_images_mock, item_cls, _aux,
+    _verify,
+    folder_cls,
+    valid_images_mock,
+    item_cls,
+    _aux,
 ):
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()
