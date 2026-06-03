@@ -101,6 +101,10 @@ export default defineComponent({
       type: Boolean as PropType<boolean>,
       required: true,
     },
+    filterId: {
+      type: String as PropType<string>,
+      default: 'imageEnhancements',
+    },
   },
   setup(props) {
     const loadingVideo = ref(false);
@@ -346,7 +350,7 @@ export default defineComponent({
           if (props.isDefaultImage) {
             local.currentLayer.node().css('filter', '');
           } else {
-            local.currentLayer.node().css('filter', 'url(#imageEhancements)');
+            local.currentLayer.node().css('filter', `url(#${props.filterId})`);
           }
         }
       },
@@ -491,7 +495,7 @@ export default defineComponent({
         );
         // Set quadFeature and conditionally apply brightness filter
         if (!props.isDefaultImage) {
-          local.currentLayer.node().css('filter', 'url(#imageEhancements)');
+          local.currentLayer.node().css('filter', `url(#${props.filterId})`);
         }
         data.ready = true;
         loadingVideo.value = false;
@@ -534,7 +538,7 @@ export default defineComponent({
       style="position: absolute; top: -1px; left: -1px"
     >
       <defs>
-        <filter id="imageEhancements">
+        <filter :id="filterId">
           <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
