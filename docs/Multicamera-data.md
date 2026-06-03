@@ -82,6 +82,8 @@ When a track is selected it will easily show the existing detections and tracks 
 
 Importing and exporting of data works similarly to a single dataset except that it occurs on the currently selected camera. Selecting the "Starboard" camera and clicking export will only export the annotations for the "Starboard" camera. Similarly importing annotations will only occur on the selected camera as well.
 
+On web, a full dataset export zip (from **Download → Everything**) can be re-imported with the standard zip upload flow; DIVE detects `multiCam.json` and restores each camera folder before finalizing the multicam parent dataset.
+
 On web, use the data browser **Download** menu on a multicam parent dataset:
 
 - **VIAME CSV**, **DIVE TrackJSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).

@@ -1016,19 +1016,30 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
                     Please contact an admin at viame-web@kitware.com if this is a valid zip file")
                 raise Exception("High Compression Ratio for Zip File")
 
+            multicam_export_roots = {
+                os.path.dirname(fileName)
+                for fileName in listOfFileNames
+                if os.path.basename(fileName) == constants.MultiCamJsonFileName
+                and not fileName.endswith(os.path.sep)
+            }
+
             for fileName in listOfFileNames:
                 folderName = os.path.dirname(fileName)
                 parentName = os.path.dirname(folderName)
                 if parentName in discovered_folders and folderName != '':
                     discovered_folders[folderName] = 'ignored'
-                    continue
+                    # Nested single-camera exports stay skipped; multicam camera trees must extract.
+                    if not utils.is_path_under_multicam_export(folderName, multicam_export_roots):
+                        continue
                 if fileName.endswith(os.path.sep):
                     continue
                 if folderName not in discovered_folders:
                     discovered_folders[folderName] = 'unstructured'
                 if constants.metaRegex.search(os.path.basename(fileName)):
-                    # sub folder has a meta.json so it is an exported dataset
-                    discovered_folders[folderName] = 'dataset'
+                    if folderName in multicam_export_roots:
+                        discovered_folders[folderName] = 'multicam'
+                    else:
+                        discovered_folders[folderName] = 'dataset'
                 if fileName.endswith('.zip'):
                     raise Exception("Nested Zip Files are invalid")
                 manager.write(f"Extracting: {fileName}\n")
@@ -1054,6 +1065,14 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
             subFolderName = folderName if make_subfolders else ''
             if folderType == 'unstructured':
                 utils.upload_zipped_flat_media_files(
+                    gc,
+                    manager,
+                    folderId,
+                    _working_directory_path / folderName,
+                    subFolderName,
+                )
+            elif folderType == 'multicam':
+                utils.upload_exported_multicam_zipped_dataset(
                     gc,
                     manager,
                     folderId,

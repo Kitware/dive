@@ -141,6 +141,8 @@ SourceFolderName = "source"
 AuxiliaryFolderName = "auxiliary"
 # the name of the meta file
 MetaFileName = "meta.json"
+# Exported multicam datasets include this file at the dataset root (see crud_dataset export).
+MultiCamJsonFileName = "multiCam.json"
 
 # job constants
 JOBCONST_DATASET_ID = 'dataset_id'
