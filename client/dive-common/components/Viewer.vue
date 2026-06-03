@@ -56,6 +56,12 @@ import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import {
+  computeOutputs,
+  computeIsDefault,
+  defaultImageEnhancements,
+  ImageEnhancements,
+} from 'vue-media-annotator/use/useImageEnhancements';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
@@ -250,7 +256,7 @@ export default defineComponent({
 
     const {
       imageEnhancements,
-      imageEnhancementOutputs,
+      imageEnhancementsByCamera,
       isDefaultImage,
       setImageEnhancements,
       setSVGFilters,
@@ -552,14 +558,39 @@ export default defineComponent({
       });
     }
 
-    function saveImageEnhancements() {
-      saveMetadata(datasetId.value, {
-        imageEnhancements: imageEnhancements.value,
-      });
-    }
-    const debouncedSaveImageEnhancements = debounce(saveImageEnhancements, 1000, { trailing: true });
+    const debouncedSaves: Record<string, ReturnType<typeof debounce>> = {};
 
-    watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
+    function getCameraId(camera: string): string {
+      return multiCamList.value.length > 1
+        ? `${baseMulticamDatasetId.value}/${camera}`
+        : datasetId.value;
+    }
+
+    function getDebouncedSave(camera: string) {
+      if (!debouncedSaves[camera]) {
+        debouncedSaves[camera] = debounce(
+          () => saveMetadata(
+            getCameraId(camera),
+            { imageEnhancements: imageEnhancementsByCamera.value[camera] },
+          ),
+          1000,
+          { trailing: true },
+        );
+      }
+      return debouncedSaves[camera];
+    }
+
+    watch(imageEnhancements, () => {
+      imageEnhancementsByCamera.value[selectedCamera.value] = imageEnhancements.value;
+      getDebouncedSave(selectedCamera.value)();
+    }, { deep: true });
+
+    watch(selectedCamera, (newCam, oldCam) => {
+      debouncedSaves[oldCam]?.flush();
+      setImageEnhancements(
+        imageEnhancementsByCamera.value[newCam] ?? { ...defaultImageEnhancements },
+      );
+    });
 
     // Auto-save annotations when enabled, but never while editing a track.
     // Delay is configurable in settings and applied dynamically.
@@ -755,9 +786,7 @@ export default defineComponent({
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
         trackFilters.setTimeFilters(meta.timeFilters ?? null);
-        if (meta.imageEnhancements) {
-          setImageEnhancements(meta.imageEnhancements);
-        }
+        /* imageEnhancements are loaded per-camera below */
         datasetName.value = meta.name;
         initTime({
           frameRate: meta.fps,
@@ -774,6 +803,9 @@ export default defineComponent({
           datasetType.value = subCameraMeta.type as DatasetType;
 
           imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          imageEnhancementsByCamera.value[camera] = subCameraMeta.imageEnhancements
+            ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
+            : { ...defaultImageEnhancements };
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
@@ -879,6 +911,9 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
+        setImageEnhancements(
+          imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
+        );
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -915,6 +950,9 @@ export default defineComponent({
     const reloadAnnotations = async () => {
       progress.loaded = false;
       discardChanges();
+      Object.values(debouncedSaves).forEach((fn) => fn.cancel());
+      Object.keys(debouncedSaves).forEach((k) => delete debouncedSaves[k]);
+      imageEnhancementsByCamera.value = {};
       cameraStore.clearAll();
       mediaControllerClear();
       await loadData();
@@ -945,6 +983,7 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       debouncedAutoSave.cancel();
+      Object.values(debouncedSaves).forEach((fn) => fn.flush());
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
@@ -1158,6 +1197,18 @@ export default defineComponent({
       }
     }
 
+    function cameraEnhOutputs(camera: string) {
+      return computeOutputs(
+        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+      );
+    }
+
+    function isCameraDefault(camera: string): boolean {
+      return computeIsDefault(
+        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+      );
+    }
+
     return {
       /* props */
       aggregateController,
@@ -1205,8 +1256,9 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
-      imageEnhancementOutputs,
       isDefaultImage,
+      cameraEnhOutputs,
+      isCameraDefault,
       disableAnnotationFilters,
       trackStyleManager,
       visible,
@@ -1548,8 +1600,8 @@ export default defineComponent({
                   frameRate,
                   originalFps,
                   camera,
-                  imageEnhancementOutputs,
-                  isDefaultImage,
+                  imageEnhancementOutputs: cameraEnhOutputs(camera),
+                  isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
                   filterId: `imageEnhancements-${camera}`,
@@ -1645,8 +1697,8 @@ export default defineComponent({
                   frameRate,
                   originalFps,
                   camera,
-                  imageEnhancementOutputs,
-                  isDefaultImage,
+                  imageEnhancementOutputs: cameraEnhOutputs(camera),
+                  isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
                   filterId: `imageEnhancements-${camera}`,
