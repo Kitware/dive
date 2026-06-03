@@ -27,13 +27,39 @@ export interface ImageEnhancementOutputs {
     sharpen: { kernelMatrix: string; divisor: number };
   }
 
+export const defaultImageEnhancements: ImageEnhancements = {
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  sharpen: 0,
+};
+
+export function computeOutputs(enh: ImageEnhancements): ImageEnhancementOutputs {
+  const s = enh.sharpen;
+  const center = 1 + 4 * s;
+  const kernel = [0, -s, 0, -s, center, -s, 0, -s, 0].map((n) => Number(n).toFixed(4)).join(' ');
+  return {
+    brightness: { slope: enh.brightness, intercept: 0 },
+    contrast: { slope: enh.contrast, intercept: 0.5 - 0.5 * enh.contrast },
+    saturation: { values: enh.saturation },
+    sharpen: { kernelMatrix: kernel, divisor: 1 },
+  };
+}
+
+export function computeIsDefault(enh: ImageEnhancements): boolean {
+  return (
+    enh.brightness === 1
+    && enh.contrast === 1
+    && enh.saturation === 1
+    && enh.sharpen === 0
+    && enh.percentileStretch?.min == null
+    && enh.percentileStretch?.max == null
+  );
+}
+
 export default function useImageEnhancements() {
-  const imageEnhancements: Ref<ImageEnhancements> = ref({
-    brightness: 1,
-    contrast: 1,
-    saturation: 1,
-    sharpen: 0,
-  });
+  const imageEnhancements: Ref<ImageEnhancements> = ref({ ...defaultImageEnhancements });
+  const imageEnhancementsByCamera: Ref<Record<string, ImageEnhancements>> = ref({});
 
   const setSVGFilters = ({
     brightness, contrast, saturation, sharpen,
@@ -45,37 +71,9 @@ export default function useImageEnhancements() {
     VueSet(imageEnhancements.value, 'sharpen', sharpen);
   };
 
-  const brightness = computed(() => ({ slope: imageEnhancements.value.brightness, intercept: 0 }));
+  const imageEnhancementOutputs = computed(() => computeOutputs(imageEnhancements.value));
 
-  const contrast = computed(() => {
-    const value = imageEnhancements.value.contrast;
-    return { slope: value, intercept: 0.5 - 0.5 * (value) };
-  });
-
-  const saturation = computed(() => ({ values: imageEnhancements.value.saturation }));
-
-  const sharpen = computed(() => {
-    const s = imageEnhancements.value.sharpen;
-    const center = (1 + 4 * s);
-    const kernel = [0, -s, 0, -s, center, -s, 0, -s, 0].map((n) => Number(n).toFixed(4)).join(' ');
-    return { kernelMatrix: kernel, divisor: 1 };
-  });
-
-  const imageEnhancementOutputs = computed(() => ({
-    brightness: brightness.value,
-    contrast: contrast.value,
-    saturation: saturation.value,
-    sharpen: sharpen.value,
-  }));
-
-  const isDefaultImage = computed(() => (
-    imageEnhancements.value.brightness === 1
-    && imageEnhancements.value.contrast === 1
-    && imageEnhancements.value.saturation === 1
-    && imageEnhancements.value.sharpen === 0
-    && imageEnhancements.value.percentileStretch?.min == null
-    && imageEnhancements.value.percentileStretch?.max == null
-  ));
+  const isDefaultImage = computed(() => computeIsDefault(imageEnhancements.value));
 
   const setImageEnhancements = (enhancements: ImageEnhancements) => {
     imageEnhancements.value = {
@@ -89,6 +87,7 @@ export default function useImageEnhancements() {
 
   return {
     imageEnhancements,
+    imageEnhancementsByCamera,
     imageEnhancementOutputs,
     isDefaultImage,
     setSVGFilters,
