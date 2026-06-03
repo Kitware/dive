@@ -1742,6 +1742,7 @@ export default defineComponent({
                   isDefaultImage,
                   getTiles,
                   getTileURL,
+                  filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
@@ -1838,6 +1839,7 @@ export default defineComponent({
                   isDefaultImage,
                   getTiles,
                   getTileURL,
+                  filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
