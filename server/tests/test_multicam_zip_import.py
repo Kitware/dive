@@ -1,6 +1,6 @@
 import json
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -17,6 +17,7 @@ from dive_utils import constants
 
 
 def _write_image_sequence_export(target: Path, images: list[str], fps: float = 5.0):
+    target.mkdir(parents=True, exist_ok=True)
     (target / 'frame0.png').write_bytes(b'png')
     meta = {
         'type': constants.ImageSequenceType,
@@ -27,7 +28,9 @@ def _write_image_sequence_export(target: Path, images: list[str], fps: float = 5
     (target / 'meta.json').write_text(json.dumps(meta))
 
 
-def _write_multicam_export_tree(root: Path, *, sub_type: str = 'stereo', with_calibration: bool = True):
+def _write_multicam_export_tree(
+    root: Path, *, sub_type: str = 'stereo', with_calibration: bool = True
+):
     _write_image_sequence_export(root / 'left', ['frame0.png'])
     _write_image_sequence_export(root / 'right', ['frame0.png'])
     multi_cam = {
@@ -87,7 +90,9 @@ def test_multicam_camera_order_respects_camera_order():
 def test_import_exported_dataset_rejects_multicam_root(tmp_path, mock_gc, mock_manager):
     root = tmp_path / 'multi'
     _write_multicam_export_tree(root)
-    with pytest.raises(ValueError, match='multicamera export root'):
+    with pytest.raises(
+        ValueError, match='multicamera; use multicam zip import instead of single-dataset import'
+    ):
         utils._import_exported_dataset_directory(mock_gc, mock_manager, 'dest', root)
 
 
@@ -95,9 +100,7 @@ def test_upload_exported_multicam_imports_cameras_and_finalizes(tmp_path, mock_g
     root = tmp_path / 'stereo-dataset'
     _write_multicam_export_tree(root)
 
-    utils.upload_exported_multicam_zipped_dataset(
-        mock_gc, mock_manager, 'parent-id', root, ''
-    )
+    utils.upload_exported_multicam_zipped_dataset(mock_gc, mock_manager, 'parent-id', root, '')
 
     assert mock_gc.createFolder.call_args_list == [
         call('parent-id', 'left', reuseExisting=True),
@@ -105,7 +108,8 @@ def test_upload_exported_multicam_imports_cameras_and_finalizes(tmp_path, mock_g
     ]
     assert mock_gc.upload.call_count >= 3
     mock_gc.sendRestRequest.assert_called_once()
-    _method, path, kwargs = mock_gc.sendRestRequest.call_args
+    (_method, path), kwargs = mock_gc.sendRestRequest.call_args
+    assert _method == 'POST'
     assert path == '/dive_dataset/multicam'
     assert kwargs['parameters'] == {'parentFolderId': 'parent-id'}
     body = kwargs['json']
@@ -119,7 +123,10 @@ def test_upload_exported_multicam_imports_cameras_and_finalizes(tmp_path, mock_g
 
 
 def test_upload_exported_zipped_dataset_redirects_when_multicam_json_present(
-    tmp_path, mock_gc, mock_manager, monkeypatch,
+    tmp_path,
+    mock_gc,
+    mock_manager,
+    monkeypatch,
 ):
     root = tmp_path / 'stereo-dataset'
     _write_multicam_export_tree(root)
@@ -129,4 +136,3 @@ def test_upload_exported_zipped_dataset_redirects_when_multicam_json_present(
     utils.upload_exported_zipped_dataset(mock_gc, mock_manager, 'parent-id', root, '')
 
     multicam_mock.assert_called_once_with(mock_gc, mock_manager, 'parent-id', root, '')
-

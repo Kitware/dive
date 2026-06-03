@@ -302,21 +302,17 @@ def _import_exported_dataset_directory(
     dataset_type = meta[constants.TypeMarker]
     if dataset_type == constants.MultiType:
         raise ValueError(
-            'Folder is a multicamera export root; use multicam zip import instead of single-dataset import'
+            'Folder is a multicamera; use multicam zip import instead of single-dataset import'
         )
     if dataset_type == constants.ImageSequenceType:
         image_data = meta['imageData']
         for image in image_data:
             if image['filename'] not in list_of_names:
-                raise ValueError(
-                    f'Could not find {image["filename"]} in exported dataset folder'
-                )
+                raise ValueError(f'Could not find {image["filename"]} in exported dataset folder')
     elif dataset_type == constants.VideoType:
         video = meta['video']
         if video['filename'] not in list_of_names:
-            raise ValueError(
-                f'Could not find {video["filename"]} in exported dataset folder'
-            )
+            raise ValueError(f'Could not find {video["filename"]} in exported dataset folder')
     else:
         raise ValueError(f'Unsupported exported dataset type: {dataset_type}')
 
@@ -499,9 +495,7 @@ def upload_exported_multicam_zipped_dataset(
         if media_type is None:
             media_type = cam_type
         elif cam_type != media_type:
-            raise Exception(
-                f'Camera "{camera_name}" has type {cam_type}, expected {media_type}'
-            )
+            raise Exception(f'Camera "{camera_name}" has type {cam_type}, expected {media_type}')
         manager.write(f'Importing camera "{camera_name}"…\n')
         child_folder = gc.createFolder(parent_folder_id, camera_name, reuseExisting=True)
         child_id = str(child_folder['_id'])
