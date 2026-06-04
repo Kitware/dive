@@ -604,8 +604,10 @@ def convert_video(
         item: GirderModel = gc.getItem(itemId)
         file_name = str(_working_directory_path / item['name'])
         output_file_path = (_working_directory_path / item['name']).with_suffix('.transcoded.mp4')
+        manager.updateStatus(JobStatus.FETCHING_INPUT)
         manager.write(f'Fetching input from {itemId} to {file_name}...\n')
         gc.downloadItem(itemId, _working_directory_path, name=item.get('name'))
+        manager.updateStatus(JobStatus.RUNNING)
 
         command = [
             "ffprobe",
