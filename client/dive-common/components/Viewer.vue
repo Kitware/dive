@@ -584,7 +584,15 @@ export default defineComponent({
       const queryStr = rawUrl.split('?')[1];
       const path = (queryStr ? new URLSearchParams(queryStr).get('path') : null) ?? '';
       if (!path) console.error('[toDisplayUrl] could not extract path from URL:', rawUrl);
-      return `/api/media/display?path=${encodeURIComponent(path)}&low=${low}&high=${high}`;
+      // For desktop the raw URL is absolute (http://127.0.0.1:PORT/api/media?path=...).
+      // Reuse its origin so requests go directly to the Express backend, not through the
+      // Vite proxy which doesn't know the randomly-assigned backend port.
+      let apiBase = '/api';
+      try {
+        const parsed = new URL(rawUrl);
+        apiBase = `${parsed.origin}/api`;
+      } catch { /* rawUrl is relative (web platform) — keep /api */ }
+      return `${apiBase}/media/display?path=${encodeURIComponent(path)}&low=${low}&high=${high}`;
     }
 
     const previousStretchByCam: Record<string, string> = {};
