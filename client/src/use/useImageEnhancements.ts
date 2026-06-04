@@ -59,13 +59,25 @@ export default function useImageEnhancements() {
   const imageEnhancementsByCamera: Ref<Record<string, ImageEnhancements>> = ref({});
 
   const setSVGFilters = ({
-    brightness, contrast, saturation, sharpen,
-  }:
-    { brightness: number; contrast: number; saturation: number; sharpen: number }) => {
+    brightness, contrast, saturation, sharpen, percentileStretch,
+  }: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    sharpen: number;
+    percentileStretch?: PercentileStretch | null;
+  }) => {
     VueSet(imageEnhancements.value, 'brightness', brightness);
     VueSet(imageEnhancements.value, 'contrast', contrast);
     VueSet(imageEnhancements.value, 'saturation', saturation);
     VueSet(imageEnhancements.value, 'sharpen', sharpen);
+    if (percentileStretch !== undefined) {
+      VueSet(
+        imageEnhancements.value,
+        'percentileStretch',
+        percentileStretch ? { ...percentileStretch } : undefined,
+      );
+    }
   };
 
   const imageEnhancementOutputs = computed(() => computeOutputs(imageEnhancements.value));

@@ -12,12 +12,18 @@ export default defineComponent({
     const contrast = ref(imageEnhancements.value.contrast);
     const saturation = ref(imageEnhancements.value.saturation);
     const sharpen = ref(imageEnhancements.value.sharpen);
+    const stretchEnabled = ref(imageEnhancements.value.percentileStretch != null);
+    const lowPercentile = ref(imageEnhancements.value.percentileStretch?.lowPercentile ?? 1);
+    const highPercentile = ref(imageEnhancements.value.percentileStretch?.highPercentile ?? 99);
 
     watch(imageEnhancements, (val) => {
       brightness.value = val.brightness;
       contrast.value = val.contrast;
       saturation.value = val.saturation;
       sharpen.value = val.sharpen;
+      stretchEnabled.value = val.percentileStretch != null;
+      lowPercentile.value = val.percentileStretch?.lowPercentile ?? 1;
+      highPercentile.value = val.percentileStretch?.highPercentile ?? 99;
     }, { deep: true });
 
     const modifyValue = () => {
@@ -26,6 +32,9 @@ export default defineComponent({
         contrast: contrast.value,
         saturation: saturation.value,
         sharpen: sharpen.value,
+        percentileStretch: stretchEnabled.value
+          ? { lowPercentile: lowPercentile.value, highPercentile: highPercentile.value }
+          : null,
       });
     };
 
@@ -34,6 +43,9 @@ export default defineComponent({
       contrast.value = 1;
       saturation.value = 1;
       sharpen.value = 0;
+      stretchEnabled.value = false;
+      lowPercentile.value = 1;
+      highPercentile.value = 99;
       modifyValue();
     };
 
@@ -44,6 +56,9 @@ export default defineComponent({
       contrast,
       saturation,
       sharpen,
+      stretchEnabled,
+      lowPercentile,
+      highPercentile,
     };
   },
 });
@@ -131,6 +146,63 @@ export default defineComponent({
         <span>{{ sharpen.toFixed(1) }}</span>
       </v-col>
     </v-row>
+    <v-divider class="my-3" />
+    <v-row
+      align="center"
+      class="ma-0"
+    >
+      <v-col cols="8">
+        <span class="text-caption">Percentile Stretch</span>
+      </v-col>
+      <v-col class="pa-0">
+        <v-switch
+          v-model="stretchEnabled"
+          hide-details
+          class="ma-0 pa-0 mt-1"
+          @change="modifyValue()"
+        />
+      </v-col>
+    </v-row>
+    <template v-if="stretchEnabled">
+      <v-row>
+        <v-col cols="4">
+          <span class="text-caption">Low %</span>
+        </v-col>
+        <v-col>
+          <v-slider
+            v-model="lowPercentile"
+            :min="0"
+            :max="100"
+            :step="1"
+            hide-details
+            class="pa-0 ma-0"
+            @input="modifyValue()"
+          />
+        </v-col>
+        <v-col cols="2">
+          <span>{{ lowPercentile }}</span>
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-col cols="4">
+          <span class="text-caption">High %</span>
+        </v-col>
+        <v-col>
+          <v-slider
+            v-model="highPercentile"
+            :min="0"
+            :max="100"
+            :step="1"
+            hide-details
+            class="pa-0 ma-0"
+            @input="modifyValue()"
+          />
+        </v-col>
+        <v-col cols="2">
+          <span>{{ highPercentile }}</span>
+        </v-col>
+      </v-row>
+    </template>
     <v-btn
       block
       depressed

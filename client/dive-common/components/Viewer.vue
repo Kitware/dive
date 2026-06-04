@@ -149,6 +149,7 @@ export default defineComponent({
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
+    const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
     const saveInProgress = ref(false);
@@ -580,9 +581,54 @@ export default defineComponent({
       return debouncedSaves[camera];
     }
 
+    function toDisplayUrl(rawUrl: string, low: number, high: number): string {
+      const path = new URLSearchParams(rawUrl.split('?')[1]).get('path') ?? '';
+      return `/api/media/display?path=${encodeURIComponent(path)}&low=${low}&high=${high}`;
+    }
+
+    const previousStretchByCam: Record<string, string> = {};
+
+    function stretchKey(camera: string): string {
+      const enh = imageEnhancementsByCamera.value[camera];
+      const s = enh?.percentileStretch;
+      return s ? `${s.lowPercentile}:${s.highPercentile}` : 'none';
+    }
+
+    function applyDisplayUrls(camera: string) {
+      const raw = rawImageData.value[camera] ?? [];
+      const enh = imageEnhancementsByCamera.value[camera];
+      let frames: FrameImage[];
+      if (enh?.percentileStretch) {
+        const { lowPercentile, highPercentile } = enh.percentileStretch;
+        frames = raw.map((item) => ({
+          ...item,
+          url: toDisplayUrl(item.url, lowPercentile, highPercentile),
+        }));
+      } else {
+        frames = raw;
+      }
+      VueSet(imageData.value, camera, frames);
+      previousStretchByCam[camera] = stretchKey(camera);
+    }
+
+    const debouncedApplyDisplayUrls = debounce(applyDisplayUrls, 500, { trailing: true });
+
     watch(imageEnhancements, () => {
-      VueSet(imageEnhancementsByCamera.value, selectedCamera.value, imageEnhancements.value);
-      getDebouncedSave(selectedCamera.value)();
+      const camera = selectedCamera.value;
+      VueSet(imageEnhancementsByCamera.value, camera, imageEnhancements.value);
+      getDebouncedSave(camera)();
+
+      const current = stretchKey(camera);
+      const previous = previousStretchByCam[camera] ?? 'none';
+      if (current !== previous) {
+        const isToggle = (current === 'none') !== (previous === 'none');
+        if (isToggle) {
+          debouncedApplyDisplayUrls.cancel();
+          applyDisplayUrls(camera);
+        } else {
+          debouncedApplyDisplayUrls(camera);
+        }
+      }
     }, { deep: true });
 
     watch(selectedCamera, (newCam, oldCam) => {
@@ -805,10 +851,11 @@ export default defineComponent({
           const subCameraMeta = await loadMetadata(cameraId);
           datasetType.value = subCameraMeta.type as DatasetType;
 
-          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
           VueSet(imageEnhancementsByCamera.value, camera, subCameraMeta.imageEnhancements
             ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
             : { ...defaultImageEnhancements });
+          VueSet(rawImageData.value, camera, cloneDeep(subCameraMeta.imageData) as FrameImage[]);
+          applyDisplayUrls(camera);
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
@@ -955,6 +1002,8 @@ export default defineComponent({
       discardChanges();
       Object.values(debouncedSaves).forEach((fn) => fn.cancel());
       Object.keys(debouncedSaves).forEach((k) => delete debouncedSaves[k]);
+      debouncedApplyDisplayUrls.cancel();
+      Object.keys(previousStretchByCam).forEach((k) => delete previousStretchByCam[k]);
       imageEnhancementsByCamera.value = {};
       cameraStore.clearAll();
       mediaControllerClear();
@@ -986,6 +1035,7 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       debouncedAutoSave.cancel();
+      debouncedApplyDisplayUrls.cancel();
       Object.values(debouncedSaves).forEach((fn) => fn.flush());
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
