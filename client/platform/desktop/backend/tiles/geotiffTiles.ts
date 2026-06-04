@@ -12,10 +12,9 @@
 
 import fs from 'fs-extra';
 import { fromArrayBuffer, fromFile } from 'geotiff';
-import PNG from 'pngjs';
 import type { Settings } from 'platform/desktop/constants';
 import { getLargeImagePath } from '../native/common';
-import { normalizeToU8 } from '../media/displayProcessing';
+import { normalizeToU8, encodePngRgba } from '../media/displayProcessing';
 
 const TILE_SIZE = 256;
 
@@ -769,15 +768,3 @@ function blitRgba(
   }
 }
 
-function encodePngRgba(width: number, height: number, rgba: Uint8Array): Buffer {
-  type PngInstance = { data: Uint8Array };
-  type PngConstructor = {
-    new(options: { width: number; height: number }): PngInstance;
-    sync: { write(png: PngInstance): Buffer };
-  };
-  const pngModule = PNG as unknown as { PNG?: PngConstructor };
-  const PngCtor = (pngModule.PNG ?? (PNG as unknown as PngConstructor));
-  const png = new PngCtor({ width, height });
-  png.data.set(rgba);
-  return PngCtor.sync.write(png);
-}
