@@ -81,7 +81,9 @@ export default function useImageEnhancements() {
       contrast: enhancements.contrast,
       saturation: enhancements.saturation,
       sharpen: enhancements.sharpen,
-      percentileStretch: enhancements.percentileStretch,
+      percentileStretch: enhancements.percentileStretch
+        ? { ...enhancements.percentileStretch }
+        : undefined,
     };
   };
 
