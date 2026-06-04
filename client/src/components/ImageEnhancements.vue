@@ -172,7 +172,7 @@ export default defineComponent({
           <v-slider
             v-model="lowPercentile"
             :min="0"
-            :max="100"
+            :max="highPercentile - 1"
             :step="1"
             hide-details
             class="pa-0 ma-0"
@@ -190,7 +190,7 @@ export default defineComponent({
         <v-col>
           <v-slider
             v-model="highPercentile"
-            :min="0"
+            :min="lowPercentile + 1"
             :max="100"
             :step="1"
             hide-details

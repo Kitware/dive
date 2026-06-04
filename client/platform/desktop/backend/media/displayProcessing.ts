@@ -1,8 +1,7 @@
-import fs from 'fs-extra';
-import { fromArrayBuffer } from 'geotiff';
+import { fromFile } from 'geotiff';
 import PNG from 'pngjs';
 
-type RasterArray = Uint8Array | Uint16Array | Float32Array | Float64Array;
+type RasterArray = Uint8Array | Uint16Array | Int16Array | Float32Array | Float64Array;
 
 interface TiffImage {
   getWidth(): number;
@@ -87,9 +86,7 @@ function encodeGrayscalePng(pixels: Uint8Array, width: number, height: number): 
 }
 
 async function openTiff(tiffPath: string): Promise<TiffFile> {
-  const buf = await fs.readFile(tiffPath);
-  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-  return fromArrayBuffer(ab) as unknown as TiffFile;
+  return fromFile(tiffPath) as unknown as TiffFile;
 }
 
 /** Find the pixel values at lowPercentile and highPercentile within a single band. */
@@ -100,10 +97,10 @@ function computeFrameBounds(
 ): { min: number; max: number } {
   if (band.length === 0) return { min: 0, max: 65535 };
 
-  // Float rasters can have arbitrary value ranges; integer histogram binning loses
-  // precision and collapses sub-integer values (e.g. radiance 0.003–0.012) to a
-  // single bin. Use a sort-based percentile on a typed-array copy instead.
-  if (band instanceof Float32Array || band instanceof Float64Array) {
+  // Float rasters and signed integers need sort-based percentile: histogram bins are
+  // indexed by value, which breaks for negatives (Int16) and loses sub-integer
+  // precision for floats.
+  if (band instanceof Float32Array || band instanceof Float64Array || band instanceof Int16Array) {
     const sorted = band.slice().sort() as Float32Array | Float64Array;
     const n = sorted.length;
     const lowIdx = Math.min(n - 1, Math.floor(n * (lowPercentile / 100)));
@@ -141,10 +138,13 @@ function computeFrameBounds(
   return { min, max };
 }
 
+const inFlightDecodes = new Map<string, Promise<Buffer>>();
+
 /**
  * Decode a TIFF file, compute per-frame percentile bounds, apply a linear stretch,
  * and return a grayscale PNG buffer. Cached by (path, lowPercentile, highPercentile, mtimeMs);
  * the mtime component ensures stale entries are evicted when a file is replaced on disk.
+ * Concurrent requests for the same key share one decode promise instead of duplicating work.
  */
 export async function getDisplayPng(
   tiffPath: string,
@@ -159,20 +159,28 @@ export async function getDisplayPng(
     return cached;
   }
 
-  const tiff = await openTiff(tiffPath);
-  const image = await tiff.getImage();
-  const width = image.getWidth();
-  const height = image.getHeight();
+  const inflight = inFlightDecodes.get(key);
+  if (inflight) return inflight;
 
-  const rasters = await image.readRasters({
-    samples: [0],
-    interleave: false,
-  }) as RasterArray[];
-  const band = (rasters[0] ?? new Uint8Array(0)) as RasterArray;
+  const decodePromise = (async () => {
+    const tiff = await openTiff(tiffPath);
+    const image = await tiff.getImage();
+    const width = image.getWidth();
+    const height = image.getHeight();
 
-  const { min, max } = computeFrameBounds(band, lowPercentile, highPercentile);
-  const stretched = linearStretchToU8(band, min, max);
-  const pngBuf = encodeGrayscalePng(stretched, width, height);
-  touchDisplayCacheEntry(key, pngBuf);
-  return pngBuf;
+    const rasters = await image.readRasters({
+      samples: [0],
+      interleave: false,
+    }) as RasterArray[];
+    const band = (rasters[0] ?? new Uint8Array(0)) as RasterArray;
+
+    const { min, max } = computeFrameBounds(band, lowPercentile, highPercentile);
+    const stretched = linearStretchToU8(band, min, max);
+    const pngBuf = encodeGrayscalePng(stretched, width, height);
+    touchDisplayCacheEntry(key, pngBuf);
+    return pngBuf;
+  })().finally(() => inFlightDecodes.delete(key));
+
+  inFlightDecodes.set(key, decodePromise);
+  return decodePromise;
 }
