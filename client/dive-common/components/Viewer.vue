@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, toRef, computed, Ref,
-  reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
+  reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType, set as VueSet,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -581,7 +581,7 @@ export default defineComponent({
     }
 
     watch(imageEnhancements, () => {
-      imageEnhancementsByCamera.value[selectedCamera.value] = imageEnhancements.value;
+      VueSet(imageEnhancementsByCamera.value, selectedCamera.value, imageEnhancements.value);
       getDebouncedSave(selectedCamera.value)();
     }, { deep: true });
 
@@ -590,6 +590,9 @@ export default defineComponent({
       setImageEnhancements(
         imageEnhancementsByCamera.value[newCam] ?? { ...defaultImageEnhancements },
       );
+      // cancel the save that watch(imageEnhancements) schedules when setImageEnhancements
+      // replaces the ref — loading a camera's stored state is not a user-initiated change
+      nextTick(() => { debouncedSaves[newCam]?.cancel(); });
     });
 
     // Auto-save annotations when enabled, but never while editing a track.
@@ -803,9 +806,9 @@ export default defineComponent({
           datasetType.value = subCameraMeta.type as DatasetType;
 
           imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
-          imageEnhancementsByCamera.value[camera] = subCameraMeta.imageEnhancements
+          VueSet(imageEnhancementsByCamera.value, camera, subCameraMeta.imageEnhancements
             ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
-            : { ...defaultImageEnhancements };
+            : { ...defaultImageEnhancements });
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
