@@ -36,6 +36,29 @@ def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
     return default
 
 
+def _persist_async_job_metadata(
+    async_result,
+    *,
+    access_source: Optional[types.GirderModel] = None,
+    **metadata: object,
+) -> types.GirderModel:
+    """
+    Save DIVE-specific fields on a Celery job without clobbering worker status.
+
+    GirderAsyncResult.job caches the document from first access (typically INACTIVE).
+    Job().save() on that stale dict can race with the worker task_prerun RUNNING update
+    and leave the job stuck INACTIVE, which breaks later PUSHING_OUTPUT transitions.
+    """
+    job = Job().load(async_result.job['_id'], force=True)
+    for key, value in metadata.items():
+        job[key] = value
+    if access_source is not None:
+        Job().copyAccessPolicies(access_source, job)
+    job = Job().save(job)
+    async_result._job = job
+    return job
+
+
 def _check_running_jobs(folder_id_str: str):
     """Find running jobs associated with the given folder"""
     return (
@@ -260,21 +283,23 @@ def run_pipeline(
             girder_job_type="private" if job_is_private else "pipelines",
         ),
     )
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_DATASET_ID] = folder_id_str
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    # Allow any users with accecss to the input data to also
-    # see and possibly manage the job
-    Job().copyAccessPolicies(folder, newjob.job)
-    Job().save(newjob.job)
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_DATASET_ID: folder_id_str,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
     # Inform Client of new Job added in inactive state
     Notification(
         type='job_status',
-        data=newjob.job,
+        data=job,
         user=user,
     ).flush()
-    return newjob.job
+    return job
 
 
 def export_trained_pipeline(
@@ -305,20 +330,22 @@ def export_trained_pipeline(
         ),
     )
 
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    # Allow any users with access to the input data to also
-    # see and possibly manage the job
-    Job().copyAccessPolicies(model_folder, newjob.job)
-    Job().save(newjob.job)
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=model_folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
     # Inform Client of new Job added in inactive state
     Notification(
         type='job_status',
-        data=newjob.job,
+        data=job,
         user=user,
     ).flush()
-    return newjob.job
+    return job
 
 
 def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
@@ -396,11 +423,14 @@ def run_training(
             girder_job_type="private" if job_is_private else "training",
         ),
     )
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    Job().save(newjob.job)
-    return newjob.job
+    return _persist_async_job_metadata(
+        newjob,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
 
 
 GetDataReturnType = TypedDict(
@@ -645,11 +675,15 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = str(item["folderId"])
-            newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_CREATOR: str(user['_id']),
+                },
+            )
+            created_job_ids.append(job['_id'])
             return {'folder': dsFolder, 'job_ids': created_job_ids}
 
         # transcode VIDEO if necessary
@@ -671,10 +705,14 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                },
+            )
+            created_job_ids.append(job['_id'])
 
         # transcode IMAGERY if necessary
         imageItems = Folder().childItems(
@@ -699,10 +737,14 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                },
+            )
+            created_job_ids.append(job['_id'])
 
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
@@ -735,12 +777,16 @@ def convert_large_image(
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )
-        newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-        newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-        Job().save(newjob.job)
+        job = _persist_async_job_metadata(
+            newjob,
+            **{
+                constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+            },
+        )
         Notification().createNotification(
             type='job_status',
-            data=newjob.job,
+            data=job,
             user=user,
             expires=datetime.now() + timedelta(seconds=30),
         )
