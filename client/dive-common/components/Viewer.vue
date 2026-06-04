@@ -299,7 +299,6 @@ export default defineComponent({
     const {
       imageEnhancements,
       imageEnhancementsByCamera,
-      isDefaultImage,
       setImageEnhancements,
       setSVGFilters,
     } = useImageEnhancements();
@@ -646,7 +645,9 @@ export default defineComponent({
     }
 
     function toDisplayUrl(rawUrl: string, low: number, high: number): string {
-      const path = new URLSearchParams(rawUrl.split('?')[1]).get('path') ?? '';
+      const queryStr = rawUrl.split('?')[1];
+      const path = (queryStr ? new URLSearchParams(queryStr).get('path') : null) ?? '';
+      if (!path) console.error('[toDisplayUrl] could not extract path from URL:', rawUrl);
       return `/api/media/display?path=${encodeURIComponent(path)}&low=${low}&high=${high}`;
     }
 
@@ -671,11 +672,20 @@ export default defineComponent({
       } else {
         frames = raw;
       }
-      VueSet(imageData.value, camera, frames);
+      if (imageData.value[camera] !== frames) {
+        VueSet(imageData.value, camera, frames);
+      }
       previousStretchByCam[camera] = stretchKey(camera);
     }
 
-    const debouncedApplyDisplayUrls = debounce(applyDisplayUrls, 500, { trailing: true });
+    const debouncedApplyUrlsByCam: Record<string, ReturnType<typeof debounce>> = {};
+
+    function getDebouncedApplyDisplayUrls(camera: string) {
+      if (!debouncedApplyUrlsByCam[camera]) {
+        debouncedApplyUrlsByCam[camera] = debounce(applyDisplayUrls, 500, { trailing: true });
+      }
+      return debouncedApplyUrlsByCam[camera];
+    }
 
     watch(imageEnhancements, () => {
       const camera = selectedCamera.value;
@@ -687,10 +697,10 @@ export default defineComponent({
       if (current !== previous) {
         const isToggle = (current === 'none') !== (previous === 'none');
         if (isToggle) {
-          debouncedApplyDisplayUrls.cancel();
+          getDebouncedApplyDisplayUrls(camera).cancel();
           applyDisplayUrls(camera);
         } else {
-          debouncedApplyDisplayUrls(camera);
+          getDebouncedApplyDisplayUrls(camera)(camera);
         }
       }
     }, { deep: true });
@@ -1165,7 +1175,8 @@ export default defineComponent({
       discardChanges();
       Object.values(debouncedSaves).forEach((fn) => fn.cancel());
       Object.keys(debouncedSaves).forEach((k) => delete debouncedSaves[k]);
-      debouncedApplyDisplayUrls.cancel();
+      Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
+      Object.keys(debouncedApplyUrlsByCam).forEach((k) => delete debouncedApplyUrlsByCam[k]);
       Object.keys(previousStretchByCam).forEach((k) => delete previousStretchByCam[k]);
       imageEnhancementsByCamera.value = {};
       cameraStore.clearAll();
@@ -1202,7 +1213,7 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       debouncedAutoSave.cancel();
-      debouncedApplyDisplayUrls.cancel();
+      Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
       Object.values(debouncedSaves).forEach((fn) => fn.flush());
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
@@ -1483,7 +1494,6 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
-      isDefaultImage,
       cameraEnhOutputs,
       isCameraDefault,
       disableAnnotationFilters,
@@ -1859,7 +1869,7 @@ export default defineComponent({
             ref="controlsRef"
             :collapsed.sync="controlsCollapsed"
             v-bind="{
-              lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
+              lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage: isCameraDefault(selectedCamera),
             }"
           />
         </div>
@@ -1961,7 +1971,7 @@ export default defineComponent({
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"
             :dataset-type="datasetType"
-            :is-default-image="isDefaultImage"
+            :is-default-image="isCameraDefault(selectedCamera)"
             :client-settings="clientSettings"
             :track-filters="trackFilters"
             :attributes="attributes"
