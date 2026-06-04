@@ -6,8 +6,6 @@ import {
 export interface PercentileStretch {
   lowPercentile: number;
   highPercentile: number;
-  min?: number;
-  max?: number;
 }
 
 // Expecting this may be a placeholder for more complicated client side enhancements
@@ -52,8 +50,7 @@ export function computeIsDefault(enh: ImageEnhancements): boolean {
     && enh.contrast === 1
     && enh.saturation === 1
     && enh.sharpen === 0
-    && enh.percentileStretch?.min == null
-    && enh.percentileStretch?.max == null
+    && enh.percentileStretch == null
   );
 }
 
