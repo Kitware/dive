@@ -50,7 +50,7 @@ export function linearStretchToU8(
   const out = new Uint8Array(raw.length);
   const range = max - min;
   if (range <= 0) {
-    out.fill(raw.length > 0 && Number(raw[0]) > min ? 255 : 0);
+    out.fill(128); // flat field — no contrast, display as mid-gray
     return out;
   }
   for (let i = 0; i < raw.length; i += 1) {
@@ -60,7 +60,7 @@ export function linearStretchToU8(
   return out;
 }
 
-function encodePngRgba(width: number, height: number, rgba: Uint8Array): Buffer {
+export function encodePngRgba(width: number, height: number, rgba: Uint8Array): Buffer {
   type PngInstance = { data: Uint8Array };
   type PngConstructor = {
     new(opts: { width: number; height: number }): PngInstance;
@@ -100,21 +100,33 @@ function computeFrameBounds(
 ): { min: number; max: number } {
   if (band.length === 0) return { min: 0, max: 65535 };
 
-  const histogram = new Uint32Array(65536);
+  // Float rasters can have arbitrary value ranges; integer histogram binning loses
+  // precision and collapses sub-integer values (e.g. radiance 0.003–0.012) to a
+  // single bin. Use a sort-based percentile on a typed-array copy instead.
+  if (band instanceof Float32Array || band instanceof Float64Array) {
+    const sorted = band.slice().sort() as Float32Array | Float64Array;
+    const n = sorted.length;
+    const lowIdx = Math.min(n - 1, Math.floor(n * (lowPercentile / 100)));
+    const highIdx = Math.min(n - 1, Math.floor(n * (highPercentile / 100)));
+    return { min: sorted[lowIdx], max: sorted[highIdx] };
+  }
+
+  // Integer path: Uint8 → 256 bins, Uint16 → 65536 bins, indexed directly by value.
+  const binCount = band instanceof Uint8Array ? 256 : 65536;
+  const histogram = new Uint32Array(binCount);
   for (let i = 0; i < band.length; i += 1) {
-    const v = Math.max(0, Math.min(65535, Math.round(Number(band[i]))));
-    histogram[v] += 1;
+    histogram[band[i]] += 1;
   }
 
   const lowTarget = Math.floor(band.length * (lowPercentile / 100));
   const highTarget = Math.floor(band.length * (highPercentile / 100));
 
   let min = 0;
-  let max = 65535;
+  let max = binCount - 1;
   let cumulative = 0;
   let foundMin = false;
 
-  for (let v = 0; v < 65536; v += 1) {
+  for (let v = 0; v < binCount; v += 1) {
     cumulative += histogram[v];
     if (!foundMin && cumulative >= lowTarget) {
       min = v;
@@ -131,14 +143,16 @@ function computeFrameBounds(
 
 /**
  * Decode a TIFF file, compute per-frame percentile bounds, apply a linear stretch,
- * and return a grayscale PNG buffer. Cached by (path, lowPercentile, highPercentile).
+ * and return a grayscale PNG buffer. Cached by (path, lowPercentile, highPercentile, mtimeMs);
+ * the mtime component ensures stale entries are evicted when a file is replaced on disk.
  */
 export async function getDisplayPng(
   tiffPath: string,
   lowPercentile: number,
   highPercentile: number,
+  mtimeMs: number,
 ): Promise<Buffer> {
-  const key = `${tiffPath}::${lowPercentile}::${highPercentile}`;
+  const key = `${tiffPath}::${lowPercentile}::${highPercentile}::${mtimeMs}`;
   const cached = displayPngCache.get(key);
   if (cached) {
     touchDisplayCacheEntry(key, cached);

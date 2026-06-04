@@ -185,7 +185,8 @@ apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
 /* Serve a TIFF with per-frame percentile stretch applied, returned as a grayscale PNG */
 apirouter.get('/media/display', async (req, res, next) => {
   const { path: reqPath, low: reqLow, high: reqHigh } = req.query;
-  if (!reqPath || Array.isArray(reqPath) || !reqLow || !reqHigh) {
+  if (!reqPath || Array.isArray(reqPath) || !reqLow || !reqHigh
+      || Array.isArray(reqLow) || Array.isArray(reqHigh)) {
     return next({ status: 400, statusMessage: 'path, low, and high query params are required' });
   }
   const filePath = reqPath.toString();
@@ -194,19 +195,21 @@ apirouter.get('/media/display', async (req, res, next) => {
   if (Number.isNaN(low) || Number.isNaN(high)) {
     return next({ status: 400, statusMessage: 'low and high must be numbers' });
   }
+  if (low >= high) {
+    return next({ status: 400, statusMessage: 'low must be less than high' });
+  }
   try {
-    const stat = fs.statSync(filePath);
+    const stat = await fs.stat(filePath);
     if (!stat.isFile()) {
       return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
     }
-  } catch {
-    return next({ status: 404, statusMessage: `File not found: ${filePath}` });
-  }
-  try {
-    const pngBuf = await displayProcessing.getDisplayPng(filePath, low, high);
+    const pngBuf = await displayProcessing.getDisplayPng(filePath, low, high, stat.mtimeMs);
     res.setHeader('Content-Type', 'image/png');
     res.send(pngBuf);
   } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return next({ status: 404, statusMessage: `File not found: ${filePath}` });
+    }
     (err as { status?: number }).status = 500;
     next(err);
   }
