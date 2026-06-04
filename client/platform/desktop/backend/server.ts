@@ -13,6 +13,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 import settings from './state/settings';
 import * as common from './native/common';
 import * as geotiffTiles from './tiles/geotiffTiles';
+import * as displayProcessing from './media/displayProcessing';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -175,6 +176,37 @@ apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
     res.json(meta);
   } catch (err) {
     console.error('[tiles] GET tiles metadata error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+/* Serve a TIFF with per-frame percentile stretch applied, returned as a grayscale PNG */
+apirouter.get('/media/display', async (req, res, next) => {
+  const { path: reqPath, low: reqLow, high: reqHigh } = req.query;
+  if (!reqPath || Array.isArray(reqPath) || !reqLow || !reqHigh) {
+    return next({ status: 400, statusMessage: 'path, low, and high query params are required' });
+  }
+  const filePath = reqPath.toString();
+  const low = parseFloat(reqLow.toString());
+  const high = parseFloat(reqHigh.toString());
+  if (Number.isNaN(low) || Number.isNaN(high)) {
+    return next({ status: 400, statusMessage: 'low and high must be numbers' });
+  }
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
+    }
+  } catch {
+    return next({ status: 404, statusMessage: `File not found: ${filePath}` });
+  }
+  try {
+    const pngBuf = await displayProcessing.getDisplayPng(filePath, low, high);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuf);
+  } catch (err) {
     (err as { status?: number }).status = 500;
     next(err);
   }
