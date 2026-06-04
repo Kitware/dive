@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
+import { defineComponent, ref, watch } from 'vue';
 import { useHandler, useImageEnhancements } from '../provides';
 
 export default defineComponent({
@@ -8,10 +8,17 @@ export default defineComponent({
   setup() {
     const { setSVGFilters } = useHandler();
     const imageEnhancements = useImageEnhancements();
-    const brightness = ref(imageEnhancements.value.brightness || 1);
-    const contrast = ref(imageEnhancements.value.contrast || 1);
-    const saturation = ref(imageEnhancements.value.saturation || 1);
-    const sharpen = ref(imageEnhancements.value.sharpen || 0);
+    const brightness = ref(imageEnhancements.value.brightness);
+    const contrast = ref(imageEnhancements.value.contrast);
+    const saturation = ref(imageEnhancements.value.saturation);
+    const sharpen = ref(imageEnhancements.value.sharpen);
+
+    watch(imageEnhancements, (val) => {
+      brightness.value = val.brightness;
+      contrast.value = val.contrast;
+      saturation.value = val.saturation;
+      sharpen.value = val.sharpen;
+    }, { deep: true });
 
     const modifyValue = () => {
       setSVGFilters({
