@@ -92,7 +92,7 @@ export default defineComponent({
     @input="$emit('input', $event)"
   >
     <v-card v-if="pipeline" class="rounded-lg">
-      <v-toolbar flat color="primary" dark dense>
+      <v-toolbar flat color="primary" dark density="compact">
         <v-icon left>
           mdi-cog
         </v-icon>
@@ -153,7 +153,7 @@ export default defineComponent({
                 v-model.number="localParams[param.key]"
                 type="number"
                 outlined
-                dense
+                density="compact"
                 hide-details="auto"
                 class="mt-1"
                 :min="param.type === 'int' ? 'none' : 0"
@@ -167,7 +167,7 @@ export default defineComponent({
                 v-model.number="localParams[param.key]"
                 type="number"
                 outlined
-                dense
+                density="compact"
                 hide-details="auto"
                 class="mt-1"
                 :min="param.type === 'float' ? 'none' : 0"
@@ -187,7 +187,7 @@ export default defineComponent({
                   <template #append>
                     <v-text-field
                       v-model="localParams[param.key]"
-                      dense
+                      density="compact"
                       style="width: 100px; margin-top: -6px"
                       type="number"
                       :min="param.type_props?.at(0) || 0"
@@ -208,7 +208,7 @@ export default defineComponent({
               v-model="localParams[param.key]"
               type="text"
               outlined
-              dense
+              density="compact"
               hide-details="auto"
               class="mt-1"
             />
@@ -219,7 +219,7 @@ export default defineComponent({
       <v-divider />
 
       <v-card-actions class="pa-4 lighten-3">
-        <v-btn text color="grey darken-1" @click="close">
+        <v-btn variant="text" color="grey darken-1" @click="close">
           Cancel
         </v-btn>
         <v-spacer />

@@ -1,7 +1,9 @@
 <script>
 import UserGuideDialog from 'dive-common/components/UserGuideDialog.vue';
+import { useDisplay } from 'vuetify';
+import { defineComponent } from 'vue';
 
-export default {
+export default defineComponent({
   components: {
     UserGuideDialog,
   },
@@ -11,20 +13,24 @@ export default {
       default: false,
     },
   },
+  setup() {
+    const { mdAndDown } = useDisplay();
+    return { mdAndDown };
+  },
   data() {
     return {
       dialog: false,
       userGuideLink: 'https://kitware.github.io/dive/',
     };
   },
-};
+});
 </script>
 <template>
   <div>
     <v-btn
       v-if="!annotating"
-      dense
-      depressed
+      density="compact"
+      variant="flat"
       :href="userGuideLink"
       target="_blank"
       color="secondary darken-2"
@@ -40,20 +46,20 @@ export default {
       v-model="dialog"
       width="800"
     >
-      <template #activator="{ on }">
+      <template #activator="{ props }">
         <v-btn
-          dense
-          depressed
+          v-bind="props"
+          density="compact"
+          variant="flat"
           target="_blank"
           color="secondary darken-2"
           class="mx-1"
-          v-on="on"
         >
           <v-icon>
             mdi-help-circle
           </v-icon>
           <span
-            v-show="!$vuetify.breakpoint.mdAndDown"
+            v-show="!mdAndDown"
             class="pl-1"
           >
             Help
@@ -65,8 +71,8 @@ export default {
         <v-card-actions>
           <v-spacer />
           <v-btn
-            dense
-            depressed
+            density="compact"
+            variant="flat"
             :href="userGuideLink"
             target="_blank"
             color="secondary darken-2"

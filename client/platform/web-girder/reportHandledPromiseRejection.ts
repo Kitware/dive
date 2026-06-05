@@ -1,4 +1,4 @@
-/* eslint-disable import/prefer-default-export -- single-purpose helper */
+/* eslint-disable import/prefer-default-export, import/no-extraneous-dependencies -- single-purpose helper; @sentry/browser is a @sentry/vue peer */
 import * as Sentry from '@sentry/browser';
 
 function normalizeError(reason: unknown): Error {

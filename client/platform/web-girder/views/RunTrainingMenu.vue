@@ -2,6 +2,7 @@
 import {
   defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from 'vue';
+import { useDisplay } from 'vuetify';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
@@ -31,6 +32,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const { brandData } = useBrand();
     const { getTrainingConfigurations, runTraining } = useApi();
 
@@ -128,6 +130,7 @@ export default defineComponent({
     };
 
     return {
+      mdAndDown,
       brandData,
       trainingConfigurations,
       selectedTrainingConfig,
@@ -159,23 +162,22 @@ export default defineComponent({
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
-      <template #activator="{ on: menuOn }">
+      <template #activator="{ props: menuProps }">
         <v-tooltip
           bottom
           :open-delay="250"
           :disabled="menuOptions.offsetX"
         >
-          <template #activator="{ on: tooltipOn }">
+          <template #activator="{ props: tooltipProps }">
             <v-btn
-              v-bind="buttonOptions"
+              v-bind="{ ...buttonOptions, ...menuProps, ...tooltipProps }"
               :disabled="trainingDisabled || buttonOptions.disabled"
-              v-on="{ ...tooltipOn, ...menuOn }"
             >
               <v-icon>
                 mdi-brain
               </v-icon>
               <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                v-show="!mdAndDown || buttonOptions.block"
                 class="pl-1"
               >
                 Run Training
@@ -237,7 +239,7 @@ export default defineComponent({
               :hint="selectedTrainingConfig"
               persistent-hint
             >
-              <template #item="{ item, on, attrs }">
+              <template #item="{ item, props }">
                 <v-tooltip
                   left
                   :open-delay="250"
@@ -245,14 +247,11 @@ export default defineComponent({
                   max-width="300"
                   content-class="pipeline-description-tooltip"
                 >
-                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                  <template #activator="{ props: tooltipProps }">
                     <v-list-item
-                      v-bind="{ ...attrs, ...tooltipAttrs }"
-                      v-on="{ ...on, ...tooltipOn }"
+                      v-bind="{ ...props, ...tooltipProps }"
                     >
-                      <v-list-item-content>
-                        <v-list-item-title>{{ simplifyTrainingName(item.name || item) }}</v-list-item-title>
-                      </v-list-item-content>
+                      <v-list-item-title>{{ simplifyTrainingName(item.name || item) }}</v-list-item-title>
                     </v-list-item>
                   </template>
                   <span>{{ item.description }}</span>
@@ -298,7 +297,7 @@ export default defineComponent({
               persistent-hint
             />
             <v-btn
-              depressed
+              variant="flat"
               block
               color="primary"
               class="mt-4"

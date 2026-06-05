@@ -92,7 +92,7 @@ export default defineComponent({
           <v-text-field
             v-model.number="value.range[0]"
             hide-details
-            dense
+            density="compact"
             outlined
             :step="value.range[0] > 1 ? 1 : 0.01"
             type="number"
@@ -103,7 +103,7 @@ export default defineComponent({
           />
           <v-text-field
             v-model.number="value.range[1]"
-            dense
+            density="compact"
             outlined
             :step="value.range[1] > 1 ? 1 : 0.01"
             type="number"
@@ -118,7 +118,7 @@ export default defineComponent({
         <v-text-field
           v-model.number="value.value"
           outlined
-          dense
+          density="compact"
           :step="1"
           type="number"
           label="Top X items"

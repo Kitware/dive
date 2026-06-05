@@ -262,15 +262,14 @@ export default defineComponent({
         offset-y
         :close-on-content-click="false"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props }">
           <v-btn
-            v-bind="attrs"
+            v-bind="props"
             :disabled="!editingMode"
-            :outlined="!activeEditButton?.active"
+            :variant="!activeEditButton?.active ? 'outlined' : 'flat'"
             :color="activeEditButton?.active ? editingHeader.color : ''"
             class="mx-1"
             small
-            v-on="on"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
             <v-icon>{{ activeEditButton?.icon }}</v-icon>
@@ -286,15 +285,15 @@ export default defineComponent({
             </v-btn>
           </v-btn>
         </template>
-        <v-list dense>
+        <v-list density="compact">
           <v-list-item
             v-for="button in editButtons"
             :key="`${button.id}-menu`"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-btn
                 :disabled="!editingMode"
-                :outlined="!button.active"
+                :variant="!button.active ? 'outlined' : 'flat'"
                 :color="button.active ? editingHeader.color : ''"
                 class="mx-1"
                 small
@@ -303,10 +302,8 @@ export default defineComponent({
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
                 <v-icon>{{ button.icon }}</v-icon>
               </v-btn>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>{{ button.id }}</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>{{ button.id }}</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -333,7 +330,7 @@ export default defineComponent({
           v-for="button in editButtons"
           :key="button.id + 'view'"
           :disabled="!editingMode"
-          :outlined="!button.active"
+          :variant="!button.active ? 'outlined' : 'flat'"
           :color="button.active ? editingHeader.color : ''"
           class="mx-1"
           small

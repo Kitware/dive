@@ -60,7 +60,7 @@ export default defineComponent({
       hint="A new folder with this name will contain all cameras"
       persistent-hint
       outlined
-      dense
+      density="compact"
       class="mb-4"
       :class="{ 'mt-2': showDefaultDisplayInfo }"
       :rules="datasetNameRules"
@@ -98,7 +98,7 @@ export default defineComponent({
         placeholder="Choose File"
         disabled
         outlined
-        dense
+        density="compact"
         hide-details
         :value="calibrationFile"
         class="mr-3"

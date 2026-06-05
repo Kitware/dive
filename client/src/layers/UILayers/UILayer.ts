@@ -1,4 +1,4 @@
-import Vue from 'vue';
+import { createApp } from 'vue';
 import geo, { GeoEvent } from 'geojs';
 import { MediaController } from '../../components/annotators/mediaControllerType';
 
@@ -83,9 +83,8 @@ export default class UILayer {
     const parent = widget.canvas();
     const div = document.createElement('div');
     const element = parent.appendChild(div);
-    new Vue({
-      render: (h) => h(component, { props }),
-    }).$mount(element);
+    const widgetApp = createApp(component, props);
+    widgetApp.mount(element);
     widget.toolTipOffset = position;
     widget.toolTip = false;
     widget.lastMousePos = position;

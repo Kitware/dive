@@ -1,6 +1,6 @@
 <script lang="ts">
 import { cloneDeep } from 'lodash';
-import Vue, {
+import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from 'vue';
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
@@ -75,7 +75,7 @@ export default defineComponent({
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
-          Vue.set(argCopy.value, argMap[type], path);
+          argCopy.value[argMap[type]] = path;
         }
       }
     };
@@ -161,7 +161,7 @@ export default defineComponent({
             hint="Changing the name does not modify the data source directory."
             persistent-hint
             outlined
-            dense
+            density="compact"
           />
         </v-col>
         <v-col cols="3">
@@ -171,7 +171,7 @@ export default defineComponent({
             type="number"
             required
             outlined
-            dense
+            density="compact"
             label="Annotation FPS"
             hint="downsampling rate"
             persistent-hint
@@ -189,7 +189,7 @@ export default defineComponent({
             :value="argCopy.trackFileAbsPath"
             outlined
             clearable
-            dense
+            density="compact"
             prepend-inner-icon="mdi-file-table"
             label="Annotation File (Optional)"
             hint="Optional. Load existing annotations. Supports DIVE JSON and VIAME CSV."
@@ -230,7 +230,7 @@ export default defineComponent({
           :value="argCopy.metaFileAbsPath"
           outlined
           clearable
-          dense
+          density="compact"
           prepend-inner-icon="mdi-file-table"
           label="Configuration File (Optional)"
           hint="Optional. Supports DIVE JSON configuration file."
@@ -250,7 +250,7 @@ export default defineComponent({
           "
           persistent-hint
           outlined
-          dense
+          density="compact"
           class="mb-0"
         />
         <v-chip
@@ -314,8 +314,7 @@ export default defineComponent({
       <div class="d-flex flex-row mt-4">
         <v-spacer />
         <v-btn
-          text
-          outlined
+          variant="outlined"
           class="mr-5"
           @click="$emit('abort')"
         >

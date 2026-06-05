@@ -7,7 +7,7 @@ import {
   watch,
 } from 'vue';
 import { DataTableHeader } from 'vuetify';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import {
   itemsPerPageOptions,
@@ -186,7 +186,7 @@ onBeforeMount(async () => {
               item-value="value"
               outlined
               persistent-hint
-              dense
+              density="compact"
               label="Pipeline Type"
               hint="Select which type of pipeline to run"
             />
@@ -200,11 +200,11 @@ onBeforeMount(async () => {
               item-text="name"
               outlined
               persistent-hint
-              dense
+              density="compact"
               label="Pipeline"
               hint="Select the pipeline to run"
             >
-              <template #item="{ item, on, attrs }">
+              <template #item="{ item, props }">
                 <v-tooltip
                   left
                   :open-delay="250"
@@ -212,14 +212,11 @@ onBeforeMount(async () => {
                   max-width="300"
                   content-class="pipeline-description-tooltip"
                 >
-                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                  <template #activator="{ props: tooltipProps }">
                     <v-list-item
-                      v-bind="{ ...attrs, ...tooltipAttrs }"
-                      v-on="{ ...on, ...tooltipOn }"
+                      v-bind="{ ...props, ...tooltipProps }"
                     >
-                      <v-list-item-content>
-                        <v-list-item-title>{{ item.name }}</v-list-item-title>
-                      </v-list-item-content>
+                      <v-list-item-title>{{ item.name }}</v-list-item-title>
                     </v-list-item>
                   </template>
                   <span>{{ item.metadata?.description }}</span>
@@ -232,12 +229,12 @@ onBeforeMount(async () => {
       <div v-if="selectedPipeline">
         <v-card-title>Datasets staged for selected pipeline</v-card-title>
         <v-data-table
-          dense
           v-bind="{
             headers: pipelineCreatesDatasetMarkers.includes(selectedPipelineType || '') ? createNewDatasetHeaders : stagedDatasetHeaders,
             items: stagedDatasets,
           }"
-          :items-per-page.sync="clientSettings.rowsPerPage"
+          v-model:items-per-page="clientSettings.rowsPerPage"
+          dense
           hide-default-footer
           :hide-default-header="stagedDatasets.length === 0"
           no-data-text="Select datasets from the table below"
@@ -289,10 +286,10 @@ onBeforeMount(async () => {
         </v-col>
       </v-row>
       <v-data-table
-        dense
         v-bind="{ headers: availableDatasetHeaders, items: availableItems }"
+        v-model:items-per-page="clientSettings.rowsPerPage"
+        dense
         :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
         :search="availableDatasetSearch"
         no-data-text="No compatible datasets found for the selected pipeline."
       >

@@ -2,13 +2,14 @@
 import {
   computed, defineComponent, Ref, ref, PropType,
 } from 'vue';
-import { GirderFileManager, GirderModelType } from '@girder/components/src';
+import { useDisplay } from 'vuetify';
+import { GirderFileManager, GirderModelType } from '@girder/components';
 import useRequest from 'dive-common/use/useRequest';
 import { RootlessLocationType } from 'platform/web-girder/store/types';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { clone, getDataset } from 'platform/web-girder/api';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 export default defineComponent({
   components: { GirderFileManager },
@@ -34,6 +35,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const girderRest = useGirderRest();
     const router = useRouter();
     const source = ref(null as GirderMetadataStatic | null);
@@ -78,6 +80,7 @@ export default defineComponent({
     });
 
     return {
+      mdAndDown,
       cloneError,
       cloneLoading,
       location,
@@ -100,24 +103,23 @@ export default defineComponent({
     :max-width="800"
     :overlay-opacity="0.95"
   >
-    <template #activator="{ attrs, on }">
+    <template #activator="{ props: dialogProps }">
       <v-tooltip
-        v-bind="attrs"
+        v-bind="dialogProps"
         bottom
         open-delay="400"
-        v-on="on"
       >
-        <template #activator="{ on: ton, attrs: tattrs }">
+        <template #activator="{ props: tooltipProps }">
           <v-btn
-            v-bind="{ ...tattrs, ...buttonOptions }"
+            v-bind="{ ...tooltipProps, ...buttonOptions }"
             :disabled="datasetId === null"
-            v-on="{ ...ton, click }"
+            @click="click"
           >
             <v-icon>
               mdi-content-copy
             </v-icon>
             <span
-              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+              v-show="!mdAndDown || buttonOptions.block"
               class="pl-1"
             >
               Clone
@@ -172,7 +174,7 @@ export default defineComponent({
           label="New clone name"
           class="mt-4"
           outlined
-          dense
+          density="compact"
           block
         />
         <v-card
@@ -201,7 +203,7 @@ export default defineComponent({
           </GirderFileManager>
         </v-card>
         <v-btn
-          depressed
+          variant="flat"
           block
           color="primary"
           class="mt-4"

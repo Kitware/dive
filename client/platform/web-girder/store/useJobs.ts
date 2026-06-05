@@ -1,10 +1,9 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
-import Vue, { computed, ref } from 'vue';
-import { GirderJob } from '@girder/components/src';
-import { all } from '@girder/components/src/components/Job/status';
-
+import { computed, ref } from 'vue';
 import eventBus from 'platform/web-girder/eventBus';
 import girderRest from 'platform/web-girder/plugins/girder';
+import type { GirderJob } from '../girder-jobs/jobFormatter';
+import { all } from '../girder-jobs/status';
 
 const JobStatus = all();
 const NonRunningStates = [
@@ -27,7 +26,7 @@ export function useJobs() {
   }
 
   function setJobState(payload: { jobId: string; value: number }): void {
-    Vue.set(jobIds.value, payload.jobId, payload.value);
+    jobIds.value = { ...jobIds.value, [payload.jobId]: payload.value };
   }
 
   function getDatasetStatus(): Record<string, { status: number; jobId: string }> {
@@ -35,10 +34,13 @@ export function useJobs() {
   }
 
   function setDatasetStatus(payload: { datasetId: string; status: number; jobId: string }): void {
-    Vue.set(datasetStatus.value, payload.datasetId, {
-      status: payload.status,
-      jobId: payload.jobId,
-    });
+    datasetStatus.value = {
+      ...datasetStatus.value,
+      [payload.datasetId]: {
+        status: payload.status,
+        jobId: payload.jobId,
+      },
+    };
   }
 
   function getCompleteJobsInfo(): Record<string, { type: string; title: string; success: boolean }> {
@@ -51,16 +53,21 @@ export function useJobs() {
     title: string;
     success: boolean;
   }): void {
-    Vue.set(completeJobsInfo.value, payload.datasetId, {
-      type: payload.type,
-      title: payload.title,
-      success: payload.success,
-    });
+    completeJobsInfo.value = {
+      ...completeJobsInfo.value,
+      [payload.datasetId]: {
+        type: payload.type,
+        title: payload.title,
+        success: payload.success,
+      },
+    };
   }
 
   function removeCompleteJobsInfo(payload: { datasetId: string }): void {
     if (payload.datasetId in completeJobsInfo.value) {
-      Vue.delete(completeJobsInfo.value, payload.datasetId);
+      const rest = { ...completeJobsInfo.value };
+      delete rest[payload.datasetId];
+      completeJobsInfo.value = rest;
     }
   }
 

@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   getLocationType, GirderModel,
-} from '@girder/components/src';
+} from '@girder/components';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import {
   getMultiCamIcon,
@@ -102,12 +102,12 @@ export default defineComponent({
   <DiveGirderBrowser
     ref="fileManager"
     v-model="selected"
+    v-model:items-per-page="clientSettings.rowsPerPage"
     :selectable="!locationIsViameFolder"
     :new-folder-enabled="
       !selected.length && !locationIsViameFolder
     "
     :location="location"
-    :items-per-page.sync="clientSettings.rowsPerPage"
     :items-per-page-options="itemsPerPageOptions"
     @update:location="setLocation($event)"
   >
@@ -118,12 +118,12 @@ export default defineComponent({
         max-width="800px"
         :persistent="uploading"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <v-btn
             class="ma-0"
-            text
+            variant="text"
             small
-            v-on="on"
+            v-bind="props"
           >
             <v-icon
               left
@@ -147,12 +147,11 @@ export default defineComponent({
           v-if="multiCamSubType(item)"
           bottom
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-icon
               small
               class="mr-1"
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
             >
               {{ getMultiCamIcon(multiCamSubType(item)) }}
             </v-icon>
@@ -172,7 +171,7 @@ export default defineComponent({
           class="ml-2"
           x-small
           color="primary"
-          depressed
+          variant="flat"
           :to="{ name: 'viewer', params: { id: item._id } }"
         >
           Launch Annotator

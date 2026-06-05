@@ -74,7 +74,7 @@ export default defineComponent({
           label="Glob Filter Pattern"
           placeholder="Leave blank to use all images. example: *.png"
           outlined
-          dense
+          density="compact"
           hide-details
         />
         <v-chip

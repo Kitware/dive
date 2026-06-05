@@ -1,8 +1,9 @@
-/* disabled this rule for Vue.prototype.FOO = */
-/* eslint-disable no-param-reassign,func-names */
+import {
+  App, createApp, inject, watch, type InjectionKey,
+} from 'vue';
 
-import { VueConstructor, watch } from 'vue';
-import Vuetify from 'vuetify/lib';
+import vMousetrap from '../v-mousetrap';
+
 import Prompt from './Prompt.vue';
 
 interface PromptParams {
@@ -13,14 +14,19 @@ interface PromptParams {
   confirm?: boolean;
 }
 
+export const promptServiceKey: InjectionKey<PromptService> = Symbol('promptService');
+
 class PromptService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private component: any;
 
-  constructor(Vue: VueConstructor, vuetify: Vuetify) {
-    const PromptComponent = Vue.extend({ vuetify, ...Prompt });
-    const component = new PromptComponent();
-    this.component = component;
+  constructor(vuetify: { install: (app: App) => void }) {
+    const mountPoint = document.createElement('div');
+    document.body.appendChild(mountPoint);
+    const promptApp = createApp(Prompt);
+    promptApp.use(vuetify);
+    promptApp.use(vMousetrap);
+    this.component = promptApp.mount(mountPoint);
   }
 
   set(
@@ -51,9 +57,11 @@ class PromptService {
       if (!this.component.show) {
         this.set(title, text, positiveButton, negativeButton, confirm, resolve);
       } else {
-        const unwatch = watch(this.component.show, () => {
-          unwatch();
-          this.set(title, text, positiveButton, negativeButton, confirm, resolve);
+        const unwatch = watch(() => this.component.show, (value) => {
+          if (!value) {
+            unwatch();
+            this.set(title, text, positiveButton, negativeButton, confirm, resolve);
+          }
         });
       }
     });
@@ -70,39 +78,28 @@ class PromptService {
   hide(): void {
     this.component.show = false;
   }
-
-  mount(element: HTMLElement): void {
-    this.component.$mount(element);
-  }
 }
 
-// in vue 3 should use provide/inject with symbol
-let promptService: PromptService;
+let promptService: PromptService | null = null;
 
 export function usePrompt() {
-  // in vue 3 should use inject instead of singleton
-  const prompt = (params: PromptParams) => promptService.show(params);
-  const visible = () => promptService.visible();
-  const invisible = () => promptService.invisible();
-  const hide = () => promptService.hide();
+  const service = inject(promptServiceKey) || promptService;
+  if (!service) {
+    throw new Error('Prompt service is not installed');
+  }
+  const prompt = (params: PromptParams) => service.show(params);
+  const visible = () => service.visible();
+  const invisible = () => service.invisible();
+  const hide = () => service.hide();
 
   return {
     prompt, visible, invisible, hide,
   };
 }
 
-export default function (vuetify: Vuetify) {
-  return function install(Vue: VueConstructor) {
-    // in vue 3 should use provide instead of singleton
-    promptService = new PromptService(Vue, vuetify);
-
-    Vue.prototype.$promptAttach = function () {
-      const div = document.createElement('div');
-      this.$el.appendChild(div);
-      if (promptService) {
-        promptService.mount(div);
-      }
-      return this;
-    };
+export default function installPromptService(vuetify: { install: (app: App) => void }) {
+  return (app: App) => {
+    promptService = new PromptService(vuetify);
+    app.provide(promptServiceKey, promptService);
   };
 }

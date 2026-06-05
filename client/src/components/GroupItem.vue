@@ -80,7 +80,7 @@ export default defineComponent({
     >
       <v-checkbox
         class="my-0 ml-0 pt-0"
-        dense
+        density="compact"
         hide-details
         :input-value="inputValue"
         :color="color"
@@ -92,10 +92,10 @@ export default defineComponent({
         max-width="200"
         :disabled="group.id.toString().length < 8"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <div
             class="trackNumber pl-0 pr-2"
-            v-on="on"
+            v-bind="props"
             @click.self="handler.groupEdit(group.id)"
           >
             {{ group.id }}

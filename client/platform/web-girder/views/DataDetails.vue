@@ -1,9 +1,9 @@
 <template>
   <v-card class="data-details">
     <v-toolbar
-      flat="flat"
-      dark="dark"
-      dense="dense"
+      flat
+      dark
+      density="compact"
       color="primary"
     >
       <v-toolbar-title class="subtitle-1">
@@ -21,17 +21,13 @@
 </template>
 
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 import {
   GirderDetailList,
-  mixins,
-} from '@girder/components/src';
-
-const {
-  dateFormatter,
-  sizeFormatter,
-  usernameFormatter,
-} = mixins;
+  formatDate,
+  formatSize,
+  formatUsername,
+} from '@girder/components';
 
 /**
  * @type {Array<{
@@ -44,12 +40,12 @@ export const DefaultInfoKeys = [
   {
     value: 'size',
     name: 'Contents: ',
-    transform: sizeFormatter.methods.formatSize,
+    transform: formatSize,
   },
   {
     value: 'created',
     name: 'Created on ',
-    transform: dateFormatter.methods.formatDate,
+    transform: formatDate,
   },
   {
     value: 'public',
@@ -72,11 +68,10 @@ export const DefaultInfoKeys = [
   },
 ];
 
-export default Vue.extend({
+export default defineComponent({
   components: {
     GirderDetailList,
   },
-  mixins: [sizeFormatter, usernameFormatter],
   inject: ['girderRest'],
   props: {
     value: {
@@ -91,18 +86,8 @@ export default Vue.extend({
   data() {
     return {
       showUpsert: false,
+      details: null,
     };
-  },
-  asyncComputed: {
-    async details() {
-      if (this.datum && this.datum.created) {
-        return this.datum;
-      } if (this.datum && this.datum._id && this.datum._modelType) {
-        const { data } = await this.girderRest.get(`${this.datum._modelType}/${this.datum._id}`);
-        return data;
-      }
-      return null;
-    },
   },
   computed: {
     title() {
@@ -123,9 +108,16 @@ export default Vue.extend({
       return this.value.length === 1 ? this.value[0] : undefined;
     },
     icon() {
+      const iconMap = {
+        folder: 'mdi-folder',
+        item: 'mdi-file',
+        file: 'mdi-file',
+        user: 'mdi-account',
+        collection: 'mdi-folder-multiple',
+      };
       return this.datum
-        ? this.$vuetify.icons.values[this.datum._modelType]
-        : this.$vuetify.icons.values.fileMultiple;
+        ? (iconMap[this.datum._modelType] || 'mdi-file')
+        : 'mdi-file-multiple';
     },
     info() {
       if (this.details) {
@@ -164,6 +156,26 @@ export default Vue.extend({
       }
       return [];
     },
+  },
+  watch: {
+    value: {
+      immediate: true,
+      async handler() {
+        const datum = this.value.length === 1 ? this.value[0] : undefined;
+        if (datum && datum.created) {
+          this.details = datum;
+        } else if (datum && datum._id && datum._modelType) {
+          const { data } = await this.girderRest.get(`${datum._modelType}/${datum._id}`);
+          this.details = data;
+        } else {
+          this.details = null;
+        }
+      },
+    },
+  },
+  methods: {
+    formatUsername,
+    formatSize,
   },
 });
 </script>

@@ -1,7 +1,9 @@
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 import { throttle, debounce, sortBy } from 'lodash';
+
 import * as d3 from 'd3';
+import useVuetify from 'vue-media-annotator/use/useVuetify';
 
 function intersect(range1, range2) {
   const min = range1[0] < range2[0] ? range1 : range2;
@@ -12,7 +14,7 @@ function intersect(range1, range2) {
   return [max[0], min[1] < max[1] ? min[1] : max[1]];
 }
 
-export default Vue.extend({
+export default defineComponent({
   name: 'EventChart',
   props: {
     startFrame: {
@@ -39,6 +41,10 @@ export default Vue.extend({
       type: Object,
       required: true,
     },
+  },
+  setup() {
+    const { theme } = useVuetify();
+    return { vuetifyTheme: theme };
   },
   data() {
     return {
@@ -168,7 +174,7 @@ export default Vue.extend({
       canvas.width = this.clientWidth + this.margin;
       canvas.height = bars.slice(-1)[0].top + 15;
       const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
-      const selectedColor = this.$vuetify.theme.themes.dark.accent;
+      const selectedColor = this.vuetifyTheme.themes.value.dark.colors.accent;
       const overflow = 0.7; // How much of a frame-width each detection box should occupy
       const barHeight = 10;
       bars.forEach((bar) => {

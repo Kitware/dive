@@ -197,9 +197,9 @@ export default defineComponent({
                 </div>
                 <div v-if="job.job.exitCode === null">
                   <v-btn
-                    text
-                    small
-                    class="mb-2 error--text text--lighten-3 text-decoration-none"
+                    variant="text"
+                    size="small"
+                    class="mb-2 error--text--lighten-3 text-decoration-none"
                     @click="cancelInProgressJob(job.job)"
                   >
                     <v-icon
@@ -212,9 +212,9 @@ export default defineComponent({
                   </v-btn>
                 </div>
                 <v-btn
-                  text
-                  small
-                  class="mb-2 primary--text text--lighten-3 text-decoration-none"
+                  variant="text"
+                  size="small"
+                  class="mb-2 primary--text--lighten-3 text-decoration-none"
                   @click="toggleVisibleOutput(job.job)"
                 >
                   <v-icon

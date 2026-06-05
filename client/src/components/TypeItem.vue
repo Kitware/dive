@@ -72,7 +72,7 @@ export default defineComponent({
         :input-value="checked"
         :color="color"
         :disabled="disabled"
-        dense
+        density="compact"
         shrink
         hide-details
         class="my-1 pl-2"
@@ -84,10 +84,10 @@ export default defineComponent({
               open-delay="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props }">
                 <span
                   class="nowrap"
-                  v-on="on"
+                  v-bind="props"
                 >
                   {{ displayText }}
                 </span>
@@ -100,11 +100,10 @@ export default defineComponent({
               bottom
               class="align-self-end"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props }">
                 <span
                   class="outlined"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="props"
                 >
                   {{ `>${confidenceFilterNum}` }}
                 </span>
@@ -120,12 +119,12 @@ export default defineComponent({
         open-delay="100"
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <v-btn
             icon
             class="hover-show-child"
             small
-            v-on="on"
+            v-bind="props"
             @click="goToFrame()"
           >
             <v-icon
@@ -142,12 +141,12 @@ export default defineComponent({
         open-delay="100"
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <v-btn
             class="hover-show-child"
             icon
             small
-            v-on="on"
+            v-bind="props"
             @click="$emit('clickEdit', type)"
           >
             <v-icon

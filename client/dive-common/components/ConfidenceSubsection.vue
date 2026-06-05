@@ -40,7 +40,7 @@ export default defineComponent({
 
 <template>
   <panel-subsection>
-    <template slot="header">
+    <template #header>
       <v-row
         class="align-center"
         no-gutters
@@ -52,13 +52,13 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               disabled
-              outlined
+              variant="outlined"
               x-small
               class="my-1"
-              v-on="on"
+              v-bind="props"
             >
               <v-icon small>
                 mdi-plus
@@ -70,7 +70,7 @@ export default defineComponent({
         </v-tooltip>
       </v-row>
     </template>
-    <template slot="scroll-section">
+    <template #scroll-section>
       <v-col class="pa-0">
         <span
           v-for="(pair, index) in confidencePairs"
@@ -105,12 +105,12 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
                     color="orange"
                     class="ml-1"
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-pencil
                   </v-icon>
@@ -127,12 +127,11 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ bind, on }">
+                <template #activator="{ props }">
                   <v-btn
-                    x-small
+                    size="x-small"
                     icon
-                    v-bind="bind"
-                    v-on="on"
+                    v-bind="{ ...bind, ...props }"
                     @click="$emit('set-type', pair[0])"
                   >
                     <v-icon>mdi-check</v-icon>

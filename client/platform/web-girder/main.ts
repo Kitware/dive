@@ -1,14 +1,12 @@
-import Vue from 'vue';
-import VueGtag from 'vue-gtag';
-import { init as SentryInit } from '@sentry/browser';
-import { Vue as SentryVue } from '@sentry/integrations';
+import { createApp } from 'vue';
+import VueGtag from 'vue-gtag-next';
+import * as Sentry from '@sentry/vue';
 
-import registerNotifications from 'vue-media-annotator/notificatonBus';
-import promptService from 'dive-common/vue-utilities/prompt-service';
 import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
+import installPromptService from 'dive-common/vue-utilities/prompt-service';
 
-import getVuetify from './plugins/vuetify';
-import girderRest from './plugins/girder';
+import girderRest, { connectNotifications, girderProvide } from './plugins/girder';
+import { createDiveVuetify } from './plugins/vuetify';
 import App from './App.vue';
 import './store';
 import router from './router';
@@ -21,50 +19,44 @@ import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 bindWebGirderRouter(router);
 
-Vue.config.productionTip = false;
-Vue.use(vMousetrap);
-
-if (
-  process.env.NODE_ENV === 'production'
-  && window.location.hostname !== 'localhost'
-) {
-  SentryInit({
-    dsn: process.env.VUE_APP_SENTRY_DSN,
-    integrations: [
-      new SentryVue({ Vue, logErrors: true }),
-    ],
-    release: process.env.VUE_APP_GIT_HASH,
-    environment: (window.location.hostname === 'viame.kitware.com')
-      ? 'production' : 'development',
-  });
-  Vue.use(VueGtag, {
-    config: { id: process.env.VUE_APP_GTAG },
-  }, router);
-}
-
 Promise.all([
   useBrand().loadBrand(),
   useConfig().loadConfig(),
   girderRest.fetchUser(),
 ]).then(() => {
   useUser().setUser(girderRest.user as UserState['user']);
-  const vuetify = getVuetify(useBrand().getBrandData()?.vuetify);
-  Vue.use(promptService(vuetify));
-  new Vue({
-    router,
-    vuetify,
-    provide: {
-      girderRest,
-      notificationBus: girderRest, // gwc.JobList expects this
-      vuetify,
-    },
-    render: (h) => h(App),
-  })
-    .$mount('#app')
-    .$promptAttach();
+  const vuetify = createDiveVuetify(useBrand().getBrandData()?.vuetify);
+  const app = createApp(App);
 
-  /** Start notification stream if everything else succeeds */
-  registerNotifications(girderRest).connect();
+  if (
+    process.env.NODE_ENV === 'production'
+    && window.location.hostname !== 'localhost'
+  ) {
+    Sentry.init({
+      app,
+      dsn: process.env.VUE_APP_SENTRY_DSN,
+      release: process.env.VUE_APP_GIT_HASH,
+      environment: (window.location.hostname === 'viame.kitware.com')
+        ? 'production' : 'development',
+    });
+    app.use(VueGtag, {
+      property: { id: process.env.VUE_APP_GTAG },
+    }, router);
+  }
+
+  app.use(router);
+  app.use(vuetify);
+  app.use(vMousetrap);
+  app.use(installPromptService(vuetify));
+
+  app.provide('girder', girderProvide);
+  app.provide('girderRest', girderRest);
+  app.provide('notificationBus', girderRest);
+  app.provide('vuetify', vuetify);
+
+  app.mount('#app');
+
+  connectNotifications();
 }).catch((reason) => {
   reportHandledPromiseRejection('app bootstrap (brand, config, or user)', reason);
   const el = document.getElementById('app');

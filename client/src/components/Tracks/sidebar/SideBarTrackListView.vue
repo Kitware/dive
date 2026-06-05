@@ -48,7 +48,7 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader px-2">
+    <v-list-subheader class="flex-grow-1 trackHeader px-2">
       <v-container class="py-2">
         <v-row align="center">
           Tracks ({{ filteredTracks.length }})
@@ -58,13 +58,12 @@ export default defineComponent({
             :close-on-content-click="false"
             :nudge-bottom="28"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props }">
               <v-btn
                 icon
                 small
                 class="mr-2"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="props"
               >
                 <v-icon
                   small
@@ -80,13 +79,13 @@ export default defineComponent({
             />
           </v-menu>
           <v-tooltip open-delay="100" bottom>
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-btn
                 :disabled="filteredTracks.length === 0 || readOnlyMode"
                 icon
                 small
                 class="mr-2"
-                v-on="on"
+                v-bind="props"
                 @click="multiDelete()"
               >
                 <v-icon small color="error">
@@ -101,14 +100,14 @@ export default defineComponent({
             bottom
             max-width="200"
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-btn
                 :disabled="readOnlyMode"
-                outlined
+                variant="outlined"
                 x-small
                 class="mr-2"
                 :color="newTrackColor"
-                v-on="on"
+                v-bind="props"
                 @click="trackAdd()"
               >
                 <v-icon small>
@@ -121,7 +120,7 @@ export default defineComponent({
           </v-tooltip>
         </v-row>
       </v-container>
-    </v-subheader>
+    </v-list-subheader>
     <datalist id="allTypesOptions">
       <option
         v-for="type in allTypes"

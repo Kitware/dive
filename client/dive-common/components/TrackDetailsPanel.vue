@@ -314,7 +314,7 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader class="pl-2 d-flex align-center">
+    <v-list-subheader class="pl-2 d-flex align-center">
       <span>{{
         multiSelectInProgress
           ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
@@ -322,7 +322,7 @@ export default defineComponent({
       }}</span>
       <v-spacer />
       <slot name="header-trailing" />
-    </v-subheader>
+    </v-list-subheader>
     <div
       v-if="!selectedTrackList.length"
       class="ml-4 body-2 text-caption "
@@ -364,16 +364,16 @@ export default defineComponent({
           />
         </div>
         <RangeEditor
+          v-model:begin="editingGroup.begin"
+          v-model:end="editingGroup.end"
           :frame="frameRef"
-          :begin.sync="editingGroup.begin"
-          :end.sync="editingGroup.end"
           disabled
           class="my-2 input-box px-0"
         />
         <v-btn
           color="error"
           :disabled="readOnlyMode"
-          depressed
+          variant="flat"
           block
           x-small
           @click="removeGroup([editingGroup.id])"
@@ -391,7 +391,7 @@ export default defineComponent({
           color="secondary"
           class="mt-2"
           :disabled="readOnlyMode"
-          depressed
+          variant="flat"
           block
           x-small
           @click="toggleMerge"
@@ -405,9 +405,9 @@ export default defineComponent({
           <v-spacer />
           Cancel (esc)
         </v-btn>
-        <v-subheader class="pl-0">
+        <v-list-subheader class="pl-0">
           Group Members:
-        </v-subheader>
+        </v-list-subheader>
       </div>
       <datalist id="allTypesOptions">
         <option
@@ -486,7 +486,7 @@ export default defineComponent({
           color="primary lighten-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
-          depressed
+          variant="flat"
           x-small
           @click="$emit('toggle-merge')"
         >
@@ -504,7 +504,7 @@ export default defineComponent({
           color="primary darken-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
-          depressed
+          variant="flat"
           x-small
           @click="$emit('create-group')"
         >
@@ -521,7 +521,7 @@ export default defineComponent({
           v-if="multiSelectInProgress && (editingGroupIdRef === null)"
           color="primary lighten-1"
           x-small
-          depressed
+          variant="flat"
           :disabled="multiSelectList.length < 2 || readOnlyMode || disabled"
           class="mx-2 mb-2 grow"
           @click="$emit('commit-merge')"
@@ -546,7 +546,7 @@ export default defineComponent({
           color="error"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
-          depressed
+          variant="flat"
           x-small
           @click="$emit('toggle-merge')"
         >
@@ -558,7 +558,7 @@ export default defineComponent({
           color="error"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
-          depressed
+          variant="flat"
           x-small
           @click="$emit('delete-selected-tracks')"
         >
@@ -594,7 +594,7 @@ export default defineComponent({
           class="mx-2 mb-2"
           :disabled="readOnlyMode || disabled"
           color="primary"
-          depressed
+          variant="flat"
           x-small
           @click="updateSelectedTracksType"
         >

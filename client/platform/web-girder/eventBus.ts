@@ -1,3 +1,3 @@
-import Vue from 'vue';
+import createEventBus from 'vue-media-annotator/utils/eventBus';
 
-export default new Vue();
+export default createEventBus();

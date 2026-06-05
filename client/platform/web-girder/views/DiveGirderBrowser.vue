@@ -1,5 +1,5 @@
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 
 import {
   GirderDataBrowser,
@@ -10,10 +10,10 @@ import {
   getLocationType,
   isRootLocation,
   createLocationValidator,
-} from '@girder/components/src';
+} from '@girder/components';
 import DataSharedBreadCrumb from './DataSharedBreadCrumb.vue';
 
-export default Vue.extend({
+export default defineComponent({
   components: {
     GirderAccessControl,
     GirderBreadcrumb,
@@ -196,14 +196,15 @@ export default Vue.extend({
   <v-card class="girder-data-browser-snippet">
     <girder-data-browser
       ref="girderBrowser"
-      :location.sync="internalLocation"
+      v-model:location="internalLocation"
       :selectable="selectable"
       :draggable="dragEnabled"
       :root-location-disabled="rootLocationDisabled"
-      :value="value"
+      :model-value="value"
       :items-per-page="itemsPerPage"
       :items-per-page-options="itemsPerPageOptions"
-      @update:itemsPerPage="$emit('update:itemsPerPage', $event)"
+      @update:model-value="$emit('input', $event)"
+      @update:items-per-page="$emit('update:itemsPerPage', $event)"
       @input="$emit('input', $event)"
       @selection-changed="$emit('selection-changed', $event)"
       @rowclick="$emit('rowclick', $event)"
@@ -226,19 +227,19 @@ export default Vue.extend({
           v-model="uploaderDialog"
           max-width="800px"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               class="ma-0"
-              text="text"
-              small="small"
-              v-on="on"
+              variant="text"
+              size="small"
+              v-bind="props"
             >
               <v-icon
                 class="mdi-24px mr-1"
-                left="left"
+                start
                 color="accent"
               >
-                $vuetify.icons.fileNew
+                mdi-file-plus
               </v-icon>
               <span class="hidden-xs-only">Upload</span>
             </v-btn>
@@ -257,19 +258,19 @@ export default Vue.extend({
           v-model="newFolderDialog"
           max-width="800px"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               class="ma-0"
-              text="text"
-              small="small"
-              v-on="on"
+              variant="text"
+              size="small"
+              v-bind="props"
             >
               <v-icon
                 class="mdi-24px mr-1"
-                left="left"
+                start
                 color="accent"
               >
-                $vuetify.icons.folderNew
+                mdi-folder-plus
               </v-icon>
               <span class="hidden-xs-only">New Folder</span>
             </v-btn>
@@ -294,11 +295,11 @@ export default Vue.extend({
       v-model="collectionAndFolderMenu.show"
       :position-x="collectionAndFolderMenu.x"
       :position-y="collectionAndFolderMenu.y"
-      absolute="absolute"
-      offset-y="offset-y"
-      dark="dark"
+      absolute
+      offset-y
+      theme="dark"
     >
-      <v-list dense="dense">
+      <v-list density="compact">
         <v-list-item
           :disabled="!hasAccessPermission"
           @click="showAccessControlDialog = true"
@@ -310,14 +311,13 @@ export default Vue.extend({
     <v-dialog
       v-model="showAccessControlDialog"
       max-width="700px"
-      persistent="persistent"
-      eager="eager"
-      scrollable="scrollable"
+      persistent
+      scrollable
     >
       <girder-access-control
         v-if="actOnItem"
+        v-model:has-permission="hasAccessPermission"
         :model="actOnItem"
-        :has-permission.sync="hasAccessPermission"
         @close="showAccessControlDialog = false"
         @model-access-changed="$refs.girderBrowser.refresh()"
       />

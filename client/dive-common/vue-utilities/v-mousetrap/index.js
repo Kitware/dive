@@ -6,10 +6,11 @@ import { isArray } from 'lodash';
 function bind(el, value, bindElement) {
   const mousetrap = new Mousetrap(bindElement ? el : undefined);
   el.mousetrap = mousetrap;
-  if (!isArray(value)) {
-    value = [value];
+  let bindings = value;
+  if (!isArray(bindings)) {
+    bindings = [bindings];
   }
-  value.forEach(({ bind: _bind, handler, disabled }) => {
+  bindings.forEach(({ bind: _bind, handler, disabled }) => {
     if (!disabled) {
       mousetrap.bind(_bind, function (...args) {
         handler.apply(this, [el, ...args]);
@@ -19,20 +20,24 @@ function bind(el, value, bindElement) {
 }
 
 function unbind(el) {
-  el.mousetrap.reset();
+  if (el.mousetrap) {
+    el.mousetrap.reset();
+  }
 }
 
-export default function install(Vue) {
-  Vue.directive('mousetrap', {
-    inserted(el, { value, modifiers }) {
-      bind(el, value, modifiers.element);
-    },
-    update(el, { value, modifiers }) {
-      unbind(el);
-      bind(el, value, modifiers.element);
-    },
-    unbind(el) {
-      unbind(el);
-    },
-  });
-}
+export default {
+  install(app) {
+    app.directive('mousetrap', {
+      mounted(el, { value, modifiers }) {
+        bind(el, value, modifiers.element);
+      },
+      updated(el, { value, modifiers }) {
+        unbind(el);
+        bind(el, value, modifiers.element);
+      },
+      unmounted(el) {
+        unbind(el);
+      },
+    });
+  },
+};

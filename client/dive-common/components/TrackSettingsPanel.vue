@@ -75,7 +75,7 @@ export default defineComponent({
             class="ml-0 pa-0"
             x-small
             :items="modes"
-            dense
+            density="compact"
             hide-details
           />
         </v-col>
@@ -88,10 +88,10 @@ export default defineComponent({
             bottom
             max-width="200"
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
               >
                 mdi-help
               </v-icon>
@@ -119,7 +119,7 @@ export default defineComponent({
             class="ml-0 pa-0"
             x-small
             :items="typeList"
-            dense
+            density="compact"
             hide-details
           />
         </v-col>
@@ -132,10 +132,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
               >
                 mdi-help
               </v-icon>
@@ -151,7 +151,7 @@ export default defineComponent({
               v-model="
                 clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
               class="my-0 ml-1 pt-0"
-              dense
+              density="compact"
               label="Advance Frame"
               hide-details
             />
@@ -165,10 +165,10 @@ export default defineComponent({
               max-width="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props }">
                 <v-icon
                   small
-                  v-on="on"
+                  v-bind="props"
                 >
                   mdi-help
                 </v-icon>
@@ -183,7 +183,7 @@ export default defineComponent({
               v-model="
                 clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
               class="my-0 ml-1 pt-0"
-              dense
+              density="compact"
               label="Interpolate"
               hide-details
             />
@@ -197,10 +197,10 @@ export default defineComponent({
               max-width="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props }">
                 <v-icon
                   small
-                  v-on="on"
+                  v-bind="props"
                 >
                   mdi-help
                 </v-icon>
@@ -218,7 +218,7 @@ export default defineComponent({
             v-model="
               clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
             class="my-0 ml-1 pt-0"
-            dense
+            density="compact"
             label="Continuous"
             hide-details
           />
@@ -232,10 +232,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
               >
                 mdi-help
               </v-icon>
@@ -256,7 +256,7 @@ export default defineComponent({
           <v-switch
             v-model="clientSettings.trackSettings.deletionSettings.promptUser"
             class="my-0 ml-1 pt-0"
-            dense
+            density="compact"
             label="Prompt User"
             hide-details
           />
@@ -271,10 +271,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
               >
                 mdi-help
               </v-icon>
@@ -295,7 +295,7 @@ export default defineComponent({
           <v-switch
             v-model="clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame"
             class="my-0 ml-1 pt-0"
-            dense
+            density="compact"
             label="Filter Detections By Frame"
             hide-details
           />
@@ -310,10 +310,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
               >
                 mdi-help
               </v-icon>

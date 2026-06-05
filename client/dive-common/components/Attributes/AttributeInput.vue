@@ -166,7 +166,7 @@ export default defineComponent({
           : (typeSettings.range[1] - typeSettings.range[0]) / 2.0"
         :min="typeSettings.range[0]"
         :max="typeSettings.range[1]"
-        dense
+        density="compact"
         class="attribute-slider"
         @input="sliderChange"
       />

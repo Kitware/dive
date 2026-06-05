@@ -21,6 +21,12 @@
       ],
       "platform": [
         "platform/*"
+      ],
+      "@girder/components": [
+        "node_modules/@girder/components/src/index.js"
+      ],
+      "@girder/components/*": [
+        "node_modules/@girder/components/src/*"
       ]
     },
     "lib": [

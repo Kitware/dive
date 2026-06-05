@@ -3,7 +3,7 @@ import {
   defineComponent, ref, reactive, watch, toRefs,
 } from 'vue';
 import type { DataOptions } from 'vuetify';
-import { GirderModel, mixins } from '@girder/components/src';
+import { formatSize, type GirderModel } from '@girder/components';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import {
@@ -36,7 +36,7 @@ export default defineComponent({
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fixSize: any = mixins.sizeFormatter.methods;
+    const fixSize = formatSize;
 
     const updateOptions = async () => {
       const {
@@ -95,12 +95,12 @@ export default defineComponent({
 <template>
   <v-data-table
     v-model="selected"
+    v-model:page="page"
+    v-model:items-per-page="clientSettings.rowsPerPage"
+    v-model:sort-by="sortBy"
+    v-model:sort-desc="sortDesc"
     :selectable="!locationIsViameFolder"
     :headers="headers"
-    :page.sync="page"
-    :items-per-page.sync="clientSettings.rowsPerPage"
-    :sort-by.sync="sortBy"
-    :sort-desc.sync="sortDesc"
     :server-items-length="total"
     :items="dataList"
     :footer-props="{ itemsPerPageOptions }"
@@ -117,12 +117,11 @@ export default defineComponent({
           v-if="multiCamSubType(item)"
           bottom
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-icon
               small
               class="mr-1"
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
             >
               {{ getMultiCamIcon(multiCamSubType(item)) }}
             </v-icon>
@@ -142,7 +141,7 @@ export default defineComponent({
         class="ml-2"
         x-small
         color="primary"
-        depressed
+        variant="flat"
         :to="{ name: 'viewer', params: { id: item._id } }"
       >
         Launch Annotator

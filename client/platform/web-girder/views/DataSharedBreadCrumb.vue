@@ -1,7 +1,8 @@
 <script>
-import { createLocationValidator, getLocationType } from '@girder/components/src';
+import { defineComponent } from 'vue';
+import { createLocationValidator, getLocationType } from '@girder/components';
 
-export default {
+export default defineComponent({
   inject: ['girderRest'],
   props: {
     location: {
@@ -97,7 +98,7 @@ export default {
       };
     },
   },
-};
+});
 </script>
 
 <template>
@@ -109,17 +110,19 @@ export default {
       color="accent"
       @click="$emit('crumbclick', girderRest.user)"
     >
-      $vuetify.icons.userHome
+      mdi-home
     </v-icon>
     <v-breadcrumbs
       :items="breadcrumb"
       class="font-weight-bold pa-0"
     >
-      <span
-        slot="divider"
-        :disabled="readonly"
-        class="subheading font-weight-bold"
-      >/</span>
+      <template #divider>
+        <span
+
+          :disabled="readonly"
+          class="subheading font-weight-bold"
+        >/</span>
+      </template>
       <template #item="{ item }">
         <v-breadcrumbs-item
           :disabled="(readonly || breadcrumb.indexOf(item) == breadcrumb.length - 1)"
@@ -131,17 +134,17 @@ export default {
           </template>
           <template v-else-if="item.type === 'users'">
             <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.user
+              mdi-account
             </v-icon>
           </template>
           <template v-else-if="item.type === 'collections'">
             <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.collection
+              mdi-folder-multiple
             </v-icon>
           </template>
           <template v-else-if="item.type === 'root'">
             <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.globe
+              mdi-earth
             </v-icon>
           </template>
           <span v-else>{{ item }}</span>

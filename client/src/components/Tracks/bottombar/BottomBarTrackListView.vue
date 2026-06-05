@@ -64,18 +64,17 @@ export default defineComponent({
           :close-on-content-click="false"
           :nudge-bottom="28"
         >
-          <template #activator="{ on: menuOn, attrs }">
+          <template #activator="{ props: menuProps }">
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on: tooltipOn }">
+              <template #activator="{ props: tooltipProps }">
                 <v-btn
                   icon
                   x-small
                   class="mr-2"
-                  v-bind="attrs"
-                  v-on="{ ...menuOn, ...tooltipOn }"
+                  v-bind="{ ...menuProps, ...tooltipProps }"
                 >
                   <v-icon
                     x-small
@@ -98,13 +97,12 @@ export default defineComponent({
           :close-on-content-click="false"
           :nudge-bottom="28"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
               icon
               x-small
               class="mr-2"
-              v-bind="attrs"
-              v-on="on"
+              v-bind="props"
             >
               <v-icon
                 x-small
@@ -120,13 +118,13 @@ export default defineComponent({
           />
         </v-menu>
         <v-tooltip open-delay="100" bottom>
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               :disabled="filteredTracks.length === 0 || readOnlyMode"
               icon
               x-small
               class="mr-2"
-              v-on="on"
+              v-bind="props"
               @click="multiDelete()"
             >
               <v-icon x-small color="error">
@@ -142,13 +140,13 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               :disabled="readOnlyMode"
-              outlined
+              variant="outlined"
               x-small
               :color="newTrackColor"
-              v-on="on"
+              v-bind="props"
               @click="trackAdd()"
             >
               <v-icon x-small>

@@ -27,7 +27,7 @@ export default defineComponent({
 
 <template>
   <v-tabs
-    dense
+    density="compact"
     right
     class="px-4"
     @change="clearSelected"
@@ -44,11 +44,10 @@ export default defineComponent({
         open-delay="200"
         max-width="320"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props }">
           <span
             class="d-inline-flex align-center"
-            v-bind="attrs"
-            v-on="on"
+            v-bind="props"
           >
             <v-icon class="tab-icon">
               mdi-share-variant

@@ -1,5 +1,8 @@
 import { cloneDeep } from 'lodash';
-import Vue, { ref, Ref } from 'vue';
+import { ref, Ref } from 'vue';
+
+import type { EventBus } from 'vue-media-annotator/utils/eventBus';
+import createEventBus from 'vue-media-annotator/utils/eventBus';
 
 import { removePoint } from 'vue-media-annotator/utils';
 import Track from 'vue-media-annotator/track';
@@ -17,10 +20,10 @@ export default class PolygonBoundsExpand implements Recipe {
 
   toggleable: Ref<boolean>;
 
-  bus: Vue;
+  bus: EventBus;
 
   constructor() {
-    this.bus = new Vue();
+    this.bus = createEventBus();
     this.active = ref(false);
     this.name = 'PolygonBase';
     this.toggleable = ref(true);

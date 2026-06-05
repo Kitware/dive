@@ -11,7 +11,7 @@ import {
   useHandler,
   useTrackStyleManager,
 } from 'vue-media-annotator/provides';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 export default defineComponent({
   name: 'AnnotationSets',
@@ -126,7 +126,7 @@ export default defineComponent({
               v-if="compareChecks.length"
               :value="compareChecks[index].checked"
               :disabled="selectedSet === compareChecks[index].name"
-              dense
+              density="compact"
               @change="selectForComparison(set)"
             />
           </v-col>

@@ -76,8 +76,8 @@ export default defineComponent({
             bottom
             max-width="200"
           >
-            <template #activator="{ on }">
-              <v-icon v-on="on">
+            <template #activator="{ props }">
+              <v-icon v-bind="props">
                 mdi-filter
               </v-icon>
             </template>

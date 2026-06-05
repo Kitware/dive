@@ -23,13 +23,12 @@ export default defineComponent({
     max-width="600px"
     overlay-opacity="0.90"
   >
-    <template #activator="{ on, attrs }">
+    <template #activator="{ props }">
       <v-btn
         icon
         dark
         color="warning"
-        v-bind="attrs"
-        v-on="on"
+        v-bind="props"
       >
         <v-icon
           large

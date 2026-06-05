@@ -281,8 +281,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props }">
+                  <v-icon v-bind="props">
                     mdi-information
                   </v-icon>
                 </template>
@@ -320,8 +320,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props }">
+                  <v-icon v-bind="props">
                     mdi-information
                   </v-icon>
                 </template>
@@ -341,8 +341,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props }">
+                  <v-icon v-bind="props">
                     mdi-information
                   </v-icon>
                 </template>
@@ -362,8 +362,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props }">
+                  <v-icon v-bind="props">
                     mdi-information
                   </v-icon>
                 </template>
@@ -400,7 +400,7 @@ export default defineComponent({
                 <v-combobox
                   v-model="editing.atrVal"
                   chips
-                  dense
+                  density="compact"
                   deletable-chips
                   multiple
                   :type="attributeTypes[editing.atrKey] === 'text' ? 'text' : 'number'"

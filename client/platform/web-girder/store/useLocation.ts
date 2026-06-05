@@ -1,5 +1,5 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
-import type { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components';
 import { computed, ref } from 'vue';
 import type { Route } from 'vue-router';
 import type VueRouter from 'vue-router';
@@ -28,23 +28,30 @@ function getRouter(): VueRouter {
 const location = ref<LocationType | null>(null);
 const selected = ref<GirderModel[]>([]);
 
-const defaultRoute = computed(() => {
+function getDefaultHomeRouteParams(): { routeType: string; routeId?: string } {
   if (girderRest.user) {
     return {
-      name: 'home',
-      params: {
-        routeId: girderRest.user._id,
-        routeType: 'user',
-      },
+      routeId: girderRest.user._id,
+      routeType: 'user',
     };
   }
   return {
-    name: 'home',
-    params: {
-      routeType: 'collections',
-    },
+    routeType: 'collections',
   };
-});
+}
+
+function getDefaultHomeRoutePath(): string {
+  const params = getDefaultHomeRouteParams();
+  if (params.routeId) {
+    return `/${params.routeType}/${params.routeId}`;
+  }
+  return `/${params.routeType}`;
+}
+
+const defaultRoute = computed(() => ({
+  name: 'home',
+  params: getDefaultHomeRouteParams(),
+}));
 
 const locationIsViameFolder = computed(() => {
   const loc = location.value;
@@ -58,7 +65,7 @@ const locationRoute = computed(() => {
   if (location.value) {
     return getRouteFromLocation(location.value);
   }
-  return defaultRoute.value;
+  return getDefaultHomeRoutePath();
 });
 
 export function useLocation() {

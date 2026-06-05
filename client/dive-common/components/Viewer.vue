@@ -1269,12 +1269,12 @@ export default defineComponent({
           v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-chip
               outlined
               :color="annotationSetColor(currentSet || 'default')"
               small
-              v-on="on"
+              v-bind="props"
               @click="context.toggle('AnnotationSets')"
             > {{ currentSet || 'default' }}</v-chip>
 
@@ -1291,13 +1291,13 @@ export default defineComponent({
           v-if="displayComparisons && displayComparisons.length"
           bottom
         >
-          <template #activator="{ on: onIcon }">
+          <template #activator="{ props: iconProps }">
             <v-chip
               class="pl-2"
               small
               outlined
               :color="annotationSetColor(displayComparisons[0] || 'default')"
-              v-on="onIcon"
+              v-bind="iconProps"
             > {{ displayComparisons[0] }}</v-chip>
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
@@ -1310,12 +1310,12 @@ export default defineComponent({
           <v-tooltip
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-chip
                 class="warning pr-1"
                 style="white-space:nowrap;display:inline"
                 small
-                v-on="on"
+                v-bind="props"
               >
                 Read Only Mode
                 <v-icon
@@ -1333,9 +1333,9 @@ export default defineComponent({
         <v-tooltip
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-icon
-              v-on="on"
+              v-bind="props"
               @click="cycleSidebarMode"
             >
               {{ sidebarModeIcon }}
@@ -1356,12 +1356,12 @@ export default defineComponent({
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
           }"
-          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
-          :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
+          v-model:tail-settings="clientSettings.annotatorPreferences.trackTails"
+          v-model:show-user-created-icon="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
-          <template slot="delete-controls">
+          <template #delete-controls>
             <delete-controls
               v-bind="{ editingMode, selectedFeatureHandle }"
               class="mr-2"
@@ -1371,13 +1371,13 @@ export default defineComponent({
           </template>
           <template
             v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
+            #multicam-controls-left
           >
             <multi-cam-toolbar />
           </template>
           <template
             v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            #multicam-controls-right
           >
             <multi-cam-toolbar />
           </template>
@@ -1406,9 +1406,9 @@ export default defineComponent({
           bottom
           :z-index="20"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-icon
-              v-on="on"
+              v-bind="props"
               @click="context.toggle(undefined)"
             >
               {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
@@ -1423,8 +1423,8 @@ export default defineComponent({
       <slot name="title-right" />
       <user-guide-button annotating />
       <v-tooltip bottom>
-        <template #activator="{ on }">
-          <div v-on="on">
+        <template #activator="{ props }">
+          <div v-bind="props">
             <v-btn
               icon
               @click="showUserSettingsDialog = true"
@@ -1439,7 +1439,7 @@ export default defineComponent({
       <v-tooltip
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <v-badge
             overlap
             bottom
@@ -1453,7 +1453,7 @@ export default defineComponent({
             <v-btn
               icon
               :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-              v-on="on"
+              v-bind="props"
               @click="save(currentSet)"
             >
               <v-icon :class="{ 'mdi-spin': saveInProgress }">
@@ -1495,8 +1495,8 @@ export default defineComponent({
           />
           <ConfidenceFilter
             v-if="context.state.active !== 'TypeThreshold'"
+            v-model:confidence="confidenceFilters.default"
             class="ma-2 mb-0"
-            :confidence.sync="confidenceFilters.default"
             :disabled="disableAnnotationFilters"
             @end="saveThreshold"
           >
@@ -1560,7 +1560,7 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            :collapsed.sync="controlsCollapsed"
+            v-model:collapsed="controlsCollapsed"
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
             }"
@@ -1655,9 +1655,9 @@ export default defineComponent({
             </div>
           </div>
           <BottomPanel
+            v-model:controls-collapsed="controlsCollapsed"
             :sidebar-mode="sidebarMode"
             :controls-ref="controlsRef"
-            :controls-collapsed.sync="controlsCollapsed"
             :line-chart-data="lineChartData"
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"

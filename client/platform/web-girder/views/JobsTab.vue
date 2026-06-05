@@ -21,7 +21,7 @@ export default defineComponent({
       offset-x="-6"
       offset-y="16"
     >
-      <template slot="badge">
+      <template #badge>
         <v-icon
           dark
           class="rotate"

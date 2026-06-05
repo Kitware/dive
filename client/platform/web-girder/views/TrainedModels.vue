@@ -5,12 +5,13 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { Pipelines, useApi, Pipe } from 'dive-common/apispec';
 import { DataTableHeader } from 'vuetify';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'TrainedModels',
   setup() {
+    const { mdAndDown } = useDisplay();
     const {
       getPipelineList, deleteTrainedPipeline, exportTrainedPipeline,
     } = useApi();
@@ -101,6 +102,7 @@ export default defineComponent({
     ];
 
     return {
+      mdAndDown,
       deleteModel,
       exportModel,
       browseModel,
@@ -113,7 +115,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+  <v-container :fluid="mdAndDown">
     <v-card class="trained-models-wrapper mt-4 pa-6">
       <v-card-title> Trained models </v-card-title>
       <v-card-text>

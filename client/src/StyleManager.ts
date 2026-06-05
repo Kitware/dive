@@ -1,7 +1,7 @@
 import type Vuetify from 'vuetify';
 
 import {
-  ref, Ref, computed, set as VueSet,
+  ref, Ref, computed,
 } from 'vue';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
@@ -43,6 +43,14 @@ export interface TypeStyling {
 interface UseStylingParams {
   markChangesPending: () => void;
   vuetify?: Vuetify;
+}
+
+function getVuetifyAccent(vuetify?: Vuetify): string {
+  const v3Accent = (vuetify as { theme?: { themes?: { value?: { dark?: { colors?: { accent?: string } } } } } })
+    ?.theme?.themes?.value?.dark?.colors?.accent;
+  const v2Accent = (vuetify as { preset?: { theme?: { themes?: { dark?: { accent?: string } } } } })
+    ?.preset?.theme?.themes?.dark?.accent;
+  return v3Accent || v2Accent || 'cyan';
 }
 
 /**
@@ -129,7 +137,7 @@ export default class StyleManager {
     };
     const selected: Style = {
       ...standard,
-      color: vuetify?.preset.theme.themes.dark.accent as string || 'cyan',
+      color: getVuetifyAccent(vuetify),
       strokeWidth: 5,
       opacity: 1.0,
       fill: false,
@@ -242,7 +250,10 @@ export default class StyleManager {
   }) {
     const { type, value } = args;
     const oldValue = this.customStyles.value[type] || {};
-    VueSet(this.customStyles.value, type, merge(oldValue, value));
+    this.customStyles.value = {
+      ...this.customStyles.value,
+      [type]: merge(oldValue, value),
+    };
     this.revisionCounter.value += 1;
     this.markChangesPending();
   }

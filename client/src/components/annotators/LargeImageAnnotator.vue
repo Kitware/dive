@@ -634,7 +634,7 @@ export default defineComponent({
             <v-btn
               small
               color="error"
-              outlined
+              variant="outlined"
               @click="copyConversionCommand"
             >
               {{ copiedConversionCommand ? 'Copied' : 'Copy command' }}

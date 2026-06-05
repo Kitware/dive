@@ -19,7 +19,7 @@ export default defineComponent({
       label="Annotation File"
       :placeholder="`Annotation File (${cameraName})`"
       outlined
-      dense
+      density="compact"
       hide-details
       clearable
       :value="trackFile"

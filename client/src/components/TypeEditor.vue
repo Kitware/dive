@@ -163,14 +163,14 @@ export default defineComponent({
               <v-checkbox
                 v-model="data.editingShowLabel"
                 label="Show Label"
-                dense
+                density="compact"
                 shrink
                 hide-details
               />
               <v-checkbox
                 v-model="data.editingShowConfidence"
                 label="Show Confidence"
-                dense
+                density="compact"
                 shrink
                 hide-details
               />
@@ -194,7 +194,7 @@ export default defineComponent({
               <v-checkbox
                 v-model="data.editingFill"
                 label="Fill"
-                dense
+                density="compact"
                 shrink
                 hint="Toggle Box Shading"
                 persistent-hint
@@ -236,8 +236,8 @@ export default defineComponent({
           bottom
           :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
         >
-          <template #activator="{ on }">
-            <div v-on="on">
+          <template #activator="{ props }">
+            <div v-bind="props">
               <v-btn
                 class="hover-show-child"
                 :disabled="usedTypesRef.includes(data.selectedType)"
@@ -258,14 +258,14 @@ export default defineComponent({
         <v-spacer />
         <v-btn
           depressed=""
-          text
+          variant="text"
           @click="$emit('close')"
         >
           Cancel
         </v-btn>
         <v-btn
           color="primary"
-          depressed
+          variant="flat"
           :disabled="!data.valid"
           @click="acceptChanges"
         >

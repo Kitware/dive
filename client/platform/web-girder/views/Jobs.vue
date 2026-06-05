@@ -2,9 +2,10 @@
 import {
   defineComponent, ref, watch,
 } from 'vue';
-import { GirderJobList } from '@girder/components/src';
+import { useDisplay } from 'vuetify';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
+import GirderJobList from '../components/GirderJobList.vue';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
 
@@ -12,6 +13,7 @@ export default defineComponent({
   name: 'Jobs',
   components: { GirderJobList },
   setup() {
+    const { mdAndDown } = useDisplay();
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
     const restClient = useGirderRest();
@@ -42,6 +44,7 @@ export default defineComponent({
     });
 
     return {
+      mdAndDown,
       privateQueueEnabled,
       distributedWorkerEnabled,
       loading,
@@ -54,7 +57,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+  <v-container :fluid="mdAndDown">
     <v-alert
       v-if="outstandingJobs"
       type="warning"
@@ -68,15 +71,14 @@ export default defineComponent({
           v-if="item.dataset_id"
           bottom
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
-              v-bind="attrs"
+              v-bind="props"
               x-small
-              depressed
+              variant="flat"
               :to="{ name: 'viewer', params: { id: item.dataset_id } }"
               color="info"
               class="mr-2"
-              v-on="on"
             >
               <v-icon small>
                 mdi-eye
@@ -90,15 +92,14 @@ export default defineComponent({
           v-if="item.type == 'export' && item.statusText == 'Success'"
           bottom
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
-              v-bind="attrs"
+              v-bind="props"
               x-small
-              depressed
+              variant="flat"
               :href="`/#/folder/${JSON.parse(item.kwargs).params.input_folder}`"
               color="info"
               class="mr-2"
-              v-on="on"
             >
               <v-icon small>
                 mdi-folder
@@ -109,15 +110,14 @@ export default defineComponent({
         </v-tooltip>
 
         <v-tooltip bottom>
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props }">
             <v-btn
-              v-bind="attrs"
+              v-bind="props"
               x-small
-              depressed
+              variant="flat"
               :href="`/girder/#job/${item._id}`"
               color="info"
               class="mr-2"
-              v-on="on"
             >
               <v-icon small>
                 mdi-text-box-outline
@@ -182,14 +182,14 @@ export default defineComponent({
         </v-card-title>
         <v-card-text>
           <v-btn
-            depressed
+            variant="flat"
             class="mr-3"
             href="https://kitware.github.io/dive/Deployment-Overview/"
           >
             Deployment documentation
           </v-btn>
           <v-btn
-            depressed
+            variant="flat"
             href="https://kitware.github.io/dive/Deployment-Docker-Compose/"
           >
             Docker docs

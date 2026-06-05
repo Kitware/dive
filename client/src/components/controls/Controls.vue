@@ -318,15 +318,14 @@ export default defineComponent({
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props }">
               <v-btn
                 ref="timeFilterBtnRef"
                 icon
                 small
                 :color="timeFilterActive ? 'primary' : 'default'"
                 title="Filter tracks by time range"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="props"
                 @click="handleTimeFilterClick"
               >
                 <v-icon>
@@ -362,7 +361,7 @@ export default defineComponent({
                         :min="0"
                         :max="mediaController.maxFrame.value"
                         step="1"
-                        dense
+                        density="compact"
                         hide-details
                         thumb-label="always"
                         @change="updateTimeFilterMin"
@@ -371,7 +370,7 @@ export default defineComponent({
                           <v-text-field
                             v-model="minTimeInput"
                             class="time-filter-input"
-                            dense
+                            density="compact"
                             outlined
                             hide-details
                             placeholder="HH:MM:SS"
@@ -392,7 +391,7 @@ export default defineComponent({
                         :min="0"
                         :max="mediaController.maxFrame.value"
                         step="1"
-                        dense
+                        density="compact"
                         hide-details
                         thumb-label="always"
                         @change="updateTimeFilterMax"
@@ -401,7 +400,7 @@ export default defineComponent({
                           <v-text-field
                             v-model="maxTimeInput"
                             class="time-filter-input"
-                            dense
+                            density="compact"
                             outlined
                             hide-details
                             placeholder="HH:MM:SS"
@@ -429,14 +428,13 @@ export default defineComponent({
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props }">
               <v-btn
                 icon
                 small
                 :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
                 title="center camera on selected track"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="props"
                 @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
               >
                 <v-icon>
@@ -471,10 +469,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="props"
                         >
                           mdi-help
                         </v-icon>
@@ -493,7 +491,7 @@ export default defineComponent({
                       min="100"
                       max="2000"
                       step="50"
-                      dense
+                      density="compact"
                       hide-details
                       thumb-label="always"
                       @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
@@ -517,10 +515,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="props"
                         >
                           mdi-help
                         </v-icon>
@@ -539,7 +537,7 @@ export default defineComponent({
                       min="1"
                       max="4"
                       step="0.1"
-                      dense
+                      density="compact"
                       hide-details
                       thumb-label="always"
                       @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
@@ -731,17 +729,16 @@ export default defineComponent({
                 open-delay="750"
                 close-delay="500"
               >
-                <template #activator="{ on, attrs }">
+                <template #activator="{ props }">
                   <v-btn
                     icon
                     small
                     :color="timeFilterActive ? 'primary' : 'default'"
                     title="Filter tracks by time range"
-                    v-bind="attrs"
-                    v-on="on"
+                    v-bind="props"
                     @click="handleTimeFilterClick"
                   >
-                    <v-icon v-bind="attrs" v-on="on">
+                    <v-icon>
                       {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                     </v-icon>
                   </v-btn>
@@ -774,7 +771,7 @@ export default defineComponent({
                             :min="0"
                             :max="mediaController.maxFrame.value"
                             step="1"
-                            dense
+                            density="compact"
                             hide-details
                             thumb-label="always"
                             @change="updateTimeFilterMin"
@@ -783,7 +780,7 @@ export default defineComponent({
                               <v-text-field
                                 v-model="minTimeInput"
                                 class="time-filter-input"
-                                dense
+                                density="compact"
                                 outlined
                                 hide-details
                                 placeholder="HH:MM:SS"
@@ -804,7 +801,7 @@ export default defineComponent({
                             :min="0"
                             :max="mediaController.maxFrame.value"
                             step="1"
-                            dense
+                            density="compact"
                             hide-details
                             thumb-label="always"
                             @change="updateTimeFilterMax"
@@ -813,7 +810,7 @@ export default defineComponent({
                               <v-text-field
                                 v-model="maxTimeInput"
                                 class="time-filter-input"
-                                dense
+                                density="compact"
                                 outlined
                                 hide-details
                                 placeholder="HH:MM:SS"
@@ -841,14 +838,13 @@ export default defineComponent({
                 open-delay="750"
                 close-delay="500"
               >
-                <template #activator="{ on, attrs }">
+                <template #activator="{ props }">
                   <v-btn
                     icon
                     small
                     :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
                     title="center camera on selected track"
-                    v-bind="attrs"
-                    v-on="on"
+                    v-bind="props"
                     @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                   >
                     <v-icon>
@@ -883,10 +879,10 @@ export default defineComponent({
                           open-delay="200"
                           bottom
                         >
-                          <template #activator="{ on }">
+                          <template #activator="{ props }">
                             <v-icon
                               small
-                              v-on="on"
+                              v-bind="props"
                             >
                               mdi-help
                             </v-icon>
@@ -905,7 +901,7 @@ export default defineComponent({
                           min="100"
                           max="2000"
                           step="50"
-                          dense
+                          density="compact"
                           hide-details
                           thumb-label="always"
                           @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
@@ -929,10 +925,10 @@ export default defineComponent({
                           open-delay="200"
                           bottom
                         >
-                          <template #activator="{ on }">
+                          <template #activator="{ props }">
                             <v-icon
                               small
-                              v-on="on"
+                              v-bind="props"
                             >
                               mdi-help
                             </v-icon>
@@ -951,7 +947,7 @@ export default defineComponent({
                           min="1"
                           max="4"
                           step="0.1"
-                          dense
+                          density="compact"
                           hide-details
                           thumb-label="always"
                           @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
@@ -1020,17 +1016,16 @@ export default defineComponent({
               open-delay="750"
               close-delay="500"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props }">
                 <v-btn
                   icon
                   small
                   :color="timeFilterActive ? 'primary' : 'default'"
                   title="Filter tracks by time range"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="props"
                   @click="handleTimeFilterClick"
                 >
-                  <v-icon v-bind="attrs" v-on="on">
+                  <v-icon>
                     {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                   </v-icon>
                 </v-btn>
@@ -1063,7 +1058,7 @@ export default defineComponent({
                           :min="0"
                           :max="mediaController.maxFrame.value"
                           step="1"
-                          dense
+                          density="compact"
                           hide-details
                           thumb-label="always"
                           @change="updateTimeFilterMin"
@@ -1072,7 +1067,7 @@ export default defineComponent({
                             <v-text-field
                               v-model="minTimeInput"
                               class="time-filter-input"
-                              dense
+                              density="compact"
                               outlined
                               hide-details
                               placeholder="HH:MM:SS"
@@ -1093,7 +1088,7 @@ export default defineComponent({
                           :min="0"
                           :max="mediaController.maxFrame.value"
                           step="1"
-                          dense
+                          density="compact"
                           hide-details
                           thumb-label="always"
                           @change="updateTimeFilterMax"
@@ -1102,7 +1097,7 @@ export default defineComponent({
                             <v-text-field
                               v-model="maxTimeInput"
                               class="time-filter-input"
-                              dense
+                              density="compact"
                               outlined
                               hide-details
                               placeholder="HH:MM:SS"
@@ -1130,14 +1125,13 @@ export default defineComponent({
               open-delay="750"
               close-delay="500"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props }">
                 <v-btn
                   icon
                   small
                   :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
                   title="center camera on selected track"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="props"
                   @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                 >
                   <v-icon>
@@ -1172,10 +1166,10 @@ export default defineComponent({
                         open-delay="200"
                         bottom
                       >
-                        <template #activator="{ on }">
+                        <template #activator="{ props }">
                           <v-icon
                             small
-                            v-on="on"
+                            v-bind="props"
                           >
                             mdi-help
                           </v-icon>
@@ -1194,7 +1188,7 @@ export default defineComponent({
                         min="100"
                         max="2000"
                         step="50"
-                        dense
+                        density="compact"
                         hide-details
                         thumb-label="always"
                         @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
@@ -1218,10 +1212,10 @@ export default defineComponent({
                         open-delay="200"
                         bottom
                       >
-                        <template #activator="{ on }">
+                        <template #activator="{ props }">
                           <v-icon
                             small
-                            v-on="on"
+                            v-bind="props"
                           >
                             mdi-help
                           </v-icon>
@@ -1240,7 +1234,7 @@ export default defineComponent({
                         min="1"
                         max="4"
                         step="0.1"
-                        dense
+                        density="compact"
                         hide-details
                         thumb-label="always"
                         @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"

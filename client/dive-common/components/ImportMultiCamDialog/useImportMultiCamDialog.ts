@@ -3,7 +3,7 @@
  * (`ctx`): shared reactive state, computeds, and handlers passed from the shell to child
  * panels via the `ctx` prop — not the shell's platform props from Upload/Recent.
  */
-import Vue, {
+import {
   computed, onMounted, ref, Ref,
 } from 'vue';
 import { filterByGlob } from 'platform/desktop/sharedUtils';
@@ -330,11 +330,11 @@ export function useImportMultiCamDialog(
         if (grouped && !files.length) {
           throw new Error(`Camera "${organized.assignments[i].folderName}" has no media files`);
         }
-        Vue.set(subfolderOriginalNames.value, cameraName, organized.assignments[i].folderName);
-        Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
+        subfolderOriginalNames.value[cameraName] = organized.assignments[i].folderName;
+        folderList.value[cameraName] = { sourcePath, trackFile: '' };
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
         const mediaPayload = await props.importMedia(sourcePath);
-        Vue.set(pendingImportPayloads.value, cameraName, mediaPayload);
+        pendingImportPayloads.value[cameraName] = mediaPayload;
       }
       defaultDisplay.value = pickDefaultMulticamCamera(
         registryPayload.map((item) => item.cameraName),
@@ -364,19 +364,19 @@ export function useImportMultiCamDialog(
       props.renameSubfolderCamera(sourcePath, newKey);
     }
 
-    Vue.set(folderList.value, newKey, {
+    folderList.value[newKey] = {
       sourcePath: (importType.value === 'subfolders' && !listParentFolderCameras) ? newKey : sourcePath,
       trackFile: entry.trackFile,
-    });
-    Vue.delete(folderList.value, oldKey);
+    };
+    delete folderList.value[oldKey];
 
     if (payload !== undefined) {
-      Vue.set(pendingImportPayloads.value, newKey, payload);
-      Vue.delete(pendingImportPayloads.value, oldKey);
+      pendingImportPayloads.value[newKey] = payload;
+      delete pendingImportPayloads.value[oldKey];
     }
     if (original) {
-      Vue.set(subfolderOriginalNames.value, newKey, original);
-      Vue.delete(subfolderOriginalNames.value, oldKey);
+      subfolderOriginalNames.value[newKey] = original;
+      delete subfolderOriginalNames.value[oldKey];
     }
     if (defaultDisplay.value === oldKey) {
       defaultDisplay.value = newKey;
@@ -412,11 +412,7 @@ export function useImportMultiCamDialog(
         }
         folderList.value[folder].trackFile = '';
         const { sourcePath } = folderList.value[folder];
-        Vue.set(
-          pendingImportPayloads.value,
-          folder,
-          await importRequest(() => props.importMedia(sourcePath)),
-        );
+        pendingImportPayloads.value[folder] = await importRequest(() => props.importMedia(sourcePath));
       } else if (importType.value === 'keyword') {
         [keywordFolder.value] = ret.filePaths;
         if (ret.root) {
@@ -433,13 +429,13 @@ export function useImportMultiCamDialog(
       if (importType.value === 'subfolders' && props.unregisterSubfolderCamera) {
         props.unregisterSubfolderCamera(sourcePath);
       }
-      Vue.delete(folderList.value, key);
-      Vue.delete(pendingImportPayloads.value, key);
-      Vue.delete(subfolderOriginalNames.value, key);
+      delete folderList.value[key];
+      delete pendingImportPayloads.value[key];
+      delete subfolderOriginalNames.value[key];
       cameraOrder.value = cameraOrder.value.filter((k) => k !== key);
       syncDefaultDisplay();
     } else if (importType.value === 'keyword') {
-      Vue.delete(globList.value, key);
+      delete globList.value[key];
     }
   };
 
@@ -453,11 +449,11 @@ export function useImportMultiCamDialog(
 
   const addNewSet = (name: string) => {
     if (importType.value === 'multi') {
-      Vue.set(folderList.value, name, { sourcePath: '', trackFile: '' });
-      Vue.set(pendingImportPayloads.value, name, null);
+      folderList.value[name] = { sourcePath: '', trackFile: '' };
+      pendingImportPayloads.value[name] = null;
       cameraOrder.value = [...cameraOrder.value, name];
     } else if (importType.value === 'keyword') {
-      Vue.set(globList.value, name, { glob: '', trackFile: '' });
+      globList.value[name] = { glob: '', trackFile: '' };
     }
   };
 

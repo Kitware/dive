@@ -231,8 +231,8 @@ export default defineComponent({
             </v-tab>
           </v-tabs>
         </v-card-title>
-        <v-tabs-items v-model="currentTab">
-          <v-tab-item>
+        <v-window v-model="currentTab">
+          <v-window-item>
             <v-alert
               v-if="error || !addNew"
               :type="error ? 'error' : 'info'"
@@ -307,7 +307,7 @@ export default defineComponent({
                 >
                   <v-text-field
                     v-model.number="baseSettings.editor.range[0]"
-                    dense
+                    density="compact"
                     outlined
                     :step="baseSettings.editor.range[0] > 1 ? 1 : 0.01"
                     type="number"
@@ -325,7 +325,7 @@ export default defineComponent({
                   />
                   <v-text-field
                     v-model.number="baseSettings.editor.range[1]"
-                    dense
+                    density="compact"
                     outlined
                     :step="baseSettings.editor.range[1] > 1 ? 1 : 0.01"
                     type="number"
@@ -345,7 +345,7 @@ export default defineComponent({
                 <v-row class="pt-2">
                   <v-text-field
                     v-model.number="baseSettings.editor.steps"
-                    dense
+                    density="compact"
                     outlined
                     :step="baseSettings.editor
                       && baseSettings.editor.steps && baseSettings.editor.steps > 1 ? 1 : 0.01"
@@ -416,8 +416,8 @@ export default defineComponent({
               </v-col>
               <v-spacer />
             </v-row>
-          </v-tab-item>
-          <v-tab-item>
+          </v-window-item>
+          <v-window-item>
             <v-switch
               v-model="attributeRendering"
               label="Rendering"
@@ -427,28 +427,28 @@ export default defineComponent({
               v-model="renderingVals"
               :attribute="selectedAttribute"
             />
-          </v-tab-item>
-          <v-tab-item v-if="baseSettings.datatype === 'text'">
+          </v-window-item>
+          <v-window-item v-if="baseSettings.datatype === 'text'">
             <attribute-value-colors
               :attribute="selectedAttribute"
               @save="colorSettings.attributeColors = $event"
             />
-          </v-tab-item>
-          <v-tab-item v-else-if="baseSettings.datatype === 'number'">
+          </v-window-item>
+          <v-window-item v-else-if="baseSettings.datatype === 'number'">
             <attribute-number-value-colors
               :attribute="selectedAttribute"
               @save="colorSettings.attributeColors = $event"
             />
-          </v-tab-item>
-        </v-tabs-items>
+          </v-window-item>
+        </v-window>
         <v-card-actions>
           <v-row>
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <div v-on="on">
+              <template #activator="{ props }">
+                <div v-bind="props">
                   <v-btn
                     class="hover-show-child"
                     color="error"
@@ -467,7 +467,7 @@ export default defineComponent({
             </v-tooltip>
             <v-spacer />
             <v-btn
-              text
+              variant="text"
               class="mr-2"
               @click="$emit('close')"
             >

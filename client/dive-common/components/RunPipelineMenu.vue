@@ -7,6 +7,7 @@ import {
   Ref,
   onBeforeMount,
 } from 'vue';
+import { useDisplay } from 'vuetify';
 import {
   Pipelines,
   Pipe,
@@ -91,6 +92,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
@@ -239,6 +241,7 @@ export default defineComponent({
     }
 
     return {
+      mdAndDown,
       jobState,
       pipelines,
       pipelinesNotRunnable,
@@ -272,21 +275,20 @@ export default defineComponent({
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
-      <template #activator="{ on: menuOn }">
+      <template #activator="{ props: menuProps }">
         <v-tooltip
           bottom
           :disabled="menuOptions.offsetX"
         >
-          <template #activator="{ on: tooltipOn }">
+          <template #activator="{ props: tooltipProps }">
             <v-btn
-              v-bind="buttonOptions"
+              v-bind="{ ...buttonOptions, ...menuProps, ...tooltipProps }"
               :disabled="pipelinesNotRunnable || buttonOptions.disabled"
               :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
-              v-on="{ ...tooltipOn, ...menuOn }"
             >
               <v-icon> mdi-pipe </v-icon>
               <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                v-show="!mdAndDown || buttonOptions.block"
                 class="pl-1"
               >
                 Run pipeline
@@ -315,7 +317,7 @@ export default defineComponent({
             <v-btn
               v-if="singlePipelineValue && singlePipelineValue !== true"
               large
-              depressed
+              variant="flat"
               :href="singlePipelineValue"
               target="_blank"
               color="info"
@@ -327,7 +329,7 @@ export default defineComponent({
             <v-btn
               v-else
               large
-              depressed
+              variant="flat"
               to="/jobs"
               color="info"
               class="ma-auto"
@@ -375,11 +377,11 @@ export default defineComponent({
                   max-height="none"
                   content-class="pipeline-menu-content"
                 >
-                  <template #activator="{ on }">
+                  <template #activator="{ props }">
                     <v-btn
-                      depressed
+                      variant="flat"
                       block
-                      v-on="on"
+                      v-bind="props"
                     >
                       {{ pipeTypeDisplay(pipeType) }}
                       <v-icon
@@ -393,7 +395,7 @@ export default defineComponent({
                   </template>
 
                   <v-list
-                    dense
+                    density="compact"
                     outlined
                     class="pipeline-submenu-list"
                   >
@@ -406,10 +408,9 @@ export default defineComponent({
                       max-width="400"
                       content-class="pipeline-description-tooltip"
                     >
-                      <template #activator="{ on, attrs }">
+                      <template #activator="{ props }">
                         <v-list-item
-                          v-bind="attrs"
-                          v-on="on"
+                          v-bind="props"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">

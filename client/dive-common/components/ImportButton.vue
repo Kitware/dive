@@ -51,7 +51,7 @@ export default defineComponent({
       nudge-left="180"
       max-width="180"
     >
-      <template #activator="{ on }">
+      <template #activator="{ props }">
         <v-btn
           v-bind="buttonAttrs"
           :large="!small"
@@ -68,71 +68,61 @@ export default defineComponent({
           <v-icon
             v-if="multiCamImport"
             class="button-dropdown col-1"
-            v-on="on"
+            v-bind="props"
           >
             mdi-chevron-down
           </v-icon>
         </v-btn>
       </template>
       <v-card outlined>
-        <v-list dense>
+        <v-list density="compact">
           <v-list-item
             v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
             @click="$emit('open', openType)"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-folder-open</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Directory</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Directory</v-list-item-title>
           </v-list-item>
           <v-list-item
             v-else-if="openType === 'video'"
             style="align-items':'center"
             @click="$emit('open', openType)"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-file-video</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>From File</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>From File</v-list-item-title>
           </v-list-item>
           <v-list-item
             v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
             @click="$emit('open', 'text')"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-view-list-outline</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Image List</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Image List</v-list-item-title>
           </v-list-item>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: true, openType })"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-binoculars</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Stereoscopic</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Stereoscopic</v-list-item-title>
           </v-list-item>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: false, openType })"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-camera-burst</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>MultiCam</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>MultiCam</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-card>

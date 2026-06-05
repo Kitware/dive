@@ -332,7 +332,7 @@ export default defineComponent({
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
             :disabled="disableAnnotationFilters"
-            dense
+            density="compact"
             shrink
             hide-details
             color="white"
@@ -343,12 +343,12 @@ export default defineComponent({
             open-delay="100"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
                 class="mr-1 hover-show-child"
                 :color="disableAnnotationFilters ? 'primary' : ''"
-                v-on="on"
+                v-bind="props"
                 @click="disableAnnotationFilters = !disableAnnotationFilters"
               >
                 mdi-filter-off-outline
@@ -360,8 +360,8 @@ export default defineComponent({
             open-delay="100"
             bottom
           >
-            <template #activator="{ on }">
-              <b v-on="on">Type Filter</b>
+            <template #activator="{ props }">
+              <b v-bind="props">Type Filter</b>
             </template>
             <span>Toggle Type TotalCount:FrameCount Type Name</span>
           </v-tooltip>
@@ -376,13 +376,13 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props }">
                 <v-btn
                   class="hover-show-child"
                   :disabled="checkedTypesRef.length === 0 || readOnlyMode"
                   icon
                   small
-                  v-on="on"
+                  v-bind="props"
                   @click="clickDelete()"
                 >
                   <v-icon
@@ -425,9 +425,9 @@ export default defineComponent({
             :width="width"
             :display-max-button="showMaxFrameButton"
             :disabled="disableAnnotationFilters"
-            @setCheckedTypes="updateCheckedType($event, item.type)"
-            @goToMaxFrame="goToPeakTrackFrame($event)"
-            @clickEdit="clickEdit"
+            @set-checked-types="updateCheckedType($event, item.type)"
+            @go-to-max-frame="goToPeakTrackFrame($event)"
+            @click-edit="clickEdit"
           />
         </template>
       </v-virtual-scroll>

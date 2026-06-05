@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
+import { useDisplay } from 'vuetify';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -31,6 +32,7 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const { openFromDisk, importAnnotationFile } = useApi();
     const { reloadAnnotations } = useHandler();
     const sets = computed(() => {
@@ -101,6 +103,7 @@ export default defineComponent({
       }
     };
     return {
+      mdAndDown,
       openUpload,
       processing,
       menuOpen,
@@ -121,21 +124,20 @@ export default defineComponent({
     v-bind="menuOptions"
     max-width="280"
   >
-    <template #activator="{ on: menuOn }">
+    <template #activator="{ props: menuProps }">
       <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
+        <template #activator="{ props: tooltipProps }">
           <v-btn
             class="ma-0"
-            v-bind="buttonOptions"
+            v-bind="{ ...buttonOptions, ...menuProps, ...tooltipProps }"
             :disabled="!datasetId || processing"
-            v-on="{ ...tooltipOn, ...menuOn }"
           >
             <div>
               <v-icon>
                 {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
               </v-icon>
               <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                v-show="!mdAndDown || buttonOptions.block"
                 class="pl-1"
               >
                 Import
@@ -177,7 +179,7 @@ export default defineComponent({
           <v-col>
             <v-row>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 :disabled="!datasetId || processing"
                 @click="openUpload"
@@ -198,9 +200,9 @@ export default defineComponent({
                 outlined
                 small
               >
-                <template #selection="{ attrs, item, selected }">
+                <template #selection="{ item, props: chipProps }">
                   <v-chip
-                    v-bind="attrs"
+                    v-bind="chipProps"
                     small
                     :input-value="selected"
                     outlined

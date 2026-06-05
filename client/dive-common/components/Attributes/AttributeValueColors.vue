@@ -177,8 +177,7 @@ export default defineComponent({
         <v-card-actions>
           <v-spacer />
           <v-btn
-            depressed
-            text
+            variant="text"
             @click="editingColor = false"
           >
             Cancel

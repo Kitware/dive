@@ -43,7 +43,7 @@ export default defineComponent({
       "
       disabled
       outlined
-      dense
+      density="compact"
       hide-details
       class="mr-3"
       :value="value"

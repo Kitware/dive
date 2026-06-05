@@ -1,6 +1,6 @@
 // Admin endpoints used for review and managment
 import girderRest from 'platform/web-girder/plugins/girder';
-import type { GirderJob, GirderModel } from '@girder/components/src';
+import type { GirderJob, GirderModel } from '@girder/components';
 
 export interface JobTypeStatus {
   status: number[];

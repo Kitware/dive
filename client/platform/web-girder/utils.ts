@@ -1,4 +1,4 @@
-import { UploadManager, Location } from '@girder/components/src';
+import { UploadManager, Location } from '@girder/components';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,

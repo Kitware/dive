@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import { GirderSearch } from '@girder/components/src';
+import { GirderSearch } from '@girder/components';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
@@ -43,7 +43,7 @@ export default defineComponent({
   async created() {
     this.girderRest.$on('logout', this.onLogout);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     this.girderRest.$off('logout', this.onLogout);
   },
   methods: {
@@ -98,7 +98,7 @@ export default defineComponent({
       />
       <user-guide-button />
       <v-btn
-        text
+        variant="text"
         @click="logout"
       >
         Logout

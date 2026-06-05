@@ -168,17 +168,17 @@ export default defineComponent({
       :bottom-layout="bottomLayout"
       :wrap-bottom-controls="wrapBottomControls"
     >
-      <template slot="timelineControls">
+      <template #timelineControls>
         <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
           <v-tooltip
             v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="props"
                 @click="$emit('update:collapsed', !collapsed)"
               >
                 {{ collapsed ? 'mdi-chevron-up-box' : 'mdi-chevron-down-box' }}
@@ -196,16 +196,14 @@ export default defineComponent({
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props }">
               <v-btn
                 class="ml-1"
                 :class="{ 'timeline-button': currentView !== 'Detections' || collapsed }"
-                depressed
-                :outlined="currentView === 'Detections' && !collapsed"
+                :variant="currentView === 'Detections' && !collapsed ? 'outlined' : 'flat'"
                 x-small
                 tab-index="-1"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="props"
                 @click="toggleView('Detections')"
               >
                 <span class="mr-1"># of</span>{{ countView }}
@@ -236,10 +234,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="props"
                         >
                           mdi-help
                         </v-icon>
@@ -254,7 +252,7 @@ export default defineComponent({
                       v-model="clientSettings.timelineCountSettings.totalCount"
                       label="Show Total Count"
                       class="my-0 ml-1 pt-0"
-                      dense
+                      density="compact"
                       hide-details
                     />
                   </v-col>
@@ -267,10 +265,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="props"
                         >
                           mdi-help
                         </v-icon>
@@ -285,8 +283,7 @@ export default defineComponent({
           <v-btn
             class="ml-1"
             :class="{ 'timeline-button': currentView !== 'Events' || collapsed }"
-            depressed
-            :outlined="currentView === 'Events' && !collapsed"
+            :variant="currentView === 'Events' && !collapsed ? 'outlined' : 'flat'"
             x-small
             tab-index="-1"
             @click="toggleView('Events')"
@@ -297,8 +294,7 @@ export default defineComponent({
             v-if="!multiCam && hasGroups"
             class="ml-1"
             :class="{ 'timeline-button': currentView !== 'Groups' || collapsed }"
-            depressed
-            :outlined="currentView === 'Groups' && !collapsed"
+            :variant="currentView === 'Groups' && !collapsed ? 'outlined' : 'flat'"
             x-small
             tab-index="-1"
             @click="toggleView('Groups')"
@@ -309,8 +305,7 @@ export default defineComponent({
             v-if="!multiCam && timelineEnabled"
             class="ml-1"
             :class="{ 'timeline-button': currentView !== 'Attributes' || collapsed }"
-            depressed
-            :outlined="currentView === 'Attributes' && !collapsed"
+            :variant="currentView === 'Attributes' && !collapsed ? 'outlined' : 'flat'"
             x-small
             tab-index="-1"
             @click="toggleView('Attributes')"
@@ -349,10 +344,10 @@ export default defineComponent({
                 close-delay="500"
                 open-delay="250"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
+                    v-bind="props"
                     @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
-                    v-on="on"
                   >
                     {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
                   </v-icon>
@@ -383,7 +378,7 @@ export default defineComponent({
                 open-delay="250"
                 rounded="lg"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-badge
                     :value="speed != 1.0"
                     color="#0277bd88"
@@ -392,7 +387,7 @@ export default defineComponent({
                     overlap
                   >
                     <v-icon
-                      v-on="on"
+                      v-bind="props"
                       @click="setSpeed(1)"
                     >
                       mdi-speedometer
@@ -428,11 +423,11 @@ export default defineComponent({
             open-delay="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props }">
               <v-icon
                 small
                 class="mx-2"
-                v-on="on"
+                v-bind="props"
               >
                 mdi-information
               </v-icon>

@@ -1,20 +1,20 @@
 import { ref } from 'vue';
 
-import type Vuetify from 'vuetify/lib';
-
 import StyleManager from './StyleManager';
 
 const vuetify = {
-  preset: {
-    theme: {
-      themes: {
+  theme: {
+    themes: {
+      value: {
         dark: {
-          accent: 'blue',
+          colors: {
+            accent: 'blue',
+          },
         },
       },
     },
   },
-} as Vuetify;
+};
 
 describe('StyleManager', () => {
   it('can updates custom colors', () => {

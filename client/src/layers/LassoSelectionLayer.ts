@@ -1,6 +1,6 @@
-import Vue from 'vue';
-
 import { MediaController } from '../components/annotators/mediaControllerType';
+import type { EventBus } from '../utils/eventBus';
+import createEventBus from '../utils/eventBus';
 import type { AnnotationId } from '../BaseAnnotation';
 
 const MIN_POINT_DISTANCE = 2;
@@ -28,7 +28,7 @@ interface SearchableFeature {
 export default class LassoSelectionLayer {
   private annotator: MediaController;
 
-  public bus: Vue;
+  public bus: EventBus;
 
   private enabled = true;
 
@@ -69,7 +69,7 @@ export default class LassoSelectionLayer {
     this.searchFeatures = searchFeatures;
     this.isBlocked = isBlocked;
     this.onDrawingChange = onDrawingChange;
-    this.bus = new Vue();
+    this.bus = createEventBus();
     this.boundMouseDown = (evt) => this.onMouseDown(evt);
     this.boundDocumentMove = (evt) => this.onDocumentMouseMove(evt);
     this.boundDocumentUp = (evt) => this.onDocumentMouseUp(evt);

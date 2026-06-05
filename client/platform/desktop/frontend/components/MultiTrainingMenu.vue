@@ -5,8 +5,6 @@ import {
   computed,
   defineComponent,
   onBeforeMount,
-  set,
-  del,
   reactive,
   ref,
   watch,
@@ -18,7 +16,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { datasets } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
@@ -135,9 +133,11 @@ export default defineComponent({
 
     function toggleStaged(meta: DatasetMeta) {
       if (data.stagedItems[meta.id]) {
-        del(data.stagedItems, meta.id);
+        const rest = { ...data.stagedItems };
+        delete rest[meta.id];
+        data.stagedItems = rest;
       } else {
-        set(data.stagedItems, meta.id, meta);
+        data.stagedItems = { ...data.stagedItems, [meta.id]: meta };
       }
     }
     const availableItems = computed(() => Object.values(datasets.value)
@@ -315,7 +315,7 @@ export default defineComponent({
             v-model="data.trainingOutputName"
             :rules="nameRules"
             outlined
-            dense
+            density="compact"
             aria-required
             label="Output Name (Required)"
           />
@@ -324,7 +324,7 @@ export default defineComponent({
           <v-select
             v-model="data.selectedTrainingConfig"
             outlined
-            dense
+            density="compact"
             label="Configuration File (Required)"
             :items="data.trainingConfigurations.training.configs"
             item-text="name"
@@ -332,7 +332,7 @@ export default defineComponent({
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template #item="{ item, on, attrs }">
+            <template #item="{ item, props }">
               <v-tooltip
                 left
                 :open-delay="250"
@@ -340,14 +340,11 @@ export default defineComponent({
                 max-width="300"
                 content-class="pipeline-description-tooltip"
               >
-                <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                <template #activator="{ props: tooltipProps }">
                   <v-list-item
-                    v-bind="{ ...attrs, ...tooltipAttrs }"
-                    v-on="{ ...on, ...tooltipOn }"
+                    v-bind="{ ...props, ...tooltipProps }"
                   >
-                    <v-list-item-content>
-                      <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
-                    </v-list-item-content>
+                    <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
                   </v-list-item>
                 </template>
                 <span>{{ item.description }}</span>
@@ -370,7 +367,7 @@ export default defineComponent({
             label="Labels.txt mapping file (optional)"
             hint="Combine or rename output classes using a labels.txt file"
             persistant-hint
-            dense
+            density="compact"
             outlined
             hide-details
             clearable
@@ -401,7 +398,7 @@ export default defineComponent({
         <v-checkbox
           v-model="data.annotatedFramesOnly"
           label="Use annotated frames only"
-          dense
+          density="compact"
           hint="Train only on frames with groundtruth and ignore frames without annotations"
           persistent-hint
           class="py-0 my-0"
@@ -438,10 +435,10 @@ export default defineComponent({
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
       <v-data-table
-        dense
         v-bind="{ headers: available.headers, items: available.items.value }"
+        v-model:items-per-page="clientSettings.rowsPerPage"
+        dense
         :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"
       >

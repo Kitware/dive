@@ -56,7 +56,7 @@ export default defineComponent({
         <v-select
           :items="options"
           :value="context.state.active"
-          dense
+          density="compact"
           solo
           flat
           hide-details

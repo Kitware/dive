@@ -2,7 +2,7 @@
  * Job Manager
  */
 import {
-  ref, Ref, set, computed,
+  ref, Ref, computed,
   reactive,
 } from 'vue';
 import {
@@ -78,7 +78,7 @@ function setOrGetConversionJob(datasetId: string, status?: boolean) {
     existing = conversionJob.value[datasetId];
   }
   if (status !== undefined) {
-    set(conversionJob.value, datasetId, status);
+    conversionJob.value = { ...conversionJob.value, [datasetId]: status };
   }
   return existing;
 }

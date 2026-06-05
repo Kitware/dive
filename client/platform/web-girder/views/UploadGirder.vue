@@ -1,6 +1,5 @@
 <script>
-import Vue from 'vue';
-import { mixins } from '@girder/components/src';
+import { defineComponent } from 'vue';
 import { clone } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import {
@@ -9,8 +8,9 @@ import {
 
 import { makeViameFolder, postProcess } from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
+import { mixins } from '../girder-legacy/mixins';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'GirderUpload',
   mixins: [mixins.fileUploader, mixins.sizeFormatter, mixins.progressReporter],
   inject: ['girderRest'],
@@ -196,8 +196,8 @@ export default Vue.extend({
     <!-- errorMessage is provided by the fileUploader mixin -->
     <div v-if="errorMessage || preUploadErrorMessage">
       <v-alert
-        :value="true"
-        dark="dark"
+        model-value
+        theme="dark"
         type="error"
         class="my-3"
       >
@@ -205,9 +205,9 @@ export default Vue.extend({
         <v-btn
           v-if="preUploadErrorMessage || pendingUploads[0].uploading"
           class="ml-3"
-          dark="dark"
-          small="small"
-          outlined="outlined"
+          theme="dark"
+          size="small"
+          variant="outlined"
           @click="abort(pendingUploads[0])"
         >
           Abort

@@ -124,9 +124,9 @@ export default defineComponent({
               </v-col>
               <v-col cols="3">
                 <v-btn
-                  text
-                  small
-                  class="mb-2 error--text text--lighten-3 tet-decoration-none"
+                  variant="text"
+                  size="small"
+                  class="mb-2 error--text--lighten-3 text-decoration-none"
                   @click="removeJobFromQueue(jobSpec)"
                 >
                   <v-icon

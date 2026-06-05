@@ -130,7 +130,7 @@ export default defineComponent({
     >
       <v-checkbox
         :input-value="enabled"
-        dense
+        density="compact"
         shrink
         hide-details
         class="ma-0 pa-0"
@@ -143,11 +143,11 @@ export default defineComponent({
         right
         max-width="200"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props }">
           <v-btn
             small
             icon
-            v-on="on"
+            v-bind="props"
           >
             <v-icon small>
               mdi-information
@@ -262,7 +262,7 @@ export default defineComponent({
           chips
           deletable-chips
           clearable
-          dense
+          density="compact"
           :value="userDefinedValue"
           :disabled="!enabled"
           class="input-box"

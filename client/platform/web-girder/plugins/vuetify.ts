@@ -1,30 +1,33 @@
-import Vue from 'vue';
-import Vuetify from 'vuetify';
-import colors from 'vuetify/es5/util/colors';
+import { createVuetify } from 'vuetify';
+import colors from 'vuetify/util/colors';
 import { merge } from 'lodash';
 
-import '@mdi/font/css/materialdesignicons.css';
-import 'vuetify/dist/vuetify.min.css';
-import { ThemeOptions } from 'vuetify/types/services/theme';
-import { vuetifyConfig } from '@girder/components/src';
+import girderVuetifyConfig from '@girder/components/plugins/vuetifyConfig.js';
 
-Vue.use(Vuetify);
+export type BrandVuetifyConfig = Record<string, unknown>;
 
-function getVuetify(config: unknown) {
-  const theme: ThemeOptions = {
+function buildThemeOverrides() {
+  return {
     dark: true,
-    options: {
-      customProperties: true,
-    },
     themes: {
       dark: {
-        accent: colors.blue.lighten1,
-        accentBackground: '#2c7596',
+        colors: {
+          accent: colors.blue.lighten1,
+          accentBackground: '#2c7596',
+        },
       },
     },
   };
-  const appVuetifyConfig = merge(vuetifyConfig, config, { theme });
-  return new Vuetify(appVuetifyConfig);
 }
 
-export default getVuetify;
+export function createDiveVuetify(brandConfig?: BrandVuetifyConfig) {
+  const appVuetifyConfig = merge(
+    {},
+    girderVuetifyConfig,
+    brandConfig,
+    { theme: buildThemeOverrides() },
+  );
+  return createVuetify(appVuetifyConfig);
+}
+
+export default createDiveVuetify;

@@ -2,10 +2,10 @@
 import {
   defineComponent, reactive, toRefs, onBeforeUnmount,
 } from 'vue';
-import { GirderAuthentication } from '@girder/components/src';
+import { GirderAuthentication } from '@girder/components';
 
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { useBrand } from 'platform/web-girder/store/useBrand';
 
 export default defineComponent({

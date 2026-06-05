@@ -210,7 +210,7 @@ export default defineComponent({
 <template>
   <panel-subsection v-if="selectedAttributes">
     <template
-      slot="header"
+      #header
     >
       <v-row
         class="align-center"
@@ -231,12 +231,12 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               small
               icon
               :disabled="readOnlyMode"
-              v-on="on"
+              v-bind="props"
               @click="addAttribute"
             >
               <v-icon small>
@@ -251,13 +251,13 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props }">
             <v-btn
               small
               icon
               class="ml-2"
               :color="activeSettings ? 'accent' : ''"
-              v-on="on"
+              v-bind="props"
               @click="toggleActiveSettings()"
             >
               <v-icon small>
@@ -295,7 +295,7 @@ export default defineComponent({
 
     <template
       v-if="selectedAttributes"
-      slot="scroll-section"
+      #scroll-section
     >
       <v-col
         v-if="

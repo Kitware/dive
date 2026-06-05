@@ -2,6 +2,7 @@
 import {
   defineComponent, reactive, computed, toRef, watch, ref,
 } from 'vue';
+import { useDisplay } from 'vuetify';
 
 import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
@@ -25,6 +26,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const data = reactive({
       menuOpen: false,
       excludeBelowThreshold: true,
@@ -85,6 +87,7 @@ export default defineComponent({
     }
 
     return {
+      mdAndDown,
       data,
       doExport,
       savePrompt,
@@ -103,23 +106,21 @@ export default defineComponent({
     offset-y
     max-width="280"
   >
-    <template #activator="{ on: menuOn }">
+    <template #activator="{ props: menuProps }">
       <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
+        <template #activator="{ props: tooltipProps }">
           <v-btn
-            outlined
-            depressed
+            variant="text"
             color="grey"
-            text
             class="mx-1"
-            :small="small"
-            v-on="{ ...tooltipOn, ...menuOn }"
+            :size="small ? 'small' : undefined"
+            v-bind="{ ...tooltipProps, ...menuProps }"
           >
             <v-icon>
               mdi-export
             </v-icon>
             <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
+              v-show="!mdAndDown"
               class="pl-1"
             >
               Export
@@ -182,7 +183,7 @@ export default defineComponent({
             <v-checkbox
               v-model="data.excludeBelowThreshold"
               label="exclude tracks below confidence threshold"
-              dense
+              density="compact"
               hide-details
             />
             <div
@@ -204,7 +205,7 @@ export default defineComponent({
             <v-checkbox
               v-model="data.excludeUncheckedTypes"
               label="export checked types only"
-              dense
+              density="compact"
               hint="Export only the track types currently enabled in the type filter"
               persistent-hint
               class="pt-0"
@@ -215,7 +216,7 @@ export default defineComponent({
           <v-row>
             <v-col>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 class="my-1"
                 @click="doExport({ type: 'dataset' })"
@@ -223,7 +224,7 @@ export default defineComponent({
                 <span>VIAME CSV</span>
               </v-btn>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 class="my-1"
                 @click="doExport({ type: 'trackJSON' })"
@@ -231,7 +232,7 @@ export default defineComponent({
                 <span>TRACK JSON</span>
               </v-btn>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 class="my-1"
                 @click="doExport({ type: 'coco' })"
@@ -248,7 +249,7 @@ export default defineComponent({
         <v-card-actions>
           <v-spacer />
           <v-btn
-            depressed
+            variant="flat"
             block
             @click="doExport({ type: 'configuration' })"
           >

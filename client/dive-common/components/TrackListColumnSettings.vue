@@ -79,14 +79,14 @@ export default defineComponent({
     </div>
     <v-checkbox
       v-model="columnVisibility.type"
-      dense
+      density="compact"
       hide-details
       label="Type"
       class="my-0 py-0"
     />
     <v-checkbox
       v-model="columnVisibility.confidence"
-      dense
+      density="compact"
       hide-details
       label="Confidence"
       class="my-0 py-0"
@@ -98,14 +98,14 @@ export default defineComponent({
     </div>
     <v-checkbox
       v-model="columnVisibility.startFrame"
-      dense
+      density="compact"
       hide-details
       label="Start Frame"
       class="my-0 py-0"
     />
     <v-checkbox
       v-model="columnVisibility.endFrame"
-      dense
+      density="compact"
       hide-details
       label="End Frame"
       class="my-0 py-0"
@@ -116,7 +116,7 @@ export default defineComponent({
     </div>
     <v-checkbox
       v-model="columnVisibility.startTimestamp"
-      dense
+      density="compact"
       hide-details
       label="Start Timestamp"
       class="my-0 py-0"
@@ -124,7 +124,7 @@ export default defineComponent({
     />
     <v-checkbox
       v-model="columnVisibility.endTimestamp"
-      dense
+      density="compact"
       hide-details
       label="End Timestamp"
       class="my-0 py-0"
@@ -147,7 +147,7 @@ export default defineComponent({
         v-for="attr in trackAttributes"
         :key="attr.key"
         :input-value="isAttributeEnabled(attr.key)"
-        dense
+        density="compact"
         hide-details
         :label="attr.name"
         class="my-0 py-0"
@@ -164,7 +164,7 @@ export default defineComponent({
         v-for="attr in detectionAttributes"
         :key="attr.key"
         :input-value="isAttributeEnabled(attr.key)"
-        dense
+        density="compact"
         hide-details
         :label="attr.name"
         class="my-0 py-0"
@@ -192,7 +192,7 @@ export default defineComponent({
         v-for="key in orphanedColumns"
         :key="key"
         :input-value="true"
-        dense
+        density="compact"
         hide-details
         :label="key.split('_').pop()"
         class="my-0 py-0"
@@ -205,7 +205,7 @@ export default defineComponent({
     </div>
     <v-checkbox
       v-model="columnVisibility.notes"
-      dense
+      density="compact"
       hide-details
       label="Notes"
       class="my-0 py-0"

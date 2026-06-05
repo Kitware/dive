@@ -1,7 +1,7 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
+import { defineComponent, PropType } from 'vue';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TooltipButton',
 
   props: {
@@ -46,18 +46,16 @@ export default Vue.extend({
     bottom
     :open-delay="delay"
   >
-    <template #activator="{ on, attrs }">
+    <template #activator="{ props }">
       <v-btn
-        v-bind="attrs"
-        :small="size === 'small'"
-        :x-small="size === 'x-small'"
+        v-bind="props"
+        :size="size"
         icon
         :disabled="disabled"
         :color="color"
-        :outlined="outlined"
+        :variant="outlined ? 'outlined' : 'flat'"
         :tile="tile"
         class="ma-0"
-        v-on="on"
         @click="$emit('click', $event)"
       >
         <v-icon>

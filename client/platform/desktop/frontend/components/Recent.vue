@@ -17,7 +17,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { DataTableHeader } from 'vuetify';
 
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -450,7 +450,7 @@ export default defineComponent({
               <v-spacer />
               <v-text-field
                 v-model="searchText"
-                dense
+                density="compact"
                 outlined
                 clearable
                 hide-details
@@ -474,11 +474,11 @@ export default defineComponent({
               Open images or video to get started
             </h2>
             <v-data-table
-              dense
               v-bind="{ headers: headers, items: filteredRecents }"
+              v-model:items-per-page="clientSettings.rowsPerPage"
+              dense
               sort-by="accessedAt"
               :footer-props="{ itemsPerPageOptions }"
-              :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">
@@ -512,11 +512,10 @@ export default defineComponent({
                       {{ item.name }}
                     </span>
                     <v-tooltip bottom>
-                      <template #activator="{ on, attrs }">
+                      <template #activator="{ props }">
                         <v-icon
-                          v-bind="attrs"
+                          v-bind="props"
                           color="error"
-                          v-on="on"
                         >
                           mdi-alert-circle
                         </v-icon>
@@ -580,10 +579,10 @@ export default defineComponent({
       color="error"
     >
       {{ error }}
-      <template #action="{ attrs }">
+      <template #action="{ props }">
         <v-btn
-          text
-          v-bind="attrs"
+          variant="text"
+          v-bind="props"
           @click="resetError"
         >
           Close

@@ -60,13 +60,12 @@ export default defineComponent({
       :nudge-bottom="28"
       :close-on-content-click="false"
     >
-      <template #activator="{ on, attrs }">
+      <template #activator="{ props }">
         <v-btn
           icon
           small
           class="mx-0"
-          v-bind="attrs"
-          v-on="on"
+          v-bind="props"
         >
           <v-icon
             small
@@ -89,9 +88,9 @@ export default defineComponent({
           <v-row>
             <v-col>
               <v-btn
-                dense
+                density="compact"
                 small
-                outlined
+                variant="outlined"
                 hide-details
                 @click="importDialog = true"
               >
@@ -111,10 +110,10 @@ export default defineComponent({
                 bottom
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -128,7 +127,7 @@ export default defineComponent({
               <v-switch
                 v-model="clientSettings.typeSettings.showEmptyTypes"
                 class="my-0 ml-1 pt-0"
-                dense
+                density="compact"
                 label="Show Empty"
                 hide-details
               />
@@ -143,10 +142,10 @@ export default defineComponent({
                 bottom
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -161,7 +160,7 @@ export default defineComponent({
                 v-model="clientSettings.typeSettings.lockTypes"
                 label="Lock Types"
                 class="my-0 ml-1 pt-0"
-                dense
+                density="compact"
                 hide-details
               />
             </v-col>
@@ -174,10 +173,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -192,7 +191,7 @@ export default defineComponent({
                 v-model="clientSettings.typeSettings.preventCascadeTypes"
                 label="Prevent Cascade Types"
                 class="my-0 ml-1 pt-0"
-                dense
+                density="compact"
                 hide-details
               />
             </v-col>
@@ -205,10 +204,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -223,7 +222,7 @@ export default defineComponent({
                 v-model="clientSettings.typeSettings.filterTypesByFrame"
                 label="Filter Types by Frame"
                 class="my-0 ml-1 pt-0"
-                dense
+                density="compact"
                 hide-details
               />
             </v-col>
@@ -236,10 +235,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -254,7 +253,7 @@ export default defineComponent({
                 v-model="clientSettings.typeSettings.maxCountButton"
                 label="Show Max Count Button"
                 class="my-0 ml-1 pt-0"
-                dense
+                density="compact"
                 hide-details
               />
             </v-col>
@@ -267,10 +266,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -329,14 +328,14 @@ export default defineComponent({
             <v-spacer />
             <v-btn
               depressed=""
-              text
+              variant="text"
               @click="importDialog = false"
             >
               Cancel
             </v-btn>
             <v-btn
               color="primary"
-              depressed
+              variant="flat"
               @click="confirmImport"
             >
               Add

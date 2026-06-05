@@ -1,4 +1,6 @@
-import Vue, { ref, watch, Ref } from 'vue';
+import {
+  ref, watch, Ref, nextTick,
+} from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
@@ -47,9 +49,9 @@ export default function useVirtualScrollTo({
 
   function scrollToSelected(): void {
     if (selectedIdRef.value !== null) {
-      Vue.nextTick(() => scrollTo(selectedIdRef.value));
+      nextTick(() => scrollTo(selectedIdRef.value));
     } else if (multiSelectList.value.length >= 1) {
-      Vue.nextTick(() => scrollTo(multiSelectList.value[0]));
+      nextTick(() => scrollTo(multiSelectList.value[0]));
     }
   }
 
@@ -68,7 +70,7 @@ export default function useVirtualScrollTo({
   }
 
   watch(selectedIdRef, (id) => {
-    Vue.nextTick(() => scrollTo(id));
+    nextTick(() => scrollTo(id));
   });
   watch(filteredListRef, scrollToSelected);
   watch(multiSelectList, scrollToSelected);

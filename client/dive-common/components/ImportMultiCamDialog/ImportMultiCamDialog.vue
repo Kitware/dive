@@ -140,13 +140,12 @@ export default defineComponent({
           v-if="importType"
           v-model="importAnnotationFilesCheck"
           label="Import Annotations"
-          dense
+          density="compact"
           persistent-hint
         />
         <v-spacer />
         <v-btn
-          text
-          outlined
+          variant="outlined"
           class="mr-3"
           @click="$emit('abort')"
         >

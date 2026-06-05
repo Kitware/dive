@@ -10,7 +10,6 @@ import GroupFilterControls from './GroupFilterControls';
 import GroupStore from './GroupStore';
 import * as listUtils from './listUtils';
 import MultiMap from './MultiMap';
-import * as notificationBus from './notificatonBus';
 import * as providers from './provides';
 import * as recipe from './recipe';
 import StyleManager from './StyleManager';
@@ -33,7 +32,6 @@ export {
   GroupStore,
   listUtils,
   MultiMap,
-  notificationBus,
   providers,
   recipe,
   StyleManager,

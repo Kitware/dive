@@ -1,4 +1,7 @@
-import Vue, { ref, Ref } from 'vue';
+import { ref, Ref } from 'vue';
+
+import type { EventBus } from 'vue-media-annotator/utils/eventBus';
+import createEventBus from 'vue-media-annotator/utils/eventBus';
 
 import Track from 'vue-media-annotator/track';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
@@ -35,14 +38,14 @@ export default class HeadTail implements Recipe {
 
   private startWithHead: boolean;
 
-  bus: Vue;
+  bus: EventBus;
 
   toggleable: Ref<boolean>;
 
   icon: Ref<string>;
 
   constructor() {
-    this.bus = new Vue();
+    this.bus = createEventBus();
     this.startWithHead = true;
     this.active = ref(false);
     this.name = 'HeadTail';

@@ -3,6 +3,7 @@
 import {
   computed, defineComponent, ref, shallowRef, toRef, watch, PropType, Ref,
 } from 'vue';
+import { useDisplay } from 'vuetify';
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
@@ -43,6 +44,7 @@ export default defineComponent({
   },
 
   setup(props) {
+    const { mdAndDown } = useDisplay();
     const savePrompt = ref(false);
     let currentSaveUrl = '';
 
@@ -121,6 +123,7 @@ export default defineComponent({
       if (props.fileIds.length > 0) {
         if (props.fileIds.length === 1) {
           return {
+            mdAndDown,
             exportAllUrl: getUri({
               url: `item/${props.fileIds[0]}/download`,
             }),
@@ -267,22 +270,20 @@ export default defineComponent({
     v-bind="menuOptions"
     max-width="280"
   >
-    <template #activator="{ on: menuOn }">
+    <template #activator="{ props: menuProps }">
       <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
+        <template #activator="{ props: tooltipProps }">
           <v-btn
             class="ma-0"
-            v-bind="buttonOptions"
+            v-bind="{ ...buttonOptions, ...menuProps, ...tooltipProps }"
             :disabled="!isDownloadButtonDisplayed"
-            v-on="{ ...tooltipOn, ...menuOn }"
-
             @click="prepareExport()"
           >
             <v-icon>
               mdi-download
             </v-icon>
             <span
-              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+              v-show="!mdAndDown || buttonOptions.block"
               class="pl-1"
             >
               Download
@@ -334,7 +335,7 @@ export default defineComponent({
             </v-card-text>
             <v-card-actions>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 target="_blank"
                 rel="noopener"
@@ -357,7 +358,7 @@ export default defineComponent({
               <v-checkbox
                 v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
-                dense
+                density="compact"
                 hide-details
               />
               <div class="pt-2">
@@ -376,7 +377,7 @@ export default defineComponent({
               <v-checkbox
                 v-model="excludeUncheckedTypes"
                 label="export checked types only"
-                dense
+                density="compact"
                 hint="Export only the track types currently enabled in the type filter"
                 persistent-hint
                 class="pt-0"
@@ -388,7 +389,7 @@ export default defineComponent({
             <v-row>
               <v-col>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
@@ -401,7 +402,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
@@ -418,7 +419,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
@@ -435,7 +436,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <!-- <v-btn
-              depressed
+              variant="flat"
               block
               :disabled="!exportUrls.exportDetectionsUrl"
               @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
@@ -454,7 +455,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportConfigurationUrl })"
             >
@@ -473,7 +474,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
             >
@@ -488,7 +489,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
             >
@@ -501,14 +502,14 @@ export default defineComponent({
           <v-checkbox
             v-model="excludeBelowThreshold"
             label="exclude tracks below confidence threshold"
-            dense
+            density="compact"
             hide-details
           />
 
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
             >

@@ -68,7 +68,7 @@ export default defineComponent({
         placeholder="Not selected"
         disabled
         outlined
-        dense
+        density="compact"
         hide-details
         :value="parentFolderName"
         class="mr-3"
@@ -109,7 +109,7 @@ export default defineComponent({
           label="Camera name"
           hint="Used as the Girder folder name for this camera"
           persistent-hint
-          dense
+          density="compact"
           outlined
           hide-details="auto"
           class="flex-grow-1"

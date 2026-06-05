@@ -1,12 +1,18 @@
 import { execSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import vue from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
 import type { UserConfig } from 'vite';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
+import vuetify from 'vite-plugin-vuetify';
 
 import packageJson from './package.json';
+import {
+  gwcInternalAlias,
+  gwcInternalEsbuildAlias,
+  gwcSrcRoot,
+} from './vite-plugins/gwcInternalAlias';
 
 function getGitHash() {
   try {
@@ -23,11 +29,6 @@ const webOverrides: UserConfig = {
     outDir: 'dist',
     emptyOutDir: true,
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
-  },
 };
 
 export default defineConfig(({ mode }) => {
@@ -37,13 +38,24 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
-    plugins: [vue()],
+    plugins: [
+      gwcInternalAlias(),
+      vue({
+        include: [/\.vue$/],
+      }),
+      vuetify({ autoImport: true }),
+    ],
     resolve: {
+      extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
+        '@girder/components': resolve(__dirname, 'node_modules/@girder/components/src'),
+        'vuetify/lib/util/colors': 'vuetify/util/colors',
+        'vuetify/lib': 'vuetify',
+        '@girder/components/plugins': join(gwcSrcRoot, 'plugins/index.js'),
       },
     },
     define: {
@@ -64,7 +76,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
-        // WebSocket for Girder notifications (not under /api; see notificatonBus.ts).
         '/notifications': {
           target: apiProxyTarget,
           secure: false,
@@ -74,6 +85,9 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+      esbuildOptions: {
+        plugins: [gwcInternalEsbuildAlias()],
+      },
     },
     build: {
       sourcemap: true,
@@ -89,6 +103,12 @@ export default defineConfig(({ mode }) => {
     base: '/',
     test: {
       globals: true,
+      setupFiles: ['./vitest.girder-mock.ts'],
+      server: {
+        deps: {
+          inline: ['@girder/components'],
+        },
+      },
     },
   };
 

@@ -1,6 +1,6 @@
 /* eslint-disable import/prefer-default-export -- single-purpose polling helper */
-import { all } from '@girder/components/src/components/Job/status';
 import girderRest from 'platform/web-girder/plugins/girder';
+import { all } from '../girder-jobs/status';
 import { getFolder } from './girder.service';
 
 const JobStatus = all();

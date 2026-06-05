@@ -62,7 +62,7 @@ export default defineComponent({
         <v-spacer />
         <v-btn
           :to="{ name: 'jobs' }"
-          depressed
+          variant="flat"
         >
           View All Jobs
           <v-icon class="pl-1">

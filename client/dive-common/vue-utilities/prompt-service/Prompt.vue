@@ -129,7 +129,7 @@ export default defineComponent({
         <v-btn
           v-if="confirm && negativeButton && negativeButton.length"
           ref="negative"
-          text
+          variant="text"
           @click="clickNegative"
         >
           {{ negativeButton }}
@@ -137,7 +137,7 @@ export default defineComponent({
         <v-btn
           ref="positive"
           color="primary"
-          text
+          variant="text"
           @click="clickPositive"
         >
           {{ positiveButton }}

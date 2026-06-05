@@ -219,8 +219,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -285,8 +285,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -335,8 +335,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -388,8 +388,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -435,8 +435,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -494,8 +494,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props }">
+                <v-icon v-bind="props">
                   mdi-information
                 </v-icon>
               </template>
@@ -586,8 +586,7 @@ export default defineComponent({
         <v-card-actions>
           <v-spacer />
           <v-btn
-            depressed
-            text
+            variant="text"
             @click="editingColor = false"
           >
             Cancel

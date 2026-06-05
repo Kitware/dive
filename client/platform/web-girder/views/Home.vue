@@ -4,9 +4,10 @@ import {
   ref,
   computed,
 } from 'vue';
+import { useDisplay } from 'vuetify';
 import {
   GirderFileManager, GirderMarkdown,
-} from '@girder/components/src';
+} from '@girder/components';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
@@ -57,6 +58,7 @@ export default defineComponent({
   // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
   setup() {
+    const { mdAndDown } = useDisplay();
     const loading = ref(false);
     const { prompt } = usePrompt();
     const {
@@ -140,6 +142,7 @@ export default defineComponent({
     const selectedDescription = computed(() => (location.value as { description?: string } | null)?.description);
 
     return {
+      mdAndDown,
       // data
       buttonOptions,
       menuOptions,
@@ -210,7 +213,7 @@ export default defineComponent({
     />
     <v-container
       fill-height
-      :fluid="$vuetify.breakpoint.mdAndDown"
+      :fluid="mdAndDown"
     >
       <v-row
         class="fill-height nowraptable"
@@ -273,7 +276,7 @@ export default defineComponent({
         </v-col>
         <v-col :cols="9">
           <v-toolbar
-            dense
+            density="compact"
             class="mb-4"
             rounded
           >

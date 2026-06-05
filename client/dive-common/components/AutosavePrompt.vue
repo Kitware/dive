@@ -34,9 +34,8 @@ export default defineComponent({
       <v-card-actions>
         <v-spacer />
         <v-btn
-          depressed
-          text
-          @click="$emit('input', false)"
+          variant="text"
+          @click="$emit('update:modelValue', false)"
         >
           Cancel
         </v-btn>

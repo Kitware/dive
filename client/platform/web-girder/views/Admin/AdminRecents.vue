@@ -4,7 +4,7 @@ import {
   defineComponent, ref, Ref,
 } from 'vue';
 import { getRecentDatasets } from 'platform/web-girder/api/admin.service';
-import type { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components';
 import moment from 'moment';
 
 export default defineComponent({
@@ -66,15 +66,14 @@ export default defineComponent({
             <v-tooltip
               bottom
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props }">
                 <v-btn
-                  v-bind="attrs"
+                  v-bind="props"
                   small
-                  depressed
+                  variant="flat"
                   :to="`/user/${item.userDir}`"
                   color="info"
                   class="ma-1"
-                  v-on="on"
                 >
                   <v-icon small>
                     mdi-account

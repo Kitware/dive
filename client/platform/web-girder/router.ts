@@ -1,5 +1,9 @@
-import Vue from 'vue';
-import Router, { Route } from 'vue-router';
+import {
+  createRouter,
+  createWebHistory,
+  type NavigationGuardNext,
+  type RouteLocationNormalized,
+} from 'vue-router';
 
 import girderRest from './plugins/girder';
 import Home from './views/Home.vue';
@@ -13,10 +17,11 @@ import DataShared from './views/DataShared.vue';
 import DataBrowser from './views/DataBrowser.vue';
 import Summary from './views/Summary.vue';
 
-Vue.use(Router);
-
-// eslint-disable-next-line @typescript-eslint/ban-types
-function beforeEnter(to: Route, from: Route, next: Function) {
+function beforeEnter(
+  _to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) {
   if (!girderRest.user) {
     next('/login');
   } else {
@@ -24,23 +29,27 @@ function beforeEnter(to: Route, from: Route, next: Function) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
-function adminGuard(to: Route, from: Route, next: Function) {
-  if (!girderRest.user.admin) {
+function adminGuard(
+  _to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) {
+  if (!girderRest.user?.admin) {
     next('/');
   } else {
     next();
   }
 }
 
-function toArray(data: string | (string | null)[]) {
+function toArray(data: string | (string | null)[] | undefined) {
   if (data && typeof data === 'string') {
     return [data];
   }
   return data;
 }
 
-const router = new Router({
+const router = createRouter({
+  history: createWebHistory(),
   routes: [
     {
       path: '/login',
@@ -51,14 +60,14 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets as string | string[]) }),
       beforeEnter,
     },
     {
       path: '/viewer/:id/set/:set',
       name: 'set viewer',
       component: ViewerLoader,
-      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets as string | string[]) }),
       beforeEnter,
     },
     {

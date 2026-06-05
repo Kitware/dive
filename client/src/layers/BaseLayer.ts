@@ -1,5 +1,8 @@
 /*eslint class-methods-use-this: "off"*/
-import Vue, { Ref } from 'vue';
+import { Ref } from 'vue';
+
+import type { EventBus } from '../utils/eventBus';
+import createEventBus from '../utils/eventBus';
 
 import { MediaController } from '../components/annotators/mediaControllerType';
 import { StateStyles, TypeStyling } from '../StyleManager';
@@ -65,7 +68,7 @@ export default abstract class BaseLayer<D> {
 
   selectedIndex: number[]; // sparse array
 
-  bus: Vue;
+  bus: EventBus;
 
   constructor({
     annotator,
@@ -79,7 +82,7 @@ export default abstract class BaseLayer<D> {
     this.style = {};
     this.featureLayer = null;
     this.selectedIndex = [];
-    this.bus = new Vue();
+    this.bus = createEventBus();
     this.initialize();
   }
 

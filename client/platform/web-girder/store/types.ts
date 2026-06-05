@@ -1,4 +1,4 @@
-import type { GirderModel, GirderModelType } from '@girder/components/src';
+import type { GirderModel, GirderModelType } from '@girder/components';
 import type { BrandData } from 'platform/web-girder/api';
 import type { GirderMetadata } from 'platform/web-girder/constants';
 

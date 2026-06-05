@@ -2,7 +2,7 @@
 import {
   defineComponent, Ref, ref, computed, onBeforeUnmount,
 } from 'vue';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
@@ -754,7 +754,7 @@ export default defineComponent({
               >
                 <v-btn
                   icon
-                  outlined
+                  variant="outlined"
                   :disabled="pendingUpload.uploading"
                   @click="remove(pendingUpload)"
                 >
@@ -822,10 +822,10 @@ export default defineComponent({
                 right
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="props"
                   >
                     mdi-help
                   </v-icon>
@@ -872,8 +872,8 @@ export default defineComponent({
                 top
                 max-width="400"
               >
-                <template #activator="{ on }">
-                  <v-list-item v-on="on">
+                <template #activator="{ props }">
+                  <v-list-item v-bind="props">
                     <import-button
                       :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
                       icon="mdi-folder-open"

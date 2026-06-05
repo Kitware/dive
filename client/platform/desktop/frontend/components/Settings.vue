@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref, computed, set, watch,
+  defineComponent, onBeforeMount, ref, computed, watch,
 } from 'vue';
 
 import { useRequest } from 'dive-common/use';
@@ -56,7 +56,7 @@ export default defineComponent({
         throw new Error('Local settings not yet initialized.');
       }
       if (!result.canceled && defaultPath !== undefined) {
-        set(localSettings.value, name, result.filePaths[0]);
+        localSettings.value = { ...localSettings.value, [name]: result.filePaths[0] };
       }
     }
     async function save() {
@@ -103,7 +103,7 @@ export default defineComponent({
                 v-model="localSettings.viamePath"
                 label="VIAME Install Base Path"
                 hint="download from https://viametoolkit.com"
-                dense
+                density="compact"
                 outlined
                 :disabled="!!viameOverride"
                 persistent-hint
@@ -131,7 +131,7 @@ export default defineComponent({
                 v-model="localSettings.dataPath"
                 label="Project Data Storage Path"
                 hint="project annotation and metadata goes here."
-                dense
+                density="compact"
                 outlined
                 persistent-hint
               />
@@ -261,8 +261,7 @@ export default defineComponent({
           </browser-link>
         </v-card-subtitle>
         <v-btn
-          text
-          outlined
+          variant="outlined"
           class="mx-4"
           :disabled="autoDiscoverState.loading.value"
           @click="doAutodiscover"

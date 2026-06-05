@@ -126,7 +126,7 @@ export default defineComponent({
     </v-row>
     <v-btn
       block
-      depressed
+      variant="flat"
       color="warning"
       class="my-2"
       @click="reset()"

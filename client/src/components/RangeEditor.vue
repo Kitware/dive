@@ -67,7 +67,7 @@ export default defineComponent({
         :value="begin"
         :disabled="disabled"
         single-line
-        dense
+        density="compact"
         class="px-2 mt-0"
         style="width: 100%"
         type="number"
@@ -100,7 +100,7 @@ export default defineComponent({
         :disabled="disabled"
         hide-details
         single-line
-        dense
+        density="compact"
         class="px-2 mt-0"
         style="width: 100%"
         type="number"

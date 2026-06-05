@@ -166,8 +166,7 @@ export default defineComponent({
       <div class="d-flex flex-row mt-4">
         <v-spacer />
         <v-btn
-          text
-          outlined
+          variant="outlined"
           class="mr-5"
           @click="$emit('abort')"
         >
