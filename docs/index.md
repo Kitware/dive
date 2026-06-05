@@ -20,6 +20,7 @@ This is the documentation site for DIVE, a [**free and open-source**](https://ww
 Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
+Multicamera and stereo datasets | ✔️ | ✔️
 Load annotations from [supported formats](DataFormats.md) | ✔️ | ✔️
 Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
@@ -42,7 +43,7 @@ Multiple parallel annotation sets on one dataset | ✔️ | ❌
 | **VIAME Integration** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
-VIAME multi-camera pipelines  | ❌ | ✔️
+VIAME multi-camera pipelines  | ✔️ | ✔️
 Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 ## Concepts and Definitions

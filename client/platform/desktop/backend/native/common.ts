@@ -35,7 +35,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
@@ -454,7 +454,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
   const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_.+|.*[2,3]-cam.+/;
-  const disallowedPatterns = /.*local.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
+  const disallowedPatterns = /.*local.*|common_stereo_.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
   let pipes = await fs.readdir(pipelinePath);
@@ -1001,6 +1001,106 @@ async function findTrackandMetaFileinFolder(path: string) {
 }
 
 /**
+ * List immediate child directories of a parent folder (for multicam subfolder import).
+ */
+async function listImmediateSubfolders(parentPath: string): Promise<string[]> {
+  if (!await fs.pathExists(parentPath)) {
+    throw new Error(`Directory not found: ${parentPath}`);
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    throw new Error(`Not a directory: ${parentPath}`);
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  return children
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name);
+}
+
+function isVideoFilePath(filePath: string): boolean {
+  const mimetype = mime.lookup(filePath);
+  if (mimetype && (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype))) {
+    return true;
+  }
+  const ext = npath.extname(filePath).replace(/^\./, '').toLowerCase();
+  return fileVideoTypes.includes(ext);
+}
+
+/**
+ * Discover cameras under a parent folder: immediate subfolders, or separate video files
+ * in the parent when importing video and there are no subfolders.
+ */
+async function listParentFolderCameras(
+  parentPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<{ name: string; sourcePath: string }[]> {
+  const subfolders = await listImmediateSubfolders(parentPath);
+  const separator = parentPath.includes('\\') ? '\\' : '/';
+  const normalized = parentPath.replace(/[\\/]+$/, '');
+  if (subfolders.length >= 2) {
+    return subfolders.map((name) => ({
+      name,
+      sourcePath: `${normalized}${separator}${name}`,
+    }));
+  }
+  if (mediaType === 'video' && subfolders.length === 0) {
+    const children = await fs.readdir(parentPath, { withFileTypes: true });
+    const videoPaths: string[] = [];
+    children.forEach((entry) => {
+      if (!entry.isFile()) {
+        return;
+      }
+      const fullPath = npath.join(parentPath, entry.name);
+      if (isVideoFilePath(fullPath)) {
+        videoPaths.push(fullPath);
+      }
+    });
+    videoPaths.sort((a, b) => a.localeCompare(b));
+    return videoPaths.map((fullPath) => ({
+      name: npath.parse(fullPath).name,
+      sourcePath: fullPath,
+    }));
+  }
+  return subfolders.map((name) => ({
+    name,
+    sourcePath: `${normalized}${separator}${name}`,
+  }));
+}
+
+/**
+ * Resolve the import path for one camera subfolder (directory or first video file).
+ */
+async function resolveMulticamCameraSourcePath(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<string> {
+  if (mediaType === 'image-sequence') {
+    return subfolderPath;
+  }
+  const stat = await fs.stat(subfolderPath);
+  if (!stat.isDirectory()) {
+    return subfolderPath;
+  }
+  const entries = await fs.readdir(subfolderPath, { withFileTypes: true });
+  const videoPaths: string[] = [];
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.isFile()) {
+      return;
+    }
+    const fullPath = npath.join(subfolderPath, entry.name);
+    const mimetype = mime.lookup(fullPath);
+    if (mimetype && (websafeVideoTypes.includes(mimetype) || otherVideoTypes.includes(mimetype))) {
+      videoPaths.push(fullPath);
+    }
+  }));
+  videoPaths.sort((a, b) => a.localeCompare(b));
+  if (!videoPaths.length) {
+    throw new Error(`No video file found in ${subfolderPath}`);
+  }
+  return videoPaths[0];
+}
+
+/**
  * Attempt a media import on the provided path, which may or may not be a valid dataset.
  */
 async function attemptMediaImport(path: string) {
@@ -1511,6 +1611,9 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
+  listImmediateSubfolders,
+  listParentFolderCameras,
+  resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,
   saveLastCalibration,

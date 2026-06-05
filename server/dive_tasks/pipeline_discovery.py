@@ -18,27 +18,47 @@ AllowedTrainingConfigs = r"train_.*\.conf$"
 DisallowedTrainingConfigs = (
     r".*(_nf|\.continue)\.viame_csv\.conf$|.*\.continue\.conf$|.*\.habcam\.conf$|.*\.kw18\.conf$"
 )
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
+# Align with desktop getPipelineList allow patterns (common.ts).
+AllowedStaticPipelines = (
+    r"^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_.+|"
+    r"^measurement_.+|.*[23]-cam.+"
+)
 
 DisallowedStaticPipelines = (
+    r"common_stereo_.*\.pipe|"
     # Remove utilities pipes which hold no meaning in web
     r".*local.*|"
+    r".*seagis.*|"
     r".*hough.*|"
     r".*_svm_models\.pipe|"
     r"detector_extract_chips\.pipe|"
     # Remove tracker pipelines which hold no meaning in web
     r"tracker_stabilized_iou\.pipe|"
-    r"tracker_short_term\.pipe|"
-    # Remove seal and sea lion specialized pipelines un-runnable in web
-    r"detector_arctic_.*fusion.*\.pipe|"
-    r".*[2|3]-cam\.pipe"
+    r"tracker_short_term\.pipe"
 )
 
 
+def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
+    """
+    Derive pipeline category and display name from a .pipe stem.
+
+    Matches desktop: 2-cam/3-cam pipelines use their own category; 1-cam stay under
+    detector/tracker/utility prefixes.
+    """
+    parts = pipe_stem.split('_')
+    if len(parts) > 1 and parts[-1] == 'cam' and parts[-2] != '1':
+        pipe_type = f'{parts[-2]}-cam'
+        return pipe_type, ' '.join(parts)
+    multicam_suffix = re.search(r'(?:^|_)([23])-cam$', pipe_stem)
+    if multicam_suffix:
+        pipe_type = f'{multicam_suffix.group(1)}-cam'
+        return pipe_type, pipe_stem.replace('_', ' ')
+    pipe_type = parts[0]
+    return pipe_type, ' '.join(parts[1:])
+
+
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
-    metadata: PipeMetadata = {
-        "diveParams": []
-    }
+    metadata: PipeMetadata = {"diveParams": []}
 
     context_stack: List[str] = []
     in_description = False
@@ -67,27 +87,34 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         context_stack.pop()
                     continue
 
-                dive_match = re.search(r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE)
+                dive_match = re.search(
+                    r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
+                )
                 if dive_match:
                     label, raw_args = dive_match.groups()
                     args = [arg.strip() for arg in raw_args.split(',')]
                     param_type = args[0]
                     pipeline_type_args = args[1:]
 
-                    param_line_match = re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed,
-                                                re.IGNORECASE)
+                    param_line_match = re.match(
+                        r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)',
+                        trimmed,
+                        re.IGNORECASE,
+                    )
                     if param_line_match:
                         local_key = param_line_match.group(1)
                         default_val = param_line_match.group(2).strip()
                         full_key = ":".join(context_stack + [local_key])
 
-                        metadata["diveParams"].append({
-                            "label": label,
-                            "type": param_type,
-                            "type_props": pipeline_type_args,
-                            "key": full_key,
-                            "default": default_val
-                        })
+                        metadata["diveParams"].append(
+                            {
+                                "label": label,
+                                "type": param_type,
+                                "type_props": pipeline_type_args,
+                                "key": full_key,
+                                "default": default_val,
+                            }
+                        )
 
                 # --- Description extraction (Multiline) ---
                 desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)
@@ -100,10 +127,10 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
 
                 if in_description:
                     is_stop_condition = (
-                            re.match(r'^#\s*$', line_raw) or
-                            re.match(r'^#\s*=', line_raw) or
-                            re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE) or
-                            not line_raw.startswith('#')
+                        re.match(r'^#\s*$', line_raw)
+                        or re.match(r'^#\s*=', line_raw)
+                        or re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE)
+                        or not line_raw.startswith('#')
                     )
 
                     if is_stop_condition:
@@ -139,18 +166,19 @@ def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipelist = [
         path
         for path in search_path.glob("./*.pipe")
-        if re.match(AllowedStaticPipelines, path.name)
-        and not re.match(DisallowedStaticPipelines, path.name)
+        if re.match(AllowedStaticPipelines, path.name, re.IGNORECASE)
+        and not re.match(DisallowedStaticPipelines, path.name, re.IGNORECASE)
     ]
 
     for pipe_path in pipelist:
         pipe = pipe_path.name
-        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+        pipe_stem = pipe.replace('.pipe', '')
+        pipe_type, pipe_name = parse_pipe_type_and_name(pipe_stem)
 
         metadata = extract_pipe_metadata(pipe_path)
 
         pipe_info: PipelineDescription = {
-            "name": " ".join(nameparts),
+            "name": pipe_name,
             "type": pipe_type,
             "pipe": pipe,
             "metadata": metadata,

@@ -56,6 +56,7 @@ import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
@@ -732,8 +733,7 @@ export default defineComponent({
         baseMulticamDatasetId.value = datasetId.value;
         if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
-          const { cameras } = meta.multiCamMedia;
-          multiCamList.value = Object.keys(cameras);
+          multiCamList.value = orderedMultiCamCameraNames(meta.multiCamMedia);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
           changeCamera(defaultCamera.value);
           baseMulticamDatasetId.value = datasetId.value;
@@ -1027,7 +1027,6 @@ export default defineComponent({
     });
     const showMultiCamToolbar = computed(() => (
       typeof window !== 'undefined'
-      && 'diveDesktop' in window
       && multiCamList.value.length > 1
       && clientSettings.multiCamSettings.showToolbar
     ));

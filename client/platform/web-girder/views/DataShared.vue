@@ -6,6 +6,11 @@ import type { DataOptions } from 'vuetify';
 import { GirderModel, mixins } from '@girder/components/src';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
+import {
+  getMultiCamIcon,
+  getMultiCamSubType,
+  getMultiCamTooltip,
+} from 'dive-common/multicamDisplay';
 import { getSharedWithMeFolders } from '../api';
 import { useLocation } from '../store/useLocation';
 
@@ -56,6 +61,10 @@ export default defineComponent({
       return item._modelType === 'folder' && item.meta.annotate;
     }
 
+    function multiCamSubType(item: GirderModel) {
+      return getMultiCamSubType(item.meta);
+    }
+
     watch(tableOptions, updateOptions, {
       deep: true,
     });
@@ -64,6 +73,9 @@ export default defineComponent({
     updateOptions();
     return {
       isAnnotationFolder,
+      multiCamSubType,
+      getMultiCamIcon,
+      getMultiCamTooltip,
       dataList,
       updateOptions,
       total,
@@ -97,8 +109,27 @@ export default defineComponent({
   >
     <!-- eslint-disable-next-line -->
     <template v-slot:item.name="{ item }">
-      <div class="filename" @click="$router.push({ name: 'home', params: { routeType: 'folder', routeId: item._id } })">
-        <v-icon class="mb-1 mr-1">
+      <div
+        class="filename"
+        @click="$router.push({ name: 'home', params: { routeType: 'folder', routeId: item._id } })"
+      >
+        <v-tooltip
+          v-if="multiCamSubType(item)"
+          bottom
+        >
+          <template #activator="{ on, attrs }">
+            <v-icon
+              small
+              class="mr-1"
+              v-bind="attrs"
+              v-on="on"
+            >
+              {{ getMultiCamIcon(multiCamSubType(item)) }}
+            </v-icon>
+          </template>
+          <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
+        </v-tooltip>
+        <v-icon class="mr-1">
           mdi-folder{{ item.public ? '' : '-key' }}
         </v-icon>
         {{ item.name }}
@@ -126,6 +157,8 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .filename {
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   opacity: 0.8;
 

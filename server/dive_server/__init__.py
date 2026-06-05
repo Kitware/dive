@@ -1,10 +1,9 @@
-import os
 import logging
+import os
 from pathlib import Path
 
 from girder import events, plugin
 from girder.constants import AccessType
-from girder.models.setting import Setting
 from girder.models.user import User
 from girder.plugin import getPlugin
 from girder.utility import mail_utils
@@ -27,6 +26,7 @@ from .views_override import (
 from .views_rpc import RpcResource
 
 logger = logging.getLogger(__name__)
+
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
@@ -59,7 +59,6 @@ class GirderPlugin(plugin.GirderPlugin):
         core_girder.script_name = '/girder'
         info['serverRoot'].mount(core_girder, '/girder', core_girder.config)
         del info['serverRoot'].apps['']
-
 
         conf = {
             '/': {

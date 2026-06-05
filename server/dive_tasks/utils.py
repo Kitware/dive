@@ -167,7 +167,8 @@ def stream_subprocess(
 
         # call readline until it returns empty bytes
         for line in iter(process.stdout.readline, b''):
-            line_str = line.decode('utf-8')
+            # Pipeline tools may emit Latin-1 / CP1252 (e.g. 0xa0 NBSP) in log lines.
+            line_str = line.decode('utf-8', errors='replace')
             manager.write(line_str)
             if keep_stdout:
                 stdout += line_str
@@ -187,7 +188,7 @@ def stream_subprocess(
 
         if code > 0:
             stderr_file.seek(0)
-            stderr = stderr_file.read().decode()
+            stderr = stderr_file.read().decode('utf-8', errors='replace')
             raise RuntimeError(
                 'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
             )
@@ -271,11 +272,100 @@ def upload_zipped_flat_media_files(
         gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
     else:
         manager.write(f"Message: {validation['message']}\n")
-        manager.write(
-            "Please check the documentation for Zip files at:\
-                 https://kitware.github.io/dive/Web-Version/#zip-files\n"
-        )
+        manager.write("Please check the documentation for Zip files at:\
+                 https://kitware.github.io/dive/Web-Version/#zip-files\n")
         raise Exception("Could not Validate media Files")
+
+
+def _load_exported_dataset_meta(working_directory: Path) -> dict:
+    list_of_names = os.listdir(working_directory)
+    potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))
+    if len(potential_meta_files) == 0:
+        raise ValueError('Could not find meta.json or config.json in exported dataset folder')
+    meta = {}
+    for meta_name in potential_meta_files:
+        with open(working_directory / meta_name) as f:
+            meta = json.load(f)
+    return meta
+
+
+def _import_exported_dataset_directory(
+    gc: GirderClient,
+    manager: JobManager,
+    dest_folder_id: str,
+    working_directory: Path,
+) -> None:
+    """Import one exported single-camera dataset directory into dest_folder_id."""
+    working_directory = Path(working_directory)
+    list_of_names = os.listdir(working_directory)
+    meta = _load_exported_dataset_meta(working_directory)
+    dataset_type = meta[constants.TypeMarker]
+    if dataset_type == constants.MultiType:
+        raise ValueError(
+            'Folder is a multicamera; use multicam zip import instead of single-dataset import'
+        )
+    if dataset_type == constants.ImageSequenceType:
+        image_data = meta['imageData']
+        for image in image_data:
+            if image['filename'] not in list_of_names:
+                raise ValueError(f'Could not find {image["filename"]} in exported dataset folder')
+    elif dataset_type == constants.VideoType:
+        video = meta['video']
+        if video['filename'] not in list_of_names:
+            raise ValueError(f'Could not find {video["filename"]} in exported dataset folder')
+    else:
+        raise ValueError(f'Unsupported exported dataset type: {dataset_type}')
+
+    aux_path = working_directory / constants.AuxiliaryFolderName
+    if aux_path.is_dir():
+        shutil.rmtree(aux_path)
+
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    gc.upload(f'{working_directory}/*', dest_folder_id)
+    all_files = list(gc.listItem(dest_folder_id))
+    root_meta = {
+        'type': dataset_type,
+        'attributes': meta.get('attributes', None),
+        'customTypeStyling': meta.get('customTypeStyling', None),
+        'customGroupStyling': meta.get('customGroupStyling', None),
+        'confidenceFilters': meta.get('confidenceFilters', None),
+        'imageEnhancements': meta.get('imageEnhancements', None),
+        'fps': meta['fps'],
+        'version': meta['version'],
+    }
+    if dataset_type == constants.VideoType:
+        video = meta['video']
+        transcoded_video = list(gc.listItem(dest_folder_id, name=video['filename']))
+        if len(transcoded_video) == 1:
+            ffprobe = meta['ffprobe_info']
+            original_fps_string, original_fps = fps_from_ffprobe_stream(ffprobe)
+
+            transcoded_metadata = {
+                'codec': 'h264',
+                'originalFps': original_fps,
+                'originalFpsString': original_fps_string,
+                'source_video': False,
+                'transcoder': 'ffmpeg',
+            }
+            gc.addMetadataToItem(str(transcoded_video[0]['_id']), transcoded_metadata)
+            for item in all_files:
+                if (
+                    item['name'].endswith(tuple(constants.validVideoFormats))
+                    and item['name'] != video['filename']
+                ):
+                    source_metadata = {
+                        'codec': ffprobe['codec_name'],
+                        'originalFps': original_fps,
+                        'originalFpsString': original_fps_string,
+                        'source_video': False,
+                    }
+                    gc.addMetadataToItem(str(item['_id']), source_metadata)
+            root_meta['originalFps'] = original_fps
+            root_meta['originalFpsString'] = original_fps_string
+
+    root_meta[constants.DatasetMarker] = True
+    gc.addMetadataToFolder(dest_folder_id, root_meta)
+    gc.post(f'dive_rpc/postprocess/{dest_folder_id}', data={'skipJobs': True})
 
 
 def upload_exported_zipped_dataset(
@@ -285,90 +375,155 @@ def upload_exported_zipped_dataset(
     working_directory: Path,
     create_subfolder='',
 ):
-    """Uploads a folder that is generated from the export of a zip file and sets metadata"""
-    listOfFileNames = os.listdir(working_directory)
-    potential_meta_files = list(filter(constants.metaRegex.match, listOfFileNames))
-    if len(potential_meta_files) == 0:
-        manager.write("Could not find meta.json or config.json file within the subdirectroy\n")
+    """Uploads a folder that is generated from the export of a zip file and sets metadata."""
+    working_directory = Path(working_directory)
+    if (working_directory / constants.MultiCamJsonFileName).is_file():
+        upload_exported_multicam_zipped_dataset(
+            gc, manager, folderId, working_directory, create_subfolder
+        )
         return
-    print(listOfFileNames)
-    # load meta.json to get datatype and verify list of files
-    meta = {}
-    for meta_name in potential_meta_files:
-        with open(f"{working_directory}/{meta_name}") as f:
-            meta = json.load(f)
-    type = meta[constants.TypeMarker]
-    if type == constants.ImageSequenceType:
-        imageData = meta['imageData']
-        for image in imageData:
-            if image["filename"] not in listOfFileNames:
-                manager.write(f"Could not find {image['filename']} file within the list of files\n")
-                return
-    elif type == constants.VideoType:
-        video = meta["video"]
-        if video["filename"] not in listOfFileNames:
-            manager.write(f"Could not find {video['filename']} file within the list of files\n")
-            return
-    # remove the auxilary directory so we don't have to tag them all
-    if constants.AuxiliaryFolderName in listOfFileNames and os.path.isdir(
-        f'{working_directory}/{constants.AuxiliaryFolderName}'
-    ):
-        shutil.rmtree(f'{working_directory}/{constants.AuxiliaryFolderName}')
-    root_folderId = folderId
+    try:
+        dest_folder_id = folderId
+        if create_subfolder != '':
+            sub_folder = gc.createFolder(
+                folderId,
+                os.path.basename(create_subfolder),
+                reuseExisting=True,
+            )
+            dest_folder_id = str(sub_folder['_id'])
+        _import_exported_dataset_directory(gc, manager, dest_folder_id, working_directory)
+    except ValueError as err:
+        manager.write(f'{err}\n')
+        raise Exception(str(err)) from err
+
+
+def is_path_under_multicam_export(path: str, multicam_export_roots: set) -> bool:
+    """True if path is a multicam export root or a file/folder inside one (e.g. camera subdirs)."""
+    if not path:
+        return False
+    for root in multicam_export_roots:
+        if path == root or path.startswith(f'{root}{os.sep}'):
+            return True
+    return False
+
+
+def _multicam_camera_order(multi_cam: dict) -> List[str]:
+    cameras = multi_cam.get('cameras') or {}
+    stored_order = multi_cam.get('cameraOrder') or []
+    if stored_order:
+        return [name for name in stored_order if name in cameras]
+    return list(cameras.keys())
+
+
+def _upload_stereo_calibration_files(
+    gc: GirderClient,
+    manager: JobManager,
+    folder_id: str,
+    working_directory: Path,
+) -> Optional[str]:
+    calibration_item_id = None
+    for entry in os.listdir(working_directory):
+        entry_path = working_directory / entry
+        if not entry_path.is_file():
+            continue
+        if not constants.stereoCalibrationRegex.search(entry):
+            continue
+        manager.write(f'Uploading calibration file {entry}\n')
+        gc.upload(str(entry_path), folder_id)
+        items = list(gc.listItem(folder_id, name=entry))
+        if items:
+            calibration_item_id = str(items[0]['_id'])
+    return calibration_item_id
+
+
+def upload_exported_multicam_zipped_dataset(
+    gc: GirderClient,
+    manager: JobManager,
+    folderId: str,
+    working_directory: Path,
+    create_subfolder='',
+):
+    """
+    Import a multicam dataset produced by dive_dataset export (multiCam.json + per-camera folders).
+    """
+    working_directory = Path(working_directory)
+    multi_cam_path = working_directory / constants.MultiCamJsonFileName
+    if not multi_cam_path.is_file():
+        raise Exception(
+            f'Exported multicam zip is missing {constants.MultiCamJsonFileName} at the dataset root'
+        )
+
+    with open(multi_cam_path) as f:
+        multi_cam = json.load(f)
+    parent_meta = _load_exported_dataset_meta(working_directory)
+
+    default_display = multi_cam.get('defaultDisplay')
+    cameras_meta = multi_cam.get('cameras') or {}
+    camera_order = _multicam_camera_order(multi_cam)
+    if not camera_order:
+        raise Exception('multiCam.json does not list any cameras')
+    if default_display not in cameras_meta:
+        raise Exception(f'multiCam.json defaultDisplay "{default_display}" is not a camera name')
+
+    sub_type = parent_meta.get(constants.SubTypeMarker)
+    if sub_type not in ('stereo', 'multicam'):
+        raise Exception(
+            'Exported multicam dataset is missing subType "stereo" or "multicam" in meta.json'
+        )
+
+    parent_folder_id = folderId
     if create_subfolder != '':
         sub_folder = gc.createFolder(
             folderId,
-            create_subfolder,
+            os.path.basename(create_subfolder),
             reuseExisting=True,
         )
-        root_folderId = str(sub_folder['_id'])
-        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        # create a source folder to place the zipFile inside of
-    gc.upload(f'{working_directory}/*', root_folderId)
-    # Now we set all the metadata for the folders and items
-    all_files = list(gc.listItem(root_folderId))
-    root_meta = {
-        "type": type,
-        "attributes": meta.get("attributes", None),
-        "customTypeStyling": meta.get("customTypeStyling", None),
-        "customGroupStyling": meta.get("customGroupStyling", None),
-        "confidenceFilters": meta.get("confidenceFilters", None),
-        "imageEnhancements": meta.get("imageEnhancements", None),
-        "fps": meta["fps"],
-        "version": meta["version"],
+        parent_folder_id = str(sub_folder['_id'])
+
+    parent_folder = gc.getFolder(parent_folder_id)
+    dataset_name = parent_folder['name']
+    fps = parent_meta[constants.FPSMarker]
+
+    imported_cameras: dict = {}
+    media_type = None
+    for camera_name in camera_order:
+        camera_dir = working_directory / camera_name
+        if not camera_dir.is_dir():
+            raise Exception(f'Exported multicam zip is missing camera folder "{camera_name}"')
+        child_meta = _load_exported_dataset_meta(camera_dir)
+        cam_type = child_meta[constants.TypeMarker]
+        if media_type is None:
+            media_type = cam_type
+        elif cam_type != media_type:
+            raise Exception(f'Camera "{camera_name}" has type {cam_type}, expected {media_type}')
+        manager.write(f'Importing camera "{camera_name}"…\n')
+        child_folder = gc.createFolder(parent_folder_id, camera_name, reuseExisting=True)
+        child_id = str(child_folder['_id'])
+        _import_exported_dataset_directory(gc, manager, child_id, camera_dir)
+        imported_cameras[camera_name] = {'folderId': child_id}
+
+    calibration_file_id = None
+    if sub_type == 'stereo':
+        calibration_file_id = _upload_stereo_calibration_files(
+            gc, manager, parent_folder_id, working_directory
+        )
+
+    create_body = {
+        'name': dataset_name,
+        'fps': fps,
+        'type': media_type,
+        'subType': sub_type,
+        'defaultDisplay': default_display,
+        'cameras': imported_cameras,
+        'cameraOrder': camera_order,
     }
-    if type == constants.VideoType:
-        # set transcoded and non-transcoded versions
-        transcoded_video = list(gc.listItem(root_folderId, name=video["filename"]))
-        if len(transcoded_video) == 1:
-            ffprobe = meta["ffprobe_info"]
-            originalFpsString, originalFps = fps_from_ffprobe_stream(ffprobe)
+    if calibration_file_id:
+        create_body['calibrationFileId'] = calibration_file_id
 
-            transcoded_metadata = {
-                "codec": "h264",
-                "originalFps": originalFps,
-                "originalFpsString": originalFpsString,
-                "source_video": False,
-                "transcoder": "ffmpeg",
-            }
-            gc.addMetadataToItem(str(transcoded_video[0]['_id']), transcoded_metadata)
-            # other video is tagged as the source video
-            for item in all_files:
-                if (
-                    item["name"].endswith(tuple(constants.validVideoFormats))
-                    and item["name"] != video["filename"]
-                ):
-                    source_metadata = {
-                        "codec": ffprobe["codec_name"],
-                        "originalFps": originalFps,
-                        "originalFpsString": originalFpsString,
-                        "source_video": False,
-                    }
-                    gc.addMetadataToItem(str(item['_id']), source_metadata)
-            root_meta["originalFps"] = originalFps
-            root_meta["originalFpsString"] = originalFpsString
-
-    # Need to tag folder Level data (annotate, and others)
-    root_meta[constants.DatasetMarker] = True
-    gc.addMetadataToFolder(root_folderId, root_meta)
-    gc.post(f'dive_rpc/postprocess/{root_folderId}', data={"skipJobs": True})
+    manager.write('Finalizing multicamera dataset…\n')
+    gc.sendRestRequest(
+        'POST',
+        '/dive_dataset/multicam',
+        parameters={'parentFolderId': parent_folder_id},
+        json=create_body,
+    )

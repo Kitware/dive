@@ -82,7 +82,8 @@ def _missing_bounds_error(annotation_ids: List) -> str:
     shown = ', '.join(str(annotation_id) for annotation_id in annotation_ids[:10])
     extra = f' (and {len(annotation_ids) - 10} more)' if len(annotation_ids) > 10 else ''
     return (
-        f'{len(annotation_ids)} COCO annotation(s) cannot be imported because they have no bbox and '
+        f'{len(annotation_ids)} COCO annotation(s) cannot be imported because '
+        f'they have no bbox and '
         f'no usable polygon segmentation (ids: {shown}{extra}). '
         'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
         'Annotations with only RLE segmentation masks still require a bbox.'
@@ -193,7 +194,9 @@ def _parse_annotation(
             viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
 
     # DIVE extension fields for non-standard COCO attributes.
-    detection_attributes = annotation.get('dive_detection_attributes', annotation.get('attributes', {}))
+    detection_attributes = annotation.get(
+        'dive_detection_attributes', annotation.get('attributes', {})
+    )
     if isinstance(detection_attributes, dict):
         attributes.update(detection_attributes)
     track_attributes_value = annotation.get(

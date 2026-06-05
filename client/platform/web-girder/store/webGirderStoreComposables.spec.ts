@@ -248,26 +248,209 @@ describe('web-girder store composables', () => {
       expect(parent.name).toBe('Parent');
     });
 
-    it('loadDataset rejects multi type', async () => {
-      vi.spyOn(api, 'getFolder').mockResolvedValue({
-        data: { parentId: 'p', parentCollection: 'folder' },
-      } as never);
+    it('loadDataset loads multi type parent with multiCamMedia', async () => {
+      vi.spyOn(api, 'resolveDatasetFolderId').mockResolvedValue({
+        folderId: 'm1',
+        compositeId: null,
+      });
+      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
+        if (id === 'm1') {
+          return {
+            data: {
+              parentId: 'p1',
+              parentCollection: 'folder',
+            },
+          } as never;
+        }
+        if (id === 'p1') {
+          return {
+            data: {
+              _id: 'p1',
+              _modelType: 'folder',
+              name: 'Parent',
+            },
+          } as never;
+        }
+        throw new Error(`unexpected getFolder(${id})`);
+      });
       vi.spyOn(api, 'getDataset').mockResolvedValue({
         data: {
-          id: 'm',
+          id: 'm1',
           type: MultiType,
-          name: '',
-          fps: 1,
+          name: 'Stereo',
+          fps: 5,
+          imageData: [],
+          createdAt: '',
+          subType: 'stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: {
+              left: { type: 'image-sequence', imageData: [], videoUrl: '' },
+              right: { type: 'image-sequence', imageData: [], videoUrl: '' },
+            },
+          },
+          annotate: true,
+        },
+      } as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({
+        data: { imageData: [] },
+      } as never);
+
+      const meta = await useDataset().loadDataset('m1');
+      expect(meta.type).toBe(MultiType);
+      expect(meta.subType).toBe('stereo');
+      expect(meta.multiCamMedia?.defaultDisplay).toBe('left');
+      expect(meta.imageData).toEqual([]);
+      expect(meta.videoUrl).toBeUndefined();
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
+    });
+
+    it('loadDataset composite id does not overwrite parent meta in store', async () => {
+      const { loadDataset, meta } = useDataset();
+      vi.spyOn(api, 'resolveDatasetFolderId').mockImplementation(async (datasetId: string) => {
+        if (datasetId === 'm1') {
+          return { folderId: 'm1', compositeId: null };
+        }
+        if (datasetId === 'm1/cam2') {
+          return { folderId: 'child2', compositeId: 'm1/cam2' };
+        }
+        throw new Error(`unexpected resolve ${datasetId}`);
+      });
+      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
+        if (id === 'child2') {
+          return {
+            data: { parentId: 'm1', parentCollection: 'folder' },
+          } as never;
+        }
+        if (id === 'm1') {
+          return {
+            data: {
+              _id: 'm1',
+              _modelType: 'folder',
+              parentId: 'p1',
+              parentCollection: 'folder',
+              name: 'Multi',
+            },
+          } as never;
+        }
+        if (id === 'p1') {
+          return {
+            data: { _id: 'p1', _modelType: 'folder', name: 'Parent' },
+          } as never;
+        }
+        throw new Error(`unexpected getFolder(${id})`);
+      });
+      vi.spyOn(api, 'getDataset').mockImplementation(async () => ({
+        data: {
+          id: 'm1',
+          type: MultiType,
+          name: 'Multi',
+          fps: 5,
+          imageData: [],
+          createdAt: '',
+          subType: 'multicam',
+          multiCamMedia: {
+            defaultDisplay: 'cam1',
+            cameraOrder: ['cam1', 'cam2', 'cam3'],
+            cameras: {
+              cam1: { type: 'image-sequence', imageData: [], videoUrl: '' },
+              cam2: { type: 'image-sequence', imageData: [], videoUrl: '' },
+              cam3: { type: 'image-sequence', imageData: [], videoUrl: '' },
+            },
+          },
+          annotate: true,
+        },
+      }) as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({ data: { imageData: [] } } as never);
+
+      await loadDataset('m1');
+      expect(meta.value?.type).toBe(MultiType);
+
+      vi.spyOn(api, 'getDataset').mockResolvedValue({
+        data: {
+          id: 'm1/cam2',
+          type: VideoType,
+          name: 'cam2',
+          fps: 5,
           imageData: [],
           createdAt: '',
           subType: null,
           multiCamMedia: null,
-          annotate: false,
+          annotate: true,
         },
       } as never);
-      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({ data: {} } as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({
+        data: { video: { url: 'http://cam2' } },
+      } as never);
 
-      await expect(useDataset().loadDataset('m1')).rejects.toThrow('multi is not supported');
+      const childMeta = await loadDataset('m1/cam2');
+      expect(childMeta.type).toBe(VideoType);
+      expect(meta.value?.type).toBe(MultiType);
+      expect(meta.value?.multiCamMedia?.cameraOrder).toEqual(['cam1', 'cam2', 'cam3']);
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
+    });
+
+    it('loadDataset composite id primes parent meta when store is empty', async () => {
+      const { loadDataset, meta, setMeta } = useDataset();
+      setMeta(null);
+      vi.spyOn(api, 'resolveDatasetFolderId').mockResolvedValue({
+        folderId: 'child1',
+        compositeId: 'm1/left',
+      });
+      vi.spyOn(api, 'getFolder').mockImplementation(async (id: string) => {
+        if (id === 'child1') {
+          return {
+            data: { parentId: 'm1', parentCollection: 'folder' },
+          } as never;
+        }
+        if (id === 'm1') {
+          return {
+            data: {
+              _id: 'm1',
+              _modelType: 'folder',
+              parentId: 'p1',
+              parentCollection: 'folder',
+              name: 'Stereo',
+            },
+          } as never;
+        }
+        if (id === 'p1') {
+          return {
+            data: { _id: 'p1', _modelType: 'folder', name: 'Parent' },
+          } as never;
+        }
+        throw new Error(`unexpected getFolder(${id})`);
+      });
+      vi.spyOn(api, 'getDataset').mockResolvedValue({
+        data: {
+          id: 'm1',
+          type: MultiType,
+          name: 'Stereo',
+          fps: 5,
+          imageData: [],
+          createdAt: '',
+          subType: 'stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: { left: {}, right: {} },
+          },
+          annotate: true,
+        },
+      } as never);
+      vi.spyOn(api, 'getDatasetMedia').mockResolvedValue({
+        data: { imageData: [{ url: 'x' }] },
+      } as never);
+
+      await loadDataset('m1/left');
+      expect(meta.value?.subType).toBe('stereo');
+      expect(meta.value?.type).toBe(MultiType);
+      const browseLocation = useLocation().getLocation() as { _id?: string; name?: string };
+      expect(browseLocation._id).toBe('p1');
+      expect(browseLocation.name).toBe('Parent');
     });
   });
 

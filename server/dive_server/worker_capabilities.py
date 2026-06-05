@@ -2,8 +2,8 @@ import os
 from typing import Any, Dict
 from urllib.parse import quote, urljoin
 
-import requests
 from girder.exceptions import RestException
+import requests
 
 from dive_utils import asbool
 

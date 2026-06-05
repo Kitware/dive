@@ -11,7 +11,7 @@ from girder_worker.utils import JobStatus
 
 
 class DIVEBatchPostprocessTaskParams:
-    """Describes the parameters for running batch postprocess on folders with MarkForPostProcess flag"""
+    """Parameters for batch postprocess on folders with MarkForPostProcess flag."""
 
     def __init__(
         self,
@@ -112,18 +112,26 @@ def batch_postprocess_task(baseJob: Task):
                         processed += 1
 
                         if current_job['status'] == JobStatus.SUCCESS:
+                            log_msg = (
+                                f'Completed postprocess for folder {processed} '
+                                f'of {total_count}\n'
+                            )
                             Job().updateJob(
                                 baseJob,
-                                log=f'Completed postprocess for folder {processed} of {total_count}\n',
+                                log=log_msg,
                                 progressCurrent=processed,
                                 progressTotal=total_count,
                                 status=JobStatus.RUNNING,
                             )
                         else:
                             error_msg = current_job.get("log", "Unknown error")
+                            log_msg = (
+                                f'Postprocess failed for folder {processed} '
+                                f'of {total_count}: {error_msg}\n'
+                            )
                             Job().updateJob(
                                 baseJob,
-                                log=f'Postprocess failed for folder {processed} of {total_count}: {error_msg}\n',
+                                log=log_msg,
                                 progressCurrent=processed,
                                 progressTotal=total_count,
                                 status=JobStatus.RUNNING,
@@ -133,7 +141,10 @@ def batch_postprocess_task(baseJob: Task):
                         Job().cancelJob(current_job)
                         Job().updateJob(
                             baseJob,
-                            log='Job became inactive but finished moving on to next job, previous error can be ignored\n',
+                            log=(
+                                'Job became inactive but finished moving on to next job, '
+                                'previous error can be ignored\n'
+                            ),
                             progressCurrent=processed,
                             progressTotal=total_count,
                             status=JobStatus.RUNNING,
@@ -145,9 +156,13 @@ def batch_postprocess_task(baseJob: Task):
                     Job().cancelJob(current_job)
                     current_job_id = None
                     processed += 1
+                    log_msg = (
+                        f'Lost track of job for folder {processed} of {total_count}, '
+                        f'continuing...\n Error: {str(e)}\n'
+                    )
                     Job().updateJob(
                         baseJob,
-                        log=f'Lost track of job for folder {processed} of {total_count}, continuing...\n Error: {str(e)}\n',
+                        log=log_msg,
                         progressCurrent=processed,
                         progressTotal=total_count,
                         status=JobStatus.RUNNING,
@@ -172,9 +187,13 @@ def batch_postprocess_task(baseJob: Task):
 
                     # If skipJobs=True, postprocess runs synchronously
                     if skipJobs:
+                        log_msg = (
+                            f'Completed postprocess for folder {processed + 1} '
+                            f'of {total_count}: {folder_name}\n'
+                        )
                         Job().updateJob(
                             baseJob,
-                            log=f'Completed postprocess for folder {processed + 1} of {total_count}: {folder_name}\n',
+                            log=log_msg,
                             progressCurrent=processed + 1,
                             progressTotal=total_count,
                             status=JobStatus.RUNNING,
@@ -186,18 +205,27 @@ def batch_postprocess_task(baseJob: Task):
                         if job_ids:
                             # Track the first job ID (usually the main processing job)
                             current_job_id = job_ids[0]
+                            log_msg = (
+                                f'Started postprocess for folder {processed + 1} '
+                                f'of {total_count}: {folder_name} '
+                                f'(tracking job {current_job_id})\n'
+                            )
                             Job().updateJob(
                                 baseJob,
-                                log=f'Started postprocess for folder {processed + 1} of {total_count}: {folder_name} (tracking job {current_job_id})\n',
+                                log=log_msg,
                                 progressCurrent=processed,
                                 progressTotal=total_count,
                                 status=JobStatus.RUNNING,
                             )
                         else:
                             # No jobs created, treat as synchronous
+                            log_msg = (
+                                f'Completed postprocess for folder {processed + 1} '
+                                f'of {total_count}: {folder_name} (no jobs created)\n'
+                            )
                             Job().updateJob(
                                 baseJob,
-                                log=f'Completed postprocess for folder {processed + 1} of {total_count}: {folder_name} (no jobs created)\n',
+                                log=log_msg,
                                 progressCurrent=processed + 1,
                                 progressTotal=total_count,
                                 status=JobStatus.RUNNING,

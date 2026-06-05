@@ -129,10 +129,10 @@ export default Vue.extend({
         this.remove(pendingUpload);
       }
     },
-    async createUploadFolder(name, fps, type) {
+    async createUploadFolder(name, fps, type, parentFolderId = null) {
       try {
         const { data } = await makeViameFolder({
-          folderId: this.location._id,
+          folderId: parentFolderId || this.location._id,
           name,
           type,
           fps,
@@ -144,6 +144,7 @@ export default Vue.extend({
       }
     },
     async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
+      let jobIds = [];
       // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
@@ -151,9 +152,11 @@ export default Vue.extend({
           results: data.results,
         });
         try {
-          await postProcess(folder._id, false, skipTranscoding);
+          const { data: postprocessResult } = await postProcess(folder._id, false, skipTranscoding);
+          jobIds = postprocessResult.job_ids ?? [];
         } catch (err) {
           this.$emit('error', { err, name });
+          throw err;
         }
       };
       // Sets the files used by the fileUploader mixin
@@ -164,6 +167,25 @@ export default Vue.extend({
         postUpload,
         uploadCls: GirderUploadManager,
       });
+      return { folder, jobIds };
+    },
+    /**
+     * Upload a single camera dataset folder (used by multicam import).
+     */
+    async uploadCameraDataset({
+      name, fps, type, mediaList, meta = null, annotationFile = null, skipTranscoding = true,
+      parentFolderId = null,
+    }) {
+      let files = mediaList.map((item) => this.convertFileToInternal(item));
+      files.push(this.convertFileToInternal(meta));
+      files.push(this.convertFileToInternal(annotationFile));
+      files = files.filter((item) => item !== null);
+      const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
+      if (!folder) {
+        throw new Error(`Failed to create folder for camera ${name}`);
+      }
+      const { folder: uploadedFolder, jobIds } = await this.uploadFiles(name, folder, files, [], skipTranscoding);
+      return { folder: uploadedFolder, jobIds };
     },
   },
 });
