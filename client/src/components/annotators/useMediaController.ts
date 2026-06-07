@@ -3,17 +3,19 @@
 import geo, { GeoEvent } from 'geojs';
 import * as d3 from 'd3';
 
-import Vue, {
+import {
   ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
 } from 'vue';
 import { map, over } from 'lodash';
+
+import { createEventBus } from 'dive-common/utils/eventBus';
 
 import { use } from '../../provides';
 import type { AggregateMediaController, MediaController } from './mediaControllerType';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
-const bus = new Vue();
+const bus = createEventBus();
 let allowCameraTrigger = true; // Used to prevent infinite loop on Camera Sync
 
 interface MediaControllerReactiveData {

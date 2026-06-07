@@ -1,5 +1,5 @@
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 
 import {
   GirderDataBrowser,
@@ -13,7 +13,7 @@ import {
 } from '@girder/components/src';
 import DataSharedBreadCrumb from './DataSharedBreadCrumb.vue';
 
-export default Vue.extend({
+export default defineComponent({
   components: {
     GirderAccessControl,
     GirderBreadcrumb,

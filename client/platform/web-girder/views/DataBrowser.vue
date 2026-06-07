@@ -32,7 +32,7 @@ export default defineComponent({
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const {
-      location, selected, locationIsViameFolder, setRouteFromLocation,
+      location, selected, locationIsViameFolder, setRouteFromLocation, setSelected,
     } = useLocation();
     const jobs = useJobs();
 
@@ -69,6 +69,12 @@ export default defineComponent({
       && !selected.value.length
     ));
 
+    function updateRowsPerPage(count: number) {
+      if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+        clientSettings.rowsPerPage = count;
+      }
+    }
+
     eventBus.$on('refresh-data-browser', handleNotification);
     onBeforeUnmount(() => {
       eventBus.$off('refresh-data-browser', handleNotification);
@@ -92,6 +98,8 @@ export default defineComponent({
       getMultiCamTooltip,
       handleNotification,
       setLocation,
+      setSelected,
+      updateRowsPerPage,
       updateUploading,
     };
   },
@@ -101,14 +109,16 @@ export default defineComponent({
 <template>
   <DiveGirderBrowser
     ref="fileManager"
-    v-model="selected"
+    :value="selected"
     :selectable="!locationIsViameFolder"
     :new-folder-enabled="
       !selected.length && !locationIsViameFolder
     "
     :location="location"
-    :items-per-page.sync="clientSettings.rowsPerPage"
+    :items-per-page="clientSettings.rowsPerPage"
     :items-per-page-options="itemsPerPageOptions"
+    @input="setSelected"
+    @update:itemsPerPage="updateRowsPerPage"
     @update:location="setLocation($event)"
   >
     <template #headerwidget>

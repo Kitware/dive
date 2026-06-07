@@ -1,5 +1,7 @@
 <script>
-export default {
+import { defineComponent } from 'vue';
+
+export default defineComponent({
   name: 'NavigationTitle',
   props: {
     name: {
@@ -12,7 +14,7 @@ export default {
       return process.env.VUE_APP_GIT_HASH;
     },
   },
-};
+});
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 import { throttle, debounce, sortBy } from 'lodash';
 import * as d3 from 'd3';
 
@@ -12,7 +12,7 @@ function intersect(range1, range2) {
   return [max[0], min[1] < max[1] ? min[1] : max[1]];
 }
 
-export default Vue.extend({
+export default defineComponent({
   name: 'EventChart',
   props: {
     startFrame: {

@@ -1,9 +1,9 @@
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 import { throttle } from 'lodash';
 import * as d3 from 'd3';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'LineChart',
   props: {
     startFrame: {

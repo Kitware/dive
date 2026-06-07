@@ -138,6 +138,7 @@
       "vue/no-lone-template": "off",
       "vuejs-accessibility/mouse-events-have-key-events": "off",
       "vuejs-accessibility/click-events-have-key-events": "off",
+      "vue/no-v-model-argument": "off",
       "vue/no-mutating-props": "off",
       "no-promise-executor-return": "off",
       "no-shadow": "off",

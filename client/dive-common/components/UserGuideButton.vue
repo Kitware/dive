@@ -1,7 +1,8 @@
 <script>
+import { defineComponent } from 'vue';
 import UserGuideDialog from 'dive-common/components/UserGuideDialog.vue';
 
-export default {
+export default defineComponent({
   components: {
     UserGuideDialog,
   },
@@ -17,7 +18,7 @@ export default {
       userGuideLink: 'https://kitware.github.io/dive/',
     };
   },
-};
+});
 </script>
 <template>
   <div>
