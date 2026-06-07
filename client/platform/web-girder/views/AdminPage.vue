@@ -1,4 +1,5 @@
 <script>
+import { defineComponent } from 'vue';
 
 import AddOns from './Admin/Addons.vue';
 import AdminRecents from './Admin/AdminRecents.vue';
@@ -8,7 +9,7 @@ import AdminBranding from './Admin/AdminBranding.vue';
 import AdminStats from './Admin/AdminStats.vue';
 import AdminUpdate from './Admin/AdminUpdate.vue';
 
-export default {
+export default defineComponent({
   name: 'AdminPage',
   components: {
     AddOns,
@@ -27,7 +28,7 @@ export default {
       currentTab: null,
     };
   },
-};
+});
 </script>
 
 <template>

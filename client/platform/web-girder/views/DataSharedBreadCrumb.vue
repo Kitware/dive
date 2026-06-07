@@ -1,7 +1,8 @@
 <script>
+import { defineComponent } from 'vue';
 import { createLocationValidator, getLocationType } from '@girder/components/src';
 
-export default {
+export default defineComponent({
   inject: ['girderRest'],
   props: {
     location: {
@@ -97,7 +98,7 @@ export default {
       };
     },
   },
-};
+});
 </script>
 
 <template>
