@@ -482,6 +482,7 @@ def export_tracks_as_csv(
     header=True,
     typeFilter=None,
     revision=None,
+    datasetInfo=None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
@@ -492,6 +493,8 @@ def export_tracks_as_csv(
     :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
     :param header: include or omit header
     :param typeFilter: set of track types to only export if not empty
+    :param datasetInfo: per-dataset station metadata; emitted as a nested JSON entry on the
+        ``# metadata`` line when non-empty (omitted entirely when empty/absent)
     """
     if thresholds is None:
         thresholds = {}
@@ -506,6 +509,8 @@ def export_tracks_as_csv(
             metadata["fps"] = fps
         if revision is not None:
             metadata["revision"] = revision
+        if datasetInfo:
+            metadata["datasetInfo"] = datasetInfo
         writeHeader(writer, metadata)
 
     for t in track_iterator:

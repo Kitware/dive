@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
+import parseSync from 'csv-parse/lib/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
@@ -290,6 +291,62 @@ describe('VIAME serialize testing', () => {
     const output = fs.readFileSync(path).toString().split('\n');
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7'];
     expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
+  });
+});
+
+// Returns the entries of the `# metadata` row (without the leading marker), or null if absent
+function getMetadataFields(output: string[]): string[] | null {
+  const metadataLine = output.find((line) => line.startsWith('# metadata'));
+  if (metadataLine === undefined) {
+    return null;
+  }
+  return (parseSync(metadataLine) as string[][])[0].slice(1);
+}
+
+function getDatasetInfoEntry(output: string[]): Record<string, unknown> | null {
+  const fields = getMetadataFields(output);
+  if (fields === null) {
+    return null;
+  }
+  const entry = fields.find((field) => field.startsWith('datasetInfo: '));
+  return entry ? JSON.parse(entry.slice('datasetInfo: '.length)) : null;
+}
+
+describe('VIAME datasetInfo passthrough', () => {
+  const datasetInfo = {
+    gfishsite_id: '2024TXN012',
+    cruise: 2403,
+    sta_lat: 26.8195,
+    year: 2024,
+  };
+
+  it('writes a populated datasetInfo as one nested JSON entry on the # metadata line', async () => {
+    const path = '/home/test.json';
+    const stream = fs.createWriteStream(path);
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+      excludeBelowThreshold: false,
+      header: true,
+    });
+    const output = fs.readFileSync(path).toString().split('\n');
+    const parsed = getDatasetInfoEntry(output);
+    // round-trips as a single key with numeric fields preserved and ids kept as strings
+    expect(parsed).toEqual(datasetInfo);
+    expect(typeof parsed?.cruise).toBe('number');
+    expect(typeof parsed?.sta_lat).toBe('number');
+    expect(typeof parsed?.gfishsite_id).toBe('string');
+  });
+
+  it('omits the datasetInfo entry entirely when datasetInfo is empty', async () => {
+    const path = '/home/test.json';
+    const stream = fs.createWriteStream(path);
+    await serialize(stream, data, { ...meta, datasetInfo: {} } as JsonMeta, new Set<string>(), {
+      excludeBelowThreshold: false,
+      header: true,
+    });
+    const output = fs.readFileSync(path).toString().split('\n');
+    const fields = getMetadataFields(output);
+    expect(fields).not.toBeNull();
+    expect(fields?.some((field) => field.startsWith('datasetInfo'))).toBe(false);
   });
 });
 
