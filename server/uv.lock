@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10, <3.12"
 resolution-markers = [
     "python_full_version >= '3.11' and sys_platform == 'darwin'",
@@ -492,6 +492,7 @@ dependencies = [
     { name = "cherrypy" },
     { name = "click" },
     { name = "girder" },
+    { name = "girder-client" },
     { name = "girder-jobs" },
     { name = "girder-large-image" },
     { name = "girder-plugin-worker" },
@@ -538,11 +539,12 @@ requires-dist = [
     { name = "cherrypy", specifier = ">=18.9.0" },
     { name = "click", specifier = ">=8.1.3" },
     { name = "gdal", marker = "extra == 'large-image'", index = "https://girder.github.io/large_image_wheels/" },
-    { name = "girder", specifier = "==5.0.4" },
-    { name = "girder-jobs", specifier = "==5.0.4" },
+    { name = "girder", specifier = "==5.0.10" },
+    { name = "girder-client", specifier = "==5.0.10" },
+    { name = "girder-jobs", specifier = "==5.0.10" },
     { name = "girder-large-image", specifier = "==1.34.2a180" },
-    { name = "girder-plugin-worker", specifier = "==5.0.4" },
-    { name = "girder-worker", specifier = "==5.0.4" },
+    { name = "girder-plugin-worker", specifier = "==5.0.10" },
+    { name = "girder-worker", specifier = "==5.0.10" },
     { name = "girder-worker-utils", specifier = ">=0.9.0,<1" },
     { name = "gputil", specifier = ">=1.4.0" },
     { name = "large-image", specifier = "==1.34.2a180" },
@@ -658,7 +660,7 @@ wheels = [
 
 [[package]]
 name = "girder"
-version = "5.0.4"
+version = "5.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bcrypt" },
@@ -687,14 +689,14 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/21/4c/ec19c17c90d6be52ac90582d8f4caed761ef4f98c694ab2fb97840fa53f6/girder-5.0.4.tar.gz", hash = "sha256:73589bde2e0d8955f930c2756259db93b3eae25d9ebe9022c3bb5c98530982e7", size = 2784081, upload-time = "2026-04-21T14:36:58.819Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/ee/018ede53a8f0fed181a53db5068c338b3f9a69161967d26c2716c79bf13b/girder-5.0.10.tar.gz", hash = "sha256:63e2b32e2c53c2e6faa0d88cc72388a626d582d2d480380b18a8cf86c9cee5c3", size = 2805837, upload-time = "2026-06-02T18:16:50.697Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/b8/4cc296441b887b25ce078d88a7362cb9c0f19cc8e1e51b26494a911c6a12/girder-5.0.4-py3-none-any.whl", hash = "sha256:074f72a6e5fc929612755db4f4569999967e1e04e18c8745b2c4479c2faa5bcc", size = 1973506, upload-time = "2026-04-21T14:36:56.853Z" },
+    { url = "https://files.pythonhosted.org/packages/37/3e/b9beab5a61f800dda846bb6711f8a5d01e8508719f82f05e9a477044b17a/girder-5.0.10-py3-none-any.whl", hash = "sha256:4907ef7f0f963d35b88d50d66db20da16794e728b0f8d9de12fcde6dcbc8de84", size = 1986196, upload-time = "2026-06-02T18:16:48.861Z" },
 ]
 
 [[package]]
 name = "girder-client"
-version = "5.0.4"
+version = "5.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -702,21 +704,21 @@ dependencies = [
     { name = "requests" },
     { name = "requests-toolbelt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/6d/944ee3110dd0f49f55e742e49ce8fbe8a25b2d842b6685d640b5fc405eca/girder_client-5.0.4.tar.gz", hash = "sha256:4db7db7a64b836cfa8157cbbc290b30bd6494e20ff5030ebb9bbdfc28a4525ef", size = 21428, upload-time = "2026-04-21T14:40:12.812Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/4f/24d2569da7a9d0f5b23080585f7085464094be05ffc9a7c757c3febe4031/girder_client-5.0.10.tar.gz", hash = "sha256:ddf49527c7d9611c3c23ffad7f7bf033f58537efeebb61af3577626d4e4a66c1", size = 25814, upload-time = "2026-06-02T18:21:10.708Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/64/8604a1fbadb5d926f0f008333462d831ac4540ea748d6abd637605a23d1f/girder_client-5.0.4-py3-none-any.whl", hash = "sha256:9a6835c5d1168ddc3de34db1babd553c1393ed1f031f79b094b02bdeb7a6a77b", size = 21162, upload-time = "2026-04-21T14:40:11.302Z" },
+    { url = "https://files.pythonhosted.org/packages/62/a7/7f5689570f053656a931e0d55c88f4d8f0ade591c532809da7aa7c1de705/girder_client-5.0.10-py3-none-any.whl", hash = "sha256:d7538a9c824ee07cb9b3043e51473461b46952b9be15e72fbe01684c249218bf", size = 25948, upload-time = "2026-06-02T18:21:09.543Z" },
 ]
 
 [[package]]
 name = "girder-jobs"
-version = "5.0.4"
+version = "5.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "girder" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/13/f9bc797a9f0f9154e6a394fe4e0b0dbc48d75dd99d39150fa88372ef9b98/girder_jobs-5.0.4.tar.gz", hash = "sha256:5529bbe6cd444326866fe0b7aab40d69cbacedd5884f9c326c9bab04bc2229db", size = 205667, upload-time = "2026-04-21T14:38:28.934Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/2b/4e2df0bf9686496eb5291aa98e155201f3c7486a9e99c6347acfc826e4ad/girder_jobs-5.0.10.tar.gz", hash = "sha256:054b2b5f7f55a79abde3ac816527db676e0f5669bca2b2ce41148b038ef04538", size = 205755, upload-time = "2026-06-02T18:18:55.673Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/5e/b2bd98d3f66069418ffb677254935b82ff01d8994608aa25f4e45b341a83/girder_jobs-5.0.4-py3-none-any.whl", hash = "sha256:e5f1138c55fb1b078eb8a3078ce166694a17147b23b8fef49a9419e0a8e0b32f", size = 202410, upload-time = "2026-04-21T14:38:27.744Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/72/9edd9fbf198fa03c54f918d9d3cf42ddb87607ee7fbf3c2fb974afc109ac/girder_jobs-5.0.10-py3-none-any.whl", hash = "sha256:3d1e1c936a7285697d4d4df193d721ac068cd005b19c331eb76c03ea127c770b", size = 202490, upload-time = "2026-06-02T18:18:54.445Z" },
 ]
 
 [[package]]
@@ -734,20 +736,20 @@ wheels = [
 
 [[package]]
 name = "girder-plugin-worker"
-version = "5.0.4"
+version = "5.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "girder" },
     { name = "girder-jobs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/0d/055f296789a58b3f7827893f6d2b07f30246faaf54415d4791479bddbd8a/girder_plugin_worker-5.0.4.tar.gz", hash = "sha256:4c1bd52e059cc58379182b9ed69de4f4b00403f5eeca1bfaf647dd193b485159", size = 12289, upload-time = "2026-04-21T14:39:55.315Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/7b/b09bbc207181ed25bce7422e8e0daeea27de3efff7af50714bceedc1e7c5/girder_plugin_worker-5.0.10.tar.gz", hash = "sha256:e3b7fb7819791ca1196b2002df2d21f63682c2ffa298ec129eaa45536398150f", size = 12282, upload-time = "2026-06-02T18:20:49.814Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/46/bb1e40ee4d8c903172c7a7ebefe609827f4006a69da7c4e8f12feaff227b/girder_plugin_worker-5.0.4-py3-none-any.whl", hash = "sha256:5eca2f85cbe4026615e51c6205e072827cc2075e5925b861616beb16399a8e48", size = 13503, upload-time = "2026-04-21T14:39:54.199Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/11/60a9f92ae2f1f7250e77b75a92795f3dbd68947ffec49fc1fd966a150fb6/girder_plugin_worker-5.0.10-py3-none-any.whl", hash = "sha256:ef8c7dc100c9be6c4f391203710d723bf161ee1dbabb44990bf48dbeca33f9b9", size = 13520, upload-time = "2026-06-02T18:20:48.884Z" },
 ]
 
 [[package]]
 name = "girder-worker"
-version = "5.0.4"
+version = "5.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "celery" },
@@ -762,9 +764,9 @@ dependencies = [
     { name = "stevedore" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/83/56/7b6fb2ea26f8885b35faed5afa006e13e24228e89d4c97f37aaa2db371ec/girder_worker-5.0.4.tar.gz", hash = "sha256:aa7cca7086ebdde25f5defc9714234d81bcc01447990c087bab4a5f58062ea64", size = 42661, upload-time = "2026-04-21T14:40:21.616Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/e5/8dc794e3c8944f233363216f1894e330d9b92d9d06bfb335e08f0d33659b/girder_worker-5.0.10.tar.gz", hash = "sha256:ee8f4bc878c986745009743c15a854fe6befebd535cc12bd2f970366f0e597b4", size = 42659, upload-time = "2026-06-02T18:21:21.881Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/67/358b080e17804dc12f814a900144ca6af24a1d0cb337c9eeb7fff42824c4/girder_worker-5.0.4-py3-none-any.whl", hash = "sha256:0c357699effa219f90f0ea25b05eef3c1e773cabf28d93dc7e92897e97e33b8f", size = 59235, upload-time = "2026-04-21T14:40:20.218Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/22/a47f3769564001cd098e16b70c6667f0b6aea2f3ffe44a8516340ccda64f/girder_worker-5.0.10-py3-none-any.whl", hash = "sha256:fb8185b55f52e30aff2fc2170bb0c868269f2145bdc794617d8ad733a677edf1", size = 59237, upload-time = "2026-06-02T18:21:20.879Z" },
 ]
 
 [[package]]

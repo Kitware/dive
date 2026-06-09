@@ -20,7 +20,7 @@ services:
       # Traefik HTTPS Redirect
       - "traefik.enable=true"
       - "traefik.http.routers.http-catchall.entrypoints=web"
-      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`.+`)"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https-mddl@docker"
       - "traefik.http.middlewares.redirect-to-https-mddl.redirectscheme.scheme=https"
     volumes:
