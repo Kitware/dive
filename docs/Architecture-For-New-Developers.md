@@ -170,7 +170,7 @@ Authoritative JSON shapes (including `TrackData`, `Feature`, `GroupData`, and im
 
 | Service | Image / build | Purpose |
 |---------|---------------|---------|
-| **`traefik`** | `traefik:v2.4` | Reverse proxy; app on host port **8010** |
+| **`traefik`** | `traefik:v3.7.4` | Reverse proxy; app on host port **8010** |
 | **`girder`** | `docker/girder.Dockerfile` → `kitware/viame-web` | API + static DIVE + Girder web clients |
 | **`mongo`** | `mongo:5.0` | Girder database |
 | **`rabbit`** | `rabbitmq:4.2-management` | Celery broker (management UI on **15672**) |

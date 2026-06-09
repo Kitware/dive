@@ -22,7 +22,7 @@ version: "3.8"
 services:
 
   traefik:
-    image: traefik:v2.4
+    image: traefik:v3.7.4
     container_name: traefik
     command: >
       --providers.docker=true
@@ -125,7 +125,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.services.girder-svc.loadbalancer.server.port=8080"
       - "traefik.http.routers.girder-rtr.entrypoints=web"
-      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`{catchall:.*}`)"
+      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`.+`)"
 
   # Worker for misc non gpu-bound tasks
   girder_worker_default:
