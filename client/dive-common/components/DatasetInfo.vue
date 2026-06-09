@@ -5,20 +5,12 @@ import {
 import { useDatasetId, useReadOnlyMode } from 'vue-media-annotator/provides';
 import { useApi, DatasetMeta } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
 import DatasetMetaEditorDialog from 'dive-common/components/DatasetMetaEditorDialog.vue';
 
 export default defineComponent({
   name: 'DatasetInfo',
 
-  components: { StackedVirtualSidebarContainer, DatasetMetaEditorDialog },
-
-  props: {
-    width: {
-      type: Number,
-      default: 300,
-    },
-  },
+  components: { DatasetMetaEditorDialog },
 
   setup() {
     const datasetId = useDatasetId();
@@ -172,170 +164,156 @@ export default defineComponent({
 </script>
 
 <template>
-  <StackedVirtualSidebarContainer
-    :width="width"
-    :enable-slot="false"
-  >
-    <template #default>
-      <v-container class="datasetinfo-content">
-        <v-list
-          v-if="infoRows.length"
+  <div>
+    <v-container>
+      <v-list
+        v-if="infoRows.length"
+        dense
+        class="py-0"
+      >
+        <v-list-item
+          v-for="row in infoRows"
+          :key="`datasetInfo_${row.name}`"
+          class="px-1"
+        >
+          <v-list-item-content class="d-block py-1">
+            <v-list-item-subtitle class="font-weight-medium wrap-text">
+              {{ row.name }}
+            </v-list-item-subtitle>
+            <div class="wrap-text">
+              {{ row.value?.toString() ?? '' }}
+            </div>
+          </v-list-item-content>
+        </v-list-item>
+      </v-list>
+      <div
+        v-else
+        class="pa-2 grey--text"
+      >
+        No dataset metadata available.
+      </div>
+
+      <div class="text-subtitle-1 font-weight-medium px-1 pt-3 pb-1">
+        Custom Metadata
+      </div>
+      <v-divider />
+
+      <div
+        v-if="!customMetaKeys.length && readOnlyMode"
+        class="pa-2 grey--text"
+      >
+        No custom metadata.
+      </div>
+
+      <v-list
+        dense
+        class="py-0"
+      >
+        <v-list-item
+          v-for="key in customMetaKeys"
+          :key="`customMeta_${key}`"
+          class="px-1"
+        >
+          <v-list-item-content class="d-block py-1">
+            <v-list-item-subtitle class="font-weight-medium wrap-text">
+              {{ key }}
+            </v-list-item-subtitle>
+            <div class="d-flex align-center">
+              <v-text-field
+                v-if="!readOnlyMode"
+                :value="customMeta[key]"
+                dense
+                hide-details
+                single-line
+                class="pt-0 mt-0"
+                @change="updateEntry(key, $event)"
+              />
+              <span
+                v-else
+                class="text-truncate flex-grow-1 min-width-0"
+              >
+                {{ customMeta[key] }}
+              </span>
+              <v-btn
+                icon
+                small
+                class="ml-1 flex-shrink-0"
+                :aria-label="`Expand ${key}`"
+                :title="`Expand ${key}`"
+                @click="openEditor(key)"
+              >
+                <v-icon small>
+                  mdi-arrow-expand
+                </v-icon>
+              </v-btn>
+              <v-btn
+                v-if="!readOnlyMode"
+                icon
+                small
+                class="flex-shrink-0"
+                :aria-label="`Delete ${key}`"
+                :title="`Delete ${key}`"
+                @click="removeEntry(key)"
+              >
+                <v-icon small>
+                  mdi-delete
+                </v-icon>
+              </v-btn>
+            </div>
+          </v-list-item-content>
+        </v-list-item>
+      </v-list>
+
+      <div
+        v-if="!readOnlyMode"
+        class="d-flex align-center px-1 pt-1"
+      >
+        <v-text-field
+          ref="fieldInput"
+          v-model="newKey"
+          label="Field"
           dense
-          class="py-0"
-        >
-          <v-list-item
-            v-for="row in infoRows"
-            :key="`datasetInfo_${row.name}`"
-            class="px-1"
-          >
-            <v-list-item-content class="d-block py-1">
-              <v-list-item-subtitle class="font-weight-medium wrap-text">
-                {{ row.name }}
-              </v-list-item-subtitle>
-              <div class="wrap-text">
-                {{ row.value?.toString() ?? '' }}
-              </div>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-        <div
-          v-else
-          class="pa-2 grey--text"
-        >
-          No dataset metadata available.
-        </div>
-
-        <div class="text-subtitle-1 font-weight-medium px-1 pt-3 pb-1">
-          Custom Metadata
-        </div>
-        <v-divider />
-
-        <div
-          v-if="!customMetaKeys.length && readOnlyMode"
-          class="pa-2 grey--text"
-        >
-          No custom metadata.
-        </div>
-
-        <v-list
+          hide-details
+          single-line
+          class="pt-0 mt-0 mr-1"
+          @keyup.enter="addEntry"
+        />
+        <v-text-field
+          v-model="newValue"
+          label="Value"
           dense
-          class="py-0"
+          hide-details
+          single-line
+          class="pt-0 mt-0 mr-1"
+          @keyup.enter="addEntry"
+        />
+        <v-btn
+          icon
+          small
+          :disabled="!newKey.trim()"
+          aria-label="Add metadata field"
+          title="Add metadata field"
+          @click="addEntry"
         >
-          <v-list-item
-            v-for="key in customMetaKeys"
-            :key="`customMeta_${key}`"
-            class="px-1"
-          >
-            <v-list-item-content class="d-block py-1">
-              <v-list-item-subtitle class="font-weight-medium wrap-text">
-                {{ key }}
-              </v-list-item-subtitle>
-              <div class="d-flex align-center">
-                <v-text-field
-                  v-if="!readOnlyMode"
-                  :value="customMeta[key]"
-                  dense
-                  hide-details
-                  single-line
-                  class="pt-0 mt-0"
-                  @change="updateEntry(key, $event)"
-                />
-                <span
-                  v-else
-                  class="text-truncate flex-grow-1 min-width-0"
-                >
-                  {{ customMeta[key] }}
-                </span>
-                <v-btn
-                  icon
-                  small
-                  class="ml-1 flex-shrink-0"
-                  :aria-label="`Expand ${key}`"
-                  :title="`Expand ${key}`"
-                  @click="openEditor(key)"
-                >
-                  <v-icon small>
-                    mdi-arrow-expand
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="!readOnlyMode"
-                  icon
-                  small
-                  class="flex-shrink-0"
-                  :aria-label="`Delete ${key}`"
-                  :title="`Delete ${key}`"
-                  @click="removeEntry(key)"
-                >
-                  <v-icon small>
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </div>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
+          <v-icon>mdi-plus</v-icon>
+        </v-btn>
+      </div>
+    </v-container>
 
-        <div
-          v-if="!readOnlyMode"
-          class="d-flex align-center px-1 pt-1"
-        >
-          <v-text-field
-            ref="fieldInput"
-            v-model="newKey"
-            label="Field"
-            dense
-            hide-details
-            single-line
-            class="pt-0 mt-0 mr-1"
-            @keyup.enter="addEntry"
-          />
-          <v-text-field
-            v-model="newValue"
-            label="Value"
-            dense
-            hide-details
-            single-line
-            class="pt-0 mt-0 mr-1"
-            @keyup.enter="addEntry"
-          />
-          <v-btn
-            icon
-            small
-            :disabled="!newKey.trim()"
-            aria-label="Add metadata field"
-            title="Add metadata field"
-            @click="addEntry"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </div>
-      </v-container>
-
-      <DatasetMetaEditorDialog
-        v-model="editorOpen"
-        :field-name="editorKey"
-        :field-value="editorValue"
-        :readonly="readOnlyMode"
-        @save="saveEditor"
-      />
-    </template>
-  </StackedVirtualSidebarContainer>
+    <DatasetMetaEditorDialog
+      v-model="editorOpen"
+      :field-name="editorKey"
+      :field-value="editorValue"
+      :readonly="readOnlyMode"
+      @save="saveEditor"
+    />
+  </div>
 </template>
 
 <style scoped>
 .wrap-text {
   white-space: normal !important;
   overflow-wrap: anywhere;
-}
-
-/* The sidebar card is a fixed-height flex column with overflow hidden, so this
-   content must be a scroll region itself; min-height:0 lets the flex child
-   shrink below its content instead of being clipped and unreachable. */
-.datasetinfo-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 /* Let the read-only value shrink below its content width so text-truncate can
