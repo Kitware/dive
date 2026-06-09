@@ -1382,6 +1382,41 @@ async function getLargeImagePath(settings: Settings, datasetId: string): Promise
   }
 }
 
+/**
+ * Resolve the absolute path of the ORIGINAL (pre-transcode) image for a frame.
+ *
+ * The percentile-stretch / display path must read the original source image
+ * (e.g. a 16-bit IR TIFF), NOT the 8-bit PNG produced by import-time transcoding
+ * (`transcodedImageFiles`), which has already discarded the dynamic range the
+ * stretch is meant to recover. `imageData` URLs sent to the client point at the
+ * transcoded copies, so the client passes a frame index and we map it back to
+ * the original here. Returns null if the frame is out of range or unavailable.
+ */
+async function getDisplayImagePath(
+  settings: Settings,
+  datasetId: string,
+  frame: number,
+): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    const originals = meta.originalImageFiles ?? [];
+    if (!Number.isInteger(frame) || frame < 0 || frame >= originals.length) {
+      console.warn(
+        `[display] getDisplayImagePath: frame ${frame} out of range for dataset "${datasetId}" (${originals.length} images)`,
+      );
+      return null;
+    }
+    const entry = originals[frame];
+    // originalImageFiles entries are relative to originalBasePath, except for
+    // image-list imports where they are absolute and originalBasePath is ''.
+    return npath.isAbsolute(entry) ? entry : npath.join(meta.originalBasePath, entry);
+  } catch (err) {
+    console.warn(`[display] getDisplayImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1499,6 +1534,7 @@ export {
   getProjectDir,
   getValidatedProjectDir,
   getLargeImagePath,
+  getDisplayImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,

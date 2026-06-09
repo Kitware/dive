@@ -125,7 +125,9 @@ function computeFrameBounds(
 
   for (let v = 0; v < binCount; v += 1) {
     cumulative += histogram[v];
-    if (!foundMin && cumulative >= lowTarget) {
+    // `cumulative > 0` guards the lowTarget === 0 case (tiny images), where
+    // `cumulative >= 0` would otherwise pin min to bin 0 before any pixel is seen.
+    if (!foundMin && cumulative > 0 && cumulative >= lowTarget) {
       min = v;
       foundMin = true;
     }

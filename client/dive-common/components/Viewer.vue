@@ -580,10 +580,16 @@ export default defineComponent({
       return debouncedSaves[camera];
     }
 
-    function toDisplayUrl(rawUrl: string, low: number, high: number): string {
-      const queryStr = rawUrl.split('?')[1];
-      const path = (queryStr ? new URLSearchParams(queryStr).get('path') : null) ?? '';
-      if (!path) console.error('[toDisplayUrl] could not extract path from URL:', rawUrl);
+    function toDisplayUrl(
+      rawUrl: string,
+      camera: string,
+      frame: number,
+      low: number,
+      high: number,
+    ): string {
+      // The backend resolves the ORIGINAL source image from (dataset id, frame index)
+      // rather than the transcoded path in rawUrl, so it can stretch the original 16-bit
+      // TIFF instead of the 8-bit PNG that import-time transcoding produced.
       // For desktop the raw URL is absolute (http://127.0.0.1:PORT/api/media?path=...).
       // Reuse its origin so requests go directly to the Express backend, not through the
       // Vite proxy which doesn't know the randomly-assigned backend port.
@@ -592,7 +598,8 @@ export default defineComponent({
         const parsed = new URL(rawUrl);
         apiBase = `${parsed.origin}/api`;
       } catch { /* rawUrl is relative (web platform) — keep /api */ }
-      return `${apiBase}/media/display?path=${encodeURIComponent(path)}&low=${low}&high=${high}`;
+      const id = encodeURIComponent(getCameraId(camera));
+      return `${apiBase}/media/display?id=${id}&frame=${frame}&low=${low}&high=${high}`;
     }
 
     const previousStretchByCam: Record<string, string> = {};
@@ -609,9 +616,9 @@ export default defineComponent({
       let frames: FrameImage[];
       if (enh?.percentileStretch) {
         const { lowPercentile, highPercentile } = enh.percentileStretch;
-        frames = raw.map((item) => ({
+        frames = raw.map((item, index) => ({
           ...item,
-          url: toDisplayUrl(item.url, lowPercentile, highPercentile),
+          url: toDisplayUrl(item.url, camera, index, lowPercentile, highPercentile),
         }));
       } else {
         frames = raw;
