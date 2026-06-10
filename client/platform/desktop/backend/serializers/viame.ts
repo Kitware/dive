@@ -8,7 +8,7 @@ import csvparser from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
-import { cloneDeep, flattenDeep } from 'lodash';
+import { cloneDeep, flattenDeep, isEmpty } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
@@ -521,7 +521,12 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     '10-11+: Repeated Species',
     'Confidence Pairs or Attributes',
   ]);
-  if (meta.fps) {
+  /* Per-dataset station metadata travels out as one nested JSON entry; omit entirely when empty
+   * (no `datasetInfo: {}` noise) so existing exports stay byte-unchanged. */
+  const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo)
+    ? meta.datasetInfo
+    : undefined;
+  if (meta.fps || datasetInfo) {
     const metadataRow = [
       '# metadata',
       `fps: ${meta.fps}`,
@@ -530,6 +535,9 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     ];
     if (meta.execTime) {
       metadataRow.push(`exec_time: ${meta.execTime}`);
+    }
+    if (datasetInfo) {
+      metadataRow.push(`datasetInfo: ${JSON.stringify(datasetInfo)}`);
     }
     writer.write(metadataRow);
   }

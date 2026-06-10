@@ -237,6 +237,7 @@ class MetadataMutable(BaseModel):
     imageEnhancements: Optional[Dict[str, Any]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
+    datasetInfo: Optional[Dict[str, Any]]
     fps: Optional[float]
 
     @staticmethod

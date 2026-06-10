@@ -166,6 +166,7 @@ def get_annotation_csv_generator(
         imageFiles = [img['name'] for img in crud.valid_images(folder, user)]
 
     thresholds = fromMeta(folder, "confidenceFilters", {})
+    datasetInfo = fromMeta(folder, "datasetInfo", {})
 
     def downloadGenerator():
         datalist = TrackItem().list(folder, revision=revision)
@@ -177,6 +178,7 @@ def get_annotation_csv_generator(
             fps=fps,
             typeFilter=typeFilter,
             revision=revision,
+            datasetInfo=datasetInfo,
         ):
             yield data
 

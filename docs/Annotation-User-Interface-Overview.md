@@ -11,6 +11,7 @@ This documentation section provides a reference guide to the annotation interfac
 * **[Timeline](UI-Timeline.md)** - timeline view of tracks and detections, as well as an interface to control the current frame along the video/image-sequence
 * **[Attributes](UI-Attributes.md)** - Attributes panel used to assign attributes to individual tracks or detections.
 * **Context Sidebar** - Open from the [editing bar](UI-Navigation-Editing-Bar.md#context-sidebar-web) (Web). The right sidebar has several view modes selected from a dropdown at the top of the panel.
+    * **[Dataset Info](UI-DatasetInfo.md)** - View dataset properties and attach custom dataset-level metadata that is shown while annotating and included in CSV export.
     * **[Revision History](Web-Version.md#revision-history)** (Web) - Inspect and check out past saved annotation states.
     * **Threshold Controls** - Advance thresholding of annotation confidence values per-type.
     * **Image Enhancement** - Adjust the image threshold range.
