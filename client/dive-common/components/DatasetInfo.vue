@@ -255,7 +255,7 @@ export default defineComponent({
                 :title="`Delete ${key}`"
                 @click="removeEntry(key)"
               >
-                <v-icon small>
+                <v-icon small color="error">
                   mdi-delete
                 </v-icon>
               </v-btn>
