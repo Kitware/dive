@@ -3,7 +3,7 @@ import {
   defineComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
-import type { Vue } from 'vue/types/vue';
+import type { ComponentPublicInstance } from 'vue';
 import type Vuetify from 'vuetify/lib';
 import { cloneDeep, debounce } from 'lodash';
 
@@ -129,7 +129,7 @@ export default defineComponent({
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
-    const playbackComponent = ref(undefined as Vue | undefined);
+    const playbackComponent = ref(undefined as ComponentPublicInstance | undefined);
     const readonlyState = computed(() => props.readOnlyMode
     || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
     const sets: Ref<string[]> = ref([]);
@@ -1268,12 +1268,12 @@ export default defineComponent({
           v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-chip
               outlined
               :color="annotationSetColor(currentSet || 'default')"
               small
-              v-on="on"
+              v-bind="activatorProps"
               @click="context.toggle('AnnotationSets')"
             > {{ currentSet || 'default' }}</v-chip>
 
@@ -1290,13 +1290,13 @@ export default defineComponent({
           v-if="displayComparisons && displayComparisons.length"
           bottom
         >
-          <template #activator="{ on: onIcon }">
+          <template #activator="{ props: activatorProps }">
             <v-chip
               class="pl-2"
               small
               outlined
               :color="annotationSetColor(displayComparisons[0] || 'default')"
-              v-on="onIcon"
+              v-bind="activatorProps"
             > {{ displayComparisons[0] }}</v-chip>
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
@@ -1309,12 +1309,12 @@ export default defineComponent({
           <v-tooltip
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-chip
                 class="warning pr-1"
                 style="white-space:nowrap;display:inline"
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 Read Only Mode
                 <v-icon
@@ -1332,9 +1332,9 @@ export default defineComponent({
         <v-tooltip
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              v-on="on"
+              v-bind="activatorProps"
               @click="cycleSidebarMode"
             >
               {{ sidebarModeIcon }}
@@ -1355,8 +1355,8 @@ export default defineComponent({
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
           }"
-          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
-          :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
+          v-model:tail-settings="clientSettings.annotatorPreferences.trackTails"
+          v-model:show-user-created-icon="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
@@ -1405,9 +1405,9 @@ export default defineComponent({
           bottom
           :z-index="20"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              v-on="on"
+              v-bind="activatorProps"
               @click="context.toggle(undefined)"
             >
               {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
@@ -1422,8 +1422,8 @@ export default defineComponent({
       <slot name="title-right" />
       <user-guide-button annotating />
       <v-tooltip bottom>
-        <template #activator="{ on }">
-          <div v-on="on">
+        <template #activator="{ props: activatorProps }">
+          <div v-bind="activatorProps">
             <v-btn
               icon
               @click="showUserSettingsDialog = true"
@@ -1438,21 +1438,20 @@ export default defineComponent({
       <v-tooltip
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-badge
-            overlap
-            bottom
+            location="bottom end"
             :color="readonlyState ? 'warning' : undefined"
             :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
-            :content="!readonlyState ? pendingSaveCount : undefined"
-            :value="readonlyState || pendingSaveCount > 0"
-            offset-x="14"
-            offset-y="18"
+            :content="!readonlyState && pendingSaveCount > 0 ? pendingSaveCount : undefined"
+            :model-value="readonlyState || pendingSaveCount > 0"
+            :offset-x="14"
+            :offset-y="18"
           >
             <v-btn
               icon
               :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-              v-on="on"
+              v-bind="activatorProps"
               @click="save(currentSet)"
             >
               <v-icon :class="{ 'mdi-spin': saveInProgress }">
@@ -1487,26 +1486,24 @@ export default defineComponent({
         @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
-        <template>
-          <v-divider />
-          <primary-attribute-track-filter
-            :toggle="context.toggle"
-          />
-          <ConfidenceFilter
-            v-if="context.state.active !== 'TypeThreshold'"
-            class="ma-2 mb-0"
-            :confidence.sync="confidenceFilters.default"
-            :disabled="disableAnnotationFilters"
-            @end="saveThreshold"
+        <v-divider />
+        <primary-attribute-track-filter
+          :toggle="context.toggle"
+        />
+        <ConfidenceFilter
+          v-if="context.state.active !== 'TypeThreshold'"
+          v-model:confidence="confidenceFilters.default"
+          class="ma-2 mb-0"
+          :disabled="disableAnnotationFilters"
+          @end="saveThreshold"
+        >
+          <a
+            style="text-decoration: underline; color: white;"
+            @click="context.toggle('TypeThreshold')"
           >
-            <a
-              style="text-decoration: underline; color: white;"
-              @click="context.toggle('TypeThreshold')"
-            >
-              Advanced
-            </a>
-          </ConfidenceFilter>
-        </template>
+            Advanced
+          </a>
+        </ConfidenceFilter>
       </sidebar>
       <v-col
         style="position: relative;"
@@ -1559,7 +1556,7 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            :collapsed.sync="controlsCollapsed"
+            v-model:collapsed="controlsCollapsed"
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
             }"
@@ -1654,9 +1651,9 @@ export default defineComponent({
             </div>
           </div>
           <BottomPanel
+            v-model:controls-collapsed="controlsCollapsed"
             :sidebar-mode="sidebarMode"
             :controls-ref="controlsRef"
-            :controls-collapsed.sync="controlsCollapsed"
             :line-chart-data="lineChartData"
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"

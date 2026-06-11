@@ -419,7 +419,7 @@ export default defineComponent({
     <template v-for="attrKey in trackAttributeColumns">
       <input
         v-if="editingAttributeKey === attrKey"
-        :key="attrKey + '-input'"
+        :key="`${attrKey}-input`"
         ref="attributeInputRef"
         :value="editAttributeValue"
         type="text"
@@ -432,7 +432,7 @@ export default defineComponent({
       >
       <span
         v-else
-        :key="attrKey"
+        :key="`${attrKey}-span`"
         class="track-attribute text-truncate"
         :class="{ editable: !readOnlyMode }"
         @click="startEditAttribute(attrKey, $event)"

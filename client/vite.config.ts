@@ -1,12 +1,14 @@
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-import vue from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
+import vuetify from 'vite-plugin-vuetify';
 import type { UserConfig } from 'vite';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+import { girderComponentsAlias, girderComponentsResolver } from './vite.girderComponentsResolver';
 
 function getGitHash() {
   try {
@@ -23,11 +25,6 @@ const webOverrides: UserConfig = {
     outDir: 'dist',
     emptyOutDir: true,
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
-  },
 };
 
 export default defineConfig(({ mode }) => {
@@ -37,13 +34,28 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
-    plugins: [vue()],
+    plugins: [
+      girderComponentsResolver(),
+      vue(),
+      vuetify({ autoImport: true }),
+    ],
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
+        ...girderComponentsAlias,
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
+      },
+    },
+    css: {
+      preprocessorOptions: {
+        scss: {
+          silenceDeprecations: ['legacy-js-api', 'import'],
+        },
+        sass: {
+          silenceDeprecations: ['legacy-js-api', 'import'],
+        },
       },
     },
     define: {
@@ -64,7 +76,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
-        // WebSocket for Girder notifications (not under /api; see notificatonBus.ts).
         '/notifications': {
           target: apiProxyTarget,
           secure: false,
@@ -74,6 +85,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+      exclude: ['@girder/components', 'vue-gtag'],
     },
     build: {
       sourcemap: true,

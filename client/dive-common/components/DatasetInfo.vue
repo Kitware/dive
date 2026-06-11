@@ -168,7 +168,7 @@ export default defineComponent({
     <v-container>
       <v-list
         v-if="infoRows.length"
-        dense
+        density="compact"
         class="py-0"
       >
         <v-list-item
@@ -176,19 +176,19 @@ export default defineComponent({
           :key="`datasetInfo_${row.name}`"
           class="px-1"
         >
-          <v-list-item-content class="d-block py-1">
+          <div class="d-block py-1">
             <v-list-item-subtitle class="font-weight-medium wrap-text">
               {{ row.name }}
             </v-list-item-subtitle>
             <div class="wrap-text">
               {{ row.value?.toString() ?? '' }}
             </div>
-          </v-list-item-content>
+          </div>
         </v-list-item>
       </v-list>
       <div
         v-else
-        class="pa-2 grey--text"
+        class="pa-2 text-medium-emphasis"
       >
         No dataset metadata available.
       </div>
@@ -200,13 +200,13 @@ export default defineComponent({
 
       <div
         v-if="!customMetaKeys.length && readOnlyMode"
-        class="pa-2 grey--text"
+        class="pa-2 text-medium-emphasis"
       >
         No custom metadata.
       </div>
 
       <v-list
-        dense
+        density="compact"
         class="py-0"
       >
         <v-list-item
@@ -214,19 +214,18 @@ export default defineComponent({
           :key="`customMeta_${key}`"
           class="px-1"
         >
-          <v-list-item-content class="d-block py-1">
+          <div class="d-block py-1">
             <v-list-item-subtitle class="font-weight-medium wrap-text">
               {{ key }}
             </v-list-item-subtitle>
             <div class="d-flex align-center">
               <v-text-field
                 v-if="!readOnlyMode"
-                :value="customMeta[key]"
-                dense
+                :model-value="customMeta[key]"
+                density="compact"
                 hide-details
-                single-line
                 class="pt-0 mt-0"
-                @change="updateEntry(key, $event)"
+                @update:model-value="updateEntry(key, $event)"
               />
               <span
                 v-else
@@ -236,31 +235,34 @@ export default defineComponent({
               </span>
               <v-btn
                 icon
-                small
+                size="small"
                 class="ml-1 flex-shrink-0"
                 :aria-label="`Expand ${key}`"
                 :title="`Expand ${key}`"
                 @click="openEditor(key)"
               >
-                <v-icon small>
+                <v-icon size="small">
                   mdi-arrow-expand
                 </v-icon>
               </v-btn>
               <v-btn
                 v-if="!readOnlyMode"
                 icon
-                small
+                size="small"
                 class="flex-shrink-0"
                 :aria-label="`Delete ${key}`"
                 :title="`Delete ${key}`"
                 @click="removeEntry(key)"
               >
-                <v-icon small color="error">
+                <v-icon
+                  size="small"
+                  color="error"
+                >
                   mdi-delete
                 </v-icon>
               </v-btn>
             </div>
-          </v-list-item-content>
+          </div>
         </v-list-item>
       </v-list>
 
@@ -272,24 +274,22 @@ export default defineComponent({
           ref="fieldInput"
           v-model="newKey"
           label="Field"
-          dense
+          density="compact"
           hide-details
-          single-line
           class="pt-0 mt-0 mr-1"
           @keyup.enter="addEntry"
         />
         <v-text-field
           v-model="newValue"
           label="Value"
-          dense
+          density="compact"
           hide-details
-          single-line
           class="pt-0 mt-0 mr-1"
           @keyup.enter="addEntry"
         />
         <v-btn
           icon
-          small
+          size="small"
           :disabled="!newKey.trim()"
           aria-label="Add metadata field"
           title="Add metadata field"

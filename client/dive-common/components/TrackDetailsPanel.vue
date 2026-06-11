@@ -314,7 +314,7 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader class="pl-2 d-flex align-center">
+    <v-list-subheader class="pl-2 d-flex align-center">
       <span>{{
         multiSelectInProgress
           ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
@@ -322,23 +322,21 @@ export default defineComponent({
       }}</span>
       <v-spacer />
       <slot name="header-trailing" />
-    </v-subheader>
+    </v-list-subheader>
     <div
       v-if="!selectedTrackList.length"
       class="ml-4 body-2 text-caption "
     >
       <p>No track or group selected.</p>
-      <p>
-        This panel is used for:
-        <ul>
-          <li>Setting attributes on tracks and keyframes</li>
-          <li>Merging several tracks together</li>
-          <li>Viewing and managing class types and conficence values</li>
-          <li v-if="!multiCam">
-            Creating and editing track groups
-          </li>
-        </ul>
-      </p>
+      <p>This panel is used for:</p>
+      <ul>
+        <li>Setting attributes on tracks and keyframes</li>
+        <li>Merging several tracks together</li>
+        <li>Viewing and managing class types and conficence values</li>
+        <li v-if="!multiCam">
+          Creating and editing track groups
+        </li>
+      </ul>
       <p>Select a track or group to populate this editor.</p>
       <span
         style="text-decoration: underline; cursor: pointer;"
@@ -364,9 +362,9 @@ export default defineComponent({
           />
         </div>
         <RangeEditor
+          v-model:begin="editingGroup.begin"
+          v-model:end="editingGroup.end"
           :frame="frameRef"
-          :begin.sync="editingGroup.begin"
-          :end.sync="editingGroup.end"
           disabled
           class="my-2 input-box px-0"
         />
@@ -405,9 +403,9 @@ export default defineComponent({
           <v-spacer />
           Cancel (esc)
         </v-btn>
-        <v-subheader class="pl-0">
+        <v-list-subheader class="pl-0">
           Group Members:
-        </v-subheader>
+        </v-list-subheader>
       </div>
       <datalist id="allTypesOptions">
         <option
@@ -483,7 +481,7 @@ export default defineComponent({
       <div class="d-flex flex-column">
         <v-btn
           v-if="!multiSelectInProgress && !multiCam"
-          color="primary lighten-1"
+          color="primary-lighten-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
           depressed
@@ -501,7 +499,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           v-if="!multiSelectInProgress && !multiCam"
-          color="primary darken-1"
+          color="primary-darken-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
           depressed
@@ -519,7 +517,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           v-if="multiSelectInProgress && (editingGroupIdRef === null)"
-          color="primary lighten-1"
+          color="primary-lighten-1"
           x-small
           depressed
           :disabled="multiSelectList.length < 2 || readOnlyMode || disabled"

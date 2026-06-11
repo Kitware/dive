@@ -22,8 +22,8 @@
 
   .playback-container {
     flex: 1;
-
-  
+    min-height: 0;
+    min-width: 0;
   }
   .loadingSpinnerContainer {
     z-index: 20;

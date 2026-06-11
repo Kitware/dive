@@ -1,0 +1,210 @@
+diff --git a/node_modules/@girder/components/src/components/DataBrowser/DataBrowser.vue b/node_modules/@girder/components/src/components/DataBrowser/DataBrowser.vue
+index f0bbd1a..473ac19 100644
+--- a/node_modules/@girder/components/src/components/DataBrowser/DataBrowser.vue
++++ b/node_modules/@girder/components/src/components/DataBrowser/DataBrowser.vue
+@@ -40,11 +40,11 @@ export default {
+ 
+   emits: [
+     'drag',
+-    'dragEnd',
+-    'dragStart',
++    'drag-end',
++    'drag-start',
+     'drop',
+-    'rowRightClick',
+-    'rowClick',
++    'row-right-click',
++    'row-click',
+     'update:location',
+     'update:options',
+     'update:selected',
+@@ -93,7 +93,7 @@ export default {
+   
+     // ---- Methods ----
+     function rowClick(row) {
+-      ctx.emit('rowClick', row, props.location);
++      ctx.emit('row-click', row, props.location);
+       if (getLocationType(row) !== 'item') {
+         changeLocation(row);
+       }
+@@ -342,10 +342,10 @@ export default {
+     :items-per-page-options="itemsPerPageOptions"
+     class="data-browser"
+     @row-click="rowClick"
+-    @row-right-click="$emit('rowRightClick', $event)"
++    @row-right-click="$emit('row-right-click', $event)"
+     @drag="$emit('drag', $event)"
+-    @drag-start="$emit('dragStart', $event)"
+-    @drag-end="$emit('dragEnd', $event)"
++    @drag-start="$emit('drag-start', $event)"
++    @drag-end="$emit('drag-end', $event)"
+     @drop="$emit('drop', $event)"
+     @update:selected="$emit('update:selected', $event)"
+     @update:options="$emit('update:options', $event)"
+diff --git a/node_modules/@girder/components/src/components/DataBrowser/DataTable.vue b/node_modules/@girder/components/src/components/DataBrowser/DataTable.vue
+index a4799fb..080aa74 100644
+--- a/node_modules/@girder/components/src/components/DataBrowser/DataTable.vue
++++ b/node_modules/@girder/components/src/components/DataBrowser/DataTable.vue
+@@ -22,10 +22,10 @@ export default {
+ 
+   emits: [
+     'drag',
+-    'dragEnd',
+-    'dragStart',
+-    'rowRightClick',
+-    'rowClick',
++    'drag-end',
++    'drag-start',
++    'row-right-click',
++    'row-click',
+     'update:options',
+     'update:selected',
+   ],
+@@ -56,7 +56,7 @@ export default {
+       if (props.selectable && shiftKey) {
+         toggleSelect(rowProps);
+       } else {
+-        ctx.emit('rowClick', rowProps.item);
++        ctx.emit('row-click', rowProps.item);
+       }
+     }
+ 
+@@ -151,8 +151,8 @@ export default {
+         :active="props.isSelected(props.internalItem)"
+         :class="getRowClass(props.item)"
+         @drag="emitDrag('drag', $event, [props])"
+-        @drags-tart="emitDrag('dragStart', $event, [props])"
+-        @drag-end="emitDrag('dragEnd', $event, [props])"
++        @drag-start="emitDrag('drag-start', $event, [props])"
++        @drag-end="emitDrag('drag-end', $event, [props])"
+       >
+         <td
+           v-if="selectable"
+@@ -166,7 +166,7 @@ export default {
+         </td>
+ 
+         <td
+-          @contextmenu="$emit('rowRightClick', { row: props.item, event: $event })"
++          @contextmenu="$emit('row-right-click', { row: props.item, event: $event })"
+           @click="handleRowClick($event, props)"
+         >
+           <span
+diff --git a/node_modules/@girder/components/src/components/FileManager.vue b/node_modules/@girder/components/src/components/FileManager.vue
+index 8da6e77..1ac054d 100644
+--- a/node_modules/@girder/components/src/components/FileManager.vue
++++ b/node_modules/@girder/components/src/components/FileManager.vue
+@@ -48,11 +48,11 @@ export default {
+     'update:selected',
+     'update:location',
+     'update:options',
+-    'rowClick',
+-    'rowRightClick',
++    'row-click',
++    'row-right-click',
+     'drag',
+-    'dragStart',
+-    'dragEnd',
++    'drag-start',
++    'drag-end',
+     'drop',
+   ],
+ 
+@@ -201,10 +201,10 @@ export default {
+       :items-per-page-options="itemsPerPageOptions"
+       :selected="selected"
+       @drag="$emit('drag', $event)"
+-      @drag-end="$emit('dragEnd', $event)"
+-      @drag-start="$emit('dragStart', $event)"
++      @drag-end="$emit('drag-end', $event)"
++      @drag-start="$emit('drag-start', $event)"
+       @row-right-click="rowRightClick"
+-      @row-click="$emit('rowClick', $event)"
++      @row-click="$emit('row-click', $event)"
+       @update:location="$emit('update:location', $event)"
+       @update:options="$emit('update:options', $event)"
+       @update:selected="$emit('update:selected', $event)"
+diff --git a/node_modules/@girder/components/src/utils/legacyGirderParamsSerializer.js b/node_modules/@girder/components/src/utils/legacyGirderParamsSerializer.js
+new file mode 100644
+index 0000000..f049d48
+--- /dev/null
++++ b/node_modules/@girder/components/src/utils/legacyGirderParamsSerializer.js
+@@ -0,0 +1,48 @@
++/**
++ * Serialize query params the way axios 0.x did before the 1.x migration.
++ *
++ * Axios 1.x encodes nested objects with bracket notation (e.g. pipeline[name]=foo).
++ * Girder's jsonParam() decorators expect a single query key whose value is a JSON
++ * string (e.g. pipeline={"name":"foo"}), matching axios 0.x behavior and the
++ * girder_client integration tests. Without this serializer, endpoints such as
++ * dive_rpc/pipeline return HTTP 400 after upgrading to axios 1.x.
++ *
++ * @see https://github.com/axios/axios/blob/v1.x/MIGRATION_GUIDE.md
++ */
++
++function encodeParamValue(val) {
++  return encodeURIComponent(val)
++    .replace(/%3A/gi, ':')
++    .replace(/%24/g, '$')
++    .replace(/%2C/gi, ',')
++    .replace(/%20/g, '+')
++    .replace(/%5B/gi, '[')
++    .replace(/%5D/gi, ']');
++}
++
++export default function legacyGirderParamsSerializer(params) {
++  const parts = [];
++
++  Object.entries(params).forEach(([key, val]) => {
++    if (val === null || val === undefined) {
++      return;
++    }
++
++    const values = Array.isArray(val) ? val : [val];
++    const paramKey = Array.isArray(val) ? `${key}[]` : key;
++
++    values.forEach((value) => {
++      let serialized;
++      if (value instanceof Date) {
++        serialized = value.toISOString();
++      } else if (typeof value === 'object') {
++        serialized = JSON.stringify(value);
++      } else {
++        serialized = String(value);
++      }
++      parts.push(`${encodeParamValue(paramKey)}=${encodeParamValue(serialized)}`);
++    });
++  });
++
++  return parts.join('&');
++}
+diff --git a/node_modules/@girder/components/src/utils/restClient.js b/node_modules/@girder/components/src/utils/restClient.js
+index 71a1b6f..cbf2213 100644
+--- a/node_modules/@girder/components/src/utils/restClient.js
++++ b/node_modules/@girder/components/src/utils/restClient.js
+@@ -2,6 +2,7 @@ import axios_ from 'axios'
+ import cookies from 'js-cookie'
+ import { stringify } from 'qs'
+ import mitt from 'mitt'
++import legacyGirderParamsSerializer from './legacyGirderParamsSerializer'
+ 
+ const GirderTokenLength = 64
+ export const OauthTokenPrefix = '#girderToken='
+@@ -32,7 +33,8 @@ export default class RestClient {
+   constructor({
+     apiRoot = '/api/v1',
+     token = cookies.get('girderToken') || setCookieFromHash(window.location),
+-    axios = axios_.create(),
++    // Axios 1.x bracket-encodes nested params; Girder jsonParam expects JSON strings.
++    axios = axios_.create({ paramsSerializer: legacyGirderParamsSerializer }),
+     authenticateWithCredentials = false,
+     useGirderAuthorizationHeader = false,
+     setLocalCookie = true,
+@@ -45,7 +47,7 @@ export default class RestClient {
+     this.authenticateWithCredentials = authenticateWithCredentials;
+     this.useGirderAuthorizationHeader = useGirderAuthorizationHeader;
+ 
+-    this._axios = axios.create();
++    this._axios = axios;
+     this.emitter = mitt();
+ 
+     this._axios.interceptors.request.use((config) => ({

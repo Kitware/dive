@@ -7,6 +7,7 @@ import {
   Ref,
   onBeforeMount,
 } from 'vue';
+import { mergeActivatorProps, menuOpensToSide } from 'dive-common/vue-utilities/mergeActivatorProps';
 import {
   Pipelines,
   Pipe,
@@ -135,7 +136,11 @@ export default defineComponent({
       `Started ${selectedPipeline.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
     onBeforeMount(async () => {
-      unsortedPipelines.value = await getPipelineList();
+      try {
+        unsortedPipelines.value = await getPipelineList();
+      } catch (err) {
+        console.error('RunPipelineMenu: failed to load pipelines', err);
+      }
     });
 
     const pipelines = computed(() => filterPipelinesForDatasets(
@@ -258,6 +263,8 @@ export default defineComponent({
       pipelineParams,
       showParamsDialog,
       confirmPipelineExecution,
+      mergeActivatorProps,
+      menuOpensToSide,
     };
   },
 });
@@ -265,171 +272,170 @@ export default defineComponent({
 
 <template>
   <div>
-    <v-menu
-      max-width="230"
-      max-height="none"
-      content-class="pipeline-menu-content"
-      v-bind="menuOptions"
-      :close-on-content-click="false"
+    <v-tooltip
+      location="bottom"
+      :disabled="menuOpensToSide(menuOptions)"
     >
-      <template #activator="{ on: menuOn }">
-        <v-tooltip
-          bottom
-          :disabled="menuOptions.offsetX"
+      <template #activator="{ props: tooltipProps }">
+        <span
+          v-bind="tooltipProps"
+          :class="buttonOptions.block ? 'd-flex w-100' : 'd-inline-flex'"
         >
-          <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable || buttonOptions.disabled"
-              :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
-              v-on="{ ...tooltipOn, ...menuOn }"
-            >
-              <v-icon> mdi-pipe </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+          <v-menu
+            max-width="230"
+            max-height="none"
+            content-class="pipeline-menu-content"
+            v-bind="menuOptions"
+            :close-on-content-click="false"
+          >
+            <template #activator="{ props: menuProps }">
+              <v-btn
+                v-bind="mergeActivatorProps(menuProps, buttonOptions)"
+                :disabled="pipelinesNotRunnable || buttonOptions.disabled"
+                :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
               >
-                Run pipeline
-              </span>
-              <v-spacer />
-              <v-icon v-if="menuOptions.right">
-                mdi-chevron-right
-              </v-icon>
-            </v-btn>
-          </template>
-          <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
-          <span v-else>Pipeline is Currently running </span>
-        </v-tooltip>
-      </template>
-
-      <template>
-        <v-card v-if="pipelinesCurrentlyRunning">
-          <v-card-title> Pipeline Running </v-card-title>
-          <v-card-text>
-            Data cannot be edited while a pipeline is queued.
-            Pipelines produce output that will replace the existing annotations.
-            You can check the status of your job or cancel it
-          </v-card-text>
-          <v-row class="pb-1">
-            <!-- Viewer Loaded with single Job Running -->
-            <v-btn
-              v-if="singlePipelineValue && singlePipelineValue !== true"
-              large
-              depressed
-              :href="singlePipelineValue"
-              target="_blank"
-              color="info"
-              class="ma-auto"
-            >
-              View Running Job
-            </v-btn>
-            <!-- Desktop Job Running or Home/DataBrowser View -->
-            <v-btn
-              v-else
-              large
-              depressed
-              to="/jobs"
-              color="info"
-              class="ma-auto"
-            >
-              View Running Job
-            </v-btn>
-          </v-row>
-        </v-card>
-        <v-card v-else-if="readOnlyMode">
-          <v-card-title> Read only Mode</v-card-title>
-          <v-card-text>
-            This Dataset is in ReadOnly Mode.  You cannot run pipelines on this dataset.
-          </v-card-text>
-        </v-card>
-        <v-card v-else-if="includesLargeImage">
-          <v-card-title> Large Image</v-card-title>
-          <v-card-text>
-            Pipelines are not supported yet for Large Images.
-          </v-card-text>
-        </v-card>
-        <v-card
-          v-else-if="pipelines"
-          outlined
-        >
-          <v-card-title> VIAME Pipelines </v-card-title>
-
-          <v-card-text class="pb-0">
-            Choose a pipeline type. Check the
-            <a
-              href="https://kitware.github.io/dive/Pipeline-Documentation/"
-              target="_blank"
-            >docs</a>
-            for more information about these options.
-            <v-row class="px-3 pipeline-categories-row">
-              <v-col
-                v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
-                :key="pipeType"
-                cols="12"
-                :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
-              >
-                <v-menu
-                  :key="pipeType"
-                  offset-x
-                  right
-                  max-height="none"
-                  content-class="pipeline-menu-content"
+                <v-icon> mdi-pipe </v-icon>
+                <span
+                  v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                  class="pl-1"
                 >
-                  <template #activator="{ on }">
-                    <v-btn
-                      depressed
-                      block
-                      v-on="on"
-                    >
-                      {{ pipeTypeDisplay(pipeType) }}
-                      <v-icon
-                        right
-                        color="accent"
-                        class="ml-2"
-                      >
-                        mdi-menu-right
-                      </v-icon>
-                    </v-btn>
-                  </template>
+                  Run pipeline
+                </span>
+                <v-spacer />
+                <v-icon v-if="menuOpensToSide(menuOptions)">
+                  mdi-chevron-right
+                </v-icon>
+              </v-btn>
+            </template>
 
-                  <v-list
-                    dense
-                    outlined
-                    class="pipeline-submenu-list"
+            <v-card v-if="pipelinesCurrentlyRunning">
+              <v-card-title> Pipeline Running </v-card-title>
+              <v-card-text>
+                Data cannot be edited while a pipeline is queued.
+                Pipelines produce output that will replace the existing annotations.
+                You can check the status of your job or cancel it
+              </v-card-text>
+              <v-row class="pb-1">
+                <!-- Viewer Loaded with single Job Running -->
+                <v-btn
+                  v-if="singlePipelineValue && singlePipelineValue !== true"
+                  large
+                  depressed
+                  :href="singlePipelineValue"
+                  target="_blank"
+                  color="info"
+                  class="ma-auto"
+                >
+                  View Running Job
+                </v-btn>
+                <!-- Desktop Job Running or Home/DataBrowser View -->
+                <v-btn
+                  v-else
+                  large
+                  depressed
+                  to="/jobs"
+                  color="info"
+                  class="ma-auto"
+                >
+                  View Running Job
+                </v-btn>
+              </v-row>
+            </v-card>
+            <v-card v-else-if="readOnlyMode">
+              <v-card-title> Read only Mode</v-card-title>
+              <v-card-text>
+                This Dataset is in ReadOnly Mode.  You cannot run pipelines on this dataset.
+              </v-card-text>
+            </v-card>
+            <v-card v-else-if="includesLargeImage">
+              <v-card-title> Large Image</v-card-title>
+              <v-card-text>
+                Pipelines are not supported yet for Large Images.
+              </v-card-text>
+            </v-card>
+            <v-card
+              v-else-if="pipelines"
+              outlined
+            >
+              <v-card-title> VIAME Pipelines </v-card-title>
+
+              <v-card-text class="pb-0">
+                Choose a pipeline type. Check the
+                <a
+                  href="https://kitware.github.io/dive/Pipeline-Documentation/"
+                  target="_blank"
+                >docs</a>
+                for more information about these options.
+                <v-row class="px-3 pipeline-categories-row">
+                  <v-col
+                    v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
+                    :key="pipeType"
+                    cols="12"
+                    :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
                   >
-                    <v-tooltip
-                      v-for="pipeline in pipelines[pipeType].pipes"
-                      :key="`${pipeline.name}-${pipeline.pipe}`"
-                      left
-                      :open-delay="250"
-                      :disabled="!pipeline?.metadata?.description"
-                      max-width="400"
-                      content-class="pipeline-description-tooltip"
+                    <v-menu
+                      :key="pipeType"
+                      location="end"
+                      max-height="none"
+                      content-class="pipeline-menu-content"
                     >
-                      <template #activator="{ on, attrs }">
-                        <v-list-item
-                          v-bind="attrs"
-                          v-on="on"
-                          @click="runPipelineOnSelectedItem(pipeline)"
+                      <template #activator="{ props: activatorProps }">
+                        <v-btn
+                          variant="flat"
+                          block
+                          v-bind="activatorProps"
                         >
-                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                            {{ pipeline.name }}
-                            <v-icon style="margin-left: 20px">
-                              {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
-                            </v-icon>
-                          </v-list-item-title>
-                        </v-list-item>
+                          {{ pipeTypeDisplay(pipeType) }}
+                          <v-icon
+                            right
+                            color="accent"
+                            class="ml-2"
+                          >
+                            mdi-menu-right
+                          </v-icon>
+                        </v-btn>
                       </template>
-                      <RunPipelineToast :pipeline="pipeline" />
-                    </v-tooltip>
-                  </v-list>
-                </v-menu>
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
+
+                      <v-list
+                        density="compact"
+                        class="pipeline-submenu-list"
+                      >
+                        <v-tooltip
+                          v-for="pipeline in pipelines[pipeType].pipes"
+                          :key="`${pipeline.name}-${pipeline.pipe}`"
+                          location="start"
+                          :open-delay="250"
+                          :disabled="!pipeline?.metadata?.description"
+                          max-width="400"
+                          content-class="pipeline-description-tooltip"
+                        >
+                          <template #activator="{ props: activatorProps }">
+                            <v-list-item
+                              v-bind="activatorProps"
+                              @click="runPipelineOnSelectedItem(pipeline)"
+                            >
+                              <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
+                                {{ pipeline.name }}
+                                <v-icon style="margin-left: 20px">
+                                  {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                                </v-icon>
+                              </v-list-item-title>
+                            </v-list-item>
+                          </template>
+                          <RunPipelineToast :pipeline="pipeline" />
+                        </v-tooltip>
+                      </v-list>
+                    </v-menu>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+          </v-menu>
+        </span>
       </template>
-    </v-menu>
+      <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
+      <span v-else>Pipeline is Currently running </span>
+    </v-tooltip>
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"

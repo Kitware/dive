@@ -198,6 +198,18 @@ export default defineComponent({
       }
     });
 
+    function editButtonColor(active: boolean): string {
+      if (active) {
+        return props.editingDetails === 'Creating' ? 'success' : 'primary';
+      }
+      return props.editingMode ? 'white' : 'grey';
+    }
+
+    function editButtonIconColor(active: boolean): string | undefined {
+      if (active || props.editingMode) return 'white';
+      return undefined;
+    }
+
     return {
       modeToolTips,
       editButtons,
@@ -208,6 +220,8 @@ export default defineComponent({
       toggleEditButtonsExpanded,
       activeEditButton,
       editButtonsMenuKey,
+      editButtonColor,
+      editButtonIconColor,
     };
   },
 });
@@ -262,18 +276,19 @@ export default defineComponent({
         offset-y
         :close-on-content-click="false"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
-            v-bind="attrs"
+            v-bind="activatorProps"
             :disabled="!editingMode"
-            :outlined="!activeEditButton?.active"
-            :color="activeEditButton?.active ? editingHeader.color : ''"
-            class="mx-1"
-            small
-            v-on="on"
+            :variant="activeEditButton?.active ? 'flat' : 'outlined'"
+            :color="editButtonColor(!!activeEditButton?.active)"
+            class="mx-1 mode-button"
+            size="small"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-icon :color="editButtonIconColor(!!activeEditButton?.active)">
+              {{ activeEditButton?.icon }}
+            </v-icon>
             <v-btn
               icon
               x-small
@@ -291,22 +306,22 @@ export default defineComponent({
             v-for="button in editButtons"
             :key="`${button.id}-menu`"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-btn
                 :disabled="!editingMode"
-                :outlined="!button.active"
-                :color="button.active ? editingHeader.color : ''"
-                class="mx-1"
-                small
+                :variant="button.active ? 'flat' : 'outlined'"
+                :color="editButtonColor(button.active)"
+                class="mx-1 mode-button"
+                size="small"
                 @click="button.click"
               >
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon>{{ button.icon }}</v-icon>
+                <v-icon :color="editButtonIconColor(button.active)">
+                  {{ button.icon }}
+                </v-icon>
               </v-btn>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>{{ button.id }}</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>{{ button.id }}</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -333,14 +348,16 @@ export default defineComponent({
           v-for="button in editButtons"
           :key="button.id + 'view'"
           :disabled="!editingMode"
-          :outlined="!button.active"
-          :color="button.active ? editingHeader.color : ''"
-          class="mx-1"
-          small
+          :variant="button.active ? 'flat' : 'outlined'"
+          :color="editButtonColor(button.active)"
+          class="mx-1 mode-button"
+          size="small"
           @click="button.click"
         >
           <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
+          <v-icon :color="editButtonIconColor(button.active)">
+            {{ button.icon }}
+          </v-icon>
         </v-btn>
       </template>
       <slot name="delete-controls" />
@@ -371,8 +388,21 @@ export default defineComponent({
   border: 1px solid grey;
   border-radius: 4px;
 }
-.mode-button{
-  border: 1px solid grey;
+.mode-button {
+  min-width: 36px;
+  box-shadow: none !important;
+}
+
+.mode-button.v-btn--variant-outlined {
+  background-color: transparent !important;
+}
+
+.mode-button.v-btn--variant-flat pre {
+  color: white;
+}
+
+.mode-button.v-btn--variant-outlined:not(.v-btn--disabled) pre {
+  color: white;
 }
 .expand-toggle {
   opacity: 0.5;

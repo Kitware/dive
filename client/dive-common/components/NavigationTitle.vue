@@ -1,5 +1,7 @@
 <script>
-export default {
+import { defineComponent } from 'vue';
+
+export default defineComponent({
   name: 'NavigationTitle',
   props: {
     name: {
@@ -12,17 +14,17 @@ export default {
       return process.env.VUE_APP_GIT_HASH;
     },
   },
-};
+});
 </script>
 
 <template>
-  <v-toolbar-title class="my-title mx-5">
+  <v-toolbar-title class="my-title">
     <v-tooltip
       open-delay="200"
-      bottom
+      location="bottom"
     >
-      <template #activator="{ on }">
-        <span v-on="on">
+      <template #activator="{ props: activatorProps }">
+        <span v-bind="activatorProps">
           <slot>{{ name }}</slot>
         </span>
       </template>

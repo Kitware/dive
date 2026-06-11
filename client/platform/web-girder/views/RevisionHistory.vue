@@ -76,8 +76,8 @@ export default defineComponent({
       Past revisions are not editable.
       Return to latest or <b>clone</b> this revision to edit.
       <v-btn
-        x-small
-        depressed
+        size="x-small"
+        variant="flat"
         @click="checkout(undefined)"
       >
         Return to newest revision
@@ -85,59 +85,56 @@ export default defineComponent({
     </v-alert>
     <v-alert
       v-else
-      color="grey darken-3"
+      color="grey-darken-3"
       tile
     >
       Choose a previous revision to inspect in read-only mode.
     </v-alert>
     <v-list
       v-if="revisions.length"
-      two-line
     >
       <v-list-item
         v-for="revision in revisions"
         :key="revision.revision"
-        :input-value="revision.revision === revisionId"
+        :active="revision.revision === revisionId"
+        lines="two"
         @click="checkout(revision.revision)"
       >
-        <v-list-item-content>
-          <v-list-item-title>
-            <v-tooltip
-              bottom
-              open-delay="500"
-            >
-              <template #activator="{ on, attrs }">
-                <span
-                  v-bind="attrs"
-                  v-on="on"
-                  v-text="`${revision.revision}: ${revision.description}`"
-                />
-              </template>
-              <span>{{ revision.description }}</span>
-            </v-tooltip>
-          </v-list-item-title>
-          <v-list-item-title v-if="revision.set">
-            <v-chip
-              small
-              outlined
-              color="red"
-            >
-              {{ revision.set }}
-            </v-chip>
-          </v-list-item-title>
-          <v-list-item-subtitle>
-            by
-            <router-link
-              :to="`/user/${revision.author_id}`"
-            >
-              {{ revision.author_name }}
-            </router-link>
-          </v-list-item-subtitle>
-          <v-list-item-subtitle v-text="(new Date(revision.created)).toLocaleString()" />
-        </v-list-item-content>
-        <v-list-item-action>
-          <v-list-item-action-text v-text="`+${revision.additions} -${revision.deletions}`" />
-        </v-list-item-action>
+        <v-list-item-title>
+          <v-tooltip
+            location="bottom"
+            open-delay="500"
+          >
+            <template #activator="{ props: activatorProps }">
+              <span
+                v-bind="activatorProps"
+                v-text="`${revision.revision}: ${revision.description}`"
+              />
+            </template>
+            <span>{{ revision.description }}</span>
+          </v-tooltip>
+        </v-list-item-title>
+        <v-list-item-title v-if="revision.set">
+          <v-chip
+            size="small"
+            variant="outlined"
+            color="red"
+          >
+            {{ revision.set }}
+          </v-chip>
+        </v-list-item-title>
+        <v-list-item-subtitle>
+          by
+          <router-link
+            :to="`/user/${revision.author_id}`"
+          >
+            {{ revision.author_name }}
+          </router-link>
+        </v-list-item-subtitle>
+        <v-list-item-subtitle v-text="(new Date(revision.created)).toLocaleString()" />
+        <template #append>
+          <span v-text="`+${revision.additions} -${revision.deletions}`" />
+        </template>
       </v-list-item>
       <span
         v-intersect.quiet="loadNext"

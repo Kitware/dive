@@ -56,108 +56,115 @@ export default defineComponent({
 <template>
   <div class="d-flex flex-column">
     <div class="compact-header d-flex flex-column px-2 py-1">
-      <div class="d-flex align-center">
-        <span class="compact-header-text">Tracks ({{ filteredTracks.length }})</span>
-        <v-spacer />
-        <v-menu
-          v-model="data.columnSettingsActive"
-          :close-on-content-click="false"
-          :nudge-bottom="28"
-        >
-          <template #activator="{ on: menuOn, attrs }">
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on: tooltipOn }">
-                <v-btn
-                  icon
-                  x-small
-                  class="mr-2"
-                  v-bind="attrs"
-                  v-on="{ ...menuOn, ...tooltipOn }"
-                >
-                  <v-icon
-                    x-small
-                    :color="data.columnSettingsActive ? 'accent' : 'default'"
-                  >
-                    mdi-view-column
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Column visibility</span>
-            </v-tooltip>
-          </template>
-          <slot
-            v-if="data.columnSettingsActive"
-            name="column-settings"
-          />
-        </v-menu>
-        <v-menu
-          v-model="data.settingsActive"
-          :close-on-content-click="false"
-          :nudge-bottom="28"
-        >
-          <template #activator="{ on, attrs }">
-            <v-btn
-              icon
-              x-small
-              class="mr-2"
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-icon
-                x-small
-                :color="data.settingsActive ? 'accent' : 'default'"
+      <div class="compact-header-row">
+        <span class="compact-header-text track-header-title">Tracks ({{ filteredTracks.length }})</span>
+        <div class="track-header-actions">
+          <v-tooltip
+            open-delay="100"
+            location="bottom"
+          >
+            <template #activator="{ props: tooltipProps }">
+              <span
+                v-bind="tooltipProps"
+                class="d-inline-flex"
               >
-                mdi-cog
-              </v-icon>
-            </v-btn>
-          </template>
-          <slot
-            v-if="data.settingsActive"
-            name="settings"
-          />
-        </v-menu>
-        <v-tooltip open-delay="100" bottom>
-          <template #activator="{ on }">
-            <v-btn
-              :disabled="filteredTracks.length === 0 || readOnlyMode"
-              icon
-              x-small
-              class="mr-2"
-              v-on="on"
-              @click="multiDelete()"
-            >
-              <v-icon x-small color="error">
-                mdi-delete
-              </v-icon>
-            </v-btn>
-          </template>
-          <span>Delete visible items</span>
-        </v-tooltip>
-        <slot name="header-trailing" />
-        <v-tooltip
-          open-delay="200"
-          bottom
-          max-width="200"
-        >
-          <template #activator="{ on }">
-            <v-btn
-              :disabled="readOnlyMode"
-              outlined
-              x-small
-              :color="newTrackColor"
-              v-on="on"
-              @click="trackAdd()"
-            >
-              <v-icon x-small>
-                mdi-plus
-              </v-icon>
-            </v-btn>
-          </template>
-          <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
-        </v-tooltip>
+                <v-menu
+                  v-model="data.columnSettingsActive"
+                  :close-on-content-click="false"
+                  location="bottom"
+                  :offset="[0, 28]"
+                >
+                  <template #activator="{ props: menuProps }">
+                    <v-btn
+                      icon
+                      size="x-small"
+                      v-bind="menuProps"
+                    >
+                      <v-icon
+                        size="x-small"
+                        :color="data.columnSettingsActive ? 'accent' : 'default'"
+                      >
+                        mdi-view-column
+                      </v-icon>
+                    </v-btn>
+                  </template>
+                  <slot
+                    v-if="data.columnSettingsActive"
+                    name="column-settings"
+                  />
+                </v-menu>
+              </span>
+            </template>
+            <span>Column visibility</span>
+          </v-tooltip>
+          <v-menu
+            v-model="data.settingsActive"
+            :close-on-content-click="false"
+            location="bottom"
+            :offset="[0, 28]"
+          >
+            <template #activator="{ props: activatorProps }">
+              <v-btn
+                icon
+                size="x-small"
+                v-bind="activatorProps"
+              >
+                <v-icon
+                  size="x-small"
+                  :color="data.settingsActive ? 'accent' : 'default'"
+                >
+                  mdi-cog
+                </v-icon>
+              </v-btn>
+            </template>
+            <slot name="settings" />
+          </v-menu>
+          <v-tooltip
+            open-delay="100"
+            location="bottom"
+          >
+            <template #activator="{ props: activatorProps }">
+              <v-btn
+                :disabled="filteredTracks.length === 0 || readOnlyMode"
+                icon
+                size="x-small"
+                v-bind="activatorProps"
+                @click="multiDelete()"
+              >
+                <v-icon
+                  size="x-small"
+                  color="error"
+                >
+                  mdi-delete
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Delete visible items</span>
+          </v-tooltip>
+          <slot name="header-trailing" />
+          <v-tooltip
+            open-delay="200"
+            location="bottom"
+            max-width="200"
+          >
+            <template #activator="{ props: activatorProps }">
+              <v-btn
+                class="add-track-btn"
+                :disabled="readOnlyMode"
+                variant="flat"
+                size="x-small"
+                :style="{ '--add-track-outline-color': newTrackColor || 'rgba(255, 255, 255, 0.45)' }"
+                v-bind="activatorProps"
+                @click="trackAdd()"
+              >
+                <v-icon size="x-small">
+                  mdi-plus
+                </v-icon>
+              </v-btn>
+            </template>
+            <span>Add {{ newTrackMode }} ({{ newTrackType }})</span>
+          </v-tooltip>
+        </div>
       </div>
       <div class="compact-column-headers d-flex align-center px-1 mt-1">
         <span class="col-spacer" />
@@ -305,3 +312,41 @@ export default defineComponent({
     </v-virtual-scroll>
   </div>
 </template>
+
+<style scoped lang="scss">
+.compact-header-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.track-header-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+
+  > * {
+    flex-shrink: 0;
+  }
+}
+
+.add-track-btn {
+  background-color: #424242 !important;
+  color: rgba(255, 255, 255, 0.87) !important;
+  border: 1px solid var(--add-track-outline-color, rgba(255, 255, 255, 0.45)) !important;
+  box-shadow: none !important;
+}
+</style>

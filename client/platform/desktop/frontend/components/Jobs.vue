@@ -39,13 +39,13 @@ export default defineComponent({
         Queued Jobs
       </v-tab>
     </v-tabs>
-    <v-tabs-items v-model="tab">
-      <v-tab-item>
+    <v-window v-model="tab">
+      <v-window-item>
         <jobs-history />
-      </v-tab-item>
-      <v-tab-item>
+      </v-window-item>
+      <v-window-item>
         <jobs-queued />
-      </v-tab-item>
-    </v-tabs-items>
+      </v-window-item>
+    </v-window>
   </v-main>
 </template>

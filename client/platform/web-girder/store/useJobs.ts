@@ -1,10 +1,10 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
-import Vue, { computed, ref } from 'vue';
-import { GirderJob } from '@girder/components/src';
-import { all } from '@girder/components/src/components/Job/status';
+import { computed, ref } from 'vue';
+import { all } from 'platform/web-girder/components/job/status';
 
 import eventBus from 'platform/web-girder/eventBus';
-import girderRest from 'platform/web-girder/plugins/girder';
+import girderRest, { getNotificationBus } from 'platform/web-girder/plugins/girder';
+import type { GirderJob } from './types';
 
 const JobStatus = all();
 const NonRunningStates = [
@@ -27,7 +27,7 @@ export function useJobs() {
   }
 
   function setJobState(payload: { jobId: string; value: number }): void {
-    Vue.set(jobIds.value, payload.jobId, payload.value);
+    jobIds.value[payload.jobId] = payload.value;
   }
 
   function getDatasetStatus(): Record<string, { status: number; jobId: string }> {
@@ -35,10 +35,10 @@ export function useJobs() {
   }
 
   function setDatasetStatus(payload: { datasetId: string; status: number; jobId: string }): void {
-    Vue.set(datasetStatus.value, payload.datasetId, {
+    datasetStatus.value[payload.datasetId] = {
       status: payload.status,
       jobId: payload.jobId,
-    });
+    };
   }
 
   function getCompleteJobsInfo(): Record<string, { type: string; title: string; success: boolean }> {
@@ -51,16 +51,16 @@ export function useJobs() {
     title: string;
     success: boolean;
   }): void {
-    Vue.set(completeJobsInfo.value, payload.datasetId, {
+    completeJobsInfo.value[payload.datasetId] = {
       type: payload.type,
       title: payload.title,
       success: payload.success,
-    });
+    };
   }
 
   function removeCompleteJobsInfo(payload: { datasetId: string }): void {
     if (payload.datasetId in completeJobsInfo.value) {
-      Vue.delete(completeJobsInfo.value, payload.datasetId);
+      delete completeJobsInfo.value[payload.datasetId];
     }
   }
 
@@ -135,7 +135,8 @@ export async function initJobs(): Promise<void> {
     params: { statuses: `[${JobStatus.RUNNING.value}, ${JobStatus.QUEUED.value}, ${JobStatus.INACTIVE.value}]` },
   });
   runningJobs.forEach(updateJobFromMessage);
-  girderRest.$on('message:job_status', ({ data: job }: { data: GirderJob }) => {
+  getNotificationBus().bus.on('message:job_status', (notification: { data?: GirderJob } & GirderJob) => {
+    const job = notification.data || notification;
     updateJobFromMessage(job);
     eventBus.$emit('refresh-data-browser');
   });

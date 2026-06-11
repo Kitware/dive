@@ -1,7 +1,10 @@
 <script>
-import { createLocationValidator, getLocationType } from '@girder/components/src';
+import {
+  computed, defineComponent, inject, ref, watch,
+} from 'vue';
+import { createLocationValidator, getLocationType } from '@girder/components';
 
-export default {
+export default defineComponent({
   inject: ['girderRest'],
   props: {
     location: {
@@ -22,82 +25,82 @@ export default {
       default: false,
     },
   },
-  data() {
-    return {
-      loading: false,
-    };
-  },
-  computed: {
-    // have a separate computed to prevent append triggering remote requests
-    breadcrumb() {
-      const { append } = this;
-      return [...this.pathBreadcrumb, ...append];
-    },
-  },
-  asyncComputed: {
-    pathBreadcrumb: {
-      default: [],
-      async get() {
-        this.loading = true;
-        const breadcrumb = [];
-        const { rootLocationDisabled, girderRest, location } = this;
-        // The reason for this local user variable is that
-        // we have to set up reactivity dependancy before the first async function call
-        const { user } = girderRest;
-        const type = getLocationType(location);
-        const { name, _id } = location;
-        if (type === 'folder') {
-          // The last breadcrumb isn't returned by rootpath.
-          if (name) {
-            breadcrumb.unshift(this.extractCrumbData(location));
-          } else {
-            const { data } = await this.girderRest.get(`folder/${_id}`);
-            breadcrumb.unshift(this.extractCrumbData(data));
-          }
-          // Get the rest of the path.
-          const { data } = await this.girderRest.get(`folder/${_id}/rootpath_or_relative`);
-          data.reverse().forEach((crumb) => {
-            breadcrumb.unshift(this.extractCrumbData(crumb.object));
-          });
-        } else if (type === 'user' || type === 'collection') {
-          const { data } = await this.girderRest.get(`${type}/${_id}`);
-          breadcrumb.unshift(this.extractCrumbData(data));
+  emits: ['crumbclick'],
+  setup(props) {
+    const girderRest = inject('girderRest');
+    const loading = ref(false);
+    const pathBreadcrumb = ref([]);
+
+    const breadcrumb = computed(() => [...pathBreadcrumb.value, ...props.append]);
+
+    function extractCrumbData(object) {
+      return {
+        ...object,
+        type: object.type ? object.type : object._modelType,
+        name: object._modelType !== 'user' ? object.name : object.login,
+      };
+    }
+
+    async function computeBreadcrumb() {
+      loading.value = true;
+      const crumbs = [];
+      const { rootLocationDisabled, location } = props;
+      const { user } = girderRest;
+      const type = getLocationType(location);
+      const { name, _id } = location;
+      if (type === 'folder') {
+        if (name) {
+          crumbs.unshift(extractCrumbData(location));
+        } else {
+          const { data } = await girderRest.get(`folder/${_id}`);
+          crumbs.unshift(extractCrumbData(data));
         }
-        if (!rootLocationDisabled) {
-          if (
-            type === 'users'
-            || (user && breadcrumb.length && breadcrumb[0].type === 'user')
-          ) {
-            breadcrumb.unshift({ type: 'users' });
-          }
-          if (
-            type === 'collections'
-            || (breadcrumb.length && breadcrumb[0].type === 'collection')
-          ) {
-            breadcrumb.unshift({ type: 'collections' });
-          }
-          breadcrumb.unshift({ type: 'root' });
+        const { data } = await girderRest.get(`folder/${_id}/rootpath_or_relative`);
+        data.reverse().forEach((crumb) => {
+          crumbs.unshift(extractCrumbData(crumb.object));
+        });
+      } else if (type === 'user' || type === 'collection') {
+        const { data } = await girderRest.get(`${type}/${_id}`);
+        crumbs.unshift(extractCrumbData(data));
+      }
+      if (!rootLocationDisabled) {
+        if (
+          type === 'users'
+          || (user && crumbs.length && crumbs[0].type === 'user')
+        ) {
+          crumbs.unshift({ type: 'users' });
         }
-        this.loading = false;
-        return breadcrumb;
+        if (
+          type === 'collections'
+          || (crumbs.length && crumbs[0].type === 'collection')
+        ) {
+          crumbs.unshift({ type: 'collections' });
+        }
+        crumbs.unshift({ type: 'root' });
+      }
+      loading.value = false;
+      pathBreadcrumb.value = crumbs;
+    }
+
+    watch(
+      () => [props.location, props.rootLocationDisabled, girderRest.user],
+      () => {
+        computeBreadcrumb().catch(() => undefined);
       },
-    },
+      { immediate: true },
+    );
+
+    return {
+      girderRest,
+      breadcrumb,
+    };
   },
   created() {
     if (!createLocationValidator(!this.rootLocationDisabled)(this.location)) {
       throw new Error('root location cannot be used when root-location-disabled is true');
     }
   },
-  methods: {
-    extractCrumbData(object) {
-      return {
-        ...object,
-        type: object.type ? object.type : object._modelType,
-        name: object._modelType !== 'user' ? object.name : object.login,
-      };
-    },
-  },
-};
+});
 </script>
 
 <template>
@@ -107,43 +110,45 @@ export default {
       :disabled="location._id === girderRest.user._id"
       class="home-button mr-3"
       color="accent"
+      icon="$userHome"
       @click="$emit('crumbclick', girderRest.user)"
-    >
-      $vuetify.icons.userHome
-    </v-icon>
+    />
     <v-breadcrumbs
       :items="breadcrumb"
       class="font-weight-bold pa-0"
     >
-      <span
-        slot="divider"
-        :disabled="readonly"
-        class="subheading font-weight-bold"
-      >/</span>
+      <template #divider>
+        <span
+          :disabled="readonly"
+          class="subheading font-weight-bold"
+        >/</span>
+      </template>
       <template #item="{ item }">
         <v-breadcrumbs-item
           :disabled="(readonly || breadcrumb.indexOf(item) == breadcrumb.length - 1)"
           tag="a"
+          style="cursor: pointer;"
           @click="$emit('crumbclick', item)"
         >
-          <template v-if="['folder', 'user', 'collection'].indexOf(item.type) !== -1">
-            <span class="accent--text">{{ item.name }}</span>
-          </template>
-          <template v-else-if="item.type === 'users'">
-            <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.user
-            </v-icon>
-          </template>
-          <template v-else-if="item.type === 'collections'">
-            <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.collection
-            </v-icon>
-          </template>
-          <template v-else-if="item.type === 'root'">
-            <v-icon class="mdi-18px accent--text">
-              $vuetify.icons.globe
-            </v-icon>
-          </template>
+          <span
+            v-if="['folder', 'user', 'collection'].indexOf(item.type) !== -1"
+            class="text-accent"
+          >{{ item.name }}</span>
+          <v-icon
+            v-else-if="item.type === 'users'"
+            class="mdi-18px text-accent"
+            icon="$user"
+          />
+          <v-icon
+            v-else-if="item.type === 'collections'"
+            class="mdi-18px text-accent"
+            icon="$collection"
+          />
+          <v-icon
+            v-else-if="item.type === 'root'"
+            class="mdi-18px text-accent"
+            icon="$globe"
+          />
           <span v-else>{{ item }}</span>
         </v-breadcrumbs-item>
       </template>
@@ -166,7 +171,6 @@ export default {
       }
     }
 
-    // Good to always hold vertical space
     &::after {
       content: "\00a0";
     }

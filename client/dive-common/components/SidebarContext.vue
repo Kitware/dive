@@ -52,28 +52,25 @@ export default defineComponent({
       class="d-flex flex-column context-sidebar-panel"
       :style="sidebarStyle"
     >
-      <div class="d-flex align-center mx-1">
+      <div class="context-header d-flex align-center mx-1">
         <v-select
           :items="options"
-          :value="context.state.active"
-          dense
-          solo
-          flat
+          :model-value="context.state.active"
+          item-title="text"
+          item-value="value"
+          density="compact"
+          variant="solo"
           hide-details
-          style="max-width: 240px;"
-          @change="context.toggle($event)"
+          class="context-select flex-grow-1"
+          @update:model-value="context.toggle($event)"
         />
-        <v-spacer />
-        <v-btn
-          icon
+        <v-icon
           color="white"
-          class="shrink"
+          class="context-close-icon"
           @click="context.toggle(null)"
         >
-          <v-icon>
-            mdi-close
-          </v-icon>
-        </v-btn>
+          mdi-close
+        </v-icon>
       </div>
       <div class="sidebar-content">
         <slot
@@ -87,6 +84,20 @@ export default defineComponent({
 <style scoped lang="scss">
 .context-sidebar-panel {
   transition: none !important;
+}
+
+.context-header {
+  gap: 4px;
+  min-width: 0;
+}
+
+.context-select {
+  min-width: 0;
+}
+
+.context-close-icon {
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .sidebar-content {

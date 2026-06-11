@@ -214,7 +214,7 @@ export default defineComponent({
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
      */
-    function loadedMetadata() {
+    async function loadedMetadata() {
       video.removeEventListener('loadedmetadata', loadedMetadata);
       const width = video.videoWidth;
       const height = video.videoHeight;
@@ -232,7 +232,7 @@ export default defineComponent({
         console.warn('Dataset loaded without originalFps, seeking accuracy will be impacted');
         data.maxFrame = maybeMaxFrame;
       }
-      initializeViewer(width, height);
+      await initializeViewer(width, height);
       quadFeatureLayer = geoViewer.value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,

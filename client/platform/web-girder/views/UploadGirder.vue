@@ -1,6 +1,6 @@
 <script>
-import Vue from 'vue';
-import { mixins } from '@girder/components/src';
+import { defineComponent } from 'vue';
+import { fileUploader, progressReporter } from 'platform/web-girder/mixins';
 import { clone } from 'lodash';
 import { getResponseError } from 'vue-media-annotator/utils';
 import {
@@ -10,9 +10,9 @@ import {
 import { makeViameFolder, postProcess } from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'GirderUpload',
-  mixins: [mixins.fileUploader, mixins.sizeFormatter, mixins.progressReporter],
+  mixins: [fileUploader, progressReporter],
   inject: ['girderRest'],
   props: {
     location: {

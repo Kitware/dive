@@ -1,6 +1,6 @@
 <script lang="ts">
 import { cloneDeep } from 'lodash';
-import Vue, {
+import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from 'vue';
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
@@ -75,7 +75,7 @@ export default defineComponent({
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
-          Vue.set(argCopy.value, argMap[type], path);
+          argCopy.value[argMap[type]] = path;
         }
       }
     };
@@ -209,7 +209,7 @@ export default defineComponent({
         >
           <v-icon
             class="pr-1"
-            color="primary lighten-3"
+            color="primary-lighten-3"
           >
             {{ showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
           </v-icon>
@@ -277,38 +277,40 @@ export default defineComponent({
         <table
           class="key-value-table"
         >
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
-            <td>Video</td>
-            <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
-          </tr>
-          <tr>
-            <td>Source</td>
-            <td>
-              <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
-            </td>
-          </tr>
-          <tr>
-            <td>Annotation FPS</td>
-            <td>
-              {{ argCopy.jsonMeta.fps }}
-              <span
-                v-if="argCopy.jsonMeta.type === 'video'"
-                class="pl-2"
-              >
-                <b>Note</b> video downsampled annotation framerate is different than raw video FPS
-              </span>
-            </td>
-          </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
-            <td>Raw FPS</td>
-            <td>
-              {{ argCopy.jsonMeta.originalFps }}
-            </td>
-          </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
-            <td>Image Count</td>
-            <td>{{ argCopy.jsonMeta.originalImageFiles.length }}</td>
-          </tr>
+          <tbody>
+            <tr v-if="argCopy.jsonMeta.type == 'video'">
+              <td>Video</td>
+              <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
+            </tr>
+            <tr>
+              <td>Source</td>
+              <td>
+                <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
+              </td>
+            </tr>
+            <tr>
+              <td>Annotation FPS</td>
+              <td>
+                {{ argCopy.jsonMeta.fps }}
+                <span
+                  v-if="argCopy.jsonMeta.type === 'video'"
+                  class="pl-2"
+                >
+                  <b>Note</b> video downsampled annotation framerate is different than raw video FPS
+                </span>
+              </td>
+            </tr>
+            <tr v-if="argCopy.jsonMeta.type == 'video'">
+              <td>Raw FPS</td>
+              <td>
+                {{ argCopy.jsonMeta.originalFps }}
+              </td>
+            </tr>
+            <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
+              <td>Image Count</td>
+              <td>{{ argCopy.jsonMeta.originalImageFiles.length }}</td>
+            </tr>
+          </tbody>
         </table>
       </div>
       <div class="d-flex flex-row mt-4">

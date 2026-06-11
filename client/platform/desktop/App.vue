@@ -17,3 +17,7 @@ export default defineComponent({
   },
 });
 </script>
+
+<style lang="scss">
+@import 'dive-common/vuetify/v2-compat.scss';
+</style>

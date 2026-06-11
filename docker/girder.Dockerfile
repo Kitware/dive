@@ -5,7 +5,7 @@ FROM node:24.15.0 AS client-builder
 WORKDIR /app
 
 # Install dependencies
-COPY client/package.json client/package-lock.json /app/
+COPY client/package.json client/package-lock.json client/.npmrc /app/
 RUN npm install
 # Build
 COPY .git/ /app/.git/

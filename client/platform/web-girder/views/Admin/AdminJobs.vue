@@ -6,13 +6,14 @@ import {
 import {
   cancelJob, deleteJob, getJobTypesStatus, getRecentJobs,
 } from 'platform/web-girder/api/admin.service';
-import type { GirderJob } from '@girder/components/src';
-import JobProgress from '@girder/components/src/components/Job/JobProgress.vue';
-import { all, getByValue, Status } from '@girder/components/src/components/Job/status';
+import { JobProgress, all, getByValue } from 'platform/web-girder/components/job';
+import type { GirderJob } from 'platform/web-girder/store/types';
 import moment from 'moment';
 import { isObject } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useJobs } from 'platform/web-girder/store/useJobs';
+
+type Status = ReturnType<typeof getByValue>;
 
 const JobStatus = all();
 const JobStatusMap = {
@@ -255,17 +256,16 @@ export default defineComponent({
             </div>
             <v-tooltip
               v-else
-              bottom
+              location="bottom"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
-                  v-bind="attrs"
-                  small
-                  depressed
+                  v-bind="activatorProps"
+                  size="small"
+                  variant="flat"
                   :to="`/user/${item.userDir}`"
                   color="info"
                   class="ma-1"
-                  v-on="on"
                 >
                   <v-icon small>
                     mdi-account
@@ -285,17 +285,16 @@ export default defineComponent({
             <div v-if="item.type === 'pipelines'">
               <div v-if="item.params.input_folder">
                 <v-tooltip
-                  bottom
+                  location="bottom"
                 >
-                  <template #activator="{ on, attrs }">
+                  <template #activator="{ props: activatorProps }">
                     <v-btn
-                      v-bind="attrs"
-                      x-small
-                      depressed
+                      v-bind="activatorProps"
+                      size="x-small"
+                      variant="flat"
                       :to="{ name: 'viewer', params: { id: item.params.input_folder } }"
                       color="info"
                       class="ml-0"
-                      v-on="on"
                     >
                       <v-icon small>
                         mdi-eye
@@ -309,16 +308,15 @@ export default defineComponent({
             <div v-if="item.type === 'training'">
               <div v-if="item.params.dataset_input_list">
                 <v-tooltip
-                  bottom
+                  location="bottom"
                 >
-                  <template #activator="{ on, attrs }">
+                  <template #activator="{ props: activatorProps }">
                     <v-btn
-                      v-bind="attrs"
-                      x-small
-                      depressed
+                      v-bind="activatorProps"
+                      size="x-small"
+                      variant="flat"
                       color="info"
                       class="ml-0"
-                      v-on="on"
                       @click="viewTrainingList(item.params.dataset_input_list)"
                     >
                       <v-icon small>
@@ -332,16 +330,15 @@ export default defineComponent({
             </div>
           </template>
           <template #item.actions="{ item }">
-            <v-tooltip bottom>
-              <template #activator="{ on, attrs }">
+            <v-tooltip location="bottom">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
-                  v-bind="attrs"
-                  x-small
-                  depressed
+                  v-bind="activatorProps"
+                  size="x-small"
+                  variant="flat"
                   :href="`/girder/#job/${item.actions}`"
                   color="info"
                   class="ma-2"
-                  v-on="on"
                 >
                   <v-icon small>
                     mdi-text-box-outline
@@ -352,16 +349,15 @@ export default defineComponent({
             </v-tooltip>
             <v-tooltip
               v-if="item.status < 3 "
-              bottom
+              location="bottom"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
-                  v-bind="attrs"
-                  x-small
-                  depressed
+                  v-bind="activatorProps"
+                  size="x-small"
+                  variant="flat"
                   color="warning"
                   class="ma-2"
-                  v-on="on"
                   @click="modifyJob('Cancel', item.actions, item.title)"
                 >
                   <v-icon small>
@@ -372,16 +368,15 @@ export default defineComponent({
               <span>Cancel Job</span>
             </v-tooltip>
             <v-tooltip
-              bottom
+              location="bottom"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
-                  v-bind="attrs"
-                  x-small
-                  depressed
+                  v-bind="activatorProps"
+                  size="x-small"
+                  variant="flat"
                   color="error"
                   class="ma-2"
-                  v-on="on"
                   @click="modifyJob('Delete', item.actions, item.title)"
                 >
                   <v-icon small>
@@ -398,7 +393,7 @@ export default defineComponent({
     <v-dialog
       v-model="trainingListDialog"
       width="250"
-      color="blue-grey darken-4"
+      color="blue-grey-darken-4"
     >
       <v-card>
         <v-card-title> Training Datasets </v-card-title>
@@ -413,17 +408,16 @@ export default defineComponent({
             </v-col>
             <v-col>
               <v-tooltip
-                bottom
+                location="bottom"
               >
-                <template #activator="{ on, attrs }">
+                <template #activator="{ props: activatorProps }">
                   <v-btn
-                    v-bind="attrs"
-                    depressed
+                    v-bind="activatorProps"
+                    variant="flat"
                     small
                     :to="{ name: 'viewer', params: { id: item[0] } }"
                     color="info"
                     class="mx-3"
-                    v-on="on"
                   >
                     <v-icon small>
                       mdi-eye
@@ -439,7 +433,7 @@ export default defineComponent({
           <v-spacer />
           <v-btn
             color="default"
-            depressed
+            variant="flat"
             @click="trainingListDialog = false"
           >
             Dismiss

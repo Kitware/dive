@@ -79,9 +79,9 @@ export default defineComponent({
     >
       <ControlsContainer
         :ref="controlsRef"
+        v-model:collapsed="controlsCollapsed"
         bottom-layout
         :wrap-bottom-controls="sidebarMode === 'bottom'"
-        :collapsed.sync="controlsCollapsed"
         v-bind="{
           lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
         }"
@@ -105,7 +105,7 @@ export default defineComponent({
         :disabled="disableAnnotationFilters"
         @track-seek="aggregateSeek($event)"
       >
-        <template slot="settings">
+        <template #settings>
           <TrackSettingsPanel :all-types="trackFilters.allTypes.value" />
         </template>
         <template slot="column-settings">
@@ -128,11 +128,11 @@ export default defineComponent({
         </span>
         <v-spacer />
         <v-tooltip bottom>
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
               icon
               x-small
-              v-on="on"
+              v-bind="activatorProps"
               @click="toggleBottomRightPanel()"
             >
               <v-icon small>
@@ -165,7 +165,7 @@ export default defineComponent({
         </div>
         <div class="confidence-row-bottom px-2 py-1">
           <ConfidenceFilter
-            :confidence.sync="confidenceFilters.default"
+            v-model:confidence="confidenceFilters.default"
             :disabled="disableAnnotationFilters"
             text="Confidence"
             @end="saveThreshold()"

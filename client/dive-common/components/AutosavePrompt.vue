@@ -4,28 +4,29 @@ import { defineComponent } from 'vue';
 export default defineComponent({
   name: 'AutosavePrompt',
   props: {
-    value: {
+    modelValue: {
       type: Boolean,
       required: true,
     },
   },
+  emits: ['update:modelValue', 'save'],
 });
 </script>
 <template>
   <v-dialog
     max-width="500"
     persistent
-    :value="value"
-    :overlay-opacity="0.95"
+    :model-value="modelValue"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
-    <v-card outlined>
+    <v-card variant="outlined">
       <v-card-text class="py-4">
         <p class="text-h5">
           Do you want to save changes first?
         </p>
         <v-alert
-          dense
-          outlined
+          density="compact"
+          variant="outlined"
           type="warning"
         >
           There are unsaved changes to this dataset.
@@ -34,9 +35,8 @@ export default defineComponent({
       <v-card-actions>
         <v-spacer />
         <v-btn
-          depressed
-          text
-          @click="$emit('input', false)"
+          variant="text"
+          @click="$emit('update:modelValue', false)"
         >
           Cancel
         </v-btn>

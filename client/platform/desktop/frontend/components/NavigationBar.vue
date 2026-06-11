@@ -16,9 +16,9 @@ export default defineComponent({
 <template>
   <v-app-bar app>
     <v-tabs
-      icons-and-text
-      style="flex-basis:0; flex-grow:0;"
+      stacked
       color="accent"
+      class="viewer-nav-tabs flex-grow-0 flex-shrink-0"
     >
       <v-tab :to="{ name: 'recent' }">
         Library

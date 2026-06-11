@@ -7,6 +7,7 @@ import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-anno
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { loadMetadata, exportDataset, exportConfiguration } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
+import { mergeActivatorProps } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   name: 'Export',
@@ -90,172 +91,174 @@ export default defineComponent({
       savePrompt,
       thresholds,
       checkedTypes,
+      mergeActivatorProps,
     };
   },
 });
 </script>
 
 <template>
-  <v-menu
-    v-model="data.menuOpen"
-    :close-on-content-click="false"
-    :nudge-width="280"
-    offset-y
-    max-width="280"
-  >
-    <template #activator="{ on: menuOn }">
-      <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
-          <v-btn
-            outlined
-            depressed
-            color="grey"
-            text
-            class="mx-1"
-            :small="small"
-            v-on="{ ...tooltipOn, ...menuOn }"
-          >
-            <v-icon>
-              mdi-export
-            </v-icon>
-            <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
-              class="pl-1"
+  <v-tooltip location="bottom">
+    <template #activator="{ props: tooltipProps }">
+      <span
+        v-bind="tooltipProps"
+        class="d-inline-flex"
+      >
+        <v-menu
+          v-model="data.menuOpen"
+          :close-on-content-click="false"
+          :nudge-width="280"
+          location="bottom"
+          max-width="280"
+        >
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              variant="outlined"
+              color="grey"
+              class="mx-1"
+              :size="small ? 'small' : undefined"
+              v-bind="mergeActivatorProps(menuProps)"
             >
-              Export
-            </span>
-          </v-btn>
-        </template>
-        <span>export annotation data</span>
-      </v-tooltip>
-    </template>
-    <template>
-      <v-card v-if="data.menuOpen">
-        <v-card-title>
-          Export options
-        </v-card-title>
-
-        <v-card-text class="pb-2">
-          <v-dialog
-            max-width="600"
-            persistent
-            :value="data.err"
-            :overlay-opacity="0.95"
-          >
-            <v-card outlined>
-              <v-card-text class="pa-3">
-                <v-card-text class="text-h4">
-                  Error
-                </v-card-text>
-                <v-alert
-                  type="error"
-                >
-                  {{ data.err }}
-                </v-alert>
-              </v-card-text>
-              <v-card-actions>
-                <v-spacer />
-                <v-btn
-                  color="primary"
-                  @click="data.err = null"
-                >
-                  <v-icon>mdi-close</v-icon>
-                  Dismiss
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-dialog>
-          <AutosavePrompt
-            v-model="savePrompt"
-            @save="doExport({ type: 'dataset', forceSave: true })"
-          />
-          <v-alert
-            v-if="data.outPath"
-            dense
-            class="text-caption"
-            type="success"
-          >
-            Export succeeded.
-          </v-alert>
-          <div>Export to Annotations</div>
-          <template v-if="thresholds.length">
-            <v-checkbox
-              v-model="data.excludeBelowThreshold"
-              label="exclude tracks below confidence threshold"
-              dense
-              hide-details
-            />
-            <div
-              v-if="data.meta && data.meta.confidenceFilters"
-              class="pt-2"
-            >
-              <div>Current thresholds:</div>
+              <v-icon>
+                mdi-export
+              </v-icon>
               <span
-                v-for="(val, key) in data.meta.confidenceFilters"
-                :key="key"
-                class="pt-2"
+                v-show="!$vuetify.display.mdAndDown"
+                class="pl-1"
               >
-                ({{ key }}, {{ val }})
+                Export
               </span>
-            </div>
+            </v-btn>
           </template>
+          <v-card v-if="data.menuOpen">
+            <v-card-title>
+              Export options
+            </v-card-title>
 
-          <template v-if="checkedTypes.length">
-            <v-checkbox
-              v-model="data.excludeUncheckedTypes"
-              label="export checked types only"
-              dense
-              hint="Export only the track types currently enabled in the type filter"
-              persistent-hint
-              class="pt-0"
-            />
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-row>
-            <v-col>
+            <v-card-text class="pb-2">
+              <v-dialog
+                max-width="600"
+                persistent
+                :value="data.err"
+                :overlay-opacity="0.95"
+              >
+                <v-card outlined>
+                  <v-card-text class="pa-3">
+                    <v-card-text class="text-h4">
+                      Error
+                    </v-card-text>
+                    <v-alert
+                      type="error"
+                    >
+                      {{ data.err }}
+                    </v-alert>
+                  </v-card-text>
+                  <v-card-actions>
+                    <v-spacer />
+                    <v-btn
+                      color="primary"
+                      @click="data.err = null"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                      Dismiss
+                    </v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
+              <AutosavePrompt
+                v-model="savePrompt"
+                @save="doExport({ type: 'dataset', forceSave: true })"
+              />
+              <v-alert
+                v-if="data.outPath"
+                dense
+                class="text-caption"
+                type="success"
+              >
+                Export succeeded.
+              </v-alert>
+              <div>Export to Annotations</div>
+              <template v-if="thresholds.length">
+                <v-checkbox
+                  v-model="data.excludeBelowThreshold"
+                  label="exclude tracks below confidence threshold"
+                  dense
+                  hide-details
+                />
+                <div
+                  v-if="data.meta && data.meta.confidenceFilters"
+                  class="pt-2"
+                >
+                  <div>Current thresholds:</div>
+                  <span
+                    v-for="(val, key) in data.meta.confidenceFilters"
+                    :key="key"
+                    class="pt-2"
+                  >
+                    ({{ key }}, {{ val }})
+                  </span>
+                </div>
+              </template>
+
+              <template v-if="checkedTypes.length">
+                <v-checkbox
+                  v-model="data.excludeUncheckedTypes"
+                  label="export checked types only"
+                  dense
+                  hint="Export only the track types currently enabled in the type filter"
+                  persistent-hint
+                  class="pt-0"
+                />
+              </template>
+            </v-card-text>
+            <v-card-actions>
+              <v-row>
+                <v-col>
+                  <v-btn
+                    depressed
+                    block
+                    class="my-1"
+                    @click="doExport({ type: 'dataset' })"
+                  >
+                    <span>VIAME CSV</span>
+                  </v-btn>
+                  <v-btn
+                    depressed
+                    block
+                    class="my-1"
+                    @click="doExport({ type: 'trackJSON' })"
+                  >
+                    <span>TRACK JSON</span>
+                  </v-btn>
+                  <v-btn
+                    depressed
+                    block
+                    class="my-1"
+                    @click="doExport({ type: 'coco' })"
+                  >
+                    <span>COCO JSON</span>
+                  </v-btn>
+                </v-col>
+              </v-row>
+            </v-card-actions>
+            <v-card-text class="pb-0">
+              Export the dataset configuration, including
+              attribute definitions, types, styles, and thresholds.
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
               <v-btn
                 depressed
                 block
-                class="my-1"
-                @click="doExport({ type: 'dataset' })"
+                @click="doExport({ type: 'configuration' })"
               >
-                <span>VIAME CSV</span>
+                Configuration
               </v-btn>
-              <v-btn
-                depressed
-                block
-                class="my-1"
-                @click="doExport({ type: 'trackJSON' })"
-              >
-                <span>TRACK JSON</span>
-              </v-btn>
-              <v-btn
-                depressed
-                block
-                class="my-1"
-                @click="doExport({ type: 'coco' })"
-              >
-                <span>COCO JSON</span>
-              </v-btn>
-            </v-col>
-          </v-row>
-        </v-card-actions>
-        <v-card-text class="pb-0">
-          Export the dataset configuration, including
-          attribute definitions, types, styles, and thresholds.
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            depressed
-            block
-            @click="doExport({ type: 'configuration' })"
-          >
-            Configuration
-          </v-btn>
-        </v-card-actions>
-      </v-card>
+            </v-card-actions>
+          </v-card>
+        </v-menu>
+      </span>
     </template>
-  </v-menu>
+    <span>export annotation data</span>
+  </v-tooltip>
 </template>

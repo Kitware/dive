@@ -1,9 +1,14 @@
 /* disabled this rule for Vue.prototype.FOO = */
 /* eslint-disable no-param-reassign,func-names */
 
-import { VueConstructor, watch } from 'vue';
-import Vuetify from 'vuetify/lib';
+import {
+  App, createApp, watch, Component,
+} from 'vue';
+import { createVuetify } from 'vuetify';
+import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
 import Prompt from './Prompt.vue';
+
+type VuetifyInstance = ReturnType<typeof createVuetify>;
 
 interface PromptParams {
   title: string;
@@ -17,10 +22,14 @@ class PromptService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private component: any;
 
-  constructor(Vue: VueConstructor, vuetify: Vuetify) {
-    const PromptComponent = Vue.extend({ vuetify, ...Prompt });
-    const component = new PromptComponent();
+  constructor(vuetify: VuetifyInstance) {
+    const mountEl = document.createElement('div');
+    const app = createApp(Prompt as Component);
+    app.use(vuetify);
+    app.use(vMousetrap);
+    const component = app.mount(mountEl);
     this.component = component;
+    this.component.$mountEl = mountEl;
   }
 
   set(
@@ -51,7 +60,7 @@ class PromptService {
       if (!this.component.show) {
         this.set(title, text, positiveButton, negativeButton, confirm, resolve);
       } else {
-        const unwatch = watch(this.component.show, () => {
+        const unwatch = watch(() => this.component.show, () => {
           unwatch();
           this.set(title, text, positiveButton, negativeButton, confirm, resolve);
         });
@@ -72,7 +81,7 @@ class PromptService {
   }
 
   mount(element: HTMLElement): void {
-    this.component.$mount(element);
+    element.appendChild(this.component.$mountEl);
   }
 }
 
@@ -91,18 +100,19 @@ export function usePrompt() {
   };
 }
 
-export default function (vuetify: Vuetify) {
-  return function install(Vue: VueConstructor) {
-    // in vue 3 should use provide instead of singleton
-    promptService = new PromptService(Vue, vuetify);
+export default function (vuetify: VuetifyInstance) {
+  return {
+    install(app: App) {
+      promptService = new PromptService(vuetify);
 
-    Vue.prototype.$promptAttach = function () {
-      const div = document.createElement('div');
-      this.$el.appendChild(div);
-      if (promptService) {
-        promptService.mount(div);
-      }
-      return this;
-    };
+      app.config.globalProperties.$promptAttach = function attachPrompt(this: { $el: HTMLElement }) {
+        const div = document.createElement('div');
+        this.$el.appendChild(div);
+        if (promptService) {
+          promptService.mount(div);
+        }
+        return this;
+      };
+    },
   };
 }

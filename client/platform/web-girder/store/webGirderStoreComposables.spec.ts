@@ -17,7 +17,7 @@ import * as api from '../api';
 import * as configurationService from '../api/configuration.service';
 import girderRest from '../plugins/girder';
 
-import { bindWebGirderRouter, useLocation } from './useLocation';
+import { bindWebGirderRouter, getUserHomeRoute, useLocation } from './useLocation';
 import { useBrand } from './useBrand';
 import { useConfig } from './useConfig';
 import { useDataset } from './useDataset';
@@ -155,6 +155,24 @@ describe('web-girder store composables', () => {
       } as unknown as Route;
       await useLocation().setLocationFromRoute(route);
       expect(useLocation().getLocation()).toEqual({ type: 'collections' });
+    });
+
+    it('setLocationFromRoute uses user home when route params are empty', async () => {
+      const user = { _id: 'user123' };
+      vi.spyOn(girderRest, 'user', 'get').mockReturnValue(user as never);
+      const route = {
+        name: 'home',
+        params: {},
+      } as unknown as Route;
+      await useLocation().setLocationFromRoute(route);
+      expect(useLocation().getLocation()).toEqual({
+        _modelType: 'user',
+        _id: 'user123',
+      });
+      expect(getUserHomeRoute()).toEqual({
+        name: 'home',
+        params: { routeType: 'user', routeId: 'user123' },
+      });
     });
 
     it('hydrate loads unnamed folder via getFolder', async () => {

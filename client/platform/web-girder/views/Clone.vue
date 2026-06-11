@@ -2,13 +2,14 @@
 import {
   computed, defineComponent, Ref, ref, PropType,
 } from 'vue';
-import { GirderFileManager, GirderModelType } from '@girder/components/src';
+import { GirderFileManager, type GirderModelType } from '@girder/components';
 import useRequest from 'dive-common/use/useRequest';
 import { RootlessLocationType } from 'platform/web-girder/store/types';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { clone, getDataset } from 'platform/web-girder/api';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
+import { mergeActivatorProps, menuOpensToSide } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   components: { GirderFileManager },
@@ -40,7 +41,7 @@ export default defineComponent({
     const open = ref(false);
     const location: Ref<RootlessLocationType> = ref({
       _modelType: ('user' as GirderModelType),
-      _id: girderRest.user._id,
+      _id: girderRest.user?._id ?? '',
     });
     const newName = ref('');
 
@@ -89,6 +90,8 @@ export default defineComponent({
       click,
       doClone,
       setLocation,
+      mergeActivatorProps,
+      menuOpensToSide,
     };
   },
 });
@@ -100,33 +103,35 @@ export default defineComponent({
     :max-width="800"
     :overlay-opacity="0.95"
   >
-    <template #activator="{ attrs, on }">
+    <template #activator="{ props: dialogProps }">
       <v-tooltip
-        v-bind="attrs"
-        bottom
+        location="bottom"
         open-delay="400"
-        v-on="on"
       >
-        <template #activator="{ on: ton, attrs: tattrs }">
-          <v-btn
-            v-bind="{ ...tattrs, ...buttonOptions }"
-            :disabled="datasetId === null"
-            v-on="{ ...ton, click }"
+        <template #activator="{ props: tooltipProps }">
+          <span
+            v-bind="tooltipProps"
+            :class="buttonOptions.block ? 'd-flex w-100' : 'd-inline-flex'"
           >
-            <v-icon>
-              mdi-content-copy
-            </v-icon>
-            <span
-              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-              class="pl-1"
+            <v-btn
+              v-bind="mergeActivatorProps(dialogProps, buttonOptions, { onClick: click })"
+              :disabled="datasetId === null"
             >
-              Clone
-            </span>
-            <v-spacer />
-            <v-icon v-if="menuOptions.right">
-              mdi-dock-window
-            </v-icon>
-          </v-btn>
+              <v-icon>
+                mdi-content-copy
+              </v-icon>
+              <span
+                v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                class="pl-1"
+              >
+                Clone
+              </span>
+              <v-spacer />
+              <v-icon v-if="menuOpensToSide(menuOptions)">
+                mdi-dock-window
+              </v-icon>
+            </v-btn>
+          </span>
         </template>
         <span>Create a clone of this data</span>
       </v-tooltip>
@@ -171,12 +176,12 @@ export default defineComponent({
           v-model="newName"
           label="New clone name"
           class="mt-4"
-          outlined
-          dense
+          variant="outlined"
+          density="compact"
           block
         />
         <v-card
-          outlined
+          variant="outlined"
           flat
         >
           <GirderFileManager
@@ -191,8 +196,8 @@ export default defineComponent({
               <v-chip
                 v-if="(item.meta && item.meta.annotate)"
                 color="white"
-                x-small
-                outlined
+                size="x-small"
+                variant="outlined"
                 class="mx-3"
               >
                 dataset
@@ -201,7 +206,7 @@ export default defineComponent({
           </GirderFileManager>
         </v-card>
         <v-btn
-          depressed
+          variant="flat"
           block
           color="primary"
           class="mt-4"

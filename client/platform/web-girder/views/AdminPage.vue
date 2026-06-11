@@ -1,4 +1,5 @@
 <script>
+import { defineComponent } from 'vue';
 
 import AddOns from './Admin/Addons.vue';
 import AdminRecents from './Admin/AdminRecents.vue';
@@ -8,7 +9,7 @@ import AdminBranding from './Admin/AdminBranding.vue';
 import AdminStats from './Admin/AdminStats.vue';
 import AdminUpdate from './Admin/AdminUpdate.vue';
 
-export default {
+export default defineComponent({
   name: 'AdminPage',
   components: {
     AddOns,
@@ -27,7 +28,7 @@ export default {
       currentTab: null,
     };
   },
-};
+});
 </script>
 
 <template>
@@ -44,29 +45,29 @@ export default {
           <v-tab> Update </v-tab>
         </v-tabs>
       </v-card-title>
-      <v-tabs-items v-model="currentTab">
-        <v-tab-item>
+      <v-window v-model="currentTab">
+        <v-window-item>
           <AdminRecents />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <UserRecents />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <AdminJobs />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <AddOns @addon-job-run="currentTab = 2" />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <AdminBranding />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <AdminStats />
-        </v-tab-item>
-        <v-tab-item>
+        </v-window-item>
+        <v-window-item>
           <AdminUpdate />
-        </v-tab-item>
-      </v-tabs-items>
+        </v-window-item>
+      </v-window>
 
       <v-card-text />
     </v-card>

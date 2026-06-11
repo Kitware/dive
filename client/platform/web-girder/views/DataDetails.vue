@@ -1,12 +1,11 @@
 <template>
   <v-card class="data-details">
     <v-toolbar
-      flat="flat"
-      dark="dark"
-      dense="dense"
+      flat
+      density="compact"
       color="primary"
     >
-      <v-toolbar-title class="subtitle-1">
+      <v-toolbar-title class="text-subtitle-1">
         <v-icon class="pr-2 mdi-18px">
           {{ icon }}
         </v-icon>{{ title }}
@@ -21,35 +20,24 @@
 </template>
 
 <script>
-import Vue from 'vue';
+import { defineComponent } from 'vue';
 import {
   GirderDetailList,
-  mixins,
-} from '@girder/components/src';
+  formatDate,
+  formatSize,
+  formatUsername,
+} from '@girder/components';
 
-const {
-  dateFormatter,
-  sizeFormatter,
-  usernameFormatter,
-} = mixins;
-
-/**
- * @type {Array<{
- *  value: String,
- *  name: String,
- *  transform: Function
- * }>}
- */
 export const DefaultInfoKeys = [
   {
     value: 'size',
     name: 'Contents: ',
-    transform: sizeFormatter.methods.formatSize,
+    transform: formatSize,
   },
   {
     value: 'created',
     name: 'Created on ',
-    transform: dateFormatter.methods.formatDate,
+    transform: formatDate,
   },
   {
     value: 'public',
@@ -72,11 +60,10 @@ export const DefaultInfoKeys = [
   },
 ];
 
-export default Vue.extend({
+export default defineComponent({
   components: {
     GirderDetailList,
   },
-  mixins: [sizeFormatter, usernameFormatter],
   inject: ['girderRest'],
   props: {
     value: {
@@ -91,23 +78,13 @@ export default Vue.extend({
   data() {
     return {
       showUpsert: false,
+      details: null,
     };
-  },
-  asyncComputed: {
-    async details() {
-      if (this.datum && this.datum.created) {
-        return this.datum;
-      } if (this.datum && this.datum._id && this.datum._modelType) {
-        const { data } = await this.girderRest.get(`${this.datum._modelType}/${this.datum._id}`);
-        return data;
-      }
-      return null;
-    },
   },
   computed: {
     title() {
       if (this.details) {
-        return this.details.name || this.formatUsername(this.details);
+        return this.details.name || formatUsername(this.details);
       }
       if (this.datum) {
         if (this.datum._modelType) {
@@ -124,18 +101,17 @@ export default Vue.extend({
     },
     icon() {
       return this.datum
-        ? this.$vuetify.icons.values[this.datum._modelType]
-        : this.$vuetify.icons.values.fileMultiple;
+        ? this.$vuetify.icons.aliases[this.datum._modelType]
+        : this.$vuetify.icons.aliases.fileMultiple;
     },
     info() {
       if (this.details) {
-        /* If this is a single datum */
         return this.infoKeys
           .map((k) => {
             let val = k.meta
               ? this.details.meta?.[k.value]
               : this.details[k.value];
-            if (!val) {
+            if (!val && val !== false) {
               return null;
             }
             if (k.transform) {
@@ -145,7 +121,6 @@ export default Vue.extend({
           })
           .filter((v) => v);
       } if (this.value.length > 1) {
-        /* If this is a multi-selection */
         const reducer = (acc, curr) => {
           acc[curr._modelType] += 1;
           acc.size += curr.size;
@@ -159,11 +134,48 @@ export default Vue.extend({
         const countMessages = ['item', 'folder']
           .filter((k) => typeCounts[k] > 0)
           .map((k) => `${typeCounts[k]} ${k}(s) selected`);
-        const sizeMessage = `Total size: ${this.formatSize(typeCounts.size)}`;
+        const sizeMessage = `Total size: ${formatSize(typeCounts.size)}`;
         return [...countMessages, sizeMessage];
       }
       return [];
     },
   },
+  watch: {
+    datum: {
+      immediate: true,
+      async handler(datum) {
+        if (datum && datum.created) {
+          this.details = datum;
+        } else if (datum && datum._id && datum._modelType) {
+          const { data } = await this.girderRest.get(`${datum._modelType}/${datum._id}`);
+          this.details = data;
+        } else {
+          this.details = null;
+        }
+      },
+    },
+  },
 });
 </script>
+
+<style lang="scss">
+.data-details :deep(.data-details-actions) {
+  > * {
+    width: 100%;
+  }
+
+  .v-btn.v-btn--disabled.v-btn--variant-flat {
+    opacity: 1;
+    background-color: rgb(var(--v-theme-grey-darken-2)) !important;
+    color: rgb(var(--v-theme-grey)) !important;
+
+    .v-icon {
+      color: rgb(var(--v-theme-grey)) !important;
+    }
+
+    .v-btn__overlay {
+      opacity: 0;
+    }
+  }
+}
+</style>

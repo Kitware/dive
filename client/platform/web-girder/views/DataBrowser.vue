@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   getLocationType, GirderModel,
-} from '@girder/components/src';
+} from '@girder/components';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import {
   getMultiCamIcon,
@@ -32,11 +32,17 @@ export default defineComponent({
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const {
-      location, selected, locationIsViameFolder, setRouteFromLocation,
+      location,
+      resolvedLocation,
+      selected,
+      locationIsViameFolder,
+      setRouteFromLocation,
+      setSelected,
     } = useLocation();
     const jobs = useJobs();
 
     function setLocation(loc: LocationType) {
+      setSelected([]);
       setRouteFromLocation(loc).catch((reason) => {
         reportHandledPromiseRejection('DataBrowser: setRouteFromLocation', reason);
       });
@@ -69,6 +75,12 @@ export default defineComponent({
       && !selected.value.length
     ));
 
+    function updateRowsPerPage(count: number) {
+      if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+        clientSettings.rowsPerPage = count;
+      }
+    }
+
     eventBus.$on('refresh-data-browser', handleNotification);
     onBeforeUnmount(() => {
       eventBus.$off('refresh-data-browser', handleNotification);
@@ -77,6 +89,7 @@ export default defineComponent({
     return {
       fileManager,
       location,
+      resolvedLocation,
       selected,
       locationIsViameFolder,
       jobs,
@@ -92,6 +105,8 @@ export default defineComponent({
       getMultiCamTooltip,
       handleNotification,
       setLocation,
+      setSelected,
+      updateRowsPerPage,
       updateUploading,
     };
   },
@@ -101,14 +116,17 @@ export default defineComponent({
 <template>
   <DiveGirderBrowser
     ref="fileManager"
-    v-model="selected"
+    :key="`${resolvedLocation._modelType || resolvedLocation.type}-${resolvedLocation._id || ''}`"
+    :selected="selected"
     :selectable="!locationIsViameFolder"
     :new-folder-enabled="
       !selected.length && !locationIsViameFolder
     "
-    :location="location"
-    :items-per-page.sync="clientSettings.rowsPerPage"
+    :location="resolvedLocation"
+    :items-per-page="clientSettings.rowsPerPage"
     :items-per-page-options="itemsPerPageOptions"
+    @update:selected="setSelected"
+    @update:itemsPerPage="updateRowsPerPage"
     @update:location="setLocation($event)"
   >
     <template #headerwidget>
@@ -118,19 +136,18 @@ export default defineComponent({
         max-width="800px"
         :persistent="uploading"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
+            v-bind="activatorProps"
             class="ma-0"
-            text
-            small
-            v-on="on"
+            variant="text"
+            size="small"
           >
             <v-icon
-              left
+              start
               color="accent"
-            >
-              mdi-file-upload
-            </v-icon>
+              icon="mdi-file-upload"
+            />
             Upload
           </v-btn>
         </template>
@@ -147,15 +164,13 @@ export default defineComponent({
           v-if="multiCamSubType(item)"
           bottom
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              small
+              size="small"
               class="mr-1"
-              v-bind="attrs"
-              v-on="on"
-            >
-              {{ getMultiCamIcon(multiCamSubType(item)) }}
-            </v-icon>
+              v-bind="activatorProps"
+              :icon="getMultiCamIcon(multiCamSubType(item))"
+            />
           </template>
           <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
         </v-tooltip>
@@ -170,18 +185,19 @@ export default defineComponent({
         <v-btn
           v-if="isAnnotationFolder(item)"
           class="ml-2"
-          x-small
+          size="x-small"
           color="primary"
-          depressed
+          variant="flat"
           :to="{ name: 'viewer', params: { id: item._id } }"
+          @click.stop
         >
           Launch Annotator
         </v-btn>
         <v-chip
           v-if="(item.foreign_media_id)"
           color="white"
-          x-small
-          outlined
+          size="x-small"
+          variant="outlined"
           disabled
           class="my-0 mx-3"
         >
@@ -190,8 +206,8 @@ export default defineComponent({
         <v-chip
           v-if="(item.meta && item.meta.published)"
           color="green"
-          x-small
-          outlined
+          size="x-small"
+          variant="outlined"
           disabled
           class="my-0 mx-3"
         >

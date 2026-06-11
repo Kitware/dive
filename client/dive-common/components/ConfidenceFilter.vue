@@ -55,11 +55,11 @@ export default defineComponent({
       <span
         :class="{ 'main-confidence': text === 'Confidence Threshold' }"
       >{{ text }}</span>
-      <v-spacer v-if="!$scopedSlots.default" />
+      <v-spacer v-if="!$slots.default" />
       <span class="pl-2">
         {{ confidence.toFixed(2) }}
       </span>
-      <v-spacer v-if="$scopedSlots.default" />
+      <v-spacer v-if="$slots.default" />
       <slot />
     </div>
     <input

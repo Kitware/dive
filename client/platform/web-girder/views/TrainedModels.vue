@@ -5,8 +5,9 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { Pipelines, useApi, Pipe } from 'dive-common/apispec';
 import { DataTableHeader } from 'vuetify';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { useConfig } from 'platform/web-girder/store/useConfig';
+import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandledPromiseRejection';
 
 export default defineComponent({
   name: 'TrainedModels',
@@ -26,7 +27,11 @@ export default defineComponent({
         router.push('/');
         return;
       }
-      unsortedPipelines.value = await getPipelineList();
+      try {
+        unsortedPipelines.value = await getPipelineList();
+      } catch (reason) {
+        reportHandledPromiseRejection('TrainedModels: load pipelines', reason);
+      }
     });
 
     const trainedModels = computed(() => {
@@ -113,7 +118,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+  <v-container :fluid="$vuetify.display.mdAndDown">
     <v-card class="trained-models-wrapper mt-4 pa-6">
       <v-card-title> Trained models </v-card-title>
       <v-card-text>

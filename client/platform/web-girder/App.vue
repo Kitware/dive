@@ -7,9 +7,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { provideApi } from 'dive-common/apispec';
-import { useRoute } from 'vue-router/composables';
 import { useDataset } from 'platform/web-girder/store/useDataset';
-import { useLocation } from 'platform/web-girder/store/useLocation';
 import type { GirderMetadata } from './constants';
 import {
   getPipelineList,
@@ -33,22 +31,15 @@ import {
   openFromDiskWithRegistry,
   saveCalibration,
 } from './multicamFileRegistry';
-import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 export default defineComponent({
   name: 'App',
   components: {},
   setup() {
-    const route = useRoute();
     const { loadDataset } = useDataset();
-    const { setLocationFromRoute } = useLocation();
     async function loadMetadata(datasetId: string): Promise<GirderMetadata> {
       return loadDataset(datasetId);
     }
-
-    setLocationFromRoute(route).catch((reason) => {
-      reportHandledPromiseRejection('App: setLocationFromRoute', reason);
-    });
 
     provideApi({
       getPipelineList: unwrap(getPipelineList),
@@ -75,6 +66,8 @@ export default defineComponent({
 </script>
 
 <style lang="scss">
+@import 'dive-common/vuetify/v2-compat.scss';
+
 html {
   overflow-y: auto;
 }

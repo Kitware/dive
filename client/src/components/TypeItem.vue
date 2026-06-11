@@ -69,14 +69,13 @@ export default defineComponent({
   >
     <v-col class="d-flex flex-row py-0 align-center">
       <v-checkbox
-        :input-value="checked"
+        :model-value="checked"
         :color="color"
         :disabled="disabled"
-        dense
-        shrink
+        density="compact"
         hide-details
         class="my-1 pl-2"
-        @change="$emit('setCheckedTypes', $event)"
+        @update:model-value="$emit('setCheckedTypes', $event)"
       >
         <template #label>
           <div class="text-body-2 grey--text text--lighten-1 d-flex flex-row nowrap">
@@ -84,10 +83,10 @@ export default defineComponent({
               open-delay="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props: activatorProps }">
                 <span
                   class="nowrap"
-                  v-on="on"
+                  v-bind="activatorProps"
                 >
                   {{ displayText }}
                 </span>
@@ -100,11 +99,10 @@ export default defineComponent({
               bottom
               class="align-self-end"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <span
                   class="outlined"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="activatorProps"
                 >
                   {{ `>${confidenceFilterNum}` }}
                 </span>
@@ -120,12 +118,12 @@ export default defineComponent({
         open-delay="100"
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             icon
             class="hover-show-child"
             small
-            v-on="on"
+            v-bind="activatorProps"
             @click="goToFrame()"
           >
             <v-icon
@@ -142,12 +140,12 @@ export default defineComponent({
         open-delay="100"
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             class="hover-show-child"
             icon
             small
-            v-on="on"
+            v-bind="activatorProps"
             @click="$emit('clickEdit', type)"
           >
             <v-icon

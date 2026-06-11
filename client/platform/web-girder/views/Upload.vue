@@ -2,7 +2,7 @@
 import {
   defineComponent, Ref, ref, computed, onBeforeUnmount,
 } from 'vue';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
@@ -581,7 +581,7 @@ export default defineComponent({
       }
       return {
         block: true,
-        color: 'grey darken-3',
+        color: 'grey-darken-3',
         depressed: true,
         disabled: uploading.value,
       };
@@ -822,13 +822,12 @@ export default defineComponent({
                 right
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
-                    small
-                    v-on="on"
-                  >
-                    mdi-help
-                  </v-icon>
+                    size="small"
+                    icon="mdi-help"
+                    v-bind="activatorProps"
+                  />
                 </template>
                 <span>Attempt to skip transcoding of video file if it is an
                   '.mp4' and encoded using the h264 codec.
@@ -872,8 +871,8 @@ export default defineComponent({
                 top
                 max-width="400"
               >
-                <template #activator="{ on }">
-                  <v-list-item v-on="on">
+                <template #activator="{ props: activatorProps }">
+                  <v-list-item v-bind="activatorProps">
                     <import-button
                       :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
                       icon="mdi-folder-open"

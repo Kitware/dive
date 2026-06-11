@@ -1,7 +1,8 @@
 <script>
+import { defineComponent } from 'vue';
 import UserGuideDialog from 'dive-common/components/UserGuideDialog.vue';
 
-export default {
+export default defineComponent({
   components: {
     UserGuideDialog,
   },
@@ -17,7 +18,7 @@ export default {
       userGuideLink: 'https://kitware.github.io/dive/',
     };
   },
-};
+});
 </script>
 <template>
   <div>
@@ -27,7 +28,7 @@ export default {
       depressed
       :href="userGuideLink"
       target="_blank"
-      color="secondary darken-2"
+      color="secondary-darken-2"
       class="mx-3"
     >
       <v-icon left>
@@ -40,20 +41,20 @@ export default {
       v-model="dialog"
       width="800"
     >
-      <template #activator="{ on }">
+      <template #activator="{ props: activatorProps }">
         <v-btn
-          dense
-          depressed
+          density="compact"
+          variant="flat"
           target="_blank"
-          color="secondary darken-2"
+          color="secondary"
           class="mx-1"
-          v-on="on"
+          v-bind="activatorProps"
         >
           <v-icon>
             mdi-help-circle
           </v-icon>
           <span
-            v-show="!$vuetify.breakpoint.mdAndDown"
+            v-show="!$vuetify.display.mdAndDown"
             class="pl-1"
           >
             Help
@@ -69,7 +70,7 @@ export default {
             depressed
             :href="userGuideLink"
             target="_blank"
-            color="secondary darken-2"
+            color="secondary-darken-2"
             class="ma-2"
           >
             User Guide
