@@ -8,7 +8,10 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
+import girderRest from 'platform/web-girder/plugins/girder';
+import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandledPromiseRejection';
 import { useBrand } from 'platform/web-girder/store/useBrand';
+import { mergeActivatorProps, menuOpensToSide } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -70,9 +73,16 @@ export default defineComponent({
       return undefined;
     });
     onBeforeMount(async () => {
-      const resp = await getTrainingConfigurations();
-      trainingConfigurations.value = resp;
-      selectedTrainingConfig.value = resp.training.default;
+      if (!girderRest.user || !girderRest.token) {
+        return;
+      }
+      try {
+        const resp = await getTrainingConfigurations();
+        trainingConfigurations.value = resp;
+        selectedTrainingConfig.value = resp.training.default;
+      } catch (reason) {
+        reportHandledPromiseRejection('RunTrainingMenu: load training configs', reason);
+      }
     });
 
     const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
@@ -146,6 +156,8 @@ export default defineComponent({
       fineTuning,
       fineTuneModelList,
       selectedFineTune,
+      mergeActivatorProps,
+      menuOpensToSide,
     };
   },
 });
@@ -153,45 +165,44 @@ export default defineComponent({
 
 <template>
   <div>
-    <v-menu
-      v-model="menuOpen"
-      max-width="500"
-      v-bind="menuOptions"
-      :close-on-content-click="false"
+    <v-tooltip
+      location="bottom"
+      :open-delay="250"
+      :disabled="menuOpensToSide(menuOptions)"
     >
-      <template #activator="{ on: menuOn }">
-        <v-tooltip
-          bottom
-          :open-delay="250"
-          :disabled="menuOptions.offsetX"
+      <template #activator="{ props: tooltipProps }">
+        <span
+          v-bind="tooltipProps"
+          class="d-inline-flex"
         >
-          <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="trainingDisabled || buttonOptions.disabled"
-              v-on="{ ...tooltipOn, ...menuOn }"
-            >
-              <v-icon>
-                mdi-brain
-              </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+          <v-menu
+            v-model="menuOpen"
+            max-width="500"
+            v-bind="menuOptions"
+            :close-on-content-click="false"
+          >
+            <template #activator="{ props: menuProps }">
+              <v-btn
+                v-bind="mergeActivatorProps(menuProps, buttonOptions)"
+                :disabled="trainingDisabled || buttonOptions.disabled"
               >
-                Run Training
-              </span>
-              <v-spacer />
-              <v-icon>mdi-chevron-right</v-icon>
-            </v-btn>
-          </template>
-          <span>Train a detector model on this data</span>
-        </v-tooltip>
-      </template>
+                <v-icon>
+                  mdi-brain
+                </v-icon>
+                <span
+                  v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run Training
+                </span>
+                <v-spacer />
+                <v-icon>mdi-chevron-right</v-icon>
+              </v-btn>
+            </template>
 
-      <template>
-        <v-card
+            <v-card
           v-if="trainingConfigurations"
-          outlined
+          variant="outlined"
           class="training-menu"
         >
           <v-card-title class="pb-1">
@@ -210,16 +221,16 @@ export default defineComponent({
             </p>
             <v-alert
               v-if="brandData.trainingMessage"
-              dense
+              density="compact"
               color="warning"
-              outlined
+              variant="outlined"
             >
               {{ brandData.trainingMessage }}
             </v-alert>
 
             <v-text-field
               v-model="trainingOutputName"
-              outlined
+              variant="outlined"
               class="my-4"
               label="New Model Name"
               hint="Choose a name for the newly trained model"
@@ -228,38 +239,35 @@ export default defineComponent({
             <v-select
               v-if="trainingConfigurations.training.configs.length > 0"
               v-model="selectedTrainingConfig"
-              outlined
+              variant="outlined"
               class="my-4"
               label="Configuration File"
               :items="trainingConfigurations.training.configs"
-              item-text="name"
+              item-title="name"
               item-value="name"
               :hint="selectedTrainingConfig"
               persistent-hint
             >
-              <template #item="{ item, on, attrs }">
+              <template #item="{ props: itemProps, item }">
                 <v-tooltip
-                  left
+                  location="start"
                   :open-delay="250"
-                  :disabled="!item.description"
+                  :disabled="!item.raw.description"
                   max-width="300"
                   content-class="pipeline-description-tooltip"
                 >
-                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                  <template #activator="{ props: tooltipProps }">
                     <v-list-item
-                      v-bind="{ ...attrs, ...tooltipAttrs }"
-                      v-on="{ ...on, ...tooltipOn }"
+                      v-bind="{ ...itemProps, ...tooltipProps }"
                     >
-                      <v-list-item-content>
-                        <v-list-item-title>{{ simplifyTrainingName(item.name || item) }}</v-list-item-title>
-                      </v-list-item-content>
+                      <v-list-item-title>{{ simplifyTrainingName(item.raw.name || item.raw) }}</v-list-item-title>
                     </v-list-item>
                   </template>
-                  <span>{{ item.description }}</span>
+                  <span>{{ item.raw.description }}</span>
                 </v-tooltip>
               </template>
               <template #selection="{ item }">
-                {{ simplifyTrainingName(item.name || item) }}
+                {{ simplifyTrainingName(item.raw?.name || item.raw || item.title) }}
               </template>
             </v-select>
             <v-file-input
@@ -288,17 +296,17 @@ export default defineComponent({
             <v-select
               v-if="fineTuning"
               v-model="selectedFineTune"
-              outlined
+              variant="outlined"
               class="my-4"
               label="Fine Tune Model"
               :items="fineTuneModelList"
               item-value="name"
-              item-text="text"
+              item-title="text"
               hint="Model to Fine Tune"
               persistent-hint
             />
             <v-btn
-              depressed
+              variant="flat"
               block
               color="primary"
               class="mt-4"
@@ -309,8 +317,11 @@ export default defineComponent({
             </v-btn>
           </v-card-text>
         </v-card>
+          </v-menu>
+        </span>
       </template>
-    </v-menu>
+      <span>Train a detector model on this data</span>
+    </v-tooltip>
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"

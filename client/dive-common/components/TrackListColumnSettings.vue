@@ -67,7 +67,7 @@ export default defineComponent({
     outlined
     class="pa-2"
     width="280"
-    color="blue-grey darken-3"
+    color="blue-grey-darken-3"
   >
     <div class="subheading mb-2">
       Column Visibility

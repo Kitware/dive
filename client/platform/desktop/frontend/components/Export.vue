@@ -7,6 +7,7 @@ import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-anno
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { loadMetadata, exportDataset, exportConfiguration } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
+import { mergeActivatorProps } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   name: 'Export',
@@ -90,47 +91,46 @@ export default defineComponent({
       savePrompt,
       thresholds,
       checkedTypes,
+      mergeActivatorProps,
     };
   },
 });
 </script>
 
 <template>
-  <v-menu
-    v-model="data.menuOpen"
-    :close-on-content-click="false"
-    :nudge-width="280"
-    offset-y
-    max-width="280"
-  >
-    <template #activator="{ on: menuOn }">
-      <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
-          <v-btn
-            outlined
-            depressed
-            color="grey"
-            text
-            class="mx-1"
-            :small="small"
-            v-on="{ ...tooltipOn, ...menuOn }"
-          >
-            <v-icon>
-              mdi-export
-            </v-icon>
-            <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
-              class="pl-1"
+  <v-tooltip location="bottom">
+    <template #activator="{ props: tooltipProps }">
+      <span
+        v-bind="tooltipProps"
+        class="d-inline-flex"
+      >
+        <v-menu
+          v-model="data.menuOpen"
+          :close-on-content-click="false"
+          :nudge-width="280"
+          location="bottom"
+          max-width="280"
+        >
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              variant="outlined"
+              color="grey"
+              class="mx-1"
+              :size="small ? 'small' : undefined"
+              v-bind="mergeActivatorProps(menuProps)"
             >
-              Export
-            </span>
-          </v-btn>
-        </template>
-        <span>export annotation data</span>
-      </v-tooltip>
-    </template>
-    <template>
-      <v-card v-if="data.menuOpen">
+              <v-icon>
+                mdi-export
+              </v-icon>
+              <span
+                v-show="!$vuetify.display.mdAndDown"
+                class="pl-1"
+              >
+                Export
+              </span>
+            </v-btn>
+          </template>
+          <v-card v-if="data.menuOpen">
         <v-card-title>
           Export options
         </v-card-title>
@@ -256,6 +256,9 @@ export default defineComponent({
           </v-btn>
         </v-card-actions>
       </v-card>
+        </v-menu>
+      </span>
     </template>
-  </v-menu>
+    <span>export annotation data</span>
+  </v-tooltip>
 </template>

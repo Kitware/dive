@@ -42,12 +42,30 @@ Most application components do **not** need to be rewritten. The main work is up
 
 **Goal:** Run on Vue 3 with the app still largely working.
 
+### In progress (branch `vue3-upgrade-phase-1`)
+
+Uses **`@vue/compat`** (migration build) so Vuetify 2 and vue-router 3 keep working until Phases 2–3.
+
+| Done | Item |
+|------|------|
+| x | `vue` 3 + `@vue/compat`, `@vitejs/plugin-vue`, remove `vue-template-compiler` |
+| x | `createApp()` in web + desktop `main.ts` |
+| x | `vue-compat.ts` + compat flags in Vite compiler |
+| x | `.sync` → `v-model:prop` in DIVE templates |
+| x | Remove `set` / `del` / `Vue.set` imports (Vue 3 reactivity) |
+| x | `prompt-service` + `v-mousetrap` Vue 3 plugin API |
+| x | `patch-package` for `@girder/components` + `vuetify` (template/transition/slot fixes) |
+| x | `useCompatRoute` / `useCompatRouter` for vue-router 3 + Vue 3 |
+| ~ | App boot — Vuetify 2 render still failing under compat (`parseNodes`, overlay `zIndex`) |
+
 ### Dependencies
 | Package | From | To |
 |---------|------|-----|
 | `vue` | 2.7 | 3.x |
+| `@vue/compat` | — | same version as `vue` |
 | `@vitejs/plugin-vue2` | — | `@vitejs/plugin-vue` |
 | `vue-template-compiler` | 2.7 | remove |
+| `patch-package` | — | devDependency (Girder + Vuetify 2 patches) |
 
 ### Code changes
 - Replace `new Vue({ ... }).$mount('#app')` with `createApp()` in:

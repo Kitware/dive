@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
+import { mergeActivatorProps } from 'dive-common/vue-utilities/mergeActivatorProps';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { cloneDeep } from 'lodash';
@@ -108,46 +109,46 @@ export default defineComponent({
       additivePrepend,
       sets,
       currentSet,
+      mergeActivatorProps,
     };
   },
 });
 </script>
 
 <template>
-  <v-menu
-    v-model="menuOpen"
-    :close-on-content-click="false"
-    :nudge-width="120"
-    v-bind="menuOptions"
-    max-width="280"
-  >
-    <template #activator="{ on: menuOn }">
-      <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
-          <v-btn
-            class="ma-0"
-            v-bind="buttonOptions"
-            :disabled="!datasetId || processing"
-            v-on="{ ...tooltipOn, ...menuOn }"
-          >
-            <div>
-              <v-icon>
-                {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
-              </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
-              >
-                Import
-              </span>
-            </div>
-          </v-btn>
-        </template>
-        <span> Import Annotation Data </span>
-      </v-tooltip>
-    </template>
-    <template>
-      <v-card v-if="readOnlyMode">
+  <v-tooltip location="bottom">
+    <template #activator="{ props: tooltipProps }">
+      <span
+        v-bind="tooltipProps"
+        class="d-inline-flex"
+      >
+        <v-menu
+          v-model="menuOpen"
+          :close-on-content-click="false"
+          :nudge-width="120"
+          v-bind="menuOptions"
+          max-width="280"
+        >
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              class="ma-0"
+              v-bind="mergeActivatorProps(menuProps, buttonOptions)"
+              :disabled="!datasetId || processing"
+            >
+              <div>
+                <v-icon>
+                  {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
+                </v-icon>
+                <span
+                  v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Import
+                </span>
+              </div>
+            </v-btn>
+          </template>
+          <v-card v-if="readOnlyMode">
         <v-card-title> Read only Mode</v-card-title>
         <v-card-text>
           This Dataset is in ReadOnly Mode.  You cannot import annotations for this dataset.
@@ -236,6 +237,9 @@ export default defineComponent({
           </v-col>
         </v-container>
       </v-card>
+        </v-menu>
+      </span>
     </template>
-  </v-menu>
+    <span> Import Annotation Data </span>
+  </v-tooltip>
 </template>

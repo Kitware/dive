@@ -198,12 +198,12 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-btn
                     v-mousetrap="mouseTrap"
                     icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                     @click="swapTabs"
                   >
                     <v-icon small>
@@ -227,14 +227,14 @@ export default defineComponent({
             :disabled="disableAnnotationFilters"
             @track-seek="$emit('track-seek', $event)"
           >
-            <template slot="settings">
-              <TrackSettingsPanel
-                :all-types="allTypesRef"
-              />
-            </template>
-          </TrackList>
-        </div>
-        <track-details-panel
+          <template #settings>
+            <TrackSettingsPanel
+              :all-types="allTypesRef"
+            />
+          </template>
+        </TrackList>
+      </div>
+      <track-details-panel
           v-else-if="data.currentTab === 'attributes'"
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible() || readOnlyMode"
@@ -252,12 +252,12 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
                   v-mousetrap="mouseTrap"
                   icon
                   small
-                  v-on="on"
+                  v-bind="activatorProps"
                   @click="swapTabs"
                 >
                   <v-icon small>
@@ -288,7 +288,7 @@ export default defineComponent({
       <!-- Mini confidence slider at top -->
       <div class="confidence-row px-2 py-1">
         <ConfidenceFilter
-          :confidence.sync="confidenceFilters.default"
+          v-model:confidence="confidenceFilters.default"
           :disabled="disableAnnotationFilters"
           text="Confidence"
           @end="$emit('save-threshold')"
@@ -310,19 +310,19 @@ export default defineComponent({
           :disabled="disableAnnotationFilters"
           @track-seek="$emit('track-seek', $event)"
         >
-          <template slot="settings">
+          <template #settings>
             <TrackSettingsPanel
               :all-types="allTypesRef"
             />
           </template>
           <template #header-trailing>
             <v-tooltip bottom>
-              <template #activator="{ on }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
                   icon
                   x-small
                   class="ml-1"
-                  v-on="on"
+                  v-bind="activatorProps"
                   @click="cycleHorizontalTabs"
                 >
                   <v-icon x-small>
@@ -356,11 +356,11 @@ export default defineComponent({
       >
         <template #header-trailing>
           <v-tooltip bottom>
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-btn
                 icon
                 x-small
-                v-on="on"
+                v-bind="activatorProps"
                 @click="cycleHorizontalTabs"
               >
                 <v-icon x-small>
@@ -395,11 +395,11 @@ export default defineComponent({
         </template>
         <template #header-trailing>
           <v-tooltip bottom>
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-btn
                 icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
                 @click="cycleHorizontalTabs"
               >
                 <v-icon small>

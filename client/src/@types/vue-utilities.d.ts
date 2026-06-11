@@ -1,7 +1,7 @@
-import Vue2 from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 
-declare module 'vue/types/vue' {
-  interface Vue {
-    $promptAttach(): Vue2;
+declare module '@vue/runtime-core' {
+  interface ComponentCustomProperties {
+    $promptAttach(): ComponentPublicInstance;
   }
 }

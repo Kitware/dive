@@ -63,21 +63,20 @@ export default defineComponent({
 
         <b>Track Attribute Filters</b>
         <v-badge
-          overlap
-          :value="count"
-          bottom
+          :model-value="count > 0"
+          location="bottom end"
           color="primary"
           :content="count"
-          offset-x="12"
-          offset-y="21"
+          :offset-x="12"
+          :offset-y="21"
         >
           <v-tooltip
             open-delay="50"
             bottom
             max-width="200"
           >
-            <template #activator="{ on }">
-              <v-icon v-on="on">
+            <template #activator="{ props: activatorProps }">
+              <v-icon v-bind="activatorProps">
                 mdi-filter
               </v-icon>
             </template>

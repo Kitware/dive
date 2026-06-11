@@ -7,6 +7,7 @@ import {
   Ref,
   onBeforeMount,
 } from 'vue';
+import { mergeActivatorProps, menuOpensToSide } from 'dive-common/vue-utilities/mergeActivatorProps';
 import {
   Pipelines,
   Pipe,
@@ -135,7 +136,11 @@ export default defineComponent({
       `Started ${selectedPipeline.value?.name} on ${props.selectedDatasetIds.length} dataset(s).`));
 
     onBeforeMount(async () => {
-      unsortedPipelines.value = await getPipelineList();
+      try {
+        unsortedPipelines.value = await getPipelineList();
+      } catch (err) {
+        console.error('RunPipelineMenu: failed to load pipelines', err);
+      }
     });
 
     const pipelines = computed(() => filterPipelinesForDatasets(
@@ -258,6 +263,8 @@ export default defineComponent({
       pipelineParams,
       showParamsDialog,
       confirmPipelineExecution,
+      mergeActivatorProps,
+      menuOpensToSide,
     };
   },
 });
@@ -265,45 +272,43 @@ export default defineComponent({
 
 <template>
   <div>
-    <v-menu
-      max-width="230"
-      max-height="none"
-      content-class="pipeline-menu-content"
-      v-bind="menuOptions"
-      :close-on-content-click="false"
+    <v-tooltip
+      location="bottom"
+      :disabled="menuOpensToSide(menuOptions)"
     >
-      <template #activator="{ on: menuOn }">
-        <v-tooltip
-          bottom
-          :disabled="menuOptions.offsetX"
+      <template #activator="{ props: tooltipProps }">
+        <span
+          v-bind="tooltipProps"
+          class="d-inline-flex"
         >
-          <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable || buttonOptions.disabled"
-              :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
-              v-on="{ ...tooltipOn, ...menuOn }"
-            >
-              <v-icon> mdi-pipe </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+          <v-menu
+            max-width="230"
+            max-height="none"
+            content-class="pipeline-menu-content"
+            v-bind="menuOptions"
+            :close-on-content-click="false"
+          >
+            <template #activator="{ props: menuProps }">
+              <v-btn
+                v-bind="mergeActivatorProps(menuProps, buttonOptions)"
+                :disabled="pipelinesNotRunnable || buttonOptions.disabled"
+                :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
               >
-                Run pipeline
-              </span>
-              <v-spacer />
-              <v-icon v-if="menuOptions.right">
-                mdi-chevron-right
-              </v-icon>
-            </v-btn>
-          </template>
-          <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
-          <span v-else>Pipeline is Currently running </span>
-        </v-tooltip>
-      </template>
+                <v-icon> mdi-pipe </v-icon>
+                <span
+                  v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run pipeline
+                </span>
+                <v-spacer />
+                <v-icon v-if="menuOpensToSide(menuOptions)">
+                  mdi-chevron-right
+                </v-icon>
+              </v-btn>
+            </template>
 
-      <template>
-        <v-card v-if="pipelinesCurrentlyRunning">
+            <v-card v-if="pipelinesCurrentlyRunning">
           <v-card-title> Pipeline Running </v-card-title>
           <v-card-text>
             Data cannot be edited while a pipeline is queued.
@@ -370,16 +375,15 @@ export default defineComponent({
               >
                 <v-menu
                   :key="pipeType"
-                  offset-x
-                  right
+                  location="end"
                   max-height="none"
                   content-class="pipeline-menu-content"
                 >
-                  <template #activator="{ on }">
+                  <template #activator="{ props: activatorProps }">
                     <v-btn
-                      depressed
+                      variant="flat"
                       block
-                      v-on="on"
+                      v-bind="activatorProps"
                     >
                       {{ pipeTypeDisplay(pipeType) }}
                       <v-icon
@@ -393,23 +397,21 @@ export default defineComponent({
                   </template>
 
                   <v-list
-                    dense
-                    outlined
+                    density="compact"
                     class="pipeline-submenu-list"
                   >
                     <v-tooltip
                       v-for="pipeline in pipelines[pipeType].pipes"
                       :key="`${pipeline.name}-${pipeline.pipe}`"
-                      left
+                      location="start"
                       :open-delay="250"
                       :disabled="!pipeline?.metadata?.description"
                       max-width="400"
                       content-class="pipeline-description-tooltip"
                     >
-                      <template #activator="{ on, attrs }">
+                      <template #activator="{ props: activatorProps }">
                         <v-list-item
-                          v-bind="attrs"
-                          v-on="on"
+                          v-bind="activatorProps"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
@@ -428,8 +430,12 @@ export default defineComponent({
             </v-row>
           </v-card-text>
         </v-card>
+          </v-menu>
+        </span>
       </template>
-    </v-menu>
+      <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
+      <span v-else>Pipeline is Currently running </span>
+    </v-tooltip>
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"

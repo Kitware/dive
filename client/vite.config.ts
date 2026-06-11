@@ -1,12 +1,56 @@
 import { execSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
-import vue from '@vitejs/plugin-vue2';
-import type { UserConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import vuetify from 'vite-plugin-vuetify';
+import type { Plugin, UserConfig } from 'vite';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+
+const gwcSrc = resolve(__dirname, 'node_modules/@girder/components/src');
+
+function resolveExistingFile(base: string) {
+  const candidates = [`${base}.vue`, `${base}.js`, resolve(base, 'index.js'), base];
+  return candidates.find((candidate) => (
+    existsSync(candidate) && !statSync(candidate).isDirectory()
+  ));
+}
+
+function resolveGwcPath(subpath: string) {
+  return resolveExistingFile(resolve(gwcSrc, subpath)) || `${resolve(gwcSrc, subpath)}.js`;
+}
+
+function girderComponentsResolver(): Plugin {
+  const isGwcImporter = (importer?: string) => (
+    !!importer && (importer.includes('@girder/components') || importer.startsWith(gwcSrc))
+  );
+
+  return {
+    name: 'girder-components-resolver',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (source === '@girder/components' || source === '@girder/components/') {
+        return resolve(gwcSrc, 'index.js');
+      }
+      if (source.startsWith('@girder/components/')) {
+        return resolveGwcPath(source.slice('@girder/components/'.length));
+      }
+      if (source.startsWith('@/') && isGwcImporter(importer)) {
+        return resolveGwcPath(source.slice(2));
+      }
+      if (importer?.startsWith(gwcSrc) && source.startsWith('.')) {
+        const resolved = resolveExistingFile(resolve(dirname(importer), source));
+        if (resolved) {
+          return resolved;
+        }
+      }
+      return undefined;
+    },
+  };
+}
 
 function getGitHash() {
   try {
@@ -23,11 +67,6 @@ const webOverrides: UserConfig = {
     outDir: 'dist',
     emptyOutDir: true,
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
-  },
 };
 
 export default defineConfig(({ mode }) => {
@@ -37,10 +76,15 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
-    plugins: [vue()],
+    plugins: [
+      girderComponentsResolver(),
+      vue(),
+      vuetify({ autoImport: true }),
+    ],
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
+        '@girder/components': resolve(gwcSrc, 'index.js'),
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
@@ -64,7 +108,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
-        // WebSocket for Girder notifications (not under /api; see notificatonBus.ts).
         '/notifications': {
           target: apiProxyTarget,
           secure: false,
@@ -74,6 +117,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+      exclude: ['@girder/components', 'vue-gtag'],
     },
     build: {
       sourcemap: true,

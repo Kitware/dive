@@ -3,7 +3,7 @@ import {
   defineComponent, ref, reactive, watch, toRefs,
 } from 'vue';
 import type { DataOptions } from 'vuetify';
-import { GirderModel, mixins } from '@girder/components/src';
+import { formatSize, type GirderModel } from '@girder/components';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
 import {
@@ -35,9 +35,6 @@ export default defineComponent({
       { text: 'Shared By', value: 'ownerLogin' },
     ];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fixSize: any = mixins.sizeFormatter.methods;
-
     const updateOptions = async () => {
       const {
         sortBy, page, sortDesc,
@@ -51,7 +48,7 @@ export default defineComponent({
       total.value = Number.parseInt(response.headers['girder-total-count'], 10);
       dataList.value.forEach((element) => {
         // eslint-disable-next-line no-param-reassign
-        element.formattedSize = fixSize.formatSize(element.size);
+        element.formattedSize = formatSize(element.size);
         // eslint-disable-next-line no-param-reassign
         element.type = isAnnotationFolder(element) ? 'Dataset' : 'Folder';
       });
@@ -97,10 +94,10 @@ export default defineComponent({
     v-model="selected"
     :selectable="!locationIsViameFolder"
     :headers="headers"
-    :page.sync="page"
-    :items-per-page.sync="clientSettings.rowsPerPage"
-    :sort-by.sync="sortBy"
-    :sort-desc.sync="sortDesc"
+    v-model:page="page"
+    v-model:items-per-page="clientSettings.rowsPerPage"
+    v-model:sort-by="sortBy"
+    v-model:sort-desc="sortDesc"
     :server-items-length="total"
     :items="dataList"
     :footer-props="{ itemsPerPageOptions }"
@@ -115,17 +112,15 @@ export default defineComponent({
       >
         <v-tooltip
           v-if="multiCamSubType(item)"
-          bottom
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              small
+              size="small"
               class="mr-1"
-              v-bind="attrs"
-              v-on="on"
-            >
-              {{ getMultiCamIcon(multiCamSubType(item)) }}
-            </v-icon>
+              v-bind="activatorProps"
+              :icon="getMultiCamIcon(multiCamSubType(item))"
+            />
           </template>
           <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
         </v-tooltip>
@@ -140,10 +135,11 @@ export default defineComponent({
       <v-btn
         v-if="isAnnotationFolder(item)"
         class="ml-2"
-        x-small
+        size="x-small"
         color="primary"
-        depressed
+        variant="flat"
         :to="{ name: 'viewer', params: { id: item._id } }"
+        @click.stop
       >
         Launch Annotator
       </v-btn>

@@ -151,12 +151,11 @@ export default defineComponent({
       :close-on-content-click="false"
       min-width="300"
     >
-      <template #activator="{ on, attrs }">
+      <template #activator="{ props: activatorProps }">
         <v-btn
-          v-bind="attrs"
+          v-bind="activatorProps"
           class="mx-1 mode-button"
-          small
-          v-on="on"
+          size="small"
         >
           <v-icon>mdi-eye</v-icon>
           <v-btn
@@ -175,80 +174,80 @@ export default defineComponent({
           :key="`${button.id}-menu`"
           @click="button.click"
         >
-          <v-list-item-icon>
+          <template #prepend>
             <v-btn
-              :color="button.active ? 'grey darken-2' : ''"
+              :variant="button.active ? 'flat' : 'outlined'"
+              :color="button.active ? 'grey-darken-2' : 'grey'"
               class="mx-1 mode-button"
               small
               @click.stop
               @click="button.click"
             >
-              <v-icon>{{ button.icon }}</v-icon>
+              <v-icon color="white">
+                {{ button.icon }}
+              </v-icon>
             </v-btn>
-          </v-list-item-icon>
-          <v-list-item-content>
-            <v-list-item-title>{{ button.description }}</v-list-item-title>
-            <v-checkbox
-              v-if="button.id === 'text'"
-              :input-value="showUserCreatedIcon"
-              label="Show user created/modified icons"
-              dense
-              hide-details
-              class="mt-0"
-              @click.stop
-              @change="toggleShowUserCreatedIcon"
-            />
-          </v-list-item-content>
+          </template>
+          <v-list-item-title>{{ button.description }}</v-list-item-title>
+          <v-checkbox
+            v-if="button.id === 'text'"
+            :input-value="showUserCreatedIcon"
+            label="Show user created/modified icons"
+            dense
+            hide-details
+            class="mt-0"
+            @click.stop
+            @change="toggleShowUserCreatedIcon"
+          />
         </v-list-item>
         <v-list-item>
-          <v-list-item-icon>
+          <template #prepend>
             <v-btn
-              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+              :variant="isVisible('TrackTail') ? 'flat' : 'outlined'"
+              :color="isVisible('TrackTail') ? 'grey-darken-2' : 'grey'"
               class="mx-1 mode-button"
               small
               @click="toggleVisible('TrackTail')"
             >
-              <v-icon>mdi-navigation</v-icon>
+              <v-icon color="white">
+                mdi-navigation
+              </v-icon>
             </v-btn>
-          </v-list-item-icon>
-          <v-list-item-content>
-            <v-list-item-title>Track Trails</v-list-item-title>
-          </v-list-item-content>
+          </template>
+          <v-list-item-title>Track Trails</v-list-item-title>
         </v-list-item>
         <v-divider />
         <v-list-item v-if="isVisible('TrackTail')">
-          <v-list-item-content>
-            <v-card
-              class="pa-4 flex-column d-flex"
-              outlined
-              flat
+          <v-card
+            class="pa-4 flex-column d-flex"
+            outlined
+            flat
+          >
+            <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
+            <input
+              id="frames-before"
+              type="range"
+              name="frames-before"
+              class="tail-slider-width"
+              label
+              min="0"
+              max="100"
+              :value="tailSettings.before"
+              @input="updateTailSettings('before', $event)"
             >
-              <label for="frames-before">Frames before: {{ tailSettings.before }}</label>
-              <input
-                id="frames-before"
-                type="range"
-                name="frames-before"
-                class="tail-slider-width"
-                label
-                min="0"
-                max="100"
-                :value="tailSettings.before"
-                @input="updateTailSettings('before', $event)"
-              >
-              <div class="py-2" />
-              <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
-              <input
-                id="frames-after"
-                type="range"
-                name="frames-after"
-                class="tail-slider-width"
-                min="0"
-                max="100"
-                :value="tailSettings.after"
-                @input="updateTailSettings('after', $event)"
-              >
-            </v-card>
-          </v-list-item-content>
+            <div class="py-2" />
+            <label for="frames-after">Frames after: {{ tailSettings.after }}</label>
+            <input
+              id="frames-after"
+              type="range"
+              name="frames-after"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.after"
+              @input="updateTailSettings('after', $event)"
+            >
+          </v-card>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -286,16 +285,18 @@ export default defineComponent({
           offset-y
           :close-on-content-click="false"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
-              v-bind="attrs"
-              :color="button.active ? 'grey darken-2' : ''"
+              v-bind="activatorProps"
+              :variant="button.active ? 'flat' : 'outlined'"
+              :color="button.active ? 'grey-darken-2' : 'grey'"
               class="mx-1 mode-button"
-              small
-              v-on="on"
+              size="small"
               @click="button.click"
             >
-              <v-icon>{{ button.icon }}</v-icon>
+              <v-icon color="white">
+                {{ button.icon }}
+              </v-icon>
             </v-btn>
           </template>
           <v-card
@@ -314,12 +315,15 @@ export default defineComponent({
         <v-btn
           v-else
           :key="`${button.id}-view-button`"
-          :color="button.active ? 'grey darken-2' : ''"
+          :variant="button.active ? 'flat' : 'outlined'"
+          :color="button.active ? 'grey-darken-2' : 'grey'"
           class="mx-1 mode-button"
           small
           @click="button.click"
         >
-          <v-icon>{{ button.icon }}</v-icon>
+          <v-icon color="white">
+            {{ button.icon }}
+          </v-icon>
         </v-btn>
       </template>
       <v-menu
@@ -329,16 +333,18 @@ export default defineComponent({
         offset-y
         :close-on-content-click="false"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
-            v-bind="attrs"
-            :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+            v-bind="activatorProps"
+            :variant="isVisible('TrackTail') ? 'flat' : 'outlined'"
+            :color="isVisible('TrackTail') ? 'grey-darken-2' : 'grey'"
             class="mx-1 mode-button"
-            small
-            v-on="on"
+            size="small"
             @click="toggleVisible('TrackTail')"
           >
-            <v-icon>mdi-navigation</v-icon>
+            <v-icon color="white">
+              mdi-navigation
+            </v-icon>
           </v-btn>
         </template>
         <v-card
@@ -377,8 +383,12 @@ export default defineComponent({
 
 <style scoped>
 .mode-button {
-  border: 1px solid grey;
   min-width: 36px;
+  box-shadow: none !important;
+}
+
+.mode-button.v-btn--variant-outlined {
+  background-color: transparent !important;
 }
 .tail-slider-width {
   width: 240px;

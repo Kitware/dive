@@ -11,7 +11,7 @@ import {
   useHandler,
   useTrackStyleManager,
 } from 'vue-media-annotator/provides';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 export default defineComponent({
   name: 'AnnotationTags',

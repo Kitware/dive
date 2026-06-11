@@ -307,12 +307,11 @@ export default defineComponent({
       offset-y
       :close-on-content-click="false"
     >
-      <template #activator="{ on, attrs }">
+      <template #activator="{ props: activatorProps }">
         <v-btn
-          v-bind="attrs"
+          v-bind="activatorProps"
           class="mx-1 mode-button"
-          small
-          v-on="on"
+          size="small"
         >
           <v-icon>mdi-image-multiple</v-icon>
           <v-btn
@@ -330,7 +329,7 @@ export default defineComponent({
           v-for="button in toolbarButtons"
           :key="`${button.id}-menu`"
         >
-          <v-list-item-icon>
+          <template #prepend>
             <v-btn
               v-if="!button.menu"
               :color="button.color"
@@ -345,12 +344,11 @@ export default defineComponent({
               v-else
               offset-y
             >
-              <template #activator="{ on: menuOn, attrs: menuAttrs }">
+              <template #activator="{ props: menuProps }">
                 <v-btn
-                  v-bind="menuAttrs"
+                  v-bind="menuProps"
                   class="mx-1 mode-button"
-                  small
-                  v-on="menuOn"
+                  size="small"
                 >
                   <v-icon>{{ button.icon }}</v-icon>
                 </v-btn>
@@ -361,16 +359,12 @@ export default defineComponent({
                   :key="item.label"
                   @click="item.action"
                 >
-                  <v-list-item-content>
-                    <v-list-item-title>{{ item.label }}</v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title>{{ item.label }}</v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-menu>
-          </v-list-item-icon>
-          <v-list-item-content>
-            <v-list-item-title>{{ button.tooltip }}</v-list-item-title>
-          </v-list-item-content>
+          </template>
+          <v-list-item-title>{{ button.tooltip }}</v-list-item-title>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -394,12 +388,12 @@ export default defineComponent({
         </v-btn>
       </span>
       <!-- Edit/Add detection on opposite camera -->
-      <v-tooltip bottom>
-        <template #activator="{ on }">
+      <v-tooltip location="bottom">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             class="mx-1 mode-button"
-            v-on="on"
+            v-bind="activatorProps"
             @click="editOnOppositeCamera"
           >
             <v-icon>mdi-pencil-plus</v-icon>
@@ -410,46 +404,48 @@ export default defineComponent({
 
       <!-- Link/Unlink button - switches between modes -->
       <!-- Link mode: when there are cameras without the track -->
-      <v-menu
+      <v-tooltip
         v-if="useLinkMenu"
-        offset-y
+        location="bottom"
       >
-        <template #activator="{ on, attrs }">
-          <v-tooltip bottom>
-            <template #activator="{ on: tooltipOn }">
-              <v-btn
-                v-bind="attrs"
-                small
-                class="mx-1 mode-button"
-                v-on="{ ...on, ...tooltipOn }"
-              >
-                <v-icon>mdi-link-variant-plus</v-icon>
-              </v-btn>
-            </template>
-            <span>Link track to camera</span>
-          </v-tooltip>
-        </template>
+        <template #activator="{ props: tooltipProps }">
+          <span
+            v-bind="tooltipProps"
+            class="d-inline-flex"
+          >
+            <v-menu location="bottom">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  v-bind="menuProps"
+                  size="small"
+                  class="mx-1 mode-button"
+                >
+                  <v-icon>mdi-link-variant-plus</v-icon>
+                </v-btn>
+              </template>
         <v-list dense>
           <v-list-item
             v-for="camera in linkableCameras"
             :key="camera"
             @click="startLinkingToCamera(camera)"
           >
-            <v-list-item-content>
-              <v-list-item-title>Link to {{ camera }}</v-list-item-title>
-            </v-list-item-content>
+            <v-list-item-title>Link to {{ camera }}</v-list-item-title>
           </v-list-item>
         </v-list>
-      </v-menu>
+            </v-menu>
+          </span>
+        </template>
+        <span>Link track to camera</span>
+      </v-tooltip>
       <v-tooltip
         v-else-if="canLink"
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             class="mx-1 mode-button"
-            v-on="on"
+            v-bind="activatorProps"
             @click="linkToAvailableCamera"
           >
             <v-icon>mdi-link-variant-plus</v-icon>
@@ -462,13 +458,13 @@ export default defineComponent({
         v-else
         bottom
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             class="mx-1 mode-button"
             :color="canUnlink ? 'warning' : undefined"
             :disabled="!canUnlink"
-            v-on="on"
+            v-bind="activatorProps"
             @click="unlinkCurrentCamera"
           >
             <v-icon>mdi-link-variant-minus</v-icon>
@@ -478,13 +474,13 @@ export default defineComponent({
       </v-tooltip>
 
       <!-- Delete detection from current camera -->
-      <v-tooltip bottom>
-        <template #activator="{ on }">
+      <v-tooltip location="bottom">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             class="mx-1 mode-button"
             :disabled="!currentCameraHasDetection"
-            v-on="on"
+            v-bind="activatorProps"
             @click="deleteDetection"
           >
             <v-icon>mdi-star-minus</v-icon>
@@ -494,14 +490,14 @@ export default defineComponent({
       </v-tooltip>
 
       <!-- Delete track from current camera -->
-      <v-tooltip bottom>
-        <template #activator="{ on }">
+      <v-tooltip location="bottom">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             class="mx-1 mode-button"
             :color="currentCameraHasTrack ? 'error' : undefined"
             :disabled="!currentCameraHasTrack"
-            v-on="on"
+            v-bind="activatorProps"
             @click="deleteTrackFromCamera"
           >
             <v-icon>mdi-delete</v-icon>

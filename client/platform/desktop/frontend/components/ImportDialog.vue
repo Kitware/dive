@@ -1,6 +1,6 @@
 <script lang="ts">
 import { cloneDeep } from 'lodash';
-import Vue, {
+import {
   computed, defineComponent, watch, toRef, ref, PropType,
 } from 'vue';
 import { MediaTypes, FPSOptions } from 'dive-common/constants';
@@ -75,7 +75,7 @@ export default defineComponent({
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
-          Vue.set(argCopy.value, argMap[type], path);
+          argCopy.value[argMap[type]] = path;
         }
       }
     };
@@ -209,7 +209,7 @@ export default defineComponent({
         >
           <v-icon
             class="pr-1"
-            color="primary lighten-3"
+            color="primary-lighten-3"
           >
             {{ showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
           </v-icon>

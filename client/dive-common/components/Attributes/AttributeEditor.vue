@@ -447,8 +447,8 @@ export default defineComponent({
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <div v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <div v-bind="activatorProps">
                   <v-btn
                     class="hover-show-child"
                     color="error"

@@ -1,4 +1,4 @@
-import { GirderModel, RestClient } from '@girder/components/src';
+import type { GirderModel, RestClient } from '@girder/components';
 
 // TODO remove after GWC types are fixed
 interface AugmentedRestClient extends RestClient {

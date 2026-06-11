@@ -12,13 +12,14 @@ type ValidationRule = (value: string | number) => boolean | string;
 export default defineComponent({
   name: 'PipelineParamsDialog',
   props: {
-    value: { type: Boolean, required: true },
+    modelValue: { type: Boolean, required: true },
     pipeline: { type: Object as PropType<Pipe | null>, default: null },
     params: {
       type: Object as PropType<Record<string, string>>,
       default: () => ({}),
     },
   },
+  emits: ['update:modelValue', 'confirm'],
   setup(props, { emit }) {
     const localParams = ref<Record<string, string>>({ ...props.params });
     const getIcon = (type: PipelineParamType): string => {
@@ -43,7 +44,7 @@ export default defineComponent({
       localParams.value = { ...newParams };
     }, { deep: true });
 
-    const close = () => emit('input', false);
+    const close = () => emit('update:modelValue', false);
 
     const confirm = () => {
       emit('confirm', { ...localParams.value });
@@ -86,10 +87,10 @@ export default defineComponent({
 
 <template>
   <v-dialog
-    :value="value"
+    :model-value="modelValue"
     max-width="600px"
     scrollable
-    @input="$emit('input', $event)"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <v-card v-if="pipeline" class="rounded-lg">
       <v-toolbar flat color="primary" dark dense>
@@ -219,7 +220,7 @@ export default defineComponent({
       <v-divider />
 
       <v-card-actions class="pa-4 lighten-3">
-        <v-btn text color="grey darken-1" @click="close">
+        <v-btn text color="grey-darken-1" @click="close">
           Cancel
         </v-btn>
         <v-spacer />

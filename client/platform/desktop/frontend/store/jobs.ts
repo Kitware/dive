@@ -2,7 +2,7 @@
  * Job Manager
  */
 import {
-  ref, Ref, set, computed,
+  ref, Ref, computed,
   reactive,
 } from 'vue';
 import {
@@ -35,11 +35,11 @@ const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitC
 export function updateHistory(args: DesktopJobUpdate) {
   let existing = jobHistory.value[args.key];
   if (!existing) {
-    set<DesktopJobHistory>(jobHistory.value, args.key, {
+    jobHistory.value[args.key] = {
       job: args,
       truncatedLogs: [],
       totalLogLength: 0,
-    });
+    };
     existing = jobHistory.value[args.key];
   }
   // If job is cancelled we should stop updating data
@@ -78,7 +78,7 @@ function setOrGetConversionJob(datasetId: string, status?: boolean) {
     existing = conversionJob.value[datasetId];
   }
   if (status !== undefined) {
-    set(conversionJob.value, datasetId, status);
+    conversionJob.value[datasetId] = status;
   }
   return existing;
 }

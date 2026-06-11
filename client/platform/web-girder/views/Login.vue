@@ -2,11 +2,13 @@
 import {
   defineComponent, reactive, toRefs, onBeforeUnmount,
 } from 'vue';
-import { GirderAuthentication } from '@girder/components/src';
+import { GirderAuthentication } from '@girder/components';
+import { useRouter } from 'vue-router';
 
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
-import { useRouter } from 'vue-router/composables';
 import { useBrand } from 'platform/web-girder/store/useBrand';
+import { getUserHomeRoute } from 'platform/web-girder/store/useLocation';
+import { useUser } from 'platform/web-girder/store/useUser';
 
 export default defineComponent({
   name: 'Login',
@@ -25,14 +27,15 @@ export default defineComponent({
       if (girderRest.token) {
         window.localStorage.setItem('girderToken', girderRest.token);
       }
-      router.push('/');
+      useUser().setUser(girderRest.user);
+      router.push(getUserHomeRoute());
     }
-    girderRest.$on('login', onLogin);
-    onBeforeUnmount(() => girderRest.$off('login', onLogin));
+    girderRest.on('userLoggedIn', onLogin);
+    onBeforeUnmount(() => girderRest.off('userLoggedIn', onLogin));
 
     /** Redirect if user already logged in */
     if (girderRest.user) {
-      router.replace('/');
+      router.replace(getUserHomeRoute());
       data.userDialog = false;
     }
 
@@ -47,14 +50,14 @@ export default defineComponent({
 <template>
   <v-container>
     <v-dialog
-      :value="userDialog"
+      v-model="userDialog"
       persistent
       max-width="400px"
     >
       <v-alert
-        border="left"
+        border="start"
         elevation="2"
-        colored-border
+        border-color="primary"
         color="primary"
         class="pl-8"
       >
@@ -68,7 +71,7 @@ export default defineComponent({
           Log in or register to get started.
         </div>
         <v-alert
-          outlined
+          variant="outlined"
           class="my-4"
         >
           {{ brandData.loginMessage }}

@@ -231,12 +231,12 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
               small
               icon
               :disabled="readOnlyMode"
-              v-on="on"
+              v-bind="activatorProps"
               @click="addAttribute"
             >
               <v-icon small>
@@ -251,13 +251,13 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
               small
               icon
               class="ml-2"
               :color="activeSettings ? 'accent' : ''"
-              v-on="on"
+              v-bind="activatorProps"
               @click="toggleActiveSettings()"
             >
               <v-icon small>

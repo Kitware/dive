@@ -1,7 +1,10 @@
-import Vue from 'vue';
-import Router, { Route } from 'vue-router';
+import {
+  createRouter, createWebHashHistory, type RouteLocationNormalized, type NavigationGuardNext,
+} from 'vue-router';
 
 import girderRest from './plugins/girder';
+import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
+import { getUserHomeRoute, useLocation } from './store/useLocation';
 import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import TrainedModels from './views/TrainedModels.vue';
@@ -13,10 +16,7 @@ import DataShared from './views/DataShared.vue';
 import DataBrowser from './views/DataBrowser.vue';
 import Summary from './views/Summary.vue';
 
-Vue.use(Router);
-
-// eslint-disable-next-line @typescript-eslint/ban-types
-function beforeEnter(to: Route, from: Route, next: Function) {
+function beforeEnter(to: RouteLocationNormalized, from: RouteLocationNormalized, next: NavigationGuardNext) {
   if (!girderRest.user) {
     next('/login');
   } else {
@@ -24,9 +24,8 @@ function beforeEnter(to: Route, from: Route, next: Function) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
-function adminGuard(to: Route, from: Route, next: Function) {
-  if (!girderRest.user.admin) {
+function adminGuard(to: RouteLocationNormalized, from: RouteLocationNormalized, next: NavigationGuardNext) {
+  if (!girderRest.user?.admin) {
     next('/');
   } else {
     next();
@@ -40,7 +39,8 @@ function toArray(data: string | (string | null)[]) {
   return data;
 }
 
-const router = new Router({
+const router = createRouter({
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/login',
@@ -51,14 +51,14 @@ const router = new Router({
       path: '/viewer/:id',
       name: 'viewer',
       component: ViewerLoader,
-      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets as string | string[]) }),
       beforeEnter,
     },
     {
       path: '/viewer/:id/set/:set',
       name: 'set viewer',
       component: ViewerLoader,
-      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets) }),
+      props: (route) => ({ ...route.params, comparisonSets: toArray(route.query.comparisonSets as string | string[]) }),
       beforeEnter,
     },
     {
@@ -125,6 +125,25 @@ const router = new Router({
       ],
     },
   ],
+});
+
+router.beforeEach(async (to, _from, next) => {
+  if (to.name !== 'login' && !girderRest.user) {
+    next({ name: 'login' });
+    return;
+  }
+  if (to.name === 'login' && girderRest.user) {
+    next(getUserHomeRoute());
+    return;
+  }
+  if (to.name === 'home') {
+    try {
+      await useLocation().setLocationFromRoute(to);
+    } catch (reason) {
+      reportHandledPromiseRejection('router: setLocationFromRoute (home)', reason);
+    }
+  }
+  next();
 });
 
 export default router;

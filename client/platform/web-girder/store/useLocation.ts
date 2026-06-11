@@ -1,8 +1,8 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
-import type { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components';
 import { computed, ref } from 'vue';
-import type { Route } from 'vue-router';
-import type VueRouter from 'vue-router';
+import type { RouteLocationNormalizedLoaded } from 'vue-router';
+import type { Router } from 'vue-router';
 
 import girderRest from 'platform/web-girder/plugins/girder';
 import { getLocationFromRoute, getRouteFromLocation } from 'platform/web-girder/utils';
@@ -11,14 +11,14 @@ import { getFolder } from 'platform/web-girder/api';
 import { isGirderModel } from './types';
 import type { LocationType } from './types';
 
-let boundRouter: VueRouter | null = null;
+let boundRouter: Router | null = null;
 
 /** Call once from main.ts with the app router (avoids circular imports: router → views → useLocation). */
-export function bindWebGirderRouter(router: VueRouter): void {
+export function bindWebGirderRouter(router: Router): void {
   boundRouter = router;
 }
 
-function getRouter(): VueRouter {
+function getRouter(): Router {
   if (!boundRouter) {
     throw new Error('bindWebGirderRouter must be called before using location navigation');
   }
@@ -28,23 +28,25 @@ function getRouter(): VueRouter {
 const location = ref<LocationType | null>(null);
 const selected = ref<GirderModel[]>([]);
 
-const defaultRoute = computed(() => {
+export function getUserHomeRoute() {
   if (girderRest.user) {
     return {
-      name: 'home',
+      name: 'home' as const,
       params: {
-        routeId: girderRest.user._id,
         routeType: 'user',
+        routeId: girderRest.user._id,
       },
     };
   }
   return {
-    name: 'home',
+    name: 'home' as const,
     params: {
       routeType: 'collections',
     },
   };
-});
+}
+
+const defaultRoute = computed(() => getUserHomeRoute());
 
 const locationIsViameFolder = computed(() => {
   const loc = location.value;
@@ -90,8 +92,9 @@ export function useLocation() {
     }
   }
 
-  async function setLocationFromRoute(route: Route): Promise<void> {
-    const newLocation = getLocationFromRoute(route) || getLocationFromRoute(defaultRoute.value as Route);
+  async function setLocationFromRoute(route: RouteLocationNormalizedLoaded): Promise<void> {
+    const newLocation = getLocationFromRoute(route)
+      || getLocationFromRoute(defaultRoute.value as RouteLocationNormalizedLoaded);
     if (newLocation === null) {
       throw new Error('Unexpected null default route');
     }

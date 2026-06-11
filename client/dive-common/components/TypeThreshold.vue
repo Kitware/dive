@@ -52,7 +52,7 @@ export default defineComponent({
     <v-divider class="my-3" />
     <ConfidenceFilter
       :disabled="disableAnnotationFiltersRef"
-      :confidence.sync="confidenceFiltersRef.default"
+      v-model:confidence="confidenceFiltersRef.default"
       text="Base Confidence Threshold"
       @end="saveThreshold"
     />
@@ -64,7 +64,7 @@ export default defineComponent({
     >
       <ConfidenceFilter
         :disabled="disableAnnotationFiltersRef"
-        :confidence.sync="confidenceFiltersRef[type]"
+        v-model:confidence="confidenceFiltersRef[type]"
         :text="type"
         :color="typeStylingRef.color(type)"
         @end="saveThreshold"

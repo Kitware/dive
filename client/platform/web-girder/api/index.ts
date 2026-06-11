@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import girderRest from 'platform/web-girder/plugins/girder';
 
 export * from './annotation.service';
@@ -30,5 +30,8 @@ export function unwrap<T extends(...args: any) => Promise<AxiosResponse<any>>>(f
 }
 
 export function getUri(config: AxiosRequestConfig) {
-  return girderRest.apiRoot.replace(/\/*$/i, '/') + girderRest.getUri(config).replace(/^\/*/, '');
+  return axios.getUri({
+    ...config,
+    baseURL: girderRest.apiRoot.replace(/\/*$/i, '/'),
+  });
 }

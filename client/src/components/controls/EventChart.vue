@@ -1,5 +1,6 @@
 <script>
 import { defineComponent } from 'vue';
+import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import { throttle, debounce, sortBy } from 'lodash';
 import * as d3 from 'd3';
 
@@ -168,7 +169,7 @@ export default defineComponent({
       canvas.width = this.clientWidth + this.margin;
       canvas.height = bars.slice(-1)[0].top + 15;
       const muteOpacity = '30'; // Hex string: how much to mute regular colors: '#RRGGBB[AA]'
-      const selectedColor = this.$vuetify.theme.themes.dark.accent;
+      const selectedColor = getThemeColor(this.$vuetify, 'accent', '#42a5f5');
       const overflow = 0.7; // How much of a frame-width each detection box should occupy
       const barHeight = 10;
       bars.forEach((bar) => {

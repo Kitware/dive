@@ -281,8 +281,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props: activatorProps }">
+                  <v-icon v-bind="activatorProps">
                     mdi-information
                   </v-icon>
                 </template>
@@ -320,8 +320,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props: activatorProps }">
+                  <v-icon v-bind="activatorProps">
                     mdi-information
                   </v-icon>
                 </template>
@@ -341,8 +341,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props: activatorProps }">
+                  <v-icon v-bind="activatorProps">
                     mdi-information
                   </v-icon>
                 </template>
@@ -362,8 +362,8 @@ export default defineComponent({
                 open-delay="100"
                 bottom
               >
-                <template #activator="{ on }">
-                  <v-icon v-on="on">
+                <template #activator="{ props: activatorProps }">
+                  <v-icon v-bind="activatorProps">
                     mdi-information
                   </v-icon>
                 </template>

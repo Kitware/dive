@@ -1,5 +1,5 @@
 import girderRest from 'platform/web-girder/plugins/girder';
-import type { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components';
 import type { Pipe, PipelineParams } from 'dive-common/apispec';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {

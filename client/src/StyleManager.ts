@@ -1,8 +1,9 @@
 import type Vuetify from 'vuetify';
 
 import {
-  ref, Ref, computed, set as VueSet,
+  ref, Ref, computed,
 } from 'vue';
+import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
 import { ScaleOrdinal } from 'd3';
@@ -129,7 +130,7 @@ export default class StyleManager {
     };
     const selected: Style = {
       ...standard,
-      color: vuetify?.preset.theme.themes.dark.accent as string || 'cyan',
+      color: getThemeColor(vuetify, 'accent', 'cyan'),
       strokeWidth: 5,
       opacity: 1.0,
       fill: false,
@@ -242,7 +243,7 @@ export default class StyleManager {
   }) {
     const { type, value } = args;
     const oldValue = this.customStyles.value[type] || {};
-    VueSet(this.customStyles.value, type, merge(oldValue, value));
+    this.customStyles.value[type] = merge(oldValue, value);
     this.revisionCounter.value += 1;
     this.markChangesPending();
   }

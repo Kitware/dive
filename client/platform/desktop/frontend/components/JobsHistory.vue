@@ -203,7 +203,7 @@ export default defineComponent({
                     @click="cancelInProgressJob(job.job)"
                   >
                     <v-icon
-                      color="error lighten-3"
+                      color="error-lighten-3"
                       class="pr-2"
                     >
                       mdi-cancel
@@ -218,7 +218,7 @@ export default defineComponent({
                   @click="toggleVisibleOutput(job.job)"
                 >
                   <v-icon
-                    color="primary lighten-3"
+                    color="primary-lighten-3"
                     class="pr-2"
                   >
                     mdi-console

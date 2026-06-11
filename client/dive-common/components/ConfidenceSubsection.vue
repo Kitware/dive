@@ -52,13 +52,13 @@ export default defineComponent({
           bottom
           max-width="200"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
               disabled
               outlined
               x-small
               class="my-1"
-              v-on="on"
+              v-bind="activatorProps"
             >
               <v-icon small>
                 mdi-plus
@@ -105,12 +105,12 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
                     color="orange"
                     class="ml-1"
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-pencil
                   </v-icon>
@@ -127,12 +127,11 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ bind, on }">
+                <template #activator="{ props: activatorProps }">
                   <v-btn
-                    x-small
+                    size="x-small"
                     icon
-                    v-bind="bind"
-                    v-on="on"
+                    v-bind="activatorProps"
                     @click="$emit('set-type', pair[0])"
                   >
                     <v-icon>mdi-check</v-icon>

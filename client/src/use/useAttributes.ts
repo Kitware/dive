@@ -1,5 +1,5 @@
 import {
-  ref, Ref, computed, set as VueSet, del as VueDel,
+  ref, Ref, computed,
 } from 'vue';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { StyleManager, Track } from '..';
@@ -75,7 +75,7 @@ export default function UseAttributes(
 
     if (oldAttribute && data.key !== oldAttribute.key) {
       // Name change should delete the old attribute and create a new one with the updated id
-      VueDel(attributes.value, oldAttribute.key);
+      delete attributes.value[oldAttribute.key];
       markChangesPending({ action: 'delete', attribute: oldAttribute });
       // Create a new attribute to replace it
     }
@@ -86,14 +86,14 @@ export default function UseAttributes(
     if (updateAllTracks && oldAttribute) {
       // TODO: Lengthy track/detection attribute updating function
     }
-    VueSet(attributes.value, data.key, data);
+    attributes.value[data.key] = data;
     markChangesPending({ action: 'upsert', attribute: attributes.value[data.key] });
   }
 
   function deleteAttribute({ data }: {data: Attribute}, removeFromTracks = false) {
     if (attributes.value[data.key] !== undefined) {
       markChangesPending({ action: 'delete', attribute: attributes.value[data.key] });
-      VueDel(attributes.value, data.key);
+      delete attributes.value[data.key];
     }
     if (removeFromTracks) {
       // TODO: Lengthty track/detection attribute deletion function
@@ -103,7 +103,7 @@ export default function UseAttributes(
   function addAttributeFilter(index: number, type: Attribute['belongs'], filter: AttributeFilter) {
     const filterList = attributeFilters.value[type];
     filterList.push(filter);
-    VueSet(attributeFilters.value, type, filterList);
+    attributeFilters.value[type] = filterList;
   }
 
   function deleteAttributeFilter(index: number, type: Attribute['belongs']) {
@@ -118,7 +118,7 @@ export default function UseAttributes(
     const filterList = attributeFilters.value[type];
     if (index < filterList.length) {
       filterList[index] = filter;
-      VueSet(attributeFilters.value, type, filterList);
+      attributeFilters.value[type] = filterList;
     } else {
       throw Error(`Index: ${index} is out of range for the ${type} filter list of length ${filterList.length}`);
     }

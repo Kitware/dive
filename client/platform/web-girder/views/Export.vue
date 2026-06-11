@@ -15,6 +15,7 @@ import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import {
   ImageSequenceType, LargeImageType, MultiType, VideoType,
 } from 'dive-common/constants';
+import { mergeActivatorProps, menuOpensToSide } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   components: { AutosavePrompt },
@@ -253,57 +254,55 @@ export default defineComponent({
       isDatasetDownload,
       isFilesDownload,
       isMulticamDataset,
+      mergeActivatorProps,
+      menuOpensToSide,
     };
   },
 });
 </script>
 
 <template>
-  <v-menu
-    v-model="menuOpen"
-    :close-on-content-click="false"
-    :open-on-click="false"
-    :nudge-width="120"
-    v-bind="menuOptions"
-    max-width="280"
-  >
-    <template #activator="{ on: menuOn }">
-      <v-tooltip bottom>
-        <template #activator="{ on: tooltipOn }">
-          <v-btn
-            class="ma-0"
-            v-bind="buttonOptions"
-            :disabled="!isDownloadButtonDisplayed"
-            v-on="{ ...tooltipOn, ...menuOn }"
-
-            @click="prepareExport()"
-          >
-            <v-icon>
-              mdi-download
-            </v-icon>
-            <span
-              v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-              class="pl-1"
+  <v-tooltip location="bottom">
+    <template #activator="{ props: tooltipProps }">
+      <span
+        v-bind="tooltipProps"
+        class="d-inline-flex"
+      >
+        <v-menu
+          v-model="menuOpen"
+          :close-on-content-click="false"
+          :open-on-click="false"
+          :nudge-width="120"
+          v-bind="menuOptions"
+          max-width="280"
+        >
+          <template #activator="{ props: menuProps }">
+            <v-btn
+              class="ma-0"
+              v-bind="mergeActivatorProps(menuProps, buttonOptions, { onClick: prepareExport })"
+              :disabled="!isDownloadButtonDisplayed"
             >
-              Download
-            </span>
-            <v-spacer />
-            <v-icon v-if="menuOptions.right && isDatasetDownload">
-              mdi-chevron-right
-            </v-icon>
-          </v-btn>
-        </template>
-        <span v-if="isDatasetDownload">Download media and annotations</span>
-        <span v-else-if="isFilesDownload">Download selected files</span>
-      </v-tooltip>
-    </template>
-    <template>
-      <AutosavePrompt
+              <v-icon>
+                mdi-download
+              </v-icon>
+              <span
+                v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                class="pl-1"
+              >
+                Download
+              </span>
+              <v-spacer />
+              <v-icon v-if="menuOpensToSide(menuOptions) && isDatasetDownload">
+                mdi-chevron-right
+              </v-icon>
+            </v-btn>
+          </template>
+          <AutosavePrompt
         v-model="savePrompt"
         @save="doExport({ forceSave: true })"
       />
       <v-card
-        outlined
+        variant="outlined"
         class="downloadMenu"
       >
         <v-card-title>
@@ -334,7 +333,7 @@ export default defineComponent({
             </v-card-text>
             <v-card-actions>
               <v-btn
-                depressed
+                variant="flat"
                 block
                 target="_blank"
                 rel="noopener"
@@ -388,7 +387,7 @@ export default defineComponent({
             <v-row>
               <v-col>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
@@ -401,7 +400,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
@@ -418,7 +417,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <v-btn
-                  depressed
+                  variant="flat"
                   block
                   class="mt-2"
                   :disabled="!exportUrls.exportDetectionsUrl"
@@ -435,7 +434,7 @@ export default defineComponent({
                   >detections unavailable</span>
                 </v-btn>
                 <!-- <v-btn
-              depressed
+              variant="flat"
               block
               :disabled="!exportUrls.exportDetectionsUrl"
               @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
@@ -454,7 +453,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportConfigurationUrl })"
             >
@@ -473,7 +472,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
             >
@@ -488,7 +487,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
             >
@@ -508,7 +507,7 @@ export default defineComponent({
           <v-card-actions>
             <v-spacer />
             <v-btn
-              depressed
+              variant="flat"
               block
               @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
             >
@@ -517,8 +516,12 @@ export default defineComponent({
           </v-card-actions>
         </template>
       </v-card>
+        </v-menu>
+      </span>
     </template>
-  </v-menu>
+    <span v-if="isDatasetDownload">Download media and annotations</span>
+    <span v-else-if="isFilesDownload">Download selected files</span>
+  </v-tooltip>
 </template>
 
 <style scoped>

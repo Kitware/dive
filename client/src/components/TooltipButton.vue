@@ -43,26 +43,22 @@ export default defineComponent({
 
 <template>
   <v-tooltip
-    bottom
+    location="bottom"
     :open-delay="delay"
   >
-    <template #activator="{ on, attrs }">
+    <template #activator="{ props: activatorProps }">
       <v-btn
-        v-bind="attrs"
-        :small="size === 'small'"
-        :x-small="size === 'x-small'"
+        v-bind="activatorProps"
+        :size="size"
         icon
         :disabled="disabled"
         :color="color"
-        :outlined="outlined"
+        :variant="outlined ? 'outlined' : undefined"
         :tile="tile"
         class="ma-0"
-        v-on="on"
         @click="$emit('click', $event)"
       >
-        <v-icon>
-          {{ icon }}
-        </v-icon>
+        <v-icon :icon="icon" />
       </v-btn>
     </template>
     <span>{{ tooltipText }}</span>

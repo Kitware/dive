@@ -23,19 +23,16 @@ export default defineComponent({
     max-width="600px"
     overlay-opacity="0.90"
   >
-    <template #activator="{ on, attrs }">
+    <template #activator="{ props: activatorProps }">
       <v-btn
         icon
-        dark
         color="warning"
-        v-bind="attrs"
-        v-on="on"
+        v-bind="activatorProps"
       >
         <v-icon
-          large
-        >
-          mdi-alert-circle
-        </v-icon>
+          size="large"
+          icon="mdi-alert-circle"
+        />
       </v-btn>
     </template>
     <v-card

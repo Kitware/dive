@@ -133,13 +133,13 @@ export default defineComponent({
 
 <template>
   <div class="d-flex flex-column">
-    <v-subheader class="flex-grow-1 trackHeader px-2">
+    <v-list-subheader class="flex-grow-1 trackHeader px-2">
       <v-container class="py-2">
         <v-row align="center">
           Groups ({{ virtualListItems.length }})
         </v-row>
       </v-container>
-    </v-subheader>
+    </v-list-subheader>
     <datalist id="allGroupTypesOptions">
       <option
         v-for="type in groupFilters.allTypes.value"

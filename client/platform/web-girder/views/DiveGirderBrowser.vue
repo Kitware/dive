@@ -10,7 +10,7 @@ import {
   getLocationType,
   isRootLocation,
   createLocationValidator,
-} from '@girder/components/src';
+} from '@girder/components';
 import DataSharedBreadCrumb from './DataSharedBreadCrumb.vue';
 
 export default defineComponent({
@@ -196,7 +196,7 @@ export default defineComponent({
   <v-card class="girder-data-browser-snippet">
     <girder-data-browser
       ref="girderBrowser"
-      :location.sync="internalLocation"
+      v-model:location="internalLocation"
       :selectable="selectable"
       :draggable="dragEnabled"
       :root-location-disabled="rootLocationDisabled"
@@ -206,11 +206,11 @@ export default defineComponent({
       @update:itemsPerPage="$emit('update:itemsPerPage', $event)"
       @input="$emit('input', $event)"
       @selection-changed="$emit('selection-changed', $event)"
-      @rowclick="$emit('rowclick', $event)"
+      @row-click="$emit('row-click', $event)"
       @row-right-click="rowRightClick"
       @drag="$emit('drag', $event)"
-      @dragstart="$emit('dragstart', $event)"
-      @dragend="$emit('dragend', $event)"
+      @drag-start="$emit('drag-start', $event)"
+      @drag-end="$emit('drag-end', $event)"
       @drop="$emit('drop', $event)"
     >
       <template #breadcrumb="props">
@@ -226,20 +226,19 @@ export default defineComponent({
           v-model="uploaderDialog"
           max-width="800px"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
+              v-bind="activatorProps"
               class="ma-0"
-              text="text"
-              small="small"
-              v-on="on"
+              variant="text"
+              size="small"
             >
               <v-icon
                 class="mdi-24px mr-1"
-                left="left"
+                start
                 color="accent"
-              >
-                $vuetify.icons.fileNew
-              </v-icon>
+                icon="$fileNew"
+              />
               <span class="hidden-xs-only">Upload</span>
             </v-btn>
           </template>
@@ -257,20 +256,19 @@ export default defineComponent({
           v-model="newFolderDialog"
           max-width="800px"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
+              v-bind="activatorProps"
               class="ma-0"
-              text="text"
-              small="small"
-              v-on="on"
+              variant="text"
+              size="small"
             >
               <v-icon
                 class="mdi-24px mr-1"
-                left="left"
+                start
                 color="accent"
-              >
-                $vuetify.icons.folderNew
-              </v-icon>
+                icon="$folderNew"
+              />
               <span class="hidden-xs-only">New Folder</span>
             </v-btn>
           </template>
@@ -292,32 +290,27 @@ export default defineComponent({
     </girder-data-browser>
     <v-menu
       v-model="collectionAndFolderMenu.show"
-      :position-x="collectionAndFolderMenu.x"
-      :position-y="collectionAndFolderMenu.y"
-      absolute="absolute"
-      offset-y="offset-y"
-      dark="dark"
+      :target="[collectionAndFolderMenu.x, collectionAndFolderMenu.y]"
+      location="bottom start"
     >
-      <v-list dense="dense">
+      <v-list density="compact">
         <v-list-item
           :disabled="!hasAccessPermission"
+          title="Access control"
           @click="showAccessControlDialog = true"
-        >
-          <v-list-item-title>Access control</v-list-item-title>
-        </v-list-item>
+        />
       </v-list>
     </v-menu>
     <v-dialog
       v-model="showAccessControlDialog"
       max-width="700px"
-      persistent="persistent"
-      eager="eager"
-      scrollable="scrollable"
+      persistent
+      scrollable
     >
       <girder-access-control
         v-if="actOnItem"
         :model="actOnItem"
-        :has-permission.sync="hasAccessPermission"
+        v-model:has-permission="hasAccessPermission"
         @close="showAccessControlDialog = false"
         @model-access-changed="$refs.girderBrowser.refresh()"
       />

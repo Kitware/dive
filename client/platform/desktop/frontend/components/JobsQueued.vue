@@ -130,7 +130,7 @@ export default defineComponent({
                   @click="removeJobFromQueue(jobSpec)"
                 >
                   <v-icon
-                    color="error lighten-3"
+                    color="error-lighten-3"
                     class="pr-2"
                   >
                     mdi-cancel

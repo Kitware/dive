@@ -130,10 +130,10 @@ export default defineComponent({
         color="red"
         top
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-row
             class="helpContextRow ma-0 align-center"
-            v-on="on"
+            v-bind="activatorProps"
           >
             <v-col cols="4">
               {{ item.name }}

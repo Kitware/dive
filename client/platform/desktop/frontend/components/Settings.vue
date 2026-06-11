@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeMount, ref, computed, set, watch,
+  defineComponent, onBeforeMount, ref, computed, watch,
 } from 'vue';
 
 import { useRequest } from 'dive-common/use';
@@ -56,7 +56,7 @@ export default defineComponent({
         throw new Error('Local settings not yet initialized.');
       }
       if (!result.canceled && defaultPath !== undefined) {
-        set(localSettings.value, name, result.filePaths[0]);
+        localSettings.value[name] = result.filePaths[0];
       }
     }
     async function save() {
@@ -204,7 +204,7 @@ export default defineComponent({
             Checking GPU compatibility:
             <v-progress-linear
               indeterminate
-              color="yellow darken-2"
+              color="yellow-darken-2"
             />
           </span>
           <span v-else-if="smi.exitCode === 0">
@@ -226,7 +226,7 @@ export default defineComponent({
             Checking for VIAME
             <v-progress-linear
               indeterminate
-              color="yellow darken-2"
+              color="yellow-darken-2"
             />
           </span>
           <span v-else-if="settingsAreValid === true">

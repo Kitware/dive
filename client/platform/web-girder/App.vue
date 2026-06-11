@@ -7,8 +7,9 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { provideApi } from 'dive-common/apispec';
-import { useRoute } from 'vue-router/composables';
 import { useDataset } from 'platform/web-girder/store/useDataset';
+import { useRoute } from 'vue-router';
+
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import type { GirderMetadata } from './constants';
 import {
@@ -75,6 +76,8 @@ export default defineComponent({
 </script>
 
 <style lang="scss">
+@import 'dive-common/vuetify/v2-compat.scss';
+
 html {
   overflow-y: auto;
 }

@@ -1,9 +1,13 @@
-import Vue, { ref, watch, Ref } from 'vue';
+import {
+  nextTick, ref, watch, type ComponentPublicInstance, type Ref,
+} from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
 import type { AnnotationId } from '../BaseAnnotation';
 import type { AnnotationWithContext } from '../BaseFilterControls';
+
+type VirtualListInstance = ComponentPublicInstance & { onScroll?: () => void };
 
 export default function useVirtualScrollTo({
   itemHeight,
@@ -20,7 +24,7 @@ export default function useVirtualScrollTo({
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
   selectNext?: (delta: number) => void;
 }) {
-  const virtualList = ref(null as null | Vue);
+  const virtualList = ref<VirtualListInstance | null>(null);
 
   function scrollTo(id: AnnotationId | null): void {
     if (id !== null && virtualList.value !== null) {
@@ -29,17 +33,14 @@ export default function useVirtualScrollTo({
         const offset = filteredListRef.value.findIndex(
           (filtered) => filtered.annotation.id === id,
         );
-        const scrollEl = virtualList.value.$el;
+        const scrollEl = virtualList.value.$el as HTMLElement;
         if (offset === -1) {
           scrollEl.scrollTop = 0;
         } else {
-          // try to show the selected track as the third track in the list
           scrollEl.scrollTop = Math.max(0, (offset * itemHeight) - (2 * itemHeight));
         }
-        // Programmatic scrollTop does not always emit a scroll event.
-        const { onScroll } = virtualList.value as Vue & { onScroll?: () => void };
-        if (typeof onScroll === 'function') {
-          onScroll();
+        if (typeof virtualList.value.onScroll === 'function') {
+          virtualList.value.onScroll();
         }
       }
     }
@@ -47,13 +48,12 @@ export default function useVirtualScrollTo({
 
   function scrollToSelected(): void {
     if (selectedIdRef.value !== null) {
-      Vue.nextTick(() => scrollTo(selectedIdRef.value));
+      nextTick(() => scrollTo(selectedIdRef.value));
     } else if (multiSelectList.value.length >= 1) {
-      Vue.nextTick(() => scrollTo(multiSelectList.value[0]));
+      nextTick(() => scrollTo(multiSelectList.value[0]));
     }
   }
 
-  // If we mount with selected we scroll to it automatically
   scrollToSelected();
 
   function scrollPreventDefault(
@@ -68,7 +68,7 @@ export default function useVirtualScrollTo({
   }
 
   watch(selectedIdRef, (id) => {
-    Vue.nextTick(() => scrollTo(id));
+    nextTick(() => scrollTo(id));
   });
   watch(filteredListRef, scrollToSelected);
   watch(multiSelectList, scrollToSelected);

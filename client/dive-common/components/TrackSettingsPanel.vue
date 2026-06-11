@@ -54,7 +54,7 @@ export default defineComponent({
       outlined
       class="pa-2"
       width="300"
-      color="blue-grey darken-3"
+      color="blue-grey-darken-3"
     >
       <div class="subheading">
         New Annotation Settings
@@ -88,10 +88,10 @@ export default defineComponent({
             bottom
             max-width="200"
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 mdi-help
               </v-icon>
@@ -132,10 +132,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 mdi-help
               </v-icon>
@@ -165,10 +165,10 @@ export default defineComponent({
               max-width="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props: activatorProps }">
                 <v-icon
                   small
-                  v-on="on"
+                  v-bind="activatorProps"
                 >
                   mdi-help
                 </v-icon>
@@ -197,10 +197,10 @@ export default defineComponent({
               max-width="200"
               bottom
             >
-              <template #activator="{ on }">
+              <template #activator="{ props: activatorProps }">
                 <v-icon
                   small
-                  v-on="on"
+                  v-bind="activatorProps"
                 >
                   mdi-help
                 </v-icon>
@@ -232,10 +232,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 mdi-help
               </v-icon>
@@ -271,10 +271,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 mdi-help
               </v-icon>
@@ -310,10 +310,10 @@ export default defineComponent({
             max-width="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 mdi-help
               </v-icon>

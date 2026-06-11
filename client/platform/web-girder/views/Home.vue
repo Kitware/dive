@@ -6,7 +6,7 @@ import {
 } from 'vue';
 import {
   GirderFileManager, GirderMarkdown,
-} from '@girder/components/src';
+} from '@girder/components';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
@@ -36,9 +36,7 @@ const buttonOptions = {
 };
 
 const menuOptions = {
-  offsetX: true,
-  right: true,
-  nudgeRight: 8,
+  location: 'end',
 };
 
 export default defineComponent({
@@ -210,7 +208,7 @@ export default defineComponent({
     />
     <v-container
       fill-height
-      :fluid="$vuetify.breakpoint.mdAndDown"
+      :fluid="$vuetify.display.mdAndDown"
     >
       <v-row
         class="fill-height nowraptable"

@@ -337,7 +337,7 @@ export default defineComponent({
           emit('large-image-warning', true);
           return;
         }
-        initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+        await initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
@@ -367,8 +367,8 @@ export default defineComponent({
       };
       if (local.imgs.length) {
         const imgInternal = cacheFrame(0);
-        imgInternal.onloadPromise.then(() => {
-          initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+        imgInternal.onloadPromise.then(async () => {
+          await initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
           const quadFeatureLayer = geoViewer.value.createLayer('feature', {
             features: ['quad'],
             autoshareRenderer: false,

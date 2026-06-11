@@ -53,8 +53,8 @@ export default defineComponent({
   <v-data-table
     :headers="tableHeaders"
     :items="summaryList"
-    :expanded.sync="expanded"
-    :items-per-page.sync="clientSettings.rowsPerPage"
+    v-model:expanded="expanded"
+    v-model:items-per-page="clientSettings.rowsPerPage"
     :footer-props="{ itemsPerPageOptions }"
     item-key="_id"
     show-expand

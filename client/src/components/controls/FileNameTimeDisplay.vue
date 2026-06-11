@@ -12,12 +12,14 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const mediaController = injectAggregateController();
-    const { currentTime, frame } = mediaController.value;
+    const aggregateControllerRef = injectAggregateController();
+    const frame = computed(() => aggregateControllerRef.value.frame.value);
+    const maxFrame = computed(() => aggregateControllerRef.value.maxFrame.value);
+    const currentTime = computed(() => aggregateControllerRef.value.currentTime.value);
     const selectedCamera = useSelectedCamera();
     const selectedCameraController = computed(() => {
       try {
-        return mediaController.value.getController(selectedCamera.value);
+        return aggregateControllerRef.value.getController(selectedCamera.value);
       } catch {
         return undefined;
       }
@@ -36,6 +38,7 @@ export default defineComponent({
     return {
       display,
       frame,
+      maxFrame,
       currentTime,
       selectedCamera,
     };
@@ -45,14 +48,18 @@ export default defineComponent({
 
 <template>
   <span>
-    <span>
+    <span :class="{ 'time-display-value': displayType === 'time' }">
       {{ display }}
     </span>
-    <span class="border-radius mr-1">frame {{ frame }}</span>
+    <span class="border-radius mr-1">frame {{ frame }} / {{ maxFrame }}</span>
   </span>
 </template>
 
 <style scoped>
+.time-display-value {
+  padding-right: 12px;
+}
+
 .border-radius {
   border: 1px solid #888888;
   padding: 2px 5px;
