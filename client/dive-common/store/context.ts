@@ -6,6 +6,7 @@ import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
+import DatasetInfo from 'dive-common/components/DatasetInfo.vue';
 
 interface ContextState {
   last: string;
@@ -25,6 +26,10 @@ const state: ContextState = reactive({
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
+  [DatasetInfo.name]: {
+    description: 'Dataset Info',
+    component: DatasetInfo,
+  },
   [TypeThreshold.name]: {
     description: 'Threshold Controls',
     component: TypeThreshold,

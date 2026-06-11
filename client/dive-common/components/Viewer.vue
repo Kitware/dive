@@ -5,7 +5,6 @@ import {
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
-import type { AxiosError } from 'axios';
 import { cloneDeep, debounce } from 'lodash';
 
 /* VUE MEDIA ANNOTATOR */
@@ -904,7 +903,7 @@ export default defineComponent({
         progress.loaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
-        errorEl.innerHTML = getResponseError(err as AxiosError);
+        errorEl.innerHTML = getResponseError(err);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
         throw err;

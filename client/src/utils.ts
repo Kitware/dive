@@ -1,4 +1,4 @@
-import { AxiosError } from 'axios';
+import axios from 'axios';
 import { difference } from 'lodash';
 
 // [x1, y1, x2, y2] as (left, top), (bottom, right)
@@ -171,9 +171,21 @@ function reOrderBounds(bounds: RectBounds) {
   return [x1, y1, x2, y2];
 }
 
-function getResponseError(error: AxiosError): string {
-  const { response } = error;
-  return String(response?.data?.message || response?.data || error);
+function getResponseError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (data && typeof data === 'object' && data !== null && 'message' in data) {
+      const { message } = data as { message: unknown };
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+    return String(data ?? error.message);
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 function withinBounds(coord: [number, number], bounds: RectBounds) {

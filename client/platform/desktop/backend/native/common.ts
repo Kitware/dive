@@ -696,6 +696,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.error) {
     existing.error = args.error;
   }
+  if (args.datasetInfo) {
+    existing.datasetInfo = args.datasetInfo;
+  }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
   await release();
