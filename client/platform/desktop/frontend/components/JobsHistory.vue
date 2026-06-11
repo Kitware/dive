@@ -128,47 +128,49 @@ export default defineComponent({
                 </v-card-title>
                 <v-card-subtitle>
                   <table class="key-value-table">
-                    <tr v-if="'pipeline' in job.job.args">
-                      <td>Pipe</td>
-                      <td>{{ job.job.args.pipeline.pipe }}</td>
-                    </tr>
-                    <tr>
-                      <td>PID</td>
-                      <td>{{ job.job.pid }}</td>
-                    </tr>
-                    <tr v-if="job.job.datasetIds.length > 0">
-                      <td>datasets</td>
-                      <td>
-                        <span
-                          v-for="dataset in job.job.datasetIds"
-                          :key="dataset"
-                        >
-                          <router-link
-                            class="mr-1"
-                            :to="{ name: 'viewer', params: { id: dataset } }"
+                    <tbody>
+                      <tr v-if="'pipeline' in job.job.args">
+                        <td>Pipe</td>
+                        <td>{{ job.job.args.pipeline.pipe }}</td>
+                      </tr>
+                      <tr>
+                        <td>PID</td>
+                        <td>{{ job.job.pid }}</td>
+                      </tr>
+                      <tr v-if="job.job.datasetIds.length > 0">
+                        <td>datasets</td>
+                        <td>
+                          <span
+                            v-for="dataset in job.job.datasetIds"
+                            :key="dataset"
                           >
-                            {{ dataset }}
-                          </router-link>
-                        </span>
-                      </td>
-                    </tr>
-                    <tr v-if="job.job.workingDir">
-                      <td>work dir</td>
-                      <td>
-                        <span
-                          class="selectable"
-                          @click="openPath(job.job)"
-                        >
-                          <span class="text-decoration-underline">show in file manager</span>
-                          <v-icon
-                            small
-                            class="mx-2"
+                            <router-link
+                              class="mr-1"
+                              :to="{ name: 'viewer', params: { id: dataset } }"
+                            >
+                              {{ dataset }}
+                            </router-link>
+                          </span>
+                        </td>
+                      </tr>
+                      <tr v-if="job.job.workingDir">
+                        <td>work dir</td>
+                        <td>
+                          <span
+                            class="selectable"
+                            @click="openPath(job.job)"
                           >
-                            mdi-folder-open
-                          </v-icon>
-                        </span>
-                      </td>
-                    </tr>
+                            <span class="text-decoration-underline">show in file manager</span>
+                            <v-icon
+                              small
+                              class="mx-2"
+                            >
+                              mdi-folder-open
+                            </v-icon>
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
                   </table>
                 </v-card-subtitle>
               </v-col>

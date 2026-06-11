@@ -201,122 +201,122 @@ export default defineComponent({
             </template>
 
             <v-card
-          v-if="trainingConfigurations"
-          variant="outlined"
-          class="training-menu"
-        >
-          <v-card-title class="pb-1">
-            Run Training
-          </v-card-title>
-
-          <v-card-text>
-            <p>
-              Specify the name of the resulting pipeline
-              and configuration file to use for training.
-              Check the
-              <a href="https://kitware.github.io/dive/Pipeline-Documentation/#training">
-                documentation
-              </a>
-              for more information about these options.
-            </p>
-            <v-alert
-              v-if="brandData.trainingMessage"
-              density="compact"
-              color="warning"
+              v-if="trainingConfigurations"
               variant="outlined"
+              class="training-menu"
             >
-              {{ brandData.trainingMessage }}
-            </v-alert>
+              <v-card-title class="pb-1">
+                Run Training
+              </v-card-title>
 
-            <v-text-field
-              v-model="trainingOutputName"
-              variant="outlined"
-              class="my-4"
-              label="New Model Name"
-              hint="Choose a name for the newly trained model"
-              persistent-hint
-            />
-            <v-select
-              v-if="trainingConfigurations.training.configs.length > 0"
-              v-model="selectedTrainingConfig"
-              variant="outlined"
-              class="my-4"
-              label="Configuration File"
-              :items="trainingConfigurations.training.configs"
-              item-title="name"
-              item-value="name"
-              :hint="selectedTrainingConfig"
-              persistent-hint
-            >
-              <template #item="{ props: itemProps, item }">
-                <v-tooltip
-                  location="start"
-                  :open-delay="250"
-                  :disabled="!item.raw.description"
-                  max-width="300"
-                  content-class="pipeline-description-tooltip"
+              <v-card-text>
+                <p>
+                  Specify the name of the resulting pipeline
+                  and configuration file to use for training.
+                  Check the
+                  <a href="https://kitware.github.io/dive/Pipeline-Documentation/#training">
+                    documentation
+                  </a>
+                  for more information about these options.
+                </p>
+                <v-alert
+                  v-if="brandData.trainingMessage"
+                  density="compact"
+                  color="warning"
+                  variant="outlined"
                 >
-                  <template #activator="{ props: tooltipProps }">
-                    <v-list-item
-                      v-bind="{ ...itemProps, ...tooltipProps }"
+                  {{ brandData.trainingMessage }}
+                </v-alert>
+
+                <v-text-field
+                  v-model="trainingOutputName"
+                  variant="outlined"
+                  class="my-4"
+                  label="New Model Name"
+                  hint="Choose a name for the newly trained model"
+                  persistent-hint
+                />
+                <v-select
+                  v-if="trainingConfigurations.training.configs.length > 0"
+                  v-model="selectedTrainingConfig"
+                  variant="outlined"
+                  class="my-4"
+                  label="Configuration File"
+                  :items="trainingConfigurations.training.configs"
+                  item-title="name"
+                  item-value="name"
+                  :hint="selectedTrainingConfig"
+                  persistent-hint
+                >
+                  <template #item="{ props: itemProps, item }">
+                    <v-tooltip
+                      location="start"
+                      :open-delay="250"
+                      :disabled="!item.raw.description"
+                      max-width="300"
+                      content-class="pipeline-description-tooltip"
                     >
-                      <v-list-item-title>{{ simplifyTrainingName(item.raw.name || item.raw) }}</v-list-item-title>
-                    </v-list-item>
+                      <template #activator="{ props: itemTooltipProps }">
+                        <v-list-item
+                          v-bind="{ ...itemProps, ...itemTooltipProps }"
+                        >
+                          <v-list-item-title>{{ simplifyTrainingName(item.raw.name || item.raw) }}</v-list-item-title>
+                        </v-list-item>
+                      </template>
+                      <span>{{ item.raw.description }}</span>
+                    </v-tooltip>
                   </template>
-                  <span>{{ item.raw.description }}</span>
-                </v-tooltip>
-              </template>
-              <template #selection="{ item }">
-                {{ simplifyTrainingName(item.raw?.name || item.raw || item.title) }}
-              </template>
-            </v-select>
-            <v-file-input
-              v-model="labelFile"
-              icon="mdi-folder-open"
-              label="Labels.txt mapping file (optional)"
-              hint="Combine or rename output classes using a labels.txt file"
-              persistent-hint
-              clearable
-              @click:clear="clearLabelText"
-            />
-            <v-checkbox
-              v-model="annotatedFramesOnly"
-              label="Use annotated frames only"
-              hint="Train only on frames with groundtruth and ignore frames without annotations"
-              persistent-hint
-              class="pt-0"
-            />
-            <v-checkbox
-              v-model="fineTuning"
-              label="Fine Tune Model"
-              hint="Fine Tune an existing model"
-              persistent-hint
-              class="pt-0"
-            />
-            <v-select
-              v-if="fineTuning"
-              v-model="selectedFineTune"
-              variant="outlined"
-              class="my-4"
-              label="Fine Tune Model"
-              :items="fineTuneModelList"
-              item-value="name"
-              item-title="text"
-              hint="Model to Fine Tune"
-              persistent-hint
-            />
-            <v-btn
-              variant="flat"
-              block
-              color="primary"
-              class="mt-4"
-              :disabled="!trainingOutputName || !selectedTrainingConfig"
-              @click="runTrainingOnFolder"
-            >
-              Train on {{ selectedDatasetIds.length }} dataset(s)
-            </v-btn>
-          </v-card-text>
-        </v-card>
+                  <template #selection="{ item }">
+                    {{ simplifyTrainingName(item.raw?.name || item.raw || item.title) }}
+                  </template>
+                </v-select>
+                <v-file-input
+                  v-model="labelFile"
+                  icon="mdi-folder-open"
+                  label="Labels.txt mapping file (optional)"
+                  hint="Combine or rename output classes using a labels.txt file"
+                  persistent-hint
+                  clearable
+                  @click:clear="clearLabelText"
+                />
+                <v-checkbox
+                  v-model="annotatedFramesOnly"
+                  label="Use annotated frames only"
+                  hint="Train only on frames with groundtruth and ignore frames without annotations"
+                  persistent-hint
+                  class="pt-0"
+                />
+                <v-checkbox
+                  v-model="fineTuning"
+                  label="Fine Tune Model"
+                  hint="Fine Tune an existing model"
+                  persistent-hint
+                  class="pt-0"
+                />
+                <v-select
+                  v-if="fineTuning"
+                  v-model="selectedFineTune"
+                  variant="outlined"
+                  class="my-4"
+                  label="Fine Tune Model"
+                  :items="fineTuneModelList"
+                  item-value="name"
+                  item-title="text"
+                  hint="Model to Fine Tune"
+                  persistent-hint
+                />
+                <v-btn
+                  variant="flat"
+                  block
+                  color="primary"
+                  class="mt-4"
+                  :disabled="!trainingOutputName || !selectedTrainingConfig"
+                  @click="runTrainingOnFolder"
+                >
+                  Train on {{ selectedDatasetIds.length }} dataset(s)
+                </v-btn>
+              </v-card-text>
+            </v-card>
           </v-menu>
         </span>
       </template>

@@ -298,142 +298,142 @@ export default defineComponent({
             </v-btn>
           </template>
           <AutosavePrompt
-        v-model="savePrompt"
-        @save="doExport({ forceSave: true })"
-      />
-      <v-card
-        variant="outlined"
-        class="downloadMenu"
-      >
-        <v-card-title>
-          Download options
-        </v-card-title>
-        <v-alert
-          v-if="revisionId"
-          type="info"
-          tile
-        >
-          Revision {{ revisionId }} selected
-        </v-alert>
-        <v-alert
-          v-if="error"
-          color="error"
-          class="mx-2"
-        >
-          <p class="text-h5">
-            Error
-          </p>
-          {{ error }}
-        </v-alert>
+            v-model="savePrompt"
+            @save="doExport({ forceSave: true })"
+          />
+          <v-card
+            variant="outlined"
+            class="downloadMenu"
+          >
+            <v-card-title>
+              Download options
+            </v-card-title>
+            <v-alert
+              v-if="revisionId"
+              type="info"
+              tile
+            >
+              Revision {{ revisionId }} selected
+            </v-alert>
+            <v-alert
+              v-if="error"
+              color="error"
+              class="mx-2"
+            >
+              <p class="text-h5">
+                Error
+              </p>
+              {{ error }}
+            </v-alert>
 
-        <template v-if="dataset !== null && (mediaType !== null || isMulticamDataset)">
-          <template v-if="mediaType !== null">
-            <v-card-text class="pb-0">
-              Zip all {{ mediaType }} files only
-            </v-card-text>
-            <v-card-actions>
-              <v-btn
-                variant="flat"
-                block
-                target="_blank"
-                rel="noopener"
-                :disabled="!exportUrls.exportMediaUrl"
-                :href="exportUrls.exportMediaUrl"
-              >
-                {{ mediaType }}
-              </v-btn>
-            </v-card-actions>
-          </template>
+            <template v-if="dataset !== null && (mediaType !== null || isMulticamDataset)">
+              <template v-if="mediaType !== null">
+                <v-card-text class="pb-0">
+                  Zip all {{ mediaType }} files only
+                </v-card-text>
+                <v-card-actions>
+                  <v-btn
+                    variant="flat"
+                    block
+                    target="_blank"
+                    rel="noopener"
+                    :disabled="!exportUrls.exportMediaUrl"
+                    :href="exportUrls.exportMediaUrl"
+                  >
+                    {{ mediaType }}
+                  </v-btn>
+                </v-card-actions>
+              </template>
 
-          <v-card-text class="pb-2">
-            <div v-if="isMulticamDataset">
-              Get latest annotations for all cameras (zip)
-            </div>
-            <div v-else>
-              Get latest annotation csv only
-            </div>
-            <template v-if="dataset.confidenceFilters || true">
-              <v-checkbox
-                v-model="excludeBelowThreshold"
-                label="exclude tracks below confidence threshold"
-                dense
-                hide-details
-              />
-              <div class="pt-2">
-                <span>Current thresholds:</span>
-                <span
-                  v-for="(val, key) in dataset.confidenceFilters"
-                  :key="key"
-                  class="pt-2"
-                >
-                  ({{ key }}, {{ val }})
-                </span>
-              </div>
-            </template>
+              <v-card-text class="pb-2">
+                <div v-if="isMulticamDataset">
+                  Get latest annotations for all cameras (zip)
+                </div>
+                <div v-else>
+                  Get latest annotation csv only
+                </div>
+                <template v-if="dataset.confidenceFilters || true">
+                  <v-checkbox
+                    v-model="excludeBelowThreshold"
+                    label="exclude tracks below confidence threshold"
+                    dense
+                    hide-details
+                  />
+                  <div class="pt-2">
+                    <span>Current thresholds:</span>
+                    <span
+                      v-for="(val, key) in dataset.confidenceFilters"
+                      :key="key"
+                      class="pt-2"
+                    >
+                      ({{ key }}, {{ val }})
+                    </span>
+                  </div>
+                </template>
 
-            <template v-if="checkedTypes.length">
-              <v-checkbox
-                v-model="excludeUncheckedTypes"
-                label="export checked types only"
-                dense
-                hint="Export only the track types currently enabled in the type filter"
-                persistent-hint
-                class="pt-0"
-              />
-            </template>
-          </v-card-text>
+                <template v-if="checkedTypes.length">
+                  <v-checkbox
+                    v-model="excludeUncheckedTypes"
+                    label="export checked types only"
+                    dense
+                    hint="Export only the track types currently enabled in the type filter"
+                    persistent-hint
+                    class="pt-0"
+                  />
+                </template>
+              </v-card-text>
 
-          <v-card-actions>
-            <v-row>
-              <v-col>
-                <v-btn
-                  variant="flat"
-                  block
-                  :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
-                >
-                  <span
-                    v-if="exportUrls.exportDetectionsUrl"
-                  >VIAME CSV</span>
-                  <span
-                    v-else
-                  >detections unavailable</span>
-                </v-btn>
-                <v-btn
-                  variant="flat"
-                  block
-                  class="mt-2"
-                  :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({
-                    url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON,
-                  })"
-                >
-                  <span
-                    v-if="exportUrls.exportDetectionsUrl"
-                  >DIVE TrackJSON</span>
-                  <span
-                    v-else
-                  >detections unavailable</span>
-                </v-btn>
-                <v-btn
-                  variant="flat"
-                  block
-                  class="mt-2"
-                  :disabled="!exportUrls.exportDetectionsUrl"
-                  @click="doExport({
-                    url: exportUrls
-                      && exportUrls.exportDetectionsUrlCocoJSON,
-                  })"
-                >
-                  <span
-                    v-if="exportUrls.exportDetectionsUrl"
-                  >COCO JSON</span>
-                  <span
-                    v-else
-                  >detections unavailable</span>
-                </v-btn>
-                <!-- <v-btn
+              <v-card-actions>
+                <v-row>
+                  <v-col>
+                    <v-btn
+                      variant="flat"
+                      block
+                      :disabled="!exportUrls.exportDetectionsUrl"
+                      @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
+                    >
+                      <span
+                        v-if="exportUrls.exportDetectionsUrl"
+                      >VIAME CSV</span>
+                      <span
+                        v-else
+                      >detections unavailable</span>
+                    </v-btn>
+                    <v-btn
+                      variant="flat"
+                      block
+                      class="mt-2"
+                      :disabled="!exportUrls.exportDetectionsUrl"
+                      @click="doExport({
+                        url: exportUrls
+                          && exportUrls.exportDetectionsUrlTrackJSON,
+                      })"
+                    >
+                      <span
+                        v-if="exportUrls.exportDetectionsUrl"
+                      >DIVE TrackJSON</span>
+                      <span
+                        v-else
+                      >detections unavailable</span>
+                    </v-btn>
+                    <v-btn
+                      variant="flat"
+                      block
+                      class="mt-2"
+                      :disabled="!exportUrls.exportDetectionsUrl"
+                      @click="doExport({
+                        url: exportUrls
+                          && exportUrls.exportDetectionsUrlCocoJSON,
+                      })"
+                    >
+                      <span
+                        v-if="exportUrls.exportDetectionsUrl"
+                      >COCO JSON</span>
+                      <span
+                        v-else
+                      >detections unavailable</span>
+                    </v-btn>
+                    <!-- <v-btn
               variant="flat"
               block
               :disabled="!exportUrls.exportDetectionsUrl"
@@ -442,80 +442,80 @@ export default defineComponent({
               <span v-if="exportUrls.exportDetectionsUrl">annotations</span>
               <span v-else>detections unavailable</span>
             </v-btn> -->
-              </v-col>
-            </v-row>
-          </v-card-actions>
+                  </v-col>
+                </v-row>
+              </v-card-actions>
 
-          <v-card-text class="pb-0">
-            Export the dataset configuration, including
-            attribute definitions, types, styles, and thresholds.
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              variant="flat"
-              block
-              @click="doExport({ url: exportUrls && exportUrls.exportConfigurationUrl })"
-            >
-              Configuration
-            </v-btn>
-          </v-card-actions>
+              <v-card-text class="pb-0">
+                Export the dataset configuration, including
+                attribute definitions, types, styles, and thresholds.
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  variant="flat"
+                  block
+                  @click="doExport({ url: exportUrls && exportUrls.exportConfigurationUrl })"
+                >
+                  Configuration
+                </v-btn>
+              </v-card-actions>
 
-          <v-card-text class="pb-0">
-            <span v-if="isMulticamDataset">
-              Zip all cameras: media, annotations, calibration, and dataset metadata
-            </span>
-            <span v-else>
-              Zip all media, detections, and edit history recursively from all sub-folders
-            </span>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              variant="flat"
-              block
-              @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
-            >
-              Everything
-            </v-btn>
-          </v-card-actions>
-        </template>
-        <template v-else-if="exportUrls.exportAllUrl !== undefined">
-          <v-card-text class="pb-0">
-            Zip all media, detections, and edit history from all selected dataset folders
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              variant="flat"
-              block
-              @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
-            >
-              Everything
-            </v-btn>
-          </v-card-actions>
-          <v-card-text class="pb-0">
-            Export All selected Dataset Detections in VIAME CSV and TrackJSON
-          </v-card-text>
-          <v-checkbox
-            v-model="excludeBelowThreshold"
-            label="exclude tracks below confidence threshold"
-            dense
-            hide-details
-          />
+              <v-card-text class="pb-0">
+                <span v-if="isMulticamDataset">
+                  Zip all cameras: media, annotations, calibration, and dataset metadata
+                </span>
+                <span v-else>
+                  Zip all media, detections, and edit history recursively from all sub-folders
+                </span>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  variant="flat"
+                  block
+                  @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
+                >
+                  Everything
+                </v-btn>
+              </v-card-actions>
+            </template>
+            <template v-else-if="exportUrls.exportAllUrl !== undefined">
+              <v-card-text class="pb-0">
+                Zip all media, detections, and edit history from all selected dataset folders
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  variant="flat"
+                  block
+                  @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
+                >
+                  Everything
+                </v-btn>
+              </v-card-actions>
+              <v-card-text class="pb-0">
+                Export All selected Dataset Detections in VIAME CSV and TrackJSON
+              </v-card-text>
+              <v-checkbox
+                v-model="excludeBelowThreshold"
+                label="exclude tracks below confidence threshold"
+                dense
+                hide-details
+              />
 
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              variant="flat"
-              block
-              @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
-            >
-              Detections
-            </v-btn>
-          </v-card-actions>
-        </template>
-      </v-card>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  variant="flat"
+                  block
+                  @click="doExport({ url: exportUrls && exportUrls.exportAllUrlDetections })"
+                >
+                  Detections
+                </v-btn>
+              </v-card-actions>
+            </template>
+          </v-card>
         </v-menu>
       </span>
     </template>

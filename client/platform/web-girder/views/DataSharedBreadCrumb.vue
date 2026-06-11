@@ -1,5 +1,7 @@
 <script>
-import { computed, defineComponent, inject, ref, watch } from 'vue';
+import {
+  computed, defineComponent, inject, ref, watch,
+} from 'vue';
 import { createLocationValidator, getLocationType } from '@girder/components';
 
 export default defineComponent({

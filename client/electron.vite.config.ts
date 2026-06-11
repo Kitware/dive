@@ -1,11 +1,13 @@
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-import vue from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { loadEnv } from 'vite';
+import vuetify from 'vite-plugin-vuetify';
 
 import packageJson from './package.json';
+import { girderComponentsAlias, girderComponentsResolver } from './vite.girderComponentsResolver';
 
 function getGitHash() {
   try {
@@ -67,13 +69,24 @@ export default defineConfig(({ mode }) => {
     },
     renderer: {
       root: resolve(__dirname, '.'),
-      plugins: [vue()],
+      plugins: [girderComponentsResolver(), vue(), vuetify({ autoImport: true })],
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
         alias: {
+          ...girderComponentsAlias,
           'dive-common': resolve(__dirname, 'dive-common'),
           'vue-media-annotator': resolve(__dirname, 'src'),
           platform: resolve(__dirname, 'platform'),
+        },
+      },
+      css: {
+        preprocessorOptions: {
+          scss: {
+            silenceDeprecations: ['legacy-js-api', 'import'],
+          },
+          sass: {
+            silenceDeprecations: ['legacy-js-api', 'import'],
+          },
         },
       },
       define: {
@@ -103,6 +116,7 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+        exclude: ['@girder/components', 'vue-gtag'],
       },
       build: {
         outDir: 'dist_desktop',

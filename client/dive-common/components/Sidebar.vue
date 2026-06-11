@@ -227,14 +227,14 @@ export default defineComponent({
             :disabled="disableAnnotationFilters"
             @track-seek="$emit('track-seek', $event)"
           >
-          <template #settings>
-            <TrackSettingsPanel
-              :all-types="allTypesRef"
-            />
-          </template>
-        </TrackList>
-      </div>
-      <track-details-panel
+            <template #settings>
+              <TrackSettingsPanel
+                :all-types="allTypesRef"
+              />
+            </template>
+          </TrackList>
+        </div>
+        <track-details-panel
           v-else-if="data.currentTab === 'attributes'"
           :lock-types="typeSettings.lockTypes"
           :hotkeys-disabled="visible() || readOnlyMode"

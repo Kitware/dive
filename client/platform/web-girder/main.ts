@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, type ComponentPublicInstance } from 'vue';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
@@ -27,6 +27,8 @@ if (
   SentryInit({
     dsn: process.env.VUE_APP_SENTRY_DSN,
     integrations: [
+      // @sentry/integrations Vue helper predates Vue 3; options shape is not typed for v3.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       new SentryVue({ Vue: { config: {} }, logErrors: true } as any),
     ],
     release: process.env.VUE_APP_GIT_HASH,
@@ -100,7 +102,7 @@ Promise.all([
   }
 
   const root = app.mount('#app');
-  (root as any).$promptAttach();
+  (root as ComponentPublicInstance).$promptAttach();
 }).catch((reason) => {
   reportHandledPromiseRejection('app bootstrap (brand, config, or user)', reason);
   const el = document.getElementById('app');

@@ -92,12 +92,12 @@ export default defineComponent({
 <template>
   <v-data-table
     v-model="selected"
-    :selectable="!locationIsViameFolder"
-    :headers="headers"
     v-model:page="page"
     v-model:items-per-page="clientSettings.rowsPerPage"
     v-model:sort-by="sortBy"
     v-model:sort-desc="sortDesc"
+    :selectable="!locationIsViameFolder"
+    :headers="headers"
     :server-items-length="total"
     :items="dataList"
     :footer-props="{ itemsPerPageOptions }"

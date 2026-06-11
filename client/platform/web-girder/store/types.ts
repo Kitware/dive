@@ -1,4 +1,6 @@
 import type { GirderModel, GirderModelType } from '@girder/components';
+import type { BrandData } from 'platform/web-girder/api';
+import type { GirderMetadata } from 'platform/web-girder/constants';
 
 export interface GirderJob {
   _id: string;
@@ -12,8 +14,6 @@ export interface GirderJob {
   login?: string;
   [key: string]: unknown;
 }
-import type { BrandData } from 'platform/web-girder/api';
-import type { GirderMetadata } from 'platform/web-girder/constants';
 
 /**
  * Location can be either

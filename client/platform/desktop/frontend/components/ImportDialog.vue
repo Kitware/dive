@@ -277,38 +277,40 @@ export default defineComponent({
         <table
           class="key-value-table"
         >
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
-            <td>Video</td>
-            <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
-          </tr>
-          <tr>
-            <td>Source</td>
-            <td>
-              <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
-            </td>
-          </tr>
-          <tr>
-            <td>Annotation FPS</td>
-            <td>
-              {{ argCopy.jsonMeta.fps }}
-              <span
-                v-if="argCopy.jsonMeta.type === 'video'"
-                class="pl-2"
-              >
-                <b>Note</b> video downsampled annotation framerate is different than raw video FPS
-              </span>
-            </td>
-          </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
-            <td>Raw FPS</td>
-            <td>
-              {{ argCopy.jsonMeta.originalFps }}
-            </td>
-          </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
-            <td>Image Count</td>
-            <td>{{ argCopy.jsonMeta.originalImageFiles.length }}</td>
-          </tr>
+          <tbody>
+            <tr v-if="argCopy.jsonMeta.type == 'video'">
+              <td>Video</td>
+              <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
+            </tr>
+            <tr>
+              <td>Source</td>
+              <td>
+                <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
+              </td>
+            </tr>
+            <tr>
+              <td>Annotation FPS</td>
+              <td>
+                {{ argCopy.jsonMeta.fps }}
+                <span
+                  v-if="argCopy.jsonMeta.type === 'video'"
+                  class="pl-2"
+                >
+                  <b>Note</b> video downsampled annotation framerate is different than raw video FPS
+                </span>
+              </td>
+            </tr>
+            <tr v-if="argCopy.jsonMeta.type == 'video'">
+              <td>Raw FPS</td>
+              <td>
+                {{ argCopy.jsonMeta.originalFps }}
+              </td>
+            </tr>
+            <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
+              <td>Image Count</td>
+              <td>{{ argCopy.jsonMeta.originalImageFiles.length }}</td>
+            </tr>
+          </tbody>
         </table>
       </div>
       <div class="d-flex flex-row mt-4">

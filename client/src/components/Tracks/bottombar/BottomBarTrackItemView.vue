@@ -416,12 +416,10 @@ export default defineComponent({
       class="track-timestamp clickable"
       @click.stop="$emit('seek', track.end)"
     >{{ endTimestamp }}</span>
-    <template
-      v-for="attrKey in trackAttributeColumns"
-      :key="attrKey"
-    >
+    <template v-for="attrKey in trackAttributeColumns">
       <input
         v-if="editingAttributeKey === attrKey"
+        :key="`${attrKey}-input`"
         ref="attributeInputRef"
         :value="editAttributeValue"
         type="text"
@@ -434,6 +432,7 @@ export default defineComponent({
       >
       <span
         v-else
+        :key="`${attrKey}-span`"
         class="track-attribute text-truncate"
         :class="{ editable: !readOnlyMode }"
         @click="startEditAttribute(attrKey, $event)"

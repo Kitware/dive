@@ -99,26 +99,28 @@ export default defineComponent({
                 </v-card-title>
                 <v-card-text>
                   <table class="key-value-table">
-                    <tr v-if="jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.ExportTrainedPipeline">
-                      <td>Pipe</td>
-                      <td>{{ jobSpec.pipeline.name }}</td>
-                    </tr>
-                    <tr v-if="getJobDatasets(jobSpec).length > 0">
-                      <td>Datasets</td>
-                      <td>
-                        <span
-                          v-for="dataset in getJobDatasets(jobSpec)"
-                          :key="dataset"
-                        >
-                          <router-link
-                            class="mr-1"
-                            :to="{ name: 'viewer', params: { id: dataset } }"
+                    <tbody>
+                      <tr v-if="jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.ExportTrainedPipeline">
+                        <td>Pipe</td>
+                        <td>{{ jobSpec.pipeline.name }}</td>
+                      </tr>
+                      <tr v-if="getJobDatasets(jobSpec).length > 0">
+                        <td>Datasets</td>
+                        <td>
+                          <span
+                            v-for="dataset in getJobDatasets(jobSpec)"
+                            :key="dataset"
                           >
-                            {{ datasets[dataset].name }}
-                          </router-link>
-                        </span>
-                      </td>
-                    </tr>
+                            <router-link
+                              class="mr-1"
+                              :to="{ name: 'viewer', params: { id: dataset } }"
+                            >
+                              {{ datasets[dataset].name }}
+                            </router-link>
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
                   </table>
                 </v-card-text>
               </v-col>

@@ -321,39 +321,39 @@ export default defineComponent({
           <span class="volume-control">
             <v-menu
               :close-on-content-click="false"
-            top
-            offset-y
-            nudge-left="3"
-            open-on-hover
-            close-delay="500"
-            open-delay="250"
-          >
-            <template #activator="{ props: activatorProps }">
-              <v-btn
-                icon
-                small
-                :title="volume === 0 ? 'Unmute' : 'Mute'"
-                v-bind="activatorProps"
-                @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
-              >
-                <v-icon>
-                  {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
-                </v-icon>
-              </v-btn>
-            </template>
-            <v-card class="media-slider-card">
-              <v-slider
-                class="media-slider"
-                :model-value="volume"
-                min="0"
-                max="1.0"
-                step="0.05"
-                direction="vertical"
-                hide-details
-                @update:model-value="setVolume"
-              />
-              <b class="media-slider-label">{{ volume * 100 }}%</b>
-            </v-card>
+              top
+              offset-y
+              nudge-left="3"
+              open-on-hover
+              close-delay="500"
+              open-delay="250"
+            >
+              <template #activator="{ props: activatorProps }">
+                <v-btn
+                  icon
+                  small
+                  :title="volume === 0 ? 'Unmute' : 'Mute'"
+                  v-bind="activatorProps"
+                  @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
+                >
+                  <v-icon>
+                    {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-card class="media-slider-card">
+                <v-slider
+                  class="media-slider"
+                  :model-value="volume"
+                  min="0"
+                  max="1.0"
+                  step="0.05"
+                  direction="vertical"
+                  hide-details
+                  @update:model-value="setVolume"
+                />
+                <b class="media-slider-label">{{ volume * 100 }}%</b>
+              </v-card>
             </v-menu>
           </span>
           <span class="speed-control">

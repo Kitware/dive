@@ -51,10 +51,10 @@ export default defineComponent({
 
 <template>
   <v-data-table
-    :headers="tableHeaders"
-    :items="summaryList"
     v-model:expanded="expanded"
     v-model:items-per-page="clientSettings.rowsPerPage"
+    :headers="tableHeaders"
+    :items="summaryList"
     :footer-props="{ itemsPerPageOptions }"
     item-key="_id"
     show-expand

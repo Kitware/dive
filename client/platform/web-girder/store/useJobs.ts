@@ -3,8 +3,7 @@ import { computed, ref } from 'vue';
 import { all } from 'platform/web-girder/components/job/status';
 
 import eventBus from 'platform/web-girder/eventBus';
-import { getNotificationBus } from 'platform/web-girder/plugins/girder';
-import girderRest from 'platform/web-girder/plugins/girder';
+import girderRest, { getNotificationBus } from 'platform/web-girder/plugins/girder';
 import type { GirderJob } from './types';
 
 const JobStatus = all();

@@ -1,8 +1,7 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
 import type { GirderModel } from '@girder/components';
 import { computed, ref } from 'vue';
-import type { RouteLocationNormalizedLoaded } from 'vue-router';
-import type { Router } from 'vue-router';
+import type { RouteLocationNormalizedLoaded, Router } from 'vue-router';
 
 import girderRest from 'platform/web-girder/plugins/girder';
 import { getLocationFromRoute, getRouteFromLocation } from 'platform/web-girder/utils';

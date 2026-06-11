@@ -95,9 +95,9 @@ async function load() {
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) { // verify maybeArr is an array
-        maybeArr.forEach((meta: JsonMetaCache) => (
-          datasets.value[meta.id] = hydrateJsonMetaCacheValue(meta)
-        ));
+        maybeArr.forEach((meta: JsonMetaCache) => {
+          datasets.value[meta.id] = hydrateJsonMetaCacheValue(meta);
+        });
         loaded = maybeArr;
       }
     }

@@ -1,4 +1,5 @@
 /** Read a theme color from Vuetify 3 (with fallbacks for legacy/test shapes). */
+// eslint-disable-next-line import/prefer-default-export
 export function getThemeColor(
   vuetify: {
     theme?: {

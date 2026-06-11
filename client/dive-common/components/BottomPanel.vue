@@ -79,9 +79,9 @@ export default defineComponent({
     >
       <ControlsContainer
         :ref="controlsRef"
+        v-model:collapsed="controlsCollapsed"
         bottom-layout
         :wrap-bottom-controls="sidebarMode === 'bottom'"
-        v-model:collapsed="controlsCollapsed"
         v-bind="{
           lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
         }"

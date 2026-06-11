@@ -149,94 +149,94 @@ export default defineComponent({
             </v-btn>
           </template>
           <v-card v-if="readOnlyMode">
-        <v-card-title> Read only Mode</v-card-title>
-        <v-card-text>
-          This Dataset is in ReadOnly Mode.  You cannot import annotations for this dataset.
-        </v-card-text>
-      </v-card>
-      <v-card
-        v-else
-        outlined
-      >
-        <v-card-title>
-          Import Formats
-        </v-card-title>
-        <v-card-text>
-          Multiple Data types can be imported:
-          <ul>
-            <li> Viame CSV Files </li>
-            <li> DIVE Annotation JSON </li>
-            <li> DIVE Configuration JSON</li>
-            <li> COCO / KWCOCO JSON files </li>
-          </ul>
-          <a
-            href="https://kitware.github.io/dive/DataFormats/"
-            target="_blank"
-          >Data Format Documentation</a>
-        </v-card-text>
-        <v-container>
-          <v-col>
-            <v-row>
-              <v-btn
-                depressed
-                block
-                :disabled="!datasetId || processing"
-                @click="openUpload"
-              >
-                Import
-              </v-btn>
-            </v-row>
-            <v-row
-              v-if="currentSet !== ''"
-              class="mt-3"
-              dense
-            >
-              <v-combobox
-                v-model="currentSet"
-                :items="sets"
-                chips
-                label="Annotation Set"
-                outlined
-                small
-              >
-                <template #selection="{ attrs, item, selected }">
-                  <v-chip
-                    v-bind="attrs"
-                    small
-                    :input-value="selected"
-                    outlined
+            <v-card-title> Read only Mode</v-card-title>
+            <v-card-text>
+              This Dataset is in ReadOnly Mode.  You cannot import annotations for this dataset.
+            </v-card-text>
+          </v-card>
+          <v-card
+            v-else
+            outlined
+          >
+            <v-card-title>
+              Import Formats
+            </v-card-title>
+            <v-card-text>
+              Multiple Data types can be imported:
+              <ul>
+                <li> Viame CSV Files </li>
+                <li> DIVE Annotation JSON </li>
+                <li> DIVE Configuration JSON</li>
+                <li> COCO / KWCOCO JSON files </li>
+              </ul>
+              <a
+                href="https://kitware.github.io/dive/DataFormats/"
+                target="_blank"
+              >Data Format Documentation</a>
+            </v-card-text>
+            <v-container>
+              <v-col>
+                <v-row>
+                  <v-btn
+                    depressed
+                    block
+                    :disabled="!datasetId || processing"
+                    @click="openUpload"
                   >
-                    <strong>{{ item }}</strong>&nbsp;
-                  </v-chip>
-                </template>
-              </v-combobox>
-            </v-row>
-            <v-row>
-              <v-checkbox
-                :input-value="!additive"
-                label="Overwrite"
-                @change="additive = !$event"
-              />
-            </v-row>
-            <div v-if="additive">
-              <div
-                v-if="additive"
-                class="pa-2"
-              >
-                Imported annotations will be added to existing annotations.
-              </div>
-              <div class="pa-2">
-                The types can be modified to have a prepended value for comparison.
-              </div>
-              <v-text-field
-                v-model="additivePrepend"
-                label="Prepend to types"
-                clearable
-              />
-            </div>
-          </v-col>
-        </v-container>
-      </v-card>
+                    Import
+                  </v-btn>
+                </v-row>
+                <v-row
+                  v-if="currentSet !== ''"
+                  class="mt-3"
+                  dense
+                >
+                  <v-combobox
+                    v-model="currentSet"
+                    :items="sets"
+                    chips
+                    label="Annotation Set"
+                    outlined
+                    small
+                  >
+                    <template #selection="{ attrs, item, selected }">
+                      <v-chip
+                        v-bind="attrs"
+                        small
+                        :input-value="selected"
+                        outlined
+                      >
+                        <strong>{{ item }}</strong>&nbsp;
+                      </v-chip>
+                    </template>
+                  </v-combobox>
+                </v-row>
+                <v-row>
+                  <v-checkbox
+                    :input-value="!additive"
+                    label="Overwrite"
+                    @change="additive = !$event"
+                  />
+                </v-row>
+                <div v-if="additive">
+                  <div
+                    v-if="additive"
+                    class="pa-2"
+                  >
+                    Imported annotations will be added to existing annotations.
+                  </div>
+                  <div class="pa-2">
+                    The types can be modified to have a prepended value for comparison.
+                  </div>
+                  <v-text-field
+                    v-model="additivePrepend"
+                    label="Prepend to types"
+                    clearable
+                  />
+                </div>
+              </v-col>
+            </v-container>
+          </v-card>
         </v-menu>
       </span>
     </template>

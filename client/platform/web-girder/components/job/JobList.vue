@@ -5,13 +5,14 @@ import {
 import { stringify } from 'qs';
 
 import type { RestClient } from '@girder/components';
+
+import FilterForm from './FilterForm.vue';
+import JobTable from './JobTable.vue';
+
 interface NotificationBus {
   on(event: string, handler: () => void): void;
   off(event: string, handler: () => void): void;
 }
-
-import FilterForm from './FilterForm.vue';
-import JobTable from './JobTable.vue';
 
 export default defineComponent({
   name: 'GirderJobList',

@@ -1296,7 +1296,7 @@ export default defineComponent({
               small
               outlined
               :color="annotationSetColor(displayComparisons[0] || 'default')"
-              v-on="onIcon"
+              v-bind="activatorProps"
             > {{ displayComparisons[0] }}</v-chip>
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
@@ -1492,8 +1492,8 @@ export default defineComponent({
         />
         <ConfidenceFilter
           v-if="context.state.active !== 'TypeThreshold'"
-          class="ma-2 mb-0"
           v-model:confidence="confidenceFilters.default"
+          class="ma-2 mb-0"
           :disabled="disableAnnotationFilters"
           @end="saveThreshold"
         >
@@ -1651,9 +1651,9 @@ export default defineComponent({
             </div>
           </div>
           <BottomPanel
+            v-model:controls-collapsed="controlsCollapsed"
             :sidebar-mode="sidebarMode"
             :controls-ref="controlsRef"
-            v-model:controls-collapsed="controlsCollapsed"
             :line-chart-data="lineChartData"
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"

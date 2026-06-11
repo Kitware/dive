@@ -28,14 +28,19 @@ function shadeToKebab(shade: string): string {
 }
 
 /** Material palette aliases (e.g. grey-darken-1) for Vuetify 3 color props. */
-export function buildMaterialPaletteColors(): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const [exportName, kebabName] of Object.entries(paletteNames)) {
+export default function buildMaterialPaletteColors(): Record<string, string> {
+  return Object.entries(paletteNames).reduce((result, [exportName, kebabName]) => {
     const palette = colors[exportName as keyof typeof colors];
-    if (!palette || typeof palette !== 'object') continue;
-    for (const [shade, hex] of Object.entries(palette as Record<string, string>)) {
-      result[`${kebabName}-${shadeToKebab(shade)}`] = hex;
+    if (!palette || typeof palette !== 'object') {
+      return result;
     }
-  }
-  return result;
+    const paletteEntries = Object.entries(palette as Record<string, string>).reduce(
+      (acc, [shade, hex]) => ({
+        ...acc,
+        [`${kebabName}-${shadeToKebab(shade)}`]: hex,
+      }),
+      {} as Record<string, string>,
+    );
+    return { ...result, ...paletteEntries };
+  }, {} as Record<string, string>);
 }

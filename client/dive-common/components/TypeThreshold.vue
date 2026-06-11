@@ -51,8 +51,8 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
-      :disabled="disableAnnotationFiltersRef"
       v-model:confidence="confidenceFiltersRef.default"
+      :disabled="disableAnnotationFiltersRef"
       text="Base Confidence Threshold"
       @end="saveThreshold"
     />
@@ -63,8 +63,8 @@ export default defineComponent({
       class="slidercontainer"
     >
       <ConfidenceFilter
-        :disabled="disableAnnotationFiltersRef"
         v-model:confidence="confidenceFiltersRef[type]"
+        :disabled="disableAnnotationFiltersRef"
         :text="type"
         :color="typeStylingRef.color(type)"
         @end="saveThreshold"

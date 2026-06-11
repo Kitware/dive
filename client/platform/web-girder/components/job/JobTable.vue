@@ -49,7 +49,9 @@ export default defineComponent({
 
     const tableHeaders = computed(() => (
       slots.jobwidget
-        ? [...headers, { title: '', key: 'jobwidget', sortable: false, align: 'end' as const }]
+        ? [...headers, {
+          title: '', key: 'jobwidget', sortable: false, align: 'end' as const,
+        }]
         : headers
     ));
 

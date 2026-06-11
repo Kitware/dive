@@ -1,3 +1,4 @@
+/* eslint-disable no-param-reassign */
 import { UploadManager } from '@girder/components';
 
 export default {
@@ -78,7 +79,8 @@ export default {
       if (file.upload) {
         promiseChain = promiseChain.then(() => file.upload.resume());
       } else {
-        file.upload = new uploadCls(file.file, {
+        const UploadClass = uploadCls;
+        file.upload = new UploadClass(file.file, {
           $rest: this.girderRest,
           parent: (hookResult && hookResult.dest) ? hookResult.dest : dest,
           progress,

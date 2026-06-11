@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, toRaw } from 'vue';
 import { Settings } from 'platform/desktop/constants';
 import { cloneDeep } from 'lodash';
 import * as semver from 'semver';
@@ -42,11 +42,16 @@ function getDefaultSettings(): Promise<Settings> {
   return window.diveDesktop.invoke('default-settings');
 }
 
+/** IPC uses structured clone; Vue reactive proxies cannot be cloned. */
+function toIpcSettings(s: Settings): Settings {
+  return cloneDeep(toRaw(s));
+}
+
 function validateSettings(s: Settings | null): Promise<string | boolean> {
   if (s === null) {
     return Promise.resolve(false);
   }
-  return window.diveDesktop.invoke('validate-settings', s);
+  return window.diveDesktop.invoke('validate-settings', toIpcSettings(s));
 }
 
 // Type Guard https://www.typescriptlang.org/docs/handbook/advanced-types.html
@@ -91,15 +96,17 @@ async function init() {
   if (settingsValue.overrides.readonlyMode !== undefined) {
     settingsValue.readonlyMode = settingsValue.overrides.readonlyMode;
   }
-  settings.value = settingsValue;
-  window.diveDesktop.send('update-settings', settings.value);
+  const plainSettings = toIpcSettings(settingsValue);
+  settings.value = plainSettings;
+  window.diveDesktop.send('update-settings', plainSettings);
   return settings.value;
 }
 
 async function updateSettings(s: Settings) {
-  window.localStorage.setItem(SettingsKey, JSON.stringify(s));
-  settings.value = cloneDeep(s);
-  window.diveDesktop.send('update-settings', settings.value);
+  const plainSettings = toIpcSettings(s);
+  window.localStorage.setItem(SettingsKey, JSON.stringify(plainSettings));
+  settings.value = plainSettings;
+  window.diveDesktop.send('update-settings', plainSettings);
 }
 
 async function acknowledgeVersion() {

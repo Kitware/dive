@@ -56,7 +56,8 @@ export default defineComponent({
         throw new Error('Local settings not yet initialized.');
       }
       if (!result.canceled && defaultPath !== undefined) {
-        localSettings.value[name] = result.filePaths[0];
+        const [selectedPath] = result.filePaths;
+        localSettings.value[name] = selectedPath;
       }
     }
     async function save() {

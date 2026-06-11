@@ -3,11 +3,11 @@ import {
   defineComponent, computed, PropType,
 } from 'vue';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
+import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import SideBarTrackItemView from './sidebar/SideBarTrackItemView.vue';
 import BottomBarTrackItemView from './bottombar/BottomBarTrackItemView.vue';
 import { useTime } from '../../provides';
 import Track from '../../track';
-import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import useVuetify from '../../use/useVuetify';
 
 export default defineComponent({

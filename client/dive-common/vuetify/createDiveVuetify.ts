@@ -1,7 +1,7 @@
 import { createVuetify } from 'vuetify';
 import colors from 'vuetify/lib/util/colors';
-import girderVuetifyConfig from '../../node_modules/@girder/components/src/plugins/vuetifyConfig.js';
 import { merge } from 'lodash';
+import girderVuetifyConfig from '@girder/components/src/plugins/vuetifyConfig.js';
 
 import '@mdi/font/css/materialdesignicons.css';
 import '@fontsource/roboto/400.css';
@@ -9,7 +9,7 @@ import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import 'vuetify/styles';
 
-import { buildMaterialPaletteColors } from './paletteColors';
+import buildMaterialPaletteColors from './paletteColors';
 
 const paletteColors = buildMaterialPaletteColors();
 

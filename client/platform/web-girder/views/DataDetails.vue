@@ -81,21 +81,6 @@ export default defineComponent({
       details: null,
     };
   },
-  watch: {
-    datum: {
-      immediate: true,
-      async handler(datum) {
-        if (datum && datum.created) {
-          this.details = datum;
-        } else if (datum && datum._id && datum._modelType) {
-          const { data } = await this.girderRest.get(`${datum._modelType}/${datum._id}`);
-          this.details = data;
-        } else {
-          this.details = null;
-        }
-      },
-    },
-  },
   computed: {
     title() {
       if (this.details) {
@@ -153,6 +138,21 @@ export default defineComponent({
         return [...countMessages, sizeMessage];
       }
       return [];
+    },
+  },
+  watch: {
+    datum: {
+      immediate: true,
+      async handler(datum) {
+        if (datum && datum.created) {
+          this.details = datum;
+        } else if (datum && datum._id && datum._modelType) {
+          const { data } = await this.girderRest.get(`${datum._modelType}/${datum._id}`);
+          this.details = data;
+        } else {
+          this.details = null;
+        }
+      },
     },
   },
 });

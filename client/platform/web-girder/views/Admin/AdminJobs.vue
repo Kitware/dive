@@ -8,12 +8,12 @@ import {
 } from 'platform/web-girder/api/admin.service';
 import { JobProgress, all, getByValue } from 'platform/web-girder/components/job';
 import type { GirderJob } from 'platform/web-girder/store/types';
-
-type Status = ReturnType<typeof getByValue>;
 import moment from 'moment';
 import { isObject } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useJobs } from 'platform/web-girder/store/useJobs';
+
+type Status = ReturnType<typeof getByValue>;
 
 const JobStatus = all();
 const JobStatusMap = {
@@ -203,7 +203,7 @@ export default defineComponent({
               }"
             >
               <v-chip
-                v-bind="activatorProps"
+                v-bind="attrs"
                 :input-value="selected"
                 close
                 @click="select"
@@ -230,7 +230,7 @@ export default defineComponent({
               }"
             >
               <v-chip
-                v-bind="activatorProps"
+                v-bind="attrs"
                 :input-value="selected"
                 :color="getJobStatusColor(item)"
                 close

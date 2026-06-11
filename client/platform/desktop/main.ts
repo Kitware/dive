@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, type ComponentPublicInstance } from 'vue';
 
 import promptService from 'dive-common/vue-utilities/prompt-service';
 import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
@@ -17,5 +17,5 @@ migrate().then(() => {
   app.provide('vuetify', vuetify);
 
   const root = app.mount('#app');
-  (root as any).$promptAttach();
+  (root as ComponentPublicInstance).$promptAttach();
 });

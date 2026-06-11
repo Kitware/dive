@@ -15,7 +15,7 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
-import { DataTableHeader } from 'vuetify';
+import type { DataTableHeader, DataTableSortItem } from 'vuetify';
 
 import { useRouter } from 'vue-router';
 import * as api from '../api';
@@ -211,6 +211,8 @@ export default defineComponent({
       return moment(normalized, [moment.ISO_8601, moment.RFC_2822, 'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ'], true);
     }
 
+    const sortBy = ref<DataTableSortItem[]>([{ key: 'accessedAt', order: 'desc' }]);
+
     const headers: DataTableHeader[] = [
       {
         text: 'Type',
@@ -268,6 +270,7 @@ export default defineComponent({
       importing,
       importMultiCamDialog,
       headers,
+      sortBy,
       upgradedVersion,
       downgradedVersion,
       knownVersion,
@@ -474,11 +477,11 @@ export default defineComponent({
               Open images or video to get started
             </h2>
             <v-data-table
-              dense
               v-bind="{ headers: headers, items: filteredRecents }"
-              sort-by="accessedAt"
-              :footer-props="{ itemsPerPageOptions }"
+              v-model:sort-by="sortBy"
               v-model:items-per-page="clientSettings.rowsPerPage"
+              dense
+              :items-per-page-options="itemsPerPageOptions"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">

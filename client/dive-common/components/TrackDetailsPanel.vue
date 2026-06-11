@@ -362,9 +362,9 @@ export default defineComponent({
           />
         </div>
         <RangeEditor
-          :frame="frameRef"
           v-model:begin="editingGroup.begin"
           v-model:end="editingGroup.end"
+          :frame="frameRef"
           disabled
           class="my-2 input-box px-0"
         />

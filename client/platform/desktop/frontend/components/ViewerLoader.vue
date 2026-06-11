@@ -136,8 +136,8 @@ export default defineComponent({
 
 <template>
   <Viewer
-    v-model:id="id"
     ref="viewerRef"
+    v-model:id="id"
     :read-only-mode="readOnlyMode || runningPipelines.length > 0"
     @change-camera="changeCamera"
     @large-image-warning="largeImageWarning()"

@@ -423,15 +423,15 @@ export default defineComponent({
                   <v-icon>mdi-link-variant-plus</v-icon>
                 </v-btn>
               </template>
-        <v-list dense>
-          <v-list-item
-            v-for="camera in linkableCameras"
-            :key="camera"
-            @click="startLinkingToCamera(camera)"
-          >
-            <v-list-item-title>Link to {{ camera }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
+              <v-list dense>
+                <v-list-item
+                  v-for="camera in linkableCameras"
+                  :key="camera"
+                  @click="startLinkingToCamera(camera)"
+                >
+                  <v-list-item-title>Link to {{ camera }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
             </v-menu>
           </span>
         </template>

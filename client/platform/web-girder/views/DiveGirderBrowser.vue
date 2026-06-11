@@ -311,8 +311,8 @@ export default defineComponent({
     >
       <girder-access-control
         v-if="actOnItem"
-        :model="actOnItem"
         v-model:has-permission="hasAccessPermission"
+        :model="actOnItem"
         @close="showAccessControlDialog = false"
         @model-access-changed="$refs.girderBrowser.refresh()"
       />

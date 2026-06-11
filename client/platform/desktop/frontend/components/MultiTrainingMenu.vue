@@ -433,10 +433,10 @@ export default defineComponent({
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
       <v-data-table
-        dense
         v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions }"
         v-model:items-per-page="clientSettings.rowsPerPage"
+        dense
+        :footer-props="{ itemsPerPageOptions }"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"
       >
