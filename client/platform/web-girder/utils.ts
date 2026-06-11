@@ -14,13 +14,22 @@ import { AxiosInstance } from 'axios';
  */
 function getLocationFromRoute(route: Route): LocationType | null {
   const { params } = route;
-  if (['root', 'collections', 'users'].indexOf(params.routeType) >= 0) {
-    return { type: params.routeType } as LocationType;
+  const routeType = Array.isArray(params.routeType)
+    ? params.routeType[0]
+    : params.routeType;
+  if (!routeType) {
+    return null;
   }
-  if (['user', 'folder', 'collection'].indexOf(params.routeType) >= 0) {
+  if (['root', 'collections', 'users'].indexOf(routeType) >= 0) {
+    return { type: routeType } as LocationType;
+  }
+  if (['user', 'folder', 'collection'].indexOf(routeType) >= 0) {
+    const routeId = Array.isArray(params.routeId)
+      ? params.routeId[0]
+      : params.routeId;
     return {
-      _modelType: params.routeType,
-      _id: params.routeId,
+      _modelType: routeType,
+      _id: routeId,
     } as RootlessLocationType;
   }
   return null;

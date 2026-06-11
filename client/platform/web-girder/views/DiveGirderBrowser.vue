@@ -26,7 +26,7 @@ export default defineComponent({
   inject: ['girderRest'],
 
   props: {
-    value: {
+    selected: {
       type: Array,
       default: () => [],
     },
@@ -122,6 +122,9 @@ export default defineComponent({
         } if (lazyLocation) {
           return lazyLocation;
         }
+        if (this.girderRest?.user) {
+          return { _modelType: 'user', _id: this.girderRest.user._id };
+        }
         return { type: 'root' };
       },
       set(newVal) {
@@ -200,12 +203,11 @@ export default defineComponent({
       :selectable="selectable"
       :draggable="dragEnabled"
       :root-location-disabled="rootLocationDisabled"
-      :value="value"
+      :selected="selected"
       :items-per-page="itemsPerPage"
       :items-per-page-options="itemsPerPageOptions"
       @update:itemsPerPage="$emit('update:itemsPerPage', $event)"
-      @input="$emit('input', $event)"
-      @selection-changed="$emit('selection-changed', $event)"
+      @update:selected="$emit('update:selected', $event)"
       @row-click="$emit('row-click', $event)"
       @row-right-click="rowRightClick"
       @drag="$emit('drag', $event)"

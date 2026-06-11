@@ -157,3 +157,25 @@ export default defineComponent({
   },
 });
 </script>
+
+<style lang="scss">
+.data-details :deep(.data-details-actions) {
+  > * {
+    width: 100%;
+  }
+
+  .v-btn.v-btn--disabled.v-btn--variant-flat {
+    opacity: 1;
+    background-color: rgb(var(--v-theme-grey-darken-2)) !important;
+    color: rgb(var(--v-theme-grey)) !important;
+
+    .v-icon {
+      color: rgb(var(--v-theme-grey)) !important;
+    }
+
+    .v-btn__overlay {
+      opacity: 0;
+    }
+  }
+}
+</style>

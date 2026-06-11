@@ -10,7 +10,7 @@ import girderRest, { girder, initGirderNotifications } from './plugins/girder';
 import App from './App.vue';
 import './store';
 import router from './router';
-import { bindWebGirderRouter } from './store/useLocation';
+import { bindWebGirderRouter, useLocation } from './store/useLocation';
 import { useBrand } from './store/useBrand';
 import { useConfig } from './store/useConfig';
 import { useUser } from './store/useUser';
@@ -39,7 +39,7 @@ Promise.all([
   useBrand().loadBrand(),
   useConfig().loadConfig(),
   girderRest.fetchUser(),
-]).then(() => {
+]).then(async () => {
   if (girderRest.token) {
     window.localStorage.setItem('girderToken', girderRest.token);
   } else {
@@ -88,6 +88,15 @@ Promise.all([
     }).catch((reason) => {
       reportHandledPromiseRejection('vue-gtag init', reason);
     });
+  }
+
+  try {
+    await router.isReady();
+    if (router.currentRoute.value.name === 'home') {
+      await useLocation().setLocationFromRoute(router.currentRoute.value);
+    }
+  } catch (reason) {
+    reportHandledPromiseRejection('router bootstrap (isReady or location sync)', reason);
   }
 
   const root = app.mount('#app');

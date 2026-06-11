@@ -39,6 +39,25 @@ function toArray(data: string | (string | null)[]) {
   return data;
 }
 
+function getRouteTypeParam(route: RouteLocationNormalized) {
+  const { routeType } = route.params;
+  if (Array.isArray(routeType)) {
+    return routeType[0] || '';
+  }
+  return routeType || '';
+}
+
+function hasHomeLocationParams(route: RouteLocationNormalized) {
+  return !!getRouteTypeParam(route);
+}
+
+function getDefaultHomePath() {
+  if (girderRest.user?._id) {
+    return `/user/${girderRest.user._id}`;
+  }
+  return '/collections';
+}
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
@@ -115,7 +134,11 @@ const router = createRouter({
               beforeEnter,
             },
             {
-              path: ':routeType?/:routeId?',
+              path: '',
+              redirect: () => getDefaultHomePath(),
+            },
+            {
+              path: ':routeType/:routeId?',
               name: 'home',
               component: DataBrowser,
               beforeEnter,
@@ -134,6 +157,10 @@ router.beforeEach(async (to, _from, next) => {
   }
   if (to.name === 'login' && girderRest.user) {
     next(getUserHomeRoute());
+    return;
+  }
+  if (to.name === 'home' && !hasHomeLocationParams(to)) {
+    next(getDefaultHomePath());
     return;
   }
   if (to.name === 'home') {

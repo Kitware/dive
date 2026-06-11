@@ -32,11 +32,17 @@ export default defineComponent({
     const uploading = ref(false);
     const uploaderDialog = ref(false);
     const {
-      location, selected, locationIsViameFolder, setRouteFromLocation, setSelected,
+      location,
+      resolvedLocation,
+      selected,
+      locationIsViameFolder,
+      setRouteFromLocation,
+      setSelected,
     } = useLocation();
     const jobs = useJobs();
 
     function setLocation(loc: LocationType) {
+      setSelected([]);
       setRouteFromLocation(loc).catch((reason) => {
         reportHandledPromiseRejection('DataBrowser: setRouteFromLocation', reason);
       });
@@ -83,6 +89,7 @@ export default defineComponent({
     return {
       fileManager,
       location,
+      resolvedLocation,
       selected,
       locationIsViameFolder,
       jobs,
@@ -109,15 +116,16 @@ export default defineComponent({
 <template>
   <DiveGirderBrowser
     ref="fileManager"
-    :value="selected"
+    :key="`${resolvedLocation._modelType || resolvedLocation.type}-${resolvedLocation._id || ''}`"
+    :selected="selected"
     :selectable="!locationIsViameFolder"
     :new-folder-enabled="
       !selected.length && !locationIsViameFolder
     "
-    :location="location"
+    :location="resolvedLocation"
     :items-per-page="clientSettings.rowsPerPage"
     :items-per-page-options="itemsPerPageOptions"
-    @input="setSelected"
+    @update:selected="setSelected"
     @update:itemsPerPage="updateRowsPerPage"
     @update:location="setLocation($event)"
   >

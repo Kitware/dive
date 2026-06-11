@@ -48,6 +48,18 @@ export function getUserHomeRoute() {
 
 const defaultRoute = computed(() => getUserHomeRoute());
 
+function getDefaultLocation(): LocationType {
+  const fromDefaultRoute = getLocationFromRoute(
+    defaultRoute.value as RouteLocationNormalizedLoaded,
+  );
+  if (fromDefaultRoute === null) {
+    throw new Error('Unexpected null default route');
+  }
+  return fromDefaultRoute;
+}
+
+const resolvedLocation = computed(() => location.value ?? getDefaultLocation());
+
 const locationIsViameFolder = computed(() => {
   const loc = location.value;
   if (loc && isGirderModel(loc)) {
@@ -56,12 +68,7 @@ const locationIsViameFolder = computed(() => {
   return false;
 });
 
-const locationRoute = computed(() => {
-  if (location.value) {
-    return getRouteFromLocation(location.value);
-  }
-  return defaultRoute.value;
-});
+const locationRoute = computed(() => getRouteFromLocation(resolvedLocation.value));
 
 export function useLocation() {
   function getLocation(): LocationType | null {
@@ -124,6 +131,7 @@ export function useLocation() {
 
   return {
     location,
+    resolvedLocation,
     selected,
     defaultRoute,
     locationIsViameFolder,

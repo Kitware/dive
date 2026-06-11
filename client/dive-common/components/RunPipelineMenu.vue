@@ -279,7 +279,7 @@ export default defineComponent({
       <template #activator="{ props: tooltipProps }">
         <span
           v-bind="tooltipProps"
-          class="d-inline-flex"
+          :class="buttonOptions.block ? 'd-flex w-100' : 'd-inline-flex'"
         >
           <v-menu
             max-width="230"

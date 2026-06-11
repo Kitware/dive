@@ -29,8 +29,7 @@ import eventBus from '../eventBus';
 
 const buttonOptions = {
   block: true,
-  left: true,
-  depressed: true,
+  variant: 'flat' as const,
   color: 'primary',
   class: ['my-2', 'd-flex', 'justify-start'],
 };
@@ -218,7 +217,7 @@ export default defineComponent({
             :value="selected.length ? selected : [location]"
           >
             <template #actions>
-              <div class="pa-2">
+              <div class="pa-2 data-details-actions">
                 <Clone
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
