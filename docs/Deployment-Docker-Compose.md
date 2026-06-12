@@ -69,8 +69,8 @@ VIAME server will be running at [http://localhost:8010](http://localhost:8010/).
 
 There are two ways to run the stack:
 
-* **Default (GPU-enabled):** runs the web services, the standard worker, and GPU workers.
-* **CPU profile (`--profile cpu`):** runs only the standard worker (`girder_worker_default`).
+* **Default (GPU-enabled):** runs the web services, `localworker`, the standard worker, and GPU workers.
+* **CPU profile (`--profile cpu`):** runs `girder_worker_default` and `localworker` only.
 
 Use these commands:
 
@@ -84,6 +84,12 @@ docker-compose -f docker-compose.yml --profile cpu up -d
 
 When GPU workers are not connected (for example, in CPU-only mode), the UI and API automatically disable pipeline and training features.
 
+### `localworker`
+
+Docker Compose includes a required **`localworker`** service (in `docker-compose.yml`, under the `gpu` and `cpu` profiles) that runs `celery -A girder_worker.app worker -Q local`. It uses the same image as the Girder web server and consumes the **`local`** queue for lightweight tasks such as batch postprocess and async assetstore import. **You must run `localworker` in both development and production**; without it, jobs routed to the `local` queue will not execute.
+
+When developing with `docker-compose.override.yml`, the same service mounts your local `server/` code. See also [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).
+
 ![Login Page](images/General/login.png)
 
 ## Production deployment
@@ -93,7 +99,7 @@ If you have a server with a **public-facing IP address** and a **domain name** t
 * `containrrr/watchtower` updates the running containers on a schedule using automated image builds from docker hub (above).
 * `linuxserver/duplicati` is included to schedule nightly backups, but must be manually configured.
 
-You should scale the girder web server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up.
+You should scale the girder web server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up. Keep **`localworker`** running as well (one instance is enough; it is not scaled with `--scale girder`).
 
 ```bash
 # Continuing from above, modify .env again to include the production variables
@@ -120,13 +126,13 @@ It's possible to split your web server and task runner between multiple nodes.  
 
 ``` bash
 ## On the web server
-docker-compose -f docker-compose.yml up -d girder rabbit mongo redis
+docker-compose -f docker-compose.yml up -d girder rabbit mongo redis localworker
 
 ## On the GPU server(s)
 docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
 ```
 
-In this split setup, `girder_worker_default` handles standard queue jobs while the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
+In this split setup, `localworker` on the web server handles the `local` queue, `girder_worker_default` handles standard queue jobs, and the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
 
 ## Addon management
 
@@ -246,6 +252,3 @@ docker run --rm --name dive_worker \
   kitware/viame-worker:latest
 ```
 
-### Development: `localworker`
-
-With `docker-compose.override.yml`, Compose also starts a **`localworker`** service that runs `celery -A girder_worker.app worker -Q local` for development tasks. It is not required for production; see [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).
