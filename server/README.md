@@ -11,7 +11,7 @@ There are several important python packages in this application
 
 The server targets **Girder 5** (`girder`, `girder_jobs`, `girder_worker`, and related plugins pinned in `pyproject.toml`). Docker Compose adds **Redis** for notifications (`GIRDER_NOTIFICATION_REDIS_URL`); the web client receives job updates over WebSockets.
 
-When developing with `docker-compose.override.yml`, a **`localworker`** service runs Celery on the `local` queue in addition to the standard workers.
+Docker Compose runs a required **`localworker`** service on the `local` queue in addition to the standard workers. With `docker-compose.override.yml`, that service mounts your local `server/` code for development.
 
 Upgrading an existing deployment: [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/).
 

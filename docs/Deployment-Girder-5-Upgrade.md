@@ -45,9 +45,11 @@ docker-compose -f docker-compose.yml up -d
 
 8. **Smoke-test** login, job launch, pipeline/training jobs, and job status updates in the UI (confirms WebSocket notifications and Redis).
 
-## Development-only: `localworker`
+## Required: `localworker`
 
-When using `docker-compose.override.yml`, a **`localworker`** service runs Celery on the `local` queue for tasks that should not go through the main worker pool. This service is for local development only and is not required for production deployments.
+Docker Compose includes a required **`localworker`** service (in `docker-compose.yml`, under the `gpu` and `cpu` profiles) that runs Celery on the `local` queue for lightweight tasks such as batch postprocess and async assetstore import. **Run `localworker` in both development and production**; without it, jobs routed to the `local` queue will not execute.
+
+When using `docker-compose.override.yml` for development, the same service mounts your local `server/` code; Celery workers still require a restart to pick up code changes.
 
 ## Python dependencies
 
