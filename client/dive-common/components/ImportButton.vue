@@ -35,6 +35,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    tooltip: {
+      type: String,
+      default: '',
+    },
   },
   setup() {
     return {
@@ -44,7 +48,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <div class="import-button-root">
     <v-menu
       offset-y
       offset-x
@@ -52,7 +56,40 @@ export default defineComponent({
       max-width="180"
     >
       <template #activator="{ on }">
+        <v-tooltip
+          v-if="tooltip"
+          bottom
+          max-width="360"
+          open-delay="50"
+        >
+          <template #activator="{ on: tooltipOn, attrs }">
+            <v-btn
+              v-bind="{ ...buttonAttrs, ...attrs }"
+              :large="!small"
+              :small="small"
+              class="px-0 import-button"
+              v-on="tooltipOn"
+              @click="$emit('open', openType)"
+            >
+              <div class="col-11">
+                {{ name }}
+                <v-icon class="ml-2">
+                  {{ icon }}
+                </v-icon>
+              </div>
+              <v-icon
+                v-if="multiCamImport"
+                class="button-dropdown col-1"
+                v-on="on"
+              >
+                mdi-chevron-down
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>{{ tooltip }}</span>
+        </v-tooltip>
         <v-btn
+          v-else
           v-bind="buttonAttrs"
           :large="!small"
           :small="small"
@@ -141,6 +178,14 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.import-button-root {
+  width: 100%;
+}
+
+.import-button {
+  width: 100%;
+}
+
 .button-dropdown {
   height: 44px;
   border-left: 1px solid white;

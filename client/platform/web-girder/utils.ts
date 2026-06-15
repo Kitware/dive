@@ -1,6 +1,7 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
+  getLargeImageAllowedExtensions, getLargeImageFileAccept,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
@@ -56,6 +57,8 @@ async function openFromDisk(
     input.accept = '';
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+  } else if (datasetType === 'large-image') {
+    input.accept = getLargeImageFileAccept();
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'annotation') {
@@ -77,6 +80,14 @@ async function openFromDisk(
           if (datasetType === 'annotation') {
             if (!fileList.every((item) => inputAnnotationTypes.includes(item.type))) {
               reject(new Error('File Types did not match JSON or CSV'));
+            }
+          } else if (datasetType === 'large-image') {
+            const allowed = new Set(getLargeImageAllowedExtensions().map((ext) => ext.toLowerCase()));
+            if (!fileList.every((item) => {
+              const ext = item.name.split('.').pop()?.toLowerCase();
+              return ext && allowed.has(ext);
+            })) {
+              reject(new Error('File types did not match tiled image formats'));
             }
           }
           const filePaths = fileList.map(
