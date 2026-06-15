@@ -9,6 +9,7 @@ import type {
 import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes,
+  largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -40,8 +41,6 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-const largeImageFileExtensions = ['tif', 'tiff', 'geotiff'];
-
 async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
@@ -53,7 +52,7 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   }
   if (datasetType === 'large-image') {
     filters = [
-      { name: 'GeoTIFF / TIFF', extensions: largeImageFileExtensions },
+      { name: 'GeoTIFF / TIFF', extensions: largeImageDesktopTypes },
     ];
   }
   if (datasetType === 'calibration') {
@@ -88,7 +87,7 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
     }
   }
   if (datasetType === 'large-image') {
-    const allowed = new Set(largeImageFileExtensions.map((ext) => ext.toLowerCase()));
+    const allowed = new Set(largeImageDesktopTypes.map((ext) => ext.toLowerCase()));
     if (!results.filePaths.every(
       (item) => allowed.has(getExtension(item)),
     )) {
