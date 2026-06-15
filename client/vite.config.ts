@@ -7,6 +7,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 
 function getGitHash() {
   try {
@@ -37,6 +38,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
+    css: cssConfig,
     plugins: [vue()],
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],

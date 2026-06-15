@@ -6,6 +6,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { loadEnv } from 'vite';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 
 function getGitHash() {
   try {
@@ -67,6 +68,7 @@ export default defineConfig(({ mode }) => {
     },
     renderer: {
       root: resolve(__dirname, '.'),
+      css: cssConfig,
       plugins: [vue()],
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
