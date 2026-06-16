@@ -73,6 +73,7 @@ export default defineConfig(({ mode }) => {
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
         alias: {
+          vue: resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm.js'),
           'dive-common': resolve(__dirname, 'dive-common'),
           'vue-media-annotator': resolve(__dirname, 'src'),
           platform: resolve(__dirname, 'platform'),
@@ -104,7 +105,15 @@ export default defineConfig(({ mode }) => {
         },
       },
       optimizeDeps: {
-        include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+        include: [
+          'axios',
+          'qs',
+          'markdown-it',
+          'js-cookie',
+          'vue',
+          'vuetify',
+          '@girder/components/src',
+        ],
       },
       build: {
         outDir: 'dist_desktop',
