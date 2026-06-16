@@ -43,6 +43,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
+        // Force a single Vue build; production Rollup can otherwise bundle both
+        // vue.runtime.esm.js (from vuetify/lib) and vue.runtime.common.prod.js (from vuetify dist).
+        vue: resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm.js'),
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
@@ -75,7 +78,15 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+      include: [
+        'axios',
+        'qs',
+        'markdown-it',
+        'js-cookie',
+        'vue',
+        'vuetify',
+        '@girder/components/src',
+      ],
     },
     build: {
       sourcemap: true,
