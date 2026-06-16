@@ -162,7 +162,7 @@ This information provides the specification for an individual dataset.  It consi
 * Allowed types (or labels) and their appearances are defined by `customTypeStyling` and `customGroupStyling`.
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
-* Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object. It is edited from the [Dataset Info panel](UI-DatasetInfo.md) and included in [VIAME CSV](#viame-csv) export.
+* Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object. It is edited from the [Dataset Info panel](UI-DatasetInfo.md) and travels with both [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and is restored on import.
 
 The full [DatasetMetaMutable definition can be found here](https://github.com/Kitware/dive/blob/main/client/dive-common/apispec.ts).
 
@@ -243,6 +243,21 @@ on each COCO `annotation` object:
 These extension keys are declared in the COCO `info` object as:
 
 * `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes"]`
+
+### Dataset-level metadata (`datasetInfo`)
+
+The dataset's free-form [Dataset Info](UI-DatasetInfo.md) metadata (e.g. `gfishsite_id`,
+cruise, station) is written to the COCO `info` block under a single `datasetInfo` key and
+advertised in `info.dive_extensions`:
+
+* `info.datasetInfo = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
+
+It is omitted entirely when the dataset has no `datasetInfo`, so exports for datasets
+without it stay byte-unchanged. On import, `info.datasetInfo` is merged per-key back onto
+the dataset's metadata (imported values win; existing keys the file did not carry are
+preserved). This is how dataset context — for example a `gfishsite_id` used to re-link
+annotations to an external database — travels with the KWCOCO export without renaming
+files.
 
 ### Extension Field Details
 

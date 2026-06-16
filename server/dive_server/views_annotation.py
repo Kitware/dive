@@ -204,6 +204,7 @@ class AnnotationResource(Resource):
                 filtered_tracks,
                 image_filenames=image_filenames,
                 dataset_name=folder['name'],
+                datasetInfo=fromMeta(folder, "datasetInfo", {}),
             )
             return json.dumps(coco).encode('utf-8')
         else:

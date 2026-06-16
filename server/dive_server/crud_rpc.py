@@ -579,10 +579,15 @@ def _get_data_by_type(
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
-        converted, attributes, coco_warnings = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        (
+            converted,
+            attributes,
+            coco_warnings,
+            datasetInfo,
+        ) = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return {
             'annotations': converted,
-            'meta': None,
+            'meta': {"datasetInfo": datasetInfo} if datasetInfo else None,
             'attributes': attributes,
             'type': as_type,
         }, coco_warnings or warnings
@@ -675,7 +680,16 @@ def process_items(
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
-            crud_dataset.update_metadata(folder, results['meta'], False)
+            meta = results['meta']
+            # Merge imported datasetInfo per-key into any existing dataset metadata
+            # (imported values win) rather than replacing the whole datasetInfo block, so
+            # a re-import never clobbers keys the file didn't carry.
+            if meta.get('datasetInfo'):
+                meta = {
+                    **meta,
+                    'datasetInfo': {**fromMeta(folder, 'datasetInfo', {}), **meta['datasetInfo']},
+                }
+            crud_dataset.update_metadata(folder, meta, False)
     return aggregate_warnings
 
 

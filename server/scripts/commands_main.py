@@ -48,7 +48,9 @@ def convert_kpf(inputs: List[BinaryIO], output: TextIO, output_attrs: TextIO):
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
 def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
     coco_json = json.load(input)
-    tracks, attributes, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco_json)
+    tracks, attributes, warnings, _datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        coco_json
+    )
     json.dump(tracks, output)
     json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')

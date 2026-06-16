@@ -1,4 +1,5 @@
 import fs from 'fs-extra';
+import { isEmpty } from 'lodash';
 import { AnnotationSchema } from 'dive-common/apispec';
 import { JsonMeta } from 'platform/desktop/constants';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
@@ -298,7 +299,14 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   const annotations: AnnotationSchema = { version: 2, tracks, groups: {} };
   const processed = processTrackAttributes(Object.values(annotations.tracks));
   const warnings = skippedRleMasks ? [RLE_SEGMENTATION_WARNING] : [];
-  return [annotations, { attributes: processed.attributes }, warnings];
+  const meta: Record<string, unknown> = { attributes: processed.attributes };
+  // Restore the per-dataset station metadata namespaced under `info.datasetInfo`; the
+  // caller merges it into the dataset's metadata. Omitted when absent/empty.
+  const { datasetInfo } = parsed.info ?? {};
+  if (datasetInfo && typeof datasetInfo === 'object' && !isEmpty(datasetInfo)) {
+    meta.datasetInfo = datasetInfo;
+  }
+  return [annotations, meta, warnings];
 }
 
 function frameNameForExport(frame: number, meta: JsonMeta): string {
@@ -366,11 +374,20 @@ async function serializeFile(
     name,
     keypoints: ['head', 'tail'],
   }));
+  // datasetInfo rides in the `info` block + dive_extensions; omitted entirely when empty.
+  const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo) ? meta.datasetInfo : undefined;
+  const info: CocoDocument['info'] = {
+    description: `DIVE export for ${meta.name}`,
+    dive_extensions: [
+      'dive_detection_attributes',
+      'dive_track_attributes',
+      'dive_notes',
+      ...(datasetInfo ? ['datasetInfo'] : []),
+    ],
+    ...(datasetInfo ? { datasetInfo } : {}),
+  };
   const output: CocoDocument = {
-    info: {
-      description: `DIVE export for ${meta.name}`,
-      dive_extensions: ['dive_detection_attributes', 'dive_track_attributes', 'dive_notes'],
-    },
+    info,
     images: Array.from(images.values()),
     annotations,
     categories: categoryDocs,

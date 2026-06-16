@@ -212,6 +212,54 @@ describe('COCO serializer', () => {
     expect(out.annotations[0].dive_track_attributes).toEqual({ reviewer: 'alice' });
     expect(out.annotations[0].dive_notes).toEqual(['exported note']);
   });
+
+  // --- datasetInfo passthrough (NOAA standardized metadata, Kitware/dive#1585) ---
+
+  const datasetInfo = {
+    gfishsite_id: '2024TXN012',
+    cruise: '2403',
+    sta_lat: '26.8195',
+    year: '2024',
+  };
+
+  it('writes datasetInfo under info and advertises it in dive_extensions', async () => {
+    await serializeFile('/output/info.coco.json', annotationSchema, { ...imageMeta, datasetInfo });
+    const out = await fs.readJSON('/output/info.coco.json');
+    expect(out.info.datasetInfo).toEqual(datasetInfo);
+    expect(out.info.dive_extensions).toContain('datasetInfo');
+  });
+
+  it('omits datasetInfo entirely when empty so exports stay byte-unchanged', async () => {
+    await serializeFile('/output/empty.coco.json', annotationSchema, { ...imageMeta, datasetInfo: {} });
+    const withEmpty = await fs.readJSON('/output/empty.coco.json');
+    await serializeFile('/output/base.coco.json', annotationSchema, imageMeta);
+    const baseline = await fs.readJSON('/output/base.coco.json');
+    expect(withEmpty.info).not.toHaveProperty('datasetInfo');
+    expect(withEmpty.info.dive_extensions).not.toContain('datasetInfo');
+    expect(withEmpty.info).toEqual(baseline.info);
+  });
+
+  it('restores datasetInfo from info on import', async () => {
+    mockfs({
+      '/input': {
+        'coco_info.json': JSON.stringify({
+          ...cocoInput,
+          info: {
+            description: 'DIVE export for x',
+            dive_extensions: ['dive_detection_attributes', 'datasetInfo'],
+            datasetInfo,
+          },
+        }),
+      },
+    });
+    const [, parsedMeta] = await parseFile('/input/coco_info.json');
+    expect(parsedMeta.datasetInfo).toEqual(datasetInfo);
+  });
+
+  it('returns no datasetInfo when the COCO file has none', async () => {
+    const [, parsedMeta] = await parseFile('/input/coco.json');
+    expect(parsedMeta).not.toHaveProperty('datasetInfo');
+  });
 });
 
 afterEach(() => {

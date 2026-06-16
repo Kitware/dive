@@ -680,7 +680,7 @@ def test_read_kwcoco_json(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    converted, attributes, _ = kwcoco.load_coco_as_tracks_and_attributes(input)
+    converted, attributes, _, _ = kwcoco.load_coco_as_tracks_and_attributes(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
@@ -727,6 +727,87 @@ def test_export_dive_as_coco_single_dataset():
     assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
+# --- datasetInfo passthrough (NOAA standardized metadata, Kitware/dive#1585) ---
+
+DATASET_INFO = {
+    "gfishsite_id": "2024TXN012",
+    "cruise": "2403",
+    "sta_lat": "26.8195",
+    "year": "2024",
+}
+
+_EXPORT_TRACKS = [
+    {
+        "id": 1,
+        "begin": 0,
+        "end": 0,
+        "confidencePairs": [["fish", 0.9]],
+        "features": [{"frame": 0, "bounds": [10, 20, 30, 60]}],
+    }
+]
+
+
+def test_export_dive_as_coco_writes_dataset_info():
+    """A populated datasetInfo lands under info.datasetInfo and is advertised in dive_extensions."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=DATASET_INFO
+    )
+    assert coco["info"]["datasetInfo"] == DATASET_INFO
+    assert "datasetInfo" in coco["info"]["dive_extensions"]
+
+
+@pytest.mark.parametrize("datasetInfo", [None, {}])
+def test_export_dive_as_coco_omits_empty_dataset_info(datasetInfo):
+    """No datasetInfo key (and dive_extensions unchanged) when empty/absent -> byte-unchanged."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=datasetInfo
+    )
+    baseline = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
+    )
+    assert "datasetInfo" not in coco["info"]
+    assert "datasetInfo" not in coco["info"]["dive_extensions"]
+    assert coco["info"] == baseline["info"]
+
+
+def test_load_coco_restores_dataset_info():
+    """info.datasetInfo is surfaced as the 4th return value for the caller to persist."""
+    coco = {
+        "info": {"datasetInfo": DATASET_INFO},
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        coco
+    )
+    assert datasetInfo == DATASET_INFO
+
+
+def test_load_coco_without_dataset_info_returns_empty():
+    """A COCO file with no info.datasetInfo yields an empty datasetInfo (nothing to persist)."""
+    coco = {
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        coco
+    )
+    assert datasetInfo == {}
+
+
+def test_dataset_info_export_import_roundtrip():
+    """Export then re-import carries datasetInfo through unchanged (values are opaque strings)."""
+    exported = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=DATASET_INFO
+    )
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        exported
+    )
+    assert datasetInfo == DATASET_INFO
+
+
 def test_import_dive_attribute_extensions():
     coco = {
         "images": [{"id": 1, "file_name": "img_1.jpg"}],
@@ -744,7 +825,7 @@ def test_import_dive_attribute_extensions():
         ],
         "categories": [{"id": 1, "name": "fish"}],
     }
-    converted, _, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     track = converted["tracks"]["5"]
     assert track["attributes"]["reviewed"] is True
     assert track["features"][0]["attributes"]["visibility"] == "poor"
@@ -770,7 +851,7 @@ def test_import_rle_segmentation_skips_masks_with_warning():
         ],
         "categories": [{"id": 1, "name": "fish"}],
     }
-    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     track = converted["tracks"]["5"]
     assert track["features"][0]["bounds"] == [10, 20, 40, 60]
     assert "geometry" not in track["features"][0]
@@ -814,7 +895,7 @@ def test_import_polygon_without_bbox_derives_bounds():
         ],
         "categories": [{"id": 1, "name": "fish"}],
     }
-    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     track = converted["tracks"]["401"]
     assert track["features"][0]["bounds"] == [120, 80, 200, 120]
     assert track["features"][0]["geometry"] is not None
@@ -848,7 +929,7 @@ def test_import_polygon_and_rle_segmentation():
             {"id": 2, "name": "crowd"},
         ],
     }
-    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     polygon_track = converted["tracks"]["301"]
     assert polygon_track["features"][0]["geometry"] is not None
     rle_track = converted["tracks"]["302"]

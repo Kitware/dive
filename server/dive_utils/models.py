@@ -325,6 +325,8 @@ class CocoMetadata(BaseModel):
     keypoint_categories: Dict[int, dict]
     images: Dict[int, dict]
     videos: Dict[int, dict]
+    # Per-dataset station metadata carried in the COCO ``info.datasetInfo`` block.
+    datasetInfo: Dict[str, Any] = {}
 
 
 class BrandData(BaseModel):
