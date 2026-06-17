@@ -37,6 +37,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    variant: {
+      type: String as PropType<'flat' | 'text' | 'elevated' | 'plain' | 'tonal' | 'outlined'>,
+      default: undefined,
+    },
+    iconColor: {
+      type: String as PropType<string>,
+      default: undefined,
+    },
   },
 });
 </script>
@@ -53,12 +61,15 @@ export default defineComponent({
         icon
         :disabled="disabled"
         :color="color"
-        :variant="outlined ? 'outlined' : undefined"
+        :variant="outlined ? 'outlined' : variant"
         :tile="tile"
         class="ma-0"
         @click="$emit('click', $event)"
       >
-        <v-icon :icon="icon" />
+        <v-icon
+          :icon="icon"
+          :color="iconColor"
+        />
       </v-btn>
     </template>
     <span>{{ tooltipText }}</span>

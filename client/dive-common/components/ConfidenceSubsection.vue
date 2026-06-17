@@ -40,7 +40,7 @@ export default defineComponent({
 
 <template>
   <panel-subsection>
-    <template slot="header">
+    <template #header>
       <v-row
         class="align-center"
         no-gutters
@@ -70,7 +70,7 @@ export default defineComponent({
         </v-tooltip>
       </v-row>
     </template>
-    <template slot="scroll-section">
+    <template #scroll-section>
       <v-col class="pa-0">
         <span
           v-for="(pair, index) in confidencePairs"

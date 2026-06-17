@@ -130,6 +130,7 @@ export default defineComponent({
                 dense
                 label="Show Empty"
                 hide-details
+                :color="clientSettings.typeSettings.showEmptyTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -162,6 +163,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.lockTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -193,6 +195,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.preventCascadeTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -224,6 +227,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.filterTypesByFrame ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -255,6 +259,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.maxCountButton ? 'primary' : undefined"
               />
             </v-col>
             <v-col

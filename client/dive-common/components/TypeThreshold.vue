@@ -56,6 +56,15 @@ export default defineComponent({
       text="Base Confidence Threshold"
       @end="saveThreshold"
     />
+    <v-btn
+      block
+      depressed
+      class="my-3"
+      color="warning"
+      @click="resetThresholds"
+    >
+      Reset Thresholds
+    </v-btn>
     <v-divider class="my-3" />
     <div
       v-for="type in checkedTypesRef"
@@ -70,15 +79,6 @@ export default defineComponent({
         @end="saveThreshold"
       />
     </div>
-    <v-btn
-      block
-      depressed
-      class="my-3"
-      color="warning"
-      @click="resetThresholds"
-    >
-      Reset Thresholds
-    </v-btn>
   </div>
 </template>
 

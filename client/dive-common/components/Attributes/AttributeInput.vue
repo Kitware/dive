@@ -5,6 +5,8 @@ import {
   PropType,
   onMounted,
   watch,
+  useId,
+  computed,
 } from 'vue';
 import { NumericAttributeEditorOptions, StringAttributeEditorOptions } from 'vue-media-annotator/use/AttributeTypes';
 
@@ -40,6 +42,7 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
+    const optionsListId = `optionsList_${useId()}`;
     const tempVal = ref(props.value as null | boolean | number | string);
     const inputBoxRef = ref(undefined as undefined | HTMLInputElement);
     const boolOpts = [
@@ -56,6 +59,30 @@ export default defineComponent({
       if (props.focus && inputBoxRef.value) {
         inputBoxRef.value.focus();
       }
+    });
+
+    const localSliderValue = ref(0);
+
+    watch(
+      () => [props.value, props.typeSettings] as const,
+      () => {
+        if (props.value !== undefined && props.value !== null && props.value !== '') {
+          localSliderValue.value = Number(props.value);
+        } else if (props.typeSettings?.type === 'slider') {
+          localSliderValue.value = props.typeSettings.range[0];
+        }
+      },
+      { immediate: true },
+    );
+
+    const sliderStep = computed(() => {
+      if (props.typeSettings && props.typeSettings.type === 'slider') {
+        if (props.typeSettings.steps) {
+          return props.typeSettings.steps;
+        }
+        return (props.typeSettings.range[1] - props.typeSettings.range[0]) / 2.0;
+      }
+      return 1;
     });
 
     function blurType(e: KeyboardEvent) {
@@ -96,11 +123,15 @@ export default defineComponent({
       target.blur();
     }
     function sliderChange(num: number) {
+      localSliderValue.value = num;
       const { name } = props;
       emit('change', { name, value: num });
     }
 
     return {
+      optionsListId,
+      localSliderValue,
+      sliderStep,
       inputBoxRef,
       tempVal,
       boolOpts,
@@ -118,7 +149,7 @@ export default defineComponent({
   <div>
     <datalist
       v-if="datatype === 'text' && values && values.length"
-      :id="`optionsList_${_uid}`"
+      :id="optionsListId"
       :disabled="disabled"
     >
       <option
@@ -136,7 +167,7 @@ export default defineComponent({
       v-model="tempVal"
       type="text"
       :disabled="disabled"
-      :list="`optionsList_${_uid}`"
+      :list="optionsListId"
       class="input-box"
       @change="change"
       @focus="onFocus"
@@ -156,19 +187,22 @@ export default defineComponent({
     >
     <div
       v-else-if="datatype === 'number' && (typeSettings && typeSettings.type === 'slider')"
+      class="attribute-slider-wrap"
     >
       <div class="slider-label">
-        {{ value }}
+        {{ localSliderValue }}
       </div>
       <v-slider
-        :value="value"
-        :step="typeSettings.steps ? typeSettings.steps
-          : (typeSettings.range[1] - typeSettings.range[0]) / 2.0"
+        :model-value="localSliderValue"
+        :step="sliderStep"
         :min="typeSettings.range[0]"
         :max="typeSettings.range[1]"
-        dense
+        density="compact"
+        hide-details
+        thumb-size="12"
+        track-size="4"
         class="attribute-slider"
-        @input="sliderChange"
+        @update:model-value="sliderChange"
       />
     </div>
     <select
@@ -205,15 +239,26 @@ export default defineComponent({
     background-color: #1e1e1e;
     appearance: menulist;
   }
-    .attribute-slider {
-    font-size: 12px !important;
-    padding: 0;
+  .attribute-slider-wrap {
+    max-width: 110px;
+    width: 100%;
+  }
+  .attribute-slider {
     margin: 0;
-    max-height:35px;
-    overflow:hidden;
+    padding: 0;
+    min-height: 20px;
+
+    :deep(.v-input__control) {
+      min-height: 20px;
+    }
+    :deep(.v-slider__container) {
+      min-height: 20px;
+    }
   }
   .slider-label {
-    margin: auto;
+    font-size: 0.75em;
+    line-height: 1.2;
+    margin-bottom: 2px;
     text-align: center;
     width: 100%;
   }

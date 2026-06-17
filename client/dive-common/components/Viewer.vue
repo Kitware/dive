@@ -1122,6 +1122,15 @@ export default defineComponent({
       editingError.value = null;
     }
 
+    const showAttributeEditor = computed({
+      get: () => editingAttribute.value !== null,
+      set: (open: boolean) => {
+        if (!open) {
+          closeAttributeEditor();
+        }
+      },
+    });
+
     async function saveAttributeHandler({ data, oldAttribute, close }: {
       oldAttribute?: Attribute;
       data: Attribute;
@@ -1221,6 +1230,7 @@ export default defineComponent({
       addAttribute,
       editAttribute,
       closeAttributeEditor,
+      showAttributeEditor,
       saveAttributeHandler,
       deleteAttributeHandler,
       saveTooltipText,
@@ -1719,10 +1729,8 @@ export default defineComponent({
     </div>
     <!-- Attribute editor dialog for bottom panel -->
     <v-dialog
-      :value="editingAttribute != null"
+      v-model="showAttributeEditor"
       max-width="550"
-      @click:outside="closeAttributeEditor"
-      @keydown.esc.stop="closeAttributeEditor"
     >
       <AttributeEditor
         v-if="editingAttribute != null"

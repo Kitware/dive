@@ -154,6 +154,15 @@ export default defineComponent({
       editingError.value = null;
     }
 
+    const showAttributeEditor = computed({
+      get: () => editingAttribute.value !== null,
+      set: (open: boolean) => {
+        if (!open) {
+          closeEditor();
+        }
+      },
+    });
+
     function addAttribute(type: 'Track' | 'Detection') {
       //TS doesn't understand
       const belongs = type.toLowerCase() as 'track' | 'detection';
@@ -286,6 +295,7 @@ export default defineComponent({
       updateMultiTrackType,
       /* Update functions */
       closeEditor,
+      showAttributeEditor,
       editAttribute,
       addAttribute,
       editingModeRef,
@@ -314,7 +324,7 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-list-subheader class="pl-2 d-flex align-center">
+    <div class="track-editor-header d-flex align-center pl-2 py-1">
       <span>{{
         multiSelectInProgress
           ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
@@ -322,7 +332,7 @@ export default defineComponent({
       }}</span>
       <v-spacer />
       <slot name="header-trailing" />
-    </v-list-subheader>
+    </div>
     <div
       v-if="!selectedTrackList.length"
       class="ml-4 body-2 text-caption "
@@ -345,7 +355,10 @@ export default defineComponent({
         ← back to track list (press `a` to toggle)
       </span>
     </div>
-    <template v-else>
+    <div
+      v-else
+      class="track-editor-body flex-grow-1 overflow-y-auto"
+    >
       <div
         v-if="editingGroup && !multiCam"
         class="px-2"
@@ -626,13 +639,10 @@ export default defineComponent({
         @set-edit-individual="setEditIndividual($event)"
         @add-attribute="addAttribute"
       />
-    </template>
-    <v-spacer />
+    </div>
     <v-dialog
-      :value="editingAttribute != null"
+      v-model="showAttributeEditor"
       max-width="550"
-      @click:outside="closeEditor"
-      @keydown.esc.stop="closeEditor"
     >
       <attribute-editor
         v-if="editingAttribute != null"
@@ -648,6 +658,13 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import 'vue-media-annotator/components/styles/common.scss';
+.track-editor-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid #444;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-height: 40px;
+}
 .track-details {
   min-height: 85px;
 }

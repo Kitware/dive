@@ -24,7 +24,7 @@ import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
 import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
 /* Magic numbers involved in height calculation */
-const TrackListHeaderHeight = 52;
+const TrackListHeaderHeight = 68;
 
 type SortKey = 'id' | 'start' | 'end' | 'startTime' | 'endTime' | 'confidence' | 'type' | 'notes' | string;
 type SortDirection = 'asc' | 'desc';

@@ -146,7 +146,7 @@ export default defineComponent({
       </v-row>
       <template v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Track'">
         <v-row>
-          <v-col class="py-1">
+          <v-col class="py-1" cols="10">
             <v-switch
               v-model="
                 clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
@@ -154,6 +154,7 @@ export default defineComponent({
               dense
               label="Advance Frame"
               hide-details
+              :color="clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame ? 'primary' : undefined"
             />
           </v-col>
           <v-col
@@ -178,7 +179,7 @@ export default defineComponent({
           </v-col>
         </v-row>
         <v-row>
-          <v-col class="py-1">
+          <v-col class="py-1" cols="10">
             <v-switch
               v-model="
                 clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
@@ -186,6 +187,7 @@ export default defineComponent({
               dense
               label="Interpolate"
               hide-details
+              :color="clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate ? 'primary' : undefined"
             />
           </v-col>
           <v-col
@@ -221,6 +223,7 @@ export default defineComponent({
             dense
             label="Continuous"
             hide-details
+            :color="clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous ? 'primary' : undefined"
           />
         </v-col>
         <v-col
@@ -259,6 +262,7 @@ export default defineComponent({
             dense
             label="Prompt User"
             hide-details
+            :color="clientSettings.trackSettings.deletionSettings.promptUser ? 'primary' : undefined"
           />
         </v-col>
         <v-col
@@ -298,6 +302,7 @@ export default defineComponent({
             dense
             label="Filter Detections By Frame"
             hide-details
+            :color="clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame ? 'primary' : undefined"
           />
         </v-col>
         <v-col

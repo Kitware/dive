@@ -209,9 +209,7 @@ export default defineComponent({
 
 <template>
   <panel-subsection v-if="selectedAttributes">
-    <template
-      slot="header"
-    >
+    <template #header>
       <v-row
         class="align-center"
         no-gutters
@@ -237,7 +235,7 @@ export default defineComponent({
               icon
               :disabled="readOnlyMode"
               v-bind="activatorProps"
-              @click="addAttribute"
+              @click.stop="addAttribute"
             >
               <v-icon small>
                 mdi-plus
@@ -255,12 +253,15 @@ export default defineComponent({
             <v-btn
               small
               icon
+              variant="text"
               class="ml-2"
-              :color="activeSettings ? 'accent' : ''"
               v-bind="activatorProps"
               @click="toggleActiveSettings()"
             >
-              <v-icon small>
+              <v-icon
+                small
+                :color="activeSettings ? 'accent' : undefined"
+              >
                 mdi-eye
               </v-icon>
             </v-btn>
@@ -295,7 +296,7 @@ export default defineComponent({
 
     <template
       v-if="selectedAttributes"
-      slot="scroll-section"
+      #scroll-section
     >
       <v-col
         v-if="
@@ -365,7 +366,7 @@ export default defineComponent({
               <v-btn
                 icon
                 x-small
-                @click="editAttribute(attribute)"
+                @click.stop="editAttribute(attribute)"
               >
                 <v-icon small> mdi-cog </v-icon>
               </v-btn>

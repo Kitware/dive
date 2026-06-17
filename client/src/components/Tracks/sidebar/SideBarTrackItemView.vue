@@ -151,8 +151,9 @@ export default defineComponent({
           ]"
         />
         <tooltip-btn
-          color="error"
           icon="mdi-delete"
+          icon-color="error"
+          variant="text"
           :disabled="merging || readOnlyMode"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="handler.removeTrack([track.trackId])"
@@ -162,6 +163,7 @@ export default defineComponent({
             v-if="isTrack"
             :disabled="!track.canSplit(frame) || merging || readOnlyMode"
             icon="mdi-call-split"
+            variant="text"
             tooltip-text="Split Track"
             @click="handler.trackSplit(track.trackId, frame)"
           />
