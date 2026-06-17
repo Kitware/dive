@@ -356,12 +356,12 @@ def test_image_filenames():
     image_map = {'1': 0, '2': 1, '3': 2}
     for test in image_filename_tests:
         if not test['warning']:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+            converted, _, warnings, fps, _datasetInfo = viame.load_csv_as_tracks_and_attributes(
                 test['csv'], image_map
             )
             assert len(converted['tracks'].values()) > 0
         else:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+            converted, _, warnings, fps, _datasetInfo = viame.load_csv_as_tracks_and_attributes(
                 test['csv'], image_map
             )
             assert len(warnings) > 0
@@ -376,11 +376,11 @@ def _metadata_fields(csv_text: str) -> Optional[List[str]]:
 
 
 def _dataset_info_entry(fields: List[str]) -> Optional[dict]:
-    entries = [f for f in fields if f.startswith('datasetInfo: ')]
+    entries = [f for f in fields if f.startswith('dataset_info: ')]
     if not entries:
         return None
     assert len(entries) == 1
-    return json.loads(entries[0][len('datasetInfo: ') :])
+    return json.loads(entries[0][len('dataset_info: ') :])
 
 
 def test_dataset_info_on_metadata_line():
@@ -404,15 +404,15 @@ def test_dataset_info_on_metadata_line():
 
 @pytest.mark.parametrize("datasetInfo", [None, {}])
 def test_dataset_info_absent_when_empty(datasetInfo):
-    """No datasetInfo entry (no `datasetInfo: {}` noise) when empty/absent."""
+    """No dataset_info entry (no `dataset_info: {}` noise) when empty/absent."""
     csv_text = ''.join(viame.export_tracks_as_csv([], header=True, datasetInfo=datasetInfo))
     fields = _metadata_fields(csv_text)
     assert fields is not None
-    assert not any(f.startswith('datasetInfo') for f in fields)
+    assert not any(f.startswith('dataset_info') for f in fields)
 
 
-def test_dataset_info_ignored_on_parse_roundtrip():
-    """The datasetInfo metadata entry is ignored cleanly when re-parsed into tracks."""
+def test_dataset_info_restored_on_parse_roundtrip():
+    """datasetInfo exported on the # metadata line round-trips back as the 5th return value."""
     datasetInfo = {"gfishsite_id": "2024TXN012", "cruise": 2403}
     tracks = test_tuple[0][0]
     csv_text = ''.join(
@@ -421,6 +421,24 @@ def test_dataset_info_ignored_on_parse_roundtrip():
         )
     )
     rows = csv_text.splitlines()
-    annotations, _attributes, warnings, _fps = viame.load_csv_as_tracks_and_attributes(rows)
+    annotations, _attributes, _warnings, _fps, parsed_info = (
+        viame.load_csv_as_tracks_and_attributes(rows)
+    )
     assert len(annotations['tracks']) == len(tracks)
+    assert parsed_info == datasetInfo
+
+
+def test_fps_parsed_case_insensitively_from_metadata():
+    """Lowercase ``fps:`` (what DIVE and native VIAME write) is read back on import.
+
+    Regression for an importer that only matched a capitalized ``Fps:`` and so silently
+    dropped the frame rate from real VIAME CSVs.
+    """
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, fps=23.976))
+    assert '# metadata' in csv_text and 'fps: 23.976' in csv_text  # exported lowercase
+    rows = csv_text.splitlines()
+    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(
+        rows
+    )
+    assert float(fps) == 23.976
     assert warnings == []

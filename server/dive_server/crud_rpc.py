@@ -554,15 +554,21 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes, warnings, fps = viame.load_csv_as_tracks_and_attributes(
-            file_string.splitlines(), image_map
-        )
-        meta = None
+        (
+            converted,
+            attributes,
+            warnings,
+            fps,
+            datasetInfo,
+        ) = viame.load_csv_as_tracks_and_attributes(file_string.splitlines(), image_map)
+        meta = {}
         if fps is not None:
-            meta = {"fps": fps}
+            meta['fps'] = fps
+        if datasetInfo:
+            meta['datasetInfo'] = datasetInfo
         return {
             'annotations': converted,
-            'meta': meta,
+            'meta': meta or None,
             'attributes': attributes,
             'type': as_type,
         }, warnings
@@ -613,9 +619,10 @@ def _get_data_by_type(
 def merge_imported_dataset_info(existing: dict, imported: dict) -> dict:
     """Per-key merge of an imported ``datasetInfo`` block over the existing one.
 
-    Imported values win on collision; keys the imported file did not carry are kept
-    from ``existing`` so a re-import never clobbers prior station metadata. Inputs are
-    not mutated.
+    Used for *additive* imports (Overwrite unchecked): imported values win on collision,
+    while keys the imported file did not carry are kept from ``existing`` so an additive
+    re-import never clobbers prior station metadata. Inputs are not mutated. Overwrite
+    imports replace the block instead of calling this.
     """
     return {**existing, **imported}
 
@@ -691,16 +698,17 @@ def process_items(
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
             meta = results['meta']
-            # Merge imported datasetInfo per-key into any existing dataset metadata
-            # (imported values win) rather than replacing the whole datasetInfo block, so
-            # a re-import never clobbers keys the file didn't carry.
+            # datasetInfo follows the import "Overwrite" checkbox, mirroring annotations:
+            # Overwrite (additive=False) replaces the whole block; additive merges per-key
+            # with imported values winning. A file that carries no datasetInfo never touches
+            # the existing block, in either mode.
             if meta.get('datasetInfo'):
-                meta = {
-                    **meta,
-                    'datasetInfo': merge_imported_dataset_info(
-                        fromMeta(folder, 'datasetInfo', {}), meta['datasetInfo']
-                    ),
-                }
+                imported_info = meta['datasetInfo']
+                if additive:
+                    imported_info = merge_imported_dataset_info(
+                        fromMeta(folder, 'datasetInfo', {}), imported_info
+                    )
+                meta = {**meta, 'datasetInfo': imported_info}
             crud_dataset.update_metadata(folder, meta, False)
     return aggregate_warnings
 

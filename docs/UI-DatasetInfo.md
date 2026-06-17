@@ -41,13 +41,16 @@ three ways:
 ## How it is exported
 
 On **VIAME CSV** export, a non-empty `datasetInfo` is written into the `# metadata`
-header line as one nested JSON entry:
+header line as one nested JSON entry keyed `dataset_info`:
 
 ```
-# metadata,fps: 23.976,"datasetInfo: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
+# metadata,fps: 23.976,"dataset_info: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
 ```
 
-On import, its read back to dataset metadata. See [Data Formats → VIAME CSV](DataFormats.md#viame-csv).
+On import, the `dataset_info` block is read back into the dataset's metadata — replaced with
+the **Overwrite** import option (the default), or merged per-key on an additive import. A CSV
+with no `dataset_info` entry leaves existing metadata untouched. See
+[Data Formats → VIAME CSV](DataFormats.md#viame-csv).
 
 ### Value types
 

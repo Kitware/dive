@@ -748,32 +748,32 @@ _EXPORT_TRACKS = [
 
 
 def test_export_dive_as_coco_writes_dataset_info():
-    """A populated datasetInfo lands under info.datasetInfo and is advertised in dive_extensions."""
+    """A populated datasetInfo lands under info.dive_dataset_info and is advertised in dive_extensions."""
     coco = kwcoco.export_dive_as_coco(
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=DATASET_INFO
     )
-    assert coco["info"]["datasetInfo"] == DATASET_INFO
-    assert "datasetInfo" in coco["info"]["dive_extensions"]
+    assert coco["info"]["dive_dataset_info"] == DATASET_INFO
+    assert "dive_dataset_info" in coco["info"]["dive_extensions"]
 
 
 @pytest.mark.parametrize("datasetInfo", [None, {}])
 def test_export_dive_as_coco_omits_empty_dataset_info(datasetInfo):
-    """No datasetInfo key (and dive_extensions unchanged) when empty/absent -> byte-unchanged."""
+    """No dive_dataset_info key (and dive_extensions unchanged) when empty/absent -> byte-unchanged."""
     coco = kwcoco.export_dive_as_coco(
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=datasetInfo
     )
     baseline = kwcoco.export_dive_as_coco(
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
     )
-    assert "datasetInfo" not in coco["info"]
-    assert "datasetInfo" not in coco["info"]["dive_extensions"]
+    assert "dive_dataset_info" not in coco["info"]
+    assert "dive_dataset_info" not in coco["info"]["dive_extensions"]
     assert coco["info"] == baseline["info"]
 
 
 def test_load_coco_restores_dataset_info():
-    """info.datasetInfo is surfaced as the 4th return value for the caller to persist."""
+    """info.dive_dataset_info is surfaced as the 4th return value for the caller to persist."""
     coco = {
-        "info": {"datasetInfo": DATASET_INFO},
+        "info": {"dive_dataset_info": DATASET_INFO},
         "images": [{"id": 1, "file_name": "img_1.jpg"}],
         "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],
         "categories": [{"id": 1, "name": "fish"}],
@@ -785,7 +785,7 @@ def test_load_coco_restores_dataset_info():
 
 
 def test_load_coco_without_dataset_info_returns_empty():
-    """A COCO file with no info.datasetInfo yields an empty datasetInfo (nothing to persist)."""
+    """A COCO file with no info.dive_dataset_info yields an empty datasetInfo (nothing to persist)."""
     coco = {
         "images": [{"id": 1, "file_name": "img_1.jpg"}],
         "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],

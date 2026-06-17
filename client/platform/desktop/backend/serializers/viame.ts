@@ -41,6 +41,7 @@ export interface AnnotationFileData {
   groups: MultiGroupRecord;
   fps?: number;
   execTime?: number;
+  datasetInfo?: Record<string, unknown>;
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
@@ -105,7 +106,22 @@ function parseCommentRow(row: string[]) {
     execTime = Number.parseFloat(execMatches[1]);
   }
 
-  return { fps, execTime };
+  // Per-dataset station metadata, written as one `dataset_info: <json>` field. The JSON can
+  // contain spaces, so read it from the field directly rather than the space-joined row.
+  let datasetInfo: Record<string, unknown> | undefined;
+  const dsField = row.find((field) => field.trim().startsWith('dataset_info:'));
+  if (dsField) {
+    try {
+      const parsed = JSON.parse(dsField.slice(dsField.indexOf(':') + 1).trim());
+      if (parsed && typeof parsed === 'object') {
+        datasetInfo = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // ignore a malformed dataset_info entry rather than failing the whole import
+    }
+  }
+
+  return { fps, execTime, datasetInfo };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -284,6 +300,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   });
   let fps: number | undefined;
   let execTime: number | undefined;
+  let datasetInfo: Record<string, unknown> | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
@@ -399,7 +416,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
         reject(error);
       }
       resolve([{
-        tracks, groups: {}, fps, execTime,
+        tracks, groups: {}, fps, execTime, datasetInfo,
       }, warnings]);
     });
     parser.on('readable', () => {
@@ -489,6 +506,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
             if (parsedComment.execTime) {
               execTime = parsedComment.execTime;
             }
+            if (parsedComment.datasetInfo) {
+              datasetInfo = parsedComment.datasetInfo;
+            }
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
@@ -522,7 +542,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     'Confidence Pairs or Attributes',
   ]);
   /* Per-dataset station metadata travels out as one nested JSON entry; omit entirely when empty
-   * (no `datasetInfo: {}` noise) so existing exports stay byte-unchanged. */
+   * (no `dataset_info: {}` noise) so existing exports stay byte-unchanged. */
   const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo)
     ? meta.datasetInfo
     : undefined;
@@ -537,7 +557,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
       metadataRow.push(`exec_time: ${meta.execTime}`);
     }
     if (datasetInfo) {
-      metadataRow.push(`datasetInfo: ${JSON.stringify(datasetInfo)}`);
+      metadataRow.push(`dataset_info: ${JSON.stringify(datasetInfo)}`);
     }
     writer.write(metadataRow);
   }

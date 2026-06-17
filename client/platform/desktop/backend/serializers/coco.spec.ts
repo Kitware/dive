@@ -222,11 +222,11 @@ describe('COCO serializer', () => {
     year: '2024',
   };
 
-  it('writes datasetInfo under info and advertises it in dive_extensions', async () => {
+  it('writes dive_dataset_info under info and advertises it in dive_extensions', async () => {
     await serializeFile('/output/info.coco.json', annotationSchema, { ...imageMeta, datasetInfo });
     const out = await fs.readJSON('/output/info.coco.json');
-    expect(out.info.datasetInfo).toEqual(datasetInfo);
-    expect(out.info.dive_extensions).toContain('datasetInfo');
+    expect(out.info.dive_dataset_info).toEqual(datasetInfo);
+    expect(out.info.dive_extensions).toContain('dive_dataset_info');
   });
 
   it('omits datasetInfo entirely when empty so exports stay byte-unchanged', async () => {
@@ -234,8 +234,8 @@ describe('COCO serializer', () => {
     const withEmpty = await fs.readJSON('/output/empty.coco.json');
     await serializeFile('/output/base.coco.json', annotationSchema, imageMeta);
     const baseline = await fs.readJSON('/output/base.coco.json');
-    expect(withEmpty.info).not.toHaveProperty('datasetInfo');
-    expect(withEmpty.info.dive_extensions).not.toContain('datasetInfo');
+    expect(withEmpty.info).not.toHaveProperty('dive_dataset_info');
+    expect(withEmpty.info.dive_extensions).not.toContain('dive_dataset_info');
     expect(withEmpty.info).toEqual(baseline.info);
   });
 
@@ -246,8 +246,8 @@ describe('COCO serializer', () => {
           ...cocoInput,
           info: {
             description: 'DIVE export for x',
-            dive_extensions: ['dive_detection_attributes', 'datasetInfo'],
-            datasetInfo,
+            dive_extensions: ['dive_detection_attributes', 'dive_dataset_info'],
+            dive_dataset_info: datasetInfo,
           },
         }),
       },

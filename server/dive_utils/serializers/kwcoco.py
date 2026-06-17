@@ -247,7 +247,7 @@ def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
     images = coco.get('images', [])
     videos = coco.get('videos', [])
     annotations = coco.get('annotations', [])
-    datasetInfo = (coco.get('info') or {}).get('datasetInfo') or {}
+    datasetInfo = (coco.get('info') or {}).get('dive_dataset_info') or {}
 
     # check if annotations have track IDs
     has_track_id = annotations and 'track_id' in annotations[0]
@@ -293,7 +293,7 @@ def load_coco_as_tracks_and_attributes(
     Convert KWCOCO json to DIVE json tracks.
 
     Returns the converted annotations, discovered attribute metadata, any warnings, and the
-    per-dataset ``info.datasetInfo`` block (empty dict when absent) so the caller can restore
+    per-dataset ``info.dive_dataset_info`` block (empty dict when absent) so the caller can restore
     it onto the dataset's metadata.
     """
     tracks: Dict[int, Track] = {}
@@ -406,7 +406,7 @@ def export_dive_as_coco(
         tracks: Track documents matching ``dive_utils.models.Track`` schema.
         image_filenames: Frame-indexed filename mapping for the dataset.
         dataset_name: Human-readable dataset name used in the COCO info block.
-        datasetInfo: per-dataset station metadata; written under a single ``datasetInfo``
+        datasetInfo: per-dataset station metadata; written under a single ``dive_dataset_info``
             key in the COCO ``info`` block (and advertised in ``info.dive_extensions``)
             when non-empty, omitted entirely when empty/absent so exports stay
             byte-unchanged for datasets without it.
@@ -482,11 +482,11 @@ def export_dive_as_coco(
             'dive_notes',
         ],
     }
-    # Namespace the per-dataset station metadata under one `datasetInfo` key (mirrors the
+    # Namespace the per-dataset station metadata under one `dive_dataset_info` key (mirrors the
     # VIAME CSV passthrough); advertise it in dive_extensions. Omitted entirely when empty.
     if datasetInfo:
-        info['datasetInfo'] = datasetInfo
-        info['dive_extensions'].append('datasetInfo')
+        info['dive_dataset_info'] = datasetInfo
+        info['dive_extensions'].append('dive_dataset_info')
 
     return {
         'info': info,

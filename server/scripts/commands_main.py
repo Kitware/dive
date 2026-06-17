@@ -65,7 +65,9 @@ def convert_coco(input: TextIO, output: TextIO, output_attrs: TextIO):
 @click.option('--output-attrs', type=click.File('wt'), default='attributes.json')
 def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     rows = input.readlines()
-    converted, attributes = viame.load_csv_as_tracks_and_attributes(rows)
+    converted, attributes, _warnings, _fps, _datasetInfo = viame.load_csv_as_tracks_and_attributes(
+        rows
+    )
     json.dump(converted, output)
     json.dump(attributes, output_attrs, indent=4)
     click.secho(f'wrote output {output.name}', fg='green')

@@ -308,8 +308,8 @@ function getDatasetInfoEntry(output: string[]): Record<string, unknown> | null {
   if (fields === null) {
     return null;
   }
-  const entry = fields.find((field) => field.startsWith('datasetInfo: '));
-  return entry ? JSON.parse(entry.slice('datasetInfo: '.length)) : null;
+  const entry = fields.find((field) => field.startsWith('dataset_info: '));
+  return entry ? JSON.parse(entry.slice('dataset_info: '.length)) : null;
 }
 
 describe('VIAME datasetInfo passthrough', () => {
@@ -346,7 +346,18 @@ describe('VIAME datasetInfo passthrough', () => {
     const output = fs.readFileSync(path).toString().split('\n');
     const fields = getMetadataFields(output);
     expect(fields).not.toBeNull();
-    expect(fields?.some((field) => field.startsWith('datasetInfo'))).toBe(false);
+    expect(fields?.some((field) => field.startsWith('dataset_info'))).toBe(false);
+  });
+
+  it('restores datasetInfo from the # metadata line on parse', async () => {
+    const path = '/home/test.json';
+    const stream = fs.createWriteStream(path);
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+      excludeBelowThreshold: false,
+      header: true,
+    });
+    const [parsedData] = await parseFile(path);
+    expect(parsedData.datasetInfo).toEqual(datasetInfo);
   });
 });
 

@@ -300,9 +300,9 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   const processed = processTrackAttributes(Object.values(annotations.tracks));
   const warnings = skippedRleMasks ? [RLE_SEGMENTATION_WARNING] : [];
   const meta: Record<string, unknown> = { attributes: processed.attributes };
-  // Restore the per-dataset station metadata namespaced under `info.datasetInfo`; the
+  // Restore the per-dataset station metadata namespaced under `info.dive_dataset_info`; the
   // caller merges it into the dataset's metadata. Omitted when absent/empty.
-  const { datasetInfo } = parsed.info ?? {};
+  const { dive_dataset_info: datasetInfo } = parsed.info ?? {};
   if (datasetInfo && typeof datasetInfo === 'object' && !isEmpty(datasetInfo)) {
     meta.datasetInfo = datasetInfo;
   }
@@ -382,9 +382,9 @@ async function serializeFile(
       'dive_detection_attributes',
       'dive_track_attributes',
       'dive_notes',
-      ...(datasetInfo ? ['datasetInfo'] : []),
+      ...(datasetInfo ? ['dive_dataset_info'] : []),
     ],
-    ...(datasetInfo ? { datasetInfo } : {}),
+    ...(datasetInfo ? { dive_dataset_info: datasetInfo } : {}),
   };
   const output: CocoDocument = {
     info,

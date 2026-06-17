@@ -41,8 +41,9 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls):
 
 
 # --- datasetInfo re-import merge (NOAA standardized metadata, Kitware/dive#1585) ---
-# process_items merges an imported info.datasetInfo over the dataset's existing block via
-# this helper. The subtle, regression-prone bit is the merge direction.
+# On an *additive* import, process_items merges an imported datasetInfo over the dataset's
+# existing block via this helper (an Overwrite import replaces the block instead). The subtle,
+# regression-prone bit is the merge direction.
 
 
 def test_merge_imported_dataset_info_imported_wins_and_preserves_existing():

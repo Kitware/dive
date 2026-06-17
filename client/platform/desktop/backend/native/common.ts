@@ -797,6 +797,9 @@ async function _ingestFilePath(
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
     meta.execTime = data[0].execTime;
+    if (data[0].datasetInfo) {
+      meta.datasetInfo = data[0].datasetInfo;
+    }
     [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
@@ -825,6 +828,14 @@ async function _ingestFilePath(
       existing.tracks[newTrack.id] = newTrack;
     }
     annotations.tracks = existing.tracks;
+  }
+
+  // datasetInfo follows the import "Overwrite" checkbox, mirroring the server: Overwrite
+  // (default) replaces the block when saveMetadata persists meta; additive merges per-key
+  // with imported values winning. A file without datasetInfo never reaches here untouched.
+  if (meta.datasetInfo && additive) {
+    const existingMeta = await loadJsonMetadata(projectInfo.metaFileAbsPath);
+    meta.datasetInfo = { ...(existingMeta.datasetInfo || {}), ...meta.datasetInfo };
   }
 
   if (Object.values(annotations.tracks).length || Object.values(annotations.groups).length) {

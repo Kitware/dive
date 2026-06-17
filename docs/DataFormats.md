@@ -190,13 +190,17 @@ Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sectio
 DIVE writes a `# metadata` comment line near the top of the CSV carrying dataset-level
 values such as `fps`. When a dataset has [Dataset Info](UI-DatasetInfo.md) custom
 metadata, the whole `datasetInfo` object is added to that line as a single nested JSON
-entry:
+entry keyed `dataset_info`:
 
 ```
-# metadata,fps: 23.976,"datasetInfo: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
+# metadata,fps: 23.976,"dataset_info: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
 ```
 
-* On import the `# metadata` line is parsed as dataset metadata, not as an annotation row.
+* On import the `# metadata` line is parsed back into dataset metadata: `fps` and the
+  `dataset_info` block are both restored (other fields such as `exported_by` are ignored).
+  With the import **Overwrite** option (the default) the `dataset_info` block replaces the
+  dataset's existing one; an additive import merges it per-key (imported values win). A CSV
+  with no `dataset_info` entry leaves existing metadata untouched.
 * This is how dataset context, for example a `gfishsite_id` used to re-link
   annotations to an external database, travels with the exported annotations without
   renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
@@ -247,17 +251,17 @@ These extension keys are declared in the COCO `info` object as:
 ### Dataset-level metadata (`datasetInfo`)
 
 The dataset's free-form [Dataset Info](UI-DatasetInfo.md) metadata (e.g. `gfishsite_id`,
-cruise, station) is written to the COCO `info` block under a single `datasetInfo` key and
+cruise, station) is written to the COCO `info` block under a single `dive_dataset_info` key and
 advertised in `info.dive_extensions`:
 
-* `info.datasetInfo = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
+* `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
 
 It is omitted entirely when the dataset has no `datasetInfo`, so exports for datasets
-without it stay byte-unchanged. On import, `info.datasetInfo` is merged per-key back onto
-the dataset's metadata (imported values win; existing keys the file did not carry are
-preserved). This is how dataset context — for example a `gfishsite_id` used to re-link
-annotations to an external database — travels with the KWCOCO export without renaming
-files.
+without it stay byte-unchanged. On import, `info.dive_dataset_info` is restored onto the
+dataset's metadata: the **Overwrite** import option (the default) replaces the block, while
+an additive import merges it per-key (imported values win; existing-only keys preserved).
+This is how dataset context — for example a `gfishsite_id` used to re-link annotations to an
+external database — travels with the KWCOCO export without renaming files.
 
 ### Extension Field Details
 
