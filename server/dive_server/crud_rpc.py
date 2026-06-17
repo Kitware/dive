@@ -615,15 +615,19 @@ def _get_data_by_type(
     return None, None
 
 
-def merge_imported_dataset_info(existing: dict, imported: dict) -> dict:
-    """Per-key merge of an imported ``datasetInfo`` block over the existing one.
+def resolve_imported_dataset_info(existing: types.DatasetInfo, meta: dict, additive: bool) -> dict:
+    """Return ``meta`` with its ``datasetInfo`` reconciled against the dataset's ``existing`` block.
 
-    Used for *additive* imports (Overwrite unchecked): imported values win on collision,
-    while keys the imported file did not carry are kept from ``existing`` so an additive
-    re-import never clobbers prior station metadata. Inputs are not mutated. Overwrite
-    imports replace the block instead of calling this.
+    datasetInfo follows the import "Overwrite" checkbox, mirroring annotations: Overwrite
+    (``additive=False``) replaces the block; additive merges per-key with imported values
+    winning, so a re-import never clobbers station metadata the file omits. A file carrying
+    no datasetInfo leaves ``existing`` untouched in either mode. Inputs are not mutated.
     """
-    return {**existing, **imported}
+    imported = meta.get('datasetInfo')
+    if not imported:
+        return meta
+    resolved = {**existing, **imported} if additive else imported
+    return {**meta, 'datasetInfo': resolved}
 
 
 def process_items(
@@ -696,18 +700,9 @@ def process_items(
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
-            meta = results['meta']
-            # datasetInfo follows the import "Overwrite" checkbox, mirroring annotations:
-            # Overwrite (additive=False) replaces the whole block; additive merges per-key
-            # with imported values winning. A file that carries no datasetInfo never touches
-            # the existing block, in either mode.
-            if meta.get('datasetInfo'):
-                imported_info = meta['datasetInfo']
-                if additive:
-                    imported_info = merge_imported_dataset_info(
-                        fromMeta(folder, 'datasetInfo', {}), imported_info
-                    )
-                meta = {**meta, 'datasetInfo': imported_info}
+            meta = resolve_imported_dataset_info(
+                fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
+            )
             crud_dataset.update_metadata(folder, meta, False)
     return aggregate_warnings
 

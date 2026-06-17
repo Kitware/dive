@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing_extensions import NotRequired, TypedDict
 
 __all__ = [
+    "Attributes",
+    "DatasetInfo",
     "DiveParam",
     "GirderModel",
     "PipelineDescription",
@@ -12,6 +14,7 @@ __all__ = [
     "PipelineJob",
     "PipelineCategory",
     "PipeMetadata",
+    "Warnings",
 ]
 
 
@@ -176,3 +179,13 @@ class DIVEAnnotationSchema(TypedDict):
     tracks: Dict[str, dict]
     groups: Dict[str, dict]
     version: int
+
+
+# Attribute metadata discovered while deserializing annotations, keyed by attribute name.
+Attributes = Dict[str, Dict[str, Any]]
+
+# Human-readable warnings surfaced during an import.
+Warnings = List[str]
+
+# Per-dataset station metadata (the COCO ``info.dive_dataset_info`` block).
+DatasetInfo = Dict[str, Any]

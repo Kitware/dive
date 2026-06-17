@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from dive_server import crud_dataset
-from dive_server.crud_rpc import merge_imported_dataset_info
+from dive_server.crud_rpc import resolve_imported_dataset_info
 
 
 @patch('dive_server.crud_dataset.Folder')
@@ -40,20 +40,19 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls):
     assert folder['meta']['timeFilters'] == [10, 50]
 
 
-# --- datasetInfo re-import merge ---
-# On an *additive* import, process_items merges an imported datasetInfo over the dataset's
-# existing block via this helper (an Overwrite import replaces the block instead). The subtle,
-# regression-prone bit is the merge direction.
+# --- datasetInfo re-import resolution ---
+# process_items reconciles an imported datasetInfo with the dataset's existing block via this
+# helper. The subtle, regression-prone bit is the merge direction on an additive import.
 
 
-def test_merge_imported_dataset_info_imported_wins_and_preserves_existing():
-    """Imported values win on collision; keys absent from the file survive the re-import."""
+def test_resolve_imported_dataset_info_additive_imported_wins_and_preserves_existing():
+    """Additive: imported values win on collision; keys absent from the file survive."""
     existing = {'cruise': '2403', 'year': '2024', 'sta_lat': '26.8195'}
-    imported = {'year': '2025', 'gfishsite_id': '2024TXN012'}
+    meta = {'datasetInfo': {'year': '2025', 'gfishsite_id': '2024TXN012'}}
 
-    merged = merge_imported_dataset_info(existing, imported)
+    resolved = resolve_imported_dataset_info(existing, meta, additive=True)
 
-    assert merged == {
+    assert resolved['datasetInfo'] == {
         'cruise': '2403',  # preserved: the imported file did not carry it
         'sta_lat': '26.8195',  # preserved
         'year': '2025',  # imported wins on collision
@@ -61,11 +60,30 @@ def test_merge_imported_dataset_info_imported_wins_and_preserves_existing():
     }
 
 
-def test_merge_imported_dataset_info_does_not_mutate_inputs():
-    existing = {'cruise': '2403'}
-    imported = {'year': '2025'}
+def test_resolve_imported_dataset_info_overwrite_replaces_block():
+    """Overwrite (additive=False) drops the existing block entirely."""
+    existing = {'cruise': '2403', 'year': '2024'}
+    meta = {'datasetInfo': {'year': '2025'}}
 
-    merge_imported_dataset_info(existing, imported)
+    resolved = resolve_imported_dataset_info(existing, meta, additive=False)
+
+    assert resolved['datasetInfo'] == {'year': '2025'}
+
+
+def test_resolve_imported_dataset_info_absent_leaves_meta_untouched():
+    """A file carrying no datasetInfo never touches the existing block, in either mode."""
+    existing = {'cruise': '2403'}
+    meta = {'type': 'image-sequence'}
+
+    assert resolve_imported_dataset_info(existing, meta, additive=True) == meta
+    assert resolve_imported_dataset_info(existing, meta, additive=False) == meta
+
+
+def test_resolve_imported_dataset_info_does_not_mutate_inputs():
+    existing = {'cruise': '2403'}
+    meta = {'datasetInfo': {'year': '2025'}}
+
+    resolve_imported_dataset_info(existing, meta, additive=True)
 
     assert existing == {'cruise': '2403'}
-    assert imported == {'year': '2025'}
+    assert meta == {'datasetInfo': {'year': '2025'}}

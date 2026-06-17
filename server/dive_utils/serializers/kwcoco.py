@@ -288,18 +288,16 @@ def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
 
 def load_coco_as_tracks_and_attributes(
     coco: Dict[str, Any],
-) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Dict[str, Any]]:
-    """
-    Convert KWCOCO json to DIVE json tracks.
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, types.DatasetInfo]:
+    """Convert KWCOCO json to DIVE json tracks.
 
-    Returns the converted annotations, discovered attribute metadata, any warnings, and the
-    per-dataset ``info.dive_dataset_info`` block (empty dict when absent) so the caller can restore
-    it onto the dataset's metadata.
+    Returns (annotations, attributes, warnings, dataset_info); dataset_info is empty when the
+    file carries no ``info.dive_dataset_info`` block.
     """
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
-    warnings: List[str] = []
+    warnings: types.Warnings = []
     skipped_rle_masks = False
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
@@ -397,7 +395,7 @@ def export_dive_as_coco(
     tracks: Iterable[dict],
     image_filenames: Dict[int, str],
     dataset_name: str,
-    datasetInfo: Optional[Dict[str, Any]] = None,
+    datasetInfo: Optional[types.DatasetInfo] = None,
 ) -> Dict[str, Any]:
     """
     Export DIVE tracks to a single-dataset COCO JSON document.

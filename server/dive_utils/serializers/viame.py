@@ -196,7 +196,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 
 def create_attributes(
-    metadata_attributes: Dict[str, Dict[str, Any]],
+    metadata_attributes: types.Attributes,
     test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
@@ -223,7 +223,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Dict[str, Any]], test_vals: Dict[str, Dict[str, int]]
+    metadata_attributes: types.Attributes, test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -252,12 +252,12 @@ def calculate_attribute_types(
 
 def load_json_as_track_and_attributes(
     json_data: types.DIVEAnnotationSchema,
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes]:
     """
     Load VIAME Track JSON and Computes Attributes
     """
     # Go through tracks and gather all attributes
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     tracks = json_data['tracks']
     # Get Attribute Maps to values
@@ -308,7 +308,7 @@ def parse_metadata_row(row: List[str]) -> Dict[str, Any]:
 def load_csv_as_tracks_and_attributes(
     rows: List[str],
     imageMap: Optional[Dict[str, int]] = None,
-) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Optional[str], Dict[str, Any]]:
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo]:
     """
     Convert VIAME CSV to json tracks
 
@@ -317,15 +317,15 @@ def load_csv_as_tracks_and_attributes(
     """
     reader = csv.reader(row for row in rows)
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=custom_sort)
-    warnings: List[str] = []
+    warnings: types.Warnings = []
     fps = None
-    datasetInfo: Dict[str, Any] = {}
+    datasetInfo: types.DatasetInfo = {}
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
@@ -507,7 +507,7 @@ def export_tracks_as_csv(
     header=True,
     typeFilter=None,
     revision=None,
-    datasetInfo=None,
+    datasetInfo: Optional[types.DatasetInfo] = None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
