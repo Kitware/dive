@@ -303,7 +303,7 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   // Restore the per-dataset station metadata namespaced under `info.dive_dataset_info`; the
   // caller merges it into the dataset's metadata. Omitted when absent/empty.
   const { dive_dataset_info: datasetInfo } = parsed.info ?? {};
-  if (datasetInfo && typeof datasetInfo === 'object' && !isEmpty(datasetInfo)) {
+  if (typeof datasetInfo === 'object' && !isEmpty(datasetInfo)) {
     meta.datasetInfo = datasetInfo;
   }
   return [annotations, meta, warnings];

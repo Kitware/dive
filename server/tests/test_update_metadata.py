@@ -40,7 +40,7 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls):
     assert folder['meta']['timeFilters'] == [10, 50]
 
 
-# --- datasetInfo re-import merge (NOAA standardized metadata, Kitware/dive#1585) ---
+# --- datasetInfo re-import merge ---
 # On an *additive* import, process_items merges an imported datasetInfo over the dataset's
 # existing block via this helper (an Overwrite import replaces the block instead). The subtle,
 # regression-prone bit is the merge direction.

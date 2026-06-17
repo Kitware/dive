@@ -561,14 +561,13 @@ def _get_data_by_type(
             fps,
             datasetInfo,
         ) = viame.load_csv_as_tracks_and_attributes(file_string.splitlines(), image_map)
-        meta = {}
-        if fps is not None:
-            meta['fps'] = fps
-        if datasetInfo:
-            meta['datasetInfo'] = datasetInfo
+        meta = {
+            **({'fps': fps} if fps is not None else {}),
+            **({'datasetInfo': datasetInfo} if datasetInfo else {}),
+        }
         return {
             'annotations': converted,
-            'meta': meta or None,
+            'meta': meta,
             'attributes': attributes,
             'type': as_type,
         }, warnings

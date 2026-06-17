@@ -727,7 +727,7 @@ def test_export_dive_as_coco_single_dataset():
     assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
-# --- datasetInfo passthrough (NOAA standardized metadata, Kitware/dive#1585) ---
+# --- datasetInfo passthrough ---
 
 DATASET_INFO = {
     "gfishsite_id": "2024TXN012",

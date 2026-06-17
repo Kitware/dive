@@ -93,6 +93,33 @@ function _rowInfo(row: string[]) {
   };
 }
 
+/**
+ * Pull per-dataset station metadata out of a comment row. It is written as one
+ * `dataset_info: <json>` field whose JSON may contain spaces, so it is read straight from the
+ * field rather than the space-joined row. Returns the parsed object, or a `warning` describing why
+ * a present-but-unusable field was skipped (so the import can continue rather than failing).
+ */
+function parseDatasetInfo(row: string[]): {
+  datasetInfo?: Record<string, unknown>;
+  warning?: string;
+} {
+  const field = row.find((f) => f.trim().startsWith('dataset_info:'));
+  if (!field) {
+    return {};
+  }
+  const json = field.slice(field.indexOf(':') + 1).trim();
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === 'object') {
+      return { datasetInfo: parsed as Record<string, unknown> };
+    }
+    return { warning: `Ignored dataset_info entry: expected a JSON object but got ${typeof parsed}` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { warning: `Ignored malformed dataset_info entry (${message})` };
+  }
+}
+
 function parseCommentRow(row: string[]) {
   const fullrow = row.join(' ');
   const matches = getCaptureGroups(FpsRegex, fullrow);
@@ -106,22 +133,11 @@ function parseCommentRow(row: string[]) {
     execTime = Number.parseFloat(execMatches[1]);
   }
 
-  // Per-dataset station metadata, written as one `dataset_info: <json>` field. The JSON can
-  // contain spaces, so read it from the field directly rather than the space-joined row.
-  let datasetInfo: Record<string, unknown> | undefined;
-  const dsField = row.find((field) => field.trim().startsWith('dataset_info:'));
-  if (dsField) {
-    try {
-      const parsed = JSON.parse(dsField.slice(dsField.indexOf(':') + 1).trim());
-      if (parsed && typeof parsed === 'object') {
-        datasetInfo = parsed as Record<string, unknown>;
-      }
-    } catch {
-      // ignore a malformed dataset_info entry rather than failing the whole import
-    }
-  }
+  const { datasetInfo, warning } = parseDatasetInfo(row);
 
-  return { fps, execTime, datasetInfo };
+  return {
+    fps, execTime, datasetInfo, warning,
+  };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -509,6 +525,9 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
             if (parsedComment.datasetInfo) {
               datasetInfo = parsedComment.datasetInfo;
             }
+            if (parsedComment.warning) {
+              warnings.push(parsedComment.warning);
+            }
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
@@ -541,8 +560,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     '10-11+: Repeated Species',
     'Confidence Pairs or Attributes',
   ]);
-  /* Per-dataset station metadata travels out as one nested JSON entry; omit entirely when empty
-   * (no `dataset_info: {}` noise) so existing exports stay byte-unchanged. */
+  // Omit datasetInfo when empty so existing exports stay unchanged.
   const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo)
     ? meta.datasetInfo
     : undefined;

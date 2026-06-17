@@ -213,7 +213,7 @@ describe('COCO serializer', () => {
     expect(out.annotations[0].dive_notes).toEqual(['exported note']);
   });
 
-  // --- datasetInfo passthrough (NOAA standardized metadata, Kitware/dive#1585) ---
+  // --- datasetInfo passthrough ---
 
   const datasetInfo = {
     gfishsite_id: '2024TXN012',
