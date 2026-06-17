@@ -94,10 +94,8 @@ function _rowInfo(row: string[]) {
 }
 
 /**
- * Pull per-dataset station metadata out of a comment row. It is written as one
- * `dataset_info: <json>` field whose JSON may contain spaces, so it is read straight from the
- * field rather than the space-joined row. Returns the parsed object, or a `warning` describing why
- * a present-but-unusable field was skipped (so the import can continue rather than failing).
+ * Read dataset metadata from a `dataset_info: <json>` comment field. Returns the parsed
+ * object, or a `warning` if the field is present but unusable so the import can continue.
  */
 function parseDatasetInfo(row: string[]): {
   datasetInfo?: Record<string, unknown>;
@@ -110,10 +108,12 @@ function parseDatasetInfo(row: string[]): {
   const json = field.slice(field.indexOf(':') + 1).trim();
   try {
     const parsed = JSON.parse(json);
-    if (parsed && typeof parsed === 'object') {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return { datasetInfo: parsed as Record<string, unknown> };
     }
-    return { warning: `Ignored dataset_info entry: expected a JSON object but got ${typeof parsed}` };
+    // eslint-disable-next-line no-nested-ternary
+    const kind = parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed;
+    return { warning: `Ignored dataset_info entry: expected a JSON object but got ${kind}` };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { warning: `Ignored malformed dataset_info entry (${message})` };

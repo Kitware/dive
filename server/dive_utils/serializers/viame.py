@@ -330,9 +330,8 @@ def load_csv_as_tracks_and_attributes(
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             if len(row) > 0 and row[0] == '# metadata':
-                # Symmetric with writeHeader: read the `key: <json>` fields back. fps is
-                # matched case-insensitively (native VIAME writes lowercase `fps:`), and a
-                # `dataset_info` block is restored so VIAME CSV round-trips it like COCO.
+                # Read back the `key: <json>` fields written by writeHeader.
+                # fps is matched case-insensitively (native VIAME writes lowercase `fps:`).
                 metadata_fields = parse_metadata_row(row)
                 if fps is None and metadata_fields.get('fps') is not None:
                     fps = metadata_fields['fps']

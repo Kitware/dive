@@ -404,10 +404,9 @@ def export_dive_as_coco(
         tracks: Track documents matching ``dive_utils.models.Track`` schema.
         image_filenames: Frame-indexed filename mapping for the dataset.
         dataset_name: Human-readable dataset name used in the COCO info block.
-        datasetInfo: per-dataset station metadata; written under a single ``dive_dataset_info``
-            key in the COCO ``info`` block (and advertised in ``info.dive_extensions``)
-            when non-empty, omitted entirely when empty/absent so exports stay
-            byte-unchanged for datasets without it.
+        datasetInfo: per-dataset station metadata; when present, written under
+            ``info.dive_dataset_info`` and advertised in ``info.dive_extensions``.
+            Omitted entirely when empty.
     """
     categories: Dict[str, int] = {}
     coco_annotations: List[dict] = []
@@ -480,8 +479,6 @@ def export_dive_as_coco(
             'dive_notes',
         ],
     }
-    # Namespace the per-dataset station metadata under one `dive_dataset_info` key (mirrors the
-    # VIAME CSV passthrough); advertise it in dive_extensions. Omitted entirely when empty.
     if datasetInfo:
         info['dive_dataset_info'] = datasetInfo
         info['dive_extensions'].append('dive_dataset_info')

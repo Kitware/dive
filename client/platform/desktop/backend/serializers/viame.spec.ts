@@ -3,6 +3,7 @@ import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import parseSync from 'csv-parse/lib/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
+import { Readable } from 'stream';
 import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
@@ -358,6 +359,19 @@ describe('VIAME datasetInfo passthrough', () => {
     });
     const [parsedData] = await parseFile(path);
     expect(parsedData.datasetInfo).toEqual(datasetInfo);
+  });
+
+  // Drive an unusable dataset_info field straight into parse via a # metadata row.
+  // Each case should be skipped with a warning rather than aborting the import.
+  it.each([
+    ['malformed JSON', 'dataset_info: {bad json}', /malformed dataset_info/],
+    ['a JSON number', 'dataset_info: 42', /expected a JSON object but got number/],
+    ['a JSON array', 'dataset_info: [1]', /expected a JSON object but got array/],
+    ['JSON null', 'dataset_info: null', /expected a JSON object but got null/],
+  ])('skips %s with a warning and no datasetInfo', async (_label, field, pattern) => {
+    const [parsedData, warnings] = await parse(Readable.from(`# metadata,fps: 30,${field}`));
+    expect(parsedData.datasetInfo).toBeUndefined();
+    expect(warnings.some((w) => pattern.test(w))).toBe(true);
   });
 });
 
