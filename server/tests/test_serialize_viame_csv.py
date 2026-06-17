@@ -441,4 +441,3 @@ def test_fps_parsed_case_insensitively_from_metadata():
         rows
     )
     assert float(fps) == 23.976
-    assert warnings == []

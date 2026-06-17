@@ -830,9 +830,10 @@ async function _ingestFilePath(
     annotations.tracks = existing.tracks;
   }
 
-  // datasetInfo follows the import "Overwrite" checkbox, mirroring the server: Overwrite
-  // (default) replaces the block when saveMetadata persists meta; additive merges per-key
-  // with imported values winning. A file without datasetInfo never reaches here untouched.
+  // On an additive import, merge the imported datasetInfo per-key over the existing block
+  // (imported values win) so a re-import never clobbers keys the file didn't carry. The
+  // Overwrite (non-additive) replacement is handled by the caller, which assigns the block
+  // wholesale rather than deep-merging it. A file without datasetInfo never reaches here.
   if (meta.datasetInfo && additive) {
     const existingMeta = await loadJsonMetadata(projectInfo.metaFileAbsPath);
     meta.datasetInfo = { ...(existingMeta.datasetInfo || {}), ...meta.datasetInfo };
@@ -1323,6 +1324,12 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
     additivePrepend,
   );
   merge(jsonMeta, result.meta);
+  // lodash merge deep-merges datasetInfo, which keeps stale keys. On an Overwrite import we
+  // want the block replaced wholesale (mirroring the server); _ingestFilePath has already
+  // folded existing keys into result.meta.datasetInfo for the additive case.
+  if (!additive && result.meta.datasetInfo) {
+    jsonMeta.datasetInfo = result.meta.datasetInfo;
+  }
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
   return result;
 }
