@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import Vue, { watchEffect } from 'vue';
+import { nextTick, watchEffect } from 'vue';
 import TrackStore from './TrackStore';
 
 describe('TrackStore', () => {
@@ -67,7 +67,7 @@ describe('TrackStore', () => {
     });
 
     track.setAttribute('foo', 'bar');
-    await Vue.nextTick();
+    await nextTick();
     expect(called).toBeTruthy();
     called = false;
 
@@ -75,12 +75,12 @@ describe('TrackStore', () => {
       keyframe: true,
       frame: 0,
     });
-    await Vue.nextTick();
+    await nextTick();
     expect(called).toBeTruthy();
     called = false;
 
     track.setType('foo');
-    await Vue.nextTick();
+    await nextTick();
     expect(called).toBeTruthy();
     called = false;
   });

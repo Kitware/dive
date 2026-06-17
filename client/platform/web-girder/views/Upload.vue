@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router';
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx, largeImageTypes, largeImageDesktopTypes, LargeImageType,
+  websafeImageTypes, otherImageTypes, JsonMetaRegEx, getLargeImageFileAccept, LargeImageType,
 } from 'dive-common/constants';
 
 import {
@@ -164,7 +164,6 @@ export default defineComponent({
     };
 
     onBeforeUnmount(clearMulticamUploadProgressTimer);
-    const isDesktopMode = navigator.userAgent.includes('Electron');
     const { prompt } = usePrompt();
     const router = useRouter();
 
@@ -329,10 +328,7 @@ export default defineComponent({
       } if (type === 'video') {
         return websafeVideoTypes.concat(otherVideoTypes);
       } if (type === 'large-image') {
-        if (isDesktopMode) {
-          return largeImageDesktopTypes.map((item) => `.${item}`).join(',');
-        }
-        return largeImageTypes;
+        return getLargeImageFileAccept();
       }
       return websafeImageTypes.concat(otherImageTypes);
     };
@@ -866,30 +862,18 @@ export default defineComponent({
                   @multi-cam="openMultiCamDialog"
                 />
               </v-list-item>
-              <v-tooltip
-                open-delay="50"
-                top
-                max-width="400"
-              >
-                <template #activator="{ props: activatorProps }">
-                  <v-list-item v-bind="activatorProps">
-                    <import-button
-                      :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled Images`"
-                      icon="mdi-folder-open"
-                      open-type="large-image"
-                      class="grow my-2"
-                      :small="!!pendingUploads.length"
-                      :button-attrs="buttonAttrs"
-                      @open="openImport($event)"
-                    />
-                  </v-list-item>
-                </template>
-                <b>
-                  Allows for a single or sequence of geospatial
-                  large images for use in a tile server
-                  with formats such as: .tiff, .nitf, .ntf, .tif
-                </b>
-              </v-tooltip>
+              <v-list-item>
+                <import-button
+                  :name="`Add ${pendingUploads.length ? 'Another ' : ''}Tiled TIFF / NITF`"
+                  icon="mdi-folder-open"
+                  open-type="large-image"
+                  class="grow my-2"
+                  :small="!!pendingUploads.length"
+                  :button-attrs="buttonAttrs"
+                  tooltip="Upload tiled geospatial images for the large-image viewer. Supports TIFF (.tif, .tiff), NITF (.nitf, .ntf), and other tiled raster data with internal pyramid overviews."
+                  @open="openImport($event)"
+                />
+              </v-list-item>
               <v-list-item>
                 <import-button
                   :name="`Add ${pendingUploads.length ? 'Another ' : ''}Zip File`"

@@ -7,6 +7,7 @@ import { loadEnv } from 'vite';
 import vuetify from 'vite-plugin-vuetify';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 import { girderComponentsAlias, girderComponentsResolver } from './vite.girderComponentsResolver';
 
 function getGitHash() {
@@ -69,6 +70,7 @@ export default defineConfig(({ mode }) => {
     },
     renderer: {
       root: resolve(__dirname, '.'),
+      css: cssConfig,
       plugins: [girderComponentsResolver(), vue(), vuetify({ autoImport: true })],
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
@@ -77,16 +79,6 @@ export default defineConfig(({ mode }) => {
           'dive-common': resolve(__dirname, 'dive-common'),
           'vue-media-annotator': resolve(__dirname, 'src'),
           platform: resolve(__dirname, 'platform'),
-        },
-      },
-      css: {
-        preprocessorOptions: {
-          scss: {
-            silenceDeprecations: ['legacy-js-api', 'import'],
-          },
-          sass: {
-            silenceDeprecations: ['legacy-js-api', 'import'],
-          },
         },
       },
       define: {

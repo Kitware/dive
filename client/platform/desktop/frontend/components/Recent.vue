@@ -430,10 +430,11 @@ export default defineComponent({
               @multi-cam="openMultiCamDialog"
             />
             <ImportButton
-              name="Open Large Image (TIFF)"
+              name="Open Tiled GeoTIFF / TIFF"
               icon="mdi-map"
               open-type="large-image"
               class="my-3"
+              tooltip="Open a high-resolution geospatial image for tiled viewing. Supported formats: .tif, .tiff, .geotiff. Files should include internal pyramid overviews (COG recommended) for best performance."
               @open="open($event)"
             />
           </v-col>

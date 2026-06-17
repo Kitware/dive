@@ -82,11 +82,51 @@ const largeImageTypes = [
   'image/ntf',
 ];
 
+/** Extension-only formats for large-image uploads (aligned with server validLargeImageFormats). */
+const largeImageFileExtensions = [
+  'nitf',
+  'tif',
+  'tiff',
+  'ntf',
+  'vrt',
+  'r0',
+  'r1',
+  'r2',
+  'r3',
+  'r4',
+  'r5',
+  'r6',
+];
+
+/** Desktop Electron open-dialog extensions (GeoTIFF/TIFF only; tiles served via geotiff.js). */
 const largeImageDesktopTypes = [
   'geotiff',
   'tiff',
   'tif',
 ];
+
+/** MIME types and dotted extensions for HTML file input accept on web. */
+const largeImageWebAccept = [
+  ...largeImageTypes,
+  ...largeImageFileExtensions.map((ext) => `.${ext}`),
+].join(',');
+
+/** Dotted extensions for desktop-mode file inputs in the web upload UI. */
+const largeImageDesktopAccept = largeImageDesktopTypes.map((ext) => `.${ext}`).join(',');
+
+function getLargeImageFileAccept(): string {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopAccept;
+  }
+  return largeImageWebAccept;
+}
+
+function getLargeImageAllowedExtensions(): string[] {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopTypes;
+  }
+  return largeImageFileExtensions;
+}
 
 const websafeImageTypes = [
   // 'image/apng',
@@ -162,7 +202,12 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   largeImageTypes,
+  largeImageFileExtensions,
   largeImageDesktopTypes,
+  largeImageWebAccept,
+  largeImageDesktopAccept,
+  getLargeImageFileAccept,
+  getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
   zipFileTypes,

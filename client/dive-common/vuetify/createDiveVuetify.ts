@@ -1,7 +1,7 @@
 import { createVuetify } from 'vuetify';
 import colors from 'vuetify/lib/util/colors';
 import { merge } from 'lodash';
-import girderVuetifyConfig from '@girder/components/src/plugins/vuetifyConfig.js';
+import girderVuetifyConfig from '@girder/components/plugins/vuetifyConfig.js';
 
 import '@mdi/font/css/materialdesignicons.css';
 import '@fontsource/roboto/400.css';

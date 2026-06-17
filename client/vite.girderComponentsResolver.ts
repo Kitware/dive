@@ -29,7 +29,12 @@ export function girderComponentsResolver(): Plugin {
         return resolve(gwcSrc, 'index.js');
       }
       if (source.startsWith('@girder/components/')) {
-        return resolveGwcPath(source.slice('@girder/components/'.length));
+        let subpath = source.slice('@girder/components/'.length);
+        // gwcSrc already points at .../src; strip a redundant src/ prefix.
+        if (subpath.startsWith('src/')) {
+          subpath = subpath.slice('src/'.length);
+        }
+        return resolveGwcPath(subpath);
       }
       if (source.startsWith('@/') && isGwcImporter(importer)) {
         return resolveGwcPath(source.slice(2));
@@ -46,5 +51,6 @@ export function girderComponentsResolver(): Plugin {
 }
 
 export const girderComponentsAlias = {
-  '@girder/components': resolve(gwcSrc, 'index.js'),
+  // Directory alias so subpaths (e.g. plugins/vuetifyConfig.js) resolve correctly.
+  '@girder/components': gwcSrc,
 };

@@ -8,6 +8,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 import { girderComponentsAlias, girderComponentsResolver } from './vite.girderComponentsResolver';
 
 function getGitHash() {
@@ -34,6 +35,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
+    css: cssConfig,
     plugins: [
       girderComponentsResolver(),
       vue(),
@@ -46,16 +48,6 @@ export default defineConfig(({ mode }) => {
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
-      },
-    },
-    css: {
-      preprocessorOptions: {
-        scss: {
-          silenceDeprecations: ['legacy-js-api', 'import'],
-        },
-        sass: {
-          silenceDeprecations: ['legacy-js-api', 'import'],
-        },
       },
     },
     define: {

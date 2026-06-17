@@ -35,6 +35,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    tooltip: {
+      type: String,
+      default: '',
+    },
   },
   setup() {
     return {
@@ -44,15 +48,47 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <div class="import-button-root">
     <v-menu
       offset-y
       offset-x
       nudge-left="180"
       max-width="180"
     >
-      <template #activator="{ props: activatorProps }">
+      <template #activator="{ props: menuActivatorProps }">
+        <v-tooltip
+          v-if="tooltip"
+          location="bottom"
+          max-width="360"
+          :open-delay="50"
+        >
+          <template #activator="{ props: tooltipProps }">
+            <v-btn
+              v-bind="{ ...buttonAttrs, ...tooltipProps }"
+              :large="!small"
+              :small="small"
+              class="px-0 import-button"
+              @click="$emit('open', openType)"
+            >
+              <div class="col-11">
+                {{ name }}
+                <v-icon class="ml-2">
+                  {{ icon }}
+                </v-icon>
+              </div>
+              <v-icon
+                v-if="multiCamImport"
+                class="button-dropdown col-1"
+                v-bind="menuActivatorProps"
+              >
+                mdi-chevron-down
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>{{ tooltip }}</span>
+        </v-tooltip>
         <v-btn
+          v-else
           v-bind="buttonAttrs"
           :large="!small"
           :small="small"
@@ -68,7 +104,7 @@ export default defineComponent({
           <v-icon
             v-if="multiCamImport"
             class="button-dropdown col-1"
-            v-bind="activatorProps"
+            v-bind="menuActivatorProps"
           >
             mdi-chevron-down
           </v-icon>
@@ -131,6 +167,14 @@ export default defineComponent({
 </template>
 
 <style scoped lang="scss">
+.import-button-root {
+  width: 100%;
+}
+
+.import-button {
+  width: 100%;
+}
+
 .button-dropdown {
   height: 44px;
   border-left: 1px solid white;

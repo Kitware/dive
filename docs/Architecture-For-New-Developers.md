@@ -176,7 +176,7 @@ Authoritative JSON shapes (including `TrackData`, `Feature`, `GroupData`, and im
 | **`rabbit`** | `rabbitmq:4.2-management` | Celery broker (management UI on **15672**) |
 | **`redis`** | `redis:latest` | Job notifications (`GIRDER_NOTIFICATION_REDIS_URL`) |
 | **`memcached`** | `memcached` | Tile cache for `girder-large-image` |
-| **`localworker`** | Same image as girder | Celery on queue **`local`** (lightweight jobs in-container) |
+| **`localworker`** | Same image as girder | Celery on queue **`local`** (required; batch postprocess, async assetstore import) |
 | **`girder_worker_default`** | `docker/girder_worker.Dockerfile` → `kitware/viame-worker:cpu` | Queue **`celery`** — transcoding, zip, image conversion |
 | **`girder_worker_pipelines`** | `docker/girder_worker_gpu.Dockerfile` | Queue **`pipelines`** — VIAME detection pipelines (GPU) |
 | **`girder_worker_training`** | GPU Dockerfile | Queue **`training`** — VIAME training (GPU) |
@@ -308,7 +308,7 @@ Dependency management: **[uv](https://astral.sh/uv/)** (`uv sync` locally; Docke
 | **`celery`** | `girder_worker_default` | Media prep: video transcode, image conversion, zip extract, large-image conversion |
 | **`pipelines`** | `girder_worker_pipelines` | Run VIAME detection/tracking/analysis pipelines on a dataset |
 | **`training`** | `girder_worker_training` | VIAME training jobs |
-| **`local`** | `localworker` (in girder container) | Batch postprocess, async assetstore import |
+| **`local`** | `localworker` | Batch postprocess, async assetstore import |
 | **`{login}@private`** | User’s own worker (optional) | Same tasks, routed per-user when private queue is enabled |
 
 Worker entry: `python -m dive_tasks` (see `dive_tasks/__main__.py`, `dive_tasks/celeryconfig.py`).
