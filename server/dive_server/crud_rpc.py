@@ -610,6 +610,16 @@ def _get_data_by_type(
     return None, None
 
 
+def merge_imported_dataset_info(existing: dict, imported: dict) -> dict:
+    """Per-key merge of an imported ``datasetInfo`` block over the existing one.
+
+    Imported values win on collision; keys the imported file did not carry are kept
+    from ``existing`` so a re-import never clobbers prior station metadata. Inputs are
+    not mutated.
+    """
+    return {**existing, **imported}
+
+
 def process_items(
     folder: types.GirderModel,
     user: types.GirderUserModel,
@@ -687,7 +697,9 @@ def process_items(
             if meta.get('datasetInfo'):
                 meta = {
                     **meta,
-                    'datasetInfo': {**fromMeta(folder, 'datasetInfo', {}), **meta['datasetInfo']},
+                    'datasetInfo': merge_imported_dataset_info(
+                        fromMeta(folder, 'datasetInfo', {}), meta['datasetInfo']
+                    ),
                 }
             crud_dataset.update_metadata(folder, meta, False)
     return aggregate_warnings

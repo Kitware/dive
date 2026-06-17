@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from dive_server import crud_dataset
+from dive_server.crud_rpc import merge_imported_dataset_info
 
 
 @patch('dive_server.crud_dataset.Folder')
@@ -37,3 +38,33 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls):
     crud_dataset.update_metadata(folder, {'timeFilters': [10, 50]})
 
     assert folder['meta']['timeFilters'] == [10, 50]
+
+
+# --- datasetInfo re-import merge (NOAA standardized metadata, Kitware/dive#1585) ---
+# process_items merges an imported info.datasetInfo over the dataset's existing block via
+# this helper. The subtle, regression-prone bit is the merge direction.
+
+
+def test_merge_imported_dataset_info_imported_wins_and_preserves_existing():
+    """Imported values win on collision; keys absent from the file survive the re-import."""
+    existing = {'cruise': '2403', 'year': '2024', 'sta_lat': '26.8195'}
+    imported = {'year': '2025', 'gfishsite_id': '2024TXN012'}
+
+    merged = merge_imported_dataset_info(existing, imported)
+
+    assert merged == {
+        'cruise': '2403',  # preserved: the imported file did not carry it
+        'sta_lat': '26.8195',  # preserved
+        'year': '2025',  # imported wins on collision
+        'gfishsite_id': '2024TXN012',  # added by the import
+    }
+
+
+def test_merge_imported_dataset_info_does_not_mutate_inputs():
+    existing = {'cruise': '2403'}
+    imported = {'year': '2025'}
+
+    merge_imported_dataset_info(existing, imported)
+
+    assert existing == {'cruise': '2403'}
+    assert imported == {'year': '2025'}

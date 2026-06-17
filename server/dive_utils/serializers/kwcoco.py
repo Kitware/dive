@@ -6,7 +6,7 @@ KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
@@ -397,7 +397,7 @@ def export_dive_as_coco(
     tracks: Iterable[dict],
     image_filenames: Dict[int, str],
     dataset_name: str,
-    datasetInfo=None,
+    datasetInfo: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Export DIVE tracks to a single-dataset COCO JSON document.
