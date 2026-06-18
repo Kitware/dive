@@ -164,7 +164,13 @@ This information provides the specification for an individual dataset.  It consi
 * Track and Detection attribute specifications are defined in `attributes`
 * Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.
   * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
+  * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
+
+When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
+default) replaces the existing `datasetInfo` block; an additive import merges it per-key
+(imported values win). A configuration file with no `datasetInfo` entry leaves existing
+dataset metadata untouched.
 
 The full [DatasetMetaMutable definition can be found here](https://github.com/Kitware/dive/blob/main/client/dive-common/apispec.ts).
 

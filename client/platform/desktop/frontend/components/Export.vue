@@ -243,7 +243,7 @@ export default defineComponent({
         </v-card-actions>
         <v-card-text class="pb-0">
           Export the dataset configuration, including
-          attribute definitions, types, styles, and thresholds.
+          attribute definitions, types, styles, thresholds, and dataset info.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
