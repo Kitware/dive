@@ -1,6 +1,7 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
   calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
+  getLargeImageAllowedExtensions, getLargeImageFileAccept,
   otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
@@ -36,18 +37,28 @@ function getRouteFromLocation(location: LocationType): string {
   return `/${location._modelType}/${location._id}`;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'zip'):
-Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
+async function openFromDisk(
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip',
+  directory = false,
+): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calbiration', 'annotation', 'zip'].includes(datasetType)) {
+  if (!['calibration', 'annotation', 'zip'].includes(datasetType)) {
     input.multiple = true;
   }
-  if (datasetType === 'image-sequence') {
+  if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
+    input.setAttribute('webkitdirectory', '');
+    input.multiple = true;
+  }
+  if (datasetType === 'image-sequence' && !directory) {
     input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
+  } else if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
+    input.accept = '';
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+  } else if (datasetType === 'large-image') {
+    input.accept = getLargeImageFileAccept();
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'annotation') {
@@ -55,6 +66,9 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
+  } else if (datasetType === 'text') {
+    input.accept = '.txt,.text';
+    input.multiple = false;
   }
 
   return new Promise(((resolve, reject) => {
@@ -67,11 +81,40 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
             if (!fileList.every((item) => inputAnnotationTypes.includes(item.type))) {
               reject(new Error('File Types did not match JSON or CSV'));
             }
+          } else if (datasetType === 'large-image') {
+            const allowed = new Set(getLargeImageAllowedExtensions().map((ext) => ext.toLowerCase()));
+            if (!fileList.every((item) => {
+              const ext = item.name.split('.').pop()?.toLowerCase();
+              return ext && allowed.has(ext);
+            })) {
+              reject(new Error('File types did not match tiled image formats'));
+            }
+          }
+          const filePaths = fileList.map(
+            (item) => item.webkitRelativePath || item.name,
+          );
+          let root: string | undefined;
+          if (directory && filePaths.length) {
+            const parts = filePaths.map((p) => p.split('/').filter(Boolean));
+            if (parts[0].length > 1) {
+              const prefix: string[] = [];
+              const depth = Math.min(...parts.map((p) => p.length - 1));
+              for (let i = 0; i < depth; i += 1) {
+                const segment = parts[0][i];
+                if (parts.every((p) => p[i] === segment)) {
+                  prefix.push(segment);
+                } else {
+                  break;
+                }
+              }
+              root = prefix.join('/');
+            }
           }
           const response = {
             canceled: !files.length,
             fileList,
-            filePaths: fileList.map((item) => item.name),
+            filePaths,
+            root,
           };
           return resolve(response);
         }

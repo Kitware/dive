@@ -60,6 +60,15 @@ interface PipeMetadata {
   diveParams?: DiveParam[];
 }
 
+interface PipelineRuntimeParams {
+  frameRange?: [number, number] | null;
+}
+
+interface PipelineParams {
+  kwiverParams?: Record<string, string>;
+  runtimeParams?: PipelineRuntimeParams;
+}
+
 interface Pipe {
   name: string;
   pipe: string;
@@ -127,7 +136,10 @@ interface FrameImage {
 }
 
 export interface MultiCamImportFolderArgs {
+  datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
+  /** Display order for cameras (matches sourceList / UI order). */
+  cameraOrder?: string[];
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
@@ -156,6 +168,8 @@ interface MultiCamMedia {
     videoUrl: string;
   }>;
   defaultDisplay: string; // Default camera for displaying the MultiCamMedia
+  /** Camera names in display order (import / UI order). */
+  cameraOrder?: string[];
 }
 
 interface MediaImportResponse {
@@ -176,9 +190,10 @@ interface DatasetMetaMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
+  datasetInfo?: Record<string, unknown>;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -197,7 +212,7 @@ interface DatasetMeta extends DatasetMetaMutable {
 
 interface Api {
   getPipelineList(): Promise<Pipelines>;
-  runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<unknown>;
+  runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
 
@@ -227,6 +242,18 @@ interface Api {
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
+  listImmediateSubfolders?(parentPath: string): Promise<string[]>;
+  /** Desktop: subfolders or root-level video files under a parent folder (multicam import). */
+  listParentFolderCameras?(
+    parentPath: string,
+    mediaType: 'image-sequence' | 'video',
+  ): Promise<{ name: string; sourcePath: string }[]>;
+  /** Desktop: folder path for image-sequence, or first video file inside the folder for video. */
+  resolveMulticamCameraSourcePath?(
+    subfolderPath: string,
+    mediaType: 'image-sequence' | 'video',
+  ): Promise<string>;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
@@ -439,6 +466,8 @@ export {
   MultiGroupRecord,
   Pipe,
   PipelineRequirement,
+  PipelineParams,
+  PipelineRuntimeParams,
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,

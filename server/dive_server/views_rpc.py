@@ -10,9 +10,9 @@ from girder.models.token import Token
 
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, TypeMarker
-from dive_utils.types import PipelineDescription, TrainingModelTuneArgs
+from dive_utils.types import PipelineDescription, PipelineParams, TrainingModelTuneArgs
 
-from . import crud, crud_rpc
+from . import crud, crud_rpc, worker_capabilities
 
 
 class RpcResource(Resource):
@@ -49,34 +49,24 @@ class RpcResource(Resource):
             default=False,
             required=False,
         )
-        .param(
-            "startFrame",
-            "Start frame (inclusive) for frame range filtering",
-            paramType="query",
-            dataType="integer",
-            required=False,
-        )
-        .param(
-            "endFrame",
-            "End frame (inclusive) for frame range filtering",
-            paramType="query",
-            dataType="integer",
-            required=False,
-        )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
         .jsonParam(
             "pipelineParams",
-            "Optional KWIVER -s parameter overrides from pipeline specified parameters",
+            "Optional pipeline parameter groups (kwiverParams and runtimeParams)",
             required=False,
             default=None,
         )
     )
-    def run_pipeline_task(self, folder, forceTranscoded, startFrame, endFrame, pipeline: PipelineDescription, pipelineParams):
-        frame_range = None
-        if startFrame is not None and endFrame is not None:
-            frame_range = (startFrame, endFrame)
+    def run_pipeline_task(
+        self,
+        folder,
+        forceTranscoded,
+        pipeline: PipelineDescription,
+        pipelineParams: Optional[PipelineParams],
+    ):
+        worker_capabilities.require_pipeline_worker()
         return crud_rpc.run_pipeline(
-            self.getCurrentUser(), folder, pipeline, forceTranscoded, frame_range, pipelineParams
+            self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams
         )
 
     @access.user
@@ -102,15 +92,21 @@ class RpcResource(Resource):
         )
     )
     def export_pipeline_onnx(self, modelFolderId, exportFolderId):
-        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
+        worker_capabilities.require_pipeline_worker()
+        return crud_rpc.export_trained_pipeline(
+            self.getCurrentUser(), modelFolderId, exportFolderId
+        )
 
     @access.user
     @autoDescribeRoute(
         Description("Run training on a folder")
         .jsonParam(
             "body",
-            description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content.  Optionally a model that can be used for fine tune training",
+            description=(
+                "JSON object with Array of folderIds to run training on"
+                " and labels.txt file content.  Optionally a model that can be used"
+                " for fine tune training"
+            ),
             paramType="body",
             schema={
                 "folderIds": List[str],
@@ -148,6 +144,7 @@ class RpcResource(Resource):
         )
     )
     def run_training(self, body, pipelineName, config, annotatedFramesOnly, forceTranscoded):
+        worker_capabilities.require_training_worker()
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)

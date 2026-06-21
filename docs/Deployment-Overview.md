@@ -33,7 +33,9 @@ The easiest option to get started using VIAME is to [try our public server](Web-
 
 ## Running your own instance
 
-You may wish to run your own deployment of VIAME Web in your lab or a cloud environment.  Deploying VIAME Web is relatively straightforward with `docker-compose`.
+You may wish to run your own deployment of VIAME Web in your lab or a cloud environment.  Deploying VIAME Web is relatively straightforward with `docker-compose`. If you are upgrading an existing Girder 3 deployment, start with [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).
+
+By default, Docker Compose starts DIVE with GPU pipeline/training workers enabled. Use `--profile cpu` when launching Compose to run CPU-only workers.
 
 | Environment | Instructions |
 |-------------|--------------|
@@ -63,7 +65,7 @@ Instead of running the whole web stack, it's possible to deploy a worker by itse
 * You must [toggle your private queue](https://viame.kitware.com/#jobs)
 * When you launch jobs (like transcoding, pipelines, or training), they go into a special queue just for your user account.
 * You are responsible for running a worker.  Your worker is a Celery process that will connect to our public RabbitMQ server.
-* Jobs submitted through the interface at viame.kitware.com will run on your compute resources.  This involves automatically downloading the video or images and annotation files, running a kwiver pipeline, and uploading the results.
+* Jobs submitted through the interface at viame.kitware.com will run on your compute resources.  This involves automatically downloading the video or images and annotation files, running a VIAME pipeline (via the `viame` CLI), and uploading the results.
 
 To set up a private worker, continue to the [Provisioning Google Cloud](Deployment-Provision.md) page for `Scenario 3`.
 

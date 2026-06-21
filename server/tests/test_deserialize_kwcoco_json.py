@@ -680,7 +680,7 @@ def test_read_kwcoco_json(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    (converted, attributes) = kwcoco.load_coco_as_tracks_and_attributes(input)
+    converted, attributes, _ = kwcoco.load_coco_as_tracks_and_attributes(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
@@ -705,7 +705,12 @@ def test_export_dive_as_coco_single_dataset():
             "confidencePairs": [["fish", 0.9]],
             "attributes": {"gear": "trawl"},
             "features": [
-                {"frame": 0, "bounds": [10, 20, 30, 60], "attributes": {"occluded": True}}
+                {
+                    "frame": 0,
+                    "bounds": [10, 20, 30, 60],
+                    "attributes": {"occluded": True},
+                    "notes": ["net near reef"],
+                }
             ],
         }
     ]
@@ -718,6 +723,8 @@ def test_export_dive_as_coco_single_dataset():
     assert coco["annotations"][0]["bbox"] == [10, 20, 20, 40]
     assert coco["annotations"][0]["dive_detection_attributes"] == {"occluded": True}
     assert coco["annotations"][0]["dive_track_attributes"] == {"gear": "trawl"}
+    assert coco["annotations"][0]["dive_notes"] == ["net near reef"]
+    assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
 def test_import_dive_attribute_extensions():
@@ -732,12 +739,119 @@ def test_import_dive_attribute_extensions():
                 "track_id": 5,
                 "dive_detection_attributes": {"visibility": "poor"},
                 "dive_track_attributes": {"reviewed": True},
+                "dive_notes": ["first pass", "manual review"],
             }
         ],
         "categories": [{"id": 1, "name": "fish"}],
     }
-    converted, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     track = converted["tracks"]["5"]
     assert track["attributes"]["reviewed"] is True
     assert track["features"][0]["attributes"]["visibility"] == "poor"
+    assert track["features"][0]["notes"] == ["first pass", "manual review"]
 
+
+def test_import_rle_segmentation_skips_masks_with_warning():
+    coco = {
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [
+            {
+                "id": 10,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [10, 20, 30, 40],
+                "track_id": 5,
+                "iscrowd": 1,
+                "segmentation": {
+                    "size": [480, 640],
+                    "counts": "eNq...",
+                },
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    track = converted["tracks"]["5"]
+    assert track["features"][0]["bounds"] == [10, 20, 40, 60]
+    assert "geometry" not in track["features"][0]
+    assert len(warnings) == 1
+    assert "segmentation masks" in warnings[0]
+
+
+def test_import_missing_bbox_raises_descriptive_error():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "track_id": 201,
+                "iscrowd": 1,
+                "segmentation": {"size": [1080, 1920], "counts": "abc"},
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    with pytest.raises(ValueError) as exc:
+        kwcoco.load_coco_as_tracks_and_attributes(coco)
+    message = str(exc.value)
+    assert "no bbox and no usable polygon" in message
+    assert "RLE segmentation masks still require a bbox" in message
+
+
+def test_import_polygon_without_bbox_derives_bounds():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "track_id": 401,
+                "segmentation": [[120, 80, 200, 80, 200, 120, 120, 120]],
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    track = converted["tracks"]["401"]
+    assert track["features"][0]["bounds"] == [120, 80, 200, 120]
+    assert track["features"][0]["geometry"] is not None
+    assert warnings == []
+
+
+def test_import_polygon_and_rle_segmentation():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [120, 80, 80, 40],
+                "track_id": 301,
+                "segmentation": [[120, 80, 200, 80, 200, 120, 120, 120]],
+            },
+            {
+                "id": 2,
+                "image_id": 1,
+                "category_id": 2,
+                "bbox": [400, 200, 200, 60],
+                "track_id": 302,
+                "iscrowd": 1,
+                "segmentation": {"size": [1080, 1920], "counts": "abc"},
+            },
+        ],
+        "categories": [
+            {"id": 1, "name": "person"},
+            {"id": 2, "name": "crowd"},
+        ],
+    }
+    converted, _, warnings = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    polygon_track = converted["tracks"]["301"]
+    assert polygon_track["features"][0]["geometry"] is not None
+    rle_track = converted["tracks"]["302"]
+    assert rle_track["features"][0]["bounds"] == [400, 200, 600, 260]
+    assert "geometry" not in rle_track["features"][0]
+    assert len(warnings) == 1

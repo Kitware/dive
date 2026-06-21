@@ -7,6 +7,14 @@ There are several important python packages in this application
 * `scripts` has general command-line utilities
 * `dive_utils` is shared code between the above packages
 
+## Girder 5 stack
+
+The server targets **Girder 5** (`girder`, `girder_jobs`, `girder_worker`, and related plugins pinned in `pyproject.toml`). Docker Compose adds **Redis** for notifications (`GIRDER_NOTIFICATION_REDIS_URL`); the web client receives job updates over WebSockets.
+
+Docker Compose runs a required **`localworker`** service on the `local` queue in addition to the standard workers. With `docker-compose.override.yml`, that service mounts your local `server/` code for development.
+
+Upgrading an existing deployment: [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/).
+
 ## Prerequisites
 
 Set up your system as described in the [Basic Deployment](https://kitware.github.io/dive/Deployment-Docker-Compose/)
@@ -20,6 +28,9 @@ This python project uses [uv](https://astral.sh/uv/) for Python dependency manag
 ```bash
 # Optional, for intellisense or whatever.  Not required for docker-compose
 uv sync
+
+# Include dev tools (tox, tox-uv, MkDocs, …) so `uv run tox` and doc targets work from this directory
+uv sync --group dev
 ```
 
 ### Running in development with docker
@@ -33,8 +44,11 @@ docker-compose build
 # Option 2) Pull pre-build images
 docker-compose pull
 
-# Start the project
+# Start the project in default mode (GPU-enabled workers)
 docker-compose up -d
+
+# Start the project in CPU-only mode
+docker-compose --profile cpu up -d
 
 # The web server has hot reload, so code changes will
 # immediately trigger a server restart.
@@ -49,6 +63,15 @@ docker-compose up girder_worker_training
 ```
 
 Access the server at <http://localhost:8010>
+
+### Worker profiles and feature availability
+
+Docker Compose now separates workers by profile:
+
+* **Default mode:** runs `girder_worker_default` plus `girder_worker_pipelines` and `girder_worker_training`.
+* **`--profile cpu`:** runs `girder_worker_default` only.
+
+If GPU workers are not present, DIVE disables pipeline/training actions in the web interface and rejects related API job launch requests.
 
 To work on the Vue client, see development instructions in `../client`.
 
@@ -75,10 +98,10 @@ uv run tox
 # automatically format all code to comply to linting checks
 uv run tox -e format
 
-# run mkdocs and serve the documentation page
+# run MkDocs dev server (from ./server; default http://127.0.0.1:8090/ — use `tox -e docs -- -a HOST:PORT` to override)
 uv run tox -e docs
 
-# creates docs in the /site folder for eventual deployment
+# one-shot static build into ../site at the repository root
 uv run tox -e builddocs
 ```
 

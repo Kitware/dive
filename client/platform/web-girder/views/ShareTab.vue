@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { useStore } from '../store/types';
+import { useLocation } from '../store/useLocation';
 
 export default defineComponent({
   name: 'ShareTab',
@@ -11,17 +11,14 @@ export default defineComponent({
     },
   },
   setup() {
-    const store = useStore();
-    const locationStore = store.state.Location;
-    const { getters } = store;
+    const { locationRoute, setSelected } = useLocation();
 
     const clearSelected = () => {
-      store.commit('Location/setSelected', []);
+      setSelected([]);
     };
 
     return {
-      locationStore,
-      getters,
+      locationRoute,
       clearSelected,
     };
   },
@@ -35,17 +32,35 @@ export default defineComponent({
     class="px-4"
     @change="clearSelected"
   >
-    <v-tab :to="getters['Location/locationRoute']">
+    <v-tab :to="locationRoute">
       <v-icon class="mr-2">
         mdi-folder-multiple
       </v-icon>
       Browse Data
     </v-tab>
     <v-tab :to="{ name: 'shared' }">
-      <v-icon class="tab-icon">
-        mdi-share-variant
-      </v-icon>
-      Shared with Me
+      <v-tooltip
+        bottom
+        open-delay="200"
+        max-width="320"
+      >
+        <template #activator="{ on, attrs }">
+          <span
+            class="d-inline-flex align-center"
+            v-bind="attrs"
+            v-on="on"
+          >
+            <v-icon class="tab-icon">
+              mdi-share-variant
+            </v-icon>
+            Shared with Me
+          </span>
+        </template>
+        <span>
+          Private datasets another user shared with you through access control.
+          Public datasets editable by all users are not listed here.
+        </span>
+      </v-tooltip>
     </v-tab>
     <v-tab :to="{ name: 'summary' }">
       <v-icon class="tab-icon">

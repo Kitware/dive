@@ -13,6 +13,10 @@ The [Training Data Collection](https://viame.kitware.com/#/collection/5e4c256ca0
 
 This use case is covered [on the sharing page](Web-Version.md#sharing-data-with-teams).
 
+## Where do I find data someone shared with me?
+
+Use the **Shared With Me** tab in the data browser. See [Data Shared with you](Web-Version.md#data-shared-with-you) for what appears there. That tab only lists **private** data shared with you directly; public datasets from other users are opened from **Browse Data** or a link, not from Shared With Me.
+
 If you want to **publish** your data so that other groups can use it, please [contact us](Support.md).
 
 ## How do I run analysis workflows on my data?

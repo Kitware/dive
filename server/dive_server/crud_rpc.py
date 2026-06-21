@@ -7,21 +7,20 @@ from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.notification import Notification
 from girder.models.setting import Setting
 from girder.models.token import Token
+from girder.notification import Notification
 from girder_jobs.models.job import Job, JobStatus
-from girder_worker.girder_plugin.status import CustomJobStatus
+from girder_plugin_worker.status import CustomJobStatus
 from pydantic import BaseModel
 import pymongo
 
-from dive_server import crud, crud_annotation
+from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
+from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
-
-from . import crud_dataset
 
 
 class RunTrainingArgs(BaseModel):
@@ -34,6 +33,29 @@ def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
     if user.get(constants.UserPrivateQueueEnabledMarker, False):
         return f'{user["login"]}@private'
     return default
+
+
+def _persist_async_job_metadata(
+    async_result,
+    *,
+    access_source: Optional[types.GirderModel] = None,
+    **metadata: object,
+) -> types.GirderModel:
+    """
+    Save DIVE-specific fields on a Celery job without clobbering worker status.
+
+    GirderAsyncResult.job caches the document from first access (typically INACTIVE).
+    Job().save() on that stale dict can race with the worker task_prerun RUNNING update
+    and leave the job stuck INACTIVE, which breaks later PUSHING_OUTPUT transitions.
+    """
+    job = Job().load(async_result.job['_id'], force=True)
+    for key, value in metadata.items():
+        job[key] = value
+    if access_source is not None:
+        Job().copyAccessPolicies(access_source, job)
+    job = Job().save(job)
+    async_result._job = job
+    return job
 
 
 def _check_running_jobs(folder_id_str: str):
@@ -65,8 +87,10 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     """Add any additional dynamic pipelines to the existing pipeline list."""
     pipelines: Dict[str, types.PipelineCategory] = {}
     pipelines[constants.TrainedPipelineCategory] = {"pipes": [], "description": ""}
-    
-    trained_pipelines_query = {f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}}
+
+    trained_pipelines_query = {
+        f"meta.{constants.TrainedPipelineMarker}": {'$in': TRUTHY_META_VALUES}
+    }
     query = {'$and': [trained_pipelines_query, Folder().permissionClauses(user, AccessType.READ)]}
     models = [
         {'$match': query},
@@ -124,7 +148,14 @@ def _load_dynamic_models(user: types.GirderUserModel) -> Dict[str, types.Trainin
         for item in Folder().childItems(folder):
             is_training_model = False
             match = None
-            match = next((extension for extension in TrainingModelExtensions if item['name'].endswith(extension)), None)
+            match = next(
+                (
+                    extension
+                    for extension in TrainingModelExtensions
+                    if item['name'].endswith(extension)
+                ),
+                None,
+            )
             if match is not None:
                 is_training_model = True
             if is_training_model and not item['name'].startswith('embedded_') and match:
@@ -190,8 +221,7 @@ def run_pipeline(
     folder: types.GirderModel,
     pipeline: types.PipelineDescription,
     force_transcoded=False,
-    frame_range: Optional[Tuple[int, int]] = None,
-    pipeline_params: Optional[Dict[str, str]] = None,
+    pipeline_params: Optional[types.PipelineParams] = None,
 ) -> types.GirderModel:
     """
     Run a pipeline on a dataset.
@@ -199,7 +229,7 @@ def run_pipeline(
     :param folder: The girder folder containing the dataset to run on.
     :param pipeline: The pipeline to run the dataset on.
     :param force_transcoded: Force transcoding input.
-    :param pipeline_params: Dict of key values containing user specified settings.
+    :param pipeline_params: Grouped pipeline params for runtime and KWIVER settings.
     """
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
@@ -216,30 +246,102 @@ def run_pipeline(
 
     token = Token().createToken(user=user, days=14)
 
+    dataset_type = fromMeta(folder, "type", required=True)
+    stereo_or_multicam = is_stereo_or_multicam_pipeline(pipeline)
+    if dataset_type == constants.MultiType and not stereo_or_multicam:
+        raise RestException(
+            'Single-camera pipelines cannot run on a multicamera parent dataset. '
+            'Use a stereo or multicam pipeline, or run on an individual camera folder.',
+            code=400,
+        )
+    if stereo_or_multicam and dataset_type != constants.MultiType:
+        raise RestException(
+            'Stereo and multicam pipelines require a multicamera dataset',
+            code=400,
+        )
+
     input_revision = None  # include CSV input for pipe
+    multicam_requires_input = False
     if pipeline["type"] == constants.TrainedPipelineCategory:
         # Verify that the user has READ access to the pipe they want to run
         pipeFolder = Folder().load(pipeline["folderId"], level=AccessType.READ, user=user)
         if asbool(fromMeta(pipeFolder, "requires_input")):
             input_revision = crud_annotation.RevisionLogItem().latest(folder)
-    elif pipeline["pipe"].startswith('utility_'):
-        # TODO Temporary inclusion of utility pipes which take csv input
+    elif pipeline_requires_input(pipeline) and dataset_type != constants.MultiType:
         input_revision = crud_annotation.RevisionLogItem().latest(folder)
+    elif pipeline_requires_input(pipeline) and dataset_type == constants.MultiType:
+        multicam_requires_input = True
 
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
 
-    params: types.PipelineJob = {
+    runtime_params = (pipeline_params or {}).get("runtimeParams")
+    kwiver_params = (pipeline_params or {}).get("kwiverParams")
+
+    input_type = dataset_type
+    multicam_cameras: List[types.MulticamCameraJob] = []
+    multicam_default_display = ''
+    calibration_item_id: Optional[str] = None
+
+    if dataset_type == constants.MultiType:
+        multi_cam = fromMeta(folder, constants.MultiCamMarker, required=True)
+        multicam_default_display = multi_cam['defaultDisplay']
+        camera_order = crud_dataset._multicam_camera_order(multi_cam)
+        cameras_meta = multi_cam.get('cameras') or {}
+        for name in camera_order:
+            cam_info = cameras_meta[name]
+            folder_id = cam_info.get('folderId')
+            child = Folder().load(folder_id, level=AccessType.READ, user=user)
+            if child is None:
+                raise RestException(f'Camera folder for "{name}" was not found', code=404)
+            cam_type = cam_info.get('type') or fromMeta(child, constants.TypeMarker)
+            camera_job: types.MulticamCameraJob = {
+                'name': name,
+                'folder_id': str(child['_id']),
+                'media_type': cam_type,
+            }
+            if multicam_requires_input:
+                camera_job['input_revision'] = crud_annotation.RevisionLogItem().latest(child)
+            multicam_cameras.append(camera_job)
+        default_cam = next(
+            (cam for cam in multicam_cameras if cam['name'] == multicam_default_display),
+            None,
+        )
+        if default_cam is None:
+            raise RestException(
+                f'defaultDisplay "{multicam_default_display}" is not a configured camera',
+                code=400,
+            )
+        input_type = default_cam['media_type']
+        calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(folder, pipeline)
+        needs_calibration = (
+            fromMeta(folder, constants.SubTypeMarker) == 'stereo'
+            and pipeline.get('type') == constants.StereoPipelineMarker
+        )
+        if needs_calibration and calibration_item_id is None:
+            raise RestException(
+                'Stereo calibration file was not found in the dataset folder. '
+                'Import or upload a calibration file with the calibrationFile marker.',
+                code=404,
+            )
+
+    params: types.MulticamPipelineJob = {
         "pipeline": pipeline,
         "input_folder": folder_id_str,
-        "input_type": fromMeta(folder, "type", required=True),
+        "input_type": input_type,
         "output_folder": folder_id_str,
         "input_revision": input_revision,
         'user_id': str(user.get('_id', 'unknown')),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
-        'frame_range': frame_range,
-        'pipeline_params': pipeline_params,
+        'runtime_params': runtime_params,
+        'kwiver_params': kwiver_params,
     }
+    if multicam_cameras:
+        params['multicam_cameras'] = multicam_cameras
+        params['multicam_default_display'] = multicam_default_display
+        params['multicam_requires_input'] = multicam_requires_input
+        if calibration_item_id:
+            params['calibration_item_id'] = calibration_item_id
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
         kwargs=dict(
@@ -249,22 +351,24 @@ def run_pipeline(
             girder_job_type="private" if job_is_private else "pipelines",
         ),
     )
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_DATASET_ID] = folder_id_str
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    # Allow any users with accecss to the input data to also
-    # see and possibly manage the job
-    Job().copyAccessPolicies(folder, newjob.job)
-    Job().save(newjob.job)
-    # Inform Client of new Job added in inactive state
-    Notification().createNotification(
-        type='job_status',
-        data=newjob.job,
-        user=user,
-        expires=datetime.now() + timedelta(seconds=30),
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_DATASET_ID: folder_id_str,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
     )
-    return newjob.job
+    # Inform Client of new Job added in inactive state
+    Notification(
+        type='job_status',
+        data=job,
+        user=user,
+    ).flush()
+    return job
+
 
 def export_trained_pipeline(
     user: types.GirderUserModel,
@@ -294,21 +398,23 @@ def export_trained_pipeline(
         ),
     )
 
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    # Allow any users with access to the input data to also
-    # see and possibly manage the job
-    Job().copyAccessPolicies(model_folder, newjob.job)
-    Job().save(newjob.job)
-    # Inform Client of new Job added in inactive state
-    Notification().createNotification(
-        type='job_status',
-        data=newjob.job,
-        user=user,
-        expires=datetime.now() + timedelta(seconds=30),
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=model_folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
     )
-    return newjob.job
+    # Inform Client of new Job added in inactive state
+    Notification(
+        type='job_status',
+        data=job,
+        user=user,
+    ).flush()
+    return job
+
 
 def training_output_folder(user: types.GirderUserModel) -> types.GirderModel:
     """Ensure that the user has a training results folder."""
@@ -349,6 +455,7 @@ def run_training(
         folder = Folder().load(folderId, level=AccessType.READ, user=user)
         if folder is None:
             raise RestException(f"Cannot access folder {folderId}")
+        crud.assert_training_allowed_folder(user, folder)
         crud.getCloneRoot(user, folder)
         dataset_input_list.append((folderId, crud_annotation.RevisionLogItem().latest(folder)))
 
@@ -385,11 +492,14 @@ def run_training(
             girder_job_type="private" if job_is_private else "training",
         ),
     )
-    newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-    newjob.job[constants.JOBCONST_PARAMS] = params
-    newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-    Job().save(newjob.job)
-    return newjob.job
+    return _persist_async_job_metadata(
+        newjob,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
 
 
 GetDataReturnType = TypedDict(
@@ -469,13 +579,13 @@ def _get_data_by_type(
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
-        converted, attributes = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        converted, attributes, coco_warnings = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return {
             'annotations': converted,
             'meta': None,
             'attributes': attributes,
             'type': as_type,
-        }, warnings
+        }, coco_warnings or warnings
     if as_type == crud.FileType.DIVE_CONF:
         return {
             'annotations': None,
@@ -536,6 +646,8 @@ def process_items(
                 aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
+            if isinstance(e, ValueError):
+                raise RestException(f'Failed to import {file["name"]}: {e}') from e
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
         if results is None:
@@ -632,11 +744,15 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = str(item["folderId"])
-            newjob.job[constants.JOBCONST_CREATOR] = str(user['_id'])
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_CREATOR: str(user['_id']),
+                },
+            )
+            created_job_ids.append(job['_id'])
             return {'folder': dsFolder, 'job_ids': created_job_ids}
 
         # transcode VIDEO if necessary
@@ -658,10 +774,14 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                },
+            )
+            created_job_ids.append(job['_id'])
 
         # transcode IMAGERY if necessary
         imageItems = Folder().childItems(
@@ -686,11 +806,15 @@ def postprocess(
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
-            newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-            newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-            Job().save(newjob.job)
-            created_job_ids.append(newjob.job['_id'])
-            
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                },
+            )
+            created_job_ids.append(job['_id'])
+
         elif imageItems.count() > 0:
             dsFolder["meta"][constants.DatasetMarker] = True
         elif largeImageItems.count() > 0:
@@ -722,13 +846,16 @@ def convert_large_image(
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )
-        newjob.job[constants.JOBCONST_PRIVATE_QUEUE] = job_is_private
-        newjob.job[constants.JOBCONST_DATASET_ID] = dsFolder["_id"]
-        Job().save(newjob.job)
+        job = _persist_async_job_metadata(
+            newjob,
+            **{
+                constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+            },
+        )
         Notification().createNotification(
             type='job_status',
-            data=newjob.job,
+            data=job,
             user=user,
             expires=datetime.now() + timedelta(seconds=30),
         )
-

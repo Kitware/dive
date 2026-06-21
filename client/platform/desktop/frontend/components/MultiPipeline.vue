@@ -16,6 +16,7 @@ import {
   pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
+import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonMetaCache } from '../store/dataset';
@@ -31,6 +32,7 @@ const pipelineTypes = computed(() => (
   // bulk pipeline operations.
   Object.keys(unsortedPipelines.value)
     .filter((key) => !multiCamPipelineMarkers.includes(key))
+    .map((value) => ({ text: pipelineTypeDisplay(value), value }))
 ));
 const selectedPipeline: Ref<Pipe | null> = ref(null);
 const pipesForSelectedType = computed(() => {
@@ -180,6 +182,8 @@ onBeforeMount(async () => {
             <v-select
               v-model="selectedPipelineType"
               :items="pipelineTypes"
+              item-text="text"
+              item-value="value"
               outlined
               persistent-hint
               dense
@@ -203,7 +207,8 @@ onBeforeMount(async () => {
               <template #item="{ item, on, attrs }">
                 <v-tooltip
                   left
-                  :disabled="!item.description"
+                  :open-delay="250"
+                  :disabled="!item.metadata?.description"
                   max-width="300"
                   content-class="pipeline-description-tooltip"
                 >
@@ -217,7 +222,7 @@ onBeforeMount(async () => {
                       </v-list-item-content>
                     </v-list-item>
                   </template>
-                  <span>{{ item.description }}</span>
+                  <span>{{ item.metadata?.description }}</span>
                 </v-tooltip>
               </template>
             </v-select>

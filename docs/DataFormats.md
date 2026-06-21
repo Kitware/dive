@@ -162,6 +162,7 @@ This information provides the specification for an individual dataset.  It consi
 * Allowed types (or labels) and their appearances are defined by `customTypeStyling` and `customGroupStyling`.
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
+* Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object. It is edited from the [Dataset Info panel](UI-DatasetInfo.md) and included in [VIAME CSV](#viame-csv) export.
 
 The full [DatasetMetaMutable definition can be found here](https://github.com/Kitware/dive/blob/main/client/dive-common/apispec.ts).
 
@@ -173,6 +174,7 @@ interface DatasetMetaMutable {
   confidenceFilters?: Record<string, number>;
   imageEnhancments?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
+  datasetInfo?: Record<string, unknown>;
 }
 ```
 
@@ -182,6 +184,22 @@ Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sectio
 
 !!! warning
     VIAME CSV is the format that DIVE exports to.  It doesn't support all features of the annotator (like groups) so you may need to use the DIVE Json format.  It's easier to work with.
+
+### Dataset metadata in the header
+
+DIVE writes a `# metadata` comment line near the top of the CSV carrying dataset-level
+values such as `fps`. When a dataset has [Dataset Info](UI-DatasetInfo.md) custom
+metadata, the whole `datasetInfo` object is added to that line as a single nested JSON
+entry:
+
+```
+# metadata,fps: 23.976,"datasetInfo: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
+```
+
+* On import the `# metadata` line is parsed as dataset metadata, not as an annotation row.
+* This is how dataset context, for example a `gfishsite_id` used to re-link
+  annotations to an external database, travels with the exported annotations without
+  renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
 
 ## KWIVER Packet Format (KPF)
 
@@ -261,12 +279,14 @@ For COCO files not produced by DIVE:
 
 * Supported:
   * Bounding boxes (`bbox`)
-  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`)
+  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`); if `bbox` is
+    omitted, DIVE derives it from the polygon's axis-aligned bounds
   * Head/tail keypoints from category keypoint labels
 * Partially supported:
   * COCO has no direct equivalent for DIVE groups, so groups are not represented in COCO export.
-* Unsupported:
-  * Run-length encoded segmentations (RLE)
+* Partially supported:
+  * Run-length encoded segmentations (RLE): bounding boxes and other fields import,
+    but masks are skipped and a warning is shown.
 
 ### Example COCO Annotation with DIVE Extensions
 

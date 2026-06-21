@@ -89,6 +89,13 @@ type SelectedTrackIdType = Readonly<Ref<AnnotationId | null>>;
 const EditingMultiTrackSymbol = Symbol('editingMultiTrack');
 type EditingMultiTrackType = Readonly<Ref<boolean>>;
 
+const LassoModeSymbol = Symbol('lassoMode');
+export interface LassoModeContext {
+  lassoModeActive: Readonly<Ref<boolean>>;
+  lassoDrawing: Readonly<Ref<boolean>>;
+  setLassoDrawing: (drawing: boolean) => void;
+}
+
 const TimeSymbol = Symbol('time');
 type TimeType = Readonly<Time>;
 
@@ -127,8 +134,10 @@ export interface Handler {
   confirmRecipe(): void;
   /* toggle selection mode for track */
   trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
+  /* select tracks enclosed by a lasso polygon */
+  lassoSelect(trackIds: AnnotationId[], modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
-  trackSelectNext(delta: number): void;
+  trackSelectNext(delta: number, filteredOverride?: readonly { id: AnnotationId }[]): void;
   /* split track */
   trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
   /* Add new empty track and select it */
@@ -223,6 +232,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackEdit(...args) { handle('trackEdit', args); },
     confirmRecipe(...args) { handle('confirmRecipe', args); },
     trackSelect(...args) { handle('trackSelect', args); },
+    lassoSelect(...args) { handle('lassoSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
@@ -459,6 +469,10 @@ function useHandler() {
   return use<Handler>(HandlerSymbol);
 }
 
+function useLassoModeContext() {
+  return use<LassoModeContext>(LassoModeSymbol);
+}
+
 function useMultiSelectList() {
   return use<MultiSelectType>(MultiSelectSymbol);
 }
@@ -534,6 +548,7 @@ function useSegmentationPoints() {
 }
 
 export {
+  LassoModeSymbol,
   dummyHandler,
   dummyState,
   provideAnnotator,
@@ -544,6 +559,7 @@ export {
   useDatasetId,
   useEditingMode,
   useHandler,
+  useLassoModeContext,
   useGroupFilterControls,
   useGroupStyleManager,
   useMultiSelectList,

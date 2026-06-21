@@ -3,16 +3,23 @@ import type { GirderModel } from '@girder/components/src';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
+import { calibrationFileMarker } from 'dive-common/constants';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
+import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
 
 interface HTMLFile extends File {
   webkitRelativePath?: string;
 }
 
-function getDataset(folderId: string) {
-  return girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+async function getDataset(datasetId: string) {
+  const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
+  const response = await girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+  if (compositeId) {
+    response.data.id = compositeId;
+  }
+  return response;
 }
 
 async function getDatasetList(
@@ -50,7 +57,8 @@ export interface DatasetSourceMedia {
   sourceVideo?: MediaResource;
 }
 
-function getDatasetMedia(folderId: string) {
+async function getDatasetMedia(datasetId: string) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
 }
 
@@ -65,6 +73,22 @@ function clone({
   return girderRest.post<GirderModel>('dive_dataset', null, {
     params: {
       cloneId: folderId, parentFolderId, name, revision,
+    },
+  });
+}
+
+function createGirderFolder({
+  folderId, name, description,
+}: {
+  folderId: string;
+  name: string;
+  description?: string;
+}) {
+  return girderRest.post<GirderModel>('/folder', null, {
+    params: {
+      parentId: folderId,
+      name,
+      description,
     },
   });
 }
@@ -123,15 +147,21 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
   return false;
 }
 
-function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attributes`, args);
 }
 
-function saveAttributeTrackFilters(folderId: string, args: SaveAttributeTrackFilterArgs) {
+async function saveAttributeTrackFilters(
+  datasetId: string,
+  args: SaveAttributeTrackFilterArgs,
+) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
-function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
+async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
 }
 
@@ -147,8 +177,75 @@ function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
 
+export interface CreateMulticamDatasetArgs {
+  parentFolderId: string;
+  name: string;
+  fps: number;
+  type: 'video' | 'image-sequence';
+  subType: 'stereo' | 'multicam';
+  defaultDisplay: string;
+  cameras: Record<string, { folderId: string }>;
+  cameraOrder?: string[];
+  calibrationFileId?: string;
+}
+
+function createMulticamDataset(args: CreateMulticamDatasetArgs) {
+  const {
+    parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
+  } = args;
+  return girderRest.post<GirderModel>(
+    'dive_dataset/multicam',
+    {
+      name,
+      fps,
+      type,
+      subType,
+      defaultDisplay,
+      cameras,
+      cameraOrder,
+      calibrationFileId,
+    },
+    {
+      params: { parentFolderId },
+    },
+  );
+}
+
+async function uploadCalibrationItem(parentFolderId: string, file: File): Promise<string> {
+  const calibrationMeta = { [calibrationFileMarker]: 'true' };
+  const itemResp = await girderRest.post<GirderModel>('/item', null, {
+    params: {
+      folderId: parentFolderId,
+      name: file.name,
+      metadata: JSON.stringify(calibrationMeta),
+    },
+  });
+  const itemId = itemResp.data._id;
+  const fileResp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'item',
+      parentId: itemId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+    },
+  });
+  await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: fileResp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, calibrationMeta);
+  return itemId;
+}
+
 export {
   clone,
+  createGirderFolder,
+  createMulticamDataset,
   getDataset,
   getDatasetList,
   getDatasetMedia,
@@ -157,5 +254,6 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   saveMetadata,
+  uploadCalibrationItem,
   validateUploadGroup,
 };

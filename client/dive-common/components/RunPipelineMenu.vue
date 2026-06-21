@@ -24,6 +24,9 @@ import {
   LargeImageType,
   pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
+import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
@@ -81,13 +84,17 @@ export default defineComponent({
       type: Array as unknown as PropType<[number, number] | null>,
       default: null,
     },
+    /** Case-insensitive substrings; matching categories/pipes are omitted from the menu. */
+    excludePipelineTerms: {
+      type: Array as PropType<string[]>,
+      default: () => ([]),
+    },
   },
 
   setup(props) {
     const { prompt } = usePrompt();
     const { runPipeline, getPipelineList } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
-    const camNumberStringArray = computed(() => props.cameraNumbers.map((v) => v.toString()));
     const {
       request: _runPipelineRequest,
       reset: dismissLaunchDialog,
@@ -175,36 +182,13 @@ export default defineComponent({
       unsortedPipelines.value = await getPipelineList();
     });
 
-    const pipelines = computed(() => {
-      const sortedPipelines = {} as Pipelines;
-      Object.entries(unsortedPipelines.value).forEach(([name, category]) => {
-        category.pipes.sort((a, b) => {
-          const aName = a.name.toLowerCase();
-          const bName = b.name.toLowerCase();
-          if (aName > bName) {
-            return 1;
-          }
-          if (aName < bName) {
-            return -1;
-          }
-          return 0;
-        });
-        // Filter out unsupported pipelines based on subTypeList
-        // measurement can only be operated on stereo subtypes
-        if (props.subTypeList.every((item) => item === 'stereo') && (name === stereoPipelineMarker)) {
-          sortedPipelines[name] = category;
-        } else if (props.subTypeList.every((item) => item === 'multicam') && (multiCamPipelineMarkers.includes(name))) {
-          const pipelineExpectedCameraCount = name.split('-')[0];
-          if (camNumberStringArray.value.includes(pipelineExpectedCameraCount)) {
-            sortedPipelines[name] = category;
-          }
-        }
-        if (name !== stereoPipelineMarker && !multiCamPipelineMarkers.includes(name)) {
-          sortedPipelines[name] = category;
-        }
-      });
-      return sortedPipelines;
-    });
+    const pipelines = computed(() => filterPipelinesForDatasets(
+      unsortedPipelines.value,
+      props.subTypeList,
+      props.cameraNumbers,
+      props.typeList,
+      props.excludePipelineTerms,
+    ));
 
     const pipelinesNotRunnable = computed(() => (
       props.selectedDatasetIds.length < 1 || pipelines.value === null
@@ -232,7 +216,7 @@ export default defineComponent({
       if (props.cameraNumbers.length === 1 && props.cameraNumbers[0] > 1
       && (!multiCamPipelineMarkers.includes(pipeline.type)
       && stereoPipelineMarker !== pipeline.type)) {
-        const cameraNames = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+        const cameraNames = props.selectedDatasetIds.map((item) => parentDatasetId(item));
         const result = await prompt({
           title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
           text: ['Running a single pipeline on multi-camera data can produce conflicting track Ids',
@@ -246,14 +230,17 @@ export default defineComponent({
       }
       if (multiCamPipelineMarkers.includes(pipeline.type)
       || stereoPipelineMarker === pipeline.type) {
-        datasetIds = props.selectedDatasetIds.map((item) => item.substring(0, item.lastIndexOf('/')));
+        datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
       }
       selectedPipeline.value = pipeline;
       const frameRange = props.timeFilter;
       await _runPipelineRequest(() => Promise.all(
         datasetIds.map((id) => {
           const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
-          return runPipeline(id, pipeline, frameRange, additionalConfig);
+          return runPipeline(id, pipeline, {
+            kwiverParams: additionalConfig,
+            runtimeParams: frameRange ? { frameRange } : undefined,
+          });
         }),
       ));
     }
@@ -299,20 +286,6 @@ export default defineComponent({
       selectedPipeline.value = null; // reset selected pipeline state
     }
 
-    function pipeTypeDisplay(pipeType: string) {
-      switch (pipeType) {
-        case 'trained':
-          return 'trained';
-        case 'utility':
-        case 'generate':
-          return 'utilities';
-        case 'transcode':
-          return 'transcoders';
-        default:
-          return `${pipeType}s`;
-      }
-    }
-
     return {
       jobState,
       pipelines,
@@ -320,7 +293,7 @@ export default defineComponent({
       includesLargeImage,
       successMessage,
       dismissLaunchDialog,
-      pipeTypeDisplay,
+      pipeTypeDisplay: pipelineTypeDisplay,
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
       singlePipelineValue,
@@ -347,6 +320,8 @@ export default defineComponent({
   <div>
     <v-menu
       max-width="230"
+      max-height="none"
+      content-class="pipeline-menu-content"
       v-bind="menuOptions"
       :close-on-content-click="false"
     >
@@ -439,69 +414,73 @@ export default defineComponent({
               target="_blank"
             >docs</a>
             for more information about these options.
-          </v-card-text>
-          <v-row class="px-3">
-            <v-col
-              v-for="pipeType in Object.keys(pipelines)"
-              :key="pipeType"
-              cols="12"
-            >
-              <v-menu
+            <v-row class="px-3 pipeline-categories-row">
+              <v-col
+                v-for="(pipeType, categoryIndex) in Object.keys(pipelines)"
                 :key="pipeType"
-                offset-x
-                right
+                cols="12"
+                :class="{ 'pipeline-category-col--last': categoryIndex === Object.keys(pipelines).length - 1 }"
               >
-                <template #activator="{ on }">
-                  <v-btn
-                    depressed
-                    block
-                    v-on="on"
-                  >
-                    {{ pipeTypeDisplay(pipeType) }}
-                    <v-icon
-                      right
-                      color="accent"
-                      class="ml-2"
-                    >
-                      mdi-menu-right
-                    </v-icon>
-                  </v-btn>
-                </template>
-
-                <v-list
-                  dense
-                  outlined
-                  style="overflow-y: auto; max-height: 85vh"
+                <v-menu
+                  :key="pipeType"
+                  offset-x
+                  right
+                  max-height="none"
+                  content-class="pipeline-menu-content"
                 >
-                  <v-tooltip
-                    v-for="pipeline in pipelines[pipeType].pipes"
-                    :key="`${pipeline.name}-${pipeline.pipe}`"
-                    left
-                    :disabled="!pipeline.description && !pipeline?.metadata?.description"
-                    max-width="400"
-                    content-class="pipeline-description-tooltip"
-                  >
-                    <template #activator="{ on, attrs }">
-                      <v-list-item
-                        v-bind="attrs"
-                        v-on="on"
-                        @click="runPipelineOnSelectedItem(pipeline)"
+                  <template #activator="{ on }">
+                    <v-btn
+                      depressed
+                      block
+                      v-on="on"
+                    >
+                      {{ pipeTypeDisplay(pipeType) }}
+                      <v-icon
+                        right
+                        color="accent"
+                        class="ml-2"
                       >
-                        <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                          {{ pipeline.name }}
-                          <v-icon style="margin-left: 20px">
-                            {{ (pipeline.metadata?.diveParams?.length ?? 0) > 0 || (pipeline.requirements?.length ?? 0) > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
-                          </v-icon>
-                        </v-list-item-title>
-                      </v-list-item>
-                    </template>
-                    <RunPipelineToast v-if="pipeline.metadata?.description" :pipeline="pipeline" />
-                    <span v-else>{{ pipeline.description }}</span>
-                  </v-tooltip>
-                </v-list>
-              </v-menu>
-            </v-col>
-          </v-row>
+                        mdi-menu-right
+                      </v-icon>
+                    </v-btn>
+                  </template>
+
+                  <v-list
+                    dense
+                    outlined
+                    class="pipeline-submenu-list"
+                  >
+                    <v-tooltip
+                      v-for="pipeline in pipelines[pipeType].pipes"
+                      :key="`${pipeline.name}-${pipeline.pipe}`"
+                      left
+                      :open-delay="250"
+                      :disabled="!pipeline.description && !pipeline?.metadata?.description"
+                      max-width="400"
+                      content-class="pipeline-description-tooltip"
+                    >
+                      <template #activator="{ on, attrs }">
+                        <v-list-item
+                          v-bind="attrs"
+                          v-on="on"
+                          @click="runPipelineOnSelectedItem(pipeline)"
+                        >
+                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
+                            {{ pipeline.name }}
+                            <v-icon style="margin-left: 20px">
+                              {{ (pipeline.metadata?.diveParams?.length ?? 0) > 0 || (pipeline.requirements?.length ?? 0) > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                            </v-icon>
+                          </v-list-item-title>
+                        </v-list-item>
+                      </template>
+                      <RunPipelineToast v-if="pipeline.metadata?.description" :pipeline="pipeline" />
+                      <span v-else>{{ pipeline.description }}</span>
+                    </v-tooltip>
+                  </v-list>
+                </v-menu>
+              </v-col>
+            </v-row>
+          </v-card-text>
         </v-card>
       </template>
     </v-menu>
@@ -607,6 +586,24 @@ export default defineComponent({
 </template>
 
 <style>
+/* Vuetify sets overflow-y: auto on .v-menu__content; scroll only on the list */
+.pipeline-menu-content.v-menu__content {
+  overflow-y: visible;
+  overflow-x: visible;
+  contain: none;
+  max-height: none !important;
+}
+
+.pipeline-submenu-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.pipeline-category-col--last {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
 .pipeline-description-tooltip.v-tooltip__content {
   background: #3a3a3a !important;
   opacity: 1 !important;

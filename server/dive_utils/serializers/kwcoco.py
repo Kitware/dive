@@ -6,12 +6,110 @@ KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
 
 from . import viame
+
+RLE_SEGMENTATION_WARNING = (
+    'The COCO file included run-length encoded segmentation masks that are not supported. '
+    'Bounding boxes and other annotation data were imported, but masks were skipped.'
+)
+
+
+def _has_valid_bbox(annotation: dict) -> bool:
+    bbox = annotation.get('bbox')
+    return isinstance(bbox, list) and len(bbox) == 4
+
+
+def _is_rle_segmentation(annotation: dict, segmentation=None) -> bool:
+    """Return True if annotation uses COCO RLE / crowd segmentation.
+
+    In COCO, ``iscrowd: 1`` marks a crowd region whose ``segmentation`` is RLE
+    (a dict with ``counts`` and ``size``), not a polygon list. ``iscrowd: 0`` is a
+    single instance with polygon segmentation. DIVE does not decode RLE masks;
+    bbox and other fields may still import, but mask geometry is skipped.
+    """
+    if segmentation is None:
+        segmentation = annotation.get('segmentation', [])
+    return bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+
+
+def _extract_polygon_coords_lists(segmentation) -> List[List[Tuple[float, float]]]:
+    """Parse COCO / KWCOCO polygon segmentations into coordinate lists."""
+    if not segmentation or isinstance(segmentation, dict):
+        return []
+
+    if len(segmentation) > 1 and isinstance(segmentation[0], (int, float)):
+        polygons = [segmentation]
+    elif len(segmentation) == 1:
+        polygons = [segmentation[0]]
+    else:
+        polygons = segmentation
+
+    coord_lists: List[List[Tuple[float, float]]] = []
+    for polygon in polygons:
+        if isinstance(polygon, dict):
+            coords = polygon.get('exterior', [])
+        elif isinstance(polygon, list):
+            coords = list(zip(polygon[::2], polygon[1::2]))
+        else:
+            continue
+        if coords:
+            coord_lists.append(coords)
+    return coord_lists
+
+
+def _bbox_from_points(points: List[Tuple[float, float]]) -> List[float]:
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    x_min = min(xs)
+    y_min = min(ys)
+    return [x_min, y_min, max(xs) - x_min, max(ys) - y_min]
+
+
+def _annotation_has_importable_bounds(annotation: dict) -> bool:
+    if _has_valid_bbox(annotation):
+        return True
+    if _is_rle_segmentation(annotation):
+        return False
+    return bool(_extract_polygon_coords_lists(annotation.get('segmentation', [])))
+
+
+def _missing_bounds_error(annotation_ids: List) -> str:
+    shown = ', '.join(str(annotation_id) for annotation_id in annotation_ids[:10])
+    extra = f' (and {len(annotation_ids) - 10} more)' if len(annotation_ids) > 10 else ''
+    return (
+        f'{len(annotation_ids)} COCO annotation(s) cannot be imported because '
+        f'they have no bbox and '
+        f'no usable polygon segmentation (ids: {shown}{extra}). '
+        'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
+        'Annotations with only RLE segmentation masks still require a bbox.'
+    )
+
+
+def _resolve_coco_bbox(annotation: dict) -> List[float]:
+    if _has_valid_bbox(annotation):
+        return list(annotation['bbox'])
+
+    coord_lists = _extract_polygon_coords_lists(annotation.get('segmentation', []))
+    all_points = [point for coords in coord_lists for point in coords]
+    if all_points:
+        return _bbox_from_points(all_points)
+
+    raise ValueError(_missing_bounds_error([annotation.get('id', '?')]))
+
+
+def _validate_annotation_bounds(annotations: List[dict]) -> None:
+    missing_ids = [
+        annotation.get('id', '?')
+        for annotation in annotations
+        if not _annotation_has_importable_bounds(annotation)
+    ]
+    if missing_ids:
+        raise ValueError(_missing_bounds_error(missing_ids))
 
 
 def is_coco_json(coco: Dict[str, Any]):
@@ -33,7 +131,7 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     # handle int and string types, throw error on UUID
     trackId = int(annotation.get('track_id', annotation_id))
 
-    bounds = annotation['bbox']
+    bounds = _resolve_coco_bbox(annotation)
     # update from [TL_x, TL_y, width, height] to [TL_x, TL_y, BR_x, BR_y]
     bounds[2] += bounds[0]
     bounds[3] += bounds[1]
@@ -41,13 +139,16 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     return trackId, filename, frame, bounds
 
 
-def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict, dict, list]:
+def _parse_annotation(
+    annotation: dict, meta: CocoMetadata
+) -> Tuple[dict, dict, dict, list, List[str], bool]:
     """
     Parse a single KWCOCO annotation into its composite track and detection parts
     """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}
+    notes: List[str] = []
 
     category_id = annotation['category_id']
     score = annotation.get('score', 1.0)  # may not exist, default to 1.0
@@ -85,38 +186,17 @@ def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict,
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
-    rle = bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+    rle_skipped = _is_rle_segmentation(annotation, segmentation)
 
-    if rle:  # run-length encoding polygon
-        raise ValueError('Run-Length Encoding not supported')
-
-    if segmentation:
-        if rle:  # run-length encoding polygon
-            raise ValueError('Run-Length Encoding not supported')
-        else:  # standard coordinates polygon
-            # expected [[x1, y1, ...], [x1, y1, ...], ...] standard format
-
-            if len(segmentation) > 1:
-                if isinstance(segmentation[0], (int, float)):
-                    # received [x1, y1, ...] format
-                    polygon = segmentation
-                else:
-                    polygon = segmentation[0]
-            else:
-                polygon = segmentation[0]  # get first polygon only
-
-            if isinstance(polygon, dict):  # dictionary kwcoco format
-                coords = polygon.get('exterior', [])
-            elif isinstance(polygon, list):  # list coco format
-                coords = list(zip(polygon[::2], polygon[1::2]))
-            else:
-                raise ValueError('Incorrect polygon segmentation')
-
-            if coords:
-                viame.create_geoJSONFeature(features, 'Polygon', coords)
+    if segmentation and not rle_skipped:
+        coord_lists = _extract_polygon_coords_lists(segmentation)
+        if coord_lists:
+            viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
 
     # DIVE extension fields for non-standard COCO attributes.
-    detection_attributes = annotation.get('dive_detection_attributes', annotation.get('attributes', {}))
+    detection_attributes = annotation.get(
+        'dive_detection_attributes', annotation.get('attributes', {})
+    )
     if isinstance(detection_attributes, dict):
         attributes.update(detection_attributes)
     track_attributes_value = annotation.get(
@@ -126,17 +206,25 @@ def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict,
     if isinstance(track_attributes_value, dict):
         track_attributes.update(track_attributes_value)
 
-    return features, attributes, track_attributes, [confidence_pair]
+    note_values = annotation.get('dive_notes', annotation.get('notes', []))
+    if isinstance(note_values, list):
+        notes.extend([str(value).strip() for value in note_values if str(value).strip()])
+    elif isinstance(note_values, str) and note_values.strip():
+        notes.append(note_values.strip())
+
+    return features, attributes, track_attributes, [confidence_pair], notes, rle_skipped
 
 
 def _parse_annotation_for_tracks(
     annotation: dict, meta: CocoMetadata
-) -> Tuple[Feature, dict, dict, list]:
+) -> Tuple[Feature, dict, dict, list, bool]:
     (
         features,
         attributes,
         track_attributes,
         confidence_pairs,
+        notes,
+        rle_skipped,
     ) = _parse_annotation(annotation, meta)
     trackId, filename, frame, bounds = annotation_info(annotation, meta)
 
@@ -144,12 +232,13 @@ def _parse_annotation_for_tracks(
         frame=frame,
         bounds=bounds,
         attributes=attributes or None,
+        notes=notes or None,
         fishLength=None,
         **features,
     )
 
     # Pass the rest of the unchanged info through as well
-    return feature, attributes, track_attributes, confidence_pairs
+    return feature, attributes, track_attributes, confidence_pairs, rle_skipped
 
 
 def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
@@ -197,15 +286,18 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
 
 def load_coco_as_tracks_and_attributes(
     coco: Dict[str, List[dict]],
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+) -> Tuple[types.DIVEAnnotationSchema, dict, List[str]]:
     """
     Convert KWCOCO json to DIVE json tracks.
     """
     tracks: Dict[int, Track] = {}
     metadata_attributes: Dict[str, Dict[str, Any]] = {}
     test_vals: Dict[str, Dict[str, int]] = {}
+    warnings: List[str] = []
+    skipped_rle_masks = False
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
+    _validate_annotation_bounds(annotations)
 
     for annotation in annotations:
         (
@@ -213,7 +305,9 @@ def load_coco_as_tracks_and_attributes(
             attributes,
             track_attributes,
             confidence_pairs,
+            rle_skipped,
         ) = _parse_annotation_for_tracks(annotation, meta)
+        skipped_rle_masks = skipped_rle_masks or rle_skipped
 
         trackId, _, frame, _ = annotation_info(annotation, meta)
 
@@ -242,7 +336,9 @@ def load_coco_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return converted, metadata_attributes
+    if skipped_rle_masks:
+        warnings.append(RLE_SEGMENTATION_WARNING)
+    return converted, metadata_attributes, warnings
 
 
 def _feature_to_segmentation(feature: Feature) -> List[List[float]]:
@@ -340,6 +436,7 @@ def export_dive_as_coco(
                 'category_id': category_id,
                 'bbox': [x1, y1, width, height],
                 'area': width * height,
+                # Single-instance polygon export; DIVE does not emit crowd RLE (iscrowd: 1).
                 'iscrowd': 0,
                 'score': score,
             }
@@ -349,6 +446,8 @@ def export_dive_as_coco(
                 annotation['dive_detection_attributes'] = feature.attributes
             if track.attributes:
                 annotation['dive_track_attributes'] = track.attributes
+            if feature.notes:
+                annotation['dive_notes'] = feature.notes
             if segmentation:
                 annotation['segmentation'] = segmentation
             if keypoints:
@@ -367,7 +466,11 @@ def export_dive_as_coco(
     return {
         'info': {
             'description': f'DIVE export for {dataset_name}',
-            'dive_extensions': ['dive_detection_attributes', 'dive_track_attributes'],
+            'dive_extensions': [
+                'dive_detection_attributes',
+                'dive_track_attributes',
+                'dive_notes',
+            ],
         },
         'images': list(images.values()),
         'annotations': coco_annotations,

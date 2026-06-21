@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick, watchEffect,
+  computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -112,14 +112,13 @@ export default defineComponent({
     const textQueryRunning = ref(false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
 
-    // Watch the viewer's trackFilters.timeFilters and sync to local ref
-    watchEffect(() => {
-      if (viewerRef.value?.trackFilters?.timeFilters?.value) {
-        timeFilter.value = viewerRef.value.trackFilters.timeFilters.value;
-      } else {
-        timeFilter.value = null;
-      }
-    });
+    watch(
+      () => viewerRef.value?.trackFilters?.timeFilters?.value,
+      (value) => {
+        timeFilter.value = value ?? null;
+      },
+      { immediate: true },
+    );
 
     const runningPipelines = computed(() => {
       const results: string[] = [];
@@ -1342,7 +1341,7 @@ export default defineComponent({
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">
-        <SidebarContext :bottom-mode="sidebarMode === 'bottom'">
+        <SidebarContext :sidebar-mode="sidebarMode">
           <template #default="{ name, subCategory }">
             <component
               :is="name"

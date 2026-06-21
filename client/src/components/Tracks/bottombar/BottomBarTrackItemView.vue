@@ -1,93 +1,41 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, nextTick, watch,
+  computed, defineComponent, nextTick, PropType, ref, watch,
 } from 'vue';
-import context from 'dive-common/store/context';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
-import TooltipBtn from './TooltipButton.vue';
-import TypePicker from './TypePicker.vue';
+import TooltipBtn from '../../TooltipButton.vue';
 import {
-  useHandler, useTime, useReadOnlyMode, useTrackFilters, useCameraStore, useTrackStyleManager,
-} from '../provides';
-import Track from '../track';
-import useVuetify from '../use/useVuetify';
+  useCameraStore,
+  useHandler,
+  useReadOnlyMode,
+  useTrackFilters,
+} from '../../../provides';
+import Track from '../../../track';
 
 export default defineComponent({
-  name: 'TrackItem',
-
-  components: { TooltipBtn, TypePicker },
-
+  name: 'BottomBarTrackItemView',
+  components: { TooltipBtn },
   props: {
-    solo: {
-      type: Boolean,
-      default: false,
-    },
-    trackType: {
-      type: String,
-      required: true,
-    },
-    track: {
-      type: Object as PropType<Track>,
-      required: true,
-    },
-    inputValue: {
-      type: Boolean,
-      required: true,
-    },
-    selected: {
-      type: Boolean,
-      required: true,
-    },
-    secondarySelected: {
-      type: Boolean,
-      required: true,
-    },
-    editing: {
-      type: Boolean,
-      required: true,
-    },
-    merging: {
-      type: Boolean,
-      default: false,
-    },
-    color: {
-      type: String,
-      required: true,
-    },
-    lockTypes: {
-      type: Boolean,
-      default: false,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    compact: {
-      type: Boolean,
-      default: false,
-    },
-    columnVisibility: {
-      type: Object as PropType<ColumnVisibilitySettings>,
-      default: null,
-    },
-    fps: {
-      type: Number,
-      default: null,
-    },
+    track: { type: Object as PropType<Track>, required: true },
+    trackType: { type: String, required: true },
+    itemStyle: { type: Object, required: true },
+    color: { type: String, required: true },
+    lockTypes: { type: Boolean, default: false },
+    columnVisibility: { type: Object as PropType<ColumnVisibilitySettings>, default: null },
+    fps: { type: Number, default: null },
+    editing: { type: Boolean, required: true },
+    inputValue: { type: Boolean, required: true },
+    merging: { type: Boolean, default: false },
+    toggleKeyframe: { type: Function as PropType<() => void>, required: true },
+    toggleInterpolation: { type: Function as PropType<() => void>, required: true },
+    toggleAllInterpolation: { type: Function as PropType<() => void>, required: true },
   },
-
-  setup(props, { emit }) {
-    const vuetify = useVuetify();
-    const { frame: frameRef } = useTime();
+  setup(props) {
     const handler = useHandler();
-    const trackFilters = useTrackFilters();
-    const allTypesRef = trackFilters.allTypes;
     const readOnlyMode = useReadOnlyMode();
+    const { allTypes } = useTrackFilters();
     const cameraStore = useCameraStore();
-    const { typeStyling } = useTrackStyleManager();
-    const multiCam = ref(cameraStore.camMap.value.size > 1);
 
-    /* Compact mode editing state */
     const editingType = ref(false);
     const editingConfidence = ref(false);
     const editingNotes = ref(false);
@@ -98,71 +46,18 @@ export default defineComponent({
     const typeInputRef = ref<HTMLInputElement | HTMLSelectElement | null>(null);
     const confidenceInputRef = ref<HTMLInputElement | null>(null);
     const notesInputRef = ref<HTMLInputElement | null>(null);
-    // Attribute editing state
     const editingAttributeKey = ref<string | null>(null);
     const editAttributeValue = ref('');
     const attributeInputRef = ref<HTMLInputElement | null>(null);
     const localAttributeDisplay = ref<Record<string, string>>({});
 
-    // Reset local displays when track changes (component recycling in virtual scroll)
     watch(() => props.track.id, () => {
       localNotesDisplay.value = '';
       localAttributeDisplay.value = {};
       editingAttributeKey.value = null;
     });
-    /**
-     * Use of revision is safe because it will only create a
-     * dependency when track is selected.  DO NOT use this computed
-     * value except inside if (props.selected === true) blocks!
-     */
-    const feature = computed(() => {
-      if (props.track.revision.value) {
-        const { features, interpolate } = props.track.canInterpolate(frameRef.value);
-        const [real, lower, upper] = features;
-        return {
-          real,
-          lower,
-          upper,
-          shouldInterpolate: interpolate,
-          targetKeyframe: real?.keyframe ? real : (lower || upper),
-          isKeyframe: real?.keyframe,
-        };
-      }
-      return {
-        real: null,
-        lower: null,
-        upper: null,
-        targetKeyframe: null,
-        shouldInterpolate: false,
-        isKeyframe: false,
-      };
-    });
 
-    /* isTrack distinguishes between track and detection */
-    const isTrack = computed(() => props.track.length > 1 || feature.value.shouldInterpolate);
-
-    /* Sets styling for the selected track */
-    const style = computed(() => {
-      if (props.selected) {
-        return {
-          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
-        };
-      }
-      if (props.secondarySelected) {
-        return {
-          'background-color': '#3a3a3a',
-        };
-      }
-      return {};
-    });
-
-    const keyframeDisabled = computed(() => (
-      !feature.value.real && !feature.value.shouldInterpolate)
-      || (props.track.length === 1 && frameRef.value === props.track.begin));
-
-    /* Get the top confidence value for display in compact mode */
     const topConfidence = computed(() => {
-      // Access revision.value to create reactive dependency
       if (props.track.revision.value !== undefined
           && props.track.confidencePairs
           && props.track.confidencePairs.length > 0) {
@@ -171,15 +66,11 @@ export default defineComponent({
       return null;
     });
 
-    /* Get the notes value from the track's first keyframe */
     const currentNotes = computed(() => {
-      // Use local display value if set, otherwise read from track
       if (localNotesDisplay.value) {
         return localNotesDisplay.value;
       }
-      // Access revision.value to create reactive dependency
       if (props.track.revision.value !== undefined) {
-        // Use track.begin frame for notes (first keyframe)
         const feature = props.track.features[props.track.begin];
         if (feature && feature.notes && feature.notes.length > 0) {
           return feature.notes.join(', ');
@@ -188,7 +79,6 @@ export default defineComponent({
       return '';
     });
 
-    /* Format frame number as timestamp */
     const formatTimestamp = (frame: number) => {
       if (!props.fps || props.fps <= 0) return '';
       const totalSeconds = frame / props.fps;
@@ -205,17 +95,17 @@ export default defineComponent({
     const startTimestamp = computed(() => formatTimestamp(props.track.begin));
     const endTimestamp = computed(() => formatTimestamp(props.track.end));
 
-    /* Get attribute value for display */
-    const getAttributeValue = (attrKey: string) => {
-      // Use local display value if set (for immediate UI feedback)
+    const trackAttributeColumns = computed(
+      () => (props.columnVisibility?.attributeColumns || []).filter((key: string) => key.startsWith('track_')),
+    );
+
+    function getAttributeValue(attrKey: string) {
       if (localAttributeDisplay.value[attrKey]) {
         return localAttributeDisplay.value[attrKey];
       }
 
-      // Access revision.value for reactivity
       if (props.track.revision.value === undefined) return '';
 
-      // Check if it's a track-level attribute (prefixed with track_)
       if (attrKey.startsWith('track_')) {
         const name = attrKey.replace('track_', '');
         const val = props.track.attributes[name];
@@ -223,7 +113,7 @@ export default defineComponent({
           return String(val);
         }
       }
-      // Check if it's a detection-level attribute (prefixed with detection_)
+
       if (attrKey.startsWith('detection_')) {
         const name = attrKey.replace('detection_', '');
         const feature = props.track.features[props.track.begin];
@@ -235,59 +125,13 @@ export default defineComponent({
         }
       }
       return '';
-    };
-
-    function toggleKeyframe() {
-      if (!keyframeDisabled.value) {
-        props.track.toggleKeyframe(frameRef.value);
-      }
     }
 
-    function toggleInterpolation() {
-      props.track.toggleInterpolation(frameRef.value);
-    }
-
-    function toggleAllInterpolation() {
-      props.track.toggleInterpolationForAllGaps(frameRef.value);
-    }
-
-    function clickToggleInterpolation(event: MouseEvent) {
-      if (event.ctrlKey) {
-        toggleAllInterpolation();
-      } else {
-        toggleInterpolation();
-      }
-    }
-    function gotoNext() {
-      const nextFrame = props.track.getNextKeyframe(frameRef.value + 1);
-      if (nextFrame !== undefined) {
-        emit('seek', nextFrame);
-      }
-    }
-
-    function gotoPrevious() {
-      const previousFrame = props.track.getPreviousKeyframe(frameRef.value - 1);
-      if (previousFrame !== undefined) {
-        emit('seek', previousFrame);
-      }
-    }
-
-    function setTrackType(type: string) {
-      cameraStore.setTrackType(props.track.id, type);
-    }
-
-    function openMultiCamTools() {
-      if (context.state.active !== 'MultiCamTools') {
-        context.toggle('MultiCamTools');
-      }
-    }
-
-    function handleClicked(event: PointerEvent) {
+    function handleClicked(event: MouseEvent) {
       const modifiers = event.ctrlKey ? { ctrl: true } : undefined;
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
-    /* Compact mode inline editing */
     function startEditType(event: MouseEvent) {
       if (readOnlyMode.value) return;
       event.stopPropagation();
@@ -327,7 +171,6 @@ export default defineComponent({
     function saveConfidence() {
       const val = parseFloat(editConfidenceValue.value);
       if (!Number.isNaN(val) && val >= 0 && val <= 1) {
-        // Use cameraStore.setTrackType to update across all cameras
         cameraStore.setTrackType(props.track.id, props.trackType, val);
       }
       editingConfidence.value = false;
@@ -350,9 +193,7 @@ export default defineComponent({
 
     function saveNotes() {
       const newNotes = editNotesValue.value.trim();
-      // Save notes to the track's first keyframe (track.begin)
       props.track.setFeatureNotes(props.track.begin, newNotes);
-      // Update local display immediately for UI responsiveness
       localNotesDisplay.value = newNotes;
       editingNotes.value = false;
     }
@@ -381,14 +222,11 @@ export default defineComponent({
       const actualKey = attrKey.replace(/^(track_|detection_)/, '');
 
       if (isTrackAttr) {
-        // Set track-level attribute
         props.track.setAttribute(actualKey, newValue || undefined);
       } else {
-        // Set detection-level attribute on first keyframe
         props.track.setFeatureAttribute(props.track.begin, actualKey, newValue || undefined);
       }
 
-      // Update local display immediately for UI responsiveness
       localAttributeDisplay.value[attrKey] = newValue;
       editingAttributeKey.value = null;
     }
@@ -397,72 +235,92 @@ export default defineComponent({
       editingAttributeKey.value = null;
     }
 
+    function setEditTypeValue(value: string) {
+      editTypeValue.value = value;
+    }
+
+    function setEditConfidenceValue(value: string) {
+      editConfidenceValue.value = value;
+    }
+
+    function setEditNotesValue(value: string) {
+      editNotesValue.value = value;
+    }
+
+    function setEditAttributeValue(value: string) {
+      editAttributeValue.value = value;
+    }
+
     return {
-      /* data */
-      feature,
-      isTrack,
-      style,
-      frame: frameRef,
-      allTypes: allTypesRef,
-      keyframeDisabled,
-      trackFilters,
-      readOnlyMode,
-      multiCam,
-      topConfidence,
-      /* compact editing */
-      editingType,
+      allTypes,
+      attributeInputRef,
+      cancelEditAttribute,
+      cancelEditConfidence,
+      cancelEditNotes,
+      cancelEditType,
+      confidenceInputRef,
+      currentNotes,
+      editAttributeValue,
+      editConfidenceValue,
+      editingAttributeKey,
       editingConfidence,
       editingNotes,
-      editTypeValue,
-      editConfidenceValue,
+      editingType,
       editNotesValue,
-      localNotesDisplay,
-      typeInputRef,
-      confidenceInputRef,
-      notesInputRef,
-      currentNotes,
-      startTimestamp,
+      editTypeValue,
       endTimestamp,
       getAttributeValue,
-      /* attribute editing */
-      editingAttributeKey,
-      editAttributeValue,
-      attributeInputRef,
-      startEditAttribute,
-      saveAttribute,
-      cancelEditAttribute,
-      /* methods */
-      gotoNext,
-      gotoPrevious,
-      handler,
-      openMultiCamTools,
-      toggleInterpolation,
-      clickToggleInterpolation,
-      toggleAllInterpolation,
-      toggleKeyframe,
-      setTrackType,
-      typeStyling,
       handleClicked,
-      startEditType,
-      saveType,
-      cancelEditType,
-      startEditConfidence,
+      handler,
+      notesInputRef,
+      readOnlyMode,
+      saveAttribute,
       saveConfidence,
-      cancelEditConfidence,
-      startEditNotes,
       saveNotes,
-      cancelEditNotes,
+      saveType,
+      setEditAttributeValue,
+      setEditConfidenceValue,
+      setEditNotesValue,
+      setEditTypeValue,
+      startEditAttribute,
+      startEditConfidence,
+      startEditNotes,
+      startEditType,
+      startTimestamp,
+      topConfidence,
+      trackAttributeColumns,
+      typeInputRef,
     };
+  },
+  methods: {
+    handleTypeSelectInput(event: Event) {
+      const target = event.target as HTMLSelectElement | null;
+      this.setEditTypeValue(target?.value ?? '');
+    },
+    handleTypeTextInput(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      this.setEditTypeValue(target?.value ?? '');
+    },
+    handleConfidenceInput(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      this.setEditConfidenceValue(target?.value ?? '');
+    },
+    handleAttributeInput(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      this.setEditAttributeValue(target?.value ?? '');
+    },
+    handleNotesInput(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      this.setEditNotesValue(target?.value ?? '');
+    },
   },
 });
 </script>
 
 <template>
-  <!-- Compact layout for bottom sidebar -->
   <div
-    v-if="compact"
     class="track-item-compact d-flex align-center hover-show-parent px-1"
-    :style="style"
+    :style="itemStyle"
     @click="handleClicked"
   >
     <div
@@ -472,14 +330,14 @@ export default defineComponent({
     <div class="trackNumber-compact">
       {{ track.trackId }}
     </div>
-    <!-- Editable type field -->
     <template v-if="!columnVisibility || columnVisibility.type !== false">
       <select
         v-if="editingType && lockTypes"
         ref="typeInputRef"
-        v-model="editTypeValue"
+        :value="editTypeValue"
         class="compact-type-input compact-select-input"
         @blur="saveType"
+        @input="handleTypeSelectInput"
         @change="saveType"
         @keydown.enter="saveType"
         @keydown.escape="cancelEditType"
@@ -496,10 +354,11 @@ export default defineComponent({
       <input
         v-else-if="editingType"
         ref="typeInputRef"
-        v-model="editTypeValue"
+        :value="editTypeValue"
         type="text"
         list="allTypesOptions"
         class="compact-type-input"
+        @input="handleTypeTextInput"
         @blur="saveType"
         @keydown.enter="saveType"
         @keydown.escape="cancelEditType"
@@ -512,17 +371,17 @@ export default defineComponent({
         @click="startEditType"
       >{{ trackType }}</span>
     </template>
-    <!-- Editable confidence field -->
     <template v-if="!columnVisibility || columnVisibility.confidence !== false">
       <input
         v-if="editingConfidence"
         ref="confidenceInputRef"
-        v-model="editConfidenceValue"
+        :value="editConfidenceValue"
         type="number"
         step="0.01"
         min="0"
         max="1"
         class="compact-confidence-input"
+        @input="handleConfidenceInput"
         @blur="saveConfidence"
         @keydown.enter="saveConfidence"
         @keydown.escape="cancelEditConfidence"
@@ -537,41 +396,35 @@ export default defineComponent({
         {{ topConfidence !== null ? topConfidence.toFixed(2) : '' }}
       </span>
     </template>
-    <!-- Start frame column (clickable to seek) -->
     <span
       v-if="!columnVisibility || columnVisibility.startFrame"
       class="track-frame-start clickable"
       @click.stop="$emit('seek', track.begin)"
     >{{ track.begin }}</span>
-    <!-- End frame column (clickable to seek) -->
     <span
       v-if="!columnVisibility || columnVisibility.endFrame"
       class="track-frame-end clickable"
       @click.stop="$emit('seek', track.end)"
     >{{ track.end }}</span>
-    <!-- Start timestamp column (clickable to seek) -->
     <span
       v-if="columnVisibility?.startTimestamp"
       class="track-timestamp clickable"
       @click.stop="$emit('seek', track.begin)"
     >{{ startTimestamp }}</span>
-    <!-- End timestamp column (clickable to seek) -->
     <span
       v-if="columnVisibility?.endTimestamp"
       class="track-timestamp clickable"
       @click.stop="$emit('seek', track.end)"
     >{{ endTimestamp }}</span>
-    <!-- Attribute columns (editable) -->
-    <template
-      v-for="attrKey in columnVisibility?.attributeColumns || []"
-    >
+    <template v-for="attrKey in trackAttributeColumns">
       <input
         v-if="editingAttributeKey === attrKey"
         :key="attrKey + '-input'"
         ref="attributeInputRef"
-        v-model="editAttributeValue"
+        :value="editAttributeValue"
         type="text"
         class="compact-attribute-input"
+        @input="handleAttributeInput"
         @blur="saveAttribute"
         @keydown.enter="saveAttribute"
         @keydown.escape="cancelEditAttribute"
@@ -585,15 +438,15 @@ export default defineComponent({
         @click="startEditAttribute(attrKey, $event)"
       >{{ getAttributeValue(attrKey) || '-' }}</span>
     </template>
-    <!-- Notes field -->
     <template v-if="!columnVisibility || columnVisibility.notes">
       <input
         v-if="editingNotes"
         ref="notesInputRef"
-        v-model="editNotesValue"
+        :value="editNotesValue"
         type="text"
         class="compact-notes-input"
         placeholder="Add notes..."
+        @input="handleNotesInput"
         @blur="saveNotes"
         @keydown.enter="saveNotes"
         @keydown.escape="cancelEditNotes"
@@ -615,11 +468,10 @@ export default defineComponent({
       </div>
     </template>
     <v-spacer />
-    <!-- Compact action buttons -->
     <div class="compact-actions d-flex">
       <tooltip-btn
         v-if="!merging"
-        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
+        icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
         size="x-small"
         :disabled="!inputValue || readOnlyMode"
@@ -645,192 +497,9 @@ export default defineComponent({
       ]"
     />
   </div>
-  <!-- Standard layout -->
-  <div
-    v-else
-    class="track-item d-flex flex-column align-start hover-show-parent px-1"
-    :style="style"
-  >
-    <v-row
-      class="pt-2 justify-center item-row"
-      no-gutters
-      align="center"
-    >
-      <div
-        v-if="solo"
-        class="type-color-box"
-        :style="{
-          backgroundColor: color,
-        }"
-      />
-      <v-checkbox
-        v-else
-        class="my-0 ml-1 pt-0"
-        dense
-        hide-details
-        :disabled="disabled"
-        :input-value="inputValue"
-        :color="color"
-        @change="trackFilters.updateCheckedId(track.trackId, $event)"
-      />
-      <v-tooltip
-        open-delay="200"
-        bottom
-        max-width="200"
-        :disabled="track.trackId.toString().length < 8"
-      >
-        <template #activator="{ on }">
-          <div
-            class="trackNumber pl-0 pr-2"
-            v-on="on"
-            @click.self="handleClicked"
-          >
-            {{ track.trackId }}
-          </div>
-        </template>
-        <span> {{ track.trackId }} </span>
-      </v-tooltip>
-      <v-chip
-        v-if="track.set"
-        outlined
-        x-small
-        :color="typeStyling.annotationSetColor(track.set)"
-      >
-        {{ track.set }}
-      </v-chip>
-
-      <v-spacer />
-      <TypePicker
-        :value="trackType"
-        v-bind="{
-          lockTypes, readOnlyMode, allTypes, selected,
-        }"
-        @input="setTrackType($event)"
-      />
-    </v-row>
-    <v-row
-      class="my-1 justify-center item-row flex-nowrap"
-      no-gutters
-    >
-      <v-spacer v-if="!isTrack" />
-      <template v-if="selected">
-        <span
-          v-show="false"
-          v-mousetrap="[
-            { bind: 'k', handler: toggleKeyframe },
-            { bind: 'i', handler: toggleInterpolation },
-            { bind: 'ctrl+i', handler: toggleAllInterpolation },
-            { bind: 'home', handler: () => $emit('seek', track.begin) },
-            { bind: 'end', handler: () => $emit('seek', track.end) },
-          ]"
-        />
-        <tooltip-btn
-          color="error"
-          icon="mdi-delete"
-          :disabled="merging || readOnlyMode"
-          :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
-          @click="handler.removeTrack([track.trackId])"
-        />
-        <span v-if="!multiCam">
-          <tooltip-btn
-            v-if="isTrack"
-            :disabled="!track.canSplit(frame) || merging || readOnlyMode"
-            icon="mdi-call-split"
-            tooltip-text="Split Track"
-            @click="handler.trackSplit(track.trackId, frame)"
-          />
-
-          <tooltip-btn
-            v-if="isTrack && !readOnlyMode"
-            :icon="(feature.isKeyframe)
-              ? 'mdi-star'
-              : 'mdi-star-outline'"
-            :disabled="keyframeDisabled"
-            tooltip-text="Toggle keyframe"
-            @click="toggleKeyframe"
-          />
-
-          <tooltip-btn
-            v-if="isTrack && !readOnlyMode"
-            :icon="(feature.shouldInterpolate)
-              ? 'mdi-vector-selection'
-              : 'mdi-selection-off'"
-            tooltip-text="Toggle interpolation, ctrl+click to toggle all interpolation"
-            @click="clickToggleInterpolation($event)"
-          />
-        </span>
-        <span v-else>
-          <tooltip-btn
-            icon="mdi-camera"
-            tooltip-text="Open MultiCamera Tools"
-            @click="openMultiCamTools"
-          />
-        </span>
-      </template>
-      <v-spacer v-if="isTrack" />
-      <template v-if="isTrack">
-        <tooltip-btn
-          icon="mdi-chevron-double-left"
-          tooltip-text="Seek to track beginning"
-          @click="$emit('seek', track.begin)"
-        />
-
-        <tooltip-btn
-          icon="mdi-chevron-left"
-          tooltip-text="Seek to previous keyframe"
-          @click="gotoPrevious"
-        />
-
-        <tooltip-btn
-          icon="mdi-chevron-right"
-          tooltip-text="Seek to next keyframe"
-          @click="gotoNext"
-        />
-
-        <tooltip-btn
-          icon="mdi-chevron-double-right"
-          tooltip-text="Seek to track end"
-          @click="$emit('seek', track.end)"
-        />
-      </template>
-      <tooltip-btn
-        v-else
-        icon="mdi-map-marker"
-        tooltip-text="Seek to detection"
-        @click="$emit('seek', track.begin)"
-      />
-
-      <tooltip-btn
-        v-if="!merging"
-        :icon="(editing) ? 'mdi-pencil-box' : 'mdi-pencil-box-outline'"
-        tooltip-text="Toggle edit mode"
-        :disabled="!inputValue || readOnlyMode"
-        @click="handler.trackEdit(track.trackId)"
-      />
-    </v-row>
-  </div>
 </template>
 
 <style lang="scss" scoped>
-@import 'src/components/styles/common.scss';
-
-.track-item {
-  border-radius: inherit;
-
-  .item-row {
-    width: 100%;
-  }
-
-  .type-color-box {
-    margin: 7px;
-    margin-top: 4px;
-    min-width: 15px;
-    max-width: 15px;
-    min-height: 15px;
-    max-height: 15px;
-  }
-}
-
 .track-item-compact {
   border-radius: inherit;
   height: 50px;
@@ -885,9 +554,7 @@ export default defineComponent({
     flex-shrink: 0;
     text-align: right;
     margin-right: 8px;
-  }
 
-  .track-timestamp {
     &.clickable {
       cursor: pointer;
       &:hover {
@@ -927,10 +594,6 @@ export default defineComponent({
     padding: 1px 4px;
     margin-right: 8px;
     outline: none;
-
-    &:focus {
-      border-color: #888;
-    }
   }
 
   .track-notes-wrapper {
@@ -986,10 +649,6 @@ export default defineComponent({
     padding: 1px 4px;
     margin-left: 12px;
     outline: none;
-
-    &:focus {
-      border-color: #888;
-    }
   }
 
   .track-type-compact {
@@ -1029,52 +688,33 @@ export default defineComponent({
     }
   }
 
-  .compact-type-input {
+  .compact-type-input,
+  .compact-confidence-input {
     font-size: 14px;
-    width: 80px;
-    min-width: 80px;
-    flex-shrink: 0;
     background-color: #333;
     border: 1px solid #666;
     border-radius: 3px;
     color: #fff;
     padding: 1px 4px;
     outline: none;
+  }
 
-    &:focus {
-      border-color: #888;
-    }
+  .compact-type-input {
+    width: 80px;
+    min-width: 80px;
+    flex-shrink: 0;
   }
 
   .compact-select-input {
     appearance: menulist;
-    background-color: #333;
   }
 
   .compact-confidence-input {
-    font-size: 14px;
-    width: 46px;
-    min-width: 46px;
+    width: 54px;
+    min-width: 54px;
     flex-shrink: 0;
-    background-color: #333;
-    border: 1px solid #666;
-    border-radius: 3px;
-    color: #fff;
-    padding: 1px 4px;
     text-align: right;
-    outline: none;
-
-    &:focus {
-      border-color: #888;
-    }
-
-    /* Hide spinner buttons */
     -moz-appearance: textfield;
-    &::-webkit-outer-spin-button,
-    &::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
   }
 
   .compact-actions {

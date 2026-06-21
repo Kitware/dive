@@ -1,13 +1,16 @@
-<script>
-import { mapActions, mapGetters, mapState } from 'vuex';
+<script lang="ts">
+import { defineComponent } from 'vue';
 
 import { GirderSearch } from '@girder/components/src';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
+import { useBrand } from '../store/useBrand';
+import { useConfig } from '../store/useConfig';
+import { useLocation } from '../store/useLocation';
 import JobsTab from './JobsTab.vue';
 
-export default {
+export default defineComponent({
   name: 'GenericNavigationBar',
   components: {
     NavigationTitle,
@@ -16,12 +19,20 @@ export default {
     GirderSearch,
   },
   inject: ['girderRest'],
-  data: () => ({
-    runningJobIds: [],
-  }),
+  setup() {
+    const { brandData } = useBrand();
+    const { pipelinesEnabled, trainingEnabled } = useConfig();
+    const { locationRoute, setRouteFromLocation } = useLocation();
+
+    return {
+      brandData,
+      pipelinesEnabled,
+      trainingEnabled,
+      locationRoute,
+      setRouteFromLocation,
+    };
+  },
   computed: {
-    ...mapGetters('Location', ['locationRoute']),
-    ...mapState('Brand', ['brandData']),
     isAdmin() {
       if (this.girderRest) {
         return this.girderRest?.user?.admin || false;
@@ -36,7 +47,6 @@ export default {
     this.girderRest.$off('logout', this.onLogout);
   },
   methods: {
-    ...mapActions('Location', ['setRouteFromLocation']),
     onLogout() {
       this.$router.push({ name: 'login' });
     },
@@ -44,7 +54,7 @@ export default {
       this.girderRest.logout();
     },
   },
-};
+});
 </script>
 
 <template>
@@ -65,6 +75,7 @@ export default {
         </v-tab>
         <JobsTab />
         <v-tab
+          v-if="pipelinesEnabled || trainingEnabled"
           to="/trained-models"
         >
           Models <v-icon>mdi-brain</v-icon>

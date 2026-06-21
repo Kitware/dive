@@ -58,6 +58,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    wrapBottomControls: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(_, { emit }) {
     const handler = useHandler();
@@ -158,11 +162,16 @@ export default defineComponent({
       ? 'position: relative; padding: 0px; margin: 0px; width: 100%;'
       : 'position: absolute; bottom: 0px; padding: 0px; margin: 0px;'"
   >
-    <Controls :is-default-image="isDefaultImage" :dataset-type="datasetType" :bottom-layout="bottomLayout">
+    <Controls
+      :is-default-image="isDefaultImage"
+      :dataset-type="datasetType"
+      :bottom-layout="bottomLayout"
+      :wrap-bottom-controls="wrapBottomControls"
+    >
       <template slot="timelineControls">
-        <div :style="{ 'min-width': bottomLayout ? 'auto' : '270px', 'white-space': 'nowrap' }">
+        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
           <v-tooltip
-            v-if="!bottomLayout"
+            v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >
@@ -310,6 +319,18 @@ export default defineComponent({
           </v-btn>
         </div>
       </template>
+      <template #bottomControlsActivator="{ activatorId }">
+        <v-btn
+          v-if="bottomLayout && wrapBottomControls"
+          :id="activatorId"
+          icon
+          small
+          class="ml-1"
+          title="Timeline controls"
+        >
+          <v-icon>mdi-tune-variant</v-icon>
+        </v-btn>
+      </template>
       <template #middle>
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
@@ -403,7 +424,7 @@ export default defineComponent({
             />
           </span>
           <v-tooltip
-            v-if="!bottomLayout"
+            v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >

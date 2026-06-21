@@ -2,7 +2,7 @@
 
 !!! note
 
-    This page is **not related** to the VIAME command line (i.e. `kwiver`, `viame`)
+    This page is **not related** to the VIAME install command line (e.g. `viame`, `kwiver`)
 
 Some of the DIVE data conversion features are exposed through `dive`.  
 

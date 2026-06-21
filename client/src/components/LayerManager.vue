@@ -14,6 +14,7 @@ import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
+import LassoSelectionLayer from '../layers/LassoSelectionLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
@@ -40,6 +41,7 @@ import {
   useAttributes,
   useComparisonSets,
   useSegmentationPoints,
+  useLassoModeContext,
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 
@@ -66,6 +68,12 @@ export default defineComponent({
   },
   setup(props) {
     const handler = useHandler();
+    let setLassoDrawing: ((drawing: boolean) => void) | undefined;
+    try {
+      ({ setLassoDrawing } = useLassoModeContext());
+    } catch {
+      // Viewer may not provide lasso context in tests or minimal embeds.
+    }
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
     const comparison = useComparisonSets();
@@ -170,6 +178,13 @@ export default defineComponent({
         segmentationPointsLayer.clear();
       }
     }, { deep: true });
+
+    const lassoSelectionLayer = new LassoSelectionLayer(
+      annotator,
+      () => [rectAnnotationLayer.featureLayer, polyAnnotationLayer.featureLayer],
+      () => editAnnotationLayer.getMode() === 'creation',
+      setLassoDrawing,
+    );
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
@@ -733,6 +748,18 @@ export default defineComponent({
     };
     rectAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
     polyAnnotationLayer.bus.$on('annotation-hover', annotationHoverTooltip);
+
+    lassoSelectionLayer.bus.$on(
+      'lasso-selection',
+      (trackIds: AnnotationId[], modifiers: { ctrl: boolean }) => {
+        if (selectedCamera.value !== props.camera) {
+          return;
+        }
+        if (editAnnotationLayer.getMode() !== 'creation') {
+          handler.lassoSelect(trackIds, modifiers);
+        }
+      },
+    );
   },
 });
 </script>

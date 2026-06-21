@@ -27,7 +27,12 @@ markdown_extensions:
   - pymdownx.mark
   - pymdownx.highlight:
       linenums: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        # Must use fence_code_format for Material’s built-in Mermaid.js (not fence_div_format)
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.emoji:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
@@ -63,20 +68,25 @@ nav:
         - Attributes Details: UI-AttributeDetails.md
         - Attribute Track Filtering: UI-AttributeTrackFiltering.md
       - Group Manager: UI-Group-Manager.md
+      - Dataset Info: UI-DatasetInfo.md
+      - Annotation Sets: Annotation-Sets.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
       - Large Image Desktop Support: Large-Image-Support.md
-      - MultiCamera Data (beta): Multicamera-data.md
+      - Multicamera and Stereo Data: Multicamera-data.md
     - Screenshots: Screenshots.md
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
   - Data Formats: DataFormats.md
+  - Developer Guide:
+    - Codebase architecture: Architecture-For-New-Developers.md
   - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md
     - Running with Docker Compose: Deployment-Docker-Compose.md
+    - Upgrading to Girder 5: Deployment-Girder-5-Upgrade.md
     - Cloud Storage Integration: Deployment-Storage.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Scripting: 

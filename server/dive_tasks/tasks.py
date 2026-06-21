@@ -1,5 +1,6 @@
 from contextlib import suppress
 import json
+import logging
 import os
 from pathlib import Path
 import shlex
@@ -17,11 +18,27 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
-from dive_tasks.frame_alignment import check_and_fix_frame_alignment
+from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
+from dive_tasks.multicam_pipeline import (
+    append_stereo_calibration_kwiver_settings,
+    build_multicam_kwiver_settings,
+    find_downloaded_calibration_file,
+    is_stereo_measurement_pipeline,
+)
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
-from dive_utils.types import AvailableJobSchema, GirderModel, PipelineJob, TrainingJob, ExportTrainedPipelineJob
+from dive_utils.types import (
+    AvailableJobSchema,
+    ExportTrainedPipelineJob,
+    GirderModel,
+    MulticamCameraJob,
+    MulticamPipelineJob,
+    PipelineJob,
+    TrainingJob,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def filter_csv_by_frame_range(csv_path: str, frame_range: Tuple[int, int]) -> str:
@@ -54,7 +71,9 @@ def filter_csv_by_frame_range(csv_path: str, frame_range: Tuple[int, int]) -> st
     return filtered_path
 
 
-def filter_image_list_by_frame_range(image_list: List[str], frame_range: Tuple[int, int]) -> List[str]:
+def filter_image_list_by_frame_range(
+    image_list: List[str], frame_range: Tuple[int, int]
+) -> List[str]:
     """Filter an image list to only include images within frame range.
 
     Args:
@@ -68,7 +87,8 @@ def filter_image_list_by_frame_range(image_list: List[str], frame_range: Tuple[i
     # Ensure we don't go out of bounds
     start_frame = max(0, start_frame)
     end_frame = min(end_frame, len(image_list) - 1)
-    return image_list[start_frame:end_frame + 1]
+    return image_list[start_frame : end_frame + 1]
+
 
 EMPTY_JOB_SCHEMA: AvailableJobSchema = {
     'pipelines': {},
@@ -108,6 +128,22 @@ def get_gpu_environment() -> Dict[str, str]:
     return env
 
 
+_VIAME_WORKER_QUEUES = frozenset({'pipelines', 'training'})
+
+
+def _worker_requires_viame_install() -> bool:
+    """
+    Only pipeline/training workers need a local VIAME install.
+
+    Default (``celery``), ``local``, and dev ``localworker`` processes do not;
+    they never call :class:`Config` today, but this keeps :meth:`Config.__init__`
+    safe if a task is misrouted.
+    """
+    queues = os.environ.get('WORKER_WATCHING_QUEUES', '')
+    watched = {q.strip() for q in queues.split(',') if q.strip()}
+    return bool(watched & _VIAME_WORKER_QUEUES)
+
+
 class Config:
     def __init__(self):
         self.gpu_process_env = get_gpu_environment()
@@ -124,17 +160,14 @@ class Config:
             'warn',
         )
 
-        self.viame_install_path = Path(self.viame_install_directory)
-        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
-        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
-        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
-        self.viame_training_executable = self.viame_install_path / "bin" / "viame"
-        assert self.viame_training_executable.is_file(), "VIAME Executable missing"
-
-        # The subdirectory within VIAME_INSTALL_PATH where pipelines can be found
         self.pipeline_subdir = 'configs/pipelines'
+        self.viame_install_path = Path(self.viame_install_directory)
+        self.viame_setup_script = self.viame_install_path / "setup_viame.sh"
+        self.viame_executable = self.viame_install_path / "bin" / "viame"
         self.viame_pipeline_path = self.viame_install_path / self.pipeline_subdir
-        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
+
+        if _worker_requires_viame_install():
+            self.require_viame_install()
 
         self.addon_root_path = Path(self.addon_root_directory)
         self.addon_zip_path = utils.make_directory(self.addon_root_path / 'zips')
@@ -145,6 +178,12 @@ class Config:
         self.gpu_process_env['SPROKIT_PIPE_INCLUDE_PATH'] = str(
             self.addon_extracted_path / self.pipeline_subdir
         )
+
+    def require_viame_install(self) -> None:
+        assert self.viame_install_path.exists(), "VIAME Base install directory missing."
+        assert self.viame_setup_script.is_file(), "VIAME Setup Script missing"
+        assert self.viame_executable.is_file(), "VIAME Executable missing"
+        assert self.viame_pipeline_path.exists(), "VIAME common pipe directory missing."
 
     def get_extracted_pipeline_path(self, missing_ok=False) -> Path:
         """
@@ -177,22 +216,28 @@ def upgrade_pipelines(
     for addon in urls:
         download_name = urlparse(addon).path.replace(os.path.sep, '_')
         zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
-        if not zipfile_path.exists() or force:
-            # Update the zipfile if force option set or file not exists
-            manager.write(f'Downloading {addon} to {zipfile_path}\n')
-            # TODO wrap try catch
-            request.urlretrieve(addon, filename=zipfile_path)
-        else:
-            manager.write(f'Skipping download of {zipfile_path}\n')
-        addons_to_update_update.append(zipfile_path)
+        had_existing_zip = zipfile_path.exists()
+        try:
+            if not had_existing_zip or force:
+                manager.write(f'Downloading {addon} to {zipfile_path}\n')
+                request.urlretrieve(addon, filename=zipfile_path)
+            else:
+                manager.write(f'Skipping download of {zipfile_path}\n')
+            addons_to_update_update.append(zipfile_path)
+        except Exception as exc:
+            logger.exception('Failed to download addon %s', addon)
+            manager.write(f'Failed to download {addon}: {exc}\nSkipping.\n')
+            if zipfile_path.exists() and not had_existing_zip:
+                zipfile_path.unlink(missing_ok=True)
         if utils.check_canceled(self, context, force=False):
             manager.updateStatus(JobStatus.CANCELED)
             return
 
     # remove and recreate the existing addon pipeline directory
     shutil.rmtree(conf.addon_extracted_path)
-    # copy over data from built image, which causes mkdir() for all parents
-    shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
+    # Seed base pipelines from the VIAME image when available (GPU workers only).
+    if conf.viame_pipeline_path.exists():
+        shutil.copytree(conf.viame_pipeline_path, conf.get_extracted_pipeline_path(missing_ok=True))
     # Extract zipfiles over newly copied files.  Right now the zip archives
     # MUST contain the pipeline subdir (e.g. configs/pipelines) in their
     # internal structure.
@@ -225,9 +270,39 @@ def upgrade_pipelines(
     gc.put('dive_configuration/installed_addons', json={'downloaded': downloaded})
 
 
+def _resolve_pipeline_path(
+    conf: 'Config',
+    gc: GirderClient,
+    pipeline: dict,
+    trained_pipeline_path: Path,
+) -> Path:
+    if pipeline["type"] == constants.TrainedPipelineCategory:
+        gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_path))
+        return trained_pipeline_path / pipeline["pipe"]
+    return conf.get_extracted_pipeline_path() / pipeline["pipe"]
+
+
+def _append_frame_range_video_settings(
+    command: List[str],
+    input_folder: GirderModel,
+    frame_range: Tuple[int, int],
+    pipeline_pipe: str,
+) -> None:
+    command.append(f"-s downsampler:start_frame={shlex.quote(str(frame_range[0]))}")
+    command.append(f"-s downsampler:end_frame={shlex.quote(str(frame_range[1]))}")
+    input_fps = fromMeta(input_folder, constants.FPSMarker)
+    original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
+    is_native = original_fps is None or input_fps >= original_fps
+    command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
+    renumber = pipeline_pipe.startswith(("transcode_", "filter_"))
+    command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
+    command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -245,7 +320,10 @@ def run_pipeline(self: Task, params: PipelineJob):
     output_folder_id = str(params["output_folder"])
     input_revision = params["input_revision"]
     force_transcoded = params.get('force_transcoded', False)
-    frame_range = params.get('frame_range', None)
+    runtime_params = params.get('runtime_params') or {}
+    frame_range = runtime_params.get('frameRange')
+    multicam_params: MulticamPipelineJob = params
+    multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -256,17 +334,116 @@ def run_pipeline(self: Task, params: PipelineJob):
         track_output_file = str(output_path / 'track_output.csv')
         img_list_path = input_path / 'img_list_file.txt'
 
-        if pipeline["type"] == constants.TrainedPipelineCategory:
-            gc.downloadFolderRecursive(pipeline["folderId"], str(trained_pipeline_path))
-            pipeline_path = trained_pipeline_path / pipeline["pipe"]
-        else:
-            pipeline_path = conf.get_extracted_pipeline_path() / pipeline["pipe"]
+        pipeline_path = _resolve_pipeline_path(conf, gc, pipeline, trained_pipeline_path)
 
         assert pipeline_path.exists(), (
             "Requested pipeline could not be found."
             " Make sure that VIAME is installed correctly and all addons have loaded."
             f" Job asked for {pipeline_path} but it does not exist"
         )
+
+        if multicam_cameras:
+            input_folder = gc.getFolder(input_folder_id)
+            input_fps = fromMeta(input_folder, constants.FPSMarker)
+            requires_input = multicam_params.get('multicam_requires_input', False)
+            camera_media: Dict[str, Tuple[List[str], str]] = {}
+
+            for cam_index, camera in enumerate(multicam_cameras, start=1):
+                cam_input_path = utils.make_directory(input_path / camera['name'])
+                media_list, media_type = utils.download_source_media(
+                    gc, camera['folder_id'], cam_input_path, force_transcoded
+                )
+                if frame_range is not None and media_type == constants.ImageSequenceType:
+                    media_list = filter_image_list_by_frame_range(media_list, frame_range)
+                camera_media[camera['name']] = (media_list, media_type)
+                if requires_input and camera.get('input_revision') is not None:
+                    gt_path = _working_directory_path / f'detections{cam_index}.csv'
+                    utils.download_revision_csv(
+                        gc, camera['folder_id'], camera['input_revision'], gt_path
+                    )
+
+            arg_file_pair, out_files = build_multicam_kwiver_settings(
+                _working_directory_path,
+                multicam_cameras,
+                camera_media,
+                requires_input=requires_input,
+            )
+
+            command = [
+                f". {shlex.quote(str(conf.viame_setup_script))} &&",
+                f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
+                "viame runner",
+                f"-p {shlex.quote(str(pipeline_path))}",
+            ]
+            if input_type == constants.VideoType:
+                command.extend(
+                    [
+                        '-s input:video_reader:type=vidl_ffmpeg',
+                        f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
+                    ]
+                )
+                if frame_range is not None:
+                    _append_frame_range_video_settings(
+                        command, input_folder, frame_range, pipeline['pipe']
+                    )
+            for arg, file_name in arg_file_pair.items():
+                command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
+
+            calibration_item_id = multicam_params.get('calibration_item_id')
+            if calibration_item_id and is_stereo_measurement_pipeline(pipeline):
+                cal_item = gc.getItem(calibration_item_id)
+                cal_dir = utils.make_directory(_working_directory_path / 'calibration')
+                gc.downloadItem(
+                    calibration_item_id,
+                    str(cal_dir),
+                    name=cal_item.get('name'),
+                )
+                cal_path = find_downloaded_calibration_file(cal_dir)
+                if cal_path is not None:
+                    append_stereo_calibration_kwiver_settings(command, cal_path)
+                else:
+                    manager.write(
+                        f'Warning: calibration item {calibration_item_id} '
+                        f'has no recognized calibration file under {cal_dir}\n'
+                    )
+
+            kwiver_params = params.get('kwiver_params')
+            if kwiver_params:
+                for key, value in kwiver_params.items():
+                    command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
+
+            manager.updateStatus(JobStatus.RUNNING)
+            popen_kwargs = {
+                'args': " ".join(command),
+                'shell': True,
+                'executable': '/bin/bash',
+                'cwd': output_path,
+                'env': conf.gpu_process_env,
+            }
+            utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            for camera in multicam_cameras:
+                cam_name = camera['name']
+                output_name = out_files[cam_name]
+                # Multicam KWIVER args use basename-only writers; viame cwd is output_path,
+                # so CSVs are created under output/, not the temp directory root.
+                output_file = output_path / output_name
+                if not output_file.exists() or not output_file.stat().st_size:
+                    detector_name = output_name.replace('computed_tracks', 'computed_detections')
+                    detector_path = output_path / detector_name
+                    if detector_path.exists() and detector_path.stat().st_size:
+                        output_file = detector_path
+                if frame_range is not None and camera_media[cam_name][1] == constants.VideoType:
+                    filtered_path = filter_csv_by_frame_range(str(output_file), frame_range)
+                    output_file = Path(filtered_path)
+                newfile = gc.uploadFileToFolder(camera['folder_id'], str(output_file))
+                gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+                gc.post(
+                    f'dive_rpc/postprocess/{camera["folder_id"]}',
+                    data={"skipJobs": True},
+                )
+            return
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
@@ -289,21 +466,16 @@ def run_pipeline(self: Task, params: PipelineJob):
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
             ]
             if frame_range is not None:
-                command.append(f"-s downsampler:start_frame={shlex.quote(str(frame_range[0]))}")
-                command.append(f"-s downsampler:end_frame={shlex.quote(str(frame_range[1]))}")
-                original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
-                is_native = original_fps is None or input_fps >= original_fps
-                command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
-                # Transcode/filter pipes: output frames renumbered relative to new range
-                # All other pipes: output frames relative to original video
-                renumber = pipeline["pipe"].startswith(("transcode_", "filter_"))
-                command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
-                command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
+                _append_frame_range_video_settings(
+                    command, input_folder, frame_range, pipeline['pipe']
+                )
         elif input_type == constants.ImageSequenceType:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
             if frame_range is not None:
-                filtered_media_list = filter_image_list_by_frame_range(input_media_list, frame_range)
+                filtered_media_list = filter_image_list_by_frame_range(
+                    input_media_list, frame_range
+                )
             with open(img_list_path, "w+") as img_list_file:
                 img_list_file.write('\n'.join(filtered_media_list))
             command = [
@@ -326,9 +498,10 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
-        pipeline_params = params.get('pipeline_params')
-        if pipeline_params:
-            for key, value in pipeline_params.items():
+        # Apply user-provided KWIVER parameter overrides.
+        kwiver_params = params.get('kwiver_params')
+        if kwiver_params:
+            for key, value in kwiver_params.items():
                 command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
         manager.updateStatus(JobStatus.RUNNING)
@@ -364,6 +537,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 @app.task(bind=True, acks_late=True, ignore_results=True)
 def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -406,7 +580,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             "viame runner",
             f"-p {shlex.quote(str(convert_to_onnx_pipeline_path))}",
             f"-s onnx_convert:model_path={shlex.quote(str(model_file))}",
-            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}"
+            f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}",
         ]
 
         manager.updateStatus(JobStatus.RUNNING)
@@ -427,6 +601,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
 def train_pipeline(self: Task, params: TrainingJob):
     """Train a pipeline by making a call to viame train"""
     conf = Config()
+    conf.require_viame_install()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
     if utils.check_canceled(self, context):
@@ -487,7 +662,7 @@ def train_pipeline(self: Task, params: TrainingJob):
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-            f"{shlex.quote(str(conf.viame_training_executable))} train",
+            f"{shlex.quote(str(conf.viame_executable))} train",
             "--input-list",
             shlex.quote(str(input_folder_file_list)),
             "--input-truth",
@@ -569,8 +744,10 @@ def convert_video(
         item: GirderModel = gc.getItem(itemId)
         file_name = str(_working_directory_path / item['name'])
         output_file_path = (_working_directory_path / item['name']).with_suffix('.transcoded.mp4')
+        manager.updateStatus(JobStatus.FETCHING_INPUT)
         manager.write(f'Fetching input from {itemId} to {file_name}...\n')
         gc.downloadItem(itemId, _working_directory_path, name=item.get('name'))
+        manager.updateStatus(JobStatus.RUNNING)
 
         command = [
             "ffprobe",
@@ -591,14 +768,11 @@ def convert_video(
             print('Expected 1 video stream, found {}'.format(len(videostream)))
             print('Using first Video Stream found')
 
-        # Extract average framerate
-        avgFpsString: str = videostream[0]["avg_frame_rate"]
-        originalFps = None
-        if avgFpsString:
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
-        else:
-            raise Exception('Expected key avg_frame_rate in ffprobe')
+        format_info = jsoninfo.get('format') or {}
+        format_name = format_info.get('format_name') or ''
+
+        # Extract framerate (avg_frame_rate, else r_frame_rate for e.g. MPEG-TS)
+        originalFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
 
         if requestedFps == -1:
             newAnnotationFps = originalFps
@@ -607,8 +781,21 @@ def convert_video(
         if newAnnotationFps < 1:
             raise Exception('FPS lower than 1 is not supported')
 
+        source_misaligned = False
+        if skip_transcoding:
+            source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
+
+        # Skip remux/transcode only for browser-safe sources, matching desktop checks.
+        can_skip_transcode = (
+            skip_transcoding
+            and videostream[0]['codec_name'] == 'h264'
+            and videostream[0].get('sample_aspect_ratio') == '1:1'
+            and utils.container_allows_skip_transcoding(format_name)
+            and not source_misaligned
+        )
+
         # lets determine if we don't need to transcode this file
-        if skip_transcoding and videostream[0]['codec_name'] == 'h264':
+        if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             gc.addMetadataToItem(
@@ -617,7 +804,7 @@ def convert_video(
                     "source_video": False,  # even though it is, this for requesting
                     "transcoder": "ffmpeg",
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     "codec": "h264",
                 },
             )
@@ -626,7 +813,7 @@ def convert_video(
                 {
                     constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                     constants.OriginalFPSMarker: originalFps,
-                    constants.OriginalFPSStringMarker: avgFpsString,
+                    constants.OriginalFPSStringMarker: originalFpsString,
                     constants.FPSMarker: newAnnotationFps,
                     "ffprobe_info": videostream[0],
                 },
@@ -635,7 +822,18 @@ def convert_video(
         elif skip_transcoding:
             print('Transcoding cannot be skipped:')
             print(f'Codec Name: {videostream[0]["codec_name"]}')
-            print('Codec name is not h264 so file will be transcoded')
+            print(f'format_name: {format_name}')
+            if videostream[0]['codec_name'] != 'h264':
+                print('Codec is not h264; file will be transcoded')
+            elif videostream[0].get('sample_aspect_ratio') != '1:1':
+                print(
+                    'Sample aspect ratio is not 1:1; file will be transcoded '
+                    '(desktop-parity rule)'
+                )
+            elif not utils.container_allows_skip_transcoding(format_name):
+                print('Container is not web-safe (e.g. mpegts); file will be transcoded')
+            elif source_misaligned:
+                print('Frame timestamps are misaligned; file will be transcoded')
 
         command = [
             "ffmpeg",
@@ -671,14 +869,14 @@ def convert_video(
                 "source_video": False,
                 "transcoder": "ffmpeg",
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 "codec": "h264",
             },
         )
         source_metadata = {
             "source_video": True,
             constants.OriginalFPSMarker: originalFps,
-            constants.OriginalFPSStringMarker: avgFpsString,
+            constants.OriginalFPSStringMarker: originalFpsString,
             "codec": videostream[0]["codec_name"],
         }
         if misaligned_flag:
@@ -692,7 +890,7 @@ def convert_video(
             {
                 constants.DatasetMarker: True,  # mark the parent folder as able to annotate.
                 constants.OriginalFPSMarker: originalFps,
-                constants.OriginalFPSStringMarker: avgFpsString,
+                constants.OriginalFPSStringMarker: originalFpsString,
                 constants.FPSMarker: newAnnotationFps,
                 "ffprobe_info": videostream[0],
             },
@@ -820,25 +1018,34 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
             sum_compress_size = sum([data.compress_size for data in zipObj.filelist])
             ratio = sum_file_size / sum_compress_size
             if ratio > 600:
-                manager.write(
-                    f"Compression ratio is exceedingly high at {ratio}\n\
-                    Please contact an admin at viame-web@kitware.com if this is a valid zip file"
-                )
+                manager.write(f"Compression ratio is exceedingly high at {ratio}\n\
+                    Please contact an admin at viame-web@kitware.com if this is a valid zip file")
                 raise Exception("High Compression Ratio for Zip File")
+
+            multicam_export_roots = {
+                os.path.dirname(fileName)
+                for fileName in listOfFileNames
+                if os.path.basename(fileName) == constants.MultiCamJsonFileName
+                and not fileName.endswith(os.path.sep)
+            }
 
             for fileName in listOfFileNames:
                 folderName = os.path.dirname(fileName)
                 parentName = os.path.dirname(folderName)
                 if parentName in discovered_folders and folderName != '':
                     discovered_folders[folderName] = 'ignored'
-                    continue
+                    # Nested single-camera exports stay skipped; multicam camera trees must extract.
+                    if not utils.is_path_under_multicam_export(folderName, multicam_export_roots):
+                        continue
                 if fileName.endswith(os.path.sep):
                     continue
                 if folderName not in discovered_folders:
                     discovered_folders[folderName] = 'unstructured'
                 if constants.metaRegex.search(os.path.basename(fileName)):
-                    # sub folder has a meta.json so it is an exported dataset
-                    discovered_folders[folderName] = 'dataset'
+                    if folderName in multicam_export_roots:
+                        discovered_folders[folderName] = 'multicam'
+                    else:
+                        discovered_folders[folderName] = 'dataset'
                 if fileName.endswith('.zip'):
                     raise Exception("Nested Zip Files are invalid")
                 manager.write(f"Extracting: {fileName}\n")
@@ -864,6 +1071,14 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
             subFolderName = folderName if make_subfolders else ''
             if folderType == 'unstructured':
                 utils.upload_zipped_flat_media_files(
+                    gc,
+                    manager,
+                    folderId,
+                    _working_directory_path / folderName,
+                    subFolderName,
+                )
+            elif folderType == 'multicam':
+                utils.upload_exported_multicam_zipped_dataset(
                     gc,
                     manager,
                     folderId,

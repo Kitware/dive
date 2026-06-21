@@ -20,15 +20,13 @@ def check_and_fix_frame_alignment(
     There appears to be no ffprobe way to determine if the second pass
      fixed the issue or not
     """
-    misaligned = _ffprobe_frame_alignment(task, file_path, context, manager)
+    misaligned = is_frame_misaligned(task, file_path, context, manager)
     if misaligned is True:
         return _realign_video_and_audio(task, file_path, context, manager)
     return file_path
 
 
-def _ffprobe_frame_alignment(
-    task: Task, file_path: Path, context: Dict, manager: JobManager
-) -> bool:
+def is_frame_misaligned(task: Task, file_path: Path, context: Dict, manager: JobManager) -> bool:
     command = [
         "ffprobe",
         str(file_path),

@@ -100,7 +100,7 @@ export default defineComponent({
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
         }
         const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
         setRecents(recentsMeta);
@@ -128,7 +128,7 @@ export default defineComponent({
           });
         } else {
           // Queue conversion job
-          api.convert(conversionArgs);
+          await api.convert(conversionArgs);
           // Display new data and await transcoding to complete
           const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
           setRecents(recentsMeta);
@@ -318,6 +318,7 @@ export default defineComponent({
         v-else-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
+        :enable-subfolder-import="true"
         :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
@@ -442,10 +443,11 @@ export default defineComponent({
               @multi-cam="openMultiCamDialog"
             />
             <ImportButton
-              name="Open Large Image (TIFF)"
+              name="Open Tiled GeoTIFF / TIFF"
               icon="mdi-map"
               open-type="large-image"
               class="my-3"
+              tooltip="Open a high-resolution geospatial image for tiled viewing. Supported formats: .tif, .tiff, .geotiff. Files should include internal pyramid overviews (COG recommended) for best performance."
               @open="open($event)"
             />
           </v-col>

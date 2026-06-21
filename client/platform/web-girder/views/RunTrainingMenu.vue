@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, watch, toRef,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from 'vue';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
@@ -8,7 +8,7 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -31,8 +31,7 @@ export default defineComponent({
   },
 
   setup(props) {
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
+    const { brandData } = useBrand();
     const { getTrainingConfigurations, runTraining } = useApi();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
@@ -163,6 +162,7 @@ export default defineComponent({
       <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
+          :open-delay="250"
           :disabled="menuOptions.offsetX"
         >
           <template #activator="{ on: tooltipOn }">
@@ -226,6 +226,7 @@ export default defineComponent({
               persistent-hint
             />
             <v-select
+              v-if="trainingConfigurations.training.configs.length > 0"
               v-model="selectedTrainingConfig"
               outlined
               class="my-4"
@@ -239,6 +240,7 @@ export default defineComponent({
               <template #item="{ item, on, attrs }">
                 <v-tooltip
                   left
+                  :open-delay="250"
                   :disabled="!item.description"
                   max-width="300"
                   content-class="training-config-tooltip"
@@ -249,7 +251,7 @@ export default defineComponent({
                       v-on="{ ...on, ...tooltipOn }"
                     >
                       <v-list-item-content>
-                        <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
+                        <v-list-item-title>{{ simplifyTrainingName(item.name || item) }}</v-list-item-title>
                       </v-list-item-content>
                     </v-list-item>
                   </template>
@@ -257,7 +259,7 @@ export default defineComponent({
                 </v-tooltip>
               </template>
               <template #selection="{ item }">
-                {{ simplifyTrainingName(item.name) }}
+                {{ simplifyTrainingName(item.name || item) }}
               </template>
             </v-select>
             <v-file-input

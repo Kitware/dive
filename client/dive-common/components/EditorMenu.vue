@@ -60,6 +60,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    lassoModeActive: {
+      type: Boolean,
+      default: false,
+    },
+    lassoDrawing: {
+      type: Boolean,
+      default: false,
+    },
     tailSettings: {
       type: Object as PropType<{ before: number; after: number }>,
       default: () => ({ before: 20, after: 10 }),
@@ -216,6 +224,12 @@ export default defineComponent({
     const editButtonsMenuKey = computed(() => `${props.editingMode}-${editButtons.value.length}-${activeEditButton.value?.id || ''}`);
 
     const editingHeader = computed(() => {
+      if (props.lassoDrawing) {
+        return { text: 'Lasso Selection', icon: 'mdi-gesture', color: 'info' };
+      }
+      if (props.lassoModeActive) {
+        return { text: 'Lasso Mode', icon: 'mdi-gesture', color: 'info' };
+      }
       if (props.groupEditActive) {
         return { text: 'Group Edit Mode', icon: 'mdi-group', color: 'primary' };
       }
@@ -311,7 +325,14 @@ export default defineComponent({
           <div
             style="line-height: 1.22em; font-size: 10px;"
           >
-            <span v-if="groupEditActive">
+            <span v-if="lassoDrawing">
+              Release the mouse to select all tracks inside the lasso.
+            </span>
+            <span v-else-if="lassoModeActive">
+              Drag around tracks to select them. Release Alt when finished.
+              Hold Ctrl while dragging to add to the current selection.
+            </span>
+            <span v-else-if="groupEditActive">
               Editing group.  Add or remove tracks.  Esc. to exit.
             </span>
             <span v-else-if="multiSelectActive">

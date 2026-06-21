@@ -7,6 +7,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 
 function getGitHash() {
   try {
@@ -37,10 +38,14 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
+    css: cssConfig,
     plugins: [vue()],
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
+        // Force a single Vue build; production Rollup can otherwise bundle both
+        // vue.runtime.esm.js (from vuetify/lib) and vue.runtime.common.prod.js (from vuetify dist).
+        vue: resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm.js'),
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
@@ -64,10 +69,24 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true,
         },
+        // WebSocket for Girder notifications (not under /api; see notificatonBus.ts).
+        '/notifications': {
+          target: apiProxyTarget,
+          secure: false,
+          ws: true,
+        },
       },
     },
     optimizeDeps: {
-      include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
+      include: [
+        'axios',
+        'qs',
+        'markdown-it',
+        'js-cookie',
+        'vue',
+        'vuetify',
+        '@girder/components/src',
+      ],
     },
     build: {
       sourcemap: true,
@@ -80,7 +99,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    base: mode === 'production' ? '/static/viame/' : '/',
+    base: '/',
     test: {
       globals: true,
     },

@@ -1,12 +1,14 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 __all__ = [
     "DiveParam",
     "GirderModel",
     "PipelineDescription",
+    "PipelineParams",
+    "PipelineRuntimeParams",
     "PipelineJob",
     "PipelineCategory",
     "PipelineRequirement",
@@ -98,6 +100,24 @@ class PipelineDescription(TypedDict):
     folderId: Optional[str]
 
 
+class PipelineRuntimeParams(TypedDict, total=False):
+    frameRange: Optional[Tuple[int, int]]
+
+
+class PipelineParams(TypedDict, total=False):
+    kwiverParams: Dict[str, str]
+    runtimeParams: PipelineRuntimeParams
+
+
+class MulticamCameraJob(TypedDict):
+    """Per-camera folder info for a multicam pipeline job."""
+
+    name: str
+    folder_id: str
+    media_type: str
+    input_revision: NotRequired[Optional[int]]
+
+
 class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
 
@@ -109,8 +129,17 @@ class PipelineJob(TypedDict):
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]
-    frame_range: Optional[Tuple[int, int]]
-    pipeline_params: Optional[Dict[str, str]]
+    runtime_params: Optional[PipelineRuntimeParams]
+    kwiver_params: Optional[Dict[str, str]]
+
+
+class MulticamPipelineJob(PipelineJob, total=False):
+    """Pipeline job fields set when running stereo/multicam pipelines on a multi dataset."""
+
+    multicam_cameras: List[MulticamCameraJob]
+    multicam_default_display: str
+    calibration_item_id: Optional[str]
+    multicam_requires_input: bool
 
 
 class TrainingJob(TypedDict):

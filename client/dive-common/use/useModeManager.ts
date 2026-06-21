@@ -31,7 +31,11 @@ type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSO
 /* default to index + 1
  * call with -1 to select previous, or pass any other delta
  */
-function selectNext<T extends SortedAnnotation<T>>(filtered: Readonly<T>[], selected: Readonly<AnnotationId | null>, delta = 1): AnnotationId | null {
+function selectNext<T extends SortedAnnotation<T>>(
+  filtered: readonly T[],
+  selected: Readonly<AnnotationId | null>,
+  delta = 1,
+): AnnotationId | null {
   if (filtered.length > 0) {
     if (selected === null) {
       // if no track is selected, return the first trackId
@@ -300,6 +304,27 @@ export default function useModeManager({
       selectedFeatureHandle.value = -1;
     }
     _selectKey(key);
+  }
+
+  function handleLassoSelect(
+    trackIds: AnnotationId[],
+    modifiers: { ctrl: boolean } = { ctrl: false },
+  ) {
+    if (creating || trackIds.length === 0) {
+      return;
+    }
+    creating = false;
+    if (modifiers?.ctrl) {
+      const selected = new Set(multiSelectList.value);
+      trackIds.forEach((id) => selected.add(id));
+      multiSelectList.value = Array.from(selected);
+    } else {
+      multiSelectList.value = [...trackIds];
+    }
+    editingMultiTrack.value = true;
+    selectedTrackId.value = null;
+    editingTrack.value = false;
+    editingGroupId.value = null;
   }
 
   function handleSelectTrack(
@@ -957,8 +982,11 @@ export default function useModeManager({
     handleSelectTrack(trackId, editingTrack.value, modifiers);
   }
 
-  function handleSelectNext(delta: number) {
-    const newTrack = selectNextTrack(delta);
+  function handleSelectNext(
+    delta: number,
+    filteredOverride?: readonly SortedAnnotation<Track>[],
+  ) {
+    const newTrack = selectNext(filteredOverride ?? _filteredTracks.value, selectedTrackId.value, delta);
     /** Only allow selectNext when not in group editing mode. */
     if (newTrack !== null && editingGroupId.value === null) {
       handleSelectTrack(newTrack, false);
@@ -1556,6 +1584,7 @@ export default function useModeManager({
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,
+      lassoSelect: handleLassoSelect,
       trackSelectNext: handleSelectNext,
       setTrackFeature: handleSetTrackFeature,
       updateRectBounds: handleUpdateRectBounds,

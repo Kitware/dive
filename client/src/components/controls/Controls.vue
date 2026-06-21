@@ -26,6 +26,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    wrapBottomControls: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     const data = reactive({
@@ -41,6 +45,8 @@ export default defineComponent({
     const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
+    const activeBottomControlsMenu = ref(false);
+    const bottomControlsActivatorId = 'bottom-controls-menu-activator';
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
@@ -120,7 +126,8 @@ export default defineComponent({
     function updateTimeFilterMin(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
-        trackFilters.setTimeFilters([value, current[1]]);
+        const newMin = Math.max(0, Math.min(value, current[1]));
+        trackFilters.setTimeFilters([newMin, current[1]]);
         saveTimeFilter();
       }
     }
@@ -128,7 +135,8 @@ export default defineComponent({
     function updateTimeFilterMax(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
-        trackFilters.setTimeFilters([current[0], value]);
+        const newMax = Math.min(mediaController.maxFrame.value, Math.max(value, current[0]));
+        trackFilters.setTimeFilters([current[0], newMax]);
         saveTimeFilter();
       }
     }
@@ -205,6 +213,8 @@ export default defineComponent({
     return {
       activeLockedCamera,
       activeTimeFilter,
+      activeBottomControlsMenu,
+      bottomControlsActivatorId,
       data,
       mediaController,
       dragHandler,
@@ -380,334 +390,146 @@ export default defineComponent({
         @end="dragHandler.end"
         @input="input"
       />
-      <v-row no-gutters>
-        <v-col class="pl-1 py-1 shrink">
-          <slot
-            justify="start"
-            name="timelineControls"
-          />
+      <v-row
+        no-gutters
+        :class="{
+          'bottom-controls-row': wrapBottomControls,
+          'bottom-controls-row-nowrap': !wrapBottomControls,
+        }"
+      >
+        <v-col
+          class="pl-1 py-1 shrink"
+          :class="{ 'bottom-controls-left': bottomLayout }"
+        >
+          <div class="d-flex align-center w-100">
+            <slot
+              justify="start"
+              name="timelineControls"
+            />
+            <slot
+              name="bottomControlsActivator"
+              :activator-id="bottomControlsActivatorId"
+            />
+          </div>
         </v-col>
         <v-col
-          class="py-1 shrink d-flex align-center"
-          :style="{ 'min-width': bottomLayout ? 'auto' : '100px' }"
+          v-if="bottomLayout"
+          class="py-1 shrink d-flex align-center bottom-controls-actions"
+          style="min-width: auto;"
         >
-          <v-btn
-            icon
-            small
-            title="(d, left-arrow) previous frame"
-            @click="mediaController.prevFrame"
+          <v-menu
+            v-model="activeTimeFilter"
+            bottom
+            offset-y
+            :nudge-bottom="8"
+            right
+            content-class="time-filter-menu-content"
+            :close-on-content-click="false"
+            open-on-hover
+            open-delay="750"
+            close-delay="500"
           >
-            <v-icon>mdi-skip-previous</v-icon>
-          </v-btn>
-          <v-btn
-            v-if="!mediaController.playing.value"
-            icon
-            small
-            title="(space) Play"
-            @click="mediaController.play"
-          >
-            <v-icon>mdi-play</v-icon>
-          </v-btn>
-          <v-btn
-            v-else
-            icon
-            small
-            title="(space) Pause"
-            @click="mediaController.pause"
-          >
-            <v-icon>mdi-pause</v-icon>
-          </v-btn>
-          <v-btn
-            icon
-            small
-            title="(f, right-arrow) next frame"
-            @click="mediaController.nextFrame"
-          >
-            <v-icon>mdi-skip-next</v-icon>
-          </v-btn>
-          <!-- Control buttons inline in bottom layout -->
-          <template v-if="bottomLayout">
-            <v-divider vertical class="mx-1" />
-            <v-menu
-              v-model="activeTimeFilter"
-              :nudge-left="28"
-              left
-              top
-              :close-on-content-click="false"
-              open-on-hover
-              open-delay="750"
-              close-delay="500"
-            >
-              <template #activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  :color="timeFilterActive ? 'primary' : 'default'"
-                  title="Filter tracks by time range"
-                  v-bind="attrs"
-                  v-on="on"
-                  @click="toggleTimeFilter"
-                >
-                  <v-icon v-bind="attrs" v-on="on">
-                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-                  </v-icon>
-                </v-btn>
-              </template>
-              <v-card
-                outlined
-                class="pa-2 pr-4"
-                color="blue-grey darken-3"
-                style="overflow-y: none"
-              >
-                <v-card-title>
-                  Time Filter Settings
-                </v-card-title>
-                <v-card-text>
-                  <v-row class="align-center" dense>
-                    <v-col>
-                      <div class="text-caption mb-2">
-                        Filter tracks to only show those that intersect with this time range.
-                      </div>
-                    </v-col>
-                  </v-row>
-                  <div v-if="timeFilterActive">
-                    <v-row class="align-center" dense>
-                      <v-col>
-                        Min Frame:
-                      </v-col>
-                      <v-col v-if="isVideo">
-                        {{ formatTimestamp(timeFilterMin) }}
-                      </v-col>
-                      <v-col>
-                        <v-slider
-                          :value="timeFilterMin"
-                          :min="0"
-                          :max="mediaController.maxFrame.value"
-                          step="1"
-                          dense
-                          hide-details
-                          thumb-label="always"
-                          @change="updateTimeFilterMin"
-                        />
-                      </v-col>
-                    </v-row>
-                    <v-row class="align-center" dense>
-                      <v-col>
-                        Max Frame:
-                      </v-col>
-                      <v-col v-if="isVideo">
-                        {{ formatTimestamp(timeFilterMax) }}
-                      </v-col>
-                      <v-col>
-                        <v-slider
-                          :value="timeFilterMax"
-                          :min="0"
-                          :max="mediaController.maxFrame.value"
-                          step="1"
-                          dense
-                          hide-details
-                          thumb-label="always"
-                          @change="updateTimeFilterMax"
-                        />
-                      </v-col>
-                    </v-row>
-                  </div>
-                  <div v-else>
-                    <p>Click the filter icon to enable time filtering</p>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-            <v-menu
-              v-model="activeLockedCamera"
-              :nudge-left="28"
-              left
-              top
-              :close-on-content-click="false"
-              open-on-hover
-              open-delay="750"
-              close-delay="500"
-            >
-              <template #activator="{ on, attrs }">
-                <v-btn
-                  icon
-                  small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
-                  title="center camera on selected track"
-                  v-bind="attrs"
-                  v-on="on"
-                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
-                >
-                  <v-icon>
-                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
-                  </v-icon>
-                </v-btn>
-              </template>
-              <v-card
-                outlined
-                class="pa-2 pr-4"
-                color="blue-grey darken-3"
-                style="overflow-y: none"
-              >
-                <v-card-title>
-                  Locked Camera Settings
-                </v-card-title>
-                <v-card-text v-if="clientSettings.annotatorPreferences.lockedCamera">
-                  <v-row class="align-center" dense>
-                    <v-col>
-                      <v-switch
-                        v-model="transitionVal"
-                        small
-                        label="Transition"
-                        @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
-                      />
-                    </v-col>
-                    <v-col
-                      cols="2"
-                      align="right"
-                    >
-                      <v-tooltip
-                        open-delay="200"
-                        bottom
-                      >
-                        <template #activator="{ on }">
-                          <v-icon
-                            small
-                            v-on="on"
-                          >
-                            mdi-help
-                          </v-icon>
-                        </template>
-                        <span>Enables a transition to see where in the image the selected track is located</span>
-                      </v-tooltip>
-                    </v-col>
-                  </v-row>
-                  <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.transition" class="align-center" dense>
-                    <v-col>
-                      Transition Time (ms):
-                    </v-col>
-                    <v-col>
-                      <v-slider
-                        :value="clientSettings.annotatorPreferences.lockedCamera.transition"
-                        min="100"
-                        max="2000"
-                        step="50"
-                        dense
-                        hide-details
-                        thumb-label="always"
-                        @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
-                      />
-                    </v-col>
-                  </v-row>
-                  <v-row class="align-center" dense>
-                    <v-col>
-                      <v-switch
-                        v-model="multBoundsVal"
-                        small
-                        label="Multiply Bounds"
-                        @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
-                      />
-                    </v-col>
-                    <v-col
-                      cols="2"
-                      align="right"
-                    >
-                      <v-tooltip
-                        open-delay="200"
-                        bottom
-                      >
-                        <template #activator="{ on }">
-                          <v-icon
-                            small
-                            v-on="on"
-                          >
-                            mdi-help
-                          </v-icon>
-                        </template>
-                        <span>If set this will zoom into a Y times the bounds around the selected track. If not set it will use the current zoom level</span>
-                      </v-tooltip>
-                    </v-col>
-                  </v-row>
-                  <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.multiBounds" class="align-center" dense>
-                    <v-col>
-                      Multiply Bounds:
-                    </v-col>
-                    <v-col>
-                      <v-slider
-                        :value="clientSettings.annotatorPreferences.lockedCamera.multiBounds"
-                        min="1"
-                        max="4"
-                        step="0.1"
-                        dense
-                        hide-details
-                        thumb-label="always"
-                        @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
-                      />
-                    </v-col>
-                  </v-row>
-                </v-card-text>
-              </v-card>
-            </v-menu>
-            <v-btn
-              icon
-              small
-              title="(r)eset pan and zoom"
-              @click="mediaController.resetZoom"
-            >
-              <v-icon>mdi-image-filter-center-focus</v-icon>
-            </v-btn>
-            <v-badge
-              :value="!isDefaultImage"
-              color="warning"
-              dot
-              overlap
-              bottom
-            >
+            <template #activator="{ on, attrs }">
               <v-btn
+                ref="timeFilterBtnRef"
                 icon
                 small
-                :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
-                @click="toggleEnhancements"
+                :color="timeFilterActive ? 'primary' : 'default'"
+                title="Filter tracks by time range"
+                v-bind="attrs"
+                v-on="on"
+                @click="handleTimeFilterClick"
               >
-                <v-icon>mdi-contrast-box</v-icon>
+                <v-icon>
+                  {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+                </v-icon>
               </v-btn>
-            </v-badge>
-            <v-btn
-              v-if="mediaController.cameras.value.length > 1"
-              icon
-              small
-              :color="mediaController.cameraSync.value ? 'primary' : 'default'"
-              title="Synchronize camera controls"
-              @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+            </template>
+            <v-card
+              outlined
+              class="pa-2 pr-4"
+              color="blue-grey darken-3"
+              style="overflow-y: none"
             >
-              <v-icon>
-                {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-              </v-icon>
-            </v-btn>
-          </template>
-        </v-col>
-        <v-col
-          class="pl-1 py-1"
-        >
-          <slot name="middle" />
-        </v-col>
-        <v-col
-          v-if="!bottomLayout"
-          class="pl-1 py-1 shrink d-flex"
-          align="right"
-        >
-          <v-btn
-            ref="timeFilterBtnRef"
-            icon
-            small
-            :color="timeFilterActive ? 'primary' : 'default'"
-            title="Filter tracks by time range"
-            @click.stop="handleTimeFilterClick"
-          >
-            <v-icon>
-              {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-            </v-icon>
-          </v-btn>
+              <v-card-title>
+                Time Filter Settings
+              </v-card-title>
+              <v-card-text>
+                <v-row class="align-center" dense>
+                  <v-col>
+                    <div class="text-caption mb-2">
+                      Filter tracks to only show those that intersect with this time range.
+                    </div>
+                  </v-col>
+                </v-row>
+                <div v-if="timeFilterActive">
+                  <v-row class="align-center time-filter-row" dense>
+                    <v-col cols="auto" class="time-filter-label">
+                      Min Frame:
+                    </v-col>
+                    <v-col>
+                      <v-slider
+                        :value="timeFilterMin"
+                        :min="0"
+                        :max="mediaController.maxFrame.value"
+                        step="1"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="updateTimeFilterMin"
+                      >
+                        <template v-if="isVideo" #append>
+                          <v-text-field
+                            v-model="minTimeInput"
+                            class="time-filter-input"
+                            dense
+                            outlined
+                            hide-details
+                            placeholder="HH:MM:SS"
+                            @blur="applyMinTime"
+                            @keyup.enter="applyMinTime"
+                          />
+                        </template>
+                      </v-slider>
+                    </v-col>
+                  </v-row>
+                  <v-row class="align-center time-filter-row" dense>
+                    <v-col cols="auto" class="time-filter-label">
+                      Max Frame:
+                    </v-col>
+                    <v-col>
+                      <v-slider
+                        :value="timeFilterMax"
+                        :min="0"
+                        :max="mediaController.maxFrame.value"
+                        step="1"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="updateTimeFilterMax"
+                      >
+                        <template v-if="isVideo" #append>
+                          <v-text-field
+                            v-model="maxTimeInput"
+                            class="time-filter-input"
+                            dense
+                            outlined
+                            hide-details
+                            placeholder="HH:MM:SS"
+                            @blur="applyMaxTime"
+                            @keyup.enter="applyMaxTime"
+                          />
+                        </template>
+                      </v-slider>
+                    </v-col>
+                  </v-row>
+                </div>
+                <p v-else>
+                  Click the filter icon to enable time filtering
+                </p>
+              </v-card-text>
+            </v-card>
+          </v-menu>
           <v-menu
             v-model="activeLockedCamera"
             :nudge-left="28"
@@ -851,33 +673,813 @@ export default defineComponent({
             color="warning"
             dot
             overlap
+          />
+          <v-menu
+            v-model="activeBottomControlsMenu"
+            :activator="`#${bottomControlsActivatorId}`"
+            :nudge-left="8"
+            left
             bottom
+            :close-on-content-click="false"
+          >
+            <v-card
+              outlined
+              class="pa-2"
+              color="blue-grey darken-3"
+              min-width="360"
+            >
+              <div class="d-flex align-center mb-2">
+                <slot name="middle" />
+              </div>
+              <div class="d-flex align-center">
+                <v-btn
+                  icon
+                  small
+                  title="(d, left-arrow) previous frame"
+                  @click="mediaController.prevFrame"
+                >
+                  <v-icon>mdi-skip-previous</v-icon>
+                </v-btn>
+                <v-btn
+                  v-if="!mediaController.playing.value"
+                  icon
+                  small
+                  title="(space) Play"
+                  @click="mediaController.play"
+                >
+                  <v-icon>mdi-play</v-icon>
+                </v-btn>
+                <v-btn
+                  v-else
+                  icon
+                  small
+                  title="(space) Pause"
+                  @click="mediaController.pause"
+                >
+                  <v-icon>mdi-pause</v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  small
+                  title="(f, right-arrow) next frame"
+                  @click="mediaController.nextFrame"
+                >
+                  <v-icon>mdi-skip-next</v-icon>
+                </v-btn>
+                <v-divider vertical class="mx-1" />
+                <v-btn
+                  icon
+                  small
+                  :color="timeFilterActive ? 'primary' : 'default'"
+                  title="Filter tracks by time range"
+                  @click="handleTimeFilterClick"
+                >
+                  <v-icon>
+                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+                  </v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  small
+                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                  title="center camera on selected track"
+                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
+                >
+                  <v-icon>
+                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
+                  </v-icon>
+                </v-btn>
+                <v-btn
+                  icon
+                  small
+                  title="(r)eset pan and zoom"
+                  @click="mediaController.resetZoom"
+                >
+                  <v-icon>mdi-image-filter-center-focus</v-icon>
+                </v-btn>
+                <v-badge
+                  :value="!isDefaultImage"
+                  color="warning"
+                  dot
+                  overlap
+                  bottom
+                >
+                  <v-btn
+                    icon
+                    small
+                    :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+                    @click="toggleEnhancements"
+                  >
+                    <v-icon>mdi-contrast-box</v-icon>
+                  </v-btn>
+                </v-badge>
+                <v-btn
+                  v-if="mediaController.cameras.value.length > 1"
+                  icon
+                  small
+                  :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+                  title="Synchronize camera controls"
+                  @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+                >
+                  <v-icon>
+                    {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+                  </v-icon>
+                </v-btn>
+              </div>
+            </v-card>
+          </v-menu>
+        </v-col>
+        <template v-else>
+          <v-col
+            class="py-1 shrink d-flex align-center"
+            :class="{ 'bottom-controls-actions': bottomLayout }"
+            :style="{ 'min-width': bottomLayout ? 'auto' : '100px' }"
           >
             <v-btn
               icon
               small
-              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
-              @click="toggleEnhancements"
+              title="(d, left-arrow) previous frame"
+              @click="mediaController.prevFrame"
             >
-              <v-icon>mdi-contrast-box</v-icon>
+              <v-icon>mdi-skip-previous</v-icon>
             </v-btn>
-          </v-badge>
-
-          <v-btn
-            v-if="mediaController.cameras.value.length > 1"
-            icon
-            small
-            :color="mediaController.cameraSync.value ? 'primary' : 'default'"
-            title="Synchronize camera controls"
-
-            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+            <v-btn
+              v-if="!mediaController.playing.value"
+              icon
+              small
+              title="(space) Play"
+              @click="mediaController.play"
+            >
+              <v-icon>mdi-play</v-icon>
+            </v-btn>
+            <v-btn
+              v-else
+              icon
+              small
+              title="(space) Pause"
+              @click="mediaController.pause"
+            >
+              <v-icon>mdi-pause</v-icon>
+            </v-btn>
+            <v-btn
+              icon
+              small
+              title="(f, right-arrow) next frame"
+              @click="mediaController.nextFrame"
+            >
+              <v-icon>mdi-skip-next</v-icon>
+            </v-btn>
+            <!-- Control buttons inline in bottom layout -->
+            <template v-if="bottomLayout">
+              <v-divider vertical class="mx-1" />
+              <v-menu
+                v-model="activeTimeFilter"
+                :nudge-left="28"
+                left
+                top
+                :close-on-content-click="false"
+                open-on-hover
+                open-delay="750"
+                close-delay="500"
+              >
+                <template #activator="{ on, attrs }">
+                  <v-btn
+                    icon
+                    small
+                    :color="timeFilterActive ? 'primary' : 'default'"
+                    title="Filter tracks by time range"
+                    v-bind="attrs"
+                    v-on="on"
+                    @click="handleTimeFilterClick"
+                  >
+                    <v-icon v-bind="attrs" v-on="on">
+                      {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <v-card
+                  outlined
+                  class="pa-2 pr-4"
+                  color="blue-grey darken-3"
+                  style="overflow-y: none"
+                >
+                  <v-card-title>
+                    Time Filter Settings
+                  </v-card-title>
+                  <v-card-text>
+                    <v-row class="align-center" dense>
+                      <v-col>
+                        <div class="text-caption mb-2">
+                          Filter tracks to only show those that intersect with this time range.
+                        </div>
+                      </v-col>
+                    </v-row>
+                    <div v-if="timeFilterActive">
+                      <v-row class="align-center time-filter-row" dense>
+                        <v-col cols="auto" class="time-filter-label">
+                          Min Frame:
+                        </v-col>
+                        <v-col>
+                          <v-slider
+                            :value="timeFilterMin"
+                            :min="0"
+                            :max="mediaController.maxFrame.value"
+                            step="1"
+                            dense
+                            hide-details
+                            thumb-label="always"
+                            @change="updateTimeFilterMin"
+                          >
+                            <template v-if="isVideo" #append>
+                              <v-text-field
+                                v-model="minTimeInput"
+                                class="time-filter-input"
+                                dense
+                                outlined
+                                hide-details
+                                placeholder="HH:MM:SS"
+                                @blur="applyMinTime"
+                                @keyup.enter="applyMinTime"
+                              />
+                            </template>
+                          </v-slider>
+                        </v-col>
+                      </v-row>
+                      <v-row class="align-center time-filter-row" dense>
+                        <v-col cols="auto" class="time-filter-label">
+                          Max Frame:
+                        </v-col>
+                        <v-col>
+                          <v-slider
+                            :value="timeFilterMax"
+                            :min="0"
+                            :max="mediaController.maxFrame.value"
+                            step="1"
+                            dense
+                            hide-details
+                            thumb-label="always"
+                            @change="updateTimeFilterMax"
+                          >
+                            <template v-if="isVideo" #append>
+                              <v-text-field
+                                v-model="maxTimeInput"
+                                class="time-filter-input"
+                                dense
+                                outlined
+                                hide-details
+                                placeholder="HH:MM:SS"
+                                @blur="applyMaxTime"
+                                @keyup.enter="applyMaxTime"
+                              />
+                            </template>
+                          </v-slider>
+                        </v-col>
+                      </v-row>
+                    </div>
+                    <div v-else>
+                      <p>Click the filter icon to enable time filtering</p>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-menu>
+              <v-menu
+                v-model="activeLockedCamera"
+                :nudge-left="28"
+                left
+                top
+                :close-on-content-click="false"
+                open-on-hover
+                open-delay="750"
+                close-delay="500"
+              >
+                <template #activator="{ on, attrs }">
+                  <v-btn
+                    icon
+                    small
+                    :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                    title="center camera on selected track"
+                    v-bind="attrs"
+                    v-on="on"
+                    @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
+                  >
+                    <v-icon>
+                      {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <v-card
+                  outlined
+                  class="pa-2 pr-4"
+                  color="blue-grey darken-3"
+                  style="overflow-y: none"
+                >
+                  <v-card-title>
+                    Locked Camera Settings
+                  </v-card-title>
+                  <v-card-text v-if="clientSettings.annotatorPreferences.lockedCamera">
+                    <v-row class="align-center" dense>
+                      <v-col>
+                        <v-switch
+                          v-model="transitionVal"
+                          small
+                          label="Transition"
+                          @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
+                        />
+                      </v-col>
+                      <v-col
+                        cols="2"
+                        align="right"
+                      >
+                        <v-tooltip
+                          open-delay="200"
+                          bottom
+                        >
+                          <template #activator="{ on }">
+                            <v-icon
+                              small
+                              v-on="on"
+                            >
+                              mdi-help
+                            </v-icon>
+                          </template>
+                          <span>Enables a transition to see where in the image the selected track is located</span>
+                        </v-tooltip>
+                      </v-col>
+                    </v-row>
+                    <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.transition" class="align-center" dense>
+                      <v-col>
+                        Transition Time (ms):
+                      </v-col>
+                      <v-col>
+                        <v-slider
+                          :value="clientSettings.annotatorPreferences.lockedCamera.transition"
+                          min="100"
+                          max="2000"
+                          step="50"
+                          dense
+                          hide-details
+                          thumb-label="always"
+                          @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
+                        />
+                      </v-col>
+                    </v-row>
+                    <v-row class="align-center" dense>
+                      <v-col>
+                        <v-switch
+                          v-model="multBoundsVal"
+                          small
+                          label="Multiply Bounds"
+                          @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
+                        />
+                      </v-col>
+                      <v-col
+                        cols="2"
+                        align="right"
+                      >
+                        <v-tooltip
+                          open-delay="200"
+                          bottom
+                        >
+                          <template #activator="{ on }">
+                            <v-icon
+                              small
+                              v-on="on"
+                            >
+                              mdi-help
+                            </v-icon>
+                          </template>
+                          <span>If set this will zoom into a Y times the bounds around the selected track. If not set it will use the current zoom level</span>
+                        </v-tooltip>
+                      </v-col>
+                    </v-row>
+                    <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.multiBounds" class="align-center" dense>
+                      <v-col>
+                        Multiply Bounds:
+                      </v-col>
+                      <v-col>
+                        <v-slider
+                          :value="clientSettings.annotatorPreferences.lockedCamera.multiBounds"
+                          min="1"
+                          max="4"
+                          step="0.1"
+                          dense
+                          hide-details
+                          thumb-label="always"
+                          @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
+                        />
+                      </v-col>
+                    </v-row>
+                  </v-card-text>
+                </v-card>
+              </v-menu>
+              <v-btn
+                icon
+                small
+                title="(r)eset pan and zoom"
+                @click="mediaController.resetZoom"
+              >
+                <v-icon>mdi-image-filter-center-focus</v-icon>
+              </v-btn>
+              <v-badge
+                :value="!isDefaultImage"
+                color="warning"
+                dot
+                overlap
+                bottom
+              >
+                <v-btn
+                  icon
+                  small
+                  :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+                  @click="toggleEnhancements"
+                >
+                  <v-icon>mdi-contrast-box</v-icon>
+                </v-btn>
+              </v-badge>
+              <v-btn
+                v-if="mediaController.cameras.value.length > 1"
+                icon
+                small
+                :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+                title="Synchronize camera controls"
+                @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+              >
+                <v-icon>
+                  {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+                </v-icon>
+              </v-btn>
+            </template>
+          </v-col>
+          <v-col
+            class="pl-1 py-1"
+            :class="{ 'bottom-controls-middle': bottomLayout }"
           >
-            <v-icon>
-              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-            </v-icon>
-          </v-btn>
-        </v-col>
+            <slot name="middle" />
+          </v-col>
+          <v-col
+            v-if="!bottomLayout"
+            class="pl-1 py-1 shrink d-flex"
+            align="right"
+          >
+            <v-menu
+              v-model="activeTimeFilter"
+              :nudge-left="28"
+              left
+              top
+              :close-on-content-click="false"
+              open-on-hover
+              open-delay="750"
+              close-delay="500"
+            >
+              <template #activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  :color="timeFilterActive ? 'primary' : 'default'"
+                  title="Filter tracks by time range"
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="handleTimeFilterClick"
+                >
+                  <v-icon v-bind="attrs" v-on="on">
+                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-card
+                outlined
+                class="pa-2 pr-4"
+                color="blue-grey darken-3"
+                style="overflow-y: none"
+              >
+                <v-card-title>
+                  Time Filter Settings
+                </v-card-title>
+                <v-card-text>
+                  <v-row class="align-center" dense>
+                    <v-col>
+                      <div class="text-caption mb-2">
+                        Filter tracks to only show those that intersect with this time range.
+                      </div>
+                    </v-col>
+                  </v-row>
+                  <div v-if="timeFilterActive">
+                    <v-row class="align-center time-filter-row" dense>
+                      <v-col cols="auto" class="time-filter-label">
+                        Min Frame:
+                      </v-col>
+                      <v-col>
+                        <v-slider
+                          :value="timeFilterMin"
+                          :min="0"
+                          :max="mediaController.maxFrame.value"
+                          step="1"
+                          dense
+                          hide-details
+                          thumb-label="always"
+                          @change="updateTimeFilterMin"
+                        >
+                          <template v-if="isVideo" #append>
+                            <v-text-field
+                              v-model="minTimeInput"
+                              class="time-filter-input"
+                              dense
+                              outlined
+                              hide-details
+                              placeholder="HH:MM:SS"
+                              @blur="applyMinTime"
+                              @keyup.enter="applyMinTime"
+                            />
+                          </template>
+                        </v-slider>
+                      </v-col>
+                    </v-row>
+                    <v-row class="align-center time-filter-row" dense>
+                      <v-col cols="auto" class="time-filter-label">
+                        Max Frame:
+                      </v-col>
+                      <v-col>
+                        <v-slider
+                          :value="timeFilterMax"
+                          :min="0"
+                          :max="mediaController.maxFrame.value"
+                          step="1"
+                          dense
+                          hide-details
+                          thumb-label="always"
+                          @change="updateTimeFilterMax"
+                        >
+                          <template v-if="isVideo" #append>
+                            <v-text-field
+                              v-model="maxTimeInput"
+                              class="time-filter-input"
+                              dense
+                              outlined
+                              hide-details
+                              placeholder="HH:MM:SS"
+                              @blur="applyMaxTime"
+                              @keyup.enter="applyMaxTime"
+                            />
+                          </template>
+                        </v-slider>
+                      </v-col>
+                    </v-row>
+                  </div>
+                  <div v-else>
+                    <p>Click the filter icon to enable time filtering</p>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-menu>
+            <v-menu
+              v-model="activeLockedCamera"
+              :nudge-left="28"
+              left
+              top
+              :close-on-content-click="false"
+              open-on-hover
+              open-delay="750"
+              close-delay="500"
+            >
+              <template #activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                  title="center camera on selected track"
+                  v-bind="attrs"
+                  v-on="on"
+                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
+                >
+                  <v-icon>
+                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-card
+                outlined
+                class="pa-2 pr-4"
+                color="blue-grey darken-3"
+                style="overflow-y: none"
+              >
+                <v-card-title>
+                  Locked Camera Settings
+                </v-card-title>
+                <v-card-text v-if="clientSettings.annotatorPreferences.lockedCamera">
+                  <v-row class="align-center" dense>
+                    <v-col>
+                      <v-switch
+                        v-model="transitionVal"
+                        small
+                        label="Transition"
+                        @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
+                      />
+                    </v-col>
+                    <v-col
+                      cols="2"
+                      align="right"
+                    >
+                      <v-tooltip
+                        open-delay="200"
+                        bottom
+                      >
+                        <template #activator="{ on }">
+                          <v-icon
+                            small
+                            v-on="on"
+                          >
+                            mdi-help
+                          </v-icon>
+                        </template>
+                        <span>Enables a transition to see where in the image the selected track is located</span>
+                      </v-tooltip>
+                    </v-col>
+                  </v-row>
+                  <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.transition" class="align-center" dense>
+                    <v-col>
+                      Transition Time (ms):
+                    </v-col>
+                    <v-col>
+                      <v-slider
+                        :value="clientSettings.annotatorPreferences.lockedCamera.transition"
+                        min="100"
+                        max="2000"
+                        step="50"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="clientSettings.annotatorPreferences.lockedCamera.transition = $event"
+                      />
+                    </v-col>
+                  </v-row>
+                  <v-row class="align-center" dense>
+                    <v-col>
+                      <v-switch
+                        v-model="multBoundsVal"
+                        small
+                        label="Multiply Bounds"
+                        @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
+                      />
+                    </v-col>
+                    <v-col
+                      cols="2"
+                      align="right"
+                    >
+                      <v-tooltip
+                        open-delay="200"
+                        bottom
+                      >
+                        <template #activator="{ on }">
+                          <v-icon
+                            small
+                            v-on="on"
+                          >
+                            mdi-help
+                          </v-icon>
+                        </template>
+                        <span>If set this will zoom into a Y times the bounds around the selected track.  If not set it will use the current zoom level</span>
+                      </v-tooltip>
+                    </v-col>
+                  </v-row>
+                  <v-row v-if="!!clientSettings.annotatorPreferences.lockedCamera.multiBounds" class="align-center" dense>
+                    <v-col>
+                      Multiply Bounds:
+                    </v-col>
+                    <v-col>
+                      <v-slider
+                        :value="clientSettings.annotatorPreferences.lockedCamera.multiBounds"
+                        min="1"
+                        max="4"
+                        step="0.1"
+                        dense
+                        hide-details
+                        thumb-label="always"
+                        @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = $event"
+                      />
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
+            </v-menu>
+            <v-btn
+              icon
+              small
+              title="(r)eset pan and zoom"
+              @click="mediaController.resetZoom"
+            >
+              <v-icon>mdi-image-filter-center-focus</v-icon>
+            </v-btn>
+            <v-badge
+              :value="!isDefaultImage"
+              color="warning"
+              dot
+              overlap
+              bottom
+            >
+              <v-btn
+                icon
+                small
+                :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+                @click="toggleEnhancements"
+              >
+                <v-icon>mdi-contrast-box</v-icon>
+              </v-btn>
+            </v-badge>
+
+            <v-btn
+              v-if="mediaController.cameras.value.length > 1"
+              icon
+              small
+              :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+              title="Synchronize camera controls"
+
+              @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+            >
+              <v-icon>
+                {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+              </v-icon>
+            </v-btn>
+          </v-col>
+        </template>
       </v-row>
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.bottom-controls-row {
+  flex-wrap: wrap;
+}
+
+.bottom-controls-row-nowrap {
+  flex-wrap: nowrap;
+}
+
+.bottom-controls-left {
+  order: 1;
+}
+
+.bottom-controls-middle {
+  order: 2;
+}
+
+.bottom-controls-actions {
+  order: 3;
+}
+
+.bottom-controls-row .bottom-controls-left {
+  flex: 1 1 auto;
+}
+
+.bottom-controls-row .bottom-controls-middle {
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bottom-controls-row .bottom-controls-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.bottom-controls-row-nowrap .bottom-controls-left {
+  flex: 0 0 auto;
+}
+
+.bottom-controls-row-nowrap .bottom-controls-middle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bottom-controls-row-nowrap .bottom-controls-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.time-filter-label {
+  white-space: nowrap;
+  padding-right: 8px !important;
+}
+
+.time-filter-input {
+  width: 96px;
+  margin-top: -6px;
+  flex: 0 0 auto;
+}
+
+.time-filter-input ::v-deep input {
+  text-align: center;
+  font-size: 12px;
+  padding: 0 4px;
+}
+</style>
+
+<style lang="scss">
+/* Teleported menu content; must be unscoped */
+.time-filter-menu-content {
+  z-index: 20;
+}
+</style>

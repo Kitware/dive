@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, toRef, watch, Ref, PropType,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch, Ref, PropType,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -9,9 +9,16 @@ import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
+import { useConfig } from 'platform/web-girder/store/useConfig';
+import { useDataset } from 'platform/web-girder/store/useDataset';
+import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandledPromiseRejection';
+import { useLocation } from 'platform/web-girder/store/useLocation';
+import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useApi } from 'dive-common/apispec';
+import type { DatasetType, SubType } from 'dive-common/apispec';
+import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
+import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import JobsTab from './JobsTab.vue';
@@ -91,30 +98,45 @@ export default defineComponent({
   },
 
   setup(props) {
-    const { loadMetadata } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
     const viewerRef = ref();
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
+    const { brandData } = useBrand();
+    const { pipelinesEnabled } = useConfig();
+    const { meta: datasetMeta, loadDataset } = useDataset();
+    const jobs = useJobs();
+    const { locationRoute } = useLocation();
     const revisionNum = computed(() => {
       const parsed = Number.parseInt(props.revision, 10);
       if (Number.isNaN(parsed)) return undefined;
       return parsed;
     });
-    const { getters } = store;
-    const currentJob = computed(() => getters['Jobs/datasetCompleteJobs'](props.id));
+    const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
 
-    const typeList: Ref<string[]> = ref([]);
+    const typeList = computed((): DatasetType[] => {
+      const t = datasetMeta.value?.type;
+      return t ? [t as DatasetType] : [];
+    });
+    const subTypeList = computed((): SubType[] => [datasetMeta.value?.subType ?? null]);
+    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value)]);
+    const timeFilter: Ref<[number, number] | null> = ref(null);
 
-    const findType = async () => {
-      const meta = await loadMetadata(props.id);
-      typeList.value = [meta.type];
-    };
-    findType();
+    watch(() => props.id, (datasetId) => {
+      loadDataset(datasetId).catch((reason) => {
+        reportHandledPromiseRejection('ViewerLoader: loadDataset', reason);
+      });
+    }, { immediate: true });
+
+    watch(
+      () => viewerRef.value?.trackFilters?.timeFilters?.value,
+      (value) => {
+        timeFilter.value = value ?? null;
+      },
+      { immediate: true },
+    );
     const runningPipelines = computed(() => {
       const results: string[] = [];
-      if (getters['Jobs/datasetRunningState'](props.id)) {
+      if (jobs.getDatasetRunningState(props.id)) {
         results.push(props.id);
       }
       return results;
@@ -137,7 +159,7 @@ export default defineComponent({
             positiveButton: 'Reload',
             negativeButton: '',
           });
-          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: props.id });
           if (result) {
             viewerRef.value.reloadAnnotations();
           }
@@ -148,7 +170,7 @@ export default defineComponent({
               'either failed or was cancelled by the user',
             ],
           });
-          store.dispatch('Jobs/removeCompleteJob', { datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: props.id });
         }
       }
     });
@@ -219,13 +241,20 @@ export default defineComponent({
       menuOptions,
       revisionNum,
       viewerRef,
-      getters,
+      jobs,
+      locationRoute,
+      datasetMeta,
       currentJob,
       runningPipelines,
       routeRevision,
       routeSet,
       largeImageWarning,
       typeList,
+      subTypeList,
+      cameraNumbers,
+      timeFilter,
+      pipelinesEnabled,
+      webExcludedPipelineTerms,
     };
   },
 });
@@ -238,7 +267,7 @@ export default defineComponent({
     ref="viewerRef"
     :revision="revisionNum"
     :current-set="set"
-    :read-only-mode="!!getters['Jobs/datasetRunningState'](id)"
+    :read-only-mode="!!jobs.getDatasetRunningState(id)"
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
@@ -252,7 +281,7 @@ export default defineComponent({
         class="mx-2"
         style="flex-basis:0; flex-grow:0;"
       >
-        <v-tab :to="getters['Location/locationRoute']">
+        <v-tab :to="locationRoute">
           Data
           <v-icon>mdi-database</v-icon>
         </v-tab>
@@ -261,15 +290,24 @@ export default defineComponent({
     </template>
     <template #title-right>
       <RunPipelineMenu
-        v-bind="{ buttonOptions, menuOptions, typeList }"
+        v-if="pipelinesEnabled"
+        v-bind="{
+          buttonOptions,
+          menuOptions,
+          typeList,
+          subTypeList,
+          cameraNumbers,
+        }"
         :selected-dataset-ids="[id]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
+        :time-filter="timeFilter"
+        :exclude-pipeline-terms="webExcludedPipelineTerms"
       />
       <ImportAnnotations
         :button-options="buttonOptions"
         :menu-options="menuOptions"
-        :read-only-mode="!!getters['Jobs/datasetRunningState'](id) || revisionNum !== undefined"
+        :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
         :dataset-id="id"
         block-on-unsaved
       />
@@ -279,14 +317,14 @@ export default defineComponent({
         block-on-unsaved
       />
       <Clone
-        v-if="$store.state.Dataset.meta"
+        v-if="datasetMeta"
         v-bind="{ buttonOptions, menuOptions }"
         :dataset-id="id"
         :revision="revisionNum"
       />
     </template>
-    <template #right-sidebar>
-      <SidebarContext>
+    <template #right-sidebar="{ sidebarMode }">
+      <SidebarContext :sidebar-mode="sidebarMode">
         <template #default="{ name, subCategory }">
           <component
             :is="name"

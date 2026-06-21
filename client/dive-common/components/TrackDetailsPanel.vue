@@ -24,7 +24,7 @@ import {
 } from 'vue-media-annotator/provides';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import type Track from 'src/track';
-import TrackItem from 'vue-media-annotator/components/TrackItem.vue';
+import TrackItem from 'vue-media-annotator/components/Tracks/TrackItem.vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import TypePicker from 'vue-media-annotator/components/TypePicker.vue';
 import RangeEditor from 'vue-media-annotator/components/RangeEditor.vue';
@@ -242,12 +242,22 @@ export default defineComponent({
       });
     }
 
+    // Re-run when track confidence pairs change (see AttributesSubsection revision pattern)
+    const displayConfidencePairs = computed((): [string, number][] => {
+      const pairs: [string, number][] = [];
+      selectedTrackList.value.forEach((t) => {
+        if (t.revision.value) {
+          pairs.push(...t.confidencePairs);
+        }
+      });
+      return pairs.sort((a, b) => b[1] - a[1]);
+    });
+
     function setTrackType(type: string) {
       const track = selectedTrackList.value[0];
-      // Find the confidence value for this type in the track's confidence pairs
-      const existingPair = track.confidencePairs.find(([t]) => t === type);
-      const confidenceVal = existingPair ? existingPair[1] : 1;
-      track.setType(type, confidenceVal);
+      if (!track) return;
+      const currentType = track.confidencePairs[0]?.[0];
+      cameraStore.setTrackType(track.id, type, 1, currentType);
     }
 
     return {
@@ -291,6 +301,7 @@ export default defineComponent({
       unstageFromMerge,
       updateSelectedTracksType,
       setTrackType,
+      displayConfidencePairs,
     };
   },
 });
@@ -303,11 +314,14 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader class="pl-2">
-      {{ multiSelectInProgress
-        ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
-        : 'Track Editor'
-      }}
+    <v-subheader class="pl-2 d-flex align-center">
+      <span>{{
+        multiSelectInProgress
+          ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
+          : 'Track Editor'
+      }}</span>
+      <v-spacer />
+      <slot name="header-trailing" />
     </v-subheader>
     <div
       v-if="!selectedTrackList.length"
@@ -591,9 +605,7 @@ export default defineComponent({
       <confidence-subsection
         v-if="editingGroupIdRef === null"
         style="max-height:33vh;"
-        :confidence-pairs="
-          flatten(selectedTrackList.map((t) => t.confidencePairs)).sort((a, b) => b[1] - a[1])
-        "
+        :confidence-pairs="displayConfidencePairs"
         :disabled="selectedTrackList.length > 1"
         :user-modified="isUserModified"
         @set-type="setTrackType($event)"

@@ -1,4 +1,7 @@
-from typing import Dict, List, Tuple
+import csv
+import io
+import json
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 
@@ -485,3 +488,62 @@ def test_image_filenames():
                 test['csv'], image_map
             )
             assert len(warnings) > 0
+
+
+def _metadata_fields(csv_text: str) -> Optional[List[str]]:
+    """Parse the exported CSV and return the entries of the ``# metadata`` row (sans the marker)."""
+    for row in csv.reader(io.StringIO(csv_text)):
+        if row and row[0] == '# metadata':
+            return row[1:]
+    return None
+
+
+def _dataset_info_entry(fields: List[str]) -> Optional[dict]:
+    entries = [f for f in fields if f.startswith('datasetInfo: ')]
+    if not entries:
+        return None
+    assert len(entries) == 1
+    return json.loads(entries[0][len('datasetInfo: ') :])
+
+
+def test_dataset_info_on_metadata_line():
+    """A populated datasetInfo is emitted as one nested JSON entry; numerics stay numeric."""
+    datasetInfo = {
+        "gfishsite_id": "2024TXN012",
+        "cruise": 2403,
+        "sta_lat": 26.8195,
+        "year": 2024,
+    }
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, datasetInfo=datasetInfo))
+    fields = _metadata_fields(csv_text)
+    assert fields is not None
+    parsed = _dataset_info_entry(fields)
+    # round-trips as a single key with numeric fields preserved and ids kept as strings
+    assert parsed == datasetInfo
+    assert isinstance(parsed['cruise'], int)
+    assert isinstance(parsed['sta_lat'], float)
+    assert isinstance(parsed['gfishsite_id'], str)
+
+
+@pytest.mark.parametrize("datasetInfo", [None, {}])
+def test_dataset_info_absent_when_empty(datasetInfo):
+    """No datasetInfo entry (no `datasetInfo: {}` noise) when empty/absent."""
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, datasetInfo=datasetInfo))
+    fields = _metadata_fields(csv_text)
+    assert fields is not None
+    assert not any(f.startswith('datasetInfo') for f in fields)
+
+
+def test_dataset_info_ignored_on_parse_roundtrip():
+    """The datasetInfo metadata entry is ignored cleanly when re-parsed into tracks."""
+    datasetInfo = {"gfishsite_id": "2024TXN012", "cruise": 2403}
+    tracks = test_tuple[0][0]
+    csv_text = ''.join(
+        viame.export_tracks_as_csv(
+            tracks.values(), filenames=filenames, header=True, datasetInfo=datasetInfo
+        )
+    )
+    rows = csv_text.splitlines()
+    annotations, _attributes, warnings, _fps = viame.load_csv_as_tracks_and_attributes(rows)
+    assert len(annotations['tracks']) == len(tracks)
+    assert warnings == []

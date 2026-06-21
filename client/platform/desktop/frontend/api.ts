@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 
 import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
-  Pipe, Pipelines, SaveAttributeArgs,
+  Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
@@ -12,6 +12,7 @@ import type {
 import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes,
+  largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -43,8 +44,6 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-const largeImageFileExtensions = ['tif', 'tiff', 'geotiff'];
-
 async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
@@ -56,7 +55,7 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   }
   if (datasetType === 'large-image') {
     filters = [
-      { name: 'GeoTIFF / TIFF', extensions: largeImageFileExtensions },
+      { name: 'GeoTIFF / TIFF', extensions: largeImageDesktopTypes },
     ];
   }
   if (datasetType === 'calibration') {
@@ -91,7 +90,7 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
     }
   }
   if (datasetType === 'large-image') {
-    const allowed = new Set(largeImageFileExtensions.map((ext) => ext.toLowerCase()));
+    const allowed = new Set(largeImageDesktopTypes.map((ext) => ext.toLowerCase()));
     if (!results.filePaths.every(
       (item) => allowed.has(getExtension(item)),
     )) {
@@ -121,13 +120,12 @@ async function getTrainingConfigurations(): Promise<TrainingConfigs> {
   return window.diveDesktop.invoke('get-training-configs');
 }
 
-async function runPipeline(itemId: string, pipeline: Pipe, frameRange?: [number, number] | null, additionalConfig?: Record<string, string>): Promise<void> {
+async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<void> {
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId: itemId,
-    frameRange: frameRange || undefined,
-    pipelineParams: additionalConfig,
+    pipelineParams,
   };
   gpuJobQueue.enqueue(args);
 }
@@ -172,6 +170,27 @@ async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return window.diveDesktop.invoke('import-media', { path });
+}
+
+function listImmediateSubfolders(parentPath: string): Promise<string[]> {
+  return window.diveDesktop.invoke('list-immediate-subfolders', { path: parentPath });
+}
+
+function listParentFolderCameras(
+  parentPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<{ name: string; sourcePath: string }[]> {
+  return window.diveDesktop.invoke('list-parent-folder-cameras', { path: parentPath, mediaType });
+}
+
+function resolveMulticamCameraSourcePath(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<string> {
+  return window.diveDesktop.invoke('resolve-multicam-camera-source-path', {
+    path: subfolderPath,
+    mediaType,
+  });
 }
 
 function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
@@ -320,19 +339,19 @@ async function runTextQueryPipeline(
     type: 'utility',
   };
 
-  const pipelineParams: Record<string, string> = {
+  const kwiverParams: Record<string, string> = {
     'track_refiner:refiner:sam3:text_query': queryText,
   };
 
   if (threshold !== undefined) {
-    pipelineParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
+    kwiverParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
   }
 
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId,
-    pipelineParams,
+    pipelineParams: { kwiverParams },
   };
   gpuJobQueue.enqueue(args);
 }
@@ -503,10 +522,17 @@ function onStereoDisparityError(callback: (data: unknown) => void): () => void {
 let _axiosClient: AxiosInstance; // do not use elsewhere
 let _baseURL: string | null = null;
 
+function formatHostForUrl(host: string) {
+  if (host.includes(':') && !host.startsWith('[')) {
+    return `[${host}]`;
+  }
+  return host;
+}
+
 async function getClient(): Promise<AxiosInstance> {
   if (_axiosClient === undefined) {
     const addr = await window.diveDesktop.invoke('server-info');
-    _baseURL = `http://${addr.address}:${addr.port}/api`;
+    _baseURL = `http://${formatHostForUrl(addr.address)}:${addr.port}/api`;
     _axiosClient = axios.create({ baseURL: _baseURL });
   }
   return _axiosClient;
@@ -596,6 +622,9 @@ export {
   finalizeImport,
   convert,
   importMedia,
+  listImmediateSubfolders,
+  listParentFolderCameras,
+  resolveMulticamCameraSourcePath,
   bulkImportMedia,
   deleteDataset,
   checkDataset,

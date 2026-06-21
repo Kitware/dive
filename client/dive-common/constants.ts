@@ -82,11 +82,51 @@ const largeImageTypes = [
   'image/ntf',
 ];
 
+/** Extension-only formats for large-image uploads (aligned with server validLargeImageFormats). */
+const largeImageFileExtensions = [
+  'nitf',
+  'tif',
+  'tiff',
+  'ntf',
+  'vrt',
+  'r0',
+  'r1',
+  'r2',
+  'r3',
+  'r4',
+  'r5',
+  'r6',
+];
+
+/** Desktop Electron open-dialog extensions (GeoTIFF/TIFF only; tiles served via geotiff.js). */
 const largeImageDesktopTypes = [
   'geotiff',
   'tiff',
   'tif',
 ];
+
+/** MIME types and dotted extensions for HTML file input accept on web. */
+const largeImageWebAccept = [
+  ...largeImageTypes,
+  ...largeImageFileExtensions.map((ext) => `.${ext}`),
+].join(',');
+
+/** Dotted extensions for desktop-mode file inputs in the web upload UI. */
+const largeImageDesktopAccept = largeImageDesktopTypes.map((ext) => `.${ext}`).join(',');
+
+function getLargeImageFileAccept(): string {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopAccept;
+  }
+  return largeImageWebAccept;
+}
+
+function getLargeImageAllowedExtensions(): string[] {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopTypes;
+  }
+  return largeImageFileExtensions;
+}
 
 const websafeImageTypes = [
   // 'image/apng',
@@ -130,6 +170,12 @@ const zipFileTypes = [
 ];
 
 const stereoPipelineMarker = 'measurement';
+/** Girder item meta key marking a stereoscopic calibration file in the dataset folder. */
+const calibrationFileMarker = 'calibrationFile';
+/** Legacy common_stereo category key; never shown in the run-pipeline menu. */
+const hiddenPipelineCategories = ['stereo'];
+/** Pipeline name/category substrings hidden from the web run-pipeline menu. */
+const webExcludedPipelineTerms = ['seagis'];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
@@ -156,11 +202,19 @@ export {
   websafeVideoTypes,
   inputAnnotationTypes,
   largeImageTypes,
+  largeImageFileExtensions,
   largeImageDesktopTypes,
+  largeImageWebAccept,
+  largeImageDesktopAccept,
+  getLargeImageFileAccept,
+  getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
+  calibrationFileMarker,
+  hiddenPipelineCategories,
+  webExcludedPipelineTerms,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   JsonMetaRegEx,

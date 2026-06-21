@@ -81,8 +81,8 @@ async function filterCsvByFrameRange(
 
 export interface ViameConstants {
   setupScriptAbs: string; // abs path setup comman
-  trainingExe: string; // name of training binary on PATH
-  kwiverExe: string; // name of kwiver binary on PATH
+  /** Basename of unified VIAME CLI in `bin/` (e.g. `viame` or `viame.exe`). */
+  viameExe: string;
   shell: string | boolean; // shell arg for spawn
 }
 
@@ -156,7 +156,8 @@ async function runPipeline(
   viameConstants: ViameConstants,
   forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline, frameRange } = runPipelineArgs;
+  const { datasetId, pipeline } = runPipelineArgs;
+  const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -229,7 +230,7 @@ async function runPipeline(
     }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.trainingExe}" runner`,
+      `"${viameConstants.viameExe}" runner`,
       '-s "input:video_reader:type=vidl_ffmpeg"',
       `-p "${pipelinePath}"`,
       `-s downsampler:target_frame_rate=${meta.fps}`,
@@ -268,7 +269,7 @@ async function runPipeline(
     await fs.writeFile(manifestFile, fileData);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.trainingExe}" runner`,
+      `"${viameConstants.viameExe}" runner`,
       `-p "${pipelinePath}"`,
     ];
     if (!stereoOrMultiCam) {
@@ -317,9 +318,10 @@ async function runPipeline(
   }
 
   // Add any custom pipeline parameters
-  if (runPipelineArgs.pipelineParams) {
+  const kwiverParams = runPipelineArgs.pipelineParams?.kwiverParams;
+  if (kwiverParams) {
     const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
-    Object.entries(runPipelineArgs.pipelineParams).forEach(([key, value]) => {
+    Object.entries(kwiverParams).forEach(([key, value]) => {
       command.push(`-s ${key}="${escapeValue(value)}"`);
     });
   }
@@ -499,7 +501,7 @@ async function exportTrainedPipeline(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    `"${viameConstants.trainingExe}" runner`,
+    `"${viameConstants.viameExe}" runner`,
     `-p "${exportPipelinePath}"`,
     `-s "onnx_convert:model_path=${weightsPath}"`,
     `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
@@ -631,7 +633,7 @@ async function train(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    `"${viameConstants.trainingExe}" train`,
+    `"${viameConstants.viameExe}" train`,
     `--input-list "${inputFolderFileList}"`,
     `--input-truth "${groundTruthFileList}"`,
     `--config "${configFilePath}"`,
