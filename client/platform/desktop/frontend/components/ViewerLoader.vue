@@ -175,6 +175,8 @@ export default defineComponent({
       />
       <ImportAnnotations
         :dataset-id="modifiedId"
+        :sub-type="subTypeList[0]"
+        :calibration-file="datasets[id] && datasets[id].calibration"
         v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
         block-on-unsaved
       />

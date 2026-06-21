@@ -197,6 +197,16 @@ export default function register() {
     return { savedPath, updatedDatasetIds: updatedIds };
   });
 
+  ipcMain.handle('import-calibration', async (_, { id, path }: { id: string; path: string }) => {
+    const calibration = await common.setDatasetCalibration(settings.get(), id, path);
+    return { calibration };
+  });
+
+  ipcMain.handle('export-calibration', async (_, { id, destPath }: { id: string; destPath: string }) => {
+    const exportedPath = await common.exportDatasetCalibration(settings.get(), id, destPath);
+    return { exportedPath };
+  });
+
   ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
 
   ipcMain.handle('convert', async (event, args: ConversionArgs) => {

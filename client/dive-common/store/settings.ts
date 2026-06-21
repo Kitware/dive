@@ -67,6 +67,9 @@ interface AnnotationSettings {
     enabled: boolean;
     delaySeconds: number;
   };
+  stereoSettings: {
+    clearLengthOnCameraFileLoad: boolean;
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -141,6 +144,11 @@ const defaultSettings: AnnotationSettings = {
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
     delaySeconds: 60,
+  },
+  stereoSettings: {
+    // When a new stereo camera/calibration file is loaded, strip stale
+    // per-track/detection 'length' measurements derived from the old calibration.
+    clearLengthOnCameraFileLoad: true,
   },
 };
 const MIN_AUTO_SAVE_DELAY_SECONDS = 10;

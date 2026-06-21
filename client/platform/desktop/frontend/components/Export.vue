@@ -5,7 +5,9 @@ import {
 
 import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
-import { loadMetadata, exportDataset, exportConfiguration } from 'platform/desktop/frontend/api';
+import {
+  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
+} from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
 export default defineComponent({
@@ -54,6 +56,29 @@ export default defineComponent({
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
 
+    const calibrationFile = computed(() => data.meta?.multiCam?.calibration ?? null);
+    const cameraFileSupported = computed(
+      () => data.meta?.subType === 'stereo' && !!calibrationFile.value,
+    );
+
+    async function exportCameraFile() {
+      if (!calibrationFile.value) return;
+      const calName = calibrationFile.value.replace(/^.*[\\/]/, '');
+      const location = await window.diveDesktop.showSaveDialog({
+        title: 'Export Camera File',
+        defaultPath: calName,
+      });
+      if (location.canceled || !location.filePath) return;
+      try {
+        data.err = null;
+        await exportCalibrationFile(props.id, location.filePath);
+        data.outPath = location.filePath;
+      } catch (err) {
+        data.err = err;
+        throw err;
+      }
+    }
+
     async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration' | 'trackJSON' | 'coco'; forceSave?: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
@@ -87,6 +112,9 @@ export default defineComponent({
     return {
       data,
       doExport,
+      exportCameraFile,
+      cameraFileSupported,
+      calibrationFile,
       savePrompt,
       thresholds,
       checkedTypes,
@@ -255,6 +283,22 @@ export default defineComponent({
             Configuration
           </v-btn>
         </v-card-actions>
+        <template v-if="cameraFileSupported">
+          <v-card-text class="pb-0">
+            Export the stereo camera / calibration file currently associated
+            with this dataset.
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="exportCameraFile"
+            >
+              Camera File
+            </v-btn>
+          </v-card-actions>
+        </template>
       </v-card>
     </template>
   </v-menu>

@@ -1,9 +1,15 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import {
+  computed, defineComponent, ref, PropType,
+} from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { clientSettings } from 'dive-common/store/settings';
+import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import { cloneDeep } from 'lodash';
-import { useAnnotationSets, useAnnotationSet, useHandler } from 'vue-media-annotator/provides';
+import {
+  useAnnotationSets, useAnnotationSet, useHandler, useCameraStore,
+} from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
@@ -11,6 +17,14 @@ export default defineComponent({
   props: {
     datasetId: {
       type: String,
+      default: null,
+    },
+    subType: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
+    calibrationFile: {
+      type: String as PropType<string | null>,
       default: null,
     },
     blockOnUnsaved: {
@@ -31,8 +45,19 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { openFromDisk, importAnnotationFile } = useApi();
-    const { reloadAnnotations } = useHandler();
+    const api = useApi();
+    const { openFromDisk, importAnnotationFile } = api;
+    const { reloadAnnotations, save } = useHandler();
+    const cameraStore = useCameraStore();
+    // Camera/calibration file import is desktop-only (needs importCalibrationFile)
+    // and only meaningful for stereo datasets.
+    const cameraFileSupported = computed(
+      () => !!api.importCalibrationFile && props.subType === 'stereo',
+    );
+    const currentCalibrationName = computed(() => {
+      if (!props.calibrationFile) return '';
+      return props.calibrationFile.replace(/^.*[\\/]/, '');
+    });
     const sets = computed(() => {
       const data = useAnnotationSets();
       const temp = cloneDeep(data.value);
@@ -100,8 +125,38 @@ export default defineComponent({
         processing.value = false;
       }
     };
+    const openCalibrationUpload = async () => {
+      if (!api.importCalibrationFile) return;
+      try {
+        const ret = await openFromDisk('calibration');
+        if (ret.canceled || !ret.filePaths.length) return;
+        menuOpen.value = false;
+        processing.value = true;
+        await api.importCalibrationFile(props.datasetId, ret.filePaths[0]);
+        // A new camera file invalidates length measurements from the prior
+        // calibration; clear them when the option is enabled.
+        if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
+          const cleared = clearLengthAttributes(cameraStore);
+          if (cleared > 0) {
+            await save();
+          }
+        }
+        processing.value = false;
+        await reloadAnnotations();
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Camera File Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     return {
       openUpload,
+      openCalibrationUpload,
+      cameraFileSupported,
+      currentCalibrationName,
       processing,
       menuOpen,
       additive,
@@ -235,6 +290,41 @@ export default defineComponent({
             </div>
           </v-col>
         </v-container>
+        <template v-if="cameraFileSupported">
+          <v-divider />
+          <v-card-title class="pt-3">
+            Camera File
+          </v-card-title>
+          <v-card-text class="pb-0">
+            <div v-if="currentCalibrationName">
+              Loaded: <strong>{{ currentCalibrationName }}</strong>
+            </div>
+            <div
+              v-else
+              class="grey--text"
+            >
+              No camera file loaded.
+            </div>
+            <div class="caption pt-1">
+              Import any VIAME-supported stereo calibration; it is converted to the
+              JSON camera format and stored with the dataset.
+            </div>
+          </v-card-text>
+          <v-container>
+            <v-col>
+              <v-row>
+                <v-btn
+                  depressed
+                  block
+                  :disabled="!datasetId || processing"
+                  @click="openCalibrationUpload"
+                >
+                  Import Camera File
+                </v-btn>
+              </v-row>
+            </v-col>
+          </v-container>
+        </template>
       </v-card>
     </template>
   </v-menu>
