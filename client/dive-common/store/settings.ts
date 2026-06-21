@@ -71,6 +71,7 @@ interface AnnotationSettings {
     interactiveModeEnabled: boolean;
     loading: boolean;
     loadingMessage: string;
+    clearLengthOnCameraFileLoad: boolean;
   };
 }
 
@@ -151,6 +152,9 @@ const defaultSettings: AnnotationSettings = {
     interactiveModeEnabled: false,
     loading: false,
     loadingMessage: '',
+    // When a new stereo camera/calibration file is loaded, strip stale
+    // per-track/detection 'length' measurements derived from the old calibration.
+    clearLengthOnCameraFileLoad: true,
   },
 };
 const MIN_AUTO_SAVE_DELAY_SECONDS = 10;

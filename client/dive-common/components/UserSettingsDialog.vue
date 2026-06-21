@@ -58,6 +58,14 @@ export default defineComponent({
           step="1"
           :disabled="!clientSettings.autoSaveSettings.enabled"
         />
+        <v-switch
+          v-model="clientSettings.stereoSettings.clearLengthOnCameraFileLoad"
+          color="primary"
+          class="my-0 mt-3"
+          label="Clear length attributes on camera-file load"
+          hint="When a new stereo camera/calibration file is loaded, remove stale 'length' measurements from all tracks and detections."
+          persistent-hint
+        />
       </v-card-text>
       <v-card-actions>
         <v-spacer />

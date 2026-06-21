@@ -25,6 +25,7 @@ export interface JsonMetaCache {
   transcodedVideoFile?: string;
   subType: SubType;
   cameraNumber: number;
+  calibration?: string | null;
 }
 
 /**
@@ -62,6 +63,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     subType: meta.subType,
     error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
+    calibration: meta.multiCam?.calibration ?? null,
   } as JsonMetaCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

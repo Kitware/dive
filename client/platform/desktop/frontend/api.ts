@@ -558,7 +558,7 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
 async function loadMetadata(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
-  return data;
+  return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
 async function loadDetections(datasetId: string) {
@@ -597,6 +597,14 @@ function getLastCalibration(): Promise<string | null> {
 
 function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
   return window.diveDesktop.invoke('save-calibration', { path });
+}
+
+function importCalibrationFile(datasetId: string, path: string): Promise<{ calibration: string }> {
+  return window.diveDesktop.invoke('import-calibration', { id: datasetId, path });
+}
+
+function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ exportedPath: string }> {
+  return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
 }
 
 export {
@@ -661,4 +669,6 @@ export {
   stereoIsEnabled,
   onStereoDisparityReady,
   onStereoDisparityError,
+  importCalibrationFile,
+  exportCalibrationFile,
 };
