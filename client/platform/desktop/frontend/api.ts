@@ -6,7 +6,6 @@ import type {
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
-  TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -300,50 +299,6 @@ async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
 }
 
 /**
- * Text Query API
- * Allows open-vocabulary detection and segmentation using text prompts
- */
-
-async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
-  return window.diveDesktop.invoke('segmentation-text-query', request);
-}
-
-async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
-  return window.diveDesktop.invoke('segmentation-refine', request);
-}
-
-/**
- * Run text query pipeline on all frames
- */
-async function runTextQueryPipeline(
-  datasetId: string,
-  queryText: string,
-  threshold?: number,
-): Promise<void> {
-  const pipeline: Pipe = {
-    name: 'Text Query',
-    pipe: 'utility_text_query.pipe',
-    type: 'utility',
-  };
-
-  const pipelineParams: Record<string, string> = {
-    'track_refiner:refiner:text_query': queryText,
-  };
-
-  if (threshold !== undefined) {
-    pipelineParams['track_refiner:refiner:detection_threshold'] = threshold.toString();
-  }
-
-  const args: RunPipeline = {
-    type: JobType.RunPipeline,
-    pipeline,
-    datasetId,
-    pipelineParams,
-  };
-  gpuJobQueue.enqueue(args);
-}
-
-/**
  * Interactive Stereo API
  */
 
@@ -629,10 +584,6 @@ export {
   segmentationClearImage,
   segmentationShutdown,
   segmentationIsReady,
-  /* Text Query APIs */
-  textQuery,
-  refineDetections,
-  runTextQueryPipeline,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

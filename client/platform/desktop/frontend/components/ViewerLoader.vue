@@ -13,8 +13,7 @@ import { clientSettings } from 'dive-common/store/settings';
 import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
-  loadMetadata, textQuery,
-  runTextQueryPipeline,
+  loadMetadata,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
@@ -254,7 +253,7 @@ export default defineComponent({
       }
     }
 
-    // Store metadata for text query image path resolution
+    // Store metadata for video frame-time / image path resolution
     let cachedMeta: {
       originalBasePath: string;
       originalImageFiles: string[];
@@ -262,219 +261,10 @@ export default defineComponent({
       originalVideoFile?: string;
     } | null = null;
 
-    /**
-     * Get image path for a given frame number
-     */
-    function getImagePathForFrame(frameNum: number): string {
-      if (!cachedMeta) {
-        return '';
-      }
-      const { originalBasePath, originalImageFiles, type } = cachedMeta;
-      if (type === 'video') {
-        // Video datasets require frame extraction - not yet supported
-        return npath.join(originalBasePath, cachedMeta.originalVideoFile || '');
-      }
-      if (originalImageFiles && originalImageFiles[frameNum]) {
-        const imagePath = originalImageFiles[frameNum];
-        if (npath.isAbsolute(imagePath)) {
-          return imagePath;
-        }
-        return npath.join(originalBasePath, imagePath);
-      }
-      return '';
-    }
-
-    /**
-     * Handle text query submission from Viewer
-     */
-    async function handleTextQuerySubmit(params: {
-      text: string;
-      boxThreshold: number;
-      frameNum: number;
-    }) {
-      const { text, boxThreshold, frameNum } = params;
-
-      // Ensure metadata is loaded
-      if (!cachedMeta) {
-        try {
-          const meta = await loadMetadata(props.id);
-          cachedMeta = {
-            originalBasePath: meta.originalBasePath,
-            originalImageFiles: meta.originalImageFiles,
-            type: meta.type,
-            originalVideoFile: meta.originalVideoFile,
-          };
-        } catch {
-          await prompt({
-            title: 'Text Query Error',
-            text: ['Failed to load dataset metadata for text query.'],
-          });
-          return;
-        }
-      }
-
-      const imagePath = getImagePathForFrame(frameNum);
-      if (!imagePath) {
-        await prompt({
-          title: 'Text Query Error',
-          text: ['Could not determine image path for current frame.'],
-        });
-        return;
-      }
-
-      try {
-        const response = await textQuery({
-          imagePath,
-          text,
-          boxThreshold,
-          maxDetections: 10,
-        });
-
-        if (!response.success) {
-          throw new Error(response.error || 'Text query failed');
-        }
-
-        const detections = response.detections || [];
-
-        if (detections.length === 0) {
-          await prompt({
-            title: 'Text Query Results',
-            text: [`No objects matching "${text}" were found in the current frame.`],
-          });
-          return;
-        }
-
-        // Create tracks from detections
-        if (viewerRef.value) {
-          const { cameraStore } = viewerRef.value;
-          const selectedCamera = viewerRef.value.selectedCamera || 'singleCam';
-          const trackStore = cameraStore.camMap.value.get(selectedCamera)?.trackStore;
-
-          if (!trackStore) {
-            await prompt({
-              title: 'Text Query Error',
-              text: ['Could not create tracks - trackStore not found.'],
-            });
-            return;
-          }
-
-          detections.forEach((det) => {
-            // Get a new unique track ID
-            const newTrackId = cameraStore.getNewTrackId();
-
-            // Create a new track with the detection label as its type
-            const newTrack = trackStore.add(
-              frameNum,
-              det.label, // Use the detection label as the track type
-              undefined, // No parent track
-              newTrackId, // Use the new track ID
-            );
-
-            // Calculate bounds from box [x1, y1, x2, y2]
-            const [x1, y1, x2, y2] = det.box;
-            const bounds = [x1, y1, x2, y2] as [number, number, number, number];
-
-            // Create GeoJSON features array for polygon if available
-            const geoJsonFeatures: GeoJSON.Feature[] = [];
-            if (det.polygon && det.polygon.length >= 3) {
-              // Ensure polygon is closed (first point = last point for GeoJSON)
-              const closedPolygon = [...det.polygon];
-              const first = closedPolygon[0];
-              const last = closedPolygon[closedPolygon.length - 1];
-              if (first[0] !== last[0] || first[1] !== last[1]) {
-                closedPolygon.push([...first] as [number, number]);
-              }
-
-              const polygonFeature: GeoJSON.Feature = {
-                type: 'Feature',
-                geometry: {
-                  type: 'Polygon',
-                  coordinates: [closedPolygon],
-                },
-                properties: { key: '' },
-              };
-              geoJsonFeatures.push(polygonFeature);
-            }
-
-            // Set the feature with bounds and optional polygon
-            newTrack.setFeature({
-              frame: frameNum,
-              flick: 0,
-              keyframe: true,
-              bounds,
-              interpolate: false, // Single detection, no interpolation
-            }, geoJsonFeatures.length > 0 ? geoJsonFeatures : undefined);
-          });
-
-          await prompt({
-            title: 'Text Query Results',
-            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
-          });
-        }
-      } catch (error) {
-        await prompt({
-          title: 'Text Query Error',
-          text: [`Failed to execute text query: ${error}`],
-        });
-      }
-    }
-
     // Initialize segmentation when component is mounted
     onMounted(() => {
       initializeSegmentation();
     });
-
-    /**
-     * Handle text query service initialization request
-     * Called when user opens the text query dialog
-     */
-    async function handleTextQueryInit() {
-      try {
-        // Check if the service is already ready
-        const status = await segmentationIsReady();
-        if (status.ready) {
-          viewerRef.value?.onTextQueryServiceReady(true);
-          return;
-        }
-
-        // Try to initialize the service
-        await segmentationInitialize();
-        viewerRef.value?.onTextQueryServiceReady(true);
-      } catch (error) {
-        // Provide text-query specific error message instead of generic segmentation error
-        const rawMessage = error instanceof Error ? error.message : '';
-        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
-          ? 'Unable to load text query model. Please ensure the service is properly configured.'
-          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
-        viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
-      }
-    }
-
-    /**
-     * Handle text query on all frames - runs as a pipeline job
-     */
-    async function handleTextQueryAllFrames(params: {
-      text: string;
-      boxThreshold: number;
-    }) {
-      const { text, boxThreshold } = params;
-
-      try {
-        await runTextQueryPipeline(props.id, text, boxThreshold);
-        await prompt({
-          title: 'Text Query Pipeline Started',
-          text: [
-            `A pipeline job has been started to search for "${text}" in all frames.`,
-            'You will be notified when the job completes.',
-          ],
-        });
-      } catch (error) {
-        await prompt({
-          title: 'Text Query Pipeline Error',
-          text: [`Failed to start text query pipeline: ${error}`],
-        });
-      }
-    }
 
     /**
      * Interactive Stereo Service
@@ -1204,9 +994,6 @@ export default defineComponent({
       runningPipelines,
       largeImageWarning,
       timeFilter,
-      handleTextQuerySubmit,
-      handleTextQueryInit,
-      handleTextQueryAllFrames,
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
@@ -1228,9 +1015,6 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
-      @text-query-submit="handleTextQuerySubmit"
-      @text-query-init="handleTextQueryInit"
-      @text-query-all-frames="handleTextQueryAllFrames"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
       @stereo-track-linked="handleStereoTrackLinked"
     >

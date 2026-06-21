@@ -81,9 +81,6 @@ export default defineComponent({
     'set-annotation-state',
     'update:tail-settings',
     'update:show-user-created-icon',
-    'text-query-init',
-    'text-query',
-    'text-query-all-frames',
   ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
@@ -101,59 +98,6 @@ export default defineComponent({
     watch(isEditButtonsExpanded, (value) => {
       localStorage.setItem(STORAGE_KEY, String(value));
     });
-
-    // Text query state
-    const textQueryDialogOpen = ref(false);
-    const textQueryInput = ref('');
-    const textQueryLoading = ref(false);
-    const textQueryThreshold = ref(0.3);
-    const textQueryInitializing = ref(false);
-    const textQueryServiceError = ref('');
-    const textQueryAllFrames = ref(false);
-
-    const openTextQueryDialog = () => {
-      textQueryDialogOpen.value = true;
-      textQueryInput.value = '';
-      textQueryServiceError.value = '';
-      textQueryAllFrames.value = false;
-      textQueryInitializing.value = true;
-      emit('text-query-init');
-    };
-
-    const closeTextQueryDialog = () => {
-      textQueryDialogOpen.value = false;
-      textQueryInput.value = '';
-      textQueryServiceError.value = '';
-      textQueryInitializing.value = false;
-      textQueryAllFrames.value = false;
-    };
-
-    const onTextQueryServiceReady = (success: boolean, error?: string) => {
-      textQueryInitializing.value = false;
-      if (!success) {
-        textQueryServiceError.value = error || 'Text query service is not available';
-      }
-    };
-
-    const submitTextQuery = () => {
-      if (!textQueryInput.value.trim()) {
-        return;
-      }
-      textQueryLoading.value = true;
-      if (textQueryAllFrames.value) {
-        emit('text-query-all-frames', {
-          text: textQueryInput.value.trim(),
-          boxThreshold: textQueryThreshold.value,
-        });
-      } else {
-        emit('text-query', {
-          text: textQueryInput.value.trim(),
-          boxThreshold: textQueryThreshold.value,
-        });
-      }
-      closeTextQueryDialog();
-      textQueryLoading.value = false;
-    };
 
     const modeToolTips = {
       Creating: {
@@ -207,10 +151,6 @@ export default defineComponent({
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
-      {
-        bind: 't',
-        handler: () => openTextQueryDialog(),
-      },
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -285,18 +225,6 @@ export default defineComponent({
       activeEditButton,
       editButtonsMenuKey,
       activeSegmentationRecipe,
-      // Text query
-      textQueryDialogOpen,
-      textQueryInput,
-      textQueryLoading,
-      textQueryThreshold,
-      textQueryInitializing,
-      textQueryServiceError,
-      textQueryAllFrames,
-      openTextQueryDialog,
-      closeTextQueryDialog,
-      onTextQueryServiceReady,
-      submitTextQuery,
     };
   },
 });
@@ -438,16 +366,6 @@ export default defineComponent({
           </v-icon>
         </v-btn>
       </template>
-      <!-- Text Query button -->
-      <v-btn
-        outlined
-        class="mx-1"
-        small
-        @click="openTextQueryDialog"
-      >
-        <pre>T:</pre>
-        <v-icon>mdi-text-search</v-icon>
-      </v-btn>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-divider
@@ -485,103 +403,6 @@ export default defineComponent({
         @update:show-user-created-icon="$emit('update:show-user-created-icon', $event)"
       />
     </div>
-
-    <!-- Text Query Dialog -->
-    <v-dialog
-      v-model="textQueryDialogOpen"
-      max-width="500"
-    >
-      <v-card>
-        <v-card-title class="text-h6">
-          <v-icon left>
-            mdi-text-search
-          </v-icon>
-          Text Query
-        </v-card-title>
-        <v-card-text>
-          <!-- Loading state while initializing service -->
-          <div
-            v-if="textQueryInitializing"
-            class="text-center py-4"
-          >
-            <v-progress-circular
-              indeterminate
-              color="primary"
-              size="48"
-            />
-            <p class="text-body-2 mt-3">
-              Loading text query model...
-            </p>
-          </div>
-          <!-- Error state if service failed to initialize -->
-          <div
-            v-else-if="textQueryServiceError"
-            class="text-center py-4"
-          >
-            <v-icon
-              color="error"
-              size="48"
-            >
-              mdi-alert-circle
-            </v-icon>
-            <p class="text-body-2 mt-3 error--text">
-              {{ textQueryServiceError }}
-            </p>
-          </div>
-          <!-- Normal input form when service is ready -->
-          <template v-else>
-            <p class="text-body-2 mb-3">
-              Enter a description of objects to find in the current frame.
-            </p>
-            <v-text-field
-              v-model="textQueryInput"
-              label="Object description"
-              placeholder="e.g., fish swimming near coral"
-              outlined
-              dense
-              autofocus
-              :disabled="textQueryLoading"
-              @keyup.enter="submitTextQuery"
-            />
-            <v-slider
-              v-model="textQueryThreshold"
-              label="Confidence threshold"
-              min="0.1"
-              max="0.9"
-              step="0.05"
-              thumb-label
-              :disabled="textQueryLoading"
-            />
-            <v-checkbox
-              v-model="textQueryAllFrames"
-              label="Apply to all frames"
-              hint="Run across all frames instead of only the current (this will run as a job)"
-              persistent-hint
-              :disabled="textQueryLoading"
-            />
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            text
-            :disabled="textQueryLoading"
-            @click="closeTextQueryDialog"
-          >
-            {{ textQueryServiceError ? 'Close' : 'Cancel' }}
-          </v-btn>
-          <v-btn
-            v-if="!textQueryInitializing && !textQueryServiceError"
-            color="primary"
-            :loading="textQueryLoading"
-            :disabled="!textQueryInput.trim() || textQueryLoading"
-            @click="submitTextQuery"
-          >
-            Search
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-row>
 </template>
 
