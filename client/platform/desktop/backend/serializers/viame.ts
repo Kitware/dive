@@ -294,12 +294,6 @@ function _parseRow(row: string[]) {
     if (note !== null) {
       notes.push(note[1]);
     }
-
-    /* Note */
-    const note = getCaptureGroups(NoteRegex, value);
-    if (note !== null) {
-      notes.push(note[1]);
-    }
   });
 
   if (headTail[0] !== undefined && headTail[1] !== undefined) {
