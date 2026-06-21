@@ -196,6 +196,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  /** Stereo calibration / camera file currently associated with the dataset (desktop). */
+  calibration?: Readonly<string | null>;
 }
 
 interface Api {
@@ -257,6 +259,10 @@ interface Api {
   // Desktop-only calibration persistence functions
   getLastCalibration?(): Promise<string | null>;
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
+  /** Desktop: set the stereo camera/calibration file for a single dataset. */
+  importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
+  /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
+  exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
 }
 const ApiSymbol = Symbol('api');
 

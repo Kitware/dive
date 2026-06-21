@@ -55,6 +55,7 @@ import { upgrade } from './migrations';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+import { prepareDatasetCalibration } from './calibrationConvert';
 import { splitExt } from './utils';
 
 const AuxFolderName = 'auxiliary';
@@ -1415,6 +1416,16 @@ async function finalizeMediaImport(
   jsonMeta.id = `${cleanString(jsonMeta.name).substr(0, 20)}_${makeid(10)}`;
   const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
 
+  // Store any stereo calibration / camera file alongside the media and normalize
+  // it to the VIAME JSON camera-rig format (keeping the original).
+  if (jsonMeta.multiCam?.calibration) {
+    jsonMeta.multiCam.calibration = await prepareDatasetCalibration(
+      settings,
+      projectDirAbsPath,
+      jsonMeta.multiCam.calibration,
+    );
+  }
+
   // Filter all parts of the input based on glob pattern
   if (globPattern && jsonMeta.type === 'image-sequence') {
     const searchPath = jsonMeta.imageListPath || jsonMeta.originalBasePath;
@@ -1642,6 +1653,63 @@ async function datasetHasCalibrationFile(settings: Settings, datasetId: string):
   }
 }
 
+/**
+ * Get the calibration / camera file path currently associated with a dataset.
+ */
+async function getDatasetCalibrationPath(
+  settings: Settings,
+  datasetId: string,
+): Promise<string | null> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  return fullMeta.multiCam?.calibration ?? null;
+}
+
+/**
+ * Set the stereo camera/calibration file for a single dataset. The source file is
+ * copied into the dataset's project directory and recorded in multiCam.calibration.
+ * @returns absolute path of the calibration file now associated with the dataset
+ */
+async function setDatasetCalibration(
+  settings: Settings,
+  datasetId: string,
+  sourcePath: string,
+): Promise<string> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  if (!fullMeta.multiCam) {
+    throw new Error(`Dataset ${datasetId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
+  }
+  const calibrationPath = await prepareDatasetCalibration(
+    settings,
+    projectDirInfo.basePath,
+    sourcePath,
+  );
+  fullMeta.multiCam.calibration = calibrationPath;
+  await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
+  return calibrationPath;
+}
+
+/**
+ * Copy a dataset's current camera/calibration file out to destPath.
+ * @returns the destination path written
+ */
+async function exportDatasetCalibration(
+  settings: Settings,
+  datasetId: string,
+  destPath: string,
+): Promise<string> {
+  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId);
+  if (!calibrationPath) {
+    throw new Error(`Dataset ${datasetId} has no camera/calibration file to export.`);
+  }
+  if (!(await fs.pathExists(calibrationPath))) {
+    throw new Error(`Calibration file for dataset ${datasetId} no longer exists on disk: ${calibrationPath}`);
+  }
+  await fs.copy(calibrationPath, destPath, { overwrite: true });
+  return destPath;
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1681,4 +1749,7 @@ export {
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
   datasetHasCalibrationFile,
+  getDatasetCalibrationPath,
+  setDatasetCalibration,
+  exportDatasetCalibration,
 };
