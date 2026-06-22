@@ -797,6 +797,9 @@ async function _ingestFilePath(
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
     meta.execTime = data[0].execTime;
+    if (data[0].datasetInfo) {
+      meta.datasetInfo = data[0].datasetInfo;
+    }
     [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
@@ -1302,6 +1305,7 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
 async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const existingDatasetInfo = jsonMeta.datasetInfo;
   const result = await ingestDataFiles(
     settings,
     id,
@@ -1312,6 +1316,14 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
     additivePrepend,
   );
   merge(jsonMeta, result.meta);
+  // Assign datasetInfo explicitly; the deep-merge above would keep keys an Overwrite
+  // import meant to drop. Like the server, Overwrite replaces the block wholesale while
+  // an additive import merges per-key (imported values win).
+  if (result.meta.datasetInfo) {
+    jsonMeta.datasetInfo = additive
+      ? { ...(existingDatasetInfo ?? {}), ...result.meta.datasetInfo }
+      : result.meta.datasetInfo;
+  }
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
   return result;
 }

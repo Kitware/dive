@@ -473,6 +473,7 @@ def _coco_json_export_text(
         filtered_tracks,
         image_filenames=image_filenames,
         dataset_name=dsFolder['name'],
+        datasetInfo=fromMeta(dsFolder, "datasetInfo", {}),
     )
     return json.dumps(coco)
 

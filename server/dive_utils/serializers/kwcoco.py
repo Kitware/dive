@@ -6,7 +6,7 @@ KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
@@ -241,12 +241,13 @@ def _parse_annotation_for_tracks(
     return feature, attributes, track_attributes, confidence_pairs, rle_skipped
 
 
-def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
+def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
     categories = coco.get('categories', [])
     keypoint_categories = coco.get('keypoint_categories', [])
     images = coco.get('images', [])
     videos = coco.get('videos', [])
     annotations = coco.get('annotations', [])
+    datasetInfo = (coco.get('info') or {}).get('dive_dataset_info') or {}
 
     # check if annotations have track IDs
     has_track_id = annotations and 'track_id' in annotations[0]
@@ -281,19 +282,22 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
         keypoint_categories=keypoint_categories_map,
         images=images_map,
         videos=videos_map,
+        datasetInfo=datasetInfo,
     )
 
 
 def load_coco_as_tracks_and_attributes(
-    coco: Dict[str, List[dict]],
-) -> Tuple[types.DIVEAnnotationSchema, dict, List[str]]:
-    """
-    Convert KWCOCO json to DIVE json tracks.
+    coco: Dict[str, Any],
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, types.DatasetInfo]:
+    """Convert KWCOCO json to DIVE json tracks.
+
+    Returns (annotations, attributes, warnings, dataset_info); dataset_info is empty when the
+    file carries no ``info.dive_dataset_info`` block.
     """
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
-    warnings: List[str] = []
+    warnings: types.Warnings = []
     skipped_rle_masks = False
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
@@ -338,7 +342,7 @@ def load_coco_as_tracks_and_attributes(
     }
     if skipped_rle_masks:
         warnings.append(RLE_SEGMENTATION_WARNING)
-    return converted, metadata_attributes, warnings
+    return converted, metadata_attributes, warnings, meta.datasetInfo
 
 
 def _feature_to_segmentation(feature: Feature) -> List[List[float]]:
@@ -391,6 +395,7 @@ def export_dive_as_coco(
     tracks: Iterable[dict],
     image_filenames: Dict[int, str],
     dataset_name: str,
+    datasetInfo: Optional[types.DatasetInfo] = None,
 ) -> Dict[str, Any]:
     """
     Export DIVE tracks to a single-dataset COCO JSON document.
@@ -399,6 +404,9 @@ def export_dive_as_coco(
         tracks: Track documents matching ``dive_utils.models.Track`` schema.
         image_filenames: Frame-indexed filename mapping for the dataset.
         dataset_name: Human-readable dataset name used in the COCO info block.
+        datasetInfo: per-dataset station metadata; when present, written under
+            ``info.dive_dataset_info`` and advertised in ``info.dive_extensions``.
+            Omitted entirely when empty.
     """
     categories: Dict[str, int] = {}
     coco_annotations: List[dict] = []
@@ -463,15 +471,20 @@ def export_dive_as_coco(
         category['keypoints'] = ['head', 'tail']
         categories_doc.append(category)
 
+    info: Dict[str, Any] = {
+        'description': f'DIVE export for {dataset_name}',
+        'dive_extensions': [
+            'dive_detection_attributes',
+            'dive_track_attributes',
+            'dive_notes',
+        ],
+    }
+    if datasetInfo:
+        info['dive_dataset_info'] = datasetInfo
+        info['dive_extensions'].append('dive_dataset_info')
+
     return {
-        'info': {
-            'description': f'DIVE export for {dataset_name}',
-            'dive_extensions': [
-                'dive_detection_attributes',
-                'dive_track_attributes',
-                'dive_notes',
-            ],
-        },
+        'info': info,
         'images': list(images.values()),
         'annotations': coco_annotations,
         'categories': categories_doc,
