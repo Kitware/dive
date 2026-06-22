@@ -1008,6 +1008,7 @@ export default defineComponent({
 });
 </script>
 
+<template>
   <div class="viewer-loader-wrapper">
     <Viewer
       :id.sync="id"
