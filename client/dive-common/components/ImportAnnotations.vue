@@ -178,7 +178,7 @@ export default defineComponent({
               <v-col>
                 <v-row>
                   <v-btn
-                    depressed
+                    variant="outlined"
                     block
                     :disabled="!datasetId || processing"
                     @click="openUpload"

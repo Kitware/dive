@@ -320,7 +320,7 @@ export default defineComponent({
                 <v-btn
                   v-if="singlePipelineValue && singlePipelineValue !== true"
                   large
-                  depressed
+                  variant="outlined"
                   :href="singlePipelineValue"
                   target="_blank"
                   color="info"
@@ -332,7 +332,7 @@ export default defineComponent({
                 <v-btn
                   v-else
                   large
-                  depressed
+                  variant="outlined"
                   to="/jobs"
                   color="info"
                   class="ma-auto"
@@ -381,7 +381,7 @@ export default defineComponent({
                     >
                       <template #activator="{ props: activatorProps }">
                         <v-btn
-                          variant="flat"
+                          variant="outlined"
                           block
                           v-bind="activatorProps"
                         >

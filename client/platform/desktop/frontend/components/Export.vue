@@ -216,7 +216,7 @@ export default defineComponent({
               <v-row>
                 <v-col>
                   <v-btn
-                    variant="flat"
+                    variant="outlined"
                     block
                     class="my-1"
                     @click="doExport({ type: 'dataset' })"
@@ -224,7 +224,7 @@ export default defineComponent({
                     <span>VIAME CSV</span>
                   </v-btn>
                   <v-btn
-                    variant="flat"
+                    variant="outlined"
                     block
                     class="my-1"
                     @click="doExport({ type: 'trackJSON' })"
@@ -232,7 +232,7 @@ export default defineComponent({
                     <span>TRACK JSON</span>
                   </v-btn>
                   <v-btn
-                    variant="flat"
+                    variant="outlined"
                     block
                     class="my-1"
                     @click="doExport({ type: 'coco' })"
@@ -249,7 +249,7 @@ export default defineComponent({
             <v-card-actions>
               <v-spacer />
               <v-btn
-                variant="flat"
+                variant="outlined"
                 block
                 @click="doExport({ type: 'configuration' })"
               >

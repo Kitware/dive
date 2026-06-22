@@ -5,11 +5,12 @@ import { clientSettings } from 'dive-common/store/settings';
 export default defineComponent({
   name: 'UserSettingsDialog',
   props: {
-    value: {
+    modelValue: {
       type: Boolean,
       required: true,
     },
   },
+  emits: ['update:modelValue'],
   setup() {
     const isDesktopRuntime = typeof window !== 'undefined' && 'diveDesktop' in window;
     return {
@@ -22,9 +23,9 @@ export default defineComponent({
 
 <template>
   <v-dialog
-    :value="value"
+    :model-value="modelValue"
     max-width="500"
-    @input="$emit('input', $event)"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <v-card>
       <v-card-title>User Settings</v-card-title>
@@ -64,7 +65,7 @@ export default defineComponent({
         <v-btn
           text
           color="primary"
-          @click="$emit('input', false)"
+          @click="$emit('update:modelValue', false)"
         >
           Close
         </v-btn>

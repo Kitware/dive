@@ -62,6 +62,7 @@ const diveThemeOverrides = {
           accentBackground: '#2c7596',
           grey: colors.grey.base,
           'blue-grey': colors.blueGrey.base,
+          surface: '#212121',
         },
       },
     },

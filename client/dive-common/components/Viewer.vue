@@ -1321,15 +1321,16 @@ export default defineComponent({
           >
             <template #activator="{ props: activatorProps }">
               <v-chip
-                class="warning pr-1"
+                class="pr-1"
+                color="warning"
+                size="small"
                 style="white-space:nowrap;display:inline"
-                small
                 v-bind="activatorProps"
               >
                 Read Only Mode
                 <v-icon
                   class="pl-1"
-                  small
+                  size="small"
                 >mdi-information-outline</v-icon>
               </v-chip>
             </template>
@@ -1447,17 +1448,26 @@ export default defineComponent({
 
       <v-tooltip
         bottom
+        class="save-control"
       >
         <template #activator="{ props: activatorProps }">
           <v-badge
-            location="bottom end"
-            :color="readonlyState ? 'warning' : undefined"
-            :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
+            class="save-badge"
+            location="bottom start"
+            floating
+            :color="readonlyState ? 'warning' : 'primary'"
             :content="!readonlyState && pendingSaveCount > 0 ? pendingSaveCount : undefined"
             :model-value="readonlyState || pendingSaveCount > 0"
-            :offset-x="14"
-            :offset-y="18"
+            :offset-x="10"
           >
+            <template
+              v-if="readonlyState"
+              #badge
+            >
+              <v-icon size="12">
+                mdi-exclamation-thick
+              </v-icon>
+            </template>
             <v-btn
               icon
               :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
@@ -1480,8 +1490,7 @@ export default defineComponent({
       </v-tooltip>
     </v-app-bar>
     <UserSettingsDialog
-      :value="showUserSettingsDialog"
-      @input="showUserSettingsDialog = $event"
+      v-model="showUserSettingsDialog"
     />
 
     <!-- Standard layout (left sidebar visible or hidden) -->
@@ -1809,6 +1818,18 @@ html {
   font-size: 14px;
   font-weight: 600;
   color: white;
+}
+
+.save-control {
+  margin-inline-end: 8px;
+}
+
+.save-badge:deep(.v-badge__badge) {
+  left: 2px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 2px !important;
+  transform: none !important;
 }
 
 </style>

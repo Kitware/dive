@@ -121,18 +121,3 @@ export default defineComponent({
     </v-banner>
   </div>
 </template>
-
-<style lang="scss">
-.rotate {
-  animation: rotation 1.5s infinite linear;
-}
-
-@keyframes rotation {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(359deg);
-  }
-}
-</style>

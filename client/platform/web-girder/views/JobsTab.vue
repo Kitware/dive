@@ -17,12 +17,15 @@ export default defineComponent({
     <v-badge
       :model-value="runningJobIds"
       location="bottom end"
+      color="warning"
+      floating
       :offset-x="-6"
       :offset-y="16"
     >
       <template #badge>
         <v-icon
           class="rotate"
+          size="12"
         >
           mdi-autorenew
         </v-icon>

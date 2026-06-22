@@ -1,6 +1,7 @@
-<script>
-import { defineComponent } from 'vue';
+<script lang="ts">
+import { defineComponent, ref } from 'vue';
 import UserGuideDialog from 'dive-common/components/UserGuideDialog.vue';
+import { mergeActivatorProps } from 'dive-common/vue-utilities/mergeActivatorProps';
 
 export default defineComponent({
   components: {
@@ -11,11 +12,22 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    buttonOptions: {
+      type: Object,
+      default: () => ({
+        variant: 'outlined',
+        color: 'grey-lighten-1',
+        class: ['mx-1'],
+      }),
+    },
   },
-  data() {
+  setup() {
+    const dialog = ref(false);
+    const userGuideLink = ref('https://kitware.github.io/dive/');
     return {
-      dialog: false,
-      userGuideLink: 'https://kitware.github.io/dive/',
+      mergeActivatorProps,
+      dialog,
+      userGuideLink,
     };
   },
 });
@@ -41,25 +53,33 @@ export default defineComponent({
       v-model="dialog"
       width="800"
     >
-      <template #activator="{ props: activatorProps }">
-        <v-btn
-          density="compact"
-          variant="flat"
-          target="_blank"
-          color="secondary"
-          class="mx-1"
-          v-bind="activatorProps"
+      <template #activator="{ props: dialogProps }">
+        <v-tooltip
+          location="bottom"
+          open-delay="400"
         >
-          <v-icon>
-            mdi-help-circle
-          </v-icon>
-          <span
-            v-show="!$vuetify.display.mdAndDown"
-            class="pl-1"
-          >
-            Help
-          </span>
-        </v-btn>
+          <template #activator="{ props: tooltipProps }">
+            <span
+              v-bind="tooltipProps"
+              :class="buttonOptions.block ? 'd-flex w-100' : 'd-inline-flex'"
+            >
+              <v-btn
+                v-bind="mergeActivatorProps(dialogProps, buttonOptions)"
+              >
+                <v-icon>
+                  mdi-help-circle
+                </v-icon>
+                <span
+                  v-show="!$vuetify.display.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Help
+                </span>
+              </v-btn>
+            </span>
+          </template>
+          <span>View help for annotation tools</span>
+        </v-tooltip>
       </template>
       <v-card>
         <user-guide-dialog />
@@ -81,6 +101,5 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <div />
   </div>
 </template>

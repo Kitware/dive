@@ -69,7 +69,8 @@ export default defineComponent({
         if (props.value !== undefined && props.value !== null && props.value !== '') {
           localSliderValue.value = Number(props.value);
         } else if (props.typeSettings?.type === 'slider') {
-          localSliderValue.value = props.typeSettings.range[0];
+          const [minRange] = props.typeSettings.range;
+          localSliderValue.value = minRange;
         }
       },
       { immediate: true },

@@ -15,12 +15,15 @@ export default defineComponent({
     <v-badge
       :model-value="runningJobs.length >= 1"
       location="bottom end"
+      color="warning"
+      floating
       :offset-x="-6"
       :offset-y="28"
     >
       <template #badge>
         <v-icon
           class="rotate"
+          size="12"
         >
           mdi-spin mdi-sync
         </v-icon>

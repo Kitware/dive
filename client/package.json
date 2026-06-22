@@ -175,6 +175,7 @@
       },
       "import/core-modules": [
         "@girder/components",
+        "@girder/components/plugins/vuetifyConfig.js",
         "vuetify/styles"
       ]
     },

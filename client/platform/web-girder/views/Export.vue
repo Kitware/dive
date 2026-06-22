@@ -387,7 +387,7 @@ export default defineComponent({
                 <v-row>
                   <v-col>
                     <v-btn
-                      variant="flat"
+                      variant="outlined"
                       block
                       :disabled="!exportUrls.exportDetectionsUrl"
                       @click="doExport({ url: exportUrls && exportUrls.exportDetectionsUrl })"
@@ -400,7 +400,7 @@ export default defineComponent({
                       >detections unavailable</span>
                     </v-btn>
                     <v-btn
-                      variant="flat"
+                      variant="outlined"
                       block
                       class="mt-2"
                       :disabled="!exportUrls.exportDetectionsUrl"
@@ -417,7 +417,7 @@ export default defineComponent({
                       >detections unavailable</span>
                     </v-btn>
                     <v-btn
-                      variant="flat"
+                      variant="outlined"
                       block
                       class="mt-2"
                       :disabled="!exportUrls.exportDetectionsUrl"
@@ -472,7 +472,7 @@ export default defineComponent({
               <v-card-actions>
                 <v-spacer />
                 <v-btn
-                  variant="flat"
+                  variant="outlined"
                   block
                   @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
                 >
@@ -487,7 +487,7 @@ export default defineComponent({
               <v-card-actions>
                 <v-spacer />
                 <v-btn
-                  variant="flat"
+                  variant="outlined"
                   block
                   @click="doExport({ url: exportUrls && exportUrls.exportAllUrl })"
                 >

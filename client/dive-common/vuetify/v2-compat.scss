@@ -124,3 +124,30 @@
 .v-toolbar__content > .dive-nav-brand:first-child {
   margin-inline-start: 12px;
 }
+
+// V2 overlap badges were smaller and anchored to the bottom-end corner.
+.v-badge.v-badge--floating .v-badge__badge {
+  height: 16px;
+  min-width: 16px;
+  padding: 2px 4px;
+  font-size: 10px;
+  line-height: 1;
+
+  .v-icon {
+    font-size: 12px;
+    margin: 0;
+  }
+}
+
+.rotate {
+  animation: rotation 1.5s infinite linear;
+}
+
+@keyframes rotation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
+  }
+}
