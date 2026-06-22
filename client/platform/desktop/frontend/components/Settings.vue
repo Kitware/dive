@@ -4,6 +4,7 @@ import {
 } from 'vue';
 
 import { useRequest } from 'dive-common/use';
+import { clientSettings } from 'dive-common/store/settings';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';
 import { autoDiscover } from '../store/dataset';
@@ -74,6 +75,7 @@ export default defineComponent({
       gitHash,
       platform,
       settings,
+      clientSettings,
       localSettings,
       settingsAreValid,
       smi,

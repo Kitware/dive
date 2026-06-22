@@ -8,6 +8,17 @@ import { loadEnv } from 'vite';
 import packageJson from './package.json';
 import { cssConfig } from './vite.css';
 
+// Electron loads dist_desktop/desktop.html over file://, where crossorigin
+// <script>/<link> tags are blocked by CORS, dropping the Vuetify/MDI styles.
+function stripCrossoriginPlugin() {
+  return {
+    name: 'strip-crossorigin-for-file-protocol',
+    transformIndexHtml(html: string) {
+      return html.replace(/\s+crossorigin\b/g, '');
+    },
+  };
+}
+
 function getGitHash() {
   try {
     return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -69,7 +80,7 @@ export default defineConfig(({ mode }) => {
     renderer: {
       root: resolve(__dirname, '.'),
       css: cssConfig,
-      plugins: [vue()],
+      plugins: [vue(), stripCrossoriginPlugin()],
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
         alias: {

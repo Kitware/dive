@@ -1,5 +1,7 @@
 import Vue from 'vue';
 import Vuetify from 'vuetify/lib';
+import * as components from 'vuetify/lib/components';
+import * as directives from 'vuetify/lib/directives';
 import colors from 'vuetify/es5/util/colors';
 import { vuetifyConfig as girderVuetifyConfig } from '@girder/components/src';
 import { merge } from 'lodash';
@@ -7,7 +9,10 @@ import { merge } from 'lodash';
 import '@mdi/font/css/materialdesignicons.css';
 import 'vuetify/dist/vuetify.min.css';
 
-Vue.use(Vuetify);
+// vuetify/lib is the à la carte build (chosen to avoid a duplicate Vue copy from
+// the full dist). With no vuetify-loader configured, components/directives must
+// be registered explicitly or none are available (Unknown custom element: <v-app>).
+Vue.use(Vuetify, { components, directives });
 
 const appVuetifyConfig = merge(girderVuetifyConfig, {
   theme: {
