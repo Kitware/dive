@@ -371,29 +371,16 @@ export default defineComponent({
               @click="clickSortToggle"
             />
             <slot name="settings" />
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ props: activatorProps }">
-                <v-btn
-                  class="hover-show-child"
-                  :disabled="checkedTypesRef.length === 0 || readOnlyMode"
-                  icon
-                  small
-                  v-bind="activatorProps"
-                  @click="clickDelete()"
-                >
-                  <v-icon
-                    small
-                    color="error"
-                  >
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Delete visible items</span>
-            </v-tooltip>
+            <tooltip-btn
+              icon="mdi-delete"
+              icon-color="error"
+              variant="text"
+              class="hover-show-child"
+              :disabled="checkedTypesRef.length === 0 || readOnlyMode"
+              tooltip-text="Delete visible items"
+              :delay="100"
+              @click="clickDelete()"
+            />
             <slot name="header-trailing" />
           </div>
         </v-col>

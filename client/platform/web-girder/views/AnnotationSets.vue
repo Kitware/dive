@@ -11,7 +11,7 @@ import {
   useHandler,
   useTrackStyleManager,
 } from 'vue-media-annotator/provides';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 export default defineComponent({
   name: 'AnnotationSets',
@@ -20,6 +20,7 @@ export default defineComponent({
   setup() {
     const currentSet = useAnnotationSet();
     const router = useRouter();
+    const route = useRoute();
     const sets = useAnnotationSets();
     const datasetId = useDatasetId();
     const { typeStyling } = useTrackStyleManager();
@@ -31,11 +32,23 @@ export default defineComponent({
         setChange(set);
       }
     };
-    const selectedSet = ref(currentSet.value || 'default');
 
-    const compareChecks = ref(sets.value.map((item) => ({ name: item, checked: false })));
+    const activeSetName = computed(() => currentSet.value || 'default');
 
-    const selectedComparisons = computed(() => compareChecks.value.filter((item) => item.checked).map((item) => item.name));
+    const getComparisonFromRoute = (): string | null => {
+      const { comparisonSets } = route.query;
+      if (!comparisonSets) {
+        return null;
+      }
+      const first = Array.isArray(comparisonSets) ? comparisonSets[0] : comparisonSets;
+      return typeof first === 'string' ? first : null;
+    };
+
+    const comparedSet = ref<string | null>(getComparisonFromRoute());
+
+    const selectedComparisons = computed(() => (
+      comparedSet.value ? [comparedSet.value] : []
+    ));
 
     const launchComparison = () => {
       const set = currentSet.value ? `/set/${currentSet.value}` : '';
@@ -45,8 +58,9 @@ export default defineComponent({
       });
       reloadAnnotations();
     };
-    const selectForComparison = (set: string) => {
-      compareChecks.value = sets.value.map((item) => ({ name: item, checked: set === item }));
+
+    const toggleComparison = (set: string, checked: boolean | null) => {
+      comparedSet.value = checked ? set : null;
     };
 
     const computedSets = computed(() => {
@@ -70,11 +84,11 @@ export default defineComponent({
       validForm,
       computedSets,
       typeStyling,
-      selectedSet,
-      compareChecks,
+      activeSetName,
+      comparedSet,
       selectedComparisons,
       launchComparison,
-      selectForComparison,
+      toggleComparison,
 
     };
   },
@@ -101,7 +115,7 @@ export default defineComponent({
         </v-row>
       </v-list-item>
       <v-list-item
-        v-for="(set, index) in computedSets"
+        v-for="set in computedSets"
         :key="set"
         :class="{ border: (set === currentSet || (!currentSet && set === 'default')) }"
       >
@@ -123,11 +137,12 @@ export default defineComponent({
           </v-col>
           <v-col cols="4">
             <v-switch
-              v-if="compareChecks.length"
-              :value="compareChecks[index].checked"
-              :disabled="selectedSet === compareChecks[index].name"
-              dense
-              @change="selectForComparison(set)"
+              :model-value="comparedSet === set"
+              color="primary"
+              density="compact"
+              hide-details
+              :disabled="activeSetName === set"
+              @update:model-value="toggleComparison(set, $event)"
             />
           </v-col>
         </v-row>
@@ -146,8 +161,8 @@ export default defineComponent({
     </div>
     <v-expansion-panels>
       <v-expansion-panel>
-        <v-expansion-panel-header> Add New Set</v-expansion-panel-header>
-        <v-expansion-panel-content>
+        <v-expansion-panel-title> Add New Set</v-expansion-panel-title>
+        <v-expansion-panel-text>
           <p>
             Add a new Set with a custom name that can be used to reference it in the future.
             'default' is a reserved set which can't be used.
@@ -169,7 +184,7 @@ export default defineComponent({
               Add Set
             </v-btn>
           </v-form>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
   </div>

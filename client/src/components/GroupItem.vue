@@ -106,7 +106,7 @@ export default defineComponent({
       </v-tooltip>
       <v-spacer />
       <TypePicker
-        :value="group.getType()"
+        :value="group.getType()[0]"
         :all-types="groupFilters.allTypes.value"
         :read-only-mode="readOnlyMode"
         data-list-source="allGroupTypesOptions"

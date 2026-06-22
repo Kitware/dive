@@ -288,8 +288,9 @@ export default defineComponent({
           @keyup.enter="addEntry"
         />
         <v-btn
-          icon
+          variant="text"
           size="small"
+          density="compact"
           :disabled="!newKey.trim()"
           aria-label="Add metadata field"
           title="Add metadata field"

@@ -168,6 +168,8 @@ export default defineComponent({
           <v-select
             v-model="argCopy.jsonMeta.fps"
             :items="sortedFpsOptions"
+            item-title="text"
+            item-value="value"
             type="number"
             required
             outlined
@@ -176,7 +178,7 @@ export default defineComponent({
             hint="downsampling rate"
             persistent-hint
             class="shrink"
-            @change="updateClientSettingFPS"
+            @update:model-value="updateClientSettingFPS"
           />
         </v-col>
       </v-row>

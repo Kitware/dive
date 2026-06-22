@@ -367,7 +367,7 @@ export default defineComponent({
           <span class="trackNumber">{{ editingGroup.id }}</span>
           <v-spacer />
           <TypePicker
-            :value="editingGroup.getType()"
+            :value="editingGroup.getType()[0]"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
@@ -459,6 +459,7 @@ export default defineComponent({
             <tooltip-btn
               v-if="multiSelectInProgress && !multiCam"
               icon="mdi-close"
+              variant="text"
               :tooltip-text="editingGroup ? 'Remove from group' : 'Remove from merge candidates'"
               :disabled="(editingGroup && selectedTrackList.length === 1) || readOnlyMode"
               @click="unstageFromMerge([track.trackId])"
