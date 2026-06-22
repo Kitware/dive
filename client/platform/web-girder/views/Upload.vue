@@ -2,7 +2,7 @@
 import {
   defineComponent, Ref, ref, computed, onBeforeUnmount,
 } from 'vue';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
@@ -577,7 +577,7 @@ export default defineComponent({
       }
       return {
         block: true,
-        color: 'grey darken-3',
+        color: 'grey-darken-3',
         depressed: true,
         disabled: uploading.value,
       };
@@ -732,6 +732,8 @@ export default defineComponent({
                 <v-select
                   v-model="pendingUpload.fps"
                   :items="FPSOptions"
+                  item-title="text"
+                  item-value="value"
                   :disabled="pendingUpload.uploading"
                   type="number"
                   required
@@ -741,7 +743,7 @@ export default defineComponent({
                   :hint="pendingUpload.annotationFile
                     ? 'should match annotation fps' : 'annotation fps'"
                   persistent-hint
-                  @change="clientSettings.annotationFPS = $event"
+                  @update:model-value="clientSettings.annotationFPS = $event"
                 />
               </v-col>
               <v-col
@@ -808,28 +810,40 @@ export default defineComponent({
                 </v-row>
               </v-col>
             </v-row>
-            <v-row v-if="pendingUpload.type === 'video'">
-              <v-checkbox
-                v-model="pendingUpload.skipTranscoding"
-                label="Skip Transcoding"
-              />
-              <v-tooltip
-                open-delay="200"
-                right
-                max-width="200"
-              >
-                <template #activator="{ on }">
-                  <v-icon
-                    small
-                    v-on="on"
-                  >
-                    mdi-help
-                  </v-icon>
-                </template>
-                <span>Attempt to skip transcoding of video file if it is an
-                  '.mp4' and encoded using the h264 codec.
-                  If skipping fails it will fallback to transcoding.</span>
-              </v-tooltip>
+            <v-row
+              v-if="pendingUpload.type === 'video'"
+              class="mx-2"
+            >
+              <v-col class="py-0">
+                <v-checkbox
+                  v-model="pendingUpload.skipTranscoding"
+                  hide-details
+                  density="compact"
+                >
+                  <template #label>
+                    <span class="d-inline-flex align-center">
+                      Skip Transcoding
+                      <v-tooltip
+                        open-delay="200"
+                        location="end"
+                        max-width="200"
+                      >
+                        <template #activator="{ props: activatorProps }">
+                          <v-icon
+                            size="small"
+                            icon="mdi-help"
+                            class="ml-1"
+                            v-bind="activatorProps"
+                          />
+                        </template>
+                        <span>Attempt to skip transcoding of video file if it is an
+                          '.mp4' and encoded using the h264 codec.
+                          If skipping fails it will fallback to transcoding.</span>
+                      </v-tooltip>
+                    </span>
+                  </template>
+                </v-checkbox>
+              </v-col>
             </v-row>
             <span v-if="uploading">
               {{ computeUploadProgress(pendingUpload) }}

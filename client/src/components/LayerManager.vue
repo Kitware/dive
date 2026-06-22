@@ -25,6 +25,7 @@ import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
 import { ToolTipWidgetData } from '../layers/UILayers/UILayerTypes';
+import useVuetify from '../use/useVuetify';
 import {
   useHandler,
   useSelectedTrackId,
@@ -182,7 +183,8 @@ export default defineComponent({
       attributeBoxLayer.updateRenderAttributes(newList);
     };
     updateAttributes();
-    const uiLayer = new UILayer(annotator);
+    const vuetify = useVuetify();
+    const uiLayer = new UILayer(annotator, vuetify);
     const hoverOvered: Ref<ToolTipWidgetData[]> = ref([]);
     const toolTipWidgetProps = {
       color: typeStylingRef.value.color,

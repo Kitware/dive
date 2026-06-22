@@ -188,7 +188,8 @@ export default defineComponent({
       console.error('Media failed to initialize', event);
     }
     function setVolume(level: number) {
-      video.volume = level;
+      const snapped = Math.round(level * 20) / 20;
+      video.volume = snapped;
       data.volume = video.volume;
     }
     function setSpeed(level: number) {
@@ -214,7 +215,7 @@ export default defineComponent({
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
      */
-    function loadedMetadata() {
+    async function loadedMetadata() {
       video.removeEventListener('loadedmetadata', loadedMetadata);
       const width = video.videoWidth;
       const height = video.videoHeight;
@@ -232,7 +233,7 @@ export default defineComponent({
         console.warn('Dataset loaded without originalFps, seeking accuracy will be impacted');
         data.maxFrame = maybeMaxFrame;
       }
-      initializeViewer(width, height);
+      await initializeViewer(width, height);
       quadFeatureLayer = geoViewer.value.createLayer('feature', {
         features: ['quad.video'],
         autoshareRenderer: false,

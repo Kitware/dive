@@ -15,16 +15,17 @@ export default defineComponent({
   <v-tab to="/jobs">
     Jobs
     <v-badge
-      :value="runningJobIds"
-      overlap
-      bottom
-      offset-x="-6"
-      offset-y="16"
+      :model-value="runningJobIds"
+      location="bottom end"
+      color="warning"
+      floating
+      :offset-x="-6"
+      :offset-y="16"
     >
-      <template slot="badge">
+      <template #badge>
         <v-icon
-          dark
           class="rotate"
+          size="12"
         >
           mdi-autorenew
         </v-icon>

@@ -36,12 +36,12 @@ export default defineComponent({
     },
   },
   setup(_, { emit }) {
-    function updateBegin(input: string) {
-      const num = parseInt(input, 10);
+    function updateBegin(event: Event) {
+      const num = parseInt((event.target as HTMLInputElement).value, 10);
       emit('update:begin', num);
     }
-    function updateEnd(input: string) {
-      const num = parseInt(input, 10);
+    function updateEnd(event: Event) {
+      const num = parseInt((event.target as HTMLInputElement).value, 10);
       emit('update:end', num);
     }
     return {
@@ -63,73 +63,52 @@ export default defineComponent({
             rgba(0,0,0,0) ${(1 - ((frame - begin) / (end - begin)) * 100, 0).toFixed(0)}%)`,
       }"
     >
-      <v-text-field
-        :value="begin"
-        :disabled="disabled"
-        single-line
-        dense
-        class="px-2 mt-0"
-        style="width: 100%"
-        type="number"
-        label="Begin frame"
-        hide-details
-        :min="min"
-        :max="Math.min(end, max)"
-        :rules="[
-          (v) => v <= Math.min(end, max) || 'Begin must be less than end and max',
-          (v) => v >= min || 'Begin must be >= min',
-        ]"
-        @input="updateBegin"
-      >
-        <template
-          v-if="!disabled"
-          #append-outer
+      <div class="d-flex align-center px-2 range-field">
+        <input
+          :value="begin"
+          :disabled="disabled"
+          type="number"
+          class="input-box range-input"
+          :min="min"
+          :max="Math.min(end, max)"
+          @input="updateBegin"
         >
-          <tooltip-btn
-            icon="mdi-map-marker"
-            :tooltip-text="`Set range start to current frame (${frame})`"
-            size="x-small"
-            :delay="100"
-            :disabled="frame < min || frame > Math.min(end, max)"
-            @click="$emit('click:begin')"
-          />
-        </template>
-      </v-text-field>
-      <v-text-field
-        :value="end"
-        :disabled="disabled"
-        hide-details
-        single-line
-        dense
-        class="px-2 mt-0"
-        style="width: 100%"
-        type="number"
-        label="End frame"
-        :min="Math.max(begin, min)"
-        :max="max"
-        :rules="[
-          (v) => v >= Math.max(begin, min) || 'End must be >= begin and min',
-          (v) => v <= max || 'End must be <= max',
-        ]"
-        @input="updateEnd"
-      >
-        <template
+        <tooltip-btn
           v-if="!disabled"
-          #append-outer
+          icon="mdi-map-marker"
+          variant="text"
+          :tooltip-text="`Set range start to current frame (${frame})`"
+          size="x-small"
+          :delay="100"
+          :disabled="frame < min || frame > Math.min(end, max)"
+          @click="$emit('click:begin')"
+        />
+      </div>
+      <div class="d-flex align-center px-2 range-field">
+        <input
+          :value="end"
+          :disabled="disabled"
+          type="number"
+          class="input-box range-input"
+          :min="Math.max(begin, min)"
+          :max="max"
+          @input="updateEnd"
         >
-          <tooltip-btn
-            icon="mdi-map-marker"
-            :delay="100"
-            size="x-small"
-            :tooltip-text="`Set range end to current frame (${frame})`"
-            :disabled="frame < Math.max(begin, min) || frame > max"
-            @click="$emit('click:end')"
-          />
-        </template>
-      </v-text-field>
+        <tooltip-btn
+          v-if="!disabled"
+          icon="mdi-map-marker"
+          variant="text"
+          :delay="100"
+          size="x-small"
+          :tooltip-text="`Set range end to current frame (${frame})`"
+          :disabled="frame < Math.max(begin, min) || frame > max"
+          @click="$emit('click:end')"
+        />
+      </div>
       <tooltip-btn
         v-if="!disabled && last"
         icon="mdi-clock-plus"
+        variant="text"
         tooltip-text="Add new sub-range"
         :delay="100"
         :disabled="frame < min || frame > max"
@@ -139,6 +118,7 @@ export default defineComponent({
       <tooltip-btn
         v-if="!disabled && !last"
         icon="mdi-clock-minus"
+        variant="text"
         tooltip-text="Remove sub-range"
         :delay="100"
         size="x-small"
@@ -147,3 +127,18 @@ export default defineComponent({
     </div>
   </div>
 </template>
+
+<style lang="scss" scoped>
+@import 'src/components/styles/common.scss';
+
+.range-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.range-input {
+  width: 100%;
+  min-width: 0;
+  background-color: transparent;
+}
+</style>

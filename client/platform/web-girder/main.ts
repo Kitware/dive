@@ -1,28 +1,24 @@
-import Vue from 'vue';
-import VueGtag from 'vue-gtag';
+import { createApp, type ComponentPublicInstance } from 'vue';
 import { init as SentryInit } from '@sentry/browser';
 import { Vue as SentryVue } from '@sentry/integrations';
 
-import registerNotifications from 'vue-media-annotator/notificatonBus';
 import promptService from 'dive-common/vue-utilities/prompt-service';
 import vMousetrap from 'dive-common/vue-utilities/v-mousetrap';
 
 import getVuetify from './plugins/vuetify';
-import girderRest from './plugins/girder';
+import girderRest, { girder, initGirderNotifications } from './plugins/girder';
 import App from './App.vue';
 import './store';
 import router from './router';
-import { bindWebGirderRouter } from './store/useLocation';
+import { bindWebGirderRouter, useLocation } from './store/useLocation';
 import { useBrand } from './store/useBrand';
 import { useConfig } from './store/useConfig';
 import { useUser } from './store/useUser';
+import { initJobs } from './store/useJobs';
 import type { UserState } from './store/types';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 bindWebGirderRouter(router);
-
-Vue.config.productionTip = false;
-Vue.use(vMousetrap);
 
 if (
   process.env.NODE_ENV === 'production'
@@ -31,40 +27,82 @@ if (
   SentryInit({
     dsn: process.env.VUE_APP_SENTRY_DSN,
     integrations: [
-      new SentryVue({ Vue, logErrors: true }),
+      // @sentry/integrations Vue helper predates Vue 3; options shape is not typed for v3.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      new SentryVue({ Vue: { config: {} }, logErrors: true } as any),
     ],
     release: process.env.VUE_APP_GIT_HASH,
     environment: (window.location.hostname === 'viame.kitware.com')
       ? 'production' : 'development',
   });
-  Vue.use(VueGtag, {
-    config: { id: process.env.VUE_APP_GTAG },
-  }, router);
 }
 
 Promise.all([
   useBrand().loadBrand(),
   useConfig().loadConfig(),
   girderRest.fetchUser(),
-]).then(() => {
+]).then(async () => {
+  if (girderRest.token) {
+    window.localStorage.setItem('girderToken', girderRest.token);
+  } else {
+    window.localStorage.removeItem('girderToken');
+  }
   useUser().setUser(girderRest.user as UserState['user']);
   const vuetify = getVuetify(useBrand().getBrandData()?.vuetify);
-  Vue.use(promptService(vuetify));
-  new Vue({
-    router,
-    vuetify,
-    provide: {
-      girderRest,
-      notificationBus: girderRest, // gwc.JobList expects this
-      vuetify,
-    },
-    render: (h) => h(App),
-  })
-    .$mount('#app')
-    .$promptAttach();
+  const notifications = initGirderNotifications();
+  initJobs().catch((reason) => {
+    reportHandledPromiseRejection('initJobs', reason);
+  });
 
-  /** Start notification stream if everything else succeeds */
-  registerNotifications(girderRest).connect();
+  const redirectToLogin = () => {
+    if (router.currentRoute.value.name !== 'login') {
+      router.push({ name: 'login' });
+    }
+  };
+  girderRest.on('userLoggedOut', redirectToLogin);
+  girderRest.on('userLoggedIn', (user) => {
+    useUser().setUser(user as UserState['user']);
+    if (girderRest.token) {
+      window.localStorage.setItem('girderToken', girderRest.token);
+    }
+  });
+
+  const app = createApp(App);
+  app.use(router);
+  app.use(vuetify);
+  app.use(vMousetrap);
+  app.use(promptService(vuetify));
+  app.provide('girder', girder);
+  app.provide('girderRest', girderRest);
+  app.provide('notifications', notifications);
+  app.provide('notificationBus', notifications.bus);
+  app.provide('vuetify', vuetify);
+
+  if (
+    process.env.NODE_ENV === 'production'
+    && window.location.hostname !== 'localhost'
+  ) {
+    import('vue-gtag').then(({ default: VueGtag }) => {
+      app.use(VueGtag, {
+        config: { id: process.env.VUE_APP_GTAG },
+        pageTrackerEnabled: true,
+      }, router);
+    }).catch((reason) => {
+      reportHandledPromiseRejection('vue-gtag init', reason);
+    });
+  }
+
+  try {
+    await router.isReady();
+    if (router.currentRoute.value.name === 'home') {
+      await useLocation().setLocationFromRoute(router.currentRoute.value);
+    }
+  } catch (reason) {
+    reportHandledPromiseRejection('router bootstrap (isReady or location sync)', reason);
+  }
+
+  const root = app.mount('#app');
+  (root as ComponentPublicInstance).$promptAttach();
 }).catch((reason) => {
   reportHandledPromiseRejection('app bootstrap (brand, config, or user)', reason);
   const el = document.getElementById('app');

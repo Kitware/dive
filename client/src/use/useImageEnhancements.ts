@@ -1,6 +1,6 @@
 import {
   computed,
-  ref, Ref, set as VueSet,
+  ref, Ref,
 } from 'vue';
 
 // Expecting this may be a placeholder for more complicated client side enhancements
@@ -31,10 +31,10 @@ export default function useImageEnhancements() {
     brightness, contrast, saturation, sharpen,
   }:
     { brightness: number; contrast: number; saturation: number; sharpen: number }) => {
-    VueSet(imageEnhancements.value, 'brightness', brightness);
-    VueSet(imageEnhancements.value, 'contrast', contrast);
-    VueSet(imageEnhancements.value, 'saturation', saturation);
-    VueSet(imageEnhancements.value, 'sharpen', sharpen);
+    imageEnhancements.value.brightness = brightness;
+    imageEnhancements.value.contrast = contrast;
+    imageEnhancements.value.saturation = saturation;
+    imageEnhancements.value.sharpen = sharpen;
   };
 
   const brightness = computed(() => ({ slope: imageEnhancements.value.brightness, intercept: 0 }));

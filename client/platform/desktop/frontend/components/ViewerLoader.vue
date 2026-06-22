@@ -15,14 +15,12 @@ import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
 
 const buttonOptions = {
-  outlined: true,
-  color: 'grey lighten-1',
-  depressed: true,
-  text: true,
+  variant: 'outlined',
+  color: 'grey-lighten-1',
   class: ['mx-1'],
 };
 const menuOptions = {
-  offsetY: true,
+  location: 'bottom',
 };
 export default defineComponent({
   components: {
@@ -138,17 +136,17 @@ export default defineComponent({
 
 <template>
   <Viewer
-    :id.sync="id"
     ref="viewerRef"
+    v-model:id="id"
     :read-only-mode="readOnlyMode || runningPipelines.length > 0"
     @change-camera="changeCamera"
     @large-image-warning="largeImageWarning()"
   >
     <template #title>
       <v-tabs
-        icons-and-text
+        stacked
         hide-slider
-        style="flex-basis:0; flex-grow:0;"
+        class="viewer-nav-tabs flex-grow-0 flex-shrink-0"
       >
         <v-tab :to="{ name: 'recent' }">
           Library

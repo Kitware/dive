@@ -143,11 +143,11 @@ export default defineComponent({
         right
         max-width="200"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-btn
             small
             icon
-            v-on="on"
+            v-bind="activatorProps"
           >
             <v-icon small>
               mdi-information

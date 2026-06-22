@@ -1,5 +1,5 @@
 <script lang="ts">
-import Vue, {
+import {
   defineComponent, reactive, computed, ref,
   watch,
 } from 'vue';
@@ -24,7 +24,7 @@ import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
 import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
 /* Magic numbers involved in height calculation */
-const TrackListHeaderHeight = 52;
+const TrackListHeaderHeight = 68;
 
 type SortKey = 'id' | 'start' | 'end' | 'startTime' | 'endTime' | 'confidence' | 'type' | 'notes' | string;
 type SortDirection = 'asc' | 'desc';
@@ -277,7 +277,7 @@ export default defineComponent({
     });
 
     /** Template refs cannot be passed as props (Vue unwraps them to null). */
-    function setVirtualListRef(instance: Vue | null): void {
+    function setVirtualListRef(instance: typeof virtualList.value): void {
       virtualScroll.virtualList.value = instance;
     }
 
@@ -461,8 +461,12 @@ export default defineComponent({
 .strcoller {
   height: 100%;
 }
-.trackHeader{
+.trackHeader {
   height: auto;
+  width: 100%;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.375rem;
 }
 .compact-header {
   background-color: #262626;

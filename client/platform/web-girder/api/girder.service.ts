@@ -1,4 +1,4 @@
-import type { GirderModel } from '@girder/components/src';
+import type { GirderModel } from '@girder/components';
 import girderRest from 'platform/web-girder/plugins/girder';
 
 function deleteResources(resources: Array<GirderModel>) {

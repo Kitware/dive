@@ -236,8 +236,8 @@ export default defineComponent({
           bottom
           :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
         >
-          <template #activator="{ on }">
-            <div v-on="on">
+          <template #activator="{ props: activatorProps }">
+            <div v-bind="activatorProps">
               <v-btn
                 class="hover-show-child"
                 :disabled="usedTypesRef.includes(data.selectedType)"

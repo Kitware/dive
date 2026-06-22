@@ -15,9 +15,9 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
-import { DataTableHeader } from 'vuetify';
+import type { DataTableHeader, DataTableSortItem } from 'vuetify';
 
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import * as api from '../api';
 import {
   JsonMetaCache, recents, removeRecents, setRecents,
@@ -211,6 +211,8 @@ export default defineComponent({
       return moment(normalized, [moment.ISO_8601, moment.RFC_2822, 'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ'], true);
     }
 
+    const sortBy = ref<DataTableSortItem[]>([{ key: 'accessedAt', order: 'desc' }]);
+
     const headers: DataTableHeader[] = [
       {
         text: 'Type',
@@ -268,6 +270,7 @@ export default defineComponent({
       importing,
       importMultiCamDialog,
       headers,
+      sortBy,
       upgradedVersion,
       downgradedVersion,
       knownVersion,
@@ -336,7 +339,7 @@ export default defineComponent({
       <v-col>
         <v-alert
           v-if="upgradedVersion"
-          color="success darken-2"
+          color="success-darken-2"
           dismissible
           @input="acknowledgeVersion"
         >
@@ -355,7 +358,7 @@ export default defineComponent({
         <v-alert
           v-if="downgradedVersion"
           type="warning"
-          color="warning darken-1"
+          color="warning-darken-1"
         >
           <h3>
             Downgrade detected
@@ -457,11 +460,11 @@ export default defineComponent({
                 hide-details
                 placeholder="search"
                 class="shrink"
-                color="grey darken-1"
+                color="grey-darken-1"
               >
                 <template #append>
                   <v-icon
-                    color="grey darken-1"
+                    color="grey-darken-1"
                   >
                     mdi-magnify
                   </v-icon>
@@ -475,18 +478,18 @@ export default defineComponent({
               Open images or video to get started
             </h2>
             <v-data-table
-              dense
               v-bind="{ headers: headers, items: filteredRecents }"
-              sort-by="accessedAt"
-              :footer-props="{ itemsPerPageOptions }"
-              :items-per-page.sync="clientSettings.rowsPerPage"
+              v-model:sort-by="sortBy"
+              v-model:items-per-page="clientSettings.rowsPerPage"
+              dense
+              :items-per-page-options="itemsPerPageOptions"
               no-data-text="No data loaded"
             >
               <template #[`item.type`]="{ item }">
                 <tooltip-btn
                   :key="item.id"
                   class="pr-2"
-                  color="primary lighten-2"
+                  color="primary-lighten-2"
                   :tooltip-text="item.subType ? item.subType : item.type"
                   :icon="getTypeIcon(item)"
                   @click="preloadCheck(item)"
@@ -513,14 +516,12 @@ export default defineComponent({
                       {{ item.name }}
                     </span>
                     <v-tooltip bottom>
-                      <template #activator="{ on, attrs }">
+                      <template #activator="{ props: activatorProps }">
                         <v-icon
-                          v-bind="attrs"
+                          v-bind="activatorProps"
                           color="error"
-                          v-on="on"
-                        >
-                          mdi-alert-circle
-                        </v-icon>
+                          icon="mdi-alert-circle"
+                        />
                       </template>
                       <span>{{ item.error }}</span>
                     </v-tooltip>

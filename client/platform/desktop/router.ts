@@ -1,5 +1,4 @@
-import Vue from 'vue';
-import Router from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 
 import Jobs from './frontend/components/Jobs.vue';
 import Recent from './frontend/components/Recent.vue';
@@ -8,9 +7,8 @@ import TrainingPage from './frontend/components/TrainingPage.vue';
 import ViewerLoader from './frontend/components/ViewerLoader.vue';
 import PipelinePage from './frontend/components/PipelinePage.vue';
 
-Vue.use(Router);
-
-export default new Router({
+export default createRouter({
+  history: createWebHistory(),
   routes: [
     {
       path: '/recent',
@@ -44,7 +42,7 @@ export default new Router({
       props: true,
     },
     {
-      path: '*',
+      path: '/:pathMatch(.*)*',
       redirect: '/recent',
     },
   ],

@@ -20,7 +20,7 @@ import type { DatasetType, SubType } from 'dive-common/apispec';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -29,16 +29,13 @@ import RevisionHistory from './RevisionHistory.vue';
 import AnnotationSets from './AnnotationSets.vue';
 
 const buttonOptions = {
-  text: true,
-  color: 'grey lighten-1',
-  outlined: true,
-  depressed: true,
+  variant: 'outlined',
+  color: 'grey-lighten-1',
   class: ['mx-1'],
 };
 
 const menuOptions = {
-  offsetY: true,
-  bottom: true,
+  location: 'bottom',
 };
 
 context.register({
@@ -273,20 +270,22 @@ export default defineComponent({
     @update:set="routeSet"
   >
     <template #title>
-      <ViewerAlert />
-      <NavigationTitle :name="brandData.name" />
-      <v-tabs
-        icons-and-text
-        hide-slider
-        class="mx-2"
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="locationRoute">
-          Data
-          <v-icon>mdi-database</v-icon>
-        </v-tab>
-        <JobsTab />
-      </v-tabs>
+      <div class="dive-nav-brand">
+        <ViewerAlert />
+        <NavigationTitle :name="brandData.name" />
+        <v-tabs
+          stacked
+          color="accent"
+          hide-slider
+          class="viewer-nav-tabs"
+        >
+          <v-tab :to="locationRoute">
+            Data
+            <v-icon>mdi-database</v-icon>
+          </v-tab>
+          <JobsTab />
+        </v-tabs>
+      </div>
     </template>
     <template #title-right>
       <RunPipelineMenu

@@ -44,11 +44,10 @@ export default defineComponent({
         open-delay="200"
         max-width="320"
       >
-        <template #activator="{ on, attrs }">
+        <template #activator="{ props: activatorProps }">
           <span
             class="d-inline-flex align-center"
-            v-bind="attrs"
-            v-on="on"
+            v-bind="activatorProps"
           >
             <v-icon class="tab-icon">
               mdi-share-variant

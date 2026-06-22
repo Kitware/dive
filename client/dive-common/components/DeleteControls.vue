@@ -1,8 +1,8 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
+import { computed, defineComponent, PropType } from 'vue';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers/';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'DeleteControls',
 
   props: {
@@ -16,21 +16,25 @@ export default Vue.extend({
     },
   },
 
-  computed: {
-    disabled(): boolean {
-      if (this.selectedFeatureHandle < 0 && this.editingMode === false) {
-        return true;
+  setup(props) {
+    const showDeleteButton = computed((): boolean => {
+      if (!props.editingMode) {
+        return false;
       }
-      if (this.editingMode === 'rectangle') {
-        return true; // deleting rectangle is unsupported
+      if (props.selectedFeatureHandle >= 0) {
+        return props.editingMode === 'Polygon' || props.editingMode === 'LineString';
       }
-      return false;
-    },
+      return props.editingMode !== 'rectangle';
+    });
+
+    return {
+      showDeleteButton,
+    };
   },
 
   methods: {
     deleteSelected() {
-      if (this.disabled) {
+      if (!this.showDeleteButton) {
         throw new Error('Cannot delete while disabled!');
       }
       if (this.selectedFeatureHandle >= 0) {
@@ -46,10 +50,10 @@ export default Vue.extend({
 <template>
   <span class="mx-1">
     <v-btn
-      v-if="!disabled"
+      v-if="showDeleteButton"
       color="error"
-      depressed
-      small
+      variant="flat"
+      size="small"
       @click="deleteSelected"
     >
       <pre class="mr-1 text-body-2">del</pre>
@@ -61,7 +65,7 @@ export default Vue.extend({
       </span>
       <span v-else>unselected</span>
       <v-icon
-        small
+        size="small"
         class="ml-2"
       >
         mdi-delete

@@ -7,7 +7,7 @@ export default defineComponent({
   name: 'DatasetMetaEditorDialog',
 
   props: {
-    value: {
+    modelValue: {
       type: Boolean,
       default: false,
     },
@@ -29,15 +29,15 @@ export default defineComponent({
     // The dialog owns a draft so edits can be cancelled without touching the
     // parent. Reset it from the source value each time the dialog opens.
     const draft = ref(props.fieldValue);
-    watch(() => props.value, (isOpen) => {
+    watch(() => props.modelValue, (isOpen) => {
       if (isOpen) {
         draft.value = props.fieldValue;
       }
     });
 
     const isOpen = computed({
-      get: () => props.value,
-      set: (open: boolean) => emit('input', open),
+      get: () => props.modelValue,
+      set: (open: boolean) => emit('update:modelValue', open),
     });
 
     const save = () => {
@@ -65,7 +65,7 @@ export default defineComponent({
           :readonly="readonly"
           auto-grow
           rows="6"
-          outlined
+          variant="outlined"
           hide-details
           autofocus
         />
@@ -74,14 +74,14 @@ export default defineComponent({
         <v-spacer />
         <template v-if="!readonly">
           <v-btn
-            text
+            variant="text"
             @click="isOpen = false"
           >
             Cancel
           </v-btn>
           <v-btn
             color="primary"
-            text
+            variant="text"
             @click="save"
           >
             Save
@@ -89,7 +89,7 @@ export default defineComponent({
         </template>
         <v-btn
           v-else
-          text
+          variant="text"
           @click="isOpen = false"
         >
           Close

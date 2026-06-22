@@ -60,13 +60,12 @@ export default defineComponent({
       :nudge-bottom="28"
       :close-on-content-click="false"
     >
-      <template #activator="{ on, attrs }">
+      <template #activator="{ props: activatorProps }">
         <v-btn
           icon
           small
           class="mx-0"
-          v-bind="attrs"
-          v-on="on"
+          v-bind="activatorProps"
         >
           <v-icon
             small
@@ -80,7 +79,7 @@ export default defineComponent({
       <v-card
         outlined
         class="pa-2 pr-4"
-        color="blue-grey darken-3"
+        color="blue-grey-darken-3"
       >
         <v-card-title>
           Type Settings
@@ -111,10 +110,10 @@ export default defineComponent({
                 bottom
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>
@@ -131,6 +130,7 @@ export default defineComponent({
                 dense
                 label="Show Empty"
                 hide-details
+                :color="clientSettings.typeSettings.showEmptyTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -143,10 +143,10 @@ export default defineComponent({
                 bottom
                 max-width="200"
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>
@@ -163,6 +163,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.lockTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -174,10 +175,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>
@@ -194,6 +195,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.preventCascadeTypes ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -205,10 +207,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>
@@ -225,6 +227,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.filterTypesByFrame ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -236,10 +239,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>
@@ -256,6 +259,7 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :color="clientSettings.typeSettings.maxCountButton ? 'primary' : undefined"
               />
             </v-col>
             <v-col
@@ -267,10 +271,10 @@ export default defineComponent({
                 open-delay="200"
                 bottom
               >
-                <template #activator="{ on }">
+                <template #activator="{ props: activatorProps }">
                   <v-icon
                     small
-                    v-on="on"
+                    v-bind="activatorProps"
                   >
                     mdi-help
                   </v-icon>

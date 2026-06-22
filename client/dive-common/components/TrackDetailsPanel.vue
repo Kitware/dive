@@ -154,6 +154,15 @@ export default defineComponent({
       editingError.value = null;
     }
 
+    const showAttributeEditor = computed({
+      get: () => editingAttribute.value !== null,
+      set: (open: boolean) => {
+        if (!open) {
+          closeEditor();
+        }
+      },
+    });
+
     function addAttribute(type: 'Track' | 'Detection') {
       //TS doesn't understand
       const belongs = type.toLowerCase() as 'track' | 'detection';
@@ -286,6 +295,7 @@ export default defineComponent({
       updateMultiTrackType,
       /* Update functions */
       closeEditor,
+      showAttributeEditor,
       editAttribute,
       addAttribute,
       editingModeRef,
@@ -314,7 +324,7 @@ export default defineComponent({
     class="d-flex flex-column fill-height overflow-hidden"
     @click="resetEditIndividual"
   >
-    <v-subheader class="pl-2 d-flex align-center">
+    <div class="track-editor-header d-flex align-center pl-2 py-1">
       <span>{{
         multiSelectInProgress
           ? (editingGroupIdRef !== null ? 'Editing Group' : 'Merge Candidates')
@@ -322,23 +332,21 @@ export default defineComponent({
       }}</span>
       <v-spacer />
       <slot name="header-trailing" />
-    </v-subheader>
+    </div>
     <div
       v-if="!selectedTrackList.length"
       class="ml-4 body-2 text-caption "
     >
       <p>No track or group selected.</p>
-      <p>
-        This panel is used for:
-        <ul>
-          <li>Setting attributes on tracks and keyframes</li>
-          <li>Merging several tracks together</li>
-          <li>Viewing and managing class types and conficence values</li>
-          <li v-if="!multiCam">
-            Creating and editing track groups
-          </li>
-        </ul>
-      </p>
+      <p>This panel is used for:</p>
+      <ul>
+        <li>Setting attributes on tracks and keyframes</li>
+        <li>Merging several tracks together</li>
+        <li>Viewing and managing class types and conficence values</li>
+        <li v-if="!multiCam">
+          Creating and editing track groups
+        </li>
+      </ul>
       <p>Select a track or group to populate this editor.</p>
       <span
         style="text-decoration: underline; cursor: pointer;"
@@ -347,7 +355,10 @@ export default defineComponent({
         ← back to track list (press `a` to toggle)
       </span>
     </div>
-    <template v-else>
+    <div
+      v-else
+      class="track-editor-body flex-grow-1 overflow-y-auto"
+    >
       <div
         v-if="editingGroup && !multiCam"
         class="px-2"
@@ -356,7 +367,7 @@ export default defineComponent({
           <span class="trackNumber">{{ editingGroup.id }}</span>
           <v-spacer />
           <TypePicker
-            :value="editingGroup.getType()"
+            :value="editingGroup.getType()[0]"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
@@ -364,9 +375,9 @@ export default defineComponent({
           />
         </div>
         <RangeEditor
+          v-model:begin="editingGroup.begin"
+          v-model:end="editingGroup.end"
           :frame="frameRef"
-          :begin.sync="editingGroup.begin"
-          :end.sync="editingGroup.end"
           disabled
           class="my-2 input-box px-0"
         />
@@ -405,9 +416,9 @@ export default defineComponent({
           <v-spacer />
           Cancel (esc)
         </v-btn>
-        <v-subheader class="pl-0">
+        <v-list-subheader class="pl-0">
           Group Members:
-        </v-subheader>
+        </v-list-subheader>
       </div>
       <datalist id="allTypesOptions">
         <option
@@ -448,6 +459,7 @@ export default defineComponent({
             <tooltip-btn
               v-if="multiSelectInProgress && !multiCam"
               icon="mdi-close"
+              variant="text"
               :tooltip-text="editingGroup ? 'Remove from group' : 'Remove from merge candidates'"
               :disabled="(editingGroup && selectedTrackList.length === 1) || readOnlyMode"
               @click="unstageFromMerge([track.trackId])"
@@ -483,7 +495,7 @@ export default defineComponent({
       <div class="d-flex flex-column">
         <v-btn
           v-if="!multiSelectInProgress && !multiCam"
-          color="primary lighten-1"
+          color="primary-lighten-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
           depressed
@@ -501,7 +513,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           v-if="!multiSelectInProgress && !multiCam"
-          color="primary darken-1"
+          color="primary-darken-1"
           class="mx-2 mb-2 grow"
           :disabled="readOnlyMode || disabled"
           depressed
@@ -519,7 +531,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           v-if="multiSelectInProgress && (editingGroupIdRef === null)"
-          color="primary lighten-1"
+          color="primary-lighten-1"
           x-small
           depressed
           :disabled="multiSelectList.length < 2 || readOnlyMode || disabled"
@@ -628,13 +640,10 @@ export default defineComponent({
         @set-edit-individual="setEditIndividual($event)"
         @add-attribute="addAttribute"
       />
-    </template>
-    <v-spacer />
+    </div>
     <v-dialog
-      :value="editingAttribute != null"
+      v-model="showAttributeEditor"
       max-width="550"
-      @click:outside="closeEditor"
-      @keydown.esc.stop="closeEditor"
     >
       <attribute-editor
         v-if="editingAttribute != null"
@@ -650,6 +659,13 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 @import 'vue-media-annotator/components/styles/common.scss';
+.track-editor-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid #444;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-height: 40px;
+}
 .track-details {
   min-height: 85px;
 }

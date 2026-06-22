@@ -51,25 +51,11 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
+      v-model:confidence="confidenceFiltersRef.default"
       :disabled="disableAnnotationFiltersRef"
-      :confidence.sync="confidenceFiltersRef.default"
       text="Base Confidence Threshold"
       @end="saveThreshold"
     />
-    <v-divider class="my-3" />
-    <div
-      v-for="type in checkedTypesRef"
-      :key="type"
-      class="slidercontainer"
-    >
-      <ConfidenceFilter
-        :disabled="disableAnnotationFiltersRef"
-        :confidence.sync="confidenceFiltersRef[type]"
-        :text="type"
-        :color="typeStylingRef.color(type)"
-        @end="saveThreshold"
-      />
-    </div>
     <v-btn
       block
       depressed
@@ -79,6 +65,20 @@ export default defineComponent({
     >
       Reset Thresholds
     </v-btn>
+    <v-divider class="my-3" />
+    <div
+      v-for="type in checkedTypesRef"
+      :key="type"
+      class="slidercontainer"
+    >
+      <ConfidenceFilter
+        v-model:confidence="confidenceFiltersRef[type]"
+        :disabled="disableAnnotationFiltersRef"
+        :text="type"
+        :color="typeStylingRef.color(type)"
+        @end="saveThreshold"
+      />
+    </div>
   </div>
 </template>
 

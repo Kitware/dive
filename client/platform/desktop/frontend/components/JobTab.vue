@@ -13,16 +13,17 @@ export default defineComponent({
   <v-tab :to="{ name: 'jobs' }">
     Jobs
     <v-badge
-      :value="runningJobs.length >= 1"
-      overlap
-      bottom
-      offset-x="-6"
-      offset-y="28"
+      :model-value="runningJobs.length >= 1"
+      location="bottom end"
+      color="warning"
+      floating
+      :offset-x="-6"
+      :offset-y="28"
     >
-      <template slot="badge">
+      <template #badge>
         <v-icon
-          dark
           class="rotate"
+          size="12"
         >
           mdi-spin mdi-sync
         </v-icon>

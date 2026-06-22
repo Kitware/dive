@@ -93,12 +93,12 @@ export default defineComponent({
       <v-checkbox
         v-else
         class="my-0 ml-1 pt-0"
-        dense
+        density="compact"
         hide-details
         :disabled="disabled"
-        :input-value="inputValue"
+        :model-value="inputValue"
         :color="color"
-        @change="trackFilters.updateCheckedId(track.trackId, $event)"
+        @update:model-value="trackFilters.updateCheckedId(track.trackId, $event)"
       />
       <v-tooltip
         open-delay="200"
@@ -106,10 +106,10 @@ export default defineComponent({
         max-width="200"
         :disabled="track.trackId.toString().length < 8"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <div
             class="trackNumber pl-0 pr-2"
-            v-on="on"
+            v-bind="activatorProps"
             @click.self="handleClicked"
           >
             {{ track.trackId }}
@@ -151,8 +151,9 @@ export default defineComponent({
           ]"
         />
         <tooltip-btn
-          color="error"
           icon="mdi-delete"
+          icon-color="error"
+          variant="text"
           :disabled="merging || readOnlyMode"
           :tooltip-text="`Delete ${isTrack ? 'Track' : 'Detection'}`"
           @click="handler.removeTrack([track.trackId])"
@@ -162,6 +163,7 @@ export default defineComponent({
             v-if="isTrack"
             :disabled="!track.canSplit(frame) || merging || readOnlyMode"
             icon="mdi-call-split"
+            variant="text"
             tooltip-text="Split Track"
             @click="handler.trackSplit(track.trackId, frame)"
           />

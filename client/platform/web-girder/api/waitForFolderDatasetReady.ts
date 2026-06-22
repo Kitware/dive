@@ -1,5 +1,5 @@
 /* eslint-disable import/prefer-default-export -- single-purpose polling helper */
-import { all } from '@girder/components/src/components/Job/status';
+import { all } from 'platform/web-girder/components/job/status';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { getFolder } from './girder.service';
 

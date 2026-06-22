@@ -1,6 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from 'vue';
 
+import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import useVuetify from 'vue-media-annotator/use/useVuetify';
 import { useGroupFilterControls, useHandler, useReadOnlyMode } from '../provides';
 import Group from '../Group';
@@ -48,7 +49,7 @@ export default defineComponent({
     const style = computed(() => {
       if (props.selected) {
         return {
-          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
+          'background-color': getThemeColor(vuetify, 'accentBackground'),
         };
       }
       if (props.secondarySelected) {
@@ -80,11 +81,11 @@ export default defineComponent({
     >
       <v-checkbox
         class="my-0 ml-0 pt-0"
-        dense
+        density="compact"
         hide-details
-        :input-value="inputValue"
+        :model-value="inputValue"
         :color="color"
-        @change="groupFilters.updateCheckedId(group.id, $event)"
+        @update:model-value="groupFilters.updateCheckedId(group.id, $event)"
       />
       <v-tooltip
         open-delay="200"
@@ -92,10 +93,10 @@ export default defineComponent({
         max-width="200"
         :disabled="group.id.toString().length < 8"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <div
             class="trackNumber pl-0 pr-2"
-            v-on="on"
+            v-bind="activatorProps"
             @click.self="handler.groupEdit(group.id)"
           >
             {{ group.id }}
@@ -105,7 +106,7 @@ export default defineComponent({
       </v-tooltip>
       <v-spacer />
       <TypePicker
-        :value="group.getType()"
+        :value="group.getType()[0]"
         :all-types="groupFilters.allTypes.value"
         :read-only-mode="readOnlyMode"
         data-list-source="allGroupTypesOptions"

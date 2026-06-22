@@ -5,8 +5,6 @@ import {
   computed,
   defineComponent,
   onBeforeMount,
-  set,
-  del,
   reactive,
   ref,
   watch,
@@ -18,7 +16,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 import { datasets } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
@@ -135,9 +133,9 @@ export default defineComponent({
 
     function toggleStaged(meta: DatasetMeta) {
       if (data.stagedItems[meta.id]) {
-        del(data.stagedItems, meta.id);
+        delete data.stagedItems[meta.id];
       } else {
-        set(data.stagedItems, meta.id, meta);
+        data.stagedItems[meta.id] = meta;
       }
     }
     const availableItems = computed(() => Object.values(datasets.value)
@@ -332,29 +330,26 @@ export default defineComponent({
             :hint="data.selectedTrainingConfig"
             persistent-hint
           >
-            <template #item="{ item, on, attrs }">
+            <template #item="{ props: itemProps, item }">
               <v-tooltip
-                left
+                location="start"
                 :open-delay="250"
-                :disabled="!item.description"
+                :disabled="!item.raw.description"
                 max-width="300"
                 content-class="pipeline-description-tooltip"
               >
-                <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                <template #activator="{ props: tooltipProps }">
                   <v-list-item
-                    v-bind="{ ...attrs, ...tooltipAttrs }"
-                    v-on="{ ...on, ...tooltipOn }"
+                    v-bind="{ ...itemProps, ...tooltipProps }"
                   >
-                    <v-list-item-content>
-                      <v-list-item-title>{{ simplifyTrainingName(item.name) }}</v-list-item-title>
-                    </v-list-item-content>
+                    <v-list-item-title>{{ simplifyTrainingName(item.raw.name) }}</v-list-item-title>
                   </v-list-item>
                 </template>
-                <span>{{ item.description }}</span>
+                <span>{{ item.raw.description }}</span>
               </v-tooltip>
             </template>
             <template #selection="{ item }">
-              {{ simplifyTrainingName(item.name) }}
+              {{ simplifyTrainingName(item.raw?.name || item.title) }}
             </template>
           </v-select>
         </v-col>
@@ -438,10 +433,10 @@ export default defineComponent({
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
       <v-data-table
-        dense
         v-bind="{ headers: available.headers, items: available.items.value }"
+        v-model:items-per-page="clientSettings.rowsPerPage"
+        dense
         :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
         :item-class="({ included }) => included ? 'disabled-row' : ''"
         no-data-text="No data meets criteria for chosen configuration"
       >

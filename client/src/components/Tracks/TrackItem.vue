@@ -3,6 +3,7 @@ import {
   defineComponent, computed, PropType,
 } from 'vue';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
+import { getThemeColor } from 'dive-common/vuetify/themeUtils';
 import SideBarTrackItemView from './sidebar/SideBarTrackItemView.vue';
 import BottomBarTrackItemView from './bottombar/BottomBarTrackItemView.vue';
 import { useTime } from '../../provides';
@@ -112,7 +113,7 @@ export default defineComponent({
     const style = computed(() => {
       if (props.selected) {
         return {
-          'background-color': `${vuetify.theme.themes.dark.accentBackground}`,
+          'background-color': getThemeColor(vuetify, 'accentBackground'),
         };
       }
       if (props.secondarySelected) {

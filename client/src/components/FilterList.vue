@@ -329,26 +329,25 @@ export default defineComponent({
           class="d-flex flex-row align-center py-0 pr-2"
         >
           <v-checkbox
-            :input-value="headCheckState !== -1 ? headCheckState : false"
+            :model-value="headCheckState !== -1 ? !!headCheckState : false"
             :indeterminate="headCheckState === -1"
             :disabled="disableAnnotationFilters"
-            dense
-            shrink
+            density="compact"
             hide-details
             color="white"
             class="my-1 type-checkbox mt-0"
-            @change="headCheckClicked"
+            @update:model-value="headCheckClicked"
           />
           <v-tooltip
             open-delay="100"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
                 class="mr-1 hover-show-child"
                 :color="disableAnnotationFilters ? 'primary' : ''"
-                v-on="on"
+                v-bind="activatorProps"
                 @click="disableAnnotationFilters = !disableAnnotationFilters"
               >
                 mdi-filter-off-outline
@@ -360,8 +359,8 @@ export default defineComponent({
             open-delay="100"
             bottom
           >
-            <template #activator="{ on }">
-              <b v-on="on">Type Filter</b>
+            <template #activator="{ props: activatorProps }">
+              <b v-bind="activatorProps">Type Filter</b>
             </template>
             <span>Toggle Type TotalCount:FrameCount Type Name</span>
           </v-tooltip>
@@ -372,29 +371,16 @@ export default defineComponent({
               @click="clickSortToggle"
             />
             <slot name="settings" />
-            <v-tooltip
-              open-delay="100"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-btn
-                  class="hover-show-child"
-                  :disabled="checkedTypesRef.length === 0 || readOnlyMode"
-                  icon
-                  small
-                  v-on="on"
-                  @click="clickDelete()"
-                >
-                  <v-icon
-                    small
-                    color="error"
-                  >
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </template>
-              <span>Delete visible items</span>
-            </v-tooltip>
+            <tooltip-btn
+              icon="mdi-delete"
+              icon-color="error"
+              variant="text"
+              class="hover-show-child"
+              :disabled="checkedTypesRef.length === 0 || readOnlyMode"
+              tooltip-text="Delete visible items"
+              :delay="100"
+              @click="clickDelete()"
+            />
             <slot name="header-trailing" />
           </div>
         </v-col>

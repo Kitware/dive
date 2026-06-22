@@ -410,7 +410,7 @@ export default defineComponent({
       };
       if (props.imageData.length) {
         if (geoSpatial) {
-          initializeViewer(
+          await initializeViewer(
             local.metadata.sourceSizeX,
             local.metadata.sourceSizeY,
             local.metadata.tileWidth,
@@ -419,7 +419,7 @@ export default defineComponent({
             geoSpatial,
           );
         } else {
-          initializeViewer(
+          await initializeViewer(
             local.width,
             local.height,
             local.metadata.tileWidth,

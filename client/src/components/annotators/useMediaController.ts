@@ -3,17 +3,19 @@
 import geo, { GeoEvent } from 'geojs';
 import * as d3 from 'd3';
 
-import Vue, {
-  ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
+import {
+  ref, reactive, provide, toRef, Ref, UnwrapRef, computed, nextTick,
 } from 'vue';
 import { map, over } from 'lodash';
+
+import { createEventBus } from 'dive-common/utils/eventBus';
 
 import { use } from '../../provides';
 import type { AggregateMediaController, MediaController } from './mediaControllerType';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
-const bus = new Vue();
+const bus = createEventBus();
 let allowCameraTrigger = true; // Used to prevent infinite loop on Camera Sync
 
 interface MediaControllerReactiveData {
@@ -51,7 +53,7 @@ interface CameraInitializerReturn {
     handleMouseMove: (evt: MouseEvent) => void;
   };
   initializeViewer: (width: number, height: number, tileWidth?: number,
-    tileHeight?: number, isMap?: boolean, geoSpatial?: boolean) => void;
+    tileHeight?: number, isMap?: boolean, geoSpatial?: boolean) => Promise<void>;
   mediaController: MediaController;
 }
 
@@ -308,77 +310,88 @@ export function useMediaController() {
       tileHeight: number | undefined = undefined,
       isMap = false,
       geoSpatial = false,
-    ) {
-      if (tileHeight === undefined) {
-        // eslint-disable-next-line no-param-reassign
-        tileHeight = height;
-      }
-      if (tileWidth === undefined) {
-        // eslint-disable-next-line no-param-reassign
-        tileWidth = width;
-      }
-      let params = geo.util.pixelCoordinateParams(containers[camera].value, width, height, tileWidth, tileHeight);
-      if (isMap && geoSpatial) {
-        params = { map: { node: containers[camera].value } };
-      }
-      geoViewers[camera].value = geo.map(params.map);
-      if (!isMap || !geoSpatial) {
-        resetMapDimensions(width, height, isMap);
-      }
-      const interactorOpts = geoViewers[camera].value.interactor().options();
-      interactorOpts.keyboard.focusHighlight = false;
-      interactorOpts.keyboard.actions = {};
-      interactorOpts.click.cancelOnMove = 5;
+    ): Promise<void> {
+      return new Promise((resolve) => {
+        const runInitializeViewer = () => {
+          const containerEl = containers[camera].value;
+          if (!containerEl) {
+            window.requestAnimationFrame(runInitializeViewer);
+            return;
+          }
+          if (tileHeight === undefined) {
+            // eslint-disable-next-line no-param-reassign
+            tileHeight = height;
+          }
+          if (tileWidth === undefined) {
+            // eslint-disable-next-line no-param-reassign
+            tileWidth = width;
+          }
+          let params = geo.util.pixelCoordinateParams(containerEl, width, height, tileWidth, tileHeight);
+          if (isMap && geoSpatial) {
+            params = { map: { node: containerEl } };
+          }
+          geoViewers[camera].value = geo.map(params.map);
+          if (!isMap || !geoSpatial) {
+            resetMapDimensions(width, height, isMap);
+          }
+          const interactorOpts = geoViewers[camera].value.interactor().options();
+          interactorOpts.keyboard.focusHighlight = false;
+          interactorOpts.keyboard.actions = {};
+          interactorOpts.click.cancelOnMove = 5;
 
-      interactorOpts.actions = [
-        interactorOpts.actions[0],
-        // The action below is needed to have GeoJS use the proper handler
-        // with cancelOnMove for right clicks
-        {
-          action: geo.geo_action.select,
-          input: { right: true },
-          name: 'button edit',
-          owner: 'geo.MapInteractor',
-        },
-        // The action below adds middle mouse button click to panning
-        // It allows for panning while in the process of polygon editing or creation
-        {
-          action: geo.geo_action.pan,
-          input: 'middle',
-          modifiers: { shift: false, ctrl: false },
-          owner: 'geo.mapInteractor',
-          name: 'button pan',
+          interactorOpts.actions = [
+            interactorOpts.actions[0],
+            // The action below is needed to have GeoJS use the proper handler
+            // with cancelOnMove for right clicks
+            {
+              action: geo.geo_action.select,
+              input: { right: true },
+              name: 'button edit',
+              owner: 'geo.MapInteractor',
+            },
+            // The action below adds middle mouse button click to panning
+            // It allows for panning while in the process of polygon editing or creation
+            {
+              action: geo.geo_action.pan,
+              input: 'middle',
+              modifiers: { shift: false, ctrl: false },
+              owner: 'geo.mapInteractor',
+              name: 'button pan',
 
-        },
-        interactorOpts.actions[2],
-        interactorOpts.actions[6],
-        interactorOpts.actions[7],
-        interactorOpts.actions[8],
-        interactorOpts.actions[9],
-      ];
-      // Set > 2pi to disable rotation
-      interactorOpts.zoomrotateMinimumRotation = 7;
-      interactorOpts.zoomAnimation = {
-        enabled: false,
-      };
-      interactorOpts.momentum = {
-        enabled: false,
-      };
-      interactorOpts.wheelScaleY = 0.2;
-      geoViewers[camera].value.interactor().options(interactorOpts);
+            },
+            interactorOpts.actions[2],
+            interactorOpts.actions[6],
+            interactorOpts.actions[7],
+            interactorOpts.actions[8],
+            interactorOpts.actions[9],
+          ];
+          // Set > 2pi to disable rotation
+          interactorOpts.zoomrotateMinimumRotation = 7;
+          interactorOpts.zoomAnimation = {
+            enabled: false,
+          };
+          interactorOpts.momentum = {
+            enabled: false,
+          };
+          interactorOpts.wheelScaleY = 0.2;
+          geoViewers[camera].value.interactor().options(interactorOpts);
 
-      //Add in bus control synchronization for cameras
-      geoViewers[camera].value.geoOn(geo.event.pan, (e: GeoEvent) => {
-        // Only trigger if not handling other camera interactions.
-        if (allowCameraTrigger) {
-          bus.$emit('pan', { camera: camera.toString(), event: e });
-        }
-      });
-      geoViewers[camera].value.geoOn(geo.event.zoom, (e: GeoEvent) => {
-        // Only trigger if not handling other camera interactions.
-        if (allowCameraTrigger) {
-          bus.$emit('zoom', { camera: camera.toString(), event: e });
-        }
+          //Add in bus control synchronization for cameras
+          geoViewers[camera].value.geoOn(geo.event.pan, (e: GeoEvent) => {
+            // Only trigger if not handling other camera interactions.
+            if (allowCameraTrigger) {
+              bus.$emit('pan', { camera: camera.toString(), event: e });
+            }
+          });
+          geoViewers[camera].value.geoOn(geo.event.zoom, (e: GeoEvent) => {
+            // Only trigger if not handling other camera interactions.
+            if (allowCameraTrigger) {
+              bus.$emit('zoom', { camera: camera.toString(), event: e });
+            }
+          });
+          resolve();
+        };
+        nextTick(runInitializeViewer);
       });
     }
 

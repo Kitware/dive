@@ -26,7 +26,7 @@ export default defineComponent({
   },
   props: {
     sidebarMode: { type: String, required: true },
-    controlsRef: { type: null, required: true },
+    setControlsRef: { type: Function, required: true },
     controlsCollapsed: { type: Boolean, required: true },
     lineChartData: { type: Array as PropType<unknown[]>, required: true },
     eventChartData: { type: Object as PropType<Record<string, unknown>>, required: true },
@@ -55,6 +55,7 @@ export default defineComponent({
     editAttribute: { type: Function, required: true },
     saveThreshold: { type: Function, required: true },
   },
+  emits: ['update:controlsCollapsed'],
   setup() {
     return { context };
   },
@@ -78,13 +79,14 @@ export default defineComponent({
       }"
     >
       <ControlsContainer
-        :ref="controlsRef"
+        :ref="setControlsRef"
+        :collapsed="controlsCollapsed"
         bottom-layout
         :wrap-bottom-controls="sidebarMode === 'bottom'"
-        :collapsed.sync="controlsCollapsed"
         v-bind="{
           lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
         }"
+        @update:collapsed="$emit('update:controlsCollapsed', $event)"
       />
     </div>
 
@@ -105,10 +107,10 @@ export default defineComponent({
         :disabled="disableAnnotationFilters"
         @track-seek="aggregateSeek($event)"
       >
-        <template slot="settings">
+        <template #settings>
           <TrackSettingsPanel :all-types="trackFilters.allTypes.value" />
         </template>
-        <template slot="column-settings">
+        <template #column-settings>
           <TrackListColumnSettings
             :attributes="attributes.filter((attr) => attr.belongs === 'track')"
             :fps="frameRate"
@@ -127,18 +129,14 @@ export default defineComponent({
           {{ bottomRightPanelView === 'filters' ? 'Type Filters' : 'Track Details' }}
         </span>
         <v-spacer />
-        <v-tooltip bottom>
-          <template #activator="{ on }">
+        <v-tooltip location="bottom">
+          <template #activator="{ props: activatorProps }">
             <v-btn
-              icon
-              x-small
-              v-on="on"
+              icon="mdi-swap-horizontal"
+              size="x-small"
+              v-bind="activatorProps"
               @click="toggleBottomRightPanel()"
-            >
-              <v-icon small>
-                mdi-swap-horizontal
-              </v-icon>
-            </v-btn>
+            />
           </template>
           <span>{{ bottomRightPanelView === 'filters' ? 'Switch to Track Details' : 'Switch to Type Filters' }}</span>
         </v-tooltip>
@@ -165,7 +163,7 @@ export default defineComponent({
         </div>
         <div class="confidence-row-bottom px-2 py-1">
           <ConfidenceFilter
-            :confidence.sync="confidenceFilters.default"
+            v-model:confidence="confidenceFilters.default"
             :disabled="disableAnnotationFilters"
             text="Confidence"
             @end="saveThreshold()"

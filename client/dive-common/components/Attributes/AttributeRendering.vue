@@ -9,7 +9,7 @@ import { Attribute, AttributeRendering } from 'vue-media-annotator/use/Attribute
 export default defineComponent({
   name: 'AttributeRendering',
   props: {
-    value: {
+    modelValue: {
       type: Object as PropType<AttributeRendering>,
       required: true,
     },
@@ -25,9 +25,9 @@ export default defineComponent({
     const types = computed(() => ['all', ...trackFilterControls.allTypes.value]);
 
     const mainSettings = reactive({
-      selected: props.value.selected || false,
-      typeFilter: props.value.typeFilter || ['all'],
-      order: props.value.order,
+      selected: props.modelValue.selected || false,
+      typeFilter: props.modelValue.typeFilter || ['all'],
+      order: props.modelValue.order,
     });
 
     const deleteChip = (item: string) => {
@@ -35,39 +35,39 @@ export default defineComponent({
     };
 
     const layoutSettings = reactive({
-      layout: props.value.layout,
-      corner: props.value.corner,
-      location: props.value.location,
+      layout: props.modelValue.layout,
+      corner: props.modelValue.corner,
+      location: props.modelValue.location,
     });
 
     const displayNameSettings = reactive({
-      displayName: props.value.displayName,
-      displayTextSize: props.value.displayTextSize,
-      displayColor: props.value.displayColor,
-      displayColorAuto: props.value.displayColor === 'auto',
+      displayName: props.modelValue.displayName,
+      displayTextSize: props.modelValue.displayTextSize,
+      displayColor: props.modelValue.displayColor,
+      displayColorAuto: props.modelValue.displayColor === 'auto',
     });
 
     const valueSettings = reactive({
-      valueTextSize: props.value.valueTextSize,
-      valueColor: props.value.valueColor,
-      valueColorAuto: props.value.valueColor === 'auto',
+      valueTextSize: props.modelValue.valueTextSize,
+      valueColor: props.modelValue.valueColor,
+      valueColorAuto: props.modelValue.valueColor === 'auto',
     });
 
     const verticalDimensions = reactive({
-      displayWidthType: props.value.displayWidth.type,
-      displayWidthVal: props.value.displayWidth.val,
-      displayHeightType: props.value.displayHeight.type,
-      displayHeightVal: props.value.displayHeight.val,
+      displayWidthType: props.modelValue.displayWidth.type,
+      displayWidthVal: props.modelValue.displayWidth.val,
+      displayHeightType: props.modelValue.displayHeight.type,
+      displayHeightVal: props.modelValue.displayHeight.val,
     });
 
     const boxSettings = reactive({
-      box: props.value.box,
-      boxColor: props.value.boxColor,
-      boxColorAuto: props.value.boxColor === 'auto',
-      boxThickness: props.value.boxThickness,
-      boxBackground: props.value.boxBackground,
-      boxBackgroundSwitch: !!props.value.boxBackground,
-      boxOpacity: props.value.boxOpacity,
+      box: props.modelValue.box,
+      boxColor: props.modelValue.boxColor,
+      boxColorAuto: props.modelValue.boxColor === 'auto',
+      boxThickness: props.modelValue.boxThickness,
+      boxBackground: props.modelValue.boxBackground,
+      boxBackgroundSwitch: !!props.modelValue.boxBackground,
+      boxOpacity: props.modelValue.boxOpacity,
     });
 
     const dropdownOptions = reactive({
@@ -101,7 +101,7 @@ export default defineComponent({
     });
 
     const updateSettings = () => {
-      emit('input', {
+      emit('update:modelValue', {
         selected: mainSettings.selected,
         typeFilter: mainSettings.typeFilter,
         order: mainSettings.order,
@@ -212,15 +212,15 @@ export default defineComponent({
   <div>
     <v-expansion-panels>
       <v-expansion-panel>
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Main Settings
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -233,8 +233,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="my-2 border">
             <v-switch
               v-model="mainSettings.selected"
@@ -275,18 +275,18 @@ export default defineComponent({
               class="mx-2"
             />
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
       <v-expansion-panel>
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Layout
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -299,8 +299,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="my-2 border">
             <v-select
               v-model="layoutSettings.location"
@@ -324,19 +324,19 @@ export default defineComponent({
               style="max-width:100px"
             />
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
 
       <v-expansion-panel>
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Display Name
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -349,8 +349,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="mb-2 border">
             <v-text-field
               v-model="displayNameSettings.displayName"
@@ -378,18 +378,18 @@ export default defineComponent({
               @click="setEditingColor('display', !displayNameSettings.displayColorAuto)"
             />
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
       <v-expansion-panel>
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Value
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -401,8 +401,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="mb-2 border">
             <v-text-field
               v-model.number="valueSettings.valueTextSize"
@@ -425,18 +425,18 @@ export default defineComponent({
               @click="setEditingColor('value', !valueSettings.valueColorAuto)"
             />
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
       <v-expansion-panel v-if="layoutSettings.layout === 'vertical'">
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Dimensions
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -450,8 +450,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="border mb-2">
             <v-row dense>
               <v-select
@@ -484,18 +484,18 @@ export default defineComponent({
               />
             </v-row>
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
       <v-expansion-panel v-if="layoutSettings.layout === 'vertical'">
-        <v-expansion-panel-header>
+        <v-expansion-panel-title>
           <h3>
             Box
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <v-icon v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <v-icon v-bind="activatorProps">
                   mdi-information
                 </v-icon>
               </template>
@@ -504,8 +504,8 @@ export default defineComponent({
               </span>
             </v-tooltip>
           </h3>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <v-row class="my-2 border">
             <v-row dense>
               <v-switch
@@ -566,7 +566,7 @@ export default defineComponent({
               />
             </v-row>
           </v-row>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
     <v-dialog

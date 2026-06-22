@@ -1,7 +1,7 @@
 <script lang="ts">
-import Vue, { PropType } from 'vue';
+import { defineComponent, PropType } from 'vue';
 
-export default Vue.extend({
+export default defineComponent({
   name: 'TooltipButton',
 
   props: {
@@ -37,32 +37,39 @@ export default Vue.extend({
       type: Boolean,
       default: false,
     },
+    variant: {
+      type: String as PropType<'flat' | 'text' | 'elevated' | 'plain' | 'tonal' | 'outlined'>,
+      default: undefined,
+    },
+    iconColor: {
+      type: String as PropType<string>,
+      default: undefined,
+    },
   },
 });
 </script>
 
 <template>
   <v-tooltip
-    bottom
+    location="bottom"
     :open-delay="delay"
   >
-    <template #activator="{ on, attrs }">
+    <template #activator="{ props: activatorProps }">
       <v-btn
-        v-bind="attrs"
-        :small="size === 'small'"
-        :x-small="size === 'x-small'"
+        v-bind="activatorProps"
+        :size="size"
         icon
         :disabled="disabled"
         :color="color"
-        :outlined="outlined"
+        :variant="outlined ? 'outlined' : variant"
         :tile="tile"
         class="ma-0"
-        v-on="on"
         @click="$emit('click', $event)"
       >
-        <v-icon>
-          {{ icon }}
-        </v-icon>
+        <v-icon
+          :icon="icon"
+          :color="iconColor"
+        />
       </v-btn>
     </template>
     <span>{{ tooltipText }}</span>

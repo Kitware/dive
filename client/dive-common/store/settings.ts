@@ -169,8 +169,16 @@ function saveSettings() {
   }
 }
 
+function normalizeRowsPerPage(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  return defaultSettings.rowsPerPage;
+}
+
 function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   const hydrated = merge(cloneDeep(defaultSettings), obj);
+  hydrated.rowsPerPage = normalizeRowsPerPage(hydrated.rowsPerPage);
   hydrated.autoSaveSettings.delaySeconds = Math.max(
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,

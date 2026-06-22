@@ -15,9 +15,9 @@ import { MultiType, VideoType } from '../../../dive-common/constants';
 
 import * as api from '../api';
 import * as configurationService from '../api/configuration.service';
-import girderRest from '../plugins/girder';
+import girderRest, { getNotificationBus, initGirderNotifications } from '../plugins/girder';
 
-import { bindWebGirderRouter, useLocation } from './useLocation';
+import { bindWebGirderRouter, getUserHomeRoute, useLocation } from './useLocation';
 import { useBrand } from './useBrand';
 import { useConfig } from './useConfig';
 import { useDataset } from './useDataset';
@@ -155,6 +155,24 @@ describe('web-girder store composables', () => {
       } as unknown as Route;
       await useLocation().setLocationFromRoute(route);
       expect(useLocation().getLocation()).toEqual({ type: 'collections' });
+    });
+
+    it('setLocationFromRoute uses user home when route params are empty', async () => {
+      const user = { _id: 'user123' };
+      vi.spyOn(girderRest, 'user', 'get').mockReturnValue(user as never);
+      const route = {
+        name: 'home',
+        params: {},
+      } as unknown as Route;
+      await useLocation().setLocationFromRoute(route);
+      expect(useLocation().getLocation()).toEqual({
+        _modelType: 'user',
+        _id: 'user123',
+      });
+      expect(getUserHomeRoute()).toEqual({
+        name: 'home',
+        params: { routeType: 'user', routeId: 'user123' },
+      });
     });
 
     it('hydrate loads unnamed folder via getFolder', async () => {
@@ -483,6 +501,16 @@ describe('web-girder store composables', () => {
     });
   });
 
+  describe('initGirderNotifications', () => {
+    it('uses an apiRoot that produces a valid Girder notification websocket URL', () => {
+      expect(girderRest.apiRoot).toBe('/api/v1');
+      const wsPath = girderRest.apiRoot.replace(/\/api\/v1\/?$/, '') || '';
+      const url = `ws://localhost:8080${wsPath.replace(/\/$/, '')}/notifications/me?token=test`;
+      expect(url).toBe('ws://localhost:8080/notifications/me?token=test');
+      expect(() => new URL(url)).not.toThrow();
+    });
+  });
+
   describe('initJobs', () => {
     it('fetches running jobs and subscribes to job status messages', async () => {
       const job = {
@@ -492,11 +520,12 @@ describe('web-girder store composables', () => {
         type: 'pipelines',
         title: 'P',
       };
+      initGirderNotifications();
+      const busOn = vi.spyOn(getNotificationBus().bus, 'on');
       vi.spyOn(girderRest, 'get').mockResolvedValue({ data: [job] } as never);
-      vi.spyOn(girderRest, '$on').mockImplementation(() => girderRest);
       await initJobs();
       expect(girderRest.get).toHaveBeenCalled();
-      expect(girderRest.$on).toHaveBeenCalledWith('message:job_status', expect.any(Function));
+      expect(busOn).toHaveBeenCalledWith('message:job_status', expect.any(Function));
       expect(useJobs().getJobIds().job1).toBe(2);
     });
   });

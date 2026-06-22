@@ -55,20 +55,19 @@ export default defineComponent({
       nudge-left="180"
       max-width="180"
     >
-      <template #activator="{ on }">
+      <template #activator="{ props: menuActivatorProps }">
         <v-tooltip
           v-if="tooltip"
-          bottom
+          location="bottom"
           max-width="360"
-          open-delay="50"
+          :open-delay="50"
         >
-          <template #activator="{ on: tooltipOn, attrs }">
+          <template #activator="{ props: tooltipProps }">
             <v-btn
-              v-bind="{ ...buttonAttrs, ...attrs }"
+              v-bind="{ ...buttonAttrs, ...tooltipProps }"
               :large="!small"
               :small="small"
               class="px-0 import-button"
-              v-on="tooltipOn"
               @click="$emit('open', openType)"
             >
               <div class="col-11">
@@ -80,7 +79,7 @@ export default defineComponent({
               <v-icon
                 v-if="multiCamImport"
                 class="button-dropdown col-1"
-                v-on="on"
+                v-bind="menuActivatorProps"
               >
                 mdi-chevron-down
               </v-icon>
@@ -105,7 +104,7 @@ export default defineComponent({
           <v-icon
             v-if="multiCamImport"
             class="button-dropdown col-1"
-            v-on="on"
+            v-bind="menuActivatorProps"
           >
             mdi-chevron-down
           </v-icon>
@@ -118,58 +117,48 @@ export default defineComponent({
             style="align-items':'center"
             @click="$emit('open', openType)"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-folder-open</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Directory</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Directory</v-list-item-title>
           </v-list-item>
           <v-list-item
             v-else-if="openType === 'video'"
             style="align-items':'center"
             @click="$emit('open', openType)"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-file-video</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>From File</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>From File</v-list-item-title>
           </v-list-item>
           <v-list-item
             v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
             @click="$emit('open', 'text')"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-view-list-outline</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Image List</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Image List</v-list-item-title>
           </v-list-item>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: true, openType })"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-binoculars</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Stereoscopic</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>Stereoscopic</v-list-item-title>
           </v-list-item>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: false, openType })"
           >
-            <v-list-item-icon>
+            <template #prepend>
               <v-icon>mdi-camera-burst</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>MultiCam</v-list-item-title>
-            </v-list-item-content>
+            </template>
+            <v-list-item-title>MultiCam</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-card>

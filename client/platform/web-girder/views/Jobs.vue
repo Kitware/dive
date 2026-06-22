@@ -2,7 +2,7 @@
 import {
   defineComponent, ref, watch,
 } from 'vue';
-import { GirderJobList } from '@girder/components/src';
+import { GirderJobList } from 'platform/web-girder/components/job';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { useConfig } from '../store/useConfig';
@@ -54,7 +54,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+  <v-container :fluid="$vuetify.display.mdAndDown">
     <v-alert
       v-if="outstandingJobs"
       type="warning"
@@ -66,21 +66,21 @@ export default defineComponent({
       <template #jobwidget="{ item }">
         <v-tooltip
           v-if="item.dataset_id"
-          bottom
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
-              v-bind="attrs"
-              x-small
-              depressed
+              v-bind="activatorProps"
+              size="x-small"
+              variant="flat"
               :to="{ name: 'viewer', params: { id: item.dataset_id } }"
               color="info"
               class="mr-2"
-              v-on="on"
             >
-              <v-icon small>
-                mdi-eye
-              </v-icon>
+              <v-icon
+                size="small"
+                icon="mdi-eye"
+              />
             </v-btn>
           </template>
           <span>Launch dataset viewer</span>
@@ -88,40 +88,40 @@ export default defineComponent({
 
         <v-tooltip
           v-if="item.type == 'export' && item.statusText == 'Success'"
-          bottom
+          location="bottom"
         >
-          <template #activator="{ on, attrs }">
+          <template #activator="{ props: activatorProps }">
             <v-btn
-              v-bind="attrs"
-              x-small
-              depressed
+              v-bind="activatorProps"
+              size="x-small"
+              variant="flat"
               :href="`/#/folder/${JSON.parse(item.kwargs).params.input_folder}`"
               color="info"
               class="mr-2"
-              v-on="on"
             >
-              <v-icon small>
-                mdi-folder
-              </v-icon>
+              <v-icon
+                size="small"
+                icon="mdi-folder"
+              />
             </v-btn>
           </template>
           <span>Navigate to exported file</span>
         </v-tooltip>
 
-        <v-tooltip bottom>
-          <template #activator="{ on, attrs }">
+        <v-tooltip location="bottom">
+          <template #activator="{ props: activatorProps }">
             <v-btn
-              v-bind="attrs"
-              x-small
-              depressed
+              v-bind="activatorProps"
+              size="x-small"
+              variant="flat"
               :href="`/girder/#job/${item._id}`"
               color="info"
               class="mr-2"
-              v-on="on"
             >
-              <v-icon small>
-                mdi-text-box-outline
-              </v-icon>
+              <v-icon
+                size="small"
+                icon="mdi-text-box-outline"
+              />
             </v-btn>
           </template>
           <span>View job logs and manage job</span>
@@ -131,14 +131,14 @@ export default defineComponent({
     </GirderJobList>
     <v-card class="mt-4 pa-6">
       <v-card
-        outlined
+        variant="outlined"
         class="mb-6"
       >
         <v-card-title>
           Shared Job Runner
         </v-card-title>
         <v-card-text>
-          <p class="white--text">
+          <p class="text-white">
             The job runner is shared between all users of this system and has
             limited GPU capacity. Jobs in queue will be processed in the order in
             which they are received.
@@ -147,30 +147,30 @@ export default defineComponent({
       </v-card>
       <v-card
         v-if="distributedWorkerEnabled"
-        outlined
+        variant="outlined"
       >
         <v-card-title>
           Private Job runner
         </v-card-title>
         <v-card-text>
-          <p class="white--text">
+          <p class="text-white">
             You can run your own personal, dedicated job runner anywhere you have
             compute resources. This could be a lab workstation or a cloud environment like
             Google Cloud. You'll need a local installation of VIAME.
           </p>
           <v-switch
-            :input-value="privateQueueEnabled"
+            :model-value="privateQueueEnabled"
             :loading="loading"
             :disabled="loading"
             label="Enable private runner queue"
             hide-details
-            @change="setPrivateQueueEnabled"
+            @update:model-value="setPrivateQueueEnabled"
           />
           <v-alert
             v-if="privateQueueEnabled"
             type="warning"
             class="my-5"
-            outlined
+            variant="outlined"
           >
             You have enabled the private queue. Jobs created by your user
             account must be processed by a private runner, and will remain
@@ -182,14 +182,14 @@ export default defineComponent({
         </v-card-title>
         <v-card-text>
           <v-btn
-            depressed
+            variant="flat"
             class="mr-3"
             href="https://kitware.github.io/dive/Deployment-Overview/"
           >
             Deployment documentation
           </v-btn>
           <v-btn
-            depressed
+            variant="flat"
             href="https://kitware.github.io/dive/Deployment-Docker-Compose/"
           >
             Docker docs
@@ -199,7 +199,7 @@ export default defineComponent({
           Docker Quickstart
         </v-card-title>
         <v-card-text>
-          <p class="white--text">
+          <p class="text-white">
             Run the worker container under nvidia-docker.
           </p>
           <pre class="code-container">docker run --rm --name dive_worker \

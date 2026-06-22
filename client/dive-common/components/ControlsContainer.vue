@@ -63,6 +63,7 @@ export default defineComponent({
       default: false,
     },
   },
+  emits: ['update:collapsed', 'select-group'],
   setup(_, { emit }) {
     const handler = useHandler();
     const currentView = ref('Detections');
@@ -129,6 +130,15 @@ export default defineComponent({
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectAggregateController().value;
+    const volumeStep = 0.05;
+    function snapVolume(level: number) {
+      return Math.round(level / volumeStep) * volumeStep;
+    }
+    function handleVolumeChange(level: number) {
+      setVolume(snapVolume(level));
+    }
+    const volumeDisplay = computed(() => Math.round(volume.value * 100));
+    const volumeSliderValue = computed(() => snapVolume(volume.value));
     return {
       currentView,
       toggleView,
@@ -138,6 +148,9 @@ export default defineComponent({
       seek,
       volume,
       setVolume,
+      handleVolumeChange,
+      volumeDisplay,
+      volumeSliderValue,
       speed,
       setSpeed,
       ticks,
@@ -168,17 +181,17 @@ export default defineComponent({
       :bottom-layout="bottomLayout"
       :wrap-bottom-controls="wrapBottomControls"
     >
-      <template slot="timelineControls">
-        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
+      <template #timelineControls>
+        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap' }">
           <v-tooltip
             v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
-            bottom
+            location="bottom"
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
-                small
-                v-on="on"
+                size="small"
+                v-bind="activatorProps"
                 @click="$emit('update:collapsed', !collapsed)"
               >
                 {{ collapsed ? 'mdi-chevron-up-box' : 'mdi-chevron-down-box' }}
@@ -196,16 +209,14 @@ export default defineComponent({
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props: activatorProps }">
               <v-btn
-                class="ml-1"
-                :class="{ 'timeline-button': currentView !== 'Detections' || collapsed }"
-                depressed
-                :outlined="currentView === 'Detections' && !collapsed"
+                class="ml-1 timeline-view-btn"
+                :class="{ 'timeline-view-btn--selected': currentView === 'Detections' && !collapsed }"
+                variant="flat"
                 x-small
                 tab-index="-1"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="activatorProps"
                 @click="toggleView('Detections')"
               >
                 <span class="mr-1"># of</span>{{ countView }}
@@ -214,7 +225,7 @@ export default defineComponent({
             <v-card
               outlined
               class="pa-2 pr-4"
-              color="blue-grey darken-3"
+              color="blue-grey-darken-3"
               style="overflow-y: none"
             >
               <v-card-title>
@@ -236,10 +247,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props: activatorProps }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="activatorProps"
                         >
                           mdi-help
                         </v-icon>
@@ -267,10 +278,10 @@ export default defineComponent({
                       open-delay="200"
                       bottom
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props: activatorProps }">
                         <v-icon
                           small
-                          v-on="on"
+                          v-bind="activatorProps"
                         >
                           mdi-help
                         </v-icon>
@@ -283,10 +294,9 @@ export default defineComponent({
             </v-card>
           </v-menu>
           <v-btn
-            class="ml-1"
-            :class="{ 'timeline-button': currentView !== 'Events' || collapsed }"
-            depressed
-            :outlined="currentView === 'Events' && !collapsed"
+            class="ml-1 timeline-view-btn"
+            :class="{ 'timeline-view-btn--selected': currentView === 'Events' && !collapsed }"
+            variant="flat"
             x-small
             tab-index="-1"
             @click="toggleView('Events')"
@@ -295,10 +305,9 @@ export default defineComponent({
           </v-btn>
           <v-btn
             v-if="!multiCam && hasGroups"
-            class="ml-1"
-            :class="{ 'timeline-button': currentView !== 'Groups' || collapsed }"
-            depressed
-            :outlined="currentView === 'Groups' && !collapsed"
+            class="ml-1 timeline-view-btn"
+            :class="{ 'timeline-view-btn--selected': currentView === 'Groups' && !collapsed }"
+            variant="flat"
             x-small
             tab-index="-1"
             @click="toggleView('Groups')"
@@ -307,10 +316,9 @@ export default defineComponent({
           </v-btn>
           <v-btn
             v-if="!multiCam && timelineEnabled"
-            class="ml-1"
-            :class="{ 'timeline-button': currentView !== 'Attributes' || collapsed }"
-            depressed
-            :outlined="currentView === 'Attributes' && !collapsed"
+            class="ml-1 timeline-view-btn"
+            :class="{ 'timeline-view-btn--selected': currentView === 'Attributes' && !collapsed }"
+            variant="flat"
             x-small
             tab-index="-1"
             @click="toggleView('Attributes')"
@@ -319,120 +327,113 @@ export default defineComponent({
           </v-btn>
         </div>
       </template>
-      <template #bottomControlsActivator="{ activatorId }">
-        <v-btn
-          v-if="bottomLayout && wrapBottomControls"
-          :id="activatorId"
-          icon
-          small
-          class="ml-1"
-          title="Timeline controls"
+      <template #playbackMedia>
+        <span
+          v-if="datasetType === 'video'"
+          class="video-media-controls"
+          :class="{ 'video-media-controls--bottom': bottomLayout && wrapBottomControls }"
         >
-          <v-icon>mdi-tune-variant</v-icon>
-        </v-btn>
-      </template>
-      <template #middle>
-        <div :class="{ 'middle-content-bottom': bottomLayout }">
-          <file-name-time-display
-            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
-            class="text-middle px-3"
-            display-type="filename"
-          />
-          <span v-else-if="datasetType === 'video'">
-            <span class="mr-2">
-              <v-menu
-                :close-on-content-click="false"
-                top
-                offset-y
-                nudge-left="3"
-                open-on-hover
-                close-delay="500"
-                open-delay="250"
-              >
-                <template #activator="{ on }">
-                  <v-icon
-                    @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
-                    v-on="on"
-                  >
+          <span class="volume-control">
+            <v-menu
+              :close-on-content-click="false"
+              top
+              offset-y
+              nudge-left="3"
+              open-on-hover
+              close-delay="500"
+              open-delay="250"
+            >
+              <template #activator="{ props: activatorProps }">
+                <v-btn
+                  icon
+                  small
+                  :title="volume === 0 ? 'Unmute' : 'Mute'"
+                  v-bind="activatorProps"
+                  @click="(!volume && setVolume(1)) || (volume && setVolume(0))"
+                >
+                  <v-icon>
                     {{ volume === 0 ? 'mdi-volume-off' : 'mdi-volume-medium' }}
                   </v-icon>
-                </template>
-                <v-card style="overflow:hidden; width:60px;">
-                  <v-slider
-                    :value="volume"
-                    min="0"
-                    max="1.0"
-                    step="0.05"
-                    vertical
-                    @change="setVolume"
-                  />
-                  <v-row dense align="center">
-                    <b class="ma-auto">{{ volume * 100 }}%</b>
-                  </v-row>
-                </v-card>
-              </v-menu>
-            </span>
-            <span class="mr-2">
-              <v-menu
-                :close-on-content-click="false"
-                top
-                offset-y
-                nudge-left="3"
-                open-on-hover
-                close-delay="500"
-                open-delay="250"
-                rounded="lg"
-              >
-                <template #activator="{ on }">
-                  <v-badge
-                    :value="speed != 1.0"
-                    color="#0277bd88"
-                    :content="`${speed}X`"
-                    offset-y="5px"
-                    overlap
-                  >
-                    <v-icon
-                      v-on="on"
-                      @click="setSpeed(1)"
-                    >
-                      mdi-speedometer
-                    </v-icon>
-                  </v-badge>
-                </template>
-                <v-card style="overflow:hidden; width:60px;">
-                  <v-slider
-                    :value="ticks.indexOf(speed)"
-                    min="0"
-                    :max="ticks.length - 1"
-                    step="1"
-                    ticks="always"
-                    :tick-size="4"
-                    style="font-size:0.75em;"
-                    vertical
-                    hide-details
-                    @input="setSpeed(ticks[$event])"
-                  />
-                  <v-row dense align="center">
-                    <b class="ma-auto">{{ speed }}x</b>
-                  </v-row>
-                </v-card>
-              </v-menu>
-            </span>
-            <file-name-time-display
-              class="text-middle pl-2"
-              display-type="time"
-            />
+                </v-btn>
+              </template>
+              <v-card class="media-slider-card">
+                <v-slider
+                  class="media-slider"
+                  :model-value="volumeSliderValue"
+                  min="0"
+                  max="1.0"
+                  step="0.05"
+                  direction="vertical"
+                  hide-details
+                  @update:model-value="handleVolumeChange"
+                />
+                <b class="media-slider-label">{{ volumeDisplay }}%</b>
+              </v-card>
+            </v-menu>
           </span>
+          <span class="speed-control">
+            <v-menu
+              :close-on-content-click="false"
+              top
+              offset-y
+              nudge-left="3"
+              open-on-hover
+              close-delay="500"
+              open-delay="250"
+              rounded="lg"
+            >
+              <template #activator="{ props: activatorProps }">
+                <v-badge
+                  :model-value="speed != 1.0"
+                  color="#0277bd88"
+                  :content="`${speed}X`"
+                  location="top end"
+                  floating
+                >
+                  <v-btn
+                    icon
+                    small
+                    title="Reset playback speed"
+                    v-bind="activatorProps"
+                    @click="setSpeed(1)"
+                  >
+                    <v-icon>mdi-speedometer</v-icon>
+                  </v-btn>
+                </v-badge>
+              </template>
+              <v-card class="media-slider-card">
+                <v-slider
+                  class="media-slider"
+                  :model-value="ticks.indexOf(speed)"
+                  min="0"
+                  :max="ticks.length - 1"
+                  step="1"
+                  show-ticks="always"
+                  :tick-size="4"
+                  direction="vertical"
+                  hide-details
+                  @update:model-value="setSpeed(ticks[$event])"
+                />
+                <b class="media-slider-label">{{ speed }}x</b>
+              </v-card>
+            </v-menu>
+          </span>
+          <file-name-time-display
+            class="text-middle video-time-display"
+            :class="{ 'video-time-display--bottom': bottomLayout && wrapBottomControls }"
+            :icon-toolbar="bottomLayout && wrapBottomControls"
+            display-type="time"
+          />
           <v-tooltip
             v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-icon
                 small
-                class="mx-2"
-                v-on="on"
+                class="video-info-icon"
+                v-bind="activatorProps"
               >
                 mdi-information
               </v-icon>
@@ -443,6 +444,15 @@ export default defineComponent({
               frame numbers start at zero.
             </span>
           </v-tooltip>
+        </span>
+      </template>
+      <template #middle>
+        <div :class="{ 'middle-content-bottom': bottomLayout }">
+          <file-name-time-display
+            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
+            class="text-middle px-3"
+            display-type="filename"
+          />
         </div>
       </template>
     </Controls>
@@ -519,8 +529,13 @@ export default defineComponent({
   font-size: 11px;
   font-weight: bold;
 }
-.timeline-button {
-  border: thin solid transparent;
+.timeline-view-btn {
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: none !important;
+}
+
+.timeline-view-btn--selected {
+  border-color: #ffffff !important;
 }
 .middle-content-bottom {
   display: flex;
@@ -534,5 +549,89 @@ export default defineComponent({
   text-overflow: ellipsis;
   flex-shrink: 1;
   min-width: 0;
+}
+
+.video-media-controls {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.volume-control {
+  display: inline-flex;
+  padding-left: 16px;
+}
+
+.speed-control {
+  display: inline-flex;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
+}
+
+.speed-control :deep(.v-badge) {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
+.speed-control :deep(.v-badge__wrapper) {
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
+}
+
+.speed-control :deep(.v-badge__badge) {
+  min-width: 32px;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.video-time-display {
+  margin-left: 28px;
+}
+
+.video-time-display--bottom {
+  margin-left: 4px;
+}
+
+.video-media-controls--bottom .volume-control {
+  padding-left: 6px;
+}
+
+.video-media-controls--bottom .speed-control {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.video-info-icon {
+  margin-left: 4px;
+}
+
+.media-slider-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: visible;
+  width: 56px;
+  padding: 12px 16px 8px;
+}
+
+.media-slider-label {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.media-slider-card :deep(.media-slider.v-input--vertical > .v-input__control) {
+  min-height: 140px;
 }
 </style>

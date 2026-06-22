@@ -1,4 +1,4 @@
-import Vue, { ref, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { JsonMeta } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
 import { initializedSettings } from './settings';
@@ -47,7 +47,7 @@ const datasets = ref({} as Record<string, JsonMetaCache>);
 const recents = computed(() => (Object.values(datasets.value)));
 
 function setRecents(meta: JsonMeta, accessTime?: string) {
-  Vue.set(datasets.value, meta.id, {
+  datasets.value[meta.id] = {
     version: meta.version,
     type: meta.type,
     id: meta.id,
@@ -62,7 +62,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     subType: meta.subType,
     error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
-  } as JsonMetaCache);
+  } as JsonMetaCache;
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
@@ -95,9 +95,9 @@ async function load() {
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) { // verify maybeArr is an array
-        maybeArr.forEach((meta: JsonMetaCache) => (
-          Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
-        ));
+        maybeArr.forEach((meta: JsonMetaCache) => {
+          datasets.value[meta.id] = hydrateJsonMetaCacheValue(meta);
+        });
         loaded = maybeArr;
       }
     }
@@ -122,7 +122,7 @@ function locateDuplicates(meta: JsonMeta) {
 
 function removeRecents(datasetId: string) {
   if (datasets.value[datasetId]) {
-    Vue.delete(datasets.value, datasetId);
+    delete datasets.value[datasetId];
   }
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));

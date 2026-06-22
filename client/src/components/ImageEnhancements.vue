@@ -60,7 +60,7 @@ export default defineComponent({
           :step="0.1"
           hide-details
           class="pa-0 ma-0"
-          @input="modifyValue()"
+          @update:model-value="modifyValue()"
         />
       </v-col>
       <v-col cols="2">
@@ -79,7 +79,7 @@ export default defineComponent({
           :step="0.1"
           hide-details
           class="pa-0 ma-0"
-          @input="modifyValue()"
+          @update:model-value="modifyValue()"
         />
       </v-col>
       <v-col cols="2">
@@ -98,7 +98,7 @@ export default defineComponent({
           :step="0.1"
           hide-details
           class="pa-0 ma-0"
-          @input="modifyValue()"
+          @update:model-value="modifyValue()"
         />
       </v-col>
       <v-col cols="2">
@@ -117,7 +117,7 @@ export default defineComponent({
           :step="0.1"
           hide-details
           class="pa-0 ma-0"
-          @input="modifyValue()"
+          @update:model-value="modifyValue()"
         />
       </v-col>
       <v-col cols="2">

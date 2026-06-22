@@ -1,30 +1,7 @@
-import Vue from 'vue';
-import Vuetify from 'vuetify';
-import colors from 'vuetify/es5/util/colors';
-import { merge } from 'lodash';
+import createDiveVuetify from 'dive-common/vuetify/createDiveVuetify';
 
-import '@mdi/font/css/materialdesignicons.css';
-import 'vuetify/dist/vuetify.min.css';
-import { ThemeOptions } from 'vuetify/types/services/theme';
-import { vuetifyConfig } from '@girder/components/src';
-
-Vue.use(Vuetify);
-
-function getVuetify(config: unknown) {
-  const theme: ThemeOptions = {
-    dark: true,
-    options: {
-      customProperties: true,
-    },
-    themes: {
-      dark: {
-        accent: colors.blue.lighten1,
-        accentBackground: '#2c7596',
-      },
-    },
-  };
-  const appVuetifyConfig = merge(vuetifyConfig, config, { theme });
-  return new Vuetify(appVuetifyConfig);
+function getVuetify(config: Record<string, unknown> | null | undefined = undefined) {
+  return createDiveVuetify(config);
 }
 
 export default getVuetify;

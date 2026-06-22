@@ -36,7 +36,9 @@ export default defineComponent({
       frame: 0,
       dragging: false,
     });
-    const mediaController = injectAggregateController().value;
+    const aggregateControllerRef = injectAggregateController();
+    const mediaController = aggregateControllerRef.value;
+    const maxFrame = computed(() => aggregateControllerRef.value.maxFrame.value);
     const isVideo = computed(() => props.datasetType === 'video');
     const { frameRate } = useTime();
     const { visible } = usePrompt();
@@ -45,13 +47,11 @@ export default defineComponent({
     const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
-    const activeBottomControlsMenu = ref(false);
-    const bottomControlsActivatorId = 'bottom-controls-menu-activator';
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
       }
-    });
+    }, { immediate: true });
     const dragHandler = {
       start() { data.dragging = true; },
       end() { data.dragging = false; },
@@ -83,7 +83,7 @@ export default defineComponent({
 
     const timeFilterActive = computed(() => trackFilters.timeFilters.value !== null);
     const timeFilterMin = computed(() => trackFilters.timeFilters.value?.[0] ?? 0);
-    const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? mediaController.maxFrame.value);
+    const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? maxFrame.value);
 
     function saveTimeFilter() {
       saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
@@ -92,7 +92,7 @@ export default defineComponent({
     function handleTimeFilterClick() {
       if (!timeFilterActive.value) {
         // Not enabled: enable and open settings
-        trackFilters.setTimeFilters([0, mediaController.maxFrame.value]);
+        trackFilters.setTimeFilters([0, maxFrame.value]);
         saveTimeFilter();
         activeTimeFilter.value = true;
       } else if (activeTimeFilter.value) {
@@ -135,7 +135,7 @@ export default defineComponent({
     function updateTimeFilterMax(value: number) {
       const current = trackFilters.timeFilters.value;
       if (current) {
-        const newMax = Math.min(mediaController.maxFrame.value, Math.max(value, current[0]));
+        const newMax = Math.min(maxFrame.value, Math.max(value, current[0]));
         trackFilters.setTimeFilters([current[0], newMax]);
         saveTimeFilter();
       }
@@ -176,7 +176,7 @@ export default defineComponent({
 
     function applyMinFrame() {
       const val = parseInt(minFrameInput.value, 10);
-      if (!Number.isNaN(val) && val >= 0 && val <= mediaController.maxFrame.value) {
+      if (!Number.isNaN(val) && val >= 0 && val <= maxFrame.value) {
         updateTimeFilterMin(val);
       } else {
         minFrameInput.value = String(timeFilterMin.value);
@@ -185,7 +185,7 @@ export default defineComponent({
 
     function applyMaxFrame() {
       const val = parseInt(maxFrameInput.value, 10);
-      if (!Number.isNaN(val) && val >= 0 && val <= mediaController.maxFrame.value) {
+      if (!Number.isNaN(val) && val >= 0 && val <= maxFrame.value) {
         updateTimeFilterMax(val);
       } else {
         maxFrameInput.value = String(timeFilterMax.value);
@@ -194,7 +194,7 @@ export default defineComponent({
 
     function applyMinTime() {
       const frame = timestampToFrame(minTimeInput.value);
-      if (frame !== null && frame >= 0 && frame <= mediaController.maxFrame.value) {
+      if (frame !== null && frame >= 0 && frame <= maxFrame.value) {
         updateTimeFilterMin(frame);
       } else {
         minTimeInput.value = formatTimestamp(timeFilterMin.value) ?? '00:00:00';
@@ -203,7 +203,7 @@ export default defineComponent({
 
     function applyMaxTime() {
       const frame = timestampToFrame(maxTimeInput.value);
-      if (frame !== null && frame >= 0 && frame <= mediaController.maxFrame.value) {
+      if (frame !== null && frame >= 0 && frame <= maxFrame.value) {
         updateTimeFilterMax(frame);
       } else {
         maxTimeInput.value = formatTimestamp(timeFilterMax.value) ?? '00:00:00';
@@ -213,10 +213,9 @@ export default defineComponent({
     return {
       activeLockedCamera,
       activeTimeFilter,
-      activeBottomControlsMenu,
-      bottomControlsActivatorId,
       data,
       mediaController,
+      maxFrame,
       dragHandler,
       input,
       togglePlay,
@@ -273,63 +272,109 @@ export default defineComponent({
       <v-slider
         hide-details
         :min="0"
-        :max="mediaController.maxFrame.value"
-        :value="data.frame"
+        :max="maxFrame"
+        :model-value="data.frame"
         @start="dragHandler.start"
         @end="dragHandler.end"
-        @input="input"
+        @update:model-value="input"
       />
       <v-row
         no-gutters
+        class="controls-toolbar-row"
         :class="{
           'bottom-controls-row': wrapBottomControls,
           'bottom-controls-row-nowrap': !wrapBottomControls,
         }"
       >
         <v-col
-          class="pl-1 py-1 shrink"
-          :class="{ 'bottom-controls-left': bottomLayout }"
+          v-if="!bottomLayout"
+          cols="auto"
+          class="pl-1 py-1"
         >
           <div class="d-flex align-center w-100">
             <slot
               justify="start"
               name="timelineControls"
             />
-            <slot
-              name="bottomControlsActivator"
-              :activator-id="bottomControlsActivatorId"
-            />
           </div>
         </v-col>
         <v-col
           v-if="bottomLayout"
-          class="py-1 shrink d-flex align-center bottom-controls-actions"
-          style="min-width: auto;"
+          cols="auto"
+          class="pl-1 py-1 d-flex align-center bottom-controls-left"
+        >
+          <slot
+            justify="start"
+            name="timelineControls"
+          />
+          <v-btn
+            icon
+            small
+            title="(d, left-arrow) previous frame"
+            @click="mediaController.prevFrame"
+          >
+            <v-icon>mdi-skip-previous</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="!mediaController.playing.value"
+            icon
+            small
+            title="(space) Play"
+            @click="mediaController.play"
+          >
+            <v-icon>mdi-play</v-icon>
+          </v-btn>
+          <v-btn
+            v-else
+            icon
+            small
+            title="(space) Pause"
+            @click="mediaController.pause"
+          >
+            <v-icon>mdi-pause</v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
+            title="(f, right-arrow) next frame"
+            @click="mediaController.nextFrame"
+          >
+            <v-icon>mdi-skip-next</v-icon>
+          </v-btn>
+          <slot name="playbackMedia" />
+        </v-col>
+        <v-col
+          v-if="bottomLayout"
+          class="py-1 pl-0 controls-toolbar-middle bottom-controls-middle"
+        >
+          <slot name="middle" />
+        </v-col>
+        <v-col
+          v-if="bottomLayout"
+          cols="auto"
+          class="py-1 d-flex align-center bottom-controls-actions controls-toolbar-actions"
         >
           <v-menu
             v-model="activeTimeFilter"
-            bottom
-            offset-y
-            :nudge-bottom="8"
-            right
+            location="bottom end"
+            :offset="8"
             content-class="time-filter-menu-content"
             :close-on-content-click="false"
             open-on-hover
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props: activatorProps }">
               <v-btn
                 ref="timeFilterBtnRef"
                 icon
                 small
-                :color="timeFilterActive ? 'primary' : 'default'"
+                variant="text"
                 title="Filter tracks by time range"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="activatorProps"
                 @click="handleTimeFilterClick"
               >
-                <v-icon>
+                <v-icon :color="timeFilterActive ? 'primary' : undefined">
                   {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                 </v-icon>
               </v-btn>
@@ -337,7 +382,7 @@ export default defineComponent({
             <v-card
               outlined
               class="pa-2 pr-4"
-              color="blue-grey darken-3"
+              color="blue-grey-darken-3"
               style="overflow-y: none"
             >
               <v-card-title>
@@ -358,14 +403,14 @@ export default defineComponent({
                     </v-col>
                     <v-col>
                       <v-slider
-                        :value="timeFilterMin"
+                        :model-value="timeFilterMin"
                         :min="0"
-                        :max="mediaController.maxFrame.value"
+                        :max="maxFrame"
                         step="1"
                         dense
                         hide-details
                         thumb-label="always"
-                        @change="updateTimeFilterMin"
+                        @update:model-value="updateTimeFilterMin"
                       >
                         <template v-if="isVideo" #append>
                           <v-text-field
@@ -388,14 +433,14 @@ export default defineComponent({
                     </v-col>
                     <v-col>
                       <v-slider
-                        :value="timeFilterMax"
+                        :model-value="timeFilterMax"
                         :min="0"
-                        :max="mediaController.maxFrame.value"
+                        :max="maxFrame"
                         step="1"
                         dense
                         hide-details
                         thumb-label="always"
-                        @change="updateTimeFilterMax"
+                        @update:model-value="updateTimeFilterMax"
                       >
                         <template v-if="isVideo" #append>
                           <v-text-field
@@ -421,25 +466,23 @@ export default defineComponent({
           </v-menu>
           <v-menu
             v-model="activeLockedCamera"
-            :nudge-left="28"
-            left
-            top
+            location="top start"
+            :offset="[-28, 0]"
             :close-on-content-click="false"
             open-on-hover
             open-delay="750"
             close-delay="500"
           >
-            <template #activator="{ on, attrs }">
+            <template #activator="{ props: activatorProps }">
               <v-btn
                 icon
                 small
-                :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                variant="text"
                 title="center camera on selected track"
-                v-bind="attrs"
-                v-on="on"
+                v-bind="activatorProps"
                 @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
               >
-                <v-icon>
+                <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                   {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                 </v-icon>
               </v-btn>
@@ -447,7 +490,7 @@ export default defineComponent({
             <v-card
               outlined
               class="pa-2 pr-4"
-              color="blue-grey darken-3"
+              color="blue-grey-darken-3"
               style="overflow-y: none"
             >
               <v-card-title>
@@ -460,6 +503,7 @@ export default defineComponent({
                       v-model="transitionVal"
                       small
                       label="Transition"
+                      :color="transitionVal ? 'primary' : undefined"
                       @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                     />
                   </v-col>
@@ -469,12 +513,12 @@ export default defineComponent({
                   >
                     <v-tooltip
                       open-delay="200"
-                      bottom
+                      location="bottom"
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props: activatorProps }">
                         <v-icon
-                          small
-                          v-on="on"
+                          size="small"
+                          v-bind="activatorProps"
                         >
                           mdi-help
                         </v-icon>
@@ -506,6 +550,7 @@ export default defineComponent({
                       v-model="multBoundsVal"
                       small
                       label="Multiply Bounds"
+                      :color="multBoundsVal ? 'primary' : undefined"
                       @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                     />
                   </v-col>
@@ -515,12 +560,12 @@ export default defineComponent({
                   >
                     <v-tooltip
                       open-delay="200"
-                      bottom
+                      location="bottom"
                     >
-                      <template #activator="{ on }">
+                      <template #activator="{ props: activatorProps }">
                         <v-icon
-                          small
-                          v-on="on"
+                          size="small"
+                          v-bind="activatorProps"
                         >
                           mdi-help
                         </v-icon>
@@ -558,131 +603,37 @@ export default defineComponent({
             <v-icon>mdi-image-filter-center-focus</v-icon>
           </v-btn>
           <v-badge
-            :value="!isDefaultImage"
+            :model-value="!isDefaultImage"
             color="warning"
             dot
-            overlap
-          />
-          <v-menu
-            v-model="activeBottomControlsMenu"
-            :activator="`#${bottomControlsActivatorId}`"
-            :nudge-left="8"
-            left
-            bottom
-            :close-on-content-click="false"
+            location="bottom"
           >
-            <v-card
-              outlined
-              class="pa-2"
-              color="blue-grey darken-3"
-              min-width="360"
+            <v-btn
+              icon
+              size="small"
+              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+              @click="toggleEnhancements"
             >
-              <div class="d-flex align-center mb-2">
-                <slot name="middle" />
-              </div>
-              <div class="d-flex align-center">
-                <v-btn
-                  icon
-                  small
-                  title="(d, left-arrow) previous frame"
-                  @click="mediaController.prevFrame"
-                >
-                  <v-icon>mdi-skip-previous</v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="!mediaController.playing.value"
-                  icon
-                  small
-                  title="(space) Play"
-                  @click="mediaController.play"
-                >
-                  <v-icon>mdi-play</v-icon>
-                </v-btn>
-                <v-btn
-                  v-else
-                  icon
-                  small
-                  title="(space) Pause"
-                  @click="mediaController.pause"
-                >
-                  <v-icon>mdi-pause</v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(f, right-arrow) next frame"
-                  @click="mediaController.nextFrame"
-                >
-                  <v-icon>mdi-skip-next</v-icon>
-                </v-btn>
-                <v-divider vertical class="mx-1" />
-                <v-btn
-                  icon
-                  small
-                  :color="timeFilterActive ? 'primary' : 'default'"
-                  title="Filter tracks by time range"
-                  @click="handleTimeFilterClick"
-                >
-                  <v-icon>
-                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
-                  title="center camera on selected track"
-                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
-                >
-                  <v-icon>
-                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(r)eset pan and zoom"
-                  @click="mediaController.resetZoom"
-                >
-                  <v-icon>mdi-image-filter-center-focus</v-icon>
-                </v-btn>
-                <v-badge
-                  :value="!isDefaultImage"
-                  color="warning"
-                  dot
-                  overlap
-                  bottom
-                >
-                  <v-btn
-                    icon
-                    small
-                    :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
-                    @click="toggleEnhancements"
-                  >
-                    <v-icon>mdi-contrast-box</v-icon>
-                  </v-btn>
-                </v-badge>
-                <v-btn
-                  v-if="mediaController.cameras.value.length > 1"
-                  icon
-                  small
-                  :color="mediaController.cameraSync.value ? 'primary' : 'default'"
-                  title="Synchronize camera controls"
-                  @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
-                >
-                  <v-icon>
-                    {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-                  </v-icon>
-                </v-btn>
-              </div>
-            </v-card>
-          </v-menu>
+              <v-icon>mdi-contrast-box</v-icon>
+            </v-btn>
+          </v-badge>
+          <v-btn
+            v-if="mediaController.cameras.value.length > 1"
+            icon
+            size="small"
+            :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+            title="Synchronize camera controls"
+            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+          >
+            <v-icon>
+              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+            </v-icon>
+          </v-btn>
         </v-col>
         <template v-else>
           <v-col
-            class="py-1 shrink d-flex align-center"
-            :class="{ 'bottom-controls-actions': bottomLayout }"
-            :style="{ 'min-width': bottomLayout ? 'auto' : '100px' }"
+            cols="auto"
+            class="py-1 d-flex align-center"
           >
             <v-btn
               icon
@@ -718,6 +669,7 @@ export default defineComponent({
             >
               <v-icon>mdi-skip-next</v-icon>
             </v-btn>
+            <slot name="playbackMedia" />
             <!-- Control buttons inline in bottom layout -->
             <template v-if="bottomLayout">
               <v-divider vertical class="mx-1" />
@@ -731,17 +683,16 @@ export default defineComponent({
                 open-delay="750"
                 close-delay="500"
               >
-                <template #activator="{ on, attrs }">
+                <template #activator="{ props: activatorProps }">
                   <v-btn
                     icon
                     small
-                    :color="timeFilterActive ? 'primary' : 'default'"
+                    variant="text"
                     title="Filter tracks by time range"
-                    v-bind="attrs"
-                    v-on="on"
+                    v-bind="activatorProps"
                     @click="handleTimeFilterClick"
                   >
-                    <v-icon v-bind="attrs" v-on="on">
+                    <v-icon :color="timeFilterActive ? 'primary' : undefined">
                       {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                     </v-icon>
                   </v-btn>
@@ -749,7 +700,7 @@ export default defineComponent({
                 <v-card
                   outlined
                   class="pa-2 pr-4"
-                  color="blue-grey darken-3"
+                  color="blue-grey-darken-3"
                   style="overflow-y: none"
                 >
                   <v-card-title>
@@ -770,14 +721,14 @@ export default defineComponent({
                         </v-col>
                         <v-col>
                           <v-slider
-                            :value="timeFilterMin"
+                            :model-value="timeFilterMin"
                             :min="0"
-                            :max="mediaController.maxFrame.value"
+                            :max="maxFrame"
                             step="1"
                             dense
                             hide-details
                             thumb-label="always"
-                            @change="updateTimeFilterMin"
+                            @update:model-value="updateTimeFilterMin"
                           >
                             <template v-if="isVideo" #append>
                               <v-text-field
@@ -800,14 +751,14 @@ export default defineComponent({
                         </v-col>
                         <v-col>
                           <v-slider
-                            :value="timeFilterMax"
+                            :model-value="timeFilterMax"
                             :min="0"
-                            :max="mediaController.maxFrame.value"
+                            :max="maxFrame"
                             step="1"
                             dense
                             hide-details
                             thumb-label="always"
-                            @change="updateTimeFilterMax"
+                            @update:model-value="updateTimeFilterMax"
                           >
                             <template v-if="isVideo" #append>
                               <v-text-field
@@ -841,17 +792,16 @@ export default defineComponent({
                 open-delay="750"
                 close-delay="500"
               >
-                <template #activator="{ on, attrs }">
+                <template #activator="{ props: activatorProps }">
                   <v-btn
                     icon
                     small
-                    :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                    variant="text"
                     title="center camera on selected track"
-                    v-bind="attrs"
-                    v-on="on"
+                    v-bind="activatorProps"
                     @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                   >
-                    <v-icon>
+                    <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                       {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                     </v-icon>
                   </v-btn>
@@ -859,7 +809,7 @@ export default defineComponent({
                 <v-card
                   outlined
                   class="pa-2 pr-4"
-                  color="blue-grey darken-3"
+                  color="blue-grey-darken-3"
                   style="overflow-y: none"
                 >
                   <v-card-title>
@@ -872,6 +822,7 @@ export default defineComponent({
                           v-model="transitionVal"
                           small
                           label="Transition"
+                          :color="transitionVal ? 'primary' : undefined"
                           @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                         />
                       </v-col>
@@ -883,10 +834,10 @@ export default defineComponent({
                           open-delay="200"
                           bottom
                         >
-                          <template #activator="{ on }">
+                          <template #activator="{ props: activatorProps }">
                             <v-icon
                               small
-                              v-on="on"
+                              v-bind="activatorProps"
                             >
                               mdi-help
                             </v-icon>
@@ -918,6 +869,7 @@ export default defineComponent({
                           v-model="multBoundsVal"
                           small
                           label="Multiply Bounds"
+                          :color="multBoundsVal ? 'primary' : undefined"
                           @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                         />
                       </v-col>
@@ -929,10 +881,10 @@ export default defineComponent({
                           open-delay="200"
                           bottom
                         >
-                          <template #activator="{ on }">
+                          <template #activator="{ props: activatorProps }">
                             <v-icon
                               small
-                              v-on="on"
+                              v-bind="activatorProps"
                             >
                               mdi-help
                             </v-icon>
@@ -970,7 +922,7 @@ export default defineComponent({
                 <v-icon>mdi-image-filter-center-focus</v-icon>
               </v-btn>
               <v-badge
-                :value="!isDefaultImage"
+                :model-value="!isDefaultImage"
                 color="warning"
                 dot
                 overlap
@@ -1000,15 +952,15 @@ export default defineComponent({
             </template>
           </v-col>
           <v-col
-            class="pl-1 py-1"
+            class="py-1 pl-0 controls-toolbar-middle"
             :class="{ 'bottom-controls-middle': bottomLayout }"
           >
             <slot name="middle" />
           </v-col>
           <v-col
             v-if="!bottomLayout"
-            class="pl-1 py-1 shrink d-flex"
-            align="right"
+            cols="auto"
+            class="pl-1 py-1 d-flex align-center justify-end controls-toolbar-actions"
           >
             <v-menu
               v-model="activeTimeFilter"
@@ -1020,17 +972,16 @@ export default defineComponent({
               open-delay="750"
               close-delay="500"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
                   icon
                   small
-                  :color="timeFilterActive ? 'primary' : 'default'"
+                  variant="text"
                   title="Filter tracks by time range"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="activatorProps"
                   @click="handleTimeFilterClick"
                 >
-                  <v-icon v-bind="attrs" v-on="on">
+                  <v-icon :color="timeFilterActive ? 'primary' : undefined">
                     {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                   </v-icon>
                 </v-btn>
@@ -1038,7 +989,7 @@ export default defineComponent({
               <v-card
                 outlined
                 class="pa-2 pr-4"
-                color="blue-grey darken-3"
+                color="blue-grey-darken-3"
                 style="overflow-y: none"
               >
                 <v-card-title>
@@ -1059,14 +1010,14 @@ export default defineComponent({
                       </v-col>
                       <v-col>
                         <v-slider
-                          :value="timeFilterMin"
+                          :model-value="timeFilterMin"
                           :min="0"
-                          :max="mediaController.maxFrame.value"
+                          :max="maxFrame"
                           step="1"
                           dense
                           hide-details
                           thumb-label="always"
-                          @change="updateTimeFilterMin"
+                          @update:model-value="updateTimeFilterMin"
                         >
                           <template v-if="isVideo" #append>
                             <v-text-field
@@ -1089,14 +1040,14 @@ export default defineComponent({
                       </v-col>
                       <v-col>
                         <v-slider
-                          :value="timeFilterMax"
+                          :model-value="timeFilterMax"
                           :min="0"
-                          :max="mediaController.maxFrame.value"
+                          :max="maxFrame"
                           step="1"
                           dense
                           hide-details
                           thumb-label="always"
-                          @change="updateTimeFilterMax"
+                          @update:model-value="updateTimeFilterMax"
                         >
                           <template v-if="isVideo" #append>
                             <v-text-field
@@ -1130,17 +1081,16 @@ export default defineComponent({
               open-delay="750"
               close-delay="500"
             >
-              <template #activator="{ on, attrs }">
+              <template #activator="{ props: activatorProps }">
                 <v-btn
                   icon
                   small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                  variant="text"
                   title="center camera on selected track"
-                  v-bind="attrs"
-                  v-on="on"
+                  v-bind="activatorProps"
                   @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                 >
-                  <v-icon>
+                  <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                     {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                   </v-icon>
                 </v-btn>
@@ -1148,7 +1098,7 @@ export default defineComponent({
               <v-card
                 outlined
                 class="pa-2 pr-4"
-                color="blue-grey darken-3"
+                color="blue-grey-darken-3"
                 style="overflow-y: none"
               >
                 <v-card-title>
@@ -1161,6 +1111,7 @@ export default defineComponent({
                         v-model="transitionVal"
                         small
                         label="Transition"
+                        :color="transitionVal ? 'primary' : undefined"
                         @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                       />
                     </v-col>
@@ -1172,10 +1123,10 @@ export default defineComponent({
                         open-delay="200"
                         bottom
                       >
-                        <template #activator="{ on }">
+                        <template #activator="{ props: activatorProps }">
                           <v-icon
                             small
-                            v-on="on"
+                            v-bind="activatorProps"
                           >
                             mdi-help
                           </v-icon>
@@ -1207,6 +1158,7 @@ export default defineComponent({
                         v-model="multBoundsVal"
                         small
                         label="Multiply Bounds"
+                        :color="multBoundsVal ? 'primary' : undefined"
                         @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                       />
                     </v-col>
@@ -1218,10 +1170,10 @@ export default defineComponent({
                         open-delay="200"
                         bottom
                       >
-                        <template #activator="{ on }">
+                        <template #activator="{ props: activatorProps }">
                           <v-icon
                             small
-                            v-on="on"
+                            v-bind="activatorProps"
                           >
                             mdi-help
                           </v-icon>
@@ -1259,7 +1211,7 @@ export default defineComponent({
               <v-icon>mdi-image-filter-center-focus</v-icon>
             </v-btn>
             <v-badge
-              :value="!isDefaultImage"
+              :model-value="!isDefaultImage"
               color="warning"
               dot
               overlap
@@ -1296,8 +1248,25 @@ export default defineComponent({
 </template>
 
 <style scoped>
+.controls-toolbar-row {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.controls-toolbar-middle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.controls-toolbar-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
 .bottom-controls-row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .bottom-controls-row-nowrap {
@@ -1317,11 +1286,11 @@ export default defineComponent({
 }
 
 .bottom-controls-row .bottom-controls-left {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
 }
 
 .bottom-controls-row .bottom-controls-middle {
-  flex: 1 1 260px;
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
 }
@@ -1359,7 +1328,7 @@ export default defineComponent({
   flex: 0 0 auto;
 }
 
-.time-filter-input ::v-deep input {
+.time-filter-input :deep(input) {
   text-align: center;
   font-size: 12px;
   padding: 0 4px;

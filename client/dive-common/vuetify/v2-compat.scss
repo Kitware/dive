@@ -1,0 +1,153 @@
+// Vuetify 2 utility classes used across DIVE (mapped to Vuetify 3 CSS variables).
+
+.primary--text { color: rgb(var(--v-theme-primary)) !important; }
+.secondary--text { color: rgb(var(--v-theme-secondary)) !important; }
+.error--text { color: rgb(var(--v-theme-error)) !important; }
+.grey--text { color: rgb(var(--v-theme-grey)) !important; }
+
+.primary--text.text--darken-1 { color: rgb(var(--v-theme-primary-darken-1)) !important; }
+.primary--text.text--lighten-3 { color: rgb(var(--v-theme-primary-lighten-3)) !important; }
+.secondary--text.text--darken-2 { color: rgb(var(--v-theme-secondary-darken-2)) !important; }
+.error--text.text--lighten-3 { color: rgb(var(--v-theme-error-lighten-3)) !important; }
+.grey--text.text--lighten-1 { color: rgb(var(--v-theme-grey-lighten-1)) !important; }
+
+// Standalone shade helpers (e.g. v-card-actions class="lighten-3")
+.lighten-3 { background-color: rgb(var(--v-theme-grey-lighten-3)) !important; }
+
+// Vuetify 2 flex / sizing helpers still used across DIVE layouts
+.fill-height { height: 100% !important; }
+.grow { flex-grow: 1 !important; }
+.shrink { flex-shrink: 1 !important; }
+.flex-grow-0 { flex-grow: 0 !important; }
+.flex-grow-1 { flex-grow: 1 !important; }
+.flex-shrink-0 { flex-shrink: 0 !important; }
+.flex-shrink-1 { flex-shrink: 1 !important; }
+
+// --- Vuetify 2 icon / icon-button compat (Vuetify 3 migration) ---
+
+// V2 boolean size props on v-icon (still used across DIVE templates).
+.v-icon[x-small],
+.v-icon.x-small {
+  font-size: 16px !important;
+  height: 16px !important;
+  width: 16px !important;
+}
+
+.v-icon[small],
+.v-icon.small {
+  font-size: 20px !important;
+  height: 20px !important;
+  width: 20px !important;
+}
+
+.v-icon[large],
+.v-icon.large {
+  font-size: 28px !important;
+  height: 28px !important;
+  width: 28px !important;
+}
+
+.v-icon[x-large],
+.v-icon.x-large {
+  font-size: 36px !important;
+  height: 36px !important;
+  width: 36px !important;
+}
+
+// V2 icon buttons were transparent; V3 defaults to elevated with a visible circular surface.
+.v-btn.v-btn--icon.v-btn--variant-elevated,
+.v-btn.v-btn--icon.v-btn--variant-flat {
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+}
+
+// V2 icon buttons were square (--v-btn-height), not padded circles like V3 density-default.
+.v-btn.v-btn--icon {
+  width: var(--v-btn-height);
+  height: var(--v-btn-height);
+  min-width: 0;
+}
+
+// V2 boolean size props on v-btn (e.g. <v-btn icon small>).
+.v-btn[x-small],
+.v-btn.x-small {
+  --v-btn-size: 0.625rem;
+  --v-btn-height: 20px;
+  font-size: var(--v-btn-size);
+}
+
+.v-btn[small],
+.v-btn.small {
+  --v-btn-size: 0.75rem;
+  --v-btn-height: 28px;
+  font-size: var(--v-btn-size);
+}
+
+.v-btn[large],
+.v-btn.large {
+  --v-btn-size: 1rem;
+  --v-btn-height: 44px;
+  font-size: var(--v-btn-size);
+}
+
+.v-btn[x-large],
+.v-btn.x-large {
+  --v-btn-size: 1.125rem;
+  --v-btn-height: 52px;
+  font-size: var(--v-btn-size);
+}
+
+// Keep Data/Jobs navigation tabs visible inside the annotator app bar.
+.viewer-nav-tabs {
+  flex: 0 0 auto;
+  min-width: fit-content;
+}
+
+// Group DIVE title + Data/Jobs tabs on the left (V3 v-toolbar-title defaults to flex-grow).
+.dive-nav-brand {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+
+  .v-toolbar-title {
+    flex: 0 0 auto;
+    margin-inline: 0 8px;
+    min-width: auto;
+  }
+
+  .viewer-nav-tabs {
+    margin-inline: 0;
+  }
+}
+
+.v-toolbar__content > .dive-nav-brand:first-child {
+  margin-inline-start: 12px;
+}
+
+// V2 overlap badges were smaller and anchored to the bottom-end corner.
+.v-badge.v-badge--floating .v-badge__badge {
+  height: 16px;
+  min-width: 16px;
+  padding: 2px 4px;
+  font-size: 10px;
+  line-height: 1;
+
+  .v-icon {
+    font-size: 12px;
+    margin: 0;
+  }
+}
+
+.rotate {
+  animation: rotation 1.5s infinite linear;
+}
+
+@keyframes rotation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
+  }
+}

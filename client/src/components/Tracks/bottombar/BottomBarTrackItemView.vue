@@ -419,7 +419,7 @@ export default defineComponent({
     <template v-for="attrKey in trackAttributeColumns">
       <input
         v-if="editingAttributeKey === attrKey"
-        :key="attrKey + '-input'"
+        :key="`${attrKey}-input`"
         ref="attributeInputRef"
         :value="editAttributeValue"
         type="text"
@@ -432,7 +432,7 @@ export default defineComponent({
       >
       <span
         v-else
-        :key="attrKey"
+        :key="`${attrKey}-span`"
         class="track-attribute text-truncate"
         :class="{ editable: !readOnlyMode }"
         @click="startEditAttribute(attrKey, $event)"
@@ -473,13 +473,15 @@ export default defineComponent({
         v-if="!merging"
         icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
+        variant="text"
         size="x-small"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
       />
       <tooltip-btn
         icon="mdi-delete"
-        color="error"
+        icon-color="error"
+        variant="text"
         tooltip-text="Delete track"
         size="x-small"
         :disabled="merging || readOnlyMode"

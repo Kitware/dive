@@ -33,7 +33,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const { prompt } = usePrompt();
     const trackStyleManager = useTrackStyleManager();
-    const currentTab = ref('Main');
+    const currentTab = ref(0);
 
     const baseSettings = reactive({
       name: props.selectedAttribute.name,
@@ -84,8 +84,11 @@ export default defineComponent({
     }
 
     async function submit(close = true) {
-      if (form.value && !form.value.validate()) {
-        return;
+      if (form.value) {
+        const { valid } = await form.value.validate();
+        if (!valid) {
+          return;
+        }
       }
 
       const data = {
@@ -224,15 +227,22 @@ export default defineComponent({
       <v-card-text>
         <v-card-title class="text-h6">
           <v-tabs v-model="currentTab">
-            <v-tab> Main </v-tab>
-            <v-tab> Rendering </v-tab>
-            <v-tab v-if="['text', 'number'].includes(baseSettings.datatype)">
+            <v-tab :value="0">
+              Main
+            </v-tab>
+            <v-tab :value="1">
+              Rendering
+            </v-tab>
+            <v-tab
+              v-if="['text', 'number'].includes(baseSettings.datatype)"
+              :value="2"
+            >
               Value Colors
             </v-tab>
           </v-tabs>
         </v-card-title>
-        <v-tabs-items v-model="currentTab">
-          <v-tab-item>
+        <v-window v-model="currentTab">
+          <v-window-item :value="0">
             <v-alert
               v-if="error || !addNew"
               :type="error ? 'error' : 'info'"
@@ -262,21 +272,21 @@ export default defineComponent({
                 required
               />
               <v-select
-                :value="baseSettings.datatype"
+                v-model="baseSettings.datatype"
                 :items="[
-                  { text: 'Boolean', value: 'boolean' },
-                  { text: 'Number', value: 'number' },
-                  { text: 'Text', value: 'text' },
+                  { title: 'Boolean', value: 'boolean' },
+                  { title: 'Number', value: 'number' },
+                  { title: 'Text', value: 'text' },
                 ]"
                 label="Datatype"
-                @change="typeChange"
+                @update:model-value="typeChange"
               />
               <div v-if="baseSettings.datatype === 'number'">
                 <v-radio-group
-                  :value="(baseSettings.editor && baseSettings.editor.type) || 'combo'"
-                  row
+                  :model-value="(baseSettings.editor && baseSettings.editor.type) || 'combo'"
+                  inline
                   label="Display Type:"
-                  @change="numericChange"
+                  @update:model-value="numericChange"
                 >
                   <v-radio
                     label="Input Box"
@@ -416,8 +426,8 @@ export default defineComponent({
               </v-col>
               <v-spacer />
             </v-row>
-          </v-tab-item>
-          <v-tab-item>
+          </v-window-item>
+          <v-window-item :value="1">
             <v-switch
               v-model="attributeRendering"
               label="Rendering"
@@ -427,28 +437,34 @@ export default defineComponent({
               v-model="renderingVals"
               :attribute="selectedAttribute"
             />
-          </v-tab-item>
-          <v-tab-item v-if="baseSettings.datatype === 'text'">
+          </v-window-item>
+          <v-window-item
+            v-if="baseSettings.datatype === 'text'"
+            :value="2"
+          >
             <attribute-value-colors
               :attribute="selectedAttribute"
               @save="colorSettings.attributeColors = $event"
             />
-          </v-tab-item>
-          <v-tab-item v-else-if="baseSettings.datatype === 'number'">
+          </v-window-item>
+          <v-window-item
+            v-else-if="baseSettings.datatype === 'number'"
+            :value="2"
+          >
             <attribute-number-value-colors
               :attribute="selectedAttribute"
               @save="colorSettings.attributeColors = $event"
             />
-          </v-tab-item>
-        </v-tabs-items>
+          </v-window-item>
+        </v-window>
         <v-card-actions>
           <v-row>
             <v-tooltip
               open-delay="100"
               bottom
             >
-              <template #activator="{ on }">
-                <div v-on="on">
+              <template #activator="{ props: activatorProps }">
+                <div v-bind="activatorProps">
                   <v-btn
                     class="hover-show-child"
                     color="error"
@@ -467,7 +483,7 @@ export default defineComponent({
             </v-tooltip>
             <v-spacer />
             <v-btn
-              text
+              variant="text"
               class="mr-2"
               @click="$emit('close')"
             >

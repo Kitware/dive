@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 
-import { GirderSearch } from '@girder/components/src';
+import { GirderSearch } from '@girder/components';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 
@@ -40,11 +40,11 @@ export default defineComponent({
       return false;
     },
   },
-  async created() {
-    this.girderRest.$on('logout', this.onLogout);
+  mounted() {
+    this.girderRest.on('userLoggedOut', this.onLogout);
   },
-  beforeDestroy() {
-    this.girderRest.$off('logout', this.onLogout);
+  beforeUnmount() {
+    this.girderRest.off('userLoggedOut', this.onLogout);
   },
   methods: {
     onLogout() {
@@ -60,33 +60,35 @@ export default defineComponent({
 <template>
   <div>
     <v-app-bar app>
-      <NavigationTitle :name="brandData.name" />
-      <v-tabs
-        icons-and-text
-        color="accent"
-        class="mx-2"
-      >
-        <v-tab
-          exact
-          :to="locationRoute"
+      <div class="dive-nav-brand">
+        <NavigationTitle :name="brandData.name" />
+        <v-tabs
+          stacked
+          color="accent"
+          class="viewer-nav-tabs"
         >
-          Data
-          <v-icon>mdi-database</v-icon>
-        </v-tab>
-        <JobsTab />
-        <v-tab
-          v-if="pipelinesEnabled || trainingEnabled"
-          to="/trained-models"
-        >
-          Models <v-icon>mdi-brain</v-icon>
-        </v-tab>
-        <v-tab
-          v-if="isAdmin"
-          to="/admin"
-        >
-          Admin <v-icon>mdi-badge-account</v-icon>
-        </v-tab>
-      </v-tabs>
+          <v-tab
+            exact
+            :to="locationRoute"
+          >
+            Data
+            <v-icon>mdi-database</v-icon>
+          </v-tab>
+          <JobsTab />
+          <v-tab
+            v-if="pipelinesEnabled || trainingEnabled"
+            to="/trained-models"
+          >
+            Models <v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab
+            v-if="isAdmin"
+            to="/admin"
+          >
+            Admin <v-icon>mdi-badge-account</v-icon>
+          </v-tab>
+        </v-tabs>
+      </div>
       <v-spacer />
       <GirderSearch
         :search-types="['user', 'folder']"
@@ -98,7 +100,7 @@ export default defineComponent({
       />
       <user-guide-button />
       <v-btn
-        text
+        variant="text"
         @click="logout"
       >
         Logout
@@ -119,18 +121,3 @@ export default defineComponent({
     </v-banner>
   </div>
 </template>
-
-<style lang="scss">
-.rotate {
-  animation: rotation 1.5s infinite linear;
-}
-
-@keyframes rotation {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(359deg);
-  }
-}
-</style>

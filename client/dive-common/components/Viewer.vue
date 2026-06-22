@@ -3,7 +3,7 @@ import {
   defineComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
-import type { Vue } from 'vue/types/vue';
+import type { ComponentPublicInstance } from 'vue';
 import type Vuetify from 'vuetify/lib';
 import { cloneDeep, debounce } from 'lodash';
 
@@ -129,7 +129,7 @@ export default defineComponent({
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
     const defaultCamera = ref('singleCam');
-    const playbackComponent = ref(undefined as Vue | undefined);
+    const playbackComponent = ref(undefined as ComponentPublicInstance | undefined);
     const readonlyState = computed(() => props.readOnlyMode
     || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));
     const sets: Ref<string[]> = ref([]);
@@ -160,7 +160,12 @@ export default defineComponent({
       // Total tracks
       total: 0,
     });
-    const controlsRef = ref();
+    const controlsRef = ref<ComponentPublicInstance | undefined>();
+    const setControlsRef = (instance: Element | ComponentPublicInstance | null) => {
+      controlsRef.value = (instance && '$el' in instance)
+        ? instance as ComponentPublicInstance
+        : undefined;
+    };
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
@@ -212,6 +217,9 @@ export default defineComponent({
     watch(sidebarMode, (mode) => {
       if (mode === 'left' || mode === 'bottom') {
         clientSettings.layoutSettings.sidebarPosition = mode;
+      }
+      if (mode === 'bottom') {
+        controlsCollapsed.value = false;
       }
       if (typeof window !== 'undefined') {
         try {
@@ -1122,6 +1130,15 @@ export default defineComponent({
       editingError.value = null;
     }
 
+    const showAttributeEditor = computed({
+      get: () => editingAttribute.value !== null,
+      set: (open: boolean) => {
+        if (!open) {
+          closeAttributeEditor();
+        }
+      },
+    });
+
     async function saveAttributeHandler({ data, oldAttribute, close }: {
       oldAttribute?: Attribute;
       data: Attribute;
@@ -1162,6 +1179,7 @@ export default defineComponent({
       confidenceFilters: trackFilters.confidenceFilters,
       cameraStore,
       controlsRef,
+      setControlsRef,
       controlsHeight,
       controlsCollapsed,
       sidebarMode,
@@ -1221,6 +1239,7 @@ export default defineComponent({
       addAttribute,
       editAttribute,
       closeAttributeEditor,
+      showAttributeEditor,
       saveAttributeHandler,
       deleteAttributeHandler,
       saveTooltipText,
@@ -1268,12 +1287,12 @@ export default defineComponent({
           v-if="currentSet || sets.length > 0 || comparisonSets.length"
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-chip
               outlined
               :color="annotationSetColor(currentSet || 'default')"
               small
-              v-on="on"
+              v-bind="activatorProps"
               @click="context.toggle('AnnotationSets')"
             > {{ currentSet || 'default' }}</v-chip>
 
@@ -1290,13 +1309,13 @@ export default defineComponent({
           v-if="displayComparisons && displayComparisons.length"
           bottom
         >
-          <template #activator="{ on: onIcon }">
+          <template #activator="{ props: activatorProps }">
             <v-chip
               class="pl-2"
               small
               outlined
               :color="annotationSetColor(displayComparisons[0] || 'default')"
-              v-on="onIcon"
+              v-bind="activatorProps"
             > {{ displayComparisons[0] }}</v-chip>
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
@@ -1309,17 +1328,18 @@ export default defineComponent({
           <v-tooltip
             bottom
           >
-            <template #activator="{ on }">
+            <template #activator="{ props: activatorProps }">
               <v-chip
-                class="warning pr-1"
+                class="pr-1"
+                color="warning"
+                size="small"
                 style="white-space:nowrap;display:inline"
-                small
-                v-on="on"
+                v-bind="activatorProps"
               >
                 Read Only Mode
                 <v-icon
                   class="pl-1"
-                  small
+                  size="small"
                 >mdi-information-outline</v-icon>
               </v-chip>
             </template>
@@ -1332,9 +1352,9 @@ export default defineComponent({
         <v-tooltip
           bottom
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              v-on="on"
+              v-bind="activatorProps"
               @click="cycleSidebarMode"
             >
               {{ sidebarModeIcon }}
@@ -1355,14 +1375,15 @@ export default defineComponent({
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
           }"
-          :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
-          :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
+          v-model:tail-settings="clientSettings.annotatorPreferences.trackTails"
+          v-model:show-user-created-icon="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
-          <template slot="delete-controls">
+          <template #delete-controls>
             <delete-controls
-              v-bind="{ editingMode, selectedFeatureHandle }"
+              :editing-mode="editingMode"
+              :selected-feature-handle="selectedFeatureHandle"
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
@@ -1405,9 +1426,9 @@ export default defineComponent({
           bottom
           :z-index="20"
         >
-          <template #activator="{ on }">
+          <template #activator="{ props: activatorProps }">
             <v-icon
-              v-on="on"
+              v-bind="activatorProps"
               @click="context.toggle(undefined)"
             >
               {{ context.state.active ? 'mdi-chevron-right-box' : 'mdi-chevron-left-box' }}
@@ -1422,8 +1443,8 @@ export default defineComponent({
       <slot name="title-right" />
       <user-guide-button annotating />
       <v-tooltip bottom>
-        <template #activator="{ on }">
-          <div v-on="on">
+        <template #activator="{ props: activatorProps }">
+          <div v-bind="activatorProps">
             <v-btn
               icon
               @click="showUserSettingsDialog = true"
@@ -1437,22 +1458,30 @@ export default defineComponent({
 
       <v-tooltip
         bottom
+        class="save-control"
       >
-        <template #activator="{ on }">
+        <template #activator="{ props: activatorProps }">
           <v-badge
-            overlap
-            bottom
-            :color="readonlyState ? 'warning' : undefined"
-            :icon="readonlyState ? 'mdi-exclamation-thick' : undefined"
-            :content="!readonlyState ? pendingSaveCount : undefined"
-            :value="readonlyState || pendingSaveCount > 0"
-            offset-x="14"
-            offset-y="18"
+            class="save-badge"
+            location="bottom start"
+            floating
+            :color="readonlyState ? 'warning' : 'primary'"
+            :content="!readonlyState && pendingSaveCount > 0 ? pendingSaveCount : undefined"
+            :model-value="readonlyState || pendingSaveCount > 0"
+            :offset-x="10"
           >
+            <template
+              v-if="readonlyState"
+              #badge
+            >
+              <v-icon size="12">
+                mdi-exclamation-thick
+              </v-icon>
+            </template>
             <v-btn
               icon
               :disabled="readonlyState || pendingSaveCount === 0 || saveInProgress"
-              v-on="on"
+              v-bind="activatorProps"
               @click="save(currentSet)"
             >
               <v-icon :class="{ 'mdi-spin': saveInProgress }">
@@ -1471,8 +1500,7 @@ export default defineComponent({
       </v-tooltip>
     </v-app-bar>
     <UserSettingsDialog
-      :value="showUserSettingsDialog"
-      @input="showUserSettingsDialog = $event"
+      v-model="showUserSettingsDialog"
     />
 
     <!-- Standard layout (left sidebar visible or hidden) -->
@@ -1487,26 +1515,24 @@ export default defineComponent({
         @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
-        <template>
-          <v-divider />
-          <primary-attribute-track-filter
-            :toggle="context.toggle"
-          />
-          <ConfidenceFilter
-            v-if="context.state.active !== 'TypeThreshold'"
-            class="ma-2 mb-0"
-            :confidence.sync="confidenceFilters.default"
-            :disabled="disableAnnotationFilters"
-            @end="saveThreshold"
+        <v-divider />
+        <primary-attribute-track-filter
+          :toggle="context.toggle"
+        />
+        <ConfidenceFilter
+          v-if="context.state.active !== 'TypeThreshold'"
+          v-model:confidence="confidenceFilters.default"
+          class="ma-2 mb-0"
+          :disabled="disableAnnotationFilters"
+          @end="saveThreshold"
+        >
+          <a
+            style="text-decoration: underline; color: white;"
+            @click="context.toggle('TypeThreshold')"
           >
-            <a
-              style="text-decoration: underline; color: white;"
-              @click="context.toggle('TypeThreshold')"
-            >
-              Advanced
-            </a>
-          </ConfidenceFilter>
-        </template>
+            Advanced
+          </a>
+        </ConfidenceFilter>
       </sidebar>
       <v-col
         style="position: relative;"
@@ -1559,7 +1585,7 @@ export default defineComponent({
           </div>
           <ControlsContainer
             ref="controlsRef"
-            :collapsed.sync="controlsCollapsed"
+            v-model:collapsed="controlsCollapsed"
             v-bind="{
               lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
             }"
@@ -1654,9 +1680,9 @@ export default defineComponent({
             </div>
           </div>
           <BottomPanel
+            v-model:controls-collapsed="controlsCollapsed"
             :sidebar-mode="sidebarMode"
-            :controls-ref="controlsRef"
-            :controls-collapsed.sync="controlsCollapsed"
+            :set-controls-ref="setControlsRef"
             :line-chart-data="lineChartData"
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"
@@ -1722,10 +1748,8 @@ export default defineComponent({
     </div>
     <!-- Attribute editor dialog for bottom panel -->
     <v-dialog
-      :value="editingAttribute != null"
+      v-model="showAttributeEditor"
       max-width="550"
-      @click:outside="closeAttributeEditor"
-      @keydown.esc.stop="closeAttributeEditor"
     >
       <AttributeEditor
         v-if="editingAttribute != null"
@@ -1804,6 +1828,18 @@ html {
   font-size: 14px;
   font-weight: 600;
   color: white;
+}
+
+.save-control {
+  margin-inline-end: 8px;
+}
+
+.save-badge:deep(.v-badge__badge) {
+  left: 2px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 2px !important;
+  transform: none !important;
 }
 
 </style>

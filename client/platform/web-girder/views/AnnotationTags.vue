@@ -11,7 +11,7 @@ import {
   useHandler,
   useTrackStyleManager,
 } from 'vue-media-annotator/provides';
-import { useRouter } from 'vue-router/composables';
+import { useRouter } from 'vue-router';
 
 export default defineComponent({
   name: 'AnnotationTags',
@@ -134,8 +134,8 @@ export default defineComponent({
     </div>
     <v-expansion-panels>
       <v-expansion-panel>
-        <v-expansion-panel-header> Add New Set</v-expansion-panel-header>
-        <v-expansion-panel-content>
+        <v-expansion-panel-title> Add New Set</v-expansion-panel-title>
+        <v-expansion-panel-text>
           <p>
             Add a new Set with a custom name that can be used to reference it in the future.
             'default' is a reserved set which can't be used.
@@ -157,7 +157,7 @@ export default defineComponent({
               Add Set
             </v-btn>
           </v-form>
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
   </div>
