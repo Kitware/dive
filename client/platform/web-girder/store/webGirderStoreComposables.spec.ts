@@ -501,6 +501,16 @@ describe('web-girder store composables', () => {
     });
   });
 
+  describe('initGirderNotifications', () => {
+    it('uses an apiRoot that produces a valid Girder notification websocket URL', () => {
+      expect(girderRest.apiRoot).toBe('/api/v1');
+      const wsPath = girderRest.apiRoot.replace(/\/api\/v1\/?$/, '') || '';
+      const url = `ws://localhost:8080${wsPath.replace(/\/$/, '')}/notifications/me?token=test`;
+      expect(url).toBe('ws://localhost:8080/notifications/me?token=test');
+      expect(() => new URL(url)).not.toThrow();
+    });
+  });
+
   describe('initJobs', () => {
     it('fetches running jobs and subscribes to job status messages', async () => {
       const job = {

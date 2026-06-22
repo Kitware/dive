@@ -10,7 +10,9 @@ function getInitialToken(): string | undefined {
 }
 
 export const girder = useGirderClient({
-  apiRoot: 'api/v1',
+  // Leading slash required: GWC builds ws(s)://host/notifications/me from apiRoot by
+  // stripping a trailing /api/v1 segment; a relative root like "api/v1" yields an invalid URL.
+  apiRoot: '/api/v1',
   token: getInitialToken(),
 });
 
@@ -34,14 +36,20 @@ girderRest._axios.interceptors.response.use(
 
 let notificationState: ReturnType<typeof useNotificationBus> | null = null;
 
-export function initGirderNotifications() {
-  notificationState = useNotificationBus(girderRest, { useWebSocket: true });
-  if (girderRest.user) {
-    notificationState.bus.connect();
-  }
-  girderRest.on('userLoggedIn', () => {
+function connectNotificationBus() {
+  if (girderRest.user && girderRest.token) {
     notificationState?.bus.connect();
+  }
+}
+
+export function initGirderNotifications() {
+  notificationState = useNotificationBus(girderRest, {
+    useWebSocket: true,
+    listenToRestClient: false,
   });
+  connectNotificationBus();
+  girderRest.on('userLoggedIn', connectNotificationBus);
+  girderRest.on('userFetched', connectNotificationBus);
   girderRest.on('userLoggedOut', () => {
     notificationState?.bus.disconnect();
   });

@@ -8,7 +8,7 @@ vi.mock('@girder/components', () => {
     const axiosInstance = axios.create();
     axiosInstance.interceptors.response.use = vi.fn();
     return {
-      apiRoot: options.apiRoot || 'api/v1',
+      apiRoot: options.apiRoot || '/api/v1',
       token: options.token || null,
       user: null,
       _axios: axiosInstance,
@@ -27,7 +27,15 @@ vi.mock('@girder/components', () => {
 
   return {
     useGirderClient: (options: object = {}) => ({ rest: createMockRestClient(options) }),
-    useNotificationBus: () => ({ bus: mitt() }),
+    useNotificationBus: () => ({
+      bus: {
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+      },
+      state: {},
+    }),
     UploadManager: class UploadManager {},
   };
 });
