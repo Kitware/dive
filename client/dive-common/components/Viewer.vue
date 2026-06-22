@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, defineAsyncComponent, ref, toRef, computed, Ref,
+  defineComponent, ref, toRef, computed, Ref,
   reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
@@ -67,12 +67,6 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
 
-// NativeVideoAnnotator uses electron APIs - only load in desktop app
-// The webpackIgnore comment prevents bundling in web builds
-const NativeVideoAnnotator = defineAsyncComponent(
-  () => import(/* webpackIgnore: true */ 'vue-media-annotator/components/annotators/NativeVideoAnnotator.vue'),
-);
-
 export interface ImageDataItem {
   url: string;
   filename: string;
@@ -88,7 +82,6 @@ export default defineComponent({
     Sidebar,
     LayerManager,
     VideoAnnotator,
-    NativeVideoAnnotator,
     ImageAnnotator,
     LargeImageAnnotator,
     ConfidenceFilter,
@@ -157,7 +150,6 @@ export default defineComponent({
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
-    const nativeVideoPath: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
     } = useApi();
@@ -804,9 +796,6 @@ export default defineComponent({
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
-          if (subCameraMeta.nativeVideoPath) {
-            nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
-          }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
           // eslint-disable-next-line no-await-in-loop
@@ -1237,7 +1226,6 @@ export default defineComponent({
       selectedKey,
       trackFilters,
       videoUrl,
-      nativeVideoPath,
       visibleModes,
       frameRate: time.frameRate,
       originalFps: time.originalFps,
@@ -1578,16 +1566,15 @@ export default defineComponent({
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
                   : datasetType === 'video'
-                    ? (nativeVideoPath[camera] ? 'native-video-annotator' : 'video-annotator')
+                    ? 'video-annotator'
                     : 'large-image-annotator'"
-                v-if="(imageData[camera].length || videoUrl[camera] || nativeVideoPath[camera]) && progress.loaded"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
-                  nativeVideoPath: nativeVideoPath[camera],
                   updateTime,
                   frameRate,
                   originalFps,
