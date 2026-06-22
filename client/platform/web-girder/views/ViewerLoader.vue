@@ -24,6 +24,7 @@ import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
+import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -107,6 +108,12 @@ export default defineComponent({
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
+    // Client-side stereo transfer: warp a detection to the other camera via the
+    // VIAME "match" ONNX model (no backend). No-ops without a 2-camera dataset,
+    // a loaded calibration file, and a served model asset.
+    const { handleStereoAnnotationComplete } = useStereoOnnxWeb({
+      getViewer: () => viewerRef.value,
+    });
     const { brandData } = useBrand();
     const { pipelinesEnabled } = useConfig();
     const { meta: datasetMeta, loadDataset } = useDataset();
@@ -334,6 +341,7 @@ export default defineComponent({
       onCalibrationDeleted,
       changeCamera,
       modifiedId,
+      handleStereoAnnotationComplete,
     };
   },
 });
@@ -351,6 +359,7 @@ export default defineComponent({
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
     @change-camera="changeCamera"
+    @stereo-annotation-complete="handleStereoAnnotationComplete"
   >
     <template #title>
       <ViewerAlert />
