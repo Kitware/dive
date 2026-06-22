@@ -149,9 +149,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           }
           window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
           if (this.type !== 'rectangle') {
+            const selectedIndex = this.selectedHandleIndex < 0
+              ? -1
+              : this.selectedHandleIndex / divisor;
             this.bus.$emit(
               'update:selectedIndex',
-              this.selectedHandleIndex / divisor,
+              selectedIndex,
               this.type,
               this.selectedKey,
             );

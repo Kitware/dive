@@ -356,10 +356,8 @@ export default defineComponent({
         >
           <v-menu
             v-model="activeTimeFilter"
-            bottom
-            offset-y
-            :nudge-bottom="8"
-            right
+            location="bottom end"
+            :offset="8"
             content-class="time-filter-menu-content"
             :close-on-content-click="false"
             open-on-hover
@@ -371,12 +369,12 @@ export default defineComponent({
                 ref="timeFilterBtnRef"
                 icon
                 small
-                :color="timeFilterActive ? 'primary' : 'default'"
+                variant="text"
                 title="Filter tracks by time range"
                 v-bind="activatorProps"
                 @click="handleTimeFilterClick"
               >
-                <v-icon>
+                <v-icon :color="timeFilterActive ? 'primary' : undefined">
                   {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                 </v-icon>
               </v-btn>
@@ -468,9 +466,8 @@ export default defineComponent({
           </v-menu>
           <v-menu
             v-model="activeLockedCamera"
-            :nudge-left="28"
-            left
-            top
+            location="top start"
+            :offset="[-28, 0]"
             :close-on-content-click="false"
             open-on-hover
             open-delay="750"
@@ -480,12 +477,12 @@ export default defineComponent({
               <v-btn
                 icon
                 small
-                :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                variant="text"
                 title="center camera on selected track"
                 v-bind="activatorProps"
                 @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
               >
-                <v-icon>
+                <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                   {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                 </v-icon>
               </v-btn>
@@ -506,6 +503,7 @@ export default defineComponent({
                       v-model="transitionVal"
                       small
                       label="Transition"
+                      :color="transitionVal ? 'primary' : undefined"
                       @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                     />
                   </v-col>
@@ -515,11 +513,11 @@ export default defineComponent({
                   >
                     <v-tooltip
                       open-delay="200"
-                      bottom
+                      location="bottom"
                     >
                       <template #activator="{ props: activatorProps }">
                         <v-icon
-                          small
+                          size="small"
                           v-bind="activatorProps"
                         >
                           mdi-help
@@ -552,6 +550,7 @@ export default defineComponent({
                       v-model="multBoundsVal"
                       small
                       label="Multiply Bounds"
+                      :color="multBoundsVal ? 'primary' : undefined"
                       @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                     />
                   </v-col>
@@ -561,11 +560,11 @@ export default defineComponent({
                   >
                     <v-tooltip
                       open-delay="200"
-                      bottom
+                      location="bottom"
                     >
                       <template #activator="{ props: activatorProps }">
                         <v-icon
-                          small
+                          size="small"
                           v-bind="activatorProps"
                         >
                           mdi-help
@@ -607,12 +606,11 @@ export default defineComponent({
             :model-value="!isDefaultImage"
             color="warning"
             dot
-            overlap
-            bottom
+            location="bottom"
           >
             <v-btn
               icon
-              small
+              size="small"
               :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
               @click="toggleEnhancements"
             >
@@ -622,7 +620,7 @@ export default defineComponent({
           <v-btn
             v-if="mediaController.cameras.value.length > 1"
             icon
-            small
+            size="small"
             :color="mediaController.cameraSync.value ? 'primary' : 'default'"
             title="Synchronize camera controls"
             @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
@@ -689,12 +687,12 @@ export default defineComponent({
                   <v-btn
                     icon
                     small
-                    :color="timeFilterActive ? 'primary' : 'default'"
+                    variant="text"
                     title="Filter tracks by time range"
                     v-bind="activatorProps"
                     @click="handleTimeFilterClick"
                   >
-                    <v-icon v-bind="activatorProps">
+                    <v-icon :color="timeFilterActive ? 'primary' : undefined">
                       {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                     </v-icon>
                   </v-btn>
@@ -798,12 +796,12 @@ export default defineComponent({
                   <v-btn
                     icon
                     small
-                    :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                    variant="text"
                     title="center camera on selected track"
                     v-bind="activatorProps"
                     @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                   >
-                    <v-icon>
+                    <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                       {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                     </v-icon>
                   </v-btn>
@@ -824,6 +822,7 @@ export default defineComponent({
                           v-model="transitionVal"
                           small
                           label="Transition"
+                          :color="transitionVal ? 'primary' : undefined"
                           @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                         />
                       </v-col>
@@ -870,6 +869,7 @@ export default defineComponent({
                           v-model="multBoundsVal"
                           small
                           label="Multiply Bounds"
+                          :color="multBoundsVal ? 'primary' : undefined"
                           @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                         />
                       </v-col>
@@ -976,12 +976,12 @@ export default defineComponent({
                 <v-btn
                   icon
                   small
-                  :color="timeFilterActive ? 'primary' : 'default'"
+                  variant="text"
                   title="Filter tracks by time range"
                   v-bind="activatorProps"
                   @click="handleTimeFilterClick"
                 >
-                  <v-icon v-bind="activatorProps">
+                  <v-icon :color="timeFilterActive ? 'primary' : undefined">
                     {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
                   </v-icon>
                 </v-btn>
@@ -1085,12 +1085,12 @@ export default defineComponent({
                 <v-btn
                   icon
                   small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
+                  variant="text"
                   title="center camera on selected track"
                   v-bind="activatorProps"
                   @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
                 >
-                  <v-icon>
+                  <v-icon :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : undefined">
                     {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
                   </v-icon>
                 </v-btn>
@@ -1111,6 +1111,7 @@ export default defineComponent({
                         v-model="transitionVal"
                         small
                         label="Transition"
+                        :color="transitionVal ? 'primary' : undefined"
                         @change="clientSettings.annotatorPreferences.lockedCamera.transition = clientSettings.annotatorPreferences.lockedCamera.transition ? false : 200"
                       />
                     </v-col>
@@ -1157,6 +1158,7 @@ export default defineComponent({
                         v-model="multBoundsVal"
                         small
                         label="Multiply Bounds"
+                        :color="multBoundsVal ? 'primary' : undefined"
                         @change="clientSettings.annotatorPreferences.lockedCamera.multiBounds = clientSettings.annotatorPreferences.lockedCamera.multiBounds ? false : 2"
                       />
                     </v-col>

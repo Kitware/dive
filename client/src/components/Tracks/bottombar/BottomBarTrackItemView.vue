@@ -473,13 +473,15 @@ export default defineComponent({
         v-if="!merging"
         icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
+        variant="text"
         size="x-small"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
       />
       <tooltip-btn
         icon="mdi-delete"
-        color="error"
+        icon-color="error"
+        variant="text"
         tooltip-text="Delete track"
         size="x-small"
         :disabled="merging || readOnlyMode"

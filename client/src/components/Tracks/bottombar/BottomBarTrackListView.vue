@@ -77,11 +77,11 @@ export default defineComponent({
                   <template #activator="{ props: menuProps }">
                     <v-btn
                       icon
-                      size="x-small"
+                      size="small"
                       v-bind="menuProps"
                     >
                       <v-icon
-                        size="x-small"
+                        size="small"
                         :color="data.columnSettingsActive ? 'accent' : 'default'"
                       >
                         mdi-view-column
@@ -106,11 +106,11 @@ export default defineComponent({
             <template #activator="{ props: activatorProps }">
               <v-btn
                 icon
-                size="x-small"
+                size="small"
                 v-bind="activatorProps"
               >
                 <v-icon
-                  size="x-small"
+                  size="small"
                   :color="data.settingsActive ? 'accent' : 'default'"
                 >
                   mdi-cog
@@ -127,12 +127,12 @@ export default defineComponent({
               <v-btn
                 :disabled="filteredTracks.length === 0 || readOnlyMode"
                 icon
-                size="x-small"
+                size="small"
                 v-bind="activatorProps"
                 @click="multiDelete()"
               >
                 <v-icon
-                  size="x-small"
+                  size="small"
                   color="error"
                 >
                   mdi-delete
@@ -176,7 +176,7 @@ export default defineComponent({
           ID
           <v-icon
             v-if="sortIcon('id')"
-            x-small
+            size="x-small"
           >{{ sortIcon('id') }}</v-icon>
         </span>
         <span
@@ -188,7 +188,7 @@ export default defineComponent({
           Type
           <v-icon
             v-if="sortIcon('type')"
-            x-small
+            size="x-small"
           >{{ sortIcon('type') }}</v-icon>
         </span>
         <span
@@ -200,7 +200,7 @@ export default defineComponent({
           Conf
           <v-icon
             v-if="sortIcon('confidence')"
-            x-small
+            size="x-small"
           >{{ sortIcon('confidence') }}</v-icon>
         </span>
         <span
@@ -212,7 +212,7 @@ export default defineComponent({
           Start
           <v-icon
             v-if="sortIcon('start')"
-            x-small
+            size="x-small"
           >{{ sortIcon('start') }}</v-icon>
         </span>
         <span
@@ -224,7 +224,7 @@ export default defineComponent({
           End
           <v-icon
             v-if="sortIcon('end')"
-            x-small
+            size="x-small"
           >{{ sortIcon('end') }}</v-icon>
         </span>
         <span
@@ -236,7 +236,7 @@ export default defineComponent({
           Start Time
           <v-icon
             v-if="sortIcon('startTime')"
-            x-small
+            size="x-small"
           >{{ sortIcon('startTime') }}</v-icon>
         </span>
         <span
@@ -248,7 +248,7 @@ export default defineComponent({
           End Time
           <v-icon
             v-if="sortIcon('endTime')"
-            x-small
+            size="x-small"
           >{{ sortIcon('endTime') }}</v-icon>
         </span>
         <span
@@ -261,7 +261,7 @@ export default defineComponent({
           {{ attrKey.split('_').pop() }}
           <v-icon
             v-if="sortIcon(attrKey)"
-            x-small
+            size="x-small"
           >{{ sortIcon(attrKey) }}</v-icon>
         </span>
         <span
@@ -273,7 +273,7 @@ export default defineComponent({
           Notes
           <v-icon
             v-if="sortIcon('notes')"
-            x-small
+            size="x-small"
           >{{ sortIcon('notes') }}</v-icon>
         </span>
         <v-spacer />

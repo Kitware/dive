@@ -93,6 +93,7 @@ export default defineConfig(({ mode }) => {
     base: '/',
     test: {
       globals: true,
+      setupFiles: ['./vitest.setup.ts'],
     },
   };
 

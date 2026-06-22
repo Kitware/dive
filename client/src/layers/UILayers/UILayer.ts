@@ -1,6 +1,9 @@
 import { createApp, h } from 'vue';
+import { createVuetify } from 'vuetify';
 import geo, { GeoEvent } from 'geojs';
 import { MediaController } from '../../components/annotators/mediaControllerType';
+
+type VuetifyInstance = ReturnType<typeof createVuetify>;
 
 interface WidgetPosition {
   x: number;
@@ -27,13 +30,16 @@ export interface DOMWidget {
 export default class UILayer {
   annotator: MediaController;
 
+  vuetify: VuetifyInstance;
+
   widgets: Record<string, DOMWidget>;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   uiLayer: any;
 
-  constructor(annotator: MediaController) {
+  constructor(annotator: MediaController, vuetify: VuetifyInstance) {
     this.annotator = annotator;
+    this.vuetify = vuetify;
     this.widgets = {};
     this.uiLayer = this.annotator.geoViewerRef.value.createLayer('ui');
     this.uiLayer.geoOn(geo.event.mousemove, this.updateToolTipPositions);
@@ -83,9 +89,11 @@ export default class UILayer {
     const parent = widget.canvas();
     const div = document.createElement('div');
     const element = parent.appendChild(div);
-    createApp({
+    const app = createApp({
       render: () => h(component, props),
-    }).mount(element);
+    });
+    app.use(this.vuetify);
+    app.mount(element);
     widget.toolTipOffset = position;
     widget.toolTip = false;
     widget.lastMousePos = position;

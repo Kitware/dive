@@ -160,7 +160,12 @@ export default defineComponent({
       // Total tracks
       total: 0,
     });
-    const controlsRef = ref();
+    const controlsRef = ref<ComponentPublicInstance | undefined>();
+    const setControlsRef = (instance: Element | ComponentPublicInstance | null) => {
+      controlsRef.value = (instance && '$el' in instance)
+        ? instance as ComponentPublicInstance
+        : undefined;
+    };
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
@@ -212,6 +217,9 @@ export default defineComponent({
     watch(sidebarMode, (mode) => {
       if (mode === 'left' || mode === 'bottom') {
         clientSettings.layoutSettings.sidebarPosition = mode;
+      }
+      if (mode === 'bottom') {
+        controlsCollapsed.value = false;
       }
       if (typeof window !== 'undefined') {
         try {
@@ -1171,6 +1179,7 @@ export default defineComponent({
       confidenceFilters: trackFilters.confidenceFilters,
       cameraStore,
       controlsRef,
+      setControlsRef,
       controlsHeight,
       controlsCollapsed,
       sidebarMode,
@@ -1371,9 +1380,10 @@ export default defineComponent({
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
         >
-          <template slot="delete-controls">
+          <template #delete-controls>
             <delete-controls
-              v-bind="{ editingMode, selectedFeatureHandle }"
+              :editing-mode="editingMode"
+              :selected-feature-handle="selectedFeatureHandle"
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
@@ -1672,7 +1682,7 @@ export default defineComponent({
           <BottomPanel
             v-model:controls-collapsed="controlsCollapsed"
             :sidebar-mode="sidebarMode"
-            :controls-ref="controlsRef"
+            :set-controls-ref="setControlsRef"
             :line-chart-data="lineChartData"
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"

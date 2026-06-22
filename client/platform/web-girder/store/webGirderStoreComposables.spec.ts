@@ -15,7 +15,7 @@ import { MultiType, VideoType } from '../../../dive-common/constants';
 
 import * as api from '../api';
 import * as configurationService from '../api/configuration.service';
-import girderRest from '../plugins/girder';
+import girderRest, { getNotificationBus, initGirderNotifications } from '../plugins/girder';
 
 import { bindWebGirderRouter, getUserHomeRoute, useLocation } from './useLocation';
 import { useBrand } from './useBrand';
@@ -510,11 +510,12 @@ describe('web-girder store composables', () => {
         type: 'pipelines',
         title: 'P',
       };
+      initGirderNotifications();
+      const busOn = vi.spyOn(getNotificationBus().bus, 'on');
       vi.spyOn(girderRest, 'get').mockResolvedValue({ data: [job] } as never);
-      vi.spyOn(girderRest, '$on').mockImplementation(() => girderRest);
       await initJobs();
       expect(girderRest.get).toHaveBeenCalled();
-      expect(girderRest.$on).toHaveBeenCalledWith('message:job_status', expect.any(Function));
+      expect(busOn).toHaveBeenCalledWith('message:job_status', expect.any(Function));
       expect(useJobs().getJobIds().job1).toBe(2);
     });
   });

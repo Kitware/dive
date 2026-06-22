@@ -63,6 +63,7 @@ export default defineComponent({
       default: false,
     },
   },
+  emits: ['update:collapsed', 'select-group'],
   setup(_, { emit }) {
     const handler = useHandler();
     const currentView = ref('Detections');
@@ -129,6 +130,15 @@ export default defineComponent({
     const {
       maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
     } = injectAggregateController().value;
+    const volumeStep = 0.05;
+    function snapVolume(level: number) {
+      return Math.round(level / volumeStep) * volumeStep;
+    }
+    function handleVolumeChange(level: number) {
+      setVolume(snapVolume(level));
+    }
+    const volumeDisplay = computed(() => Math.round(volume.value * 100));
+    const volumeSliderValue = computed(() => snapVolume(volume.value));
     return {
       currentView,
       toggleView,
@@ -138,6 +148,9 @@ export default defineComponent({
       seek,
       volume,
       setVolume,
+      handleVolumeChange,
+      volumeDisplay,
+      volumeSliderValue,
       speed,
       setSpeed,
       ticks,
@@ -171,12 +184,13 @@ export default defineComponent({
       <template #timelineControls>
         <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap' }">
           <v-tooltip
+            v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
-            bottom
+            location="bottom"
           >
             <template #activator="{ props: activatorProps }">
               <v-icon
-                small
+                size="small"
                 v-bind="activatorProps"
                 @click="$emit('update:collapsed', !collapsed)"
               >
@@ -317,6 +331,7 @@ export default defineComponent({
         <span
           v-if="datasetType === 'video'"
           class="video-media-controls"
+          :class="{ 'video-media-controls--bottom': bottomLayout && wrapBottomControls }"
         >
           <span class="volume-control">
             <v-menu
@@ -344,15 +359,15 @@ export default defineComponent({
               <v-card class="media-slider-card">
                 <v-slider
                   class="media-slider"
-                  :model-value="volume"
+                  :model-value="volumeSliderValue"
                   min="0"
                   max="1.0"
                   step="0.05"
                   direction="vertical"
                   hide-details
-                  @update:model-value="setVolume"
+                  @update:model-value="handleVolumeChange"
                 />
-                <b class="media-slider-label">{{ volume * 100 }}%</b>
+                <b class="media-slider-label">{{ volumeDisplay }}%</b>
               </v-card>
             </v-menu>
           </span>
@@ -405,6 +420,8 @@ export default defineComponent({
           </span>
           <file-name-time-display
             class="text-middle video-time-display"
+            :class="{ 'video-time-display--bottom': bottomLayout && wrapBottomControls }"
+            :icon-toolbar="bottomLayout && wrapBottomControls"
             display-type="time"
           />
           <v-tooltip
@@ -580,6 +597,20 @@ export default defineComponent({
 
 .video-time-display {
   margin-left: 28px;
+}
+
+.video-time-display--bottom {
+  margin-left: 4px;
+}
+
+.video-media-controls--bottom .volume-control {
+  padding-left: 6px;
+}
+
+.video-media-controls--bottom .speed-control {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
 }
 
 .video-info-icon {

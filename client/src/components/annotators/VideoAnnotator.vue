@@ -188,7 +188,8 @@ export default defineComponent({
       console.error('Media failed to initialize', event);
     }
     function setVolume(level: number) {
-      video.volume = level;
+      const snapped = Math.round(level * 20) / 20;
+      video.volume = snapped;
       data.volume = video.volume;
     }
     function setSpeed(level: number) {
