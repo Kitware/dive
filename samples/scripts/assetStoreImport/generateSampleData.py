@@ -21,6 +21,36 @@ FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 VIDEO_FPS = 30
 
+ANNOTATION_FORMATS = ("dive-json", "viame-csv", "coco-json")
+
+
+def generate_random_dataset_info() -> dict:
+    """Random per-dataset metadata for CSV/COCO import testing."""
+    return {
+        "gfishsite_id": f"{random.randint(2020, 2025)}TXN{random.randint(100, 999):03d}",
+        "cruise": random.randint(2300, 2500),
+        "year": str(random.randint(2020, 2025)),
+        "station": fake.word(),
+        "sta_lat": round(random.uniform(24.0, 30.0), 4),
+        "sta_lon": round(random.uniform(-98.0, -80.0), 4),
+    }
+
+
+def _random_detection_attributes() -> dict:
+    return {
+        "visibility": random.choice(["clear", "poor", "partial"]),
+        "occluded": random.choice([True, False]),
+        "lighting": random.choice(["good", "dim", "backlit"]),
+    }
+
+
+def _random_track_attributes() -> dict:
+    return {
+        "reviewed": random.choice([True, False]),
+        "source": random.choice(["analyst", "model", "import"]),
+        "qa_status": random.choice(["pending", "approved", "flagged"]),
+    }
+
 def create_random_video(file_path: Path, duration: int):
     """Create a random test video using ffmpeg (MP4 container, H.264 codec)."""
     cmd = [
@@ -128,6 +158,7 @@ def build_tracks(num_frames: int):
         base_size = random.randint(40, 80)
         growth_rate = random.uniform(0.05, 0.15)
 
+        track_attributes = _random_track_attributes()
         features = []
         for frame in range(num_frames):
             x += dx
@@ -147,17 +178,20 @@ def build_tracks(num_frames: int):
             coords = output_data['coords']
             bounds = geometry_bounds(coords)
 
-            features.append({
+            feature = {
                 "frame": frame,
                 "bounds": bounds,
                 "keyframe": True,
                 "geometry": geom,
-            })
+            }
+            if random.random() < 0.7:
+                feature["attributes"] = _random_detection_attributes()
+            features.append(feature)
 
         tracks[str(track_id)] = {
             "id": track_id,
             "meta": {"shape": shape_type},
-            "attributes": {},
+            "attributes": track_attributes,
             "confidencePairs": [[fake.word(), float(random.randrange(0, 100) / 100)]],
             "begin": begin,
             "end": end,
@@ -171,6 +205,14 @@ def _viame_timestamp(frame: int, fps: int) -> str:
     return datetime.datetime.fromtimestamp(
         frame / fps, datetime.timezone.utc
     ).strftime(r'%H:%M:%S.%f')
+
+
+def _format_viame_metadata_row(metadata: dict) -> list:
+    """Format metadata entries as ``key: <json>`` fields for a VIAME ``# metadata`` row."""
+    row = ["# metadata"]
+    for key, value in metadata.items():
+        row.append(f"{key}: {json.dumps(value)}")
+    return row
 
 
 def _append_viame_geometry_columns(columns: list, geometry: dict):
@@ -196,8 +238,17 @@ def generate_annotation_viame_csv(
     *,
     fps: int = VIDEO_FPS,
     frame_filenames: list = None,
+    dataset_info: dict = None,
 ):
     """Write tracks as a VIAME CSV annotation file."""
+    metadata = {
+        "fps": fps,
+        "exported_by": "dive:generateSampleData",
+        "exported_time": datetime.datetime.now().ctime(),
+    }
+    if dataset_info:
+        metadata["dataset_info"] = dataset_info
+
     with open(output_file, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -213,7 +264,7 @@ def generate_annotation_viame_csv(
             "10-11+: Repeated Species",
             "Confidence Pairs or Attributes",
         ])
-        writer.writerow(["# metadata", f"fps: {json.dumps(fps)}"])
+        writer.writerow(_format_viame_metadata_row(metadata))
 
         for track in tracks.values():
             confidence_pairs = sorted(
@@ -251,24 +302,155 @@ def generate_annotation_json(tracks: dict, output_file: Path):
         json.dump(annotation, f, indent=2)
 
 
+def _feature_to_coco_segmentation(feature: dict) -> list:
+    geometry = feature.get("geometry")
+    if not geometry or geometry.get("type") != "FeatureCollection":
+        return []
+    segmentation = []
+    for geo_feature in geometry.get("features", []):
+        geom = geo_feature.get("geometry", {})
+        if geom.get("type") != "Polygon":
+            continue
+        for ring in geom.get("coordinates", []):
+            flat_coords = []
+            for x, y in ring:
+                flat_coords.extend([x, y])
+            if flat_coords:
+                segmentation.append(flat_coords)
+    return segmentation
+
+
+def generate_annotation_coco_json(
+    tracks: dict,
+    output_file: Path,
+    *,
+    dataset_name: str,
+    frame_filenames: list = None,
+    dataset_info: dict = None,
+):
+    """Write tracks as a COCO JSON annotation file (DIVE-compatible extensions)."""
+    categories = {}
+    coco_annotations = []
+    images = {}
+    annotation_id = 1
+
+    for track in tracks.values():
+        confidence_pairs = sorted(
+            track["confidencePairs"], key=lambda item: item[1], reverse=True
+        )
+        class_name, score = confidence_pairs[0]
+        category_id = categories.setdefault(class_name, len(categories) + 1)
+
+        for feature in track["features"]:
+            frame = feature["frame"]
+            if frame_filenames is not None:
+                if frame >= len(frame_filenames):
+                    continue
+                file_name = frame_filenames[frame]
+            else:
+                file_name = f"frame_{frame:06d}.jpg"
+
+            x1, y1, x2, y2 = feature["bounds"]
+            width = max(0, x2 - x1)
+            height = max(0, y2 - y1)
+            image_id = frame + 1
+            images.setdefault(
+                image_id,
+                {
+                    "id": image_id,
+                    "file_name": file_name,
+                    "frame_index": frame,
+                    "width": FRAME_WIDTH,
+                    "height": FRAME_HEIGHT,
+                },
+            )
+
+            annotation = {
+                "id": annotation_id,
+                "image_id": image_id,
+                "category_id": category_id,
+                "bbox": [x1, y1, width, height],
+                "area": width * height,
+                "iscrowd": 0,
+                "score": score,
+                "track_id": track["id"],
+            }
+            if feature.get("attributes"):
+                annotation["dive_detection_attributes"] = feature["attributes"]
+            if track.get("attributes"):
+                annotation["dive_track_attributes"] = track["attributes"]
+            segmentation = _feature_to_coco_segmentation(feature)
+            if segmentation:
+                annotation["segmentation"] = segmentation
+            coco_annotations.append(annotation)
+            annotation_id += 1
+
+    categories_doc = [
+        {"id": category_id, "name": class_name}
+        for class_name, category_id in categories.items()
+    ]
+    info = {
+        "description": f"Sample COCO export for {dataset_name}",
+        "dive_extensions": [
+            "dive_detection_attributes",
+            "dive_track_attributes",
+        ],
+    }
+    if dataset_info:
+        info["dive_dataset_info"] = dataset_info
+        info["dive_extensions"].append("dive_dataset_info")
+
+    coco = {
+        "info": info,
+        "images": list(images.values()),
+        "annotations": coco_annotations,
+        "categories": categories_doc,
+    }
+    with open(output_file, "w") as f:
+        json.dump(coco, f, indent=2)
+
+
 def write_annotations(
     num_frames: int,
     output_file: Path,
     *,
-    use_viame_csv: bool,
+    annotation_format: str,
     frame_filenames: list = None,
+    dataset_name: str = "sample-dataset",
 ):
-    """Write annotations as either DIVE JSON or VIAME CSV."""
+    """Write annotations as DIVE JSON, VIAME CSV, or COCO JSON."""
     tracks = build_tracks(num_frames)
-    if use_viame_csv:
+    dataset_info = generate_random_dataset_info()
+    if annotation_format == "viame-csv":
         generate_annotation_viame_csv(
-            tracks, output_file, frame_filenames=frame_filenames
+            tracks,
+            output_file,
+            frame_filenames=frame_filenames,
+            dataset_info=dataset_info,
+        )
+    elif annotation_format == "coco-json":
+        generate_annotation_coco_json(
+            tracks,
+            output_file,
+            dataset_name=dataset_name,
+            frame_filenames=frame_filenames,
+            dataset_info=dataset_info,
         )
     else:
         generate_annotation_json(tracks, output_file)
 
-def create_video_content(base_dir: Path, max_videos: int, counter: dict, total: int):
-    """Create videos and associated JSON or VIAME CSV annotations."""
+def _annotation_extension(annotation_format: str) -> str:
+    return ".csv" if annotation_format == "viame-csv" else ".json"
+
+
+def create_video_content(
+    base_dir: Path,
+    max_videos: int,
+    counter: dict,
+    total: int,
+    annotation_formats: tuple,
+):
+    """Create videos and associated annotation files."""
     if counter['count'] >= total:
         return
     num_videos = random.randint(1, max_videos)
@@ -281,16 +463,22 @@ def create_video_content(base_dir: Path, max_videos: int, counter: dict, total: 
         create_random_video(video_path, duration)
         counter['count'] += 1
 
-        use_viame_csv = random.choice([True, False])
-        ext = ".csv" if use_viame_csv else ".json"
+        annotation_format = random.choice(annotation_formats)
+        ext = _annotation_extension(annotation_format)
         write_annotations(
             duration * VIDEO_FPS,
             video_path.with_suffix(ext),
-            use_viame_csv=use_viame_csv,
+            annotation_format=annotation_format,
+            dataset_name=video_path.stem,
         )
 
-def create_image_sequence_content(base_dir: Path, counter: dict, total: int):
-    """Create image sequence from a temporary video and generate JSON or VIAME CSV annotations."""
+def create_image_sequence_content(
+    base_dir: Path,
+    counter: dict,
+    total: int,
+    annotation_formats: tuple,
+):
+    """Create image sequence from a temporary video and generate annotations."""
     if counter['count'] >= total:
         return
     duration = random.randint(5, 30)
@@ -303,27 +491,35 @@ def create_image_sequence_content(base_dir: Path, counter: dict, total: int):
 
     num_frames = duration * VIDEO_FPS
     frame_filenames = [p.name for p in sorted(seq_folder.glob("frame_*.jpg"))]
-    use_viame_csv = random.choice([True, False])
-    ext = ".csv" if use_viame_csv else ".json"
+    annotation_format = random.choice(annotation_formats)
+    ext = _annotation_extension(annotation_format)
     annotation_file = seq_folder / (seq_folder.stem + ext)
     write_annotations(
         num_frames,
         annotation_file,
-        use_viame_csv=use_viame_csv,
-        frame_filenames=frame_filenames if use_viame_csv else None,
+        annotation_format=annotation_format,
+        frame_filenames=frame_filenames,
+        dataset_name=seq_folder.stem,
     )
 
-def create_folder_structure(base_dir: Path, depth: int, max_depth: int,
-                            max_videos: int, counter: dict, total: int):
+def create_folder_structure(
+    base_dir: Path,
+    depth: int,
+    max_depth: int,
+    max_videos: int,
+    counter: dict,
+    total: int,
+    annotation_formats: tuple,
+):
     """Recursively create folders with either videos or image sequences."""
     if counter['count'] >= total:
         return
 
     content_type = random.choice(["video", "images"])
     if content_type == "video":
-        create_video_content(base_dir, max_videos, counter, total)
+        create_video_content(base_dir, max_videos, counter, total, annotation_formats)
     else:
-        create_image_sequence_content(base_dir, counter, total)
+        create_image_sequence_content(base_dir, counter, total, annotation_formats)
 
     if counter['count'] >= total:
         return
@@ -335,13 +531,15 @@ def create_folder_structure(base_dir: Path, depth: int, max_depth: int,
         subfolder = base_dir / fake.word()
         subfolder.mkdir(parents=True, exist_ok=True)
         if depth < max_depth:
-            create_folder_structure(subfolder, depth+1, max_depth, max_videos, counter, total)
+            create_folder_structure(
+                subfolder, depth + 1, max_depth, max_videos, counter, total, annotation_formats
+            )
         else:
             leaf_type = random.choice(["video", "images"])
             if leaf_type == "video":
-                create_video_content(subfolder, max_videos, counter, total)
+                create_video_content(subfolder, max_videos, counter, total, annotation_formats)
             else:
-                create_image_sequence_content(subfolder, counter, total)
+                create_image_sequence_content(subfolder, counter, total, annotation_formats)
 
 @click.command()
 @click.option('--output', '-o', default='./sample', show_default=True,
@@ -354,18 +552,46 @@ def create_folder_structure(base_dir: Path, depth: int, max_depth: int,
               help="Maximum videos per folder")
 @click.option('--total', '-t', default=10, show_default=True,
               help="Total number of datasets (videos or image sequences)")
-def main(output, folders, max_depth, videos, total):
+@click.option(
+    '--annotation-formats',
+    default='coco-json,viame-csv',
+    show_default=True,
+    help=(
+        "Comma-separated annotation formats to randomly choose per dataset: "
+        "dive-json, viame-csv, coco-json"
+    ),
+)
+def main(output, folders, max_depth, videos, total, annotation_formats):
     base_path = Path(output)
     base_path.mkdir(parents=True, exist_ok=True)
 
+    format_choices = tuple(
+        fmt.strip()
+        for fmt in annotation_formats.split(',')
+        if fmt.strip()
+    )
+    invalid = [fmt for fmt in format_choices if fmt not in ANNOTATION_FORMATS]
+    if invalid:
+        raise click.BadParameter(
+            f"Unknown annotation format(s): {', '.join(invalid)}. "
+            f"Choose from: {', '.join(ANNOTATION_FORMATS)}"
+        )
+    if not format_choices:
+        raise click.BadParameter("At least one annotation format is required.")
+
     counter = {'count': 0}
-    click.echo(f"Generating up to {total} datasets in {base_path}...")
+    click.echo(
+        f"Generating up to {total} datasets in {base_path} "
+        f"(formats: {', '.join(format_choices)})..."
+    )
     for _ in range(folders):
         if counter['count'] >= total:
             break
         folder_path = base_path / fake.word()
         folder_path.mkdir(parents=True, exist_ok=True)
-        create_folder_structure(folder_path, 1, max_depth, videos, counter, total)
+        create_folder_structure(
+            folder_path, 1, max_depth, videos, counter, total, format_choices
+        )
 
     click.echo(f"Done! Created {counter['count']} datasets.")
 

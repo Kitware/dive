@@ -5,8 +5,9 @@ custom metadata to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
 Metadata you add travels with the dataset: it is shown while annotating and written into
-the [VIAME CSV export](DataFormats.md#viame-csv), so downstream tooling can re-link
-annotations to their source records.
+DIVE Configuration, [VIAME CSV](DataFormats.md#viame-csv), and
+[COCO / KWCOCO](DataFormats.md#coco-and-kwcoco) exports, so downstream tooling can
+re-link annotations to their source records.
 
 ## What it shows
 
@@ -40,14 +41,14 @@ three ways:
 
 ## How it is exported
 
-On **VIAME CSV** export, a non-empty `datasetInfo` is written into the `# metadata`
-header line as one nested JSON entry:
+Non-empty `datasetInfo` is included in dataset-level exports with format-specific keys:
 
-```
-# metadata,fps: 23.976,"datasetInfo: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
-```
+* [DIVE Configuration JSON](DataFormats.md#dive-configuration-json): top-level `datasetInfo`.
+* [VIAME CSV](DataFormats.md#viame-csv): `dataset_info` in the `# metadata` header.
+* [COCO / KWCOCO](DataFormats.md#coco-and-kwcoco): `info.dive_dataset_info`.
 
-On import, its read back to dataset metadata. See [Data Formats → VIAME CSV](DataFormats.md#viame-csv).
+Imports restore `datasetInfo` using the selected import mode. See
+[Data Formats](DataFormats.md) for the exact wire format and merge behavior.
 
 ### Value types
 

@@ -356,7 +356,7 @@ export default defineComponent({
                   <v-checkbox
                     v-model="excludeBelowThreshold"
                     label="exclude tracks below confidence threshold"
-                    dense
+                    density="compact"
                     hide-details
                   />
                   <div class="pt-2">
@@ -375,7 +375,7 @@ export default defineComponent({
                   <v-checkbox
                     v-model="excludeUncheckedTypes"
                     label="export checked types only"
-                    dense
+                    density="compact"
                     hint="Export only the track types currently enabled in the type filter"
                     persistent-hint
                     class="pt-0"
@@ -448,7 +448,7 @@ export default defineComponent({
 
               <v-card-text class="pb-0">
                 Export the dataset configuration, including
-                attribute definitions, types, styles, and thresholds.
+                attribute definitions, types, styles, thresholds, and dataset info.
               </v-card-text>
               <v-card-actions>
                 <v-spacer />
@@ -500,7 +500,7 @@ export default defineComponent({
               <v-checkbox
                 v-model="excludeBelowThreshold"
                 label="exclude tracks below confidence threshold"
-                dense
+                density="compact"
                 hide-details
               />
 

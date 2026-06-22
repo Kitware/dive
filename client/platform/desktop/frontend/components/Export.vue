@@ -139,10 +139,11 @@ export default defineComponent({
               <v-dialog
                 max-width="600"
                 persistent
-                :value="data.err"
-                :overlay-opacity="0.95"
+                :model-value="!!data.err"
+                overlay-opacity="0.95"
+                @update:model-value="(open) => { if (!open) data.err = null; }"
               >
-                <v-card outlined>
+                <v-card variant="outlined">
                   <v-card-text class="pa-3">
                     <v-card-text class="text-h4">
                       Error
@@ -171,7 +172,7 @@ export default defineComponent({
               />
               <v-alert
                 v-if="data.outPath"
-                dense
+                density="compact"
                 class="text-caption"
                 type="success"
               >
@@ -182,7 +183,7 @@ export default defineComponent({
                 <v-checkbox
                   v-model="data.excludeBelowThreshold"
                   label="exclude tracks below confidence threshold"
-                  dense
+                  density="compact"
                   hide-details
                 />
                 <div
@@ -204,7 +205,7 @@ export default defineComponent({
                 <v-checkbox
                   v-model="data.excludeUncheckedTypes"
                   label="export checked types only"
-                  dense
+                  density="compact"
                   hint="Export only the track types currently enabled in the type filter"
                   persistent-hint
                   class="pt-0"
@@ -215,7 +216,7 @@ export default defineComponent({
               <v-row>
                 <v-col>
                   <v-btn
-                    depressed
+                    variant="flat"
                     block
                     class="my-1"
                     @click="doExport({ type: 'dataset' })"
@@ -223,7 +224,7 @@ export default defineComponent({
                     <span>VIAME CSV</span>
                   </v-btn>
                   <v-btn
-                    depressed
+                    variant="flat"
                     block
                     class="my-1"
                     @click="doExport({ type: 'trackJSON' })"
@@ -231,7 +232,7 @@ export default defineComponent({
                     <span>TRACK JSON</span>
                   </v-btn>
                   <v-btn
-                    depressed
+                    variant="flat"
                     block
                     class="my-1"
                     @click="doExport({ type: 'coco' })"
@@ -243,12 +244,12 @@ export default defineComponent({
             </v-card-actions>
             <v-card-text class="pb-0">
               Export the dataset configuration, including
-              attribute definitions, types, styles, and thresholds.
+              attribute definitions, types, styles, thresholds, and dataset info.
             </v-card-text>
             <v-card-actions>
               <v-spacer />
               <v-btn
-                depressed
+                variant="flat"
                 block
                 @click="doExport({ type: 'configuration' })"
               >
