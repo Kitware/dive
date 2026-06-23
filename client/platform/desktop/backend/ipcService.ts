@@ -26,7 +26,6 @@ import settings from './state/settings';
 import { listen } from './server';
 import {
   getInteractiveServiceManager,
-  shutdownInteractiveService,
 } from './native/interactive';
 import {
   SegmentationPredictRequest,
@@ -328,8 +327,8 @@ export default function register() {
   });
 
   ipcMain.handle('segmentation-shutdown', async () => {
-    await shutdownInteractiveService();
-    return { success: true };
+    const segService = getInteractiveServiceManager();
+    return segService.shutdownSegmentation();
   });
 
   ipcMain.handle('segmentation-is-ready', () => {
@@ -413,8 +412,8 @@ export default function register() {
   });
 
   ipcMain.handle('stereo-shutdown', async () => {
-    await shutdownInteractiveService();
-    return { success: true };
+    const stereoService = getInteractiveServiceManager();
+    return stereoService.disable();
   });
 
   ipcMain.handle('stereo-is-enabled', () => {

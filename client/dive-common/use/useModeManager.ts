@@ -658,7 +658,7 @@ export default function useModeManager({
             flick: flickNum,
             keyframe: true,
             bounds: updateBounds(real?.bounds, update.union, update.unionWithoutBounds),
-            interpolate,
+            interpolate: _shouldInterpolate(interpolate),
           }, flatMapDeep(
             update.geoJsonFeatureRecord,
             (geomlist, key_) => geomlist.map((geom) => ({
@@ -802,9 +802,6 @@ export default function useModeManager({
         const group = groupStore.annotationMap.get(editingGroupId.value);
         if (group) group.removeMembers(trackIds);
       }
-    }
-    if (editingMultiTrack.value && !editingMultiTrack.value) {
-      handleSelectTrack(null);
     }
     /** Exit group editing mode if last track is removed */
     if (multiSelectList.value.length === 0) {

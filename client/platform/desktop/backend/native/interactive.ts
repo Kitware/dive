@@ -175,6 +175,8 @@ export class InteractiveServiceManager extends EventEmitter {
         this.readline.on('line', (line) => this.handleResponse(line));
       }
 
+      let startupTimeout: NodeJS.Timeout | null = null;
+
       if (this.process.stderr) {
         this.process.stderr.on('data', (data: Buffer) => {
           const message = data.toString().trim();
@@ -183,17 +185,33 @@ export class InteractiveServiceManager extends EventEmitter {
             // Ready once plugins are loaded and the stdin loop is live (before
             // any model loads — those happen lazily on first request).
             if (message.includes('Service started, waiting for requests')) {
+              if (startupTimeout) {
+                clearTimeout(startupTimeout);
+                startupTimeout = null;
+              }
               resolve();
             }
           }
         });
       }
 
+      const rejectStartup = (err: Error) => {
+        if (!this.isStarting) {
+          return;
+        }
+        this.isStarting = false;
+        if (startupTimeout) {
+          clearTimeout(startupTimeout);
+          startupTimeout = null;
+        }
+        void this.shutdown().finally(() => reject(err));
+      };
+
       this.process.on('exit', (code, signal) => {
         console.log(`[Interactive] Process exited with code ${code}, signal ${signal}`);
         this.cleanup();
         if (this.isStarting) {
-          reject(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
+          rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
         }
       });
 
@@ -201,15 +219,13 @@ export class InteractiveServiceManager extends EventEmitter {
         console.error('[Interactive] Process error:', err);
         this.cleanup();
         if (this.isStarting) {
-          reject(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
+          rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
         }
       });
 
       // Startup covers plugin loading only (~tens of seconds), not models.
-      setTimeout(() => {
-        if (this.isStarting) {
-          reject(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
-        }
+      startupTimeout = setTimeout(() => {
+        rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
       }, 300000);
     });
   }
@@ -335,6 +351,24 @@ export class InteractiveServiceManager extends EventEmitter {
       return;
     }
     await this.sendRequest({ command: 'clear_image' }, 'clear_image');
+  }
+
+  /**
+   * Release segmentation resources without killing the shared process.
+   * Stereo may still be enabled in the same backend.
+   */
+  async shutdownSegmentation(): Promise<{ success: boolean }> {
+    if (!this.isReady()) {
+      this.segInitialized = false;
+      return { success: true };
+    }
+    try {
+      await this.clearImage();
+    } catch {
+      // Best-effort teardown; still mark segmentation as not ready.
+    }
+    this.segInitialized = false;
+    return { success: true };
   }
 
   // ----------------------------------------------------------- stereo API

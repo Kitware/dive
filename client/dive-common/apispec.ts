@@ -322,6 +322,7 @@ export interface SegmentationStereoSegmentRequest {
 }
 
 export interface SegmentationStereoSegmentResponse {
+  id: string;
   success: boolean;
   error?: string;
   /** Other-camera polygon from SAM. */

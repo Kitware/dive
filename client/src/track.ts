@@ -445,7 +445,7 @@ export default class Track extends BaseAnnotation {
       return false;
     }
     const polygonFeature = feature.geometry.features.find(
-      (item) => item.geometry.type === 'Polygon' && item.properties?.key === key,
+      (item) => item.geometry.type === 'Polygon' && (item.properties?.key ?? '') === key,
     );
     if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
       (polygonFeature.geometry.coordinates as GeoJSON.Position[][]).push(holeCoords);
@@ -468,7 +468,7 @@ export default class Track extends BaseAnnotation {
       return false;
     }
     const polygonFeature = feature.geometry.features.find(
-      (item) => item.geometry.type === 'Polygon' && item.properties?.key === key,
+      (item) => item.geometry.type === 'Polygon' && (item.properties?.key ?? '') === key,
     );
     if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
       const coords = polygonFeature.geometry.coordinates as GeoJSON.Position[][];

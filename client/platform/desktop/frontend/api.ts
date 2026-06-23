@@ -268,7 +268,7 @@ async function cancelJob(job: DesktopJob): Promise<void> {
  * Interactive Segmentation API
  */
 
-async function segmentationInitialize(): Promise<{ success: boolean }> {
+async function segmentationInitialize(): Promise<{ success: boolean; noSamInstalled?: boolean }> {
   return window.diveDesktop.invoke('segmentation-initialize');
 }
 

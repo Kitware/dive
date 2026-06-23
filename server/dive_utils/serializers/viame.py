@@ -63,6 +63,28 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
+def _resolve_detection_length(
+    attributes: Optional[Dict[str, Any]],
+    fish_length_from_column: float,
+) -> Tuple[Dict[str, Any], Optional[float]]:
+    """Resolve length from attributes.length or the VIAME length column."""
+    attr_length: Optional[float] = None
+    if attributes and 'length' in attributes:
+        try:
+            candidate = float(attributes['length'])
+            if candidate == candidate:  # not NaN
+                attr_length = candidate
+        except (TypeError, ValueError):
+            attr_length = None
+
+    column_length = fish_length_from_column if fish_length_from_column > 0 else None
+    resolved = attr_length if attr_length is not None else column_length
+    if resolved is None:
+        return attributes or {}, None
+
+    return {**(attributes or {}), 'length': resolved}, resolved
+
+
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
         return None
@@ -235,11 +257,13 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs, notes = _parse_row(row)
     _, _, frame, bounds, fishLength = row_info(row)
 
+    attributes, resolved_length = _resolve_detection_length(attributes, fishLength)
+
     feature = Feature(
         frame=frame,
         bounds=bounds,
         attributes=attributes or None,
-        fishLength=fishLength if fishLength > 0 else None,
+        fishLength=resolved_length,
         notes=notes if notes else None,
         **head_tail_feature,
     )
@@ -617,13 +641,33 @@ def export_tracks_as_csv(
                     features = interpolate(keyframe, nextKeyframe)
 
                 for feature in features:
+                    attributes = dict(feature.attributes or {})
+                    attr_length: Optional[float] = None
+                    if 'length' in attributes:
+                        try:
+                            candidate = float(attributes['length'])
+                            if candidate == candidate:
+                                attr_length = candidate
+                        except (TypeError, ValueError):
+                            attr_length = None
+                    resolved_length = (
+                        attr_length
+                        if attr_length is not None
+                        else feature.fishLength
+                    )
+                    export_length = (
+                        resolved_length
+                        if resolved_length is not None and resolved_length == resolved_length
+                        else -1
+                    )
+
                     columns = [
                         track.id,
                         "",
                         feature.frame,
                         *feature.bounds,
                         sorted_confidence_pairs[0][1],
-                        feature.fishLength or -1,
+                        export_length,
                     ]
 
                     # If FPS is set, column 2 will be video timestamp
@@ -636,8 +680,11 @@ def export_tracks_as_csv(
                     for pair in sorted_confidence_pairs:
                         columns.extend(list(pair))
 
-                    if feature.attributes:
-                        for key, val in feature.attributes.items():
+                    if resolved_length is not None and resolved_length == resolved_length:
+                        attributes['length'] = resolved_length
+
+                    if attributes:
+                        for key, val in attributes.items():
                             columns.append(f"(atr) {key} {valueToString(val)}")
 
                     if track.attributes:

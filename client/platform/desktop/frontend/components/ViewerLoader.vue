@@ -251,7 +251,17 @@ export default defineComponent({
             if (status.ready) {
               return;
             }
-            await segmentationInitialize();
+            const result = await segmentationInitialize();
+            if (result.noSamInstalled) {
+              await prompt({
+                title: 'SAM Not Installed',
+                text: [
+                  'Neither the SAM2 nor SAM3 model pack appears to be installed.',
+                  'Interactive segmentation will use the default GrabCut fallback, which may be less accurate.',
+                  'See the VIAME Add-On wiki to download a SAM model pack.',
+                ],
+              });
+            }
           },
         });
       } catch {
@@ -684,8 +694,13 @@ export default defineComponent({
       const lengths: number[] = [];
       for (let i = 0; i < frames.length; i += 1) {
         const feature = track.features[frames[i]];
-        if (feature && Number.isFinite(feature.fishLength)) {
-          lengths.push(feature.fishLength);
+        const lengthAttr = feature?.attributes?.length;
+        const fromAttr = lengthAttr !== undefined && lengthAttr !== null
+          ? Number(lengthAttr)
+          : NaN;
+        const length = Number.isFinite(fromAttr) ? fromAttr : feature?.fishLength;
+        if (feature && Number.isFinite(length)) {
+          lengths.push(length);
         }
       }
       if (lengths.length === 0) return;

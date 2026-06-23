@@ -96,6 +96,32 @@ function _rowInfo(row: string[]) {
   };
 }
 
+/** Resolve detection length from attributes.length or fishLength (either may be set). */
+function resolveDetectionLength(
+  fishLength?: number,
+  attributes?: StringKeyObject,
+): number | undefined {
+  const lengthAttr = attributes?.length;
+  const fromAttr = lengthAttr !== undefined && lengthAttr !== null ? Number(lengthAttr) : NaN;
+  if (Number.isFinite(fromAttr)) {
+    return fromAttr;
+  }
+  if (fishLength !== undefined && Number.isFinite(fishLength) && fishLength !== -1) {
+    return fishLength;
+  }
+  return undefined;
+}
+
+/** Keep fishLength and attributes.length in sync when either is present. */
+function syncDetectionLengthFields(feature: Feature): void {
+  const resolved = resolveDetectionLength(feature.fishLength, feature.attributes);
+  if (resolved === undefined) {
+    return;
+  }
+  feature.fishLength = resolved;
+  feature.attributes = { ...(feature.attributes || {}), length: resolved };
+}
+
 /**
  * Read dataset metadata from a `dataset_info: <json>` comment field. Returns the parsed
  * object, or a `warning` if the field is present but unusable so the import can continue.
@@ -358,13 +384,7 @@ function _parseFeature(row: string[]) {
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
-  // Surface the VIAME length column (col 8) as a 'length' detection attribute so
-  // stereo length measurements are visible/editable in the Attributes panel.
-  // The attribute is the canonical source on export (see serialize), so this
-  // round-trips through the length column rather than an (atr) column.
-  if (feature.fishLength !== undefined) {
-    feature.attributes = { ...(feature.attributes || {}), length: feature.fishLength };
-  }
+  syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {
     feature.geometry = rowData.geoFeatureCollection;
   }
@@ -709,12 +729,7 @@ async function serialize(
               column2 = moment.utc((feature.frame / meta.fps) * 1000).format('HH:mm:ss.SSSSSS');
             }
 
-            // The 'length' detection attribute is the editable source of truth
-            // for the VIAME length column (col 8); fall back to fishLength.
-            const lengthAttr = feature.attributes?.length;
-            const lengthValue = (lengthAttr !== undefined && lengthAttr !== null)
-              ? Number(lengthAttr)
-              : feature.fishLength;
+            const lengthValue = resolveDetectionLength(feature.fishLength, feature.attributes);
 
             const row = [
               track.id,
@@ -726,13 +741,12 @@ async function serialize(
               ...flattenDeep(sortedPairs),
             ];
 
-            /* Feature Attributes */
-            Object.entries(feature.attributes || {}).forEach(([key, val]) => {
-              // 'length' is written to the dedicated length column above; don't
-              // duplicate it as an (atr) column.
-              if (key === 'length') {
-                return;
-              }
+            /* Feature Attributes — export length in (atr) as well as the length column */
+            const exportAttributes = { ...(feature.attributes || {}) };
+            if (lengthValue !== undefined && Number.isFinite(lengthValue)) {
+              exportAttributes.length = lengthValue;
+            }
+            Object.entries(exportAttributes).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
             /* Track Attributes */
