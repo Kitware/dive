@@ -38,6 +38,7 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
+import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
@@ -1074,6 +1075,27 @@ async function listParentFolderCameras(
 }
 
 /**
+ * Find a stereoscopic calibration file (.json or .npz with cal/calibration in the name)
+ * in the parent folder root.
+ */
+async function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
+  if (!await fs.pathExists(parentPath)) {
+    return null;
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    return null;
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  const fileNames = children.filter((entry) => entry.isFile()).map((entry) => entry.name);
+  const bestName = pickStereoCalibrationFileName(fileNames);
+  if (!bestName) {
+    return null;
+  }
+  return npath.join(parentPath, bestName);
+}
+
+/**
  * Resolve the import path for one camera subfolder (directory or first video file).
  */
 async function resolveMulticamCameraSourcePath(
@@ -1628,6 +1650,7 @@ export {
   findImagesInFolder,
   listImmediateSubfolders,
   listParentFolderCameras,
+  findParentFolderCalibrationFile,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,

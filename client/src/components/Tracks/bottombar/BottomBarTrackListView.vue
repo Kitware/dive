@@ -63,6 +63,7 @@ export default defineComponent({
           v-model="data.columnSettingsActive"
           :close-on-content-click="false"
           :nudge-bottom="28"
+          class="track-settings-menu-content"
         >
           <template #activator="{ on: menuOn, attrs }">
             <v-tooltip
@@ -97,6 +98,7 @@ export default defineComponent({
           v-model="data.settingsActive"
           :close-on-content-click="false"
           :nudge-bottom="28"
+          content-class="track-settings-menu-content"
         >
           <template #activator="{ on, attrs }">
             <v-btn
