@@ -22,6 +22,7 @@ import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
 import SegmentationPointClick, {
+  SegmentationPolygonKey,
   SegmentationPredictionResult,
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
@@ -1099,7 +1100,7 @@ export default function useModeManager({
           type: 'Polygon',
           coordinates: [closedPolygon],
         },
-        properties: { key: '' },
+        properties: { key: SegmentationPolygonKey },
       }];
 
       // Update the track's feature with the preview polygon
@@ -1200,7 +1201,7 @@ export default function useModeManager({
             type: 'Polygon',
             coordinates: [closedPolygon],
           },
-          properties: { key: '' },
+          properties: { key: SegmentationPolygonKey },
         }];
 
         const { interpolate } = track.canInterpolate(frameNum);
@@ -1249,7 +1250,7 @@ export default function useModeManager({
       track.deleteFeature(data.frameNum);
     } else {
       // Remove the segmentation-derived polygon
-      track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
+      track.removeFeatureGeometry(data.frameNum, { key: SegmentationPolygonKey, type: 'Polygon' });
       // Find original default polygon if there was one
       const origDefaultPolygon = saved.geometryFeatures?.find(
         (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === '',
