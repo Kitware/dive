@@ -58,6 +58,7 @@ const calibrationFileTypes = [
   'npz',
   'yml',
   'zip',
+  'h5',
 ];
 
 const fileVideoTypes = [
