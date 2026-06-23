@@ -273,7 +273,10 @@ export class InteractiveServiceManager extends EventEmitter {
   async initialize(settings: Settings): Promise<void> {
     await this.ensureStarted(settings);
     if (!this.segInitialized) {
-      await this.sendRequest({ command: 'init_segmentation' }, 'Segmentation init');
+      const response = await this.sendRequest({ command: 'init_segmentation' }, 'Segmentation init');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to initialize segmentation');
+      }
       this.segInitialized = true;
     }
   }
