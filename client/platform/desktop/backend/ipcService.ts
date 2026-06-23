@@ -43,6 +43,7 @@ import {
 
 // defaults to linux if win32 doesn't exist
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
+let samWarningShown = false;
 if (OS.platform() === 'win32') {
   win32.initialize();
 }
@@ -355,7 +356,11 @@ export default function register() {
       event.sender.send('stereo-disparity-error', data);
     });
 
-    const result = await stereoService.enable(settings.get(), args?.calibration);
+    const result = await stereoService.enable(
+      settings.get(),
+      args?.calibration,
+      args?.calibrationFile,
+    );
     return result;
   });
 
