@@ -37,6 +37,7 @@ ImportMultiCamDialog.vue          Shell: platform props, ctx wiring, errors, act
 ├── ImportMultiCamSubfolders.vue
 ├── ImportMultiCamKeyword.vue
 ├── ImportMultiCamFinalizeStep.vue
+├── ImportMultiCamCalibration.vue
 ├── ImportMultiCamCameraOrderControls.vue
 │
 └── Primitives (presentational)

@@ -75,10 +75,10 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       allFiles,
     ];
   }
-  const props = (['image-sequence', 'bulk'].includes(datasetType) || directory) ? 'openDirectory' : 'openFile';
+  const openDirectory = ['image-sequence', 'bulk'].includes(datasetType) || directory;
   const results = await window.diveDesktop.showOpenDialog({
-    properties: [props],
-    filters,
+    properties: [openDirectory ? 'openDirectory' : 'openFile'],
+    filters: openDirectory ? [] : filters,
   });
   if (datasetType === 'annotation') {
     const allowed = new Set(inputAnnotationFileTypes.map((ext) => ext.toLowerCase()));
@@ -190,6 +190,10 @@ function resolveMulticamCameraSourcePath(
     path: subfolderPath,
     mediaType,
   });
+}
+
+function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
+  return window.diveDesktop.invoke('find-parent-folder-calibration-file', { path: parentPath });
 }
 
 function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
@@ -566,6 +570,7 @@ export {
   listImmediateSubfolders,
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
+  findParentFolderCalibrationFile,
   bulkImportMedia,
   deleteDataset,
   checkDataset,

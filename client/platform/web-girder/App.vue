@@ -32,6 +32,7 @@ import {
   getLastCalibration,
   openFromDiskWithRegistry,
   saveCalibration,
+  stashCalibrationFile,
 } from './multicamFileRegistry';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
@@ -66,6 +67,7 @@ export default defineComponent({
       openFromDisk: openFromDiskWithRegistry,
       getLastCalibration,
       saveCalibration,
+      stashCalibrationFile,
       importAnnotationFile,
       getTiles,
       getTileURL,
