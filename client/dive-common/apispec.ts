@@ -241,6 +241,10 @@ interface Api {
     subfolderPath: string,
     mediaType: 'image-sequence' | 'video',
   ): Promise<string>;
+  /** Desktop: stereoscopic calibration file in a parent folder root. */
+  findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
+  /** Web: stash a calibration File for multicam upload lookup. */
+  stashCalibrationFile?(key: string, file: File): void;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):

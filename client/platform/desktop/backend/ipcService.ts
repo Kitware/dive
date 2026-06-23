@@ -157,6 +157,11 @@ export default function register() {
     { path, mediaType }: { path: string; mediaType: 'image-sequence' | 'video' },
   ) => common.resolveMulticamCameraSourcePath(path, mediaType));
 
+  ipcMain.handle('find-parent-folder-calibration-file', async (
+    event,
+    { path }: { path: string },
+  ) => common.findParentFolderCalibrationFile(path));
+
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
     return ret;

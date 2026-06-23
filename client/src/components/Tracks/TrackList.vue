@@ -578,4 +578,9 @@ export default defineComponent({
     background: #666;
   }
 }
+
+/* Above timeline current-frame bar (z-index: 10) */
+.track-settings-menu-content {
+  z-index: 999;
+}
 </style>

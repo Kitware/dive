@@ -1,6 +1,5 @@
 <!--
-  Dataset name, default display, and calibration UI. Requires `ctx`; reads finalize
-  fields from props.ctx (datasetName, defaultDisplay, open, …).
+  Dataset name, default display. Requires `ctx`; reads finalize fields from props.ctx.
 -->
 <script lang="ts">
 import { defineComponent } from 'vue';
@@ -10,10 +9,6 @@ export default defineComponent({
   name: 'ImportMultiCamFinalizeStep',
   props: {
     ...importMultiCamContextProp,
-    stereo: {
-      type: Boolean,
-      default: false,
-    },
     showDatasetName: {
       type: Boolean,
       default: true,
@@ -34,8 +29,6 @@ export default defineComponent({
       defaultDisplay,
       displayKeys,
       displayKeysKey,
-      calibrationFile,
-      open,
     } = props.ctx;
     return {
       datasetName,
@@ -43,8 +36,6 @@ export default defineComponent({
       defaultDisplay,
       displayKeys,
       displayKeysKey,
-      calibrationFile,
-      open,
     };
   },
 });
@@ -87,31 +78,5 @@ export default defineComponent({
         :label="cameraKey"
       />
     </v-radio-group>
-    <v-row
-      v-if="stereo"
-      no-gutters
-      class="align-center"
-      :class="{ 'mt-2': showDefaultDisplayInfo }"
-    >
-      <v-text-field
-        label="Calibration File:"
-        placeholder="Choose File"
-        disabled
-        outlined
-        dense
-        hide-details
-        :value="calibrationFile"
-        class="mr-3"
-      />
-      <v-btn
-        color="primary"
-        @click="open('calibration', 'calibration')"
-      >
-        Open Calibration File
-        <v-icon class="ml-2">
-          mdi-matrix
-        </v-icon>
-      </v-btn>
-    </v-row>
   </div>
 </template>
