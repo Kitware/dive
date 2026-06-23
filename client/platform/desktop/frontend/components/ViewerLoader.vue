@@ -361,6 +361,16 @@ export default defineComponent({
     // Track last stereo frame to avoid redundant set_frame calls
     let lastStereoFrame = -1;
 
+    function getViewerFrame(): number | undefined {
+      const viewer = viewerRef.value;
+      if (!viewer?.progress?.loaded) return undefined;
+      try {
+        return viewer.aggregateController?.frame?.value;
+      } catch {
+        return undefined;
+      }
+    }
+
     // Watch stereo toggle (immediate so a remembered setting enables on load)
     watch(() => clientSettings.stereoSettings.interactiveModeEnabled, async (enabled) => {
       if (enabled) {
@@ -389,8 +399,7 @@ export default defineComponent({
           // must NOT tear down the already-enabled service -- it can be retried on
           // the next frame change -- so swallow it with a warning of its own.
           try {
-            const viewer = viewerRef.value;
-            const frameNum = viewer?.aggregateController?.frame?.value;
+            const frameNum = getViewerFrame();
             if (frameNum !== undefined) {
               const cameras = Object.keys(stereoImagePathGetters.value);
               if (cameras.length >= 2) {
@@ -429,7 +438,7 @@ export default defineComponent({
     }, { immediate: true });
 
     // Watch frame changes to proactively compute disparity
-    watch(() => viewerRef.value?.aggregateController?.frame?.value, (frameNum) => {
+    watch(() => getViewerFrame(), (frameNum) => {
       if (frameNum === undefined || frameNum === lastStereoFrame || !stereoEnabled.value) return;
       lastStereoFrame = frameNum;
 
@@ -1244,10 +1253,10 @@ export default defineComponent({
     <v-dialog
       :value="stereoLoadingDialog"
       persistent
-      max-width="400"
+      max-width="560"
     >
       <v-card>
-        <v-card-title>Stereo Service</v-card-title>
+        <v-card-title>{{ stereoLoadingError ? 'Stereo Service Error' : 'Stereo Service' }}</v-card-title>
         <v-card-text>
           <div
             v-if="!stereoLoadingError"
@@ -1264,6 +1273,7 @@ export default defineComponent({
             v-else
             type="error"
             dense
+            class="stereo-loading-error"
           >
             {{ stereoLoadingError }}
           </v-alert>
@@ -1296,5 +1306,12 @@ export default defineComponent({
   flex-direction: column;
   height: 100%;
   width: 100%;
+}
+
+.stereo-loading-error {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
 }
 </style>

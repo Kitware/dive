@@ -40,7 +40,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
       });
     this.featureLayer.geoOn(
       geo.event.feature.mouseclick_order,
-      this.featureLayer.mouseOverOrderClosestBorder,
+      this.featureLayer.mouseOverOrderHighestIndex,
     );
     super.initialize();
   }

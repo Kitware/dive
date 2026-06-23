@@ -43,8 +43,54 @@ import {
   StereoMeasurement,
 } from './stereo';
 
-/** Error message shown to users when the interactive service fails to load. */
+/** Error headline shown to users when the interactive service fails to load. */
 export const INTERACTIVE_LOAD_ERROR_MESSAGE = 'Unable to load the interactive service.';
+
+interface InteractiveLoadErrorContext {
+  reason: string;
+  viamePath?: string;
+  exitCode?: number | null;
+  signal?: NodeJS.Signals | null;
+  stderrLines?: string[];
+  cause?: string;
+}
+
+export function formatInteractiveLoadError(context: InteractiveLoadErrorContext): string {
+  const parts: string[] = [INTERACTIVE_LOAD_ERROR_MESSAGE, context.reason];
+  if (context.cause) {
+    parts.push(`Cause: ${context.cause}`);
+  }
+  if (context.exitCode != null || context.signal) {
+    const details: string[] = [];
+    if (context.exitCode != null) details.push(`exit code ${context.exitCode}`);
+    if (context.signal) details.push(`signal ${context.signal}`);
+    parts.push(`Process ended (${details.join(', ')}).`);
+  }
+  if (context.viamePath) {
+    parts.push(`VIAME path: ${context.viamePath}`);
+  }
+  const stderr = context.stderrLines?.filter((line) => line.trim()).slice(-8);
+  if (stderr?.length) {
+    parts.push('Recent service output:');
+    parts.push(...stderr.map((line) => `  ${line}`));
+  }
+  parts.push('Verify VIAME is installed and the path is set correctly in Settings.');
+  return parts.join('\n');
+}
+
+function formatStereoEnableError(
+  error: string,
+  options: { calibrationFile?: string; viamePath?: string },
+): string {
+  const parts = [error];
+  if (options.calibrationFile) {
+    parts.push(`Calibration file: ${options.calibrationFile}`);
+  }
+  if (options.viamePath) {
+    parts.push(`VIAME path: ${options.viamePath}`);
+  }
+  return parts.join('\n');
+}
 
 /** Loose shape of a JSON response line from the Python service. */
 interface ServiceResponse {
@@ -162,6 +208,9 @@ export class InteractiveServiceManager extends EventEmitter {
       console.log('[Interactive] Starting interactive service...');
       console.log(`[Interactive] Command: ${command}`);
 
+      const stderrLines: string[] = [];
+      const maxStderrLines = 20;
+
       this.process = observeChild(spawn(command, {
         shell: shellOption,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -182,6 +231,10 @@ export class InteractiveServiceManager extends EventEmitter {
           const message = data.toString().trim();
           if (message) {
             console.log(`[Interactive] ${message}`);
+            stderrLines.push(message);
+            if (stderrLines.length > maxStderrLines) {
+              stderrLines.shift();
+            }
             // Ready once plugins are loaded and the stdin loop is live (before
             // any model loads — those happen lazily on first request).
             if (message.includes('Service started, waiting for requests')) {
@@ -195,7 +248,7 @@ export class InteractiveServiceManager extends EventEmitter {
         });
       }
 
-      const rejectStartup = (err: Error) => {
+      const rejectStartup = (context: InteractiveLoadErrorContext) => {
         if (!this.isStarting) {
           return;
         }
@@ -204,14 +257,22 @@ export class InteractiveServiceManager extends EventEmitter {
           clearTimeout(startupTimeout);
           startupTimeout = null;
         }
-        void this.shutdown().finally(() => reject(err));
+        void this.shutdown().finally(() => reject(new Error(formatInteractiveLoadError({
+          ...context,
+          viamePath: context.viamePath ?? settings.viamePath,
+          stderrLines: context.stderrLines ?? stderrLines,
+        }))));
       };
 
       this.process.on('exit', (code, signal) => {
         console.log(`[Interactive] Process exited with code ${code}, signal ${signal}`);
         this.cleanup();
         if (this.isStarting) {
-          rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
+          rejectStartup({
+            reason: 'The service process exited before it became ready.',
+            exitCode: code,
+            signal,
+          });
         }
       });
 
@@ -219,13 +280,18 @@ export class InteractiveServiceManager extends EventEmitter {
         console.error('[Interactive] Process error:', err);
         this.cleanup();
         if (this.isStarting) {
-          rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
+          rejectStartup({
+            reason: 'Failed to start the service process.',
+            cause: err.message,
+          });
         }
       });
 
       // Startup covers plugin loading only (~tens of seconds), not models.
       startupTimeout = setTimeout(() => {
-        rejectStartup(new Error(INTERACTIVE_LOAD_ERROR_MESSAGE));
+        rejectStartup({
+          reason: 'The service did not become ready within 5 minutes.',
+        });
       }, 300000);
     });
   }
@@ -393,7 +459,13 @@ export class InteractiveServiceManager extends EventEmitter {
         this.stereoEnabled = true;
         return { success: true };
       }
-      return { success: false, error: response.error || 'Failed to enable stereo service' };
+      return {
+        success: false,
+        error: formatStereoEnableError(
+          response.error || 'Failed to enable stereo service',
+          { calibrationFile, viamePath: settings.viamePath },
+        ),
+      };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
