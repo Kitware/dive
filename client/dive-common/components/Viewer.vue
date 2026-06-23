@@ -54,7 +54,11 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
-import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
+import type {
+  StereoAnnotationCompleteParams,
+  StereoAnnotationResetParams,
+  StereoSegmentationFinalizeParams,
+} from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
@@ -342,6 +346,12 @@ export default defineComponent({
       readonlyState,
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
+      },
+      onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
+        emit('stereo-annotation-reset', params);
+      },
+      onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
+        emit('stereo-segmentation-finalize', params);
       },
     });
 

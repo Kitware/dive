@@ -2,7 +2,7 @@ import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from 'vue';
 import { uniq, flatMapDeep, flattenDeep } from 'lodash';
-import Track, { TrackId, TrackSupportedFeature } from 'vue-media-annotator/track';
+import Track, { Feature, TrackId, TrackSupportedFeature } from 'vue-media-annotator/track';
 import {
   RectBounds,
   updateBounds,
@@ -26,6 +26,7 @@ import SegmentationPointClick, {
   SegmentationPredictionResult,
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
+import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -70,6 +71,18 @@ export type StereoAnnotationCompleteParams =
       polygon: [number, number][]; key: string; }
   | { type: 'segmentation'; camera: string; trackId: number; frameNum: number;
       points: [number, number][]; labels: number[]; };
+
+export type StereoAnnotationResetParams = {
+  trackId: number;
+  frameNum: number;
+  sourceCamera: string;
+};
+
+export type StereoSegmentationFinalizeParams = {
+  trackId: number;
+  frameNums: number[];
+};
+
 /**
  * The point of this composition function is to define and manage the transition betwee
  * different UI states within the program.  States and state transitions can be modified
@@ -85,6 +98,8 @@ export default function useModeManager({
   readonlyState,
   recipes,
   onStereoAnnotationComplete,
+  onStereoAnnotationReset,
+  onStereoSegmentationFinalize,
 }: {
     cameraStore: CameraStore;
     trackFilterControls: TrackFilterControls;
@@ -93,6 +108,8 @@ export default function useModeManager({
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
+    onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
+    onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
   const { prompt } = usePrompt();
@@ -930,6 +947,7 @@ export default function useModeManager({
     });
     // Clear saved state - the confirmed polygons are now permanent
     preSegmentationFeatures.clear();
+    onStereoSegmentationFinalize?.();
     // Exit editing mode and deselect to unhighlight the track
     selectTrack(null, false);
     // Re-activate segmentation recipe so it's ready for the next detection
@@ -1039,7 +1057,15 @@ export default function useModeManager({
     bounds?: RectBounds;
     interpolate?: boolean;
     geometryFeatures?: GeoJSON.Feature[];
+    fishLength?: number;
+    attributes?: Feature['attributes'];
   }>();
+
+  function removeStereoLineGeometry(track: Track, frameNum: number) {
+    track.removeFeatureGeometry(frameNum, { type: 'LineString', key: '' });
+    track.removeFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
+    track.removeFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
+  }
 
   /**
    * Segmentation prompt points for visualization (green=foreground, red=background)
@@ -1119,6 +1145,10 @@ export default function useModeManager({
             interpolate: existingFeature.interpolate,
             geometryFeatures: existingFeature.geometry?.features
               ? JSON.parse(JSON.stringify(existingFeature.geometry.features))
+              : undefined,
+            fishLength: existingFeature.fishLength,
+            attributes: existingFeature.attributes
+              ? JSON.parse(JSON.stringify(existingFeature.attributes))
               : undefined,
           });
         } else {
@@ -1217,10 +1247,18 @@ export default function useModeManager({
         // Note: the other-camera (stereo) annotation is generated earlier, on
         // each fresh prediction (handleSegmentationPredictionReady), so there is
         // no need to regenerate it on confirm.
+        preSegmentationFeatures.delete(frameNum);
       }
     });
 
     _nudgeEditingCanary();
+
+    if (onStereoSegmentationFinalize && selectedTrackId.value !== null) {
+      onStereoSegmentationFinalize({
+        trackId: selectedTrackId.value as number,
+        frameNums: Array.from(result.frames.keys()),
+      });
+    }
   }
 
   /**
@@ -1251,6 +1289,7 @@ export default function useModeManager({
     } else {
       // Remove the segmentation-derived polygon
       track.removeFeatureGeometry(data.frameNum, { key: SegmentationPolygonKey, type: 'Polygon' });
+      removeStereoLineGeometry(track, data.frameNum);
       // Find original default polygon if there was one
       const origDefaultPolygon = saved.geometryFeatures?.find(
         (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === '',
@@ -1262,9 +1301,21 @@ export default function useModeManager({
         bounds: saved.bounds,
         keyframe: true,
         interpolate: saved.interpolate ?? false,
+        fishLength: saved.fishLength,
+        attributes: saved.attributes
+          ? JSON.parse(JSON.stringify(saved.attributes))
+          : undefined,
       }, origDefaultPolygon
         ? [origDefaultPolygon as GeoJSON.Feature<TrackSupportedFeature>]
         : []);
+    }
+
+    if (onStereoAnnotationReset && clientSettings.stereoSettings.interactiveModeEnabled) {
+      onStereoAnnotationReset({
+        trackId: selectedTrackId.value as number,
+        frameNum: data.frameNum,
+        sourceCamera: selectedCamera.value,
+      });
     }
 
     preSegmentationFeatures.delete(data.frameNum);

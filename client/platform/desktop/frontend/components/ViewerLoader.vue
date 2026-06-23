@@ -10,7 +10,13 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
-import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
+import type {
+  StereoAnnotationCompleteParams,
+  StereoAnnotationResetParams,
+  StereoSegmentationFinalizeParams,
+} from 'dive-common/use/useModeManager';
+import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
   loadMetadata,
@@ -529,12 +535,106 @@ export default defineComponent({
       track.setFeature({ frame: frameNum, keyframe: true }, lineGeometry);
     }
 
-    // Detection attribute names for the standard VIAME stereo measurement,
-    // matching the keys produced by the interactive stereo service. 'length' is
-    // additionally stored in the VIAME CSV length column (feature.fishLength).
     const STEREO_MEASUREMENT_ATTRS = [
       'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
     ];
+
+    interface SavedStereoCameraState {
+      trackExisted: boolean;
+      hadFeature: boolean;
+      bounds?: RectBounds;
+      interpolate?: boolean;
+      geometryFeatures?: GeoJSON.Feature[];
+      fishLength?: number;
+      attributes?: Record<string, unknown>;
+    }
+
+    const preStereoSegmentationState = new Map<string, Record<string, SavedStereoCameraState>>();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function captureStereoCameraState(track: any, frameNum: number): SavedStereoCameraState {
+      if (!track) {
+        return { trackExisted: false, hadFeature: false };
+      }
+      const [feature] = track.getFeature(frameNum);
+      if (!feature || !feature.keyframe) {
+        return { trackExisted: true, hadFeature: false };
+      }
+      return {
+        trackExisted: true,
+        hadFeature: true,
+        bounds: feature.bounds ? [...feature.bounds] as RectBounds : undefined,
+        interpolate: feature.interpolate,
+        geometryFeatures: feature.geometry?.features
+          ? JSON.parse(JSON.stringify(feature.geometry.features))
+          : undefined,
+        fishLength: feature.fishLength,
+        attributes: feature.attributes
+          ? JSON.parse(JSON.stringify(feature.attributes))
+          : undefined,
+      };
+    }
+
+    function savePreStereoSegmentationState(
+      trackId: number,
+      frameNum: number,
+      sourceCamera: string,
+      otherCamera: string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cameraStore: any,
+    ) {
+      const key = `${trackId}:${frameNum}`;
+      if (preStereoSegmentationState.has(key)) return;
+      preStereoSegmentationState.set(key, {
+        [sourceCamera]: captureStereoCameraState(
+          cameraStore.getPossibleTrack(trackId, sourceCamera),
+          frameNum,
+        ),
+        [otherCamera]: captureStereoCameraState(
+          cameraStore.getPossibleTrack(trackId, otherCamera),
+          frameNum,
+        ),
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function restoreStereoCameraState(
+      cameraStore: any,
+      trackId: number,
+      camera: string,
+      frameNum: number,
+      saved: SavedStereoCameraState,
+    ) {
+      if (!saved.trackExisted) {
+        const track = cameraStore.getPossibleTrack(trackId, camera);
+        if (track) {
+          cameraStore.removeTracks(trackId, camera);
+        }
+        return;
+      }
+      const track = cameraStore.getPossibleTrack(trackId, camera);
+      if (!track) return;
+      if (!saved.hadFeature) {
+        track.deleteFeature(frameNum);
+        return;
+      }
+      track.deleteFeature(frameNum);
+      track.setFeature({
+        frame: frameNum,
+        flick: 0,
+        bounds: saved.bounds,
+        keyframe: true,
+        interpolate: saved.interpolate ?? false,
+        fishLength: saved.fishLength,
+        attributes: saved.attributes
+          ? JSON.parse(JSON.stringify(saved.attributes))
+          : undefined,
+      }, saved.geometryFeatures || []);
+    }
+
+    function clearPreStereoSegmentationState() {
+      preStereoSegmentationState.clear();
+    }
 
     /**
      * Ensure the standard stereo measurement attributes are defined as numeric
@@ -892,6 +992,13 @@ export default defineComponent({
             }, polyGeometry);
           }
         } else if (params.type === 'segmentation') {
+          savePreStereoSegmentationState(
+            params.trackId,
+            params.frameNum,
+            params.camera,
+            otherCamera,
+            cameraStore,
+          );
           // Single round-trip to the segmentation service: it warps the seed to
           // the other camera (configured stereo backend, with median sampling
           // when enabled), segments there, and optionally derives head/tail lines
@@ -980,6 +1087,51 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Undo stereo side effects from interactive segmentation on reset.
+     * Restores the other camera and clears saved undo state for the frame.
+     */
+    async function handleStereoAnnotationReset(params: StereoAnnotationResetParams) {
+      const key = `${params.trackId}:${params.frameNum}`;
+      const saved = preStereoSegmentationState.get(key);
+      if (!saved) return;
+
+      const viewer = viewerRef.value;
+      if (!viewer) return;
+
+      const { cameraStore, multiCamList } = viewer;
+      if (multiCamList.length < 2) return;
+
+      const otherCamera = multiCamList.find((c: string) => c !== params.sourceCamera);
+      if (otherCamera && saved[otherCamera]) {
+        restoreStereoCameraState(
+          cameraStore,
+          params.trackId,
+          otherCamera,
+          params.frameNum,
+          saved[otherCamera],
+        );
+      }
+
+      preStereoSegmentationState.delete(key);
+
+      try {
+        await updateStereoTrackAverages(cameraStore, params.trackId);
+      } catch (err) {
+        console.warn('[Stereo] Failed to update track averages after reset:', err);
+      }
+    }
+
+    function handleStereoSegmentationFinalize(params?: StereoSegmentationFinalizeParams) {
+      if (!params) {
+        clearPreStereoSegmentationState();
+        return;
+      }
+      params.frameNums.forEach((frameNum) => {
+        preStereoSegmentationState.delete(`${params.trackId}:${frameNum}`);
+      });
+    }
+
     return {
       datasets,
       viewerRef,
@@ -1002,6 +1154,8 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      handleStereoAnnotationReset,
+      handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
     };
   },
@@ -1017,6 +1171,8 @@ export default defineComponent({
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @stereo-annotation-reset="handleStereoAnnotationReset"
+      @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >
       <template #title>
