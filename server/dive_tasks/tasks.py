@@ -21,10 +21,10 @@ from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
-    append_stereo_calibration_kwiver_settings,
+    append_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
-    is_stereo_measurement_pipeline,
+    is_stereo_or_multicam_pipeline,
 )
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import constants, fromMeta
@@ -390,7 +390,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
 
             calibration_item_id = multicam_params.get('calibration_item_id')
-            if calibration_item_id and is_stereo_measurement_pipeline(pipeline):
+            if calibration_item_id and is_stereo_or_multicam_pipeline(pipeline):
                 cal_item = gc.getItem(calibration_item_id)
                 cal_dir = utils.make_directory(_working_directory_path / 'calibration')
                 gc.downloadItem(
@@ -400,7 +400,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 )
                 cal_path = find_downloaded_calibration_file(cal_dir)
                 if cal_path is not None:
-                    append_stereo_calibration_kwiver_settings(command, cal_path)
+                    append_calibration_kwiver_settings(command, cal_path)
                 else:
                     manager.write(
                         f'Warning: calibration item {calibration_item_id} '

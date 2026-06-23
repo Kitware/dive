@@ -312,7 +312,8 @@ def run_pipeline(
                 code=400,
             )
         input_type = default_cam['media_type']
-        calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(folder, pipeline)
+        # Resolve calibration for stereo and multicam pipelines; optional for multicam.
+        calibration_item_id = crud_dataset.resolve_calibration_item_id(folder, pipeline)
         needs_calibration = crud_dataset.pipeline_requires_calibration(pipeline)
         if needs_calibration and calibration_item_id is None:
             raise RestException(

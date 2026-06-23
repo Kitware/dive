@@ -45,14 +45,25 @@ def find_downloaded_calibration_file(directory: Path) -> Optional[Path]:
     return sorted(matches, key=lambda p: (len(p.parts), str(p)))[0]
 
 
-def append_stereo_calibration_kwiver_settings(
+def append_calibration_kwiver_settings(
     command: List[str],
     calibration_path: Path,
 ) -> None:
-    """Append KWIVER settings used by desktop for stereoscopic calibration input."""
+    """
+    Append KWIVER calibration settings for stereo and multicam pipelines.
+
+    Emits a superset of keys (matching desktop). ``measurer:calibration_file`` is
+    consumed by stereo measurement; ``calibration_reader:file`` is currently
+    unconsumed until the VIAME multicam calibration process lands, but is kept
+    because sprokit silently ignores config for processes not present in a pipe.
+    """
     cal_path = shlex.quote(str(calibration_path))
     command.append(f'-s measurer:calibration_file={cal_path}')
     command.append(f'-s calibration_reader:file={cal_path}')
+
+
+# Backwards-compatible alias for the stereo-only name.
+append_stereo_calibration_kwiver_settings = append_calibration_kwiver_settings
 
 
 def build_multicam_kwiver_settings(
