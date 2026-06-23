@@ -13,6 +13,7 @@ from girder.utility import ziputil
 from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
+from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.serializers import kwcoco
 
@@ -895,17 +896,17 @@ def pipeline_requires_calibration(pipeline: types.PipelineDescription) -> bool:
     return pipeline.get('type') == constants.StereoPipelineMarker
 
 
-def resolve_stereo_calibration_item_id(
+def resolve_calibration_item_id(
     parent_folder: types.GirderModel,
     pipeline: types.PipelineDescription,
 ) -> Optional[str]:
     """
-    Resolve stereoscopic calibration item id for pipeline input.
+    Resolve the calibration item id for pipeline input.
 
-    Returns an item in the dataset folder root with meta.calibrationFile set when the
-    pipeline declares that calibration is required.
+    Returns an item in the dataset folder root with meta.calibrationFile set. Stereo
+    and multicam pipelines may consume calibration input.
     """
-    if not pipeline_requires_calibration(pipeline):
+    if not is_stereo_or_multicam_pipeline(pipeline):
         return None
 
     folder_id = str(parent_folder['_id'])
@@ -930,6 +931,10 @@ def resolve_stereo_calibration_item_id(
     if not _item_has_calibration_marker(cal_item):
         Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
     return str(cal_item['_id'])
+
+
+# Backwards-compatible alias; calibration now resolves for stereo and multicam pipelines.
+resolve_stereo_calibration_item_id = resolve_calibration_item_id
 
 
 def create_multicam(
