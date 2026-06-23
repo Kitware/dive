@@ -1046,8 +1046,10 @@ def create_multicam(
 
     calibration_item_id = None
     if validated.calibrationFileId:
-        if validated.subType != 'stereo':
-            raise RestException('Calibration is only supported for stereo datasets', code=400)
+        if validated.subType not in {'stereo', 'multicam'}:
+            raise RestException(
+                'Calibration is only supported for stereo or multicam datasets', code=400
+            )
         cal_item = Item().load(validated.calibrationFileId, level=AccessType.WRITE, user=user)
         if cal_item is None:
             raise RestException('Calibration file was not found', code=404)
@@ -1058,7 +1060,7 @@ def create_multicam(
             )
         if not constants.stereoCalibrationRegex.search(cal_item['name']):
             raise RestException(
-                'Calibration file must be .npz, .json, .cam, .yml, or .zip',
+                'Calibration file must be .npz, .json, .cam, .yml, .zip, or .h5',
                 code=400,
             )
         Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
