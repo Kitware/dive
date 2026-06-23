@@ -472,9 +472,9 @@ export default defineComponent({
               'Calibration file was not found. Use "Choose calibration" in the import dialog to select the file again.',
             );
           }
-          if (stereo.value && !isAllowedStereoCalibrationFilename(calFile.name)) {
+          if (!isAllowedStereoCalibrationFilename(calFile.name)) {
             throw new Error(
-              `Stereoscopic calibration must be ${stereoCalibrationAllowedExtensionsLabel()}.`,
+              `Calibration file must be ${stereoCalibrationAllowedExtensionsLabel()}.`,
             );
           }
           calibrationFileId = await uploadCalibrationItem(datasetFolder._id, calFile);

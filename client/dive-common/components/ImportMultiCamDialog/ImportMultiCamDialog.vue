@@ -108,7 +108,7 @@ export default defineComponent({
       />
 
       <ImportMultiCamCalibration
-        v-if="stereo && importType"
+        v-if="importType"
         :ctx="ctx"
       />
 

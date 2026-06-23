@@ -75,7 +75,7 @@ export function useImportMultiCamDialog(
   const { error: importError, request: importRequest } = useRequest();
 
   onMounted(async () => {
-    if (props.stereo && getLastCalibration) {
+    if (getLastCalibration) {
       const lastCalibration = await getLastCalibration();
       if (lastCalibration) {
         calibrationFile.value = lastCalibration;
