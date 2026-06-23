@@ -1,5 +1,5 @@
 import Vue from 'vue';
-import Vuetify from 'vuetify/lib';
+import Vuetify from 'vuetify';
 import colors from 'vuetify/es5/util/colors';
 import { vuetifyConfig as girderVuetifyConfig } from '@girder/components/src';
 import { merge } from 'lodash';
