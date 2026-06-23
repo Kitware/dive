@@ -59,7 +59,7 @@ import type {
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
-import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
+import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -517,7 +517,7 @@ export default defineComponent({
       // measurement (length, midpoint, range, RMS) computed for every frame
       // where both cameras now have a line. The desktop loader owns the stereo
       // service, so delegate via an event.
-      if (clientSettings.stereoSettings.interactiveModeEnabled) {
+      if (isStereoInteractiveModeEnabled()) {
         emit('stereo-track-linked', baseTrack);
       }
     }

@@ -1,6 +1,7 @@
 import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 interface ColumnVisibilitySettings {
   type: boolean;
@@ -194,10 +195,18 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
+  if (!isDesktopRuntime()) {
+    hydrated.stereoSettings.interactiveModeEnabled = false;
+  }
   return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
+
+/** Interactive stereo requires the desktop VIAME interactive service. */
+function isStereoInteractiveModeEnabled(): boolean {
+  return isDesktopRuntime() && clientSettings.stereoSettings.interactiveModeEnabled;
+}
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {
   // If a type is deleted, reset the default new track type to unknown
@@ -211,6 +220,7 @@ watch(clientSettings, saveSettings, { deep: true });
 
 export {
   clientSettings,
+  isStereoInteractiveModeEnabled,
   AnnotationSettings,
   ColumnVisibilitySettings,
 };

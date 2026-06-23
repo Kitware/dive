@@ -7,6 +7,7 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
   name: 'TrackSettingsPanel',
@@ -45,6 +46,7 @@ export default defineComponent({
 
     return {
       clientSettings,
+      isDesktopRuntime: isDesktopRuntime(),
       itemHeight,
       help,
       modes,
@@ -367,7 +369,7 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <template v-if="isStereoDataset">
+      <template v-if="isStereoDataset && isDesktopRuntime">
         <v-divider class="my-2" />
         <div class="subheading">
           Stereo Settings

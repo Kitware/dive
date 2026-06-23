@@ -17,7 +17,7 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { clientSettings } from 'dive-common/store/settings';
+import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
@@ -511,7 +511,7 @@ export default function useModeManager({
         newTrackSettingsAfterLogic(track);
 
         // Stereo: emit box annotation complete
-        if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled) {
+        if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()) {
           onStereoAnnotationComplete({
             type: 'box',
             camera: selectedCamera.value,
@@ -681,7 +681,7 @@ export default function useModeManager({
             newTrackSettingsAfterLogic(track);
 
             // Stereo: emit line or polygon annotation complete
-            if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
+            if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
                 && selectedTrackId.value !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
@@ -1168,7 +1168,7 @@ export default function useModeManager({
       // without waiting for the user to finalize the detection. Only fired for
       // fresh predictions (controlPoints present), so navigating frames or
       // restoring a pending preview does not re-trigger stereo work.
-      if (onStereoAnnotationComplete && clientSettings.stereoSettings.interactiveModeEnabled
+      if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
           && selectedTrackId.value !== null && result.controlPoints) {
         onStereoAnnotationComplete({
           type: 'segmentation',
@@ -1307,7 +1307,7 @@ export default function useModeManager({
         : []);
     }
 
-    if (onStereoAnnotationReset && clientSettings.stereoSettings.interactiveModeEnabled) {
+    if (onStereoAnnotationReset && isStereoInteractiveModeEnabled()) {
       onStereoAnnotationReset({
         trackId: selectedTrackId.value as number,
         frameNum: data.frameNum,
