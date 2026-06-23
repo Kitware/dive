@@ -616,8 +616,8 @@ export default defineComponent({
       });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function restoreStereoCameraState(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cameraStore: any,
       trackId: number,
       camera: string,

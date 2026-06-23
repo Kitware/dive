@@ -257,7 +257,7 @@ export class InteractiveServiceManager extends EventEmitter {
           clearTimeout(startupTimeout);
           startupTimeout = null;
         }
-        void this.shutdown().finally(() => reject(new Error(formatInteractiveLoadError({
+        this.shutdown().finally(() => reject(new Error(formatInteractiveLoadError({
           ...context,
           viamePath: context.viamePath ?? settings.viamePath,
           stderrLines: context.stderrLines ?? stderrLines,

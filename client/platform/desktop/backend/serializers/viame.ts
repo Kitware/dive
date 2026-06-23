@@ -113,13 +113,16 @@ function resolveDetectionLength(
 }
 
 /** Keep fishLength and attributes.length in sync when either is present. */
-function syncDetectionLengthFields(feature: Feature): void {
+function syncDetectionLengthFields(feature: Feature): Feature {
   const resolved = resolveDetectionLength(feature.fishLength, feature.attributes);
   if (resolved === undefined) {
-    return;
+    return feature;
   }
-  feature.fishLength = resolved;
-  feature.attributes = { ...(feature.attributes || {}), length: resolved };
+  return {
+    ...feature,
+    fishLength: resolved,
+    attributes: { ...(feature.attributes || {}), length: resolved },
+  };
 }
 
 /**
@@ -384,16 +387,16 @@ function _parseFeature(row: string[]) {
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
-  syncDetectionLengthFields(feature);
+  const syncedFeature = syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {
-    feature.geometry = rowData.geoFeatureCollection;
+    syncedFeature.geometry = rowData.geoFeatureCollection;
   }
   if (rowData.notes.length > 0) {
-    feature.notes = rowData.notes;
+    syncedFeature.notes = rowData.notes;
   }
   return {
     rowInfo,
-    feature,
+    feature: syncedFeature,
     trackAttributes: rowData.trackAttributes,
     confidencePairs: rowData.confidencePairs,
   };
