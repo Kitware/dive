@@ -219,6 +219,64 @@ def test_create_multicam_marks_calibration_in_dataset_folder(
     assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'cal-id'
 
 
+@pytest.mark.parametrize('cal_name', ['multicam-cal.json', 'multicam-cal.h5'])
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Item')
+@patch('dive_server.crud_dataset.crud.valid_images')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_accepts_multicam_calibration(
+    _verify,
+    folder_cls,
+    valid_images_mock,
+    item_cls,
+    _aux,
+    cal_name,
+):
+    """A multicam (non-stereo) dataset accepts both .json and .h5 calibration files."""
+    user = {'login': 'tester'}
+    dataset_parent = _dataset_parent()
+    center = _child_folder('center-id', 'center')
+    right = _child_folder('right-id', 'right')
+    cal_item = {
+        '_id': 'cal-id',
+        'name': cal_name,
+        'folderId': 'multi-id',
+        'meta': {},
+    }
+
+    folder_cls.return_value.load.side_effect = lambda fid, **kwargs: {
+        'center-id': center,
+        'right-id': right,
+    }[fid]
+    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    item_cls.return_value.load.return_value = cal_item
+
+    data = {
+        'name': 'stereo-set',
+        'fps': 5,
+        'type': 'image-sequence',
+        'subType': 'multicam',
+        'defaultDisplay': 'center',
+        'cameraOrder': ['center', 'right'],
+        'cameras': {
+            'center': {'folderId': 'center-id'},
+            'right': {'folderId': 'right-id'},
+        },
+        'calibrationFileId': 'cal-id',
+    }
+
+    crud_dataset.create_multicam(user, dataset_parent, data)
+
+    item_cls.return_value.setMetadata.assert_called_once_with(
+        cal_item,
+        {constants.CalibrationFileMarker: 'true'},
+    )
+    saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
+    assert saved_meta[constants.SubTypeMarker] == 'multicam'
+    assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'cal-id'
+
+
 @patch('dive_server.crud_dataset.Item')
 def test_resolve_stereo_calibration_item_id_from_folder_root(item_cls):
     parent_folder = {
@@ -283,17 +341,35 @@ def test_resolve_stereo_calibration_item_id_legacy_multi_cam_id(item_cls):
 
 
 @patch('dive_server.crud_dataset.Item')
-def test_resolve_stereo_calibration_item_id_skips_non_calibration_pipeline(item_cls):
+def test_resolve_calibration_item_id_multicam(item_cls):
+    """Calibration resolves for a multicam (non-stereo) pipeline, not just stereo."""
+    parent_folder = {
+        '_id': 'multi-id',
+        'meta': {constants.SubTypeMarker: 'multicam'},
+    }
+    pipeline = {'name': '2cam', 'type': '2-cam', 'pipe': '2-cam_foo.pipe'}
+    cal_item = {
+        '_id': 'cal-id',
+        'name': 'multicam-cal.h5',
+        'folderId': 'multi-id',
+        'meta': {constants.CalibrationFileMarker: 'true'},
+    }
+    item_cls.return_value.find.return_value = [cal_item]
+
+    result = crud_dataset.resolve_calibration_item_id(parent_folder, pipeline)
+
+    assert result == 'cal-id'
+    item_cls.return_value.find.assert_called_once()
+
+
+@patch('dive_server.crud_dataset.Item')
+def test_resolve_calibration_item_id_skips_single_camera_pipeline(item_cls):
+    """Single-camera (non-stereo, non-multicam) pipelines never resolve calibration."""
     parent_folder = {
         '_id': 'multi-id',
         'meta': {constants.SubTypeMarker: 'stereo'},
     }
-    pipeline = {
-        'name': '2cam',
-        'type': '2-cam',
-        'pipe': '2-cam_foo.pipe',
-        'metadata': {'requiresCalibration': False},
-    }
+    pipeline = {'name': 'detector', 'type': 'detector', 'pipe': 'detector_foo.pipe'}
 
-    assert crud_dataset.resolve_stereo_calibration_item_id(parent_folder, pipeline) is None
+    assert crud_dataset.resolve_calibration_item_id(parent_folder, pipeline) is None
     item_cls.return_value.find.assert_not_called()

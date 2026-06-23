@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from dive_tasks.multicam_pipeline import (
+    append_calibration_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
@@ -45,7 +46,19 @@ def test_find_downloaded_calibration_file(tmp_path: Path):
     assert find_downloaded_calibration_file(tmp_path / 'empty') is None
 
 
-def test_append_stereo_calibration_kwiver_settings():
+def test_append_calibration_kwiver_settings_emits_both_keys():
+    """Both calibration keys are emitted (used for stereo and multicam pipelines)."""
+    command: list = []
+    append_calibration_kwiver_settings(command, Path('/work/multicam-cal.h5'))
+    assert command == [
+        '-s measurer:calibration_file=/work/multicam-cal.h5',
+        '-s calibration_reader:file=/work/multicam-cal.h5',
+    ]
+
+
+def test_append_stereo_calibration_kwiver_settings_alias():
+    """The legacy name remains a working alias for backwards compatibility."""
+    assert append_stereo_calibration_kwiver_settings is append_calibration_kwiver_settings
     command: list = []
     append_stereo_calibration_kwiver_settings(command, Path('/work/stereo-cal.json'))
     assert command == [
