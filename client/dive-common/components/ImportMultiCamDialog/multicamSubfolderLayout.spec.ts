@@ -10,9 +10,11 @@ import {
   isVideoFileName,
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
+  parentFolderLabelFromAbsolutePaths,
   preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
   sortSubfolderCameraNames,
+  subfolderVideoDisplayLabel,
 } from './multicamSubfolderLayout';
 
 describe('isValidCameraName', () => {
@@ -43,6 +45,27 @@ describe('applyParentPathToAssignments', () => {
     const resolved = applyParentPathToAssignments('C:\\datasets\\stereo', organized.assignments);
     expect(resolved[0].sourcePath).toBe('C:\\datasets\\stereo\\left');
     expect(resolved[1].sourcePath).toBe('C:\\datasets\\stereo\\right');
+  });
+});
+
+describe('parentFolderLabelFromAbsolutePaths', () => {
+  it('returns the shared parent folder name for sibling camera paths', () => {
+    expect(parentFolderLabelFromAbsolutePaths([
+      '/data/my_scene/left',
+      '/data/my_scene/right',
+    ])).toBe('my_scene');
+  });
+
+  it('handles Windows-style paths', () => {
+    expect(parentFolderLabelFromAbsolutePaths([
+      'C:\\datasets\\stereo\\left',
+      'C:\\datasets\\stereo\\right',
+    ])).toBe('stereo');
+  });
+
+  it('returns empty when no paths are provided', () => {
+    expect(parentFolderLabelFromAbsolutePaths([])).toBe('');
+    expect(parentFolderLabelFromAbsolutePaths(['', '   '])).toBe('');
   });
 });
 
@@ -128,6 +151,23 @@ describe('isVideoFileName', () => {
     expect(isVideoFileName('left.mp4')).toBe(true);
     expect(isVideoFileName('right.MOV')).toBe(true);
     expect(isVideoFileName('notes.txt')).toBe(false);
+  });
+});
+
+describe('subfolderVideoDisplayLabel', () => {
+  const mk = (name: string) => ({ name } as File);
+
+  it('uses the video file name when only the stem is known on web', () => {
+    expect(subfolderVideoDisplayLabel('left', 'left', [mk('left.mp4')])).toBe('left.mp4');
+    expect(subfolderVideoDisplayLabel('right', 'right', [mk('right.mov')])).toBe('right.mov');
+  });
+
+  it('uses the path basename when it includes a video extension', () => {
+    expect(subfolderVideoDisplayLabel('/data/stereo/left.mp4', 'left', [])).toBe('left.mp4');
+  });
+
+  it('falls back to folder name when no video file is available', () => {
+    expect(subfolderVideoDisplayLabel('left', 'left', [])).toBe('left');
   });
 });
 

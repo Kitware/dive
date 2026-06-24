@@ -11,10 +11,11 @@ export default defineComponent({
     ...importMultiCamContextProp,
   },
   setup(props) {
-    const { calibrationFile, open } = props.ctx;
+    const { calibrationFile, open, clearCalibration } = props.ctx;
     return {
       calibrationFile,
       open,
+      clearCalibration,
     };
   },
 });
@@ -28,13 +29,22 @@ export default defineComponent({
     <v-text-field
       label="Calibration File"
       placeholder="Not selected"
-      disabled
+      readonly
       outlined
       dense
       hide-details
       :value="calibrationFile"
       class="mr-3"
     />
+    <v-btn
+      v-if="calibrationFile"
+      icon
+      class="mr-2"
+      aria-label="Clear calibration file"
+      @click="clearCalibration"
+    >
+      <v-icon>mdi-close</v-icon>
+    </v-btn>
     <v-btn
       color="primary"
       @click="open('calibration', 'calibration')"
