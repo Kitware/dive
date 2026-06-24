@@ -27,14 +27,13 @@ import {
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
 import {
-  calibrationRequiredPipelineMessage,
   pipelineDisabledForMissingCalibration,
-  pipelineRequiresCalibration,
 } from 'dive-common/pipelineCalibration';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
+import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 
 type MenuState = 'idle' | 'configuring';
 
@@ -46,6 +45,7 @@ export default defineComponent({
     JobConfigFilterTranscodeDialog,
     PipelineParamsDialog,
     RunPipelineToast,
+    PipelineCalibrationWarningIcon,
   },
 
   props: {
@@ -174,7 +174,7 @@ export default defineComponent({
     }
 
     function pipelineTooltipDisabled(pipeline: Pipe) {
-      return !isPipelineDisabledForCalibration(pipeline) && !pipeline?.metadata?.description;
+      return !pipeline?.metadata?.description;
     }
 
     const pipelines = computed(() => filterPipelinesForDatasets(
@@ -300,10 +300,8 @@ export default defineComponent({
       pipelineParams,
       showParamsDialog,
       confirmPipelineExecution,
-      pipelineRequiresCalibration,
       isPipelineDisabledForCalibration,
       pipelineTooltipDisabled,
-      calibrationRequiredPipelineMessage,
     };
   },
 });
@@ -455,20 +453,16 @@ export default defineComponent({
                       <template #activator="{ on, attrs }">
                         <v-list-item
                           v-bind="attrs"
-                          :disabled="isPipelineDisabledForCalibration(pipeline)"
+                          :class="{ 'pipeline-item--unavailable': isPipelineDisabledForCalibration(pipeline) }"
                           v-on="on"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
                             {{ pipeline.name }}
                             <span style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
-                              <v-icon
-                                v-if="pipelineRequiresCalibration(pipeline)"
-                                style="font-size: 1.25em;"
-                                color="warning"
-                              >
-                                mdi-crosshairs-gps
-                              </v-icon>
+                              <PipelineCalibrationWarningIcon
+                                v-if="isPipelineDisabledForCalibration(pipeline)"
+                              />
                               <v-icon style="font-size: 1.5em;">
                                 <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
                                   mdi-cog-outline
@@ -476,18 +470,9 @@ export default defineComponent({
                               </v-icon>
                             </span>
                           </v-list-item-title>
-                          <v-list-item-subtitle
-                            v-if="isPipelineDisabledForCalibration(pipeline)"
-                            class="error--text"
-                          >
-                            {{ calibrationRequiredPipelineMessage }}
-                          </v-list-item-subtitle>
                         </v-list-item>
                       </template>
-                      <span v-if="isPipelineDisabledForCalibration(pipeline)">
-                        {{ calibrationRequiredPipelineMessage }}
-                      </span>
-                      <RunPipelineToast v-else :pipeline="pipeline" />
+                      <RunPipelineToast :pipeline="pipeline" />
                     </v-tooltip>
                   </v-list>
                 </v-menu>
@@ -542,5 +527,11 @@ export default defineComponent({
 .pipeline-description-tooltip.v-tooltip__content {
   background: #3a3a3a !important;
   opacity: 1 !important;
+}
+
+.pipeline-item--unavailable {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: rgba(251, 140, 0, 0.08);
 }
 </style>

@@ -162,6 +162,11 @@ export default function register() {
     { path }: { path: string },
   ) => common.findParentFolderCalibrationFile(path));
 
+  ipcMain.handle('dataset-has-calibration-file', async (
+    event,
+    { datasetId }: { datasetId: string },
+  ) => common.datasetHasCalibrationFile(settings.get(), datasetId));
+
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
     return ret;
