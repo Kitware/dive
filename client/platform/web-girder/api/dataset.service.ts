@@ -4,6 +4,8 @@ import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker } from 'dive-common/constants';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
@@ -242,6 +244,28 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
   return itemId;
 }
 
+function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined): boolean {
+  const marker = meta?.[calibrationFileMarker];
+  return marker === true || marker === 'true' || marker === '1';
+}
+
+async function hasCalibrationFile(datasetId: string): Promise<boolean> {
+  const parentId = parentDatasetId(datasetId);
+  const folder = await girderRest.get<{
+    meta?: { multiCam?: { calibrationItemId?: string } };
+  }>(`folder/${parentId}`);
+  if (folder.data.meta?.multiCam?.calibrationItemId) {
+    return true;
+  }
+  const items = await girderRest.get<Array<{ name: string; meta?: Record<string, unknown> }>>(
+    'item',
+    { params: { folderId: parentId, limit: 0 } },
+  );
+  return items.data.some(
+    (item) => calibrationMarkerTruthy(item.meta) && isStereoCalibrationFileName(item.name),
+  );
+}
+
 export {
   clone,
   createGirderFolder,
@@ -249,6 +273,7 @@ export {
   getDataset,
   getDatasetList,
   getDatasetMedia,
+  hasCalibrationFile,
   importAnnotationFile,
   makeViameFolder,
   saveAttributes,
