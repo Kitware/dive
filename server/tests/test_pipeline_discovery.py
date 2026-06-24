@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from dive_tasks.pipeline_discovery import load_static_pipelines, parse_pipe_type_and_name
+from dive_tasks.pipeline_discovery import (
+    extract_pipe_metadata,
+    load_static_pipelines,
+    parse_pipe_type_and_name,
+)
 
 
 def test_parse_pipe_type_and_name_measurement():
@@ -69,3 +73,24 @@ def test_load_static_pipelines_excludes_common_stereo(tmp_path: Path):
     pipedict = load_static_pipelines(tmp_path)
     assert 'stereo' not in pipedict
     assert 'common' not in pipedict
+
+
+def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
+    pipe = tmp_path / 'measurement_foo.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: stereo measurement',
+                '# Requires Calibration: True',
+                '# Input: TRACK',
+                '# Output: TRACK',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    assert metadata['requiresCalibration'] is True
+    assert metadata['description'] == 'stereo measurement'
+    assert metadata['inputType'] == 'TRACK'
+    assert metadata['outputType'] == 'TRACK'

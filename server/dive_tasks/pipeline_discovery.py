@@ -149,6 +149,16 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                 if output_match:
                     metadata["outputType"] = output_match.group(1).strip()
 
+                calibration_match = re.match(
+                    r'^#\s*Requires\s+Calibration:\s*(.*)', line_raw, re.IGNORECASE
+                )
+                if calibration_match:
+                    metadata["requiresCalibration"] = calibration_match.group(1).strip().lower() in (
+                        'true',
+                        'yes',
+                        '1',
+                    )
+
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)
         else:
