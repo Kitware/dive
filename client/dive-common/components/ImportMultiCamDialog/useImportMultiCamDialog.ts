@@ -20,6 +20,7 @@ import {
   groupParentFolderByCamera,
   isValidCameraName,
   organizeSubfolderCameras,
+  parentFolderLabelFromAbsolutePaths,
   pickDefaultMulticamCamera,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
@@ -477,6 +478,7 @@ export function useImportMultiCamDialog(
           folder,
           await importRequest(() => props.importMedia(sourcePath)),
         );
+        syncSuggestedDatasetNameFromCameraPaths();
       } else if (importType.value === 'subfolders') {
         const sourcePath = ret.root || path;
         await importRequest(() => updateSubfolderCameraSource(
@@ -567,6 +569,23 @@ export function useImportMultiCamDialog(
     (val: string) => (val || '').trim().length > 0 || 'Dataset name is required',
   ];
 
+  function syncSuggestedDatasetNameFromCameraPaths() {
+    if (!listParentFolderCameras || importType.value !== 'multi') {
+      return;
+    }
+    const paths = Object.values(folderList.value)
+      .map((entry) => entry.sourcePath)
+      .filter((path) => path);
+    const label = parentFolderLabelFromAbsolutePaths(paths);
+    if (label && !datasetName.value.trim()) {
+      datasetName.value = label;
+    }
+  }
+
+  function clearCalibration() {
+    calibrationFile.value = '';
+  }
+
   function subfolderSourceDisplayLabel(
     sourcePath: string,
     folderName: string,
@@ -636,5 +655,6 @@ export function useImportMultiCamDialog(
     deleteSet,
     onRenameCamera,
     openAnnotationFile,
+    clearCalibration,
   };
 }

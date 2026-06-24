@@ -101,7 +101,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     originalImageFiles: [],
     transcodedVideoFile: '',
     transcodedImageFiles: [],
-    name: 'Multi-camera data',
+    name: (isFolderArgs(args) && args.datasetName?.trim())
+      ? args.datasetName.trim()
+      : 'Multi-camera data',
     multiCam: {
       cameras,
       calibration: args.calibrationFile,

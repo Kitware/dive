@@ -10,6 +10,7 @@ import {
   isVideoFileName,
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
+  parentFolderLabelFromAbsolutePaths,
   preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
   sortSubfolderCameraNames,
@@ -43,6 +44,27 @@ describe('applyParentPathToAssignments', () => {
     const resolved = applyParentPathToAssignments('C:\\datasets\\stereo', organized.assignments);
     expect(resolved[0].sourcePath).toBe('C:\\datasets\\stereo\\left');
     expect(resolved[1].sourcePath).toBe('C:\\datasets\\stereo\\right');
+  });
+});
+
+describe('parentFolderLabelFromAbsolutePaths', () => {
+  it('returns the shared parent folder name for sibling camera paths', () => {
+    expect(parentFolderLabelFromAbsolutePaths([
+      '/data/my_scene/left',
+      '/data/my_scene/right',
+    ])).toBe('my_scene');
+  });
+
+  it('handles Windows-style paths', () => {
+    expect(parentFolderLabelFromAbsolutePaths([
+      'C:\\datasets\\stereo\\left',
+      'C:\\datasets\\stereo\\right',
+    ])).toBe('stereo');
+  });
+
+  it('returns empty when no paths are provided', () => {
+    expect(parentFolderLabelFromAbsolutePaths([])).toBe('');
+    expect(parentFolderLabelFromAbsolutePaths(['', '   '])).toBe('');
   });
 });
 
