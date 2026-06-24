@@ -31,6 +31,7 @@ import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 import { Mousetrap } from 'vue-media-annotator/types';
 import { SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export const SegmentationPolygonKey = 'SegmentationPolygon';
 
@@ -158,7 +159,8 @@ export default class SegmentationPointClick implements Recipe {
     this.bus = new Vue();
     this.active = ref(false);
     this.name = 'Segment';
-    this.toggleable = ref(true);
+    // Requires the desktop VIAME interactive segmentation service.
+    this.toggleable = ref(isDesktopRuntime());
     this.icon = ref('mdi-auto-fix');
     this.loading = ref(false);
   }
