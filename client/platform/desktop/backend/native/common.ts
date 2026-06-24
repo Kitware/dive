@@ -150,6 +150,12 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       if (/^#\s*Output:\s*/i.test(line)) {
         metadata.outputType = line.split(':')[1]?.trim();
       }
+
+      const calibrationMatch = line.match(/^#\s*Requires\s+Calibration:\s*(.*)/i);
+      if (calibrationMatch) {
+        const value = calibrationMatch[1].trim().toLowerCase();
+        metadata.requiresCalibration = ['true', 'yes', '1'].includes(value);
+      }
     });
     metadata.description = fullDescription.trim() || undefined;
   } catch (error) {
@@ -1618,6 +1624,24 @@ async function applyCalibrationToUncalibratedStereoDatasets(
   return updatedIds;
 }
 
+/**
+ * True when a dataset has a stereoscopic calibration file on disk.
+ */
+async function datasetHasCalibrationFile(settings: Settings, datasetId: string): Promise<boolean> {
+  const parentId = datasetId.split('/')[0];
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, parentId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    if (meta.multiCam?.calibration && await fs.pathExists(meta.multiCam.calibration)) {
+      return true;
+    }
+    const discovered = await findParentFolderCalibrationFile(projectDirData.basePath);
+    return discovered !== null;
+  } catch {
+    return false;
+  }
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1656,4 +1680,5 @@ export {
   getLastCalibrationPath,
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
+  datasetHasCalibrationFile,
 };
