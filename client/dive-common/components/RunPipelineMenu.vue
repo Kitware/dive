@@ -414,8 +414,10 @@ export default defineComponent({
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
                             {{ pipeline.name }}
-                            <v-icon style="margin-left: 20px">
-                              {{ pipeline.metadata?.diveParams?.length ?? 0 > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
+                            <v-icon style="margin-left: 20px; font-size: 1.5em;">
+                              <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
+                                mdi-cog-outline
+                              </template>
                             </v-icon>
                           </v-list-item-title>
                         </v-list-item>
