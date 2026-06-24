@@ -14,6 +14,7 @@ import {
   preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
   sortSubfolderCameraNames,
+  subfolderVideoDisplayLabel,
 } from './multicamSubfolderLayout';
 
 describe('isValidCameraName', () => {
@@ -150,6 +151,23 @@ describe('isVideoFileName', () => {
     expect(isVideoFileName('left.mp4')).toBe(true);
     expect(isVideoFileName('right.MOV')).toBe(true);
     expect(isVideoFileName('notes.txt')).toBe(false);
+  });
+});
+
+describe('subfolderVideoDisplayLabel', () => {
+  const mk = (name: string) => ({ name } as File);
+
+  it('uses the video file name when only the stem is known on web', () => {
+    expect(subfolderVideoDisplayLabel('left', 'left', [mk('left.mp4')])).toBe('left.mp4');
+    expect(subfolderVideoDisplayLabel('right', 'right', [mk('right.mov')])).toBe('right.mov');
+  });
+
+  it('uses the path basename when it includes a video extension', () => {
+    expect(subfolderVideoDisplayLabel('/data/stereo/left.mp4', 'left', [])).toBe('left.mp4');
+  });
+
+  it('falls back to folder name when no video file is available', () => {
+    expect(subfolderVideoDisplayLabel('left', 'left', [])).toBe('left');
   });
 });
 

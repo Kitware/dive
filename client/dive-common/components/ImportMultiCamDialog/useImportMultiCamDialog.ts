@@ -22,6 +22,7 @@ import {
   organizeSubfolderCameras,
   parentFolderLabelFromAbsolutePaths,
   pickDefaultMulticamCamera,
+  subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
@@ -351,7 +352,11 @@ export function useImportMultiCamDialog(
         Vue.set(
           subfolderOriginalNames.value,
           cameraName,
-          subfolderSourceDisplayLabel(sourcePath, organized.assignments[i].folderName),
+          subfolderSourceDisplayLabel(
+            sourcePath,
+            organized.assignments[i].folderName,
+            files,
+          ),
         );
         Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
@@ -423,7 +428,7 @@ export function useImportMultiCamDialog(
       props.unregisterSubfolderCamera(oldSourcePath);
     }
     const displayName = props.dataType === VideoType
-      ? (resolvedPath.split(/[/\\]/).pop() || cameraKey)
+      ? subfolderSourceDisplayLabel(resolvedPath, cameraKey, files)
       : ((displayRoot || sourcePath).split(/[/\\]/).pop() || cameraKey);
     Vue.set(subfolderOriginalNames.value, cameraKey, displayName);
     folderList.value[cameraKey].sourcePath = resolvedPath;
@@ -589,9 +594,10 @@ export function useImportMultiCamDialog(
   function subfolderSourceDisplayLabel(
     sourcePath: string,
     folderName: string,
+    files: File[] = [],
   ): string {
     if (props.dataType === VideoType) {
-      return sourcePath.split(/[/\\]/).pop() || folderName;
+      return subfolderVideoDisplayLabel(sourcePath, folderName, files);
     }
     return folderName;
   }

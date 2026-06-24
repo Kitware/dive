@@ -288,6 +288,23 @@ export function isVideoFileName(fileName: string): boolean {
   return fileVideoTypes.includes(ext);
 }
 
+/** Display label for a video camera in parent-folder import (includes file extension when known). */
+export function subfolderVideoDisplayLabel(
+  sourcePath: string,
+  folderName: string,
+  files: Pick<File, 'name'>[] = [],
+): string {
+  const videoFile = files.find((file) => isVideoFileName(file.name));
+  if (videoFile) {
+    return videoFile.name;
+  }
+  const fromPath = sourcePath.split(/[/\\]/).pop() || '';
+  if (fromPath && isVideoFileName(fromPath)) {
+    return fromPath;
+  }
+  return fromPath || folderName;
+}
+
 /**
  * Group video files that sit directly in the selected parent folder (one camera per file).
  * Camera keys are the file stem (basename without extension).
