@@ -135,7 +135,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;

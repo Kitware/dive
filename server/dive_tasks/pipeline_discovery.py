@@ -129,7 +129,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     is_stop_condition = (
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
-                        or re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE)
+                        or re.match(
+                            r'^#\s*(Input|Output|Requires\s+Calibration):', line_raw, re.IGNORECASE
+                        )
                         or not line_raw.startswith('#')
                     )
 
