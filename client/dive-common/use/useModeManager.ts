@@ -972,6 +972,23 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
+    // First check if any active segmentation recipe has a pending prediction
+    // or was explicitly reset by the user (Escape key).
+    // If neither, there's nothing to confirm - this happens when the contextmenu
+    // event from a right-click that entered Point edit mode triggers
+    // confirm-annotation before any points are placed. In that case, don't
+    // confirm/deactivate recipes or deselect - let the edit mode continue.
+    let hadPendingPredictionOrReset = false;
+    recipes.forEach((r) => {
+      if (r.active.value && r.confirm && r instanceof SegmentationPointClick) {
+        if (r.hasPendingPrediction() || r.wasReset) {
+          hadPendingPredictionOrReset = true;
+        }
+      }
+    });
+    if (!hadPendingPredictionOrReset) {
+      return;
+    }
     const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
       if (r.active.value && r.confirm) {
