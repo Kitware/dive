@@ -5,8 +5,11 @@ import {
 } from 'vue';
 
 import {
+  DatasetCalibrationResult,
   useApi,
 } from 'dive-common/apispec';
+
+import { deleteItem, deleteResources, getUri } from 'platform/web-girder/api';
 
 import CalibrationDialog from './CalibrationDialog.vue';
 
@@ -20,17 +23,36 @@ export default defineComponent({
   },
   setup(props) {
     const showCalibrationDialog = ref(false);
-    const calibration = ref({});
+    const calibrationResult = ref<DatasetCalibrationResult>();
 
     const { getDatasetCalibration } = useApi();
 
     getDatasetCalibration(props.datasetId).then((res) => {
-      calibration.value = res;
+      console.log("then", res)
+      calibrationResult.value = res;
     })
+
+    const downloadCalibration = () => {
+      const url = getUri({ url: `file/${calibrationResult.value?.itemId}/download` });
+      window.location.assign(url);
+    };
+
+    const deleteCalibration = () => {
+      console.log("delete");
+      console.log(calibrationResult.value);
+      if (calibrationResult.value?.itemId) {
+        deleteItem(calibrationResult.value.itemId).then(() => {
+          console.log("deleted")
+          calibrationResult.value = undefined;
+        });
+      }
+    };
 
     return {
       showCalibrationDialog,
-      calibration
+      calibrationResult,
+      downloadCalibration,
+      deleteCalibration,
     };
   },
 });
@@ -45,7 +67,7 @@ export default defineComponent({
       <v-btn
         color=""
         class="calibration-icon mx-1 mode-button"
-        :class="{ 'not-calibrated': !calibration }"
+        :class="{ 'not-calibrated': !calibrationResult }"
         small
         v-on="on"
         @click="showCalibrationDialog = true"
@@ -58,7 +80,9 @@ export default defineComponent({
 
     <CalibrationDialog
       v-model="showCalibrationDialog"
-      :calibration="calibration"
+      :calibration="calibrationResult?.calibration"
+      @download="downloadCalibration"
+      @delete="deleteCalibration"
     />
   </div>
 </template>

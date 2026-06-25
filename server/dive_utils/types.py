@@ -181,6 +181,36 @@ class DIVEAnnotationSchema(TypedDict):
     version: int
 
 
+class CameraCalibration(TypedDict):
+    cx: float
+    cy: float
+    fx: float
+    fy: float
+    k1: float
+    k2: float
+    k3: float
+    p1: float
+    p2: float
+    rmsError: float
+
+
+class DatasetStereoCalibration(TypedDict):
+    R: List[float]
+    T: List[float]
+    gridHeight: int
+    gridWidth: int
+    imageHeight: int
+    imageWidth: int
+    squareSize: float
+    rmsError: float
+    calibrations: Dict[str, CameraCalibration]
+
+
+class DatasetCalibrationResult(TypedDict):
+    calibration: DatasetStereoCalibration
+    itemId: str
+
+
 # Attribute metadata discovered while deserializing annotations, keyed by attribute name.
 Attributes = Dict[str, Dict[str, Any]]
 

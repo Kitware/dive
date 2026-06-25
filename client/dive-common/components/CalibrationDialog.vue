@@ -1,22 +1,38 @@
 <script lang="ts">
+import { DatasetStereoCalibration } from 'dive-common/apispec';
 import {
   defineComponent,
   PropType,
   ref,
-  watch,
 } from 'vue';
 
 export default defineComponent({
   name: 'CalibrationDialog',
   props: {
     value: { type: Boolean, required: true },
-    calibration: { type: Object, default: null },
+    calibration: { type: Object as PropType<DatasetStereoCalibration | undefined>, default: undefined },
   },
   setup(props, { emit }) {
     const close = () => emit('input', false);
 
+    const downloadCalibration = () => {
+      emit('download');
+      close();
+    };
+
+    const deleteCalibration = () => {
+      emit('delete');
+    };
+
+    const importCalibration = () => {
+
+    };
+
     return {
       close,
+      downloadCalibration,
+      deleteCalibration,
+      importCalibration,
     };
   },
 });
@@ -29,7 +45,7 @@ export default defineComponent({
     scrollable
     @input="$emit('input', $event)"
   >
-    <v-card v-if="calibration" class="rounded-lg">
+    <v-card class="rounded-lg">
       <v-toolbar flat color="primary" dark dense>
         <v-icon left>
           mdi-checkerboard
@@ -44,7 +60,7 @@ export default defineComponent({
       </v-toolbar>
 
       <v-card-text class="pa-4">
-        <div class="mb-6">
+        <div v-if="calibration" class="mb-6">
           <div class="text-subtitle-1 font-weight-bold mb-2">General</div>
           <v-simple-table dense class="mb-4 elevation-1">
             <template v-slot:default>
@@ -55,10 +71,10 @@ export default defineComponent({
                 </tr>
               </thead>
               <tbody>
-                <tr><td>Image resolution</td><td>{{ calibration.image_width }} x {{ calibration.image_height }} px</td></tr>
-                <tr><td>Calibration grid</td><td>{{ calibration.grid_width }} x {{ calibration.grid_height }}</td></tr>
-                <tr><td>Square size</td><td>{{ calibration.square_size_mm }} mm</td></tr>
-                <tr><td>Stereo RMS Error</td><td>{{ calibration.rms_error_stereo }}</td></tr>
+                <tr><td>Image resolution</td><td>{{ calibration.imageWidth }} x {{ calibration.imageHeight }} px</td></tr>
+                <tr><td>Calibration grid</td><td>{{ calibration.gridWidth }} x {{ calibration.gridHeight }}</td></tr>
+                <tr><td>Square size</td><td>{{ calibration.squareSize }} mm</td></tr>
+                <tr><td>Stereo RMS Error</td><td>{{ calibration.rmsError }}</td></tr>
               </tbody>
             </template>
           </v-simple-table>
@@ -69,35 +85,29 @@ export default defineComponent({
               <thead>
                 <tr>
                   <th class="text-left">Property</th>
-                  <th class="text-left">Left Camera</th>
-                  <th class="text-left">Right Camera</th>
+                  <th v-for="(_, cameraName, __) in calibration.calibrations" class="text-left">{{ cameraName }} camera</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td><strong>Focal (fx, fy)</strong></td>
-                  <td>{{ calibration.fx_left }} , {{ calibration.fy_left }}</td>
-                  <td>{{ calibration.fx_right }} , {{ calibration.fy_right }}</td>
+                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.fx }} , {{ calib.fy }}</td>
                 </tr>
                 <tr>
                   <td><strong>Optical center (cx, cy)</strong></td>
-                  <td>{{ calibration.cx_left }} , {{ calibration.cy_left }}</td>
-                  <td>{{ calibration.cx_right }} , {{ calibration.cy_right }}</td>
+                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.cx }} , {{ calib.cy }}</td>
                 </tr>
                 <tr>
                   <td><strong>Radial Distortion (k1, k2, k3)</strong></td>
-                  <td>{{ calibration.k1_left }} , {{ calibration.k2_left }} , {{ calibration.k3_left }}</td>
-                  <td>{{ calibration.k1_right }} , {{ calibration.k2_right }} , {{ calibration.k3_right }}</td>
+                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.k1 }} , {{ calib.k2 }} , {{ calib.k3 }}</td>
                 </tr>
                 <tr>
                   <td><strong>Tangential Distortion (p1, p2)</strong></td>
-                  <td>{{ calibration.p1_left }} , {{ calibration.p2_left }}</td>
-                  <td>{{ calibration.p1_right }} , {{ calibration.p2_right }}</td>
+                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.p1 }} , {{ calib.p2 }}</td>
                 </tr>
                 <tr>
                   <td><strong>RMS Error</strong></td>
-                  <td>{{ calibration.rms_error_left }}</td>
-                  <td>{{ calibration.rms_error_right }}</td>
+                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.rmsError }}</td>
                 </tr>
               </tbody>
             </template>
@@ -123,6 +133,14 @@ export default defineComponent({
             </v-col>
           </v-row>
         </div>
+        <div v-else>
+          <div class="text-subtitle-1 font-weight-bold mb-2">No calibration loaded</div>
+          <div>
+            Calibration is needed to run stereoscopic pipelines.
+            <br>
+            You can import a calibration manually, or run a calibration pipeline on a checkerboard image sequence or video.
+          </div>
+        </div>
       </v-card-text>
 
       <v-divider />
@@ -132,19 +150,19 @@ export default defineComponent({
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn color="red" outlined @click="close">
+        <v-btn v-if="calibration" color="red" outlined @click="deleteCalibration">
           <v-icon left>
             mdi-delete-outline
           </v-icon>
           Delete
         </v-btn>
-        <v-btn color="primary" outlined @click="close">
+        <v-btn color="primary" :outlined="calibration" @click="importCalibration">
           <v-icon left>
             mdi-upload
           </v-icon>
           Import
         </v-btn>
-        <v-btn color="primary" @click="close">
+        <v-btn v-if="calibration" color="primary" @click="downloadCalibration">
           <v-icon left>
             mdi-download
           </v-icon>

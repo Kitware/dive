@@ -77,6 +77,12 @@ function clone({
   });
 }
 
+function getDatasetCalibration(datasetId: string) {
+  return girderRest.get('dive_dataset/calibration', {
+    params: {folderId: datasetId}
+  });
+}
+
 function createGirderFolder({
   folderId, name, description,
 }: {
@@ -249,6 +255,7 @@ export {
   getDataset,
   getDatasetList,
   getDatasetMedia,
+  getDatasetCalibration,
   importAnnotationFile,
   makeViameFolder,
   saveAttributes,
