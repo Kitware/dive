@@ -17,6 +17,7 @@
     "serve:electron:windows": "cross-env ELECTRON_DISABLE_SECURITY_WARNINGS=true electron-vite dev --entry=.electron/main/background.js",
     "build:web": "vite build",
     "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
+    "build:electron:dir": "electron-vite build && electron-builder --config electron-builder.json --dir",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "eslint --ext .js,.ts,.vue src/ dive-common/ platform/",
     "lint:templates": "eslint --ext vue src/ dive-common/ platform/",
