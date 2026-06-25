@@ -1,0 +1,42 @@
+# Local test media and outputs from samples/ scripts.
+# Scripts and README files remain tracked.
+
+# checkTranscodingNeeded.py — local video test folder
+scripts/test_videos/
+
+# assetStoreImport — generated sample tree (default: ./sample)
+scripts/assetStoreImport/sample/
+
+# checkTranscodingNeeded.py folder-mode report
+transcoding_requirements.json
+
+# DIVE / script transcode outputs
+*.transcoded.mp4
+*.aligned.mp4
+
+# Video files (uploadScript, generateSampleData, local testing)
+*.mp4
+*.webm
+*.avi
+*.mov
+*.wmv
+*.mpg
+*.mpeg
+*.mp2
+*.ogg
+*.flv
+*.mkv
+*.m4v
+*.ts
+
+# Image sequence outputs (generateSampleData.py, generateQuickVideos.py)
+*.jpg
+*.jpeg
+*.png
+
+# Generated annotations from sample data scripts
+*.json
+*.csv
+
+# uv script virtual environments
+.venv/
