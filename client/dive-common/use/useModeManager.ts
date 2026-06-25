@@ -1135,6 +1135,7 @@ export default function useModeManager({
     geometryFeatures?: GeoJSON.Feature[];
     fishLength?: number;
     attributes?: Feature['attributes'];
+    existingPolygonKeys?: Set<string>;
   }>();
 
   function removeStereoLineGeometry(track: Track, frameNum: number) {
@@ -1213,6 +1214,16 @@ export default function useModeManager({
       // Save original feature state before first prediction modifies the track
       if (!preSegmentationFeatures.has(targetFrame)) {
         const [existingFeature] = track.getFeature(targetFrame);
+        // Track which polygon keys existed before segmentation so reset can
+        // tell originals from segmentation-added polygons.
+        const existingPolygonKeys = new Set<string>();
+        if (existingFeature?.geometry?.features) {
+          existingFeature.geometry.features.forEach((f) => {
+            if (f.geometry.type === 'Polygon') {
+              existingPolygonKeys.add(f.properties?.key ?? '');
+            }
+          });
+        }
         if (existingFeature) {
           preSegmentationFeatures.set(targetFrame, {
             hadFeature: true,
@@ -1226,9 +1237,10 @@ export default function useModeManager({
             attributes: existingFeature.attributes
               ? JSON.parse(JSON.stringify(existingFeature.attributes))
               : undefined,
+            existingPolygonKeys,
           });
         } else {
-          preSegmentationFeatures.set(targetFrame, { hadFeature: false });
+          preSegmentationFeatures.set(targetFrame, { hadFeature: false, existingPolygonKeys });
         }
       }
 
@@ -1384,13 +1396,24 @@ export default function useModeManager({
     if (!saved.hadFeature) {
       track.deleteFeature(data.frameNum);
     } else {
-      // Remove the segmentation-derived polygon
-      track.removeFeatureGeometry(data.frameNum, { key: SegmentationPolygonKey, type: 'Polygon' });
+      // Remove polygons that segmentation added (any key not present before),
+      // plus the default-key polygon (segmentation overwrites it). Original
+      // polygons under pre-existing keys are then overwritten back to their
+      // saved geometry by setFeature below.
+      const currentPolygons = track.getPolygonFeatures(data.frameNum);
+      const preExistingKeys = saved.existingPolygonKeys || new Set<string>();
+      currentPolygons.forEach((pf) => {
+        if (!preExistingKeys.has(pf.key)) {
+          track.removeFeatureGeometry(data.frameNum, { key: pf.key, type: 'Polygon' });
+        }
+      });
+      track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
       removeStereoLineGeometry(track, data.frameNum);
-      // Find original default polygon if there was one
-      const origDefaultPolygon = saved.geometryFeatures?.find(
-        (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === '',
-      );
+      // Restore all original polygon geometry (including segmentation-keyed
+      // polygons that already existed before this edit), not just the default key.
+      const origFeatures = saved.geometryFeatures?.filter(
+        (f) => f.geometry.type === 'Polygon',
+      ) || [];
       // Restore original bounds and geometry
       track.setFeature({
         frame: data.frameNum,
@@ -1402,8 +1425,8 @@ export default function useModeManager({
         attributes: saved.attributes
           ? JSON.parse(JSON.stringify(saved.attributes))
           : undefined,
-      }, origDefaultPolygon
-        ? [origDefaultPolygon as GeoJSON.Feature<TrackSupportedFeature>]
+      }, origFeatures.length > 0
+        ? origFeatures as GeoJSON.Feature<TrackSupportedFeature>[]
         : []);
     }
 
