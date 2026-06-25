@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple, TypedDict
+from pathlib import Path
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -365,6 +366,35 @@ def run_pipeline(
         user=user,
     ).flush()
     return job
+
+
+def get_calibration(
+    user: types.GirderUserModel,
+    folder: types.GirderModel,
+) -> dict | None:
+    folder_id_str = str(folder["_id"])
+    dataset_type = fromMeta(folder, "type", required=True)
+
+    if dataset_type != constants.MultiType:
+        raise RestException('Cannot search for calibration file on non stereo/multicam datasets', code=400)
+    
+    print("Dataset Type", dataset_type)
+    calibration_item_id = crud_dataset.find_calibration_item_id(folder_id_str)
+    print("calibration item id", calibration_item_id)
+
+    if calibration_item_id is None:
+        return None
+
+    calibration_item = Item().load(calibration_item_id, level=AccessType.READ, user=user)
+    print("calibration item", calibration_item)
+
+    files = Item().fileList(calibration_item, user, data=True)
+    for file in files:
+        if Path(file[0]).suffix == '.json':
+            data = json.loads(b"".join(list(file[1]())).decode("utf-8"))
+            return data
+
+    raise RestException('Calibration file not supported', code=400)
 
 
 def export_trained_pipeline(

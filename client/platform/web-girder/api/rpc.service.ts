@@ -54,6 +54,12 @@ function exportTrainedPipeline(path: string, pipeline: Pipe) {
   });
 }
 
+function getDatasetCalibration(datasetId: string) {
+  return girderRest.get('dive_rpc/calibration', {
+    params: {folderId: datasetId}
+  });
+}
+
 function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
@@ -65,4 +71,5 @@ export {
   runTraining,
   deleteTrainedPipeline,
   exportTrainedPipeline,
+  getDatasetCalibration,
 };

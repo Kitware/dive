@@ -205,6 +205,7 @@ interface Api {
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
+  getDatasetCalibration(datasetId: string): Promise<unknown>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
