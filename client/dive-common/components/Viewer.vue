@@ -1698,6 +1698,7 @@ export default defineComponent({
           </div>
           <BottomPanel
             :sidebar-mode="sidebarMode"
+            :is-stereo-dataset="subType === 'stereo'"
             :controls-ref="controlsRef"
             :controls-collapsed.sync="controlsCollapsed"
             :line-chart-data="lineChartData"
