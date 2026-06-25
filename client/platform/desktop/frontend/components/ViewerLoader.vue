@@ -1101,10 +1101,27 @@ export default defineComponent({
             const height = maxY - minY;
             const padX = width * 0.10 || height * 0.10;
             const padY = height * 0.10 || width * 0.10;
-            const bounds = [
-              minX - padX, minY - padY,
-              maxX + padX, maxY + padY,
-            ] as [number, number, number, number];
+            let bx0 = minX - padX;
+            let bx1 = maxX + padX;
+            let by0 = minY - padY;
+            let by1 = maxY + padY;
+            // Cap the aspect ratio so a near-axis-aligned warped line doesn't make
+            // a razor-thin box (matches headtail.ts MAX_BOX_ASPECT_RATIO).
+            const MAX_BOX_ASPECT_RATIO = 6;
+            const bw = bx1 - bx0;
+            const bh = by1 - by0;
+            if (bw > 0 && bh > 0) {
+              if (bw / bh > MAX_BOX_ASPECT_RATIO) {
+                const grow = (bw / MAX_BOX_ASPECT_RATIO - bh) / 2;
+                by0 -= grow;
+                by1 += grow;
+              } else if (bh / bw > MAX_BOX_ASPECT_RATIO) {
+                const grow = (bh / MAX_BOX_ASPECT_RATIO - bw) / 2;
+                bx0 -= grow;
+                bx1 += grow;
+              }
+            }
+            const bounds = [bx0, by0, bx1, by1] as [number, number, number, number];
 
             track.setFeature({
               frame: params.frameNum,

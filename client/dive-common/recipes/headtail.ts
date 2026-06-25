@@ -27,6 +27,8 @@ const PaddingVectorZero: [number, number][] = [
   [1, 0],
   [0, 0],
 ];
+/* Cap how skinny a line's box may get: longer side at most this x the shorter. */
+const MAX_BOX_ASPECT_RATIO = 6;
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -125,14 +127,35 @@ export default class HeadTail implements Recipe {
     // Use the other dimension as fallback for degenerate (zero-width/height) cases
     const padX = width * fraction || height * fraction;
     const padY = height * fraction || width * fraction;
+    let x0 = minX - padX;
+    let x1 = maxX + padX;
+    let y0 = minY - padY;
+    let y1 = maxY + padY;
+
+    // Cap the aspect ratio so a near-horizontal/vertical line doesn't make a
+    // razor-thin box: grow the shorter side about its center until the
+    // longer:shorter ratio is at most MAX_BOX_ASPECT_RATIO.
+    const boxW = x1 - x0;
+    const boxH = y1 - y0;
+    if (boxW > 0 && boxH > 0) {
+      if (boxW / boxH > MAX_BOX_ASPECT_RATIO) {
+        const grow = (boxW / MAX_BOX_ASPECT_RATIO - boxH) / 2;
+        y0 -= grow;
+        y1 += grow;
+      } else if (boxH / boxW > MAX_BOX_ASPECT_RATIO) {
+        const grow = (boxH / MAX_BOX_ASPECT_RATIO - boxW) / 2;
+        x0 -= grow;
+        x1 += grow;
+      }
+    }
     return [{
       type: 'Polygon',
       coordinates: [[
-        [minX - padX, minY - padY],
-        [minX - padX, maxY + padY],
-        [maxX + padX, maxY + padY],
-        [maxX + padX, minY - padY],
-        [minX - padX, minY - padY],
+        [x0, y0],
+        [x0, y1],
+        [x1, y1],
+        [x1, y0],
+        [x0, y0],
       ]],
     }];
   }
