@@ -222,7 +222,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     is_stop_condition = (
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
-                        or re.match(r'^#\s*(Input|Output):', line_raw, re.IGNORECASE)
+                        or re.match(
+                            r'^#\s*(Input|Output|Requires\s+Calibration):', line_raw, re.IGNORECASE
+                        )
                         or not line_raw.startswith('#')
                     )
 
@@ -241,6 +243,16 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                 output_match = re.match(r'^#\s*Output:\s*(.*)', line_raw, re.IGNORECASE)
                 if output_match:
                     metadata["outputType"] = output_match.group(1).strip()
+
+                calibration_match = re.match(
+                    r'^#\s*Requires\s+Calibration:\s*(.*)', line_raw, re.IGNORECASE
+                )
+                if calibration_match:
+                    metadata["requiresCalibration"] = calibration_match.group(1).strip().lower() in (
+                        'true',
+                        'yes',
+                        '1',
+                    )
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)

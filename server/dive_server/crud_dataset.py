@@ -887,6 +887,14 @@ def find_calibration_item_id(folder_id: str) -> Optional[str]:
     return None
 
 
+def pipeline_requires_calibration(pipeline: types.PipelineDescription) -> bool:
+    """True when pipeline metadata (or legacy measurement type) requires calibration input."""
+    metadata = pipeline.get('metadata') or {}
+    if 'requiresCalibration' in metadata:
+        return bool(metadata['requiresCalibration'])
+    return pipeline.get('type') == constants.StereoPipelineMarker
+
+
 def resolve_stereo_calibration_item_id(
     parent_folder: types.GirderModel,
     pipeline: types.PipelineDescription,
@@ -894,12 +902,10 @@ def resolve_stereo_calibration_item_id(
     """
     Resolve stereoscopic calibration item id for pipeline input.
 
-    Returns an item in the dataset folder root with meta.calibrationFile set. Only
-    measurement pipelines on stereo datasets use calibration input.
+    Returns an item in the dataset folder root with meta.calibrationFile set when the
+    pipeline declares that calibration is required.
     """
-    if fromMeta(parent_folder, constants.SubTypeMarker) != 'stereo':
-        return None
-    if pipeline.get('type') != constants.StereoPipelineMarker:
+    if not pipeline_requires_calibration(pipeline):
         return None
 
     folder_id = str(parent_folder['_id'])

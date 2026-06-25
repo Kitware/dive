@@ -58,6 +58,7 @@ interface PipeMetadata {
   inputType?: string;
   outputType?: string;
   diveParams?: DiveParam[];
+  requiresCalibration?: boolean;
 }
 
 interface PipelineRuntimeParams {
@@ -258,6 +259,8 @@ interface Api {
   ): Promise<string>;
   /** Desktop: stereoscopic calibration file in a parent folder root. */
   findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
+  /** True when the dataset folder has an attached stereoscopic calibration file. */
+  hasCalibrationFile?(datasetId: string): Promise<boolean>;
   /** Web: stash a calibration File for multicam upload lookup. */
   stashCalibrationFile?(key: string, file: File): void;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;

@@ -313,13 +313,10 @@ def run_pipeline(
             )
         input_type = default_cam['media_type']
         calibration_item_id = crud_dataset.resolve_stereo_calibration_item_id(folder, pipeline)
-        needs_calibration = (
-            fromMeta(folder, constants.SubTypeMarker) == 'stereo'
-            and pipeline.get('type') == constants.StereoPipelineMarker
-        )
+        needs_calibration = crud_dataset.pipeline_requires_calibration(pipeline)
         if needs_calibration and calibration_item_id is None:
             raise RestException(
-                'Stereo calibration file was not found in the dataset folder. '
+                'This pipeline requires a calibration file. '
                 'Import or upload a calibration file with the calibrationFile marker.',
                 code=404,
             )

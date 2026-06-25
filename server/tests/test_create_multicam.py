@@ -283,12 +283,17 @@ def test_resolve_stereo_calibration_item_id_legacy_multi_cam_id(item_cls):
 
 
 @patch('dive_server.crud_dataset.Item')
-def test_resolve_stereo_calibration_item_id_skips_non_measurement_pipeline(item_cls):
+def test_resolve_stereo_calibration_item_id_skips_non_calibration_pipeline(item_cls):
     parent_folder = {
         '_id': 'multi-id',
         'meta': {constants.SubTypeMarker: 'stereo'},
     }
-    pipeline = {'name': '2cam', 'type': '2-cam', 'pipe': '2-cam_foo.pipe'}
+    pipeline = {
+        'name': '2cam',
+        'type': '2-cam',
+        'pipe': '2-cam_foo.pipe',
+        'metadata': {'requiresCalibration': False},
+    }
 
     assert crud_dataset.resolve_stereo_calibration_item_id(parent_folder, pipeline) is None
     item_cls.return_value.find.assert_not_called()

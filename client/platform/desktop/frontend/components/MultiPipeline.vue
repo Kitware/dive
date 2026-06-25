@@ -17,11 +17,16 @@ import {
   MultiType,
 } from 'dive-common/constants';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
+import {
+  pipelineDisabledForMissingCalibration,
+  pipelineRequiresCalibration,
+} from 'dive-common/pipelineCalibration';
+import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonMetaCache } from '../store/dataset';
 
-const { getPipelineList, runPipeline } = useApi();
+const { getPipelineList, runPipeline, hasCalibrationFile } = useApi();
 const { prompt } = usePrompt();
 const router = useRouter();
 
@@ -114,6 +119,45 @@ const availableItems: Ref<JsonMetaCache[]> = ref([]);
 const availableDatasetSearch = ref('');
 const stagedDatasetIds: Ref<string[]> = ref([]);
 const stagedDatasets = computed(() => availableItems.value.filter((item: JsonMetaCache) => stagedDatasetIds.value.includes(item.id)));
+const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
+
+async function refreshCalibrationForDatasets(datasetIds: string[]) {
+  if (!hasCalibrationFile || !datasetIds.length) {
+    return;
+  }
+  const entries = await Promise.all(
+    datasetIds.map(async (id) => [id, await hasCalibrationFile(id)] as const),
+  );
+  calibrationAvailableByDatasetId.value = {
+    ...calibrationAvailableByDatasetId.value,
+    ...Object.fromEntries(entries),
+  };
+}
+
+watch(availableItems, (items) => {
+  refreshCalibrationForDatasets(items.map((item) => item.id));
+}, { immediate: true });
+
+const runDisabled = computed(() => {
+  if (!selectedPipeline.value || stagedDatasets.value.length === 0) {
+    return true;
+  }
+  if (!pipelineRequiresCalibration(selectedPipeline.value)) {
+    return false;
+  }
+  return stagedDatasets.value.some(
+    (dataset) => !calibrationAvailableByDatasetId.value[dataset.id],
+  );
+});
+
+function isPipelineItemDisabledForCalibration(pipe: Pipe) {
+  return pipelineDisabledForMissingCalibration(
+    pipe,
+    calibrationAvailableByDatasetId.value,
+    availableItems.value.map((dataset) => dataset.id),
+  );
+}
+
 watch(selectedPipeline, () => {
   availableItems.value = getAvailableItems();
 });
@@ -218,7 +262,15 @@ onBeforeMount(async () => {
                       v-on="{ ...on, ...tooltipOn }"
                     >
                       <v-list-item-content>
-                        <v-list-item-title>{{ item.name }}</v-list-item-title>
+                        <v-list-item-title>
+                          {{ item.name }}
+                          <span
+                            v-if="isPipelineItemDisabledForCalibration(item)"
+                            class="ml-2"
+                          >
+                            <PipelineCalibrationWarningIcon small />
+                          </span>
+                        </v-list-item-title>
                       </v-list-item-content>
                     </v-list-item>
                   </template>
@@ -260,7 +312,7 @@ onBeforeMount(async () => {
         <v-spacer />
         <v-col cols="auto">
           <v-btn
-            :disabled="stagedDatasets.length === 0"
+            :disabled="runDisabled"
             color="primary"
             @click="runPipelineForDatasets"
           >
