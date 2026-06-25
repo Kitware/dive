@@ -27,6 +27,7 @@ import {
   unwrap,
   getTiles,
   getTileURL,
+  hasCalibrationFile,
 } from './api';
 import {
   getLastCalibration,
@@ -64,6 +65,7 @@ export default defineComponent({
       saveAttributes: unwrap(saveAttributes),
       saveAttributeTrackFilters: unwrap(saveAttributeTrackFilters),
       loadMetadata,
+      hasCalibrationFile,
       openFromDisk: openFromDiskWithRegistry,
       getLastCalibration,
       saveCalibration,
