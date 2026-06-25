@@ -13,6 +13,7 @@ import ImportMultiCamSubfolders from './ImportMultiCamSubfolders.vue';
 import ImportMultiCamMultiFolder from './ImportMultiCamMultiFolder.vue';
 import ImportMultiCamKeyword from './ImportMultiCamKeyword.vue';
 import ImportMultiCamFinalizeStep from './ImportMultiCamFinalizeStep.vue';
+import ImportMultiCamCalibration from './ImportMultiCamCalibration.vue';
 
 export default defineComponent({
   name: 'ImportMultiCamDialog',
@@ -22,6 +23,7 @@ export default defineComponent({
     ImportMultiCamMultiFolder,
     ImportMultiCamKeyword,
     ImportMultiCamFinalizeStep,
+    ImportMultiCamCalibration,
   },
   props: {
     stereo: {
@@ -105,6 +107,11 @@ export default defineComponent({
         :stereo="stereo"
       />
 
+      <ImportMultiCamCalibration
+        v-if="stereo && importType"
+        :ctx="ctx"
+      />
+
       <div>
         <v-alert
           v-if="errorMessage"
@@ -127,7 +134,6 @@ export default defineComponent({
         </v-alert>
         <ImportMultiCamFinalizeStep
           :ctx="ctx"
-          :stereo="stereo"
           :show-default-display="camerasReady"
         />
       </div>

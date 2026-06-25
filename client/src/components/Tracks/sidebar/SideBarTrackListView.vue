@@ -57,6 +57,7 @@ export default defineComponent({
             v-model="data.settingsActive"
             :close-on-content-click="false"
             :nudge-bottom="28"
+            class="track-settings-menu-content"
           >
             <template #activator="{ on, attrs }">
               <v-btn

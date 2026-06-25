@@ -254,7 +254,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 
 def create_attributes(
-    metadata_attributes: Dict[str, Dict[str, Any]],
+    metadata_attributes: types.Attributes,
     test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
@@ -281,7 +281,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Dict[str, Any]], test_vals: Dict[str, Dict[str, int]]
+    metadata_attributes: types.Attributes, test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -310,12 +310,12 @@ def calculate_attribute_types(
 
 def load_json_as_track_and_attributes(
     json_data: types.DIVEAnnotationSchema,
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes]:
     """
     Load VIAME Track JSON and Computes Attributes
     """
     # Go through tracks and gather all attributes
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     tracks = json_data['tracks']
     # Get Attribute Maps to values
@@ -343,10 +343,30 @@ def custom_sort(row):
         return (1, int(row[2]))
 
 
+def parse_metadata_row(row: List[str]) -> Dict[str, Any]:
+    """Parse a ``# metadata`` comment row back into a dict.
+
+    Mirror of :func:`writeHeader`, which writes each field as
+    ``f"{key}: {json.dumps(value)}"``. Keys are lower-cased so lookups tolerate
+    producer casing (e.g. native VIAME's ``fps:`` vs a capitalized ``Fps:``).
+    Values that are not valid JSON are kept as the raw, trimmed string.
+    """
+    metadata: Dict[str, Any] = {}
+    for field in row[1:]:  # skip the leading '# metadata' marker
+        key, sep, raw = field.partition(':')
+        if not sep:
+            continue
+        try:
+            metadata[key.strip().lower()] = json.loads(raw.strip())
+        except (json.JSONDecodeError, ValueError):
+            metadata[key.strip().lower()] = raw.strip()
+    return metadata
+
+
 def load_csv_as_tracks_and_attributes(
     rows: List[str],
     imageMap: Optional[Dict[str, int]] = None,
-) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Optional[str]]:
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo]:
     """
     Convert VIAME CSV to json tracks
 
@@ -355,22 +375,26 @@ def load_csv_as_tracks_and_attributes(
     """
     reader = csv.reader(row for row in rows)
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
     sortedlist = sorted(reader, key=custom_sort)
-    warnings: List[str] = []
+    warnings: types.Warnings = []
     fps = None
+    datasetInfo: types.DatasetInfo = {}
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             if len(row) > 0 and row[0] == '# metadata':
-                if row[1].startswith('Fps: '):
-                    fps_splits = row[1].split(':')
-                    if len(fps_splits) > 1:
-                        fps = fps_splits[1]
+                # Read back the `key: <json>` fields written by writeHeader.
+                # fps is matched case-insensitively (native VIAME writes lowercase `fps:`).
+                metadata_fields = parse_metadata_row(row)
+                if fps is None and metadata_fields.get('fps') is not None:
+                    fps = metadata_fields['fps']
+                if isinstance(metadata_fields.get('dataset_info'), dict):
+                    datasetInfo = metadata_fields['dataset_info']
             continue
         (
             feature,
@@ -528,7 +552,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes, warnings, fps
+    return annotations, metadata_attributes, warnings, fps, datasetInfo
 
 
 def export_tracks_as_csv(
@@ -540,7 +564,7 @@ def export_tracks_as_csv(
     header=True,
     typeFilter=None,
     revision=None,
-    datasetInfo=None,
+    datasetInfo: Optional[types.DatasetInfo] = None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
@@ -551,8 +575,8 @@ def export_tracks_as_csv(
     :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
     :param header: include or omit header
     :param typeFilter: set of track types to only export if not empty
-    :param datasetInfo: per-dataset station metadata; emitted as a nested JSON entry on the
-        ``# metadata`` line when non-empty (omitted entirely when empty/absent)
+    :param datasetInfo: per-dataset station metadata; emitted as a nested ``dataset_info`` JSON
+        entry on the ``# metadata`` line when non-empty (omitted entirely when empty/absent)
     """
     if thresholds is None:
         thresholds = {}
@@ -568,7 +592,7 @@ def export_tracks_as_csv(
         if revision is not None:
             metadata["revision"] = revision
         if datasetInfo:
-            metadata["datasetInfo"] = datasetInfo
+            metadata["dataset_info"] = datasetInfo
         writeHeader(writer, metadata)
 
     for t in track_iterator:

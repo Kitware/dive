@@ -179,6 +179,12 @@ beforeEach(() => {
       annotationImport: {
         'viame.csv': emptyCsvString,
         'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
+        'dataset-info.config.json': JSON.stringify({
+          datasetInfo: {
+            year: '2025',
+            gfishsite_id: '2024TXN012',
+          },
+        }),
         // This file will be migrated
         'dive.json': '{ "0": { "trackId": 0 } }', // fake track file
       },
@@ -585,6 +591,38 @@ describe('native.common', () => {
     const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
     expect(meta2.confidenceFilters).toStrictEqual({ default: 0.8 });
     expect(meta2.type).toBe('image-sequence'); // Ensure meta import cannot change immutable fields.
+  });
+
+  it('dataFileImport resolves datasetInfo from DIVE configuration imports', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const existingDatasetInfo = { cruise: '2403', sta_lat: '26.8195', year: '2024' };
+    const importedDatasetInfo = { year: '2025', gfishsite_id: '2024TXN012' };
+
+    await common.saveMetadata(settings, final.id, { datasetInfo: existingDatasetInfo });
+    await common.dataFileImport(
+      settings,
+      final.id,
+      '/home/user/data/annotationImport/dataset-info.config.json',
+    );
+    const overwriteMeta = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(overwriteMeta.datasetInfo).toStrictEqual(importedDatasetInfo);
+
+    await common.saveMetadata(settings, final.id, { datasetInfo: existingDatasetInfo });
+    await common.dataFileImport(
+      settings,
+      final.id,
+      '/home/user/data/annotationImport/dataset-info.config.json',
+      true,
+    );
+    const additiveMeta = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(additiveMeta.datasetInfo).toStrictEqual({
+      ...existingDatasetInfo,
+      ...importedDatasetInfo,
+    });
   });
 
   it('import with CSV annotations without specifying track file', async () => {

@@ -5,6 +5,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from 'vue';
 import { DatasetType } from 'dive-common/apispec';
+import { ImageSequenceType } from 'dive-common/constants';
 import ImportMultiCamCameraGroup from './ImportMultiCamCameraGroup.vue';
 import ImportMultiCamChooseSource from './ImportMultiCamChooseSource.vue';
 import ImportMultiCamCameraOrderControls from './ImportMultiCamCameraOrderControls.vue';
@@ -42,6 +43,8 @@ export default defineComponent({
       deleteSet: props.ctx.deleteSet,
       onRenameCamera: props.ctx.onRenameCamera,
       openParentFolder: props.ctx.openParentFolder,
+      open: props.ctx.open,
+      ImageSequenceType,
     };
   },
 });
@@ -120,10 +123,11 @@ export default defineComponent({
         :camera-name="key"
         :data-type="dataType"
         :value="subfolderOriginalNames[key] || key"
-        :hide-actions="true"
+        @open="open(dataType, key)"
+        @open-text="open('text', key)"
       />
       <v-chip
-        v-if="pendingImportPayloads[key]"
+        v-if="dataType === ImageSequenceType && pendingImportPayloads[key]"
         :color="pendingImportPayloads[key].jsonMeta.originalImageFiles.length ? 'success' : 'error'"
         outlined
         class="mt-2"
@@ -134,7 +138,6 @@ export default defineComponent({
     <ImportMultiCamFinalizeStep
       v-if="camerasReady"
       :ctx="ctx"
-      :stereo="stereo"
       show-default-display-info
     />
   </div>

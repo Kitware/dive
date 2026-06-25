@@ -39,6 +39,7 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
+import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
@@ -922,6 +923,9 @@ async function _ingestFilePath(
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
     meta.execTime = data[0].execTime;
+    if (data[0].datasetInfo) {
+      meta.datasetInfo = data[0].datasetInfo;
+    }
     [, warnings] = data;
   } else if (YAMLFileName.test(path)) {
     annotations = await kpf.parse([path]);
@@ -1196,6 +1200,27 @@ async function listParentFolderCameras(
 }
 
 /**
+ * Find a stereoscopic calibration file (.json or .npz with cal/calibration in the name)
+ * in the parent folder root.
+ */
+async function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
+  if (!await fs.pathExists(parentPath)) {
+    return null;
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    return null;
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  const fileNames = children.filter((entry) => entry.isFile()).map((entry) => entry.name);
+  const bestName = pickStereoCalibrationFileName(fileNames);
+  if (!bestName) {
+    return null;
+  }
+  return npath.join(parentPath, bestName);
+}
+
+/**
  * Resolve the import path for one camera subfolder (directory or first video file).
  */
 async function resolveMulticamCameraSourcePath(
@@ -1428,6 +1453,7 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
 async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
   const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const existingDatasetInfo = jsonMeta.datasetInfo;
   const result = await ingestDataFiles(
     settings,
     id,
@@ -1438,6 +1464,14 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
     additivePrepend,
   );
   merge(jsonMeta, result.meta);
+  // Assign datasetInfo explicitly; the deep-merge above would keep keys an Overwrite
+  // import meant to drop. Like the server, Overwrite replaces the block wholesale while
+  // an additive import merges per-key (imported values win).
+  if (result.meta.datasetInfo) {
+    jsonMeta.datasetInfo = additive
+      ? { ...(existingDatasetInfo ?? {}), ...result.meta.datasetInfo }
+      : result.meta.datasetInfo;
+  }
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
   return result;
 }
@@ -1815,6 +1849,7 @@ export {
   findImagesInFolder,
   listImmediateSubfolders,
   listParentFolderCameras,
+  findParentFolderCalibrationFile,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,

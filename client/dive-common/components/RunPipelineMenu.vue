@@ -467,7 +467,7 @@ export default defineComponent({
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
                             {{ pipeline.name }}
-                            <v-icon style="margin-left: 20px">
+                            <v-icon style="margin-left: 20px; font-size: 1.5em;">
                               {{ (pipeline.metadata?.diveParams?.length ?? 0) > 0 || (pipeline.requirements?.length ?? 0) > 0 ? 'mdi-application-cog-outline' : 'mdi-play-outline' }}
                             </v-icon>
                           </v-list-item-title>

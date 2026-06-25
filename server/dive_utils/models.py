@@ -5,7 +5,7 @@ from bson.objectid import ObjectId
 from pydantic import BaseModel, Field, validator
 from typing_extensions import Literal
 
-from dive_utils import constants
+from dive_utils import constants, types
 
 
 class PydanticObjectId(str):
@@ -238,7 +238,7 @@ class MetadataMutable(BaseModel):
     imageEnhancements: Optional[Dict[str, Any]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
-    datasetInfo: Optional[Dict[str, Any]]
+    datasetInfo: Optional[types.DatasetInfo]
     fps: Optional[float]
 
     @staticmethod
@@ -326,6 +326,7 @@ class CocoMetadata(BaseModel):
     keypoint_categories: Dict[int, dict]
     images: Dict[int, dict]
     videos: Dict[int, dict]
+    datasetInfo: types.DatasetInfo = {}
 
 
 class BrandData(BaseModel):

@@ -20,8 +20,11 @@ import {
   groupParentFolderByCamera,
   isValidCameraName,
   organizeSubfolderCameras,
+  parentFolderLabelFromAbsolutePaths,
   pickDefaultMulticamCamera,
+  subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import {
@@ -51,8 +54,10 @@ export function useImportMultiCamDialog(
     openFromDisk,
     getLastCalibration,
     saveCalibration,
+    stashCalibrationFile,
     listParentFolderCameras,
     resolveMulticamCameraSourcePath,
+    findParentFolderCalibrationFile,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
   const folderList: Ref<Record<string, { sourcePath: string; trackFile: string }>> = ref({});
@@ -102,6 +107,7 @@ export function useImportMultiCamDialog(
     parentFolderName.value = '';
     subfolderLayoutLabel.value = '';
     datasetName.value = '';
+    calibrationFile.value = '';
     subfolderOriginalNames.value = {};
     cameraOrder.value = [];
     defaultDisplay.value = props.stereo ? 'left' : 'center';
@@ -110,12 +116,15 @@ export function useImportMultiCamDialog(
         left: { sourcePath: '', trackFile: '' },
         right: { sourcePath: '', trackFile: '' },
       };
+    } else {
+      folderList.value = {};
+    }
+    if (props.stereo && importType.value === 'keyword') {
       globList.value = {
         left: { glob: '', trackFile: '' },
         right: { glob: '', trackFile: '' },
       };
     } else {
-      folderList.value = {};
       globList.value = {};
     }
 
@@ -131,11 +140,15 @@ export function useImportMultiCamDialog(
       }
     } else if (importType.value === 'keyword') {
       pendingImportPayloads.value = { keyword: null };
+      if (props.stereo) {
+        cameraOrder.value = ['left', 'right'];
+        defaultDisplay.value = 'left';
+      }
     }
   };
   clearCameraSet();
 
-  if (props.dataType === VideoType) {
+  if (props.dataType === VideoType && !props.enableSubfolderImport) {
     importType.value = 'multi';
   }
 
@@ -289,6 +302,12 @@ export function useImportMultiCamDialog(
         datasetName.value = parentFolderName.value;
       }
 
+      await discoverParentFolderCalibration(
+        parentPath,
+        ret.fileList,
+        ret.root || parentPath,
+      );
+
       let { assignments } = organized;
       if (useDesktopDiscovery) {
         if (desktopCameras?.length) {
@@ -330,7 +349,15 @@ export function useImportMultiCamDialog(
         if (grouped && !files.length) {
           throw new Error(`Camera "${organized.assignments[i].folderName}" has no media files`);
         }
-        Vue.set(subfolderOriginalNames.value, cameraName, organized.assignments[i].folderName);
+        Vue.set(
+          subfolderOriginalNames.value,
+          cameraName,
+          subfolderSourceDisplayLabel(
+            sourcePath,
+            organized.assignments[i].folderName,
+            files,
+          ),
+        );
         Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
         const mediaPayload = await props.importMedia(sourcePath);
@@ -385,6 +412,41 @@ export function useImportMultiCamDialog(
     syncDefaultDisplay();
   }
 
+  async function updateSubfolderCameraSource(
+    cameraKey: string,
+    sourcePath: string,
+    displayRoot?: string,
+    files: File[] = [],
+  ) {
+    const mediaType = props.dataType === VideoType ? 'video' : 'image-sequence';
+    let resolvedPath = sourcePath;
+    if (resolveMulticamCameraSourcePath) {
+      resolvedPath = await resolveMulticamCameraSourcePath(sourcePath, mediaType);
+    }
+    const oldSourcePath = folderList.value[cameraKey]?.sourcePath;
+    if (oldSourcePath && props.unregisterSubfolderCamera) {
+      props.unregisterSubfolderCamera(oldSourcePath);
+    }
+    const displayName = props.dataType === VideoType
+      ? subfolderSourceDisplayLabel(resolvedPath, cameraKey, files)
+      : ((displayRoot || sourcePath).split(/[/\\]/).pop() || cameraKey);
+    Vue.set(subfolderOriginalNames.value, cameraKey, displayName);
+    folderList.value[cameraKey].sourcePath = resolvedPath;
+    folderList.value[cameraKey].trackFile = '';
+    if (props.registerSubfolderCameras && files.length) {
+      props.registerSubfolderCameras([{
+        cameraName: cameraKey,
+        sourcePath: resolvedPath,
+        files,
+      }]);
+    }
+    Vue.set(
+      pendingImportPayloads.value,
+      cameraKey,
+      await props.importMedia(resolvedPath),
+    );
+  }
+
   async function openAnnotationFile(folder: string) {
     const ret = await openFromDisk('annotation');
     if (!ret.canceled) {
@@ -395,8 +457,12 @@ export function useImportMultiCamDialog(
     }
   }
 
-  async function open(dstype: DatasetType | 'calibration' | 'text', folder: string | 'calibration') {
-    const ret = await openFromDisk(dstype, dstype === 'image-sequence');
+  async function open(
+    dstype: DatasetType | 'calibration' | 'text',
+    folder: string | 'calibration',
+    directory = false,
+  ) {
+    const ret = await openFromDisk(dstype, directory || dstype === 'image-sequence');
     if (!ret.canceled) {
       const path = ret.filePaths[0];
       if (folder === 'calibration') {
@@ -417,6 +483,15 @@ export function useImportMultiCamDialog(
           folder,
           await importRequest(() => props.importMedia(sourcePath)),
         );
+        syncSuggestedDatasetNameFromCameraPaths();
+      } else if (importType.value === 'subfolders') {
+        const sourcePath = ret.root || path;
+        await importRequest(() => updateSubfolderCameraSource(
+          folder,
+          sourcePath,
+          ret.root,
+          ret.fileList ?? [],
+        ));
       } else if (importType.value === 'keyword') {
         [keywordFolder.value] = ret.filePaths;
         if (ret.root) {
@@ -499,6 +574,62 @@ export function useImportMultiCamDialog(
     (val: string) => (val || '').trim().length > 0 || 'Dataset name is required',
   ];
 
+  function syncSuggestedDatasetNameFromCameraPaths() {
+    if (!listParentFolderCameras || importType.value !== 'multi') {
+      return;
+    }
+    const paths = Object.values(folderList.value)
+      .map((entry) => entry.sourcePath)
+      .filter((path) => path);
+    const label = parentFolderLabelFromAbsolutePaths(paths);
+    if (label && !datasetName.value.trim()) {
+      datasetName.value = label;
+    }
+  }
+
+  function clearCalibration() {
+    calibrationFile.value = '';
+  }
+
+  function subfolderSourceDisplayLabel(
+    sourcePath: string,
+    folderName: string,
+    files: File[] = [],
+  ): string {
+    if (props.dataType === VideoType) {
+      return subfolderVideoDisplayLabel(sourcePath, folderName, files);
+    }
+    return folderName;
+  }
+
+  async function discoverParentFolderCalibration(
+    parentPath: string,
+    fileList?: File[],
+    root?: string,
+  ) {
+    if (!props.stereo) {
+      return;
+    }
+    let discoveredPath: string | null = null;
+    let discoveredFile: File | undefined;
+    if (fileList?.length) {
+      const found = findStereoCalibrationInFileList(fileList, root || parentPath, commonPathPrefix);
+      if (found) {
+        discoveredPath = found.path;
+        discoveredFile = found.file;
+      }
+    } else if (findParentFolderCalibrationFile) {
+      discoveredPath = await findParentFolderCalibrationFile(parentPath);
+    }
+    if (!discoveredPath) {
+      return;
+    }
+    calibrationFile.value = discoveredPath;
+    if (discoveredFile && stashCalibrationFile) {
+      stashCalibrationFile(discoveredPath, discoveredFile);
+    }
+  }
+
   return {
     importType,
     folderList,
@@ -530,5 +661,6 @@ export function useImportMultiCamDialog(
     deleteSet,
     onRenameCamera,
     openAnnotationFile,
+    clearCalibration,
   };
 }

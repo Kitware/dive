@@ -220,6 +220,21 @@ export function commonPathPrefix(paths: string[]): string {
   return prefix.join('/');
 }
 
+/** Last path segment of the common parent directory across absolute filesystem paths. */
+export function parentFolderLabelFromAbsolutePaths(paths: string[]): string {
+  const normalized = paths.map((p) => p.trim()).filter(Boolean);
+  if (!normalized.length) {
+    return '';
+  }
+  const withForwardSlashes = normalized.map((p) => p.replace(/\\/g, '/'));
+  const parentPath = commonPathPrefix(withForwardSlashes);
+  if (!parentPath) {
+    return '';
+  }
+  const segments = parentPath.split('/').filter(Boolean);
+  return segments[segments.length - 1] || parentPath;
+}
+
 function stripPathPrefix(path: string, prefix: string): string {
   if (!prefix) {
     return path;
@@ -271,6 +286,23 @@ export function isVideoFileName(fileName: string): boolean {
   }
   const ext = parts.pop()?.toLowerCase() ?? '';
   return fileVideoTypes.includes(ext);
+}
+
+/** Display label for a video camera in parent-folder import (includes file extension when known). */
+export function subfolderVideoDisplayLabel(
+  sourcePath: string,
+  folderName: string,
+  files: Pick<File, 'name'>[] = [],
+): string {
+  const videoFile = files.find((file) => isVideoFileName(file.name));
+  if (videoFile) {
+    return videoFile.name;
+  }
+  const fromPath = sourcePath.split(/[/\\]/).pop() || '';
+  if (fromPath && isVideoFileName(fromPath)) {
+    return fromPath;
+  }
+  return fromPath || folderName;
 }
 
 /**

@@ -554,12 +554,17 @@ def _get_data_by_type(
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
-        converted, attributes, warnings, fps = viame.load_csv_as_tracks_and_attributes(
-            file_string.splitlines(), image_map
-        )
-        meta = None
-        if fps is not None:
-            meta = {"fps": fps}
+        (
+            converted,
+            attributes,
+            warnings,
+            fps,
+            datasetInfo,
+        ) = viame.load_csv_as_tracks_and_attributes(file_string.splitlines(), image_map)
+        meta = {
+            **({'fps': fps} if fps is not None else {}),
+            **({'datasetInfo': datasetInfo} if datasetInfo else {}),
+        }
         return {
             'annotations': converted,
             'meta': meta,
@@ -579,10 +584,15 @@ def _get_data_by_type(
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_JSON:
-        converted, attributes, coco_warnings = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        (
+            converted,
+            attributes,
+            coco_warnings,
+            datasetInfo,
+        ) = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         return {
             'annotations': converted,
-            'meta': None,
+            'meta': {"datasetInfo": datasetInfo} if datasetInfo else None,
             'attributes': attributes,
             'type': as_type,
         }, coco_warnings or warnings
@@ -603,6 +613,21 @@ def _get_data_by_type(
             'type': as_type,
         }, warnings
     return None, None
+
+
+def resolve_imported_dataset_info(existing: types.DatasetInfo, meta: dict, additive: bool) -> dict:
+    """Return ``meta`` with its ``datasetInfo`` reconciled against the dataset's ``existing`` block.
+
+    datasetInfo follows the import "Overwrite" checkbox, mirroring annotations: Overwrite
+    (``additive=False``) replaces the block; additive merges per-key with imported values
+    winning, so a re-import never clobbers station metadata the file omits. A file carrying
+    no datasetInfo leaves ``existing`` untouched in either mode. Inputs are not mutated.
+    """
+    imported = meta.get('datasetInfo')
+    if not imported:
+        return meta
+    resolved = {**existing, **imported} if additive else imported
+    return {**meta, 'datasetInfo': resolved}
 
 
 def process_items(
@@ -675,7 +700,10 @@ def process_items(
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
         if results['meta']:
-            crud_dataset.update_metadata(folder, results['meta'], False)
+            meta = resolve_imported_dataset_info(
+                fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
+            )
+            crud_dataset.update_metadata(folder, meta, False)
     return aggregate_warnings
 
 
