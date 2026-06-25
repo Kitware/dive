@@ -200,12 +200,43 @@ interface DatasetMeta extends DatasetMetaMutable {
   calibration?: Readonly<string | null>;
 }
 
+interface CameraCalibration {
+  cx: number
+  cy: number
+  fx: number
+  fy: number
+  k1: number
+  k2: number
+  k3: number
+  p1: number
+  p2: number
+  rmsError: number
+}
+
+interface DatasetStereoCalibration {
+  R: number[]
+  T: number[]
+  gridHeight: number
+  gridWidth: number
+  imageHeight: number
+  imageWidth: number
+  squareSize: number
+  rmsError: number
+  calibrations: Record<string, CameraCalibration>
+}
+
+interface DatasetCalibrationResult {
+  calibration: DatasetStereoCalibration
+  itemId?: string;
+  path?: string;
+}
+
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
-  getDatasetCalibration(datasetId: string): Promise<unknown>;
+  getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
@@ -293,6 +324,9 @@ export {
   DatasetMetaMutableKeys,
   DatasetType,
   DiveParam,
+  CameraCalibration,
+  DatasetStereoCalibration,
+  DatasetCalibrationResult,
   SubType,
   PipelineParamType,
   FrameImage,

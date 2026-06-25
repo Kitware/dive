@@ -9,6 +9,7 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.models.file import File
 from girder.utility import ziputil
 from pydantic.main import BaseModel
 
@@ -1138,3 +1139,78 @@ def validate_files(files: List[str]):
         "media": images + videos + large_images,
         "annotations": csvs + ymls + jsons,
     }
+
+
+def get_calibration(
+    user: types.GirderUserModel,
+    folder: types.GirderModel,
+) -> types.DatasetCalibrationResult | None:
+    folder_id_str = str(folder["_id"])
+    dataset_type = fromMeta(folder, "type", required=True)
+
+    if dataset_type != constants.MultiType:
+        raise RestException('Cannot search for calibration file on non stereo/multicam datasets', code=400)
+    
+    calibration_item_id = find_calibration_item_id(folder_id_str)
+    if calibration_item_id is None:
+        return None
+
+    calibration_item = Item().load(calibration_item_id, level=AccessType.READ, user=user)
+
+    files = Item().childFiles(calibration_item)
+    for file in files:
+        file_name = file['name']
+        file_name.endswith('.json')
+
+        if file_name.endswith('.json'):
+            with File().open(file) as fh:
+                chunks = []
+                while True:
+                    chunk = fh.read(4096)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+
+            data = json.loads(b"".join(chunks).decode("utf-8"))
+
+            calib_left = types.CameraCalibration(
+                cx=data['cx_left'],
+                cy=data['cy_left'],
+                fx=data['fx_left'],
+                fy=data['fy_left'],
+                k1=data['k1_left'],
+                k2=data['k2_left'],
+                k3=data['k3_left'],
+                p1=data['p1_left'],
+                p2=data['p2_left'],
+                rmsError=data['rms_error_left'],
+            )
+
+            calib_right = types.CameraCalibration(
+                cx=data['cx_right'],
+                cy=data['cy_right'],
+                fx=data['fx_right'],
+                fy=data['fy_right'],
+                k1=data['k1_right'],
+                k2=data['k2_right'],
+                k3=data['k3_right'],
+                p1=data['p1_right'],
+                p2=data['p2_right'],
+                rmsError=data['rms_error_right'],
+            )
+
+            dataset_calibration = types.DatasetStereoCalibration(
+                R=data['R'],
+                T=data['T'],
+                gridHeight=data['grid_height'],
+                gridWidth=data['grid_width'],
+                imageHeight=data['image_height'],
+                imageWidth=data['image_width'],
+                squareSize=data['square_size_mm'],
+                rmsError=data['rms_error_stereo'],
+                calibrations={'left': calib_left, 'right': calib_right},
+            )
+
+            return types.DatasetCalibrationResult(calibration=dataset_calibration, itemId=calibration_item['_id'])
+
+    raise RestException('Calibration file not supported', code=400)

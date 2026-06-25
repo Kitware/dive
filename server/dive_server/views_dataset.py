@@ -37,6 +37,7 @@ class DatasetResource(Resource):
         self.route("POST", ("multicam",), self.create_multicam)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
+        self.route("GET", ("calibration",), self.get_dataset_calibration)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
@@ -200,6 +201,26 @@ class DatasetResource(Resource):
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
+    
+    @access.user
+    @autoDescribeRoute(
+        Description("Get calibration information of dataset")
+        .modelParam(
+            "folderId",
+            description="Folder id of a video clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def get_dataset_calibration(
+        self,
+        folder,
+    ):
+        return crud_dataset.get_calibration(
+            self.getCurrentUser(), folder
+        )
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @rawResponse
