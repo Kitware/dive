@@ -284,6 +284,8 @@ export interface SegmentationPredictRequest {
   maskInput?: number[][];
   /** Whether to return multiple mask options */
   multimaskOutput?: boolean;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
 }
 
 export interface SegmentationPredictResponse {

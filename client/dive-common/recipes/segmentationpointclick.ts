@@ -50,6 +50,8 @@ export interface SegmentationRecipeOptions {
   predictFn: (request: SegmentationPredictRequest, frameNum: number) => Promise<SegmentationPredictResponse>;
   /** Function to get image path for current frame (used by desktop platform) */
   getImagePath: (frameNum: number) => string;
+  /** Optional function to get the time in seconds for a given frame (for video seek) */
+  getFrameTime?: (frameNum: number) => number | undefined;
   /**
    * Optional function to initialize the segmentation service.
    * Called when the recipe is activated (user clicks Segment button).
@@ -113,6 +115,9 @@ export default class SegmentationPointClick implements Recipe {
   /** Function to get image path for current frame */
   private getImagePath: ((frameNum: number) => string) | null = null;
 
+  /** Function to get the time in seconds for a given frame (for video seek) */
+  private getFrameTime: ((frameNum: number) => number | undefined) | null = null;
+
   /** Function to initialize the segmentation service (called on activation) */
   private initializeServiceFn: (() => Promise<void>) | null = null;
 
@@ -175,6 +180,7 @@ export default class SegmentationPointClick implements Recipe {
   initialize(options: SegmentationRecipeOptions): void {
     this.predictFn = options.predictFn;
     this.getImagePath = options.getImagePath;
+    this.getFrameTime = options.getFrameTime || null;
     this.initializeServiceFn = options.initializeServiceFn || null;
     // Reset service initialization state when re-initializing
     this.serviceInitialized = false;
@@ -329,6 +335,7 @@ export default class SegmentationPointClick implements Recipe {
         pointLabels: this.pointLabels,
         maskInput: this.lastLowResMask ?? undefined,
         multimaskOutput: this.points.length === 1, // Use multimask for single point
+        frameTime: this.getFrameTime ? this.getFrameTime(frameNum) : undefined,
       };
 
       const response = await this.predictFn(request, frameNum);
