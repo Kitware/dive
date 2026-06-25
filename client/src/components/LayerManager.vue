@@ -208,6 +208,16 @@ export default defineComponent({
     };
     uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
+    // True when the selected track is a brand-new detection with no geometry yet
+    // on this frame (the user is mid-creation). Used to mirror the creation cursor
+    // onto non-selected cameras so a new detection can be drawn on any camera.
+    function isCreatingNewDetection(frame: number, trackId: AnnotationId | null): boolean {
+      if (trackId === null) return false;
+      const t = cameraStore.getPossibleTrack(trackId, selectedCamera.value);
+      if (!t) return false;
+      return t.getFeature(frame)[0] == null;
+    }
+
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
@@ -382,6 +392,15 @@ export default defineComponent({
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
           }
+        } else if (editingTrack && props.camera !== selectedCamera.value
+          && isCreatingNewDetection(frame, selectedTrackId)) {
+          // Seamless multicam creation: keep the creation cursor live on every
+          // camera (not just the selected one) so a brand-new detection can be
+          // drawn on whichever camera the user starts on. The draw is routed to
+          // the drawn-on camera in the update:geojson handler below.
+          editAnnotationLayer.setType(editingTrack);
+          editAnnotationLayer.setKey(selectedKey);
+          editAnnotationLayer.changeData([]);
         } else {
           editAnnotationLayer.disable();
         }
@@ -485,11 +504,29 @@ export default defineComponent({
       },
     );
 
+    // Set briefly when a draw finalizes so the same click — e.g. the 2nd line
+    // vertex / rectangle corner landing on an overlapping existing detection —
+    // doesn't also select that detection. Cleared on the next macrotask, so only
+    // the click that completed the draw is suppressed.
+    let justFinalizedCreation = false;
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
+      // The click that just finalized a new detection should not also select an
+      // existing detection underneath the final vertex.
+      if (justFinalizedCreation) {
+        return;
+      }
       // Clicking a detection in a camera that isn't selected yet: switch to that
       // camera AND act on the detection in the same click — left-click selects,
       // right-click edits — instead of requiring a separate click to switch first.
       if (selectedCamera.value !== props.camera) {
+        // Mid new-detection creation, a left-click on this camera is the start of
+        // a draw (handled by the creation layer + update routing) — don't let it
+        // select an existing detection under the first corner. Right-click still
+        // switches to editing the clicked detection.
+        if (editAnnotationLayer.getMode() === 'creation' && !editing) {
+          return;
+        }
         if (trackId !== null) {
           handler.selectCamera(props.camera, false);
           // selectCamera switches synchronously in the normal path; bail if a mode
@@ -649,6 +686,17 @@ export default defineComponent({
       key = '',
       cb: () => void = () => (undefined),
     ) => {
+      // Seamless multicam creation: a draw that lands on a camera that isn't the
+      // selected one must commit on THIS camera. Switch to it and start a fresh
+      // detection here (the empty origin track is auto-cleaned on camera switch)
+      // so the geometry is applied to the camera the user actually drew on.
+      if (props.camera !== selectedCamera.value
+        && isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
+        handler.selectCamera(props.camera, false);
+        if (selectedCamera.value === props.camera) {
+          handler.trackAdd();
+        }
+      }
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         // Extract rotation from properties if it exists
@@ -662,6 +710,9 @@ export default defineComponent({
       }
       // Jump into edit mode if we completed a new shape
       if (geometryCompleteEvent) {
+        // Suppress the select that rides along with this same finalizing click.
+        justFinalizedCreation = true;
+        window.setTimeout(() => { justFinalizedCreation = false; }, 0);
         updateLayers(
           frameNumberRef.value,
           editingModeRef.value,

@@ -744,10 +744,30 @@ export default defineComponent({
       }
       emit('change-camera', camera);
     };
+    // While drawing a brand-new detection (selected track has no geometry yet on
+    // this frame), the user may start the draw on any camera. Detect that so the
+    // camera-view mousedown doesn't steal the draw — preventDefault would kill a
+    // rectangle's mousedown-drag. The draw is routed to the drawn-on camera in
+    // LayerManager's update:geojson handler instead.
+    const isCreatingNewDetection = (): boolean => {
+      if (selectedTrackId.value === null || !editingTrack.value) {
+        return false;
+      }
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      if (!track) {
+        return false;
+      }
+      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
       if (selectedCamera.value === camera) {
+        return;
+      }
+      // Don't intercept clicks mid-creation; let the draw land on this camera.
+      // The draw is routed to the drawn-on camera in LayerManager's update handler.
+      if (isCreatingNewDetection()) {
         return;
       }
       if (event) {
