@@ -602,6 +602,32 @@ export default defineComponent({
     // Track last stereo frame to avoid redundant set_frame calls
     let lastStereoFrame = -1;
 
+    // Push the stereo frame (left/right paths + frame time) to the backend and
+    // wait for it to land. Returns whether images/disparity are ready, so callers
+    // that need a correspondence (line/point transfer) can guarantee readiness
+    // instead of racing the proactive watcher. Updates lastStereoFrame on success.
+    async function ensureStereoFrame(frameNum: number | undefined): Promise<boolean> {
+      if (frameNum === undefined || !stereoEnabled.value) return false;
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length < 2) return false;
+      const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
+      const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
+      if (!leftPath || !rightPath) return false;
+      const fps0 = stereoCameraFps.value[cameras[0]]
+        || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      const ft = fps0 ? frameNum / fps0 : undefined;
+      try {
+        const r = await stereoSetFrame({
+          leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft,
+        });
+        if (r.success) lastStereoFrame = frameNum;
+        return r.success;
+      } catch (err) {
+        console.warn('[Stereo] Failed to set frame:', err);
+        return false;
+      }
+    }
+
     // Watch stereo toggle (immediate so a remembered setting enables on load)
     watch(() => clientSettings.stereoSettings.interactiveModeEnabled, async (enabled) => {
       if (enabled) {
@@ -627,30 +653,9 @@ export default defineComponent({
           stereoLoadingDialog.value = false;
 
           // Kick off disparity computation for the current frame. A failure here
-          // must NOT tear down the already-enabled service -- it can be retried on
-          // the next frame change -- so swallow it with a warning of its own.
-          try {
-            const viewer = viewerRef.value;
-            const frameNum = viewer?.aggregateController?.frame?.value;
-            if (frameNum !== undefined) {
-              const cameras = Object.keys(stereoImagePathGetters.value);
-              if (cameras.length >= 2) {
-                const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
-                const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
-                if (leftPath && rightPath) {
-                  lastStereoFrame = frameNum;
-                  const fps0 = stereoCameraFps.value[cameras[0]]
-                    || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
-                  const ft = fps0 ? frameNum / fps0 : undefined;
-                  stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
-                    console.warn('[Stereo] Failed to set initial frame:', err);
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            console.warn('[Stereo] Failed to kick off initial disparity:', err);
-          }
+          // must NOT tear down the already-enabled service -- the line/point draw
+          // handler re-sets the frame before transferring, so it self-recovers.
+          await ensureStereoFrame(viewerRef.value?.aggregateController?.frame?.value);
         } catch (err) {
           stereoEnabled.value = false;
           clientSettings.stereoSettings.interactiveModeEnabled = false;
@@ -673,21 +678,7 @@ export default defineComponent({
     watch(() => viewerRef.value?.aggregateController?.frame?.value, (frameNum) => {
       if (frameNum === undefined || frameNum === lastStereoFrame || !stereoEnabled.value) return;
       lastStereoFrame = frameNum;
-
-      const cameras = Object.keys(stereoImagePathGetters.value);
-      if (cameras.length < 2) return;
-
-      const leftPath = stereoImagePathGetters.value[cameras[0]]?.(frameNum) || '';
-      const rightPath = stereoImagePathGetters.value[cameras[1]]?.(frameNum) || '';
-
-      if (leftPath && rightPath) {
-        const fps0 = stereoCameraFps.value[cameras[0]]
-          || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
-        const ft = fps0 ? frameNum / fps0 : undefined;
-        stereoSetFrame({ leftImagePath: leftPath, rightImagePath: rightPath, frameTime: ft }).catch((err) => {
-          console.warn('[Stereo] Failed to set frame:', err);
-        });
-      }
+      ensureStereoFrame(frameNum);
     });
 
     // Clean up disparity event listeners
@@ -1029,6 +1020,12 @@ export default defineComponent({
       stereoLoadingMessage.value = 'Computing stereo correspondence...';
       stereoLoadingError.value = '';
       stereoLoadingDialog.value = true;
+
+      // Guarantee the backend has this frame's images before transferring. The
+      // proactive watcher only fires on frame-number changes, so a draw on the
+      // frame where stereo was enabled would otherwise stall in the backend's
+      // deferred disparity wait.
+      await ensureStereoFrame(params.frameNum);
 
       try {
         if (params.type === 'line') {
