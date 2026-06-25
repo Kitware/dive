@@ -12,8 +12,8 @@ Mirrors server/dive_tasks/tasks.py (convert_video), server/dive_tasks/utils.py
 (is_frame_misaligned).
 
 Run with uv:
-  uv run samples/scripts/checkTranscodingNeeded.py /path/to/video.mp4
-  uv run samples/scripts/checkTranscodingNeeded.py --folder /path/to/videos/
+  uv run samples/scripts/checkTranscoding/checkTranscodingNeeded.py video.mp4
+  uv run samples/scripts/checkTranscoding/checkTranscodingNeeded.py --folder ./videos/
 
 Folder mode writes transcoding_requirements.json into the scanned folder.
 """

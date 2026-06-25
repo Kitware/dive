@@ -1,13 +1,14 @@
 # Local test media and outputs from samples/ scripts.
 # Scripts and README files remain tracked.
 
-# checkTranscodingNeeded.py — local video test folder
+# checkTranscoding — local video test folder
+scripts/checkTranscoding/test_videos/
 scripts/test_videos/
 
 # assetStoreImport — generated sample tree (default: ./sample)
 scripts/assetStoreImport/sample/
 
-# checkTranscodingNeeded.py folder-mode report
+# checkTranscoding folder-mode report
 transcoding_requirements.json
 
 # DIVE / script transcode outputs
