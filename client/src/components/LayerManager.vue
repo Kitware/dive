@@ -486,8 +486,21 @@ export default defineComponent({
     );
 
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
-      // If the camera isn't selected yet we ignore the click
+      // Clicking a detection in a camera that isn't selected yet: switch to that
+      // camera AND act on the detection in the same click — left-click selects,
+      // right-click edits — instead of requiring a separate click to switch first.
       if (selectedCamera.value !== props.camera) {
+        if (trackId !== null) {
+          handler.selectCamera(props.camera, false);
+          // selectCamera switches synchronously in the normal path; bail if a mode
+          // (e.g. linking) blocked the switch so we don't act on the wrong camera.
+          if (selectedCamera.value === props.camera) {
+            handler.trackSelect(trackId, false, modifiers);
+            if (editing) {
+              handler.trackEdit(trackId);
+            }
+          }
+        }
         return;
       }
       //So we only want to pass the click whjen not in creation mode or editing mode for features
