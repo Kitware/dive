@@ -1089,7 +1089,7 @@ export default function useModeManager({
    * This is called when the segmentation model returns a prediction.
    * During editing, we show the polygon preview but don't commit it yet.
    */
-  function handleSegmentationPredictionReady(result: SegmentationPredictionResult) {
+  function handleSegmentationPredictionReady(result: SegmentationPredictionResult, fromClick = false) {
     if (selectedTrackId.value === null) {
       return;
     }
@@ -1179,6 +1179,19 @@ export default function useModeManager({
           labels: result.controlPoints.labels,
         });
       }
+
+      // Continuous detection mode: each fresh click commits its own detection,
+      // then immediately start a new one so the next click segments a new track
+      // instead of refining this one. controlPoints distinguishes a real click
+      // from a preview restored on frame navigation; fromClick excludes the
+      // right-click/Enter confirm path.
+      if (fromClick && result.controlPoints
+        && trackSettings.value.newTrackSettings?.mode === 'Detection'
+        && trackSettings.value.newTrackSettings.modeSettings.Detection.continuous
+        && recipes.some((r) => r instanceof SegmentationPointClick && r.active.value)) {
+        preSegmentationFeatures.clear();
+        handleAddTrackOrDetection();
+      }
     }
   }
 
@@ -1188,6 +1201,11 @@ export default function useModeManager({
    */
   function handleSegmentationPredictionConfirmed(result: SegmentationPredictionResult) {
     handleSegmentationPredictionReady(result);
+  }
+
+  /** Click-path variant: a fresh point click that should honor continuous mode. */
+  function handleSegmentationPredictionReadyFromClick(result: SegmentationPredictionResult) {
+    handleSegmentationPredictionReady(result, true);
   }
 
   /**
@@ -1366,7 +1384,7 @@ export default function useModeManager({
   recipes.forEach((r) => {
     if (r instanceof SegmentationPointClick) {
       r.bus.$on('points-updated', handleSegmentationPointsUpdated);
-      r.bus.$on('prediction-ready', handleSegmentationPredictionReady);
+      r.bus.$on('prediction-ready', handleSegmentationPredictionReadyFromClick);
       r.bus.$on('prediction-confirmed', handleSegmentationPredictionConfirmed);
       r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
       r.bus.$on('prediction-error', handleSegmentationPredictionError);
@@ -1380,7 +1398,7 @@ export default function useModeManager({
     recipes.forEach((r) => {
       if (r instanceof SegmentationPointClick) {
         r.bus.$off('points-updated', handleSegmentationPointsUpdated);
-        r.bus.$off('prediction-ready', handleSegmentationPredictionReady);
+        r.bus.$off('prediction-ready', handleSegmentationPredictionReadyFromClick);
         r.bus.$off('prediction-confirmed', handleSegmentationPredictionConfirmed);
         r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
         r.bus.$off('prediction-error', handleSegmentationPredictionError);
