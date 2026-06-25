@@ -1259,12 +1259,15 @@ export default function useModeManager({
         });
       }
 
-      // Continuous detection mode: each fresh click commits its own detection,
-      // then immediately start a new one so the next click segments a new track
-      // instead of refining this one. controlPoints distinguishes a real click
-      // from a preview restored on frame navigation; fromClick excludes the
-      // right-click/Enter confirm path.
-      if (fromClick && result.controlPoints
+      // Continuous detection mode: each fresh foreground click commits its own
+      // detection, then immediately start a new one so the next click segments a
+      // new track instead of refining this one. controlPoints distinguishes a
+      // real click from a preview restored on frame navigation; fromClick
+      // excludes the right-click/Enter confirm path. Background (negative) clicks
+      // only make sense as refinements, so they do not spawn a new detection.
+      const { labels } = result.controlPoints ?? { labels: [] };
+      const lastPointForeground = labels.length > 0 && labels[labels.length - 1] !== 0;
+      if (fromClick && result.controlPoints && lastPointForeground
         && trackSettings.value.newTrackSettings?.mode === 'Detection'
         && trackSettings.value.newTrackSettings.modeSettings.Detection.continuous
         && recipes.some((r) => r instanceof SegmentationPointClick && r.active.value)) {
