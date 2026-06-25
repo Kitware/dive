@@ -552,6 +552,14 @@ export default defineComponent({
       'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
     ];
 
+    // Per-feature marker: a human (not the stereo warp) authored this camera's
+    // line at this frame. Once set, interactive stereo never overwrites that
+    // side's geometry again — only the user can. Kept off the Attributes panel.
+    const STEREO_USER_LINE_ATTR = 'stereo_user_line';
+    // How the length was set: 'stereo' = auto-computed from the warped lines,
+    // 'user_set' = locked by the user (auto-update leaves the length alone).
+    const STEREO_LENGTH_METHOD_ATTR = 'length_method';
+
     interface SavedStereoCameraState {
       trackExisted: boolean;
       hadFeature: boolean;
@@ -670,6 +678,19 @@ export default defineComponent({
           });
         }
       });
+      // How the length was set: lets the user lock a length to 'user_set' so the
+      // stereo auto-update stops overwriting it.
+      if (!existing.find((a) => a.name === STEREO_LENGTH_METHOD_ATTR && a.belongs === 'detection')) {
+        viewer.handler.setAttribute({
+          data: {
+            belongs: 'detection',
+            datatype: 'text',
+            name: STEREO_LENGTH_METHOD_ATTR,
+            key: `detection_${STEREO_LENGTH_METHOD_ATTR}`,
+            values: ['stereo', 'user_set'],
+          },
+        });
+      }
       // Track-level average length (mean of the per-frame lengths along the track).
       if (!existing.find((a) => a.name === 'avg_length' && a.belongs === 'track')) {
         viewer.handler.setAttribute({
@@ -738,15 +759,20 @@ export default defineComponent({
     function applyStereoMeasurement(track: any, frameNum: number, measurement: any) {
       if (!track || !measurement) return;
       const round2 = (v: number) => Math.round(v * 100) / 100;
+      const [feature] = track.getFeature(frameNum);
+      // A length the user locked (length_method === 'user_set') is never
+      // overwritten; the other measurements still track the shifting geometry.
+      const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
       const { length } = measurement;
-      if (length !== undefined && Number.isFinite(length)) {
-        const [feature] = track.getFeature(frameNum);
+      if (!lengthLocked && length !== undefined && Number.isFinite(length)) {
         if (feature && feature.keyframe) {
           // Merge fishLength without disturbing existing geometry/bounds
           track.setFeature({ frame: frameNum, fishLength: round2(length) });
+          track.setFeatureAttribute(frameNum, STEREO_LENGTH_METHOD_ATTR, 'stereo');
         }
       }
       STEREO_MEASUREMENT_ATTRS.forEach((name) => {
+        if (name === 'length' && lengthLocked) return;
         const v = measurement[name];
         if (v !== undefined && Number.isFinite(v)) {
           track.setFeatureAttribute(frameNum, name, round2(v));
@@ -864,26 +890,35 @@ export default defineComponent({
       const otherCamera = multiCamList.find((c: string) => c !== params.camera);
       if (!otherCamera) return;
 
-      // Skip transfer if the other camera already has a feature for this track+frame.
-      // This ensures the initial warp happens only once — after that, both cameras
-      // are independently editable without overwriting the user's corrections.
-      const existingTrack = cameraStore.getPossibleTrack(params.trackId, otherCamera);
-      if (existingTrack) {
-        const [feature] = existingTrack.getFeature(params.frameNum);
-        if (feature !== null) {
-          // Both cameras already have this annotation. Recompute the stereo
-          // measurement from the current (possibly edited) left+right lines
-          // instead of re-warping, preserving the user's manual corrections on
-          // both sides. Enabled whenever interactive stereo mode is on.
-          if (params.type === 'line') {
-            try {
-              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
-            } catch (err) {
-              console.warn('[Stereo] Measurement update failed:', err);
-            }
+      const otherTrack = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+      const [otherFeature] = otherTrack ? otherTrack.getFeature(params.frameNum) : [null];
+      const otherHasFeature = otherFeature !== null;
+
+      if (params.type === 'line') {
+        // This handler only fires on human edits — the stereo warp writes geometry
+        // directly, bypassing the annotation-complete event — so the camera the
+        // user just drew/edited is now human-authored. Mark it so the opposite
+        // side's warp can never overwrite it later.
+        const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
+
+        const otherIsHuman = otherHasFeature
+          && otherFeature?.attributes?.[STEREO_USER_LINE_ATTR] === true;
+        if (otherIsHuman) {
+          // The other side was authored by the user: keep its line as-is and only
+          // refresh the measurement from the current lines on both cameras.
+          try {
+            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+          } catch (err) {
+            console.warn('[Stereo] Measurement update failed:', err);
           }
           return;
         }
+        // Otherwise (other side absent or still machine-generated) fall through and
+        // (re)warp source -> other so the auto-generated line keeps tracking edits.
+      } else if (otherHasFeature) {
+        // Box / polygon: warp only once; leave existing annotations untouched.
+        return;
       }
 
       // Show loading indicator while waiting for stereo transfer
