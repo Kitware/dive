@@ -23,6 +23,7 @@ class RpcResource(Resource):
         self.resourceName = resourceName
 
         self.route("POST", ("pipeline",), self.run_pipeline_task)
+        self.route("GET",  ("calibration",), self.get_dataset_calibration)
         self.route("POST", ("export",), self.export_pipeline_onnx)
         self.route("POST", ("train",), self.run_training)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
@@ -67,6 +68,26 @@ class RpcResource(Resource):
         worker_capabilities.require_pipeline_worker()
         return crud_rpc.run_pipeline(
             self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams
+        )
+    
+    @access.user
+    @autoDescribeRoute(
+        Description("Get calibration information of dataset")
+        .modelParam(
+            "folderId",
+            description="Folder id of a video clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def get_dataset_calibration(
+        self,
+        folder,
+    ):
+        return crud_rpc.get_calibration(
+            self.getCurrentUser(), folder
         )
 
     @access.user

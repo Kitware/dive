@@ -64,6 +64,7 @@ import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import CalibrationMenu from './CalibrationMenu.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -86,6 +87,7 @@ export default defineComponent({
     UserGuideButton,
     UserSettingsDialog,
     EditorMenu,
+    CalibrationMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
     TrackList,
@@ -1212,6 +1214,7 @@ export default defineComponent({
       showConfidenceFirst,
       showTrackAttributesFirst,
       attributes,
+      datasetId,
       /* Attribute editing for bottom panel */
       editIndividual,
       editingAttribute,
@@ -1386,17 +1389,38 @@ export default defineComponent({
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
-          class="shrink"
-          style="width: 180px;"
+          class="mx-1 shrink camera-select"
+          style="width: 180px; font-size: 0.9em"
           outlined
           hide-details
           dense
+          variant="default"
           @change="changeCamera"
         >
           <template #item="{ item }">
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+
+        <CalibrationMenu :dataset-id="datasetId" v-if="showMultiCamToolbar && multiCamList.length > 1"></CalibrationMenu>
+
+        <!-- <v-tooltip v-if="showMultiCamToolbar && multiCamList.length > 1"
+          bottom
+          :z-index="20">
+          <template #activator="{ on }">
+            <v-btn
+              color=""
+              class="calibration-icon mx-1 mode-button"
+              :class="{ 'not-calibrated': true }"
+              small
+              v-on="on"
+            >
+              <v-icon>mdi-checkerboard</v-icon>
+            </v-btn>
+          </template>
+          <span>Cameras calibration</span>
+        </v-tooltip> -->
+
         <v-divider
           vertical
           class="mx-2"
@@ -1806,4 +1830,8 @@ html {
   color: white;
 }
 
+.camera-select fieldset {
+  height: 33px;
+  margin-top: 4px;
+}
 </style>
