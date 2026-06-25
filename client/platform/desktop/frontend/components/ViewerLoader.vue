@@ -907,21 +907,40 @@ export default defineComponent({
           // Get or create the track on the other camera and set the warped line
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
-            const lineGeometry: GeoJSON.Feature[] = [{
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: response.transferredLine,
+            const [p1, p2] = response.transferredLine;
+            // Preserve the source line's key and include head/tail Point markers
+            // so the warped line is a standard, line-mode-editable annotation.
+            const lineGeometry: GeoJSON.Feature[] = [
+              {
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: response.transferredLine },
+                properties: { key: params.key },
               },
-              properties: { key: '' },
-            }];
+              {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p1[0], p1[1]] },
+                properties: { key: HeadPointKey },
+              },
+              {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [p2[0], p2[1]] },
+                properties: { key: TailPointKey },
+              },
+            ];
 
-            // Compute bounds from the transferred line
-            const xs = response.transferredLine.map((p: [number, number]) => p[0]);
-            const ys = response.transferredLine.map((p: [number, number]) => p[1]);
+            // Compute bounds from the transferred line with 10% expansion to
+            // match the expansion applied on the source camera side (headtail.ts).
+            const minX = Math.min(p1[0], p2[0]);
+            const minY = Math.min(p1[1], p2[1]);
+            const maxX = Math.max(p1[0], p2[0]);
+            const maxY = Math.max(p1[1], p2[1]);
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const padX = width * 0.10 || height * 0.10;
+            const padY = height * 0.10 || width * 0.10;
             const bounds = [
-              Math.min(...xs), Math.min(...ys),
-              Math.max(...xs), Math.max(...ys),
+              minX - padX, minY - padY,
+              maxX + padX, maxY + padY,
             ] as [number, number, number, number];
 
             track.setFeature({
