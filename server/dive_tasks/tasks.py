@@ -722,6 +722,71 @@ def train_pipeline(self: Task, params: TrainingJob):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
+def convert_calibration(self: Task, itemId: str):
+    """
+    Convert a stereoscopic calibration file (npz/yml/mat/cam/zip) stored in a Girder
+    item to the KWIVER JSON camera-rig format, uploading the JSON into the same item
+    so the viewer can display calibration parameters. No-op when the item already has
+    a .json camera-rig.
+    """
+    conf = Config()
+    conf.require_viame_install()
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    convert_tool = conf.viame_install_path / 'configs' / 'convert_cam_format.py'
+
+    with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
+        _working_directory_path = Path(_working_directory)
+        item: GirderModel = gc.getItem(itemId)
+        files = list(gc.listFile(itemId))
+
+        if any(f['name'].lower().endswith('.json') for f in files):
+            manager.write('Calibration item already has a JSON camera-rig; skipping.\n')
+            return
+
+        source_file = next(
+            (f for f in files if constants.stereoCalibrationRegex.search(f['name'])),
+            None,
+        )
+        if source_file is None:
+            manager.write('No convertible calibration file found in item; skipping.\n')
+            return
+
+        manager.updateStatus(JobStatus.FETCHING_INPUT)
+        gc.downloadItem(itemId, _working_directory_path, name=item.get('name'))
+        input_path = _working_directory_path / source_file['name']
+        output_path = input_path.with_suffix('.json')
+
+        manager.updateStatus(JobStatus.RUNNING)
+        command = [
+            f". {shlex.quote(str(conf.viame_setup_script))} &&",
+            "python",
+            shlex.quote(str(convert_tool)),
+            shlex.quote(str(input_path)),
+            shlex.quote(str(output_path)),
+        ]
+        popen_kwargs = {
+            'args': " ".join(command),
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': str(_working_directory_path),
+            'env': conf.gpu_process_env,
+        }
+        utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+        if not output_path.exists() or not output_path.stat().st_size:
+            raise RuntimeError('Calibration conversion produced no JSON output')
+
+        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        gc.uploadFileToItem(itemId, str(output_path))
+
+
+@app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_video(
     self: Task, folderId: str, itemId: str, user_id: str, user_login: str, skip_transcoding=False
 ):

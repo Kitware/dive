@@ -10,10 +10,12 @@ from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.file import File
+from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
+from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.serializers import kwcoco
 
@@ -1064,6 +1066,8 @@ def create_multicam(
             )
         Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
         calibration_item_id = str(cal_item['_id'])
+        if not cal_item['name'].lower().endswith('.json'):
+            enqueue_calibration_conversion(user, calibration_item_id, cal_item['name'])
 
     parent_folder_doc['meta'] = {
         constants.DatasetMarker: True,
@@ -1149,8 +1153,10 @@ def get_calibration(
     dataset_type = fromMeta(folder, "type", required=True)
 
     if dataset_type != constants.MultiType:
-        raise RestException('Cannot search for calibration file on non stereo/multicam datasets', code=400)
-    
+        raise RestException(
+            'Cannot search for calibration file on non stereo/multicam datasets', code=400
+        )
+
     calibration_item_id = find_calibration_item_id(folder_id_str)
     if calibration_item_id is None:
         return None
@@ -1231,6 +1237,33 @@ def get_calibration(
     )
 
 
+def enqueue_calibration_conversion(
+    user: types.GirderUserModel,
+    item_id: str,
+    item_name: str,
+) -> None:
+    """
+    Kick off a background worker job to convert a non-JSON calibration file to the
+    JSON camera-rig format (for display). The pipeline can consume the original file
+    directly, so this is best-effort and never blocks the request.
+    """
+    queue = (
+        f'{user["login"]}@private'
+        if user.get(constants.UserPrivateQueueEnabledMarker, False)
+        else 'celery'
+    )
+    token = Token().createToken(user=user, days=1)
+    tasks.convert_calibration.apply_async(
+        queue=queue,
+        kwargs=dict(
+            itemId=item_id,
+            girder_job_title=f"Converting calibration {item_name}",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="private",
+        ),
+    )
+
+
 def set_calibration(
     user: types.GirderUserModel,
     folder: types.GirderModel,
@@ -1269,5 +1302,9 @@ def set_calibration(
     multi_cam[constants.CalibrationItemIdMarker] = str(cal_item['_id'])
     folder['meta'][constants.MultiCamMarker] = multi_cam
     Folder().save(folder)
+
+    # Non-JSON formats (e.g. .npz) need conversion before parameters can be displayed.
+    if not file['name'].lower().endswith('.json'):
+        enqueue_calibration_conversion(user, str(cal_item['_id']), cal_item['name'])
 
     return {'calibrationItemId': str(cal_item['_id'])}
