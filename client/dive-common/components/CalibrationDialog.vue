@@ -3,7 +3,6 @@ import { DatasetStereoCalibration } from 'dive-common/apispec';
 import {
   defineComponent,
   PropType,
-  ref,
 } from 'vue';
 
 export default defineComponent({
@@ -63,13 +62,19 @@ export default defineComponent({
           <span>{{ fileName }}</span>
         </div>
         <div v-if="calibration" class="mb-6">
-          <div class="text-subtitle-1 font-weight-bold mb-2">General</div>
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            General
+          </div>
           <v-simple-table dense class="mb-4 elevation-1">
-            <template v-slot:default>
+            <template #default>
               <thead>
                 <tr>
-                  <th class="text-left">Parameter</th>
-                  <th class="text-left">Value</th>
+                  <th class="text-left">
+                    Parameter
+                  </th>
+                  <th class="text-left">
+                    Value
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -81,45 +86,65 @@ export default defineComponent({
             </template>
           </v-simple-table>
 
-          <div class="text-subtitle-1 font-weight-bold mb-2">Intrinsics</div>
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            Intrinsics
+          </div>
           <v-simple-table dense class="mb-4 elevation-1">
-            <template v-slot:default>
+            <template #default>
               <thead>
                 <tr>
-                  <th class="text-left">Property</th>
-                  <th v-for="(_, cameraName, __) in calibration.calibrations" class="text-left">{{ cameraName }} camera</th>
+                  <th class="text-left">
+                    Property
+                  </th>
+                  <th v-for="(_, cameraName) in calibration.calibrations" :key="cameraName" class="text-left">
+                    {{ cameraName }} camera
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td><strong>Focal (fx, fy)</strong></td>
-                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.fx }} , {{ calib.fy }}</td>
+                  <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
+                    {{ calib.fx }} , {{ calib.fy }}
+                  </td>
                 </tr>
                 <tr>
                   <td><strong>Optical center (cx, cy)</strong></td>
-                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.cx }} , {{ calib.cy }}</td>
+                  <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
+                    {{ calib.cx }} , {{ calib.cy }}
+                  </td>
                 </tr>
                 <tr>
                   <td><strong>Radial Distortion (k1, k2, k3)</strong></td>
-                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.k1 }} , {{ calib.k2 }} , {{ calib.k3 }}</td>
+                  <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
+                    {{ calib.k1 }} , {{ calib.k2 }} , {{ calib.k3 }}
+                  </td>
                 </tr>
                 <tr>
                   <td><strong>Tangential Distortion (p1, p2)</strong></td>
-                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.p1 }} , {{ calib.p2 }}</td>
+                  <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
+                    {{ calib.p1 }} , {{ calib.p2 }}
+                  </td>
                 </tr>
                 <tr>
                   <td><strong>RMS Error</strong></td>
-                  <td v-for="(calib, cameraName, index) in calibration.calibrations">{{ calib.rmsError }}</td>
+                  <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
+                    {{ calib.rmsError }}
+                  </td>
                 </tr>
               </tbody>
             </template>
           </v-simple-table>
-          
-          <div class="text-subtitle-1 font-weight-bold mb-2">Extrinsics</div>
+
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            Extrinsics
+          </div>
           <v-row>
             <v-col cols="12" md="6">
               <v-card outlined class="pa-2 text-caption font-mono">
-                <div class="font-weight-bold mb-1">Translation T (mm):</div>
+                <div class="font-weight-bold mb-1">
+                  Translation T (mm):
+                </div>
                 X: {{ calibration.T[0] }}<br>
                 Y: {{ calibration.T[1] }}<br>
                 Z: {{ calibration.T[2] }}
@@ -127,7 +152,9 @@ export default defineComponent({
             </v-col>
             <v-col cols="12" md="6">
               <v-card outlined class="pa-2 text-caption font-mono">
-                <div class="font-weight-bold mb-1">Rotation R:</div>
+                <div class="font-weight-bold mb-1">
+                  Rotation R:
+                </div>
                 [{{ calibration.R[0].toFixed(4) }}, {{ calibration.R[1].toFixed(4) }}, {{ calibration.R[2].toFixed(4) }}]<br>
                 [{{ calibration.R[3].toFixed(4) }}, {{ calibration.R[4].toFixed(4) }}, {{ calibration.R[5].toFixed(4) }}]<br>
                 [{{ calibration.R[6].toFixed(4) }}, {{ calibration.R[7].toFixed(4) }}, {{ calibration.R[8].toFixed(4) }}]
@@ -136,7 +163,9 @@ export default defineComponent({
           </v-row>
         </div>
         <div v-else>
-          <div class="text-subtitle-1 font-weight-bold mb-2">No Calibration Loaded</div>
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            No Calibration Loaded
+          </div>
           <div>
             Calibration is needed to run many stereoscopic pipelines.
             <br>
