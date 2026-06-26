@@ -1677,10 +1677,13 @@ async function setDatasetCalibration(
   datasetId: string,
   sourcePath: string,
 ): Promise<string> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  // A calibration belongs to the parent multicam dataset; the viewer may pass a
+  // per-camera child id (e.g. "<parent>/left").
+  const parentId = datasetId.split('/')[0];
+  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
   const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   if (!fullMeta.multiCam) {
-    throw new Error(`Dataset ${datasetId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
+    throw new Error(`Dataset ${parentId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
   }
   const calibrationPath = await prepareDatasetCalibration(
     settings,
@@ -1701,7 +1704,7 @@ async function exportDatasetCalibration(
   datasetId: string,
   destPath: string,
 ): Promise<string> {
-  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId);
+  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId.split('/')[0]);
   if (!calibrationPath) {
     throw new Error(`Dataset ${datasetId} has no camera/calibration file to export.`);
   }
