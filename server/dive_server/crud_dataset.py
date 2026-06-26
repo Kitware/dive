@@ -1229,3 +1229,45 @@ def get_calibration(
         itemId=str(calibration_item['_id']),
         path=fallback_name,
     )
+
+
+def set_calibration(
+    user: types.GirderUserModel,
+    folder: types.GirderModel,
+    file_id: str,
+) -> dict:
+    """
+    Mark an already-uploaded Girder file as the dataset's stereoscopic calibration.
+
+    The file must live in the dataset (multicam parent) folder root. Any previously
+    marked calibration item in that root is unmarked so the newest selection wins.
+    """
+    if fromMeta(folder, "type", required=True) != constants.MultiType:
+        raise RestException('Calibration is only supported for stereo/multicam datasets', code=400)
+
+    file = File().load(file_id, level=AccessType.READ, user=user)
+    if file is None:
+        raise RestException('Calibration file was not found', code=404)
+    if not constants.stereoCalibrationRegex.search(file['name']):
+        raise RestException(
+            'Calibration file must be .npz, .json, .cam, .yml, or .zip',
+            code=400,
+        )
+
+    cal_item = Item().load(file['itemId'], level=AccessType.WRITE, user=user)
+    if cal_item is None or str(cal_item.get('folderId')) != str(folder['_id']):
+        raise RestException('Calibration file must be stored in the dataset folder', code=400)
+
+    # Unmark any prior calibration items so find_calibration_item_id picks the new one.
+    for prior in _calibration_items_in_folder_root(str(folder['_id'])):
+        if str(prior['_id']) != str(cal_item['_id']):
+            Item().setMetadata(prior, {constants.CalibrationFileMarker: False})
+
+    Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
+
+    multi_cam = dict(folder['meta'].get(constants.MultiCamMarker, {}))
+    multi_cam[constants.CalibrationItemIdMarker] = str(cal_item['_id'])
+    folder['meta'][constants.MultiCamMarker] = multi_cam
+    Folder().save(folder)
+
+    return {'calibrationItemId': str(cal_item['_id'])}

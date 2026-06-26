@@ -38,6 +38,7 @@ class DatasetResource(Resource):
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", ("calibration",), self.get_dataset_calibration)
+        self.route("POST", (":id", "calibration"), self.set_dataset_calibration)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
@@ -221,6 +222,19 @@ class DatasetResource(Resource):
         return crud_dataset.get_calibration(
             self.getCurrentUser(), folder
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Set the stereoscopic calibration file for a dataset")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .param(
+            "fileId",
+            "Girder file id of a calibration file already uploaded to the dataset folder",
+            required=True,
+        )
+    )
+    def set_dataset_calibration(self, folder, fileId):
+        return crud_dataset.set_calibration(self.getCurrentUser(), folder, fileId)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @rawResponse

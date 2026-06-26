@@ -1,6 +1,8 @@
 /** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
 
-import { openFromDisk } from './utils';
+import { Location } from '@girder/components/src';
+import girderRest from 'platform/web-girder/plugins/girder';
+import { openFromDisk, GirderUploadManager } from './utils';
 
 const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
 
@@ -169,4 +171,29 @@ export function saveCalibration(path: string): Promise<{ savedPath: string; upda
   const savedPath = path.split(/[/\\]/).pop() || path;
   localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, savedPath);
   return Promise.resolve({ savedPath, updatedDatasetIds: [] });
+}
+
+/**
+ * Upload a calibration file (previously chosen via openFromDiskWithRegistry, so its
+ * File is stashed under `fileName`) into the dataset's Girder folder and mark it as
+ * the dataset's stereoscopic calibration.
+ */
+export async function importCalibrationFile(
+  datasetId: string,
+  fileName: string,
+): Promise<{ calibration: string }> {
+  const file = getCalibrationFile(fileName);
+  if (!file) {
+    throw new Error(`Calibration file "${fileName}" is no longer available; please re-select it.`);
+  }
+  const manager = new GirderUploadManager(file, {
+    $rest: girderRest,
+    parent: { _id: datasetId, _modelType: 'folder' } as Location,
+  });
+  const uploaded = await manager.start() as { _id: string };
+  await girderRest.post(`dive_dataset/${datasetId}/calibration`, null, {
+    params: { fileId: uploaded._id },
+  });
+  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, file.name);
+  return { calibration: file.name };
 }
