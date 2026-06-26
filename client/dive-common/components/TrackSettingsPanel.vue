@@ -38,7 +38,8 @@ export default defineComponent({
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
-      stereoInteractiveMode: 'When enabled, annotations created on one camera are automatically warped to the other camera using stereo disparity. Line annotations also get a stereo measurement (length, midpoint, range, RMS) that is recomputed whenever the line is drawn, edited, or linked across cameras.',
+      stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
+      stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -380,10 +381,10 @@ export default defineComponent({
         >
           <v-col class="py-1">
             <v-switch
-              v-model="clientSettings.stereoSettings.interactiveModeEnabled"
+              v-model="clientSettings.stereoSettings.updateLengthsOnModify"
               class="my-0 ml-1 pt-0"
               dense
-              label="Interactive Mode"
+              label="Update lengths when modified"
               hide-details
             />
           </v-col>
@@ -405,7 +406,42 @@ export default defineComponent({
                   mdi-help
                 </v-icon>
               </template>
-              <span>{{ help.stereoInteractiveMode }}</span>
+              <span>{{ help.stereoUpdateLengths }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row
+          align="end"
+          dense
+        >
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.stereoSettings.autoComputeOtherCamera"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Auto-compute location on other camera"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoAutoCompute }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

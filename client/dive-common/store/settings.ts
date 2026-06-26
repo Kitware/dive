@@ -69,7 +69,12 @@ interface AnnotationSettings {
     delaySeconds: number;
   };
   stereoSettings: {
-    interactiveModeEnabled: boolean;
+    // Recompute length attributes when a line's vertices are modified on a
+    // detection that is linked across both cameras.
+    updateLengthsOnModify: boolean;
+    // Warp an annotation drawn on one camera to the other camera when that
+    // camera has no detection for it yet.
+    autoComputeOtherCamera: boolean;
     loading: boolean;
     loadingMessage: string;
   };
@@ -149,7 +154,8 @@ const defaultSettings: AnnotationSettings = {
     delaySeconds: 60,
   },
   stereoSettings: {
-    interactiveModeEnabled: false,
+    updateLengthsOnModify: true,
+    autoComputeOtherCamera: false,
     loading: false,
     loadingMessage: '',
   },
@@ -196,16 +202,24 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
   if (!isDesktopRuntime()) {
-    hydrated.stereoSettings.interactiveModeEnabled = false;
+    hydrated.stereoSettings.updateLengthsOnModify = false;
+    hydrated.stereoSettings.autoComputeOtherCamera = false;
   }
   return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
 
-/** Interactive stereo requires the desktop VIAME interactive service. */
+/**
+ * Interactive stereo requires the desktop VIAME interactive service. The
+ * backend service is needed whenever either stereo feature (length update or
+ * cross-camera auto-compute) is enabled.
+ */
 function isStereoInteractiveModeEnabled(): boolean {
-  return isDesktopRuntime() && clientSettings.stereoSettings.interactiveModeEnabled;
+  return isDesktopRuntime() && (
+    clientSettings.stereoSettings.updateLengthsOnModify
+    || clientSettings.stereoSettings.autoComputeOtherCamera
+  );
 }
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {

@@ -400,9 +400,25 @@ export default defineComponent({
     }
 
     // Watch stereo toggle (immediate so a remembered setting enables on load)
-    watch(() => clientSettings.stereoSettings.interactiveModeEnabled, async (enabled) => {
+    // The backend stereo service is needed whenever either stereo feature is on
+    // (length-on-modify or cross-camera auto-compute). Watch the combined state
+    // so toggling one feature while the other is already on does not restart it.
+    const stereoServiceWanted = () => clientSettings.stereoSettings.updateLengthsOnModify
+      || clientSettings.stereoSettings.autoComputeOtherCamera;
+
+    function disableStereoFeatureToggles() {
+      clientSettings.stereoSettings.updateLengthsOnModify = false;
+      clientSettings.stereoSettings.autoComputeOtherCamera = false;
+    }
+
+    watch(stereoServiceWanted, async (enabled, wasEnabled) => {
+      // wasEnabled === undefined on the initial immediate run. A failure then
+      // (e.g. a stereo dataset without calibration, with length-update on by
+      // default) degrades quietly rather than popping an error dialog or
+      // persisting the feature toggles off.
+      const userInitiated = wasEnabled !== undefined;
       if (enabled) {
-        stereoLoadingDialog.value = true;
+        stereoLoadingDialog.value = userInitiated;
         stereoLoadingMessage.value = 'Loading stereo model...';
         stereoLoadingError.value = '';
 
@@ -410,9 +426,9 @@ export default defineComponent({
           const hasStereo = await loadStereoMetadata();
           if (!hasStereo) {
             // Single-camera dataset: nothing to enable. Do NOT spin up the
-            // stereo service; just reset the toggle.
+            // stereo service. Leave the toggles untouched so the defaults still
+            // apply when a stereo dataset is opened later.
             stereoEnabled.value = false;
-            clientSettings.stereoSettings.interactiveModeEnabled = false;
             stereoLoadingDialog.value = false;
             return;
           }
@@ -429,11 +445,18 @@ export default defineComponent({
           await ensureStereoFrame(getViewerFrame());
         } catch (err) {
           stereoEnabled.value = false;
-          clientSettings.stereoSettings.interactiveModeEnabled = false;
-          stereoLoadingError.value = err instanceof Error ? err.message : String(err);
-          // Surface the failure: log it and keep the dialog open so it is visible.
           console.error('[Stereo] Failed to enable interactive stereo:', err);
-          stereoLoadingDialog.value = true;
+          if (userInitiated) {
+            // The user explicitly enabled a feature: revert the toggles and
+            // surface the failure in a dialog.
+            disableStereoFeatureToggles();
+            stereoLoadingError.value = err instanceof Error ? err.message : String(err);
+            stereoLoadingDialog.value = true;
+          } else {
+            // Load-time auto-enable failed: degrade silently and keep the
+            // toggle states so a later calibrated dataset still works.
+            stereoLoadingDialog.value = false;
+          }
         }
       } else {
         try {
@@ -838,6 +861,8 @@ export default defineComponent({
      */
     async function handleStereoTrackLinked(trackId: number) {
       if (!stereoEnabled.value) return;
+      // Linking a pair across cameras only (re)computes their stereo lengths.
+      if (!clientSettings.stereoSettings.updateLengthsOnModify) return;
       const viewer = viewerRef.value;
       if (!viewer) return;
       const { cameraStore, multiCamList } = viewer;
@@ -894,6 +919,14 @@ export default defineComponent({
       const [otherFeature] = otherTrack ? otherTrack.getFeature(params.frameNum) : [null];
       const otherHasFeature = otherFeature !== null;
 
+      // Two independent stereo behaviors gate this handler:
+      //  - updateLengths: recompute the stereo measurement when both cameras
+      //    already have the detection and a line is modified.
+      //  - autoCompute: warp the annotation to the other camera when it has no
+      //    detection for it yet (or its line is still machine-generated).
+      const updateLengths = clientSettings.stereoSettings.updateLengthsOnModify;
+      const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+
       if (params.type === 'line') {
         // This handler only fires on human edits — the stereo warp writes geometry
         // directly, bypassing the annotation-complete event — so the camera the
@@ -904,20 +937,27 @@ export default defineComponent({
 
         const otherIsHuman = otherHasFeature
           && otherFeature?.attributes?.[STEREO_USER_LINE_ATTR] === true;
-        if (otherIsHuman) {
-          // The other side was authored by the user: keep its line as-is and only
-          // refresh the measurement from the current lines on both cameras.
-          try {
-            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
-          } catch (err) {
-            console.warn('[Stereo] Measurement update failed:', err);
+        if (otherIsHuman || !autoCompute) {
+          // Keep the other side's geometry as-is — either it was authored by the
+          // user (never overwrite it) or cross-camera auto-compute is disabled.
+          // If both cameras now have a line, just refresh the measurement.
+          if (updateLengths && otherHasFeature) {
+            try {
+              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            } catch (err) {
+              console.warn('[Stereo] Measurement update failed:', err);
+            }
           }
           return;
         }
-        // Otherwise (other side absent or still machine-generated) fall through and
-        // (re)warp source -> other so the auto-generated line keeps tracking edits.
+        // Otherwise (auto-compute on, other side absent or still machine-generated)
+        // fall through and (re)warp source -> other so the auto-generated line
+        // keeps tracking edits.
       } else if (otherHasFeature) {
-        // Box / polygon: warp only once; leave existing annotations untouched.
+        // Box / polygon / segmentation: warp only once; leave existing untouched.
+        return;
+      } else if (!autoCompute) {
+        // Creating geometry on the other camera is gated by auto-compute.
         return;
       }
 
@@ -1004,7 +1044,8 @@ export default defineComponent({
             }, lineGeometry);
 
             // Report and store the full stereo measurement on both cameras
-            if (response.measurement) {
+            // (length attributes are gated by the length-update feature).
+            if (response.measurement && updateLengths) {
               ensureMeasurementAttributes();
               const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
               applyStereoMeasurement(sourceTrack, params.frameNum, response.measurement);
@@ -1158,7 +1199,7 @@ export default defineComponent({
           if (response.generateLine) {
             if (response.lineSource) applyStereoLine(sourceTrack, params.frameNum, response.lineSource);
             if (track && response.lineOther) applyStereoLine(track, params.frameNum, response.lineOther);
-            if (response.measurement) {
+            if (response.measurement && updateLengths) {
               ensureMeasurementAttributes();
               applyStereoMeasurement(sourceTrack, params.frameNum, response.measurement);
               applyStereoMeasurement(track, params.frameNum, response.measurement);
@@ -1210,10 +1251,12 @@ export default defineComponent({
 
       preStereoSegmentationState.delete(key);
 
-      try {
-        await updateStereoTrackAverages(cameraStore, params.trackId);
-      } catch (err) {
-        console.warn('[Stereo] Failed to update track averages after reset:', err);
+      if (clientSettings.stereoSettings.updateLengthsOnModify) {
+        try {
+          await updateStereoTrackAverages(cameraStore, params.trackId);
+        } catch (err) {
+          console.warn('[Stereo] Failed to update track averages after reset:', err);
+        }
       }
     }
 
