@@ -54,8 +54,8 @@ dependencies = [
   "urllib3<2.8",
   "bitarray>=2.9.2",
   "simplejpeg>=1.7.2",
-  "large-image==1.34.2a180",
-  "girder-large-image==1.34.2a180",
+  "large-image==1.34.3a186",
+  "girder-large-image==1.34.3a186",
   "cherrypy>=18.9.0",
   "numpy==1.24.4",
 ]

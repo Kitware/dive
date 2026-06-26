@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10, <3.12"
 resolution-markers = [
     "python_full_version >= '3.11' and sys_platform == 'darwin'",
@@ -542,12 +542,12 @@ requires-dist = [
     { name = "girder", specifier = "==5.0.10" },
     { name = "girder-client", specifier = "==5.0.10" },
     { name = "girder-jobs", specifier = "==5.0.10" },
-    { name = "girder-large-image", specifier = "==1.34.2a180" },
+    { name = "girder-large-image", specifier = "==1.34.3a186" },
     { name = "girder-plugin-worker", specifier = "==5.0.10" },
     { name = "girder-worker", specifier = "==5.0.10" },
     { name = "girder-worker-utils", specifier = ">=0.9.0,<1" },
     { name = "gputil", specifier = ">=1.4.0" },
-    { name = "large-image", specifier = "==1.34.2a180" },
+    { name = "large-image", specifier = "==1.34.3a186" },
     { name = "large-image", marker = "extra == 'large-image'" },
     { name = "large-image-converter", marker = "extra == 'large-image'" },
     { name = "large-image-source-gdal", marker = "extra == 'large-image'" },
@@ -723,7 +723,7 @@ wheels = [
 
 [[package]]
 name = "girder-large-image"
-version = "1.34.2a180"
+version = "1.34.3a186"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "girder" },
@@ -731,7 +731,7 @@ dependencies = [
     { name = "large-image" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/07/354e28edf82a69b23d4f4c67f62e5e827b135967ea227b2e8c97e375b07d/girder_large_image-1.34.2a180-py3-none-any.whl", hash = "sha256:27a3c54d7bf60dc2452836abdd4dad86d40004bb8191eefb53d68108dc07d674", size = 3924526, upload-time = "2026-04-22T15:48:35.585Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/19/7f9ba692e6df0e5623fd1f142021c82d3c54a3b59b20eef148e1710b304e/girder_large_image-1.34.3a186-py3-none-any.whl", hash = "sha256:2612bfb0e96840c446d360dd8d8c64bc8384e39bfee91885c8a85a0a4414276a", size = 4787621, upload-time = "2026-06-17T14:14:47.49Z" },
 ]
 
 [[package]]
@@ -983,7 +983,7 @@ wheels = [
 
 [[package]]
 name = "large-image"
-version = "1.34.2a180"
+version = "1.34.3a186"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachetools" },
@@ -993,7 +993,7 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/e6/c89ba5c30cbe168cc1a70be68d66fed91b6fa0ac49b31fa7d3684750b4e9/large_image-1.34.2a180-py3-none-any.whl", hash = "sha256:15a9a7c995d2a30d4d8ff1e9a3218b324eb33291000ba147189f46b1eea70a07", size = 121623, upload-time = "2026-04-22T15:48:40.015Z" },
+    { url = "https://files.pythonhosted.org/packages/92/81/9ee29050f2b3de19e86a8d30b704b424ecf8c97f7610134313f6d7c0dc88/large_image-1.34.3a186-py3-none-any.whl", hash = "sha256:4423a8b5246509b598b97d9efde874380b2c8e4497c5d26970193653852999d5", size = 121733, upload-time = "2026-06-17T14:14:51.634Z" },
 ]
 
 [[package]]
