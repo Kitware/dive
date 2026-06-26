@@ -217,12 +217,12 @@ export default defineComponent({
         outlined
       >
         <v-card-title>
-          Import Formats
+          Import Annotations
         </v-card-title>
         <v-card-text>
           Multiple Data types can be imported:
           <ul>
-            <li> Viame CSV Files </li>
+            <li> VIAME CSV Files </li>
             <li> DIVE Annotation JSON </li>
             <li> DIVE Configuration JSON</li>
             <li> COCO / KWCOCO JSON files </li>
@@ -297,11 +297,11 @@ export default defineComponent({
         <template v-if="cameraFileSupported">
           <v-divider />
           <v-card-title class="pt-3">
-            Camera File
+            Import Camera File
           </v-card-title>
           <v-card-text class="pb-0">
             <div v-if="currentCalibrationName">
-              Loaded: <strong>{{ currentCalibrationName }}</strong>
+              A camera file is loaded.
             </div>
             <div
               v-else
@@ -310,32 +310,26 @@ export default defineComponent({
               No camera file loaded.
             </div>
             <div class="caption pt-1">
-              Import any VIAME-supported stereo calibration; it is converted to the
-              JSON camera format and stored with the dataset.
+              Import any VIAME-supported stereo calibration; it is stored with the dataset.
             </div>
           </v-card-text>
           <v-container>
             <v-col>
               <v-row>
-                <v-checkbox
-                  v-model="resetLengths"
-                  class="mt-0"
-                  hide-details
-                  dense
-                  label="Reset all length measurements"
-                  hint="Deletes existing length values from all tracks and detections."
-                  persistent-hint
-                />
-              </v-row>
-              <v-row class="mt-3">
                 <v-btn
                   depressed
                   block
                   :disabled="!datasetId || processing"
                   @click="openCalibrationUpload"
                 >
-                  Import Camera File
+                  Import
                 </v-btn>
+              </v-row>
+              <v-row>
+                <v-checkbox
+                  v-model="resetLengths"
+                  label="Reset length measurements"
+                />
               </v-row>
             </v-col>
           </v-container>
