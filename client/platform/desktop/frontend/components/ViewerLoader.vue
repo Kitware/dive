@@ -15,7 +15,7 @@ import type {
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
-import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
 import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
@@ -541,7 +541,7 @@ export default defineComponent({
       });
       const lineGeometry: GeoJSON.Feature[] = [
         ...preserved,
-        { type: 'Feature', geometry: { type: 'LineString', coordinates: line }, properties: { key: '' } },
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: line }, properties: { key: HeadTailLineKey } },
         { type: 'Feature', geometry: { type: 'Point', coordinates: [p1[0], p1[1]] }, properties: { key: HeadPointKey } },
         { type: 'Feature', geometry: { type: 'Point', coordinates: [p2[0], p2[1]] }, properties: { key: TailPointKey } },
       ];
