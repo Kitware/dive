@@ -1,7 +1,6 @@
 /** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
 
 import { Location } from '@girder/components/src';
-import girderRest from 'platform/web-girder/plugins/girder';
 import { openFromDisk, GirderUploadManager } from './utils';
 
 const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
@@ -186,6 +185,9 @@ export async function importCalibrationFile(
   if (!file) {
     throw new Error(`Calibration file "${fileName}" is no longer available; please re-select it.`);
   }
+  // Import the Girder REST client lazily: its module touches `window` at load time,
+  // so a top-level import breaks node-environment unit tests that import this module.
+  const { default: girderRest } = await import('platform/web-girder/plugins/girder');
   const manager = new GirderUploadManager(file, {
     $rest: girderRest,
     parent: { _id: datasetId, _modelType: 'folder' } as Location,
