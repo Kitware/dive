@@ -1211,6 +1211,10 @@ def get_calibration(
                 calibrations={'left': calib_left, 'right': calib_right},
             )
 
-            return types.DatasetCalibrationResult(calibration=dataset_calibration, itemId=calibration_item['_id'])
+            return types.DatasetCalibrationResult(
+                calibration=dataset_calibration,
+                itemId=calibration_item['_id'],
+                path=file_name,
+            )
 
     raise RestException('Calibration file not supported', code=400)

@@ -226,8 +226,11 @@ interface DatasetStereoCalibration {
 }
 
 interface DatasetCalibrationResult {
-  calibration: DatasetStereoCalibration
+  /** Parsed calibration parameters. May be absent when a calibration file is
+   * present but could not be parsed (e.g. an unconverted non-JSON format). */
+  calibration?: DatasetStereoCalibration
   itemId?: string;
+  /** Name of the calibration file currently associated with the dataset. */
   path?: string;
 }
 
@@ -236,7 +239,7 @@ interface Api {
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
-  getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult>;
+  getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
@@ -295,6 +298,10 @@ interface Api {
   importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
   /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
   exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
+  /** Download/export the dataset's current calibration file (platform-specific). */
+  downloadCalibration?(datasetId: string): Promise<void>;
+  /** Remove the calibration file currently associated with the dataset. */
+  deleteCalibration?(datasetId: string): Promise<void>;
 }
 const ApiSymbol = Symbol('api');
 

@@ -29,6 +29,8 @@ import {
   getTiles,
   getTileURL,
   hasCalibrationFile,
+  downloadCalibration,
+  deleteCalibration,
 } from './api';
 import {
   getLastCalibration,
@@ -59,6 +61,8 @@ export default defineComponent({
       runPipeline: unwrap(runPipeline),
       exportTrainedPipeline: unwrap(exportTrainedPipeline),
       getDatasetCalibration: unwrap(getDatasetCalibration),
+      downloadCalibration,
+      deleteCalibration,
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,

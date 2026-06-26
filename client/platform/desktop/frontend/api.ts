@@ -4,6 +4,7 @@ import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
+  DatasetCalibrationResult,
 } from 'dive-common/apispec';
 
 import {
@@ -366,6 +367,26 @@ function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ e
   return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
 }
 
+function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
+  return window.diveDesktop.invoke('get-dataset-calibration', { datasetId });
+}
+
+async function downloadCalibration(datasetId: string): Promise<void> {
+  const calibration = await getDatasetCalibration(datasetId);
+  const defaultName = calibration?.path ?? `calibration_${datasetId}.json`;
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Camera File',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), defaultName),
+  });
+  if (!location.canceled && location.filePath) {
+    await exportCalibrationFile(datasetId, location.filePath);
+  }
+}
+
+function deleteCalibration(datasetId: string): Promise<void> {
+  return window.diveDesktop.invoke('delete-calibration', { datasetId });
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -406,4 +427,7 @@ export {
   saveCalibration,
   importCalibrationFile,
   exportCalibrationFile,
+  getDatasetCalibration,
+  downloadCalibration,
+  deleteCalibration,
 };

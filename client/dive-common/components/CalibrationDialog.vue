@@ -11,6 +11,9 @@ export default defineComponent({
   props: {
     value: { type: Boolean, required: true },
     calibration: { type: Object as PropType<DatasetStereoCalibration | undefined>, default: undefined },
+    fileName: { type: String as PropType<string | undefined>, default: undefined },
+    showDownload: { type: Boolean, default: true },
+    showDelete: { type: Boolean, default: true },
   },
   setup(props, { emit }) {
     const close = () => emit('input', false);
@@ -60,6 +63,10 @@ export default defineComponent({
       </v-toolbar>
 
       <v-card-text class="pa-4">
+        <div v-if="fileName" class="mb-4">
+          <span class="text-subtitle-1 font-weight-bold mr-2">File:</span>
+          <span>{{ fileName }}</span>
+        </div>
         <div v-if="calibration" class="mb-6">
           <div class="text-subtitle-1 font-weight-bold mb-2">General</div>
           <v-simple-table dense class="mb-4 elevation-1">
@@ -150,19 +157,19 @@ export default defineComponent({
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn v-if="calibration" color="red" outlined @click="deleteCalibration">
+        <v-btn v-if="fileName && showDelete" color="red" outlined @click="deleteCalibration">
           <v-icon left>
             mdi-delete-outline
           </v-icon>
           Delete
         </v-btn>
-        <v-btn color="primary" :outlined="calibration" @click="importCalibration">
+        <v-btn color="primary" :outlined="!!calibration" @click="importCalibration">
           <v-icon left>
             mdi-upload
           </v-icon>
           Import
         </v-btn>
-        <v-btn v-if="calibration" color="primary" @click="downloadCalibration">
+        <v-btn v-if="fileName && showDownload" color="primary" @click="downloadCalibration">
           <v-icon left>
             mdi-download
           </v-icon>

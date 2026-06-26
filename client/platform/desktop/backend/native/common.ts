@@ -25,6 +25,8 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
+  DatasetCalibrationResult,
+  DatasetStereoCalibration,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -1710,6 +1712,79 @@ async function exportDatasetCalibration(
   return destPath;
 }
 
+/**
+ * Parse a KWIVER/VIAME JSON camera-rig file into the shared
+ * DatasetStereoCalibration shape. Mirrors the web server parser
+ * (server/dive_server/crud_dataset.py:get_calibration).
+ */
+function parseStereoCalibrationJson(data: Record<string, number | number[]>): DatasetStereoCalibration {
+  const cameraFor = (side: 'left' | 'right') => ({
+    cx: data[`cx_${side}`] as number,
+    cy: data[`cy_${side}`] as number,
+    fx: data[`fx_${side}`] as number,
+    fy: data[`fy_${side}`] as number,
+    k1: data[`k1_${side}`] as number,
+    k2: data[`k2_${side}`] as number,
+    k3: data[`k3_${side}`] as number,
+    p1: data[`p1_${side}`] as number,
+    p2: data[`p2_${side}`] as number,
+    rmsError: data[`rms_error_${side}`] as number,
+  });
+  return {
+    R: data.R as number[],
+    T: data.T as number[],
+    gridHeight: data.grid_height as number,
+    gridWidth: data.grid_width as number,
+    imageHeight: data.image_height as number,
+    imageWidth: data.image_width as number,
+    squareSize: data.square_size_mm as number,
+    rmsError: data.rms_error_stereo as number,
+    calibrations: { left: cameraFor('left'), right: cameraFor('right') },
+  };
+}
+
+/**
+ * Read the calibration file currently associated with a dataset and return its
+ * parsed parameters (when JSON) plus the file name, for display in the viewer.
+ */
+async function getDatasetCalibration(
+  settings: Settings,
+  datasetId: string,
+): Promise<DatasetCalibrationResult | null> {
+  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId.split('/')[0]);
+  if (!calibrationPath || !(await fs.pathExists(calibrationPath))) {
+    return null;
+  }
+  const result: DatasetCalibrationResult = { path: npath.basename(calibrationPath) };
+  if (npath.extname(calibrationPath).toLowerCase() === '.json') {
+    try {
+      const data = await fs.readJSON(calibrationPath);
+      result.calibration = parseStereoCalibrationJson(data);
+    } catch (err) {
+      console.error(`Failed to parse calibration JSON for dataset ${datasetId}:`, err);
+    }
+  }
+  return result;
+}
+
+/**
+ * Remove the calibration file associated with a dataset and clear the reference
+ * in its metadata. The original (pre-conversion) file, if any, is left in place.
+ */
+async function deleteDatasetCalibration(settings: Settings, datasetId: string): Promise<void> {
+  const parentId = datasetId.split('/')[0];
+  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const calibrationPath = fullMeta.multiCam?.calibration;
+  if (calibrationPath && await fs.pathExists(calibrationPath)) {
+    await fs.remove(calibrationPath);
+  }
+  if (fullMeta.multiCam) {
+    fullMeta.multiCam.calibration = undefined;
+    await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
+  }
+}
+
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -1752,4 +1827,6 @@ export {
   getDatasetCalibrationPath,
   setDatasetCalibration,
   exportDatasetCalibration,
+  getDatasetCalibration,
+  deleteDatasetCalibration,
 };

@@ -210,6 +210,7 @@ class DatasetStereoCalibration(TypedDict):
 class DatasetCalibrationResult(TypedDict):
     calibration: DatasetStereoCalibration
     itemId: str
+    path: str
 
 
 # Attribute metadata discovered while deserializing annotations, keyed by attribute name.

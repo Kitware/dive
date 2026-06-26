@@ -2,6 +2,9 @@
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import girderRest from 'platform/web-girder/plugins/girder';
 
+import { getDatasetCalibration } from './dataset.service';
+import { deleteItem } from './girder.service';
+
 export * from './annotation.service';
 export * from './configuration.service';
 export * from './dataset.service';
@@ -31,4 +34,20 @@ export function unwrap<T extends(...args: any) => Promise<AxiosResponse<any>>>(f
 
 export function getUri(config: AxiosRequestConfig) {
   return girderRest.apiRoot.replace(/\/*$/i, '/') + girderRest.getUri(config).replace(/^\/*/, '');
+}
+
+/** Trigger a browser download of the dataset's current calibration file. */
+export async function downloadCalibration(datasetId: string): Promise<void> {
+  const { data } = await getDatasetCalibration(datasetId);
+  if (data?.itemId) {
+    window.location.assign(getUri({ url: `file/${data.itemId}/download` }));
+  }
+}
+
+/** Delete the Girder item holding the dataset's calibration file. */
+export async function deleteCalibration(datasetId: string): Promise<void> {
+  const { data } = await getDatasetCalibration(datasetId);
+  if (data?.itemId) {
+    await deleteItem(data.itemId);
+  }
 }

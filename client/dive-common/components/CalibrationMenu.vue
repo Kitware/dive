@@ -1,5 +1,6 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   ref,
 } from 'vue';
@@ -9,50 +10,49 @@ import {
   useApi,
 } from 'dive-common/apispec';
 
-import { deleteItem, deleteResources, getUri } from 'platform/web-girder/api';
-
 import CalibrationDialog from './CalibrationDialog.vue';
 
 export default defineComponent({
   name: 'CalibrationMenu',
-  props: {
-    datasetId: { type: String, required: true },
-  },
   components: {
     CalibrationDialog,
+  },
+  props: {
+    datasetId: { type: String, required: true },
   },
   setup(props) {
     const showCalibrationDialog = ref(false);
     const calibrationResult = ref<DatasetCalibrationResult>();
 
-    const { getDatasetCalibration } = useApi();
+    const {
+      getDatasetCalibration, downloadCalibration, deleteCalibration,
+    } = useApi();
 
-    getDatasetCalibration(props.datasetId).then((res) => {
-      console.log("then", res)
-      calibrationResult.value = res;
-    })
+    const refresh = () => getDatasetCalibration(props.datasetId).then((res) => {
+      calibrationResult.value = res ?? undefined;
+    });
+    refresh();
 
-    const downloadCalibration = () => {
-      const url = getUri({ url: `file/${calibrationResult.value?.itemId}/download` });
-      window.location.assign(url);
+    const calibrationFileName = computed(() => calibrationResult.value?.path);
+
+    const onDownload = () => {
+      downloadCalibration?.(props.datasetId);
     };
 
-    const deleteCalibration = () => {
-      console.log("delete");
-      console.log(calibrationResult.value);
-      if (calibrationResult.value?.itemId) {
-        deleteItem(calibrationResult.value.itemId).then(() => {
-          console.log("deleted")
-          calibrationResult.value = undefined;
-        });
-      }
+    const onDelete = () => {
+      deleteCalibration?.(props.datasetId).then(() => {
+        calibrationResult.value = undefined;
+      });
     };
 
     return {
       showCalibrationDialog,
       calibrationResult,
-      downloadCalibration,
-      deleteCalibration,
+      calibrationFileName,
+      canDownload: !!downloadCalibration,
+      canDelete: !!deleteCalibration,
+      onDownload,
+      onDelete,
     };
   },
 });
@@ -62,27 +62,37 @@ export default defineComponent({
   <div>
     <v-tooltip
       bottom
-      :z-index="20">
+      :z-index="20"
+    >
       <template #activator="{ on }">
-      <v-btn
-        color=""
-        class="calibration-icon mx-1 mode-button"
-        :class="{ 'not-calibrated': !calibrationResult }"
-        small
-        v-on="on"
-        @click="showCalibrationDialog = true"
-      >
-        <v-icon>mdi-checkerboard</v-icon>
-      </v-btn>
+        <v-btn
+          color=""
+          class="calibration-icon mx-1 mode-button"
+          :class="{ 'not-calibrated': !calibrationResult }"
+          small
+          v-on="on"
+          @click="showCalibrationDialog = true"
+        >
+          <v-icon>mdi-checkerboard</v-icon>
+        </v-btn>
       </template>
-      <span>Cameras calibration</span>
+      <span>
+        Cameras calibration
+        <template v-if="calibrationFileName">
+          <br>
+          {{ calibrationFileName }}
+        </template>
+      </span>
     </v-tooltip>
 
     <CalibrationDialog
       v-model="showCalibrationDialog"
       :calibration="calibrationResult?.calibration"
-      @download="downloadCalibration"
-      @delete="deleteCalibration"
+      :file-name="calibrationFileName"
+      :show-download="canDownload"
+      :show-delete="canDelete"
+      @download="onDownload"
+      @delete="onDelete"
     />
   </div>
 </template>

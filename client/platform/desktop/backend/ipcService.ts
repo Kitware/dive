@@ -221,6 +221,12 @@ export default function register() {
     return { exportedPath };
   });
 
+  ipcMain.handle('get-dataset-calibration', async (_, { datasetId }: { datasetId: string }) => common.getDatasetCalibration(settings.get(), datasetId));
+
+  ipcMain.handle('delete-calibration', async (_, { datasetId }: { datasetId: string }) => {
+    await common.deleteDatasetCalibration(settings.get(), datasetId);
+  });
+
   ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));
 
   ipcMain.handle('convert', async (event, args: ConversionArgs) => {
