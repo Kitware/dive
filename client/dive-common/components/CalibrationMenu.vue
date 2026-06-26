@@ -3,6 +3,7 @@ import {
   computed,
   defineComponent,
   ref,
+  watch,
 } from 'vue';
 
 import {
@@ -19,6 +20,7 @@ export default defineComponent({
   },
   props: {
     datasetId: { type: String, required: true },
+    buttonOptions: { type: Object, default: () => ({}) },
   },
   setup(props) {
     const showCalibrationDialog = ref(false);
@@ -32,8 +34,15 @@ export default defineComponent({
       calibrationResult.value = res ?? undefined;
     });
     refresh();
+    // The calibration may be imported elsewhere (the Import menu) while this
+    // component stays mounted, so re-fetch whenever the dialog is opened and
+    // when the dataset changes.
+    watch(() => showCalibrationDialog.value, (open) => { if (open) refresh(); });
+    watch(() => props.datasetId, () => refresh());
 
-    const calibrationFileName = computed(() => calibrationResult.value?.path);
+    const calibrationFileName = computed(
+      () => calibrationResult.value?.originalName ?? calibrationResult.value?.path,
+    );
 
     const onDownload = () => {
       downloadCalibration?.(props.datasetId);
@@ -66,10 +75,8 @@ export default defineComponent({
     >
       <template #activator="{ on }">
         <v-btn
-          color=""
-          class="calibration-icon mx-1 mode-button"
-          :class="{ 'not-calibrated': !calibrationResult }"
-          small
+          class="ma-0"
+          v-bind="buttonOptions"
           v-on="on"
           @click="showCalibrationDialog = true"
         >
@@ -96,22 +103,3 @@ export default defineComponent({
     />
   </div>
 </template>
-
-<style>
-.calibration-icon {
-  border-width: 1px;
-  padding: 3px;
-  font-size: 1.2em !important;
-  margin-top: -4px;
-}
-
-.not-calibrated {
-  border-color: orange !important;
-  color: orange !important;
-}
-
-.mode-button {
-  border: 1px solid grey;
-  min-width: 36px;
-}
-</style>

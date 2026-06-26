@@ -232,6 +232,9 @@ interface DatasetCalibrationResult {
   itemId?: string;
   /** Name of the calibration file currently associated with the dataset. */
   path?: string;
+  /** User's original calibration filename (may differ from `path` when the file
+   * was converted/normalized on import). */
+  originalName?: string;
 }
 
 interface Api {

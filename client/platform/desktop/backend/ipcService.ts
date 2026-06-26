@@ -202,11 +202,12 @@ export default function register() {
 
   ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
 
-  ipcMain.handle('save-calibration', async (_, { path }: { path: string }) => {
-    const savedPath = await common.saveLastCalibration(settings.get(), path);
+  ipcMain.handle('save-calibration', async (_, { path: sourcePath }: { path: string }) => {
+    const savedPath = await common.saveLastCalibration(settings.get(), sourcePath);
     const updatedIds = await common.applyCalibrationToUncalibratedStereoDatasets(
       settings.get(),
       savedPath,
+      path.basename(sourcePath),
     );
     return { savedPath, updatedDatasetIds: updatedIds };
   });

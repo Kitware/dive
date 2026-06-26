@@ -13,7 +13,9 @@ export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
 export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
-export const LastCalibrationFileName = 'last_calibration.json';
+// Basename (without extension) of the saved "most recently used" calibration.
+// The stored file keeps the source file's real extension (e.g. last_calibration.npz).
+export const LastCalibrationBaseName = 'last_calibration';
 
 export interface Settings {
   // version a schema version
@@ -50,6 +52,9 @@ export interface MultiCamDesktop {
   cameras: Record<string, Camera>;
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
+  // Name of the user's original calibration file (preserved for display, since
+  // `calibration` may point at a converted/normalized copy).
+  calibrationOriginalName?: string;
   // Default Display Key for showing multiCam
   defaultDisplay: string;
 }

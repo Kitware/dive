@@ -5,6 +5,7 @@ import {
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
+import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -32,6 +33,7 @@ export default defineComponent({
     SidebarContext,
     Viewer,
     ImportAnnotations,
+    CalibrationMenu,
     ...context.getComponents(),
   },
   props: {
@@ -172,6 +174,11 @@ export default defineComponent({
         :read-only-mode="readOnlyMode"
         :time-filter="timeFilter"
         v-bind="{ buttonOptions, menuOptions }"
+      />
+      <CalibrationMenu
+        v-if="subTypeList[0] === 'stereo'"
+        :dataset-id="modifiedId"
+        :button-options="buttonOptions"
       />
       <ImportAnnotations
         :dataset-id="modifiedId"

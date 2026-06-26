@@ -46,7 +46,7 @@ import {
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType, LastCalibrationFileName,
+  JobType, LastCalibrationBaseName,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -1421,6 +1421,7 @@ async function finalizeMediaImport(
   // Store any stereo calibration / camera file alongside the media and normalize
   // it to the VIAME JSON camera-rig format (keeping the original).
   if (jsonMeta.multiCam?.calibration) {
+    jsonMeta.multiCam.calibrationOriginalName = realCalibrationName(jsonMeta.multiCam.calibration);
     jsonMeta.multiCam.calibration = await prepareDatasetCalibration(
       settings,
       projectDirAbsPath,
@@ -1576,38 +1577,65 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
 }
 
 /**
- * Get path to last_calibration.json if it exists
- * @returns path to last calibration file or null if it doesn't exist
+ * The user's calibration filename, unless it is DIVE's internal
+ * `last_calibration.*` backup (which carries no meaningful original name).
  */
-async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
-  const calibrationPath = npath.join(settings.dataPath, LastCalibrationFileName);
-  if (await fs.pathExists(calibrationPath)) {
-    return calibrationPath;
-  }
-  return null;
+function realCalibrationName(name?: string | null): string | undefined {
+  if (!name) return undefined;
+  const base = npath.basename(name);
+  if (base.toLowerCase().startsWith(`${LastCalibrationBaseName}.`)) return undefined;
+  return base;
 }
 
 /**
- * Save a calibration file as the last used calibration
+ * Get path to the saved "last used" calibration (last_calibration.*) if it
+ * exists. The stored file keeps the source's real extension, so we match on the
+ * basename rather than a fixed filename.
+ * @returns path to last calibration file or null if it doesn't exist
+ */
+async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
+  if (!(await fs.pathExists(settings.dataPath))) return null;
+  const entries = await fs.readdir(settings.dataPath);
+  const match = entries.find(
+    (f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName,
+  );
+  return match ? npath.join(settings.dataPath, match) : null;
+}
+
+/**
+ * Save a calibration file as the last used calibration, preserving the source
+ * file's extension (e.g. last_calibration.npz) so its real format is retained.
  * @param settings app settings
  * @param sourcePath path to the source calibration file
  * @returns path to the saved calibration file
  */
 async function saveLastCalibration(settings: Settings, sourcePath: string): Promise<string> {
-  const destPath = npath.join(settings.dataPath, LastCalibrationFileName);
+  const ext = npath.extname(sourcePath) || '.json';
+  // Remove any prior backup with a different extension to avoid stale duplicates.
+  if (await fs.pathExists(settings.dataPath)) {
+    const entries = await fs.readdir(settings.dataPath);
+    await Promise.all(entries
+      .filter((f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName)
+      .map((f) => fs.remove(npath.join(settings.dataPath, f))));
+  }
+  const destPath = npath.join(settings.dataPath, `${LastCalibrationBaseName}${ext}`);
   await fs.copy(sourcePath, destPath, { overwrite: true });
   return destPath;
 }
 
 /**
- * Apply calibration to all stereo datasets that don't already have calibration set
+ * Apply calibration to all stereo datasets that don't already have calibration set.
+ * The source is copied into each dataset and normalized to JSON, and the user's
+ * original filename is recorded for display.
  * @param settings app settings
  * @param calibrationPath path to the calibration file to apply
+ * @param originalName user's original calibration filename (for display)
  * @returns list of dataset IDs that were updated
  */
 async function applyCalibrationToUncalibratedStereoDatasets(
   settings: Settings,
   calibrationPath: string,
+  originalName?: string,
 ): Promise<string[]> {
   const datasets = await autodiscoverData(settings);
   const updatedIds: string[] = [];
@@ -1622,7 +1650,14 @@ async function applyCalibrationToUncalibratedStereoDatasets(
         // eslint-disable-next-line no-await-in-loop
         const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
         if (fullMeta.multiCam) {
-          fullMeta.multiCam.calibration = calibrationPath;
+          // eslint-disable-next-line no-await-in-loop
+          fullMeta.multiCam.calibration = await prepareDatasetCalibration(
+            settings,
+            projectDirInfo.basePath,
+            calibrationPath,
+          );
+          fullMeta.multiCam.calibrationOriginalName = realCalibrationName(originalName)
+            ?? realCalibrationName(calibrationPath);
           // eslint-disable-next-line no-await-in-loop
           await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
           updatedIds.push(meta.id);
@@ -1691,6 +1726,7 @@ async function setDatasetCalibration(
     sourcePath,
   );
   fullMeta.multiCam.calibration = calibrationPath;
+  fullMeta.multiCam.calibrationOriginalName = realCalibrationName(sourcePath);
   await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
   return calibrationPath;
 }
@@ -1754,11 +1790,16 @@ async function getDatasetCalibration(
   settings: Settings,
   datasetId: string,
 ): Promise<DatasetCalibrationResult | null> {
-  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId.split('/')[0]);
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const calibrationPath = fullMeta.multiCam?.calibration;
   if (!calibrationPath || !(await fs.pathExists(calibrationPath))) {
     return null;
   }
-  const result: DatasetCalibrationResult = { path: npath.basename(calibrationPath) };
+  const result: DatasetCalibrationResult = {
+    path: npath.basename(calibrationPath),
+    originalName: realCalibrationName(fullMeta.multiCam?.calibrationOriginalName),
+  };
   if (npath.extname(calibrationPath).toLowerCase() === '.json') {
     try {
       const data = await fs.readJSON(calibrationPath);

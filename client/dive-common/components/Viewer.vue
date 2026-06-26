@@ -64,7 +64,6 @@ import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
-import CalibrationMenu from './CalibrationMenu.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -87,7 +86,6 @@ export default defineComponent({
     UserGuideButton,
     UserSettingsDialog,
     EditorMenu,
-    CalibrationMenu,
     MultiCamToolbar,
     PrimaryAttributeTrackFilter,
     TrackList,
@@ -1401,8 +1399,6 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
-
-        <CalibrationMenu :dataset-id="datasetId" v-if="showMultiCamToolbar && multiCamList.length > 1"></CalibrationMenu>
 
         <!-- <v-tooltip v-if="showMultiCamToolbar && multiCamList.length > 1"
           bottom

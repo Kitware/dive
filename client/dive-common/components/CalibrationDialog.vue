@@ -27,15 +27,10 @@ export default defineComponent({
       emit('delete');
     };
 
-    const importCalibration = () => {
-
-    };
-
     return {
       close,
       downloadCalibration,
       deleteCalibration,
-      importCalibration,
     };
   },
 });
@@ -54,7 +49,7 @@ export default defineComponent({
           mdi-checkerboard
         </v-icon>
         <v-toolbar-title class="text-h6">
-          Cameras calibration
+          Camera Calibration Information
         </v-toolbar-title>
         <v-spacer />
         <v-btn icon small @click="close">
@@ -141,11 +136,12 @@ export default defineComponent({
           </v-row>
         </div>
         <div v-else>
-          <div class="text-subtitle-1 font-weight-bold mb-2">No calibration loaded</div>
+          <div class="text-subtitle-1 font-weight-bold mb-2">No Calibration Loaded</div>
           <div>
-            Calibration is needed to run stereoscopic pipelines.
+            Calibration is needed to run many stereoscopic pipelines.
             <br>
-            You can import a calibration manually, or run a calibration pipeline on a checkerboard image sequence or video.
+            <br>
+            You can import a calibration file manually via the Import button, or run a calibration pipeline on a checkerboard image sequence or video.
           </div>
         </div>
       </v-card-text>
@@ -162,12 +158,6 @@ export default defineComponent({
             mdi-delete-outline
           </v-icon>
           Delete
-        </v-btn>
-        <v-btn color="primary" :outlined="!!calibration" @click="importCalibration">
-          <v-icon left>
-            mdi-upload
-          </v-icon>
-          Import
         </v-btn>
         <v-btn v-if="fileName && showDownload" color="primary" @click="downloadCalibration">
           <v-icon left>

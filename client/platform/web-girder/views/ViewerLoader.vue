@@ -7,6 +7,7 @@ import Viewer from 'dive-common/components/Viewer.vue';
 import NavigationTitle from 'dive-common/components/NavigationTitle.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common/components/ImportAnnotations.vue';
+import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { useBrand } from 'platform/web-girder/store/useBrand';
@@ -64,6 +65,7 @@ export default defineComponent({
     NavigationTitle,
     Viewer,
     ImportAnnotations,
+    CalibrationMenu,
     RevisionHistory,
     SidebarContext,
     ViewerAlert,
@@ -303,6 +305,11 @@ export default defineComponent({
         :read-only-mode="revisionNum !== undefined"
         :time-filter="timeFilter"
         :exclude-pipeline-terms="webExcludedPipelineTerms"
+      />
+      <CalibrationMenu
+        v-if="subTypeList[0] === 'stereo'"
+        :dataset-id="id"
+        :button-options="buttonOptions"
       />
       <ImportAnnotations
         :button-options="buttonOptions"
