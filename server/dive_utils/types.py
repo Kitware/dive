@@ -208,7 +208,9 @@ class DatasetStereoCalibration(TypedDict):
 
 
 class DatasetCalibrationResult(TypedDict):
-    calibration: DatasetStereoCalibration
+    # `calibration` is absent when the stored file isn't a parseable JSON
+    # camera-rig (e.g. an .npz); the file name is still reported via `path`.
+    calibration: NotRequired[DatasetStereoCalibration]
     itemId: str
     path: str
 

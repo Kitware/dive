@@ -1157,13 +1157,16 @@ def get_calibration(
 
     calibration_item = Item().load(calibration_item_id, level=AccessType.READ, user=user)
 
-    files = Item().childFiles(calibration_item)
-    for file in files:
-        file_name = file['name']
-        file_name.endswith('.json')
+    files = list(Item().childFiles(calibration_item))
+    json_file = next((f for f in files if f['name'].endswith('.json')), None)
+    # File name reported even when parameters can't be parsed (e.g. an .npz or an
+    # unsupported/corrupt file) so the viewer still shows the calibration as loaded.
+    fallback = json_file or (files[0] if files else None) or calibration_item
+    fallback_name = fallback['name']
 
-        if file_name.endswith('.json'):
-            with File().open(file) as fh:
+    if json_file is not None:
+        try:
+            with File().open(json_file) as fh:
                 chunks = []
                 while True:
                     chunk = fh.read(4096)
@@ -1213,8 +1216,16 @@ def get_calibration(
 
             return types.DatasetCalibrationResult(
                 calibration=dataset_calibration,
-                itemId=calibration_item['_id'],
-                path=file_name,
+                itemId=str(calibration_item['_id']),
+                path=json_file['name'],
             )
+        except (ValueError, KeyError, UnicodeDecodeError):
+            # Present-but-unparseable JSON: fall through to a filename-only result.
+            pass
 
-    raise RestException('Calibration file not supported', code=400)
+    # A calibration file is attached but its parameters can't be parsed (non-JSON
+    # such as .npz, or malformed). Report its presence and name.
+    return types.DatasetCalibrationResult(
+        itemId=str(calibration_item['_id']),
+        path=fallback_name,
+    )
