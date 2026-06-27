@@ -1335,7 +1335,7 @@ export default defineComponent({
         </v-tabs>
       </template>
       <template #title-right>
-        <<RunPipelineMenu
+        <RunPipelineMenu
         :selected-dataset-ids="[modifiedId]"
         :sub-type-list="subTypeList"
         :camera-numbers="camNumbers"

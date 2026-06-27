@@ -1473,23 +1473,6 @@ export default defineComponent({
           </template>
         </v-select>
 
-        <!-- <v-tooltip v-if="showMultiCamToolbar && multiCamList.length > 1"
-          bottom
-          :z-index="20">
-          <template #activator="{ on }">
-            <v-btn
-              color=""
-              class="calibration-icon mx-1 mode-button"
-              :class="{ 'not-calibrated': true }"
-              small
-              v-on="on"
-            >
-              <v-icon>mdi-checkerboard</v-icon>
-            </v-btn>
-          </template>
-          <span>Cameras calibration</span>
-        </v-tooltip> -->
-
         <v-divider
           vertical
           class="mx-2"

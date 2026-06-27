@@ -71,9 +71,6 @@ export default defineComponent({
     const menuOpen = ref(false);
     const additive = ref(false);
     const additivePrepend = ref('');
-    // When importing a new camera file, optionally drop length measurements (and
-    // their length_method locks) computed against the previous calibration.
-    const resetLengths = ref(clientSettings.stereoSettings.clearLengthOnCameraFileLoad);
     const openUpload = async () => {
       try {
         const ret = await openFromDisk('annotation');
@@ -138,7 +135,7 @@ export default defineComponent({
         await api.importCalibrationFile(props.datasetId, ret.filePaths[0]);
         // A new camera file invalidates length measurements from the prior
         // calibration; clear them (and their length_method locks) when checked.
-        if (resetLengths.value) {
+        if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
           const cleared = clearLengthAttributes(cameraStore);
           if (cleared > 0) {
             await save();
@@ -164,7 +161,7 @@ export default defineComponent({
       menuOpen,
       additive,
       additivePrepend,
-      resetLengths,
+      clientSettings,
       sets,
       currentSet,
     };
@@ -327,7 +324,7 @@ export default defineComponent({
               </v-row>
               <v-row>
                 <v-checkbox
-                  v-model="resetLengths"
+                  v-model="clientSettings.stereoSettings.clearLengthOnCameraFileLoad"
                   label="Reset length measurements"
                 />
               </v-row>

@@ -69,6 +69,8 @@ interface AnnotationSettings {
     delaySeconds: number;
   };
   stereoSettings: {
+    // When importing a new camera file, optionally drop length measurements
+    // computed against the previous calibration.
     clearLengthOnCameraFileLoad: boolean;
     // Recompute length attributes when a line's vertices are modified on a
     // detection that is linked across both cameras.
@@ -155,8 +157,6 @@ const defaultSettings: AnnotationSettings = {
     delaySeconds: 60,
   },
   stereoSettings: {
-    // When a new stereo camera/calibration file is loaded, strip stale
-    // per-track/detection 'length' measurements derived from the old calibration.
     clearLengthOnCameraFileLoad: true,
     updateLengthsOnModify: true,
     autoComputeOtherCamera: false,
