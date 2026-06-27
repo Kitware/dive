@@ -21,6 +21,8 @@ import readline from 'readline';
 import { EventEmitter } from 'events';
 import { Settings } from 'platform/desktop/constants';
 import { observeChild } from './processManager';
+import linux from './linux';
+import win32 from './windows';
 import {
   SegmentationStereoSegmentRequest,
   SegmentationStereoSegmentResponse,
@@ -45,6 +47,10 @@ import {
 
 /** Error headline shown to users when the interactive service fails to load. */
 export const INTERACTIVE_LOAD_ERROR_MESSAGE = 'Unable to load the interactive service.';
+
+function getCurrentPlatform() {
+  return OS.platform() === 'win32' ? win32 : linux;
+}
 
 interface InteractiveLoadErrorContext {
   reason: string;
@@ -179,31 +185,33 @@ export class InteractiveServiceManager extends EventEmitter {
     // Clean up any defunct process first.
     await this.shutdown();
 
+    const platform = getCurrentPlatform();
+    const isValid = await platform.validateViamePath(settings);
+    if (isValid !== true) {
+      throw new Error(formatInteractiveLoadError({
+        reason: isValid,
+        viamePath: settings.viamePath,
+      }));
+    }
+
     return new Promise((resolve, reject) => {
-      const isWin32 = OS.platform() === 'win32';
-      const viameSetup = npath.join(
-        settings.viamePath,
-        isWin32 ? 'setup_viame.bat' : 'setup_viame.sh',
-      );
+      const viameConstants = platform.getViameConstants(settings);
+      const pythonExe = platform.getViamePythonExe(settings);
       const pipelines = npath.join(settings.viamePath, 'configs', 'pipelines');
       const segConfig = npath.join(pipelines, 'interactive_segmenter_default.conf');
       const stereoConfig = npath.join(pipelines, 'interactive_stereo_default.conf');
 
+      // -I: isolated mode — do not prepend the process cwd to sys.path. Without
+      // this, a sibling folder named "coverage" (e.g. Vitest HTML output under
+      // client/coverage/) shadows Python's coverage package, breaks numba import,
+      // and prevents ocv_watershed from registering during plugin load.
       const pyCommand = [
-        'python -m viame.core.interactive_service',
+        `"${pythonExe}" -I -m viame.core.interactive_service`,
         `--segmentation-config "${segConfig}"`,
         `--stereo-config "${stereoConfig}"`,
       ].join(' ');
 
-      let command: string;
-      let shellOption: string | boolean;
-      if (isWin32) {
-        command = [`"${viameSetup}"`, '&&', pyCommand].join(' ');
-        shellOption = true;
-      } else {
-        command = [`. "${viameSetup}"`, '&&', pyCommand].join(' ');
-        shellOption = '/bin/bash';
-      }
+      const command = `${viameConstants.setupScriptAbs} && ${pyCommand}`;
 
       console.log('[Interactive] Starting interactive service...');
       console.log(`[Interactive] Command: ${command}`);
@@ -212,7 +220,8 @@ export class InteractiveServiceManager extends EventEmitter {
       const maxStderrLines = 20;
 
       this.process = observeChild(spawn(command, {
-        shell: shellOption,
+        shell: viameConstants.shell,
+        cwd: settings.viamePath,
         stdio: ['pipe', 'pipe', 'pipe'],
       }));
 
