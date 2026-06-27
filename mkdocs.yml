@@ -76,6 +76,7 @@ nav:
       - Command Line Tools: Command-Line-Tools.md
       - Large Image Desktop Support: Large-Image-Support.md
       - Multicamera and Stereo Data: Multicamera-data.md
+      - Interactive Annotation (Desktop): Interactive-Annotation.md
     - Screenshots: Screenshots.md
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md

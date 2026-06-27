@@ -74,3 +74,7 @@ There are caveats with this approach.
 
 * It does not handle padding properly.  If a video begins or ends with padding, you may see a black screen in DIVE, but kwiver will wait for the first true frame to use as the representative for the bucket.
 * It does not handle variable width frames properly.  If a video has variable width frames, the assumptions about the locations of true frame boundaries do not hold and kwiver training may have alignment issues.
+
+## Does DIVE support interactive segmentation or stereo while annotating?
+
+Yes, on **[DIVE Desktop](Dive-Desktop.md)** only. Interactive point-click segmentation and interactive stereo (auto-warp between cameras, length recompute) require a local VIAME install with interactive service support. See [Interactive Annotation](Interactive-Annotation.md).
