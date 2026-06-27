@@ -54,6 +54,7 @@ export default defineComponent({
     addAttribute: { type: Function, required: true },
     editAttribute: { type: Function, required: true },
     saveThreshold: { type: Function, required: true },
+    isStereoDataset: { type: Boolean, default: false },
   },
   setup() {
     return { context };
@@ -106,7 +107,10 @@ export default defineComponent({
         @track-seek="aggregateSeek($event)"
       >
         <template slot="settings">
-          <TrackSettingsPanel :all-types="trackFilters.allTypes.value" />
+          <TrackSettingsPanel
+            :all-types="trackFilters.allTypes.value"
+            :is-stereo-dataset="isStereoDataset"
+          />
         </template>
         <template slot="column-settings">
           <TrackListColumnSettings

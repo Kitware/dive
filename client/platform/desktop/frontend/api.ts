@@ -5,6 +5,8 @@ import type {
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   DatasetCalibrationResult,
+  SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -272,6 +274,194 @@ async function cancelJob(job: DesktopJob): Promise<void> {
 }
 
 /**
+ * Interactive Segmentation API
+ */
+
+async function segmentationInitialize(): Promise<{ success: boolean; noSamInstalled?: boolean }> {
+  return window.diveDesktop.invoke('segmentation-initialize');
+}
+
+async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
+  return window.diveDesktop.invoke('segmentation-predict', request);
+}
+
+async function segmentationStereoSegment(
+  request: SegmentationStereoSegmentRequest,
+): Promise<SegmentationStereoSegmentResponse> {
+  return window.diveDesktop.invoke('segmentation-stereo-segment', request);
+}
+
+async function segmentationSetImage(imagePath: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('segmentation-set-image', imagePath);
+}
+
+async function segmentationClearImage(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('segmentation-clear-image');
+}
+
+async function segmentationShutdown(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('segmentation-shutdown');
+}
+
+async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
+  return window.diveDesktop.invoke('segmentation-is-ready');
+}
+
+/**
+ * Interactive Stereo API
+ */
+
+interface StereoCalibration {
+  fx_left: number;
+  fy_left?: number;
+  cx_left: number;
+  cy_left: number;
+  T: [number, number, number];
+}
+
+interface StereoSetFrameRequest {
+  leftImagePath: string;
+  rightImagePath: string;
+}
+
+interface StereoSetFrameResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  disparityReady: boolean;
+  message?: string;
+}
+
+interface StereoStatusResponse {
+  id: string;
+  success: boolean;
+  enabled: boolean;
+  disparityReady: boolean;
+  computing?: boolean;
+  currentLeftPath?: string;
+  currentRightPath?: string;
+  hasCalibration: boolean;
+}
+
+interface StereoTransferLineRequest {
+  line: [[number, number], [number, number]];
+}
+
+interface StereoMeasurement {
+  length: number;
+  midpoint_x: number;
+  midpoint_y: number;
+  midpoint_z: number;
+  midpoint_range: number;
+  stereo_rms: number;
+}
+
+interface StereoTransferLineResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  transferredLine?: [[number, number], [number, number]];
+  originalLine?: [[number, number], [number, number]];
+  length?: number;
+  measurement?: StereoMeasurement;
+  depthInfo?: {
+    depthPoint1: number | null;
+    depthPoint2: number | null;
+    disparityPoint1: number;
+    disparityPoint2: number;
+  };
+}
+
+interface StereoMeasureLineRequest {
+  leftLine: [[number, number], [number, number]];
+  rightLine: [[number, number], [number, number]];
+}
+
+interface StereoMeasureLineResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  length?: number;
+  measurement?: StereoMeasurement;
+}
+
+interface StereoAggregateLengthsRequest {
+  lengths: number[];
+  method?: string;
+}
+
+interface StereoAggregateLengthsResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  avgLength?: number;
+}
+
+interface StereoTransferPointsRequest {
+  points: [number, number][];
+}
+
+interface StereoTransferPointsResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  transferredPoints?: [number, number][];
+  originalPoints?: [number, number][];
+  disparityValues?: number[];
+}
+
+async function stereoEnable(
+  calibration?: StereoCalibration,
+  calibrationFile?: string,
+): Promise<{ success: boolean; error?: string }> {
+  return window.diveDesktop.invoke('stereo-enable', { calibration, calibrationFile });
+}
+
+async function stereoDisable(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('stereo-disable');
+}
+
+async function stereoSetFrame(request: StereoSetFrameRequest): Promise<StereoSetFrameResponse> {
+  return window.diveDesktop.invoke('stereo-set-frame', request);
+}
+
+async function stereoGetStatus(): Promise<StereoStatusResponse> {
+  return window.diveDesktop.invoke('stereo-get-status');
+}
+
+async function stereoTransferLine(request: StereoTransferLineRequest): Promise<StereoTransferLineResponse> {
+  return window.diveDesktop.invoke('stereo-transfer-line', request);
+}
+
+async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
+  return window.diveDesktop.invoke('stereo-transfer-points', request);
+}
+
+async function stereoMeasureLine(request: StereoMeasureLineRequest): Promise<StereoMeasureLineResponse> {
+  return window.diveDesktop.invoke('stereo-measure-line', request);
+}
+
+async function stereoAggregateLengths(request: StereoAggregateLengthsRequest): Promise<StereoAggregateLengthsResponse> {
+  return window.diveDesktop.invoke('stereo-aggregate-lengths', request);
+}
+
+async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('stereo-set-calibration', { calibration });
+}
+
+async function stereoIsEnabled(): Promise<{ enabled: boolean }> {
+  return window.diveDesktop.invoke('stereo-is-enabled');
+}
+
+function onStereoDisparityReady(callback: (data: unknown) => void): () => void {
+  return window.diveDesktop.on('stereo-disparity-ready', (data: unknown) => callback(data));
+}
+
+function onStereoDisparityError(callback: (data: unknown) => void): () => void {
+  return window.diveDesktop.on('stereo-disparity-error', (data: unknown) => callback(data));
+}
+
+/**
  * REST api for larger-body messages
  */
 
@@ -430,4 +620,25 @@ export {
   getDatasetCalibration,
   downloadCalibration,
   deleteCalibration,
+  /* Segmentation APIs */
+  segmentationInitialize,
+  segmentationPredict,
+  segmentationStereoSegment,
+  segmentationSetImage,
+  segmentationClearImage,
+  segmentationShutdown,
+  segmentationIsReady,
+  /* Stereo APIs */
+  stereoEnable,
+  stereoDisable,
+  stereoSetFrame,
+  stereoGetStatus,
+  stereoTransferLine,
+  stereoTransferPoints,
+  stereoMeasureLine,
+  stereoAggregateLengths,
+  stereoSetCalibration,
+  stereoIsEnabled,
+  onStereoDisparityReady,
+  onStereoDisparityError,
 };

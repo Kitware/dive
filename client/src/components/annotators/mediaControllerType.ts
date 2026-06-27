@@ -46,7 +46,7 @@ export interface MediaController extends AggregateMediaController {
 
   centerOn(coords: { x: number; y: number; z: number }): void;
   transition(coords: { x: number; y:number}, duration: number, zoom?: number): void;
-  setCursor(camera: string): void;
-  setImageCursor(camera: string): void;
+  setCursor(cursor: string): void;
+  setImageCursor(icon: string, editing?: boolean): void;
   resetMapDimensions(width: number, height: number, isMap?: boolean, margin?: number): void;
 }

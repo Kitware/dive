@@ -220,6 +220,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     mediaConvertList,
     trackFileAbsPath: '',
     forceMediaTranscode: false,
+    useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
   };
 }

@@ -37,6 +37,7 @@ import { getResponseError } from 'vue-media-annotator/utils';
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
 import HeadTail from 'dive-common/recipes/headtail';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
@@ -53,7 +54,12 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
-import clientSettingsSetup, { clientSettings } from 'dive-common/store/settings';
+import type {
+  StereoAnnotationCompleteParams,
+  StereoAnnotationResetParams,
+  StereoSegmentationFinalizeParams,
+} from 'dive-common/use/useModeManager';
+import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -145,6 +151,7 @@ export default defineComponent({
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
     const datasetName = ref('');
+    const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
@@ -163,6 +170,8 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+
+    const sideBarCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const getInitialSidebarMode = (): 'left' | 'bottom' | 'collapsed' => {
       const defaultMode = clientSettings.layoutSettings.sidebarPosition as 'left' | 'bottom' | 'collapsed';
@@ -256,9 +265,14 @@ export default defineComponent({
       setSVGFilters,
     } = useImageEnhancements();
 
+    const segmentationRecipe = new SegmentationPointClick();
+    const segmentationCursorLoading = computed(
+      () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+    );
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
+      segmentationRecipe,
     ];
 
     const vuetify = inject('vuetify') as Vuetify;
@@ -325,6 +339,7 @@ export default defineComponent({
       selectedKey,
       selectedCamera,
       editingTrack,
+      segmentationPoints,
     } = useModeManager({
       recipes,
       trackFilterControls: trackFilters,
@@ -332,6 +347,15 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
+        emit('stereo-annotation-complete', params);
+      },
+      onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
+        emit('stereo-annotation-reset', params);
+      },
+      onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
+        emit('stereo-segmentation-finalize', params);
+      },
     });
 
     const {
@@ -491,6 +515,14 @@ export default defineComponent({
         trackStore.insert(newTrack, { imported: false });
       }
       handler.trackSelect(newTrack.id);
+
+      // In interactive stereo mode, a freshly linked pair should get its stereo
+      // measurement (length, midpoint, range, RMS) computed for every frame
+      // where both cameras now have a line. The desktop loader owns the stereo
+      // service, so delegate via an event.
+      if (isStereoInteractiveModeEnabled()) {
+        emit('stereo-track-linked', baseTrack);
+      }
     }
     watch(linkingTrack, () => {
       if (linkingTrack.value !== null && selectedTrackId.value !== null) {
@@ -706,18 +738,47 @@ export default defineComponent({
       }
       emit('change-camera', camera);
     };
+    // While drawing a brand-new detection (selected track has no geometry yet on
+    // this frame), the user may start the draw on any camera. Detect that so the
+    // camera-view mousedown doesn't steal the draw — preventDefault would kill a
+    // rectangle's mousedown-drag. The draw is routed to the drawn-on camera in
+    // LayerManager's update:geojson handler instead.
+    const isCreatingNewDetection = (): boolean => {
+      if (selectedTrackId.value === null || !editingTrack.value) {
+        return false;
+      }
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+      if (!track) {
+        return false;
+      }
+      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
       if (selectedCamera.value === camera) {
         return;
       }
+      // Don't intercept clicks mid-creation; let the draw land on this camera.
+      // The draw is routed to the drawn-on camera in LayerManager's update handler.
+      if (isCreatingNewDetection()) {
+        return;
+      }
       if (event) {
         event.preventDefault();
       }
-      // Left click should kick out of editing mode automatically
+      // Left click should kick out of editing mode, unless the selected track
+      // exists on the target camera (e.g. a stereo-warped annotation) — in that
+      // case preserve editing so the user can immediately adjust it.
       if (event?.button === 0) {
-        editingTrack.value = false;
+        if (selectedTrackId.value !== null) {
+          const targetTrack = cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+          if (!targetTrack) {
+            editingTrack.value = false;
+          }
+        } else {
+          editingTrack.value = false;
+        }
       }
       selectCamera(camera, event?.button === 2);
       emit('change-camera', camera);
@@ -758,6 +819,7 @@ export default defineComponent({
           setImageEnhancements(meta.imageEnhancements);
         }
         datasetName.value = meta.name;
+        subType.value = meta.subType || null;
         initTime({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
@@ -923,6 +985,10 @@ export default defineComponent({
 
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
+    // Update segmentation recipe when frame changes to show only current frame's points
+    watch(() => time.frame.value, (newFrame) => {
+      segmentationRecipe.handleFrameChange(newFrame);
+    });
 
     function handleResize() {
       if (controlsRef.value) {
@@ -991,6 +1057,8 @@ export default defineComponent({
         annotationSet: toRef(props, 'currentSet'),
         annotationSets: sets,
         comparisonSets: toRef(props, 'comparisonSets'),
+        segmentationPoints,
+        segmentationCursorLoading,
         selectedCamera,
         selectedKey,
         selectedTrackId,
@@ -1164,6 +1232,7 @@ export default defineComponent({
       controlsRef,
       controlsHeight,
       controlsCollapsed,
+      sideBarCollapsed,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -1174,6 +1243,7 @@ export default defineComponent({
       clientSettings,
       datasetName,
       datasetType,
+      subType,
       editingTrack,
       editingMode,
       editingDetails,
@@ -1192,6 +1262,7 @@ export default defineComponent({
       showUserSettingsDialog,
       playbackComponent,
       recipes,
+      segmentationRecipe,
       selectedFeatureHandle,
       selectedTrackId,
       editingGroupId,
@@ -1367,6 +1438,8 @@ export default defineComponent({
               class="mr-2"
               @delete-point="handler.removePoint"
               @delete-annotation="handler.removeAnnotation"
+              @add-hole="handler.addHole"
+              @add-polygon="handler.addPolygon"
             />
           </template>
           <template
@@ -1504,6 +1577,7 @@ export default defineComponent({
     >
       <sidebar
         v-if="sidebarMode === 'left'"
+        :is-stereo-dataset="subType === 'stereo'"
         @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
@@ -1554,7 +1628,9 @@ export default defineComponent({
             >
               <component
                 :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                  : datasetType === 'video'
+                    ? 'video-annotator'
+                    : 'large-image-annotator'"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
@@ -1675,6 +1751,7 @@ export default defineComponent({
           </div>
           <BottomPanel
             :sidebar-mode="sidebarMode"
+            :is-stereo-dataset="subType === 'stereo'"
             :controls-ref="controlsRef"
             :controls-collapsed.sync="controlsCollapsed"
             :line-chart-data="lineChartData"

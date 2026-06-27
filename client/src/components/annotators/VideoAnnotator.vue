@@ -1,9 +1,11 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, PropType, watch,
+  defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
 /**
  * For MPEG codecs, the PTS (Presentation Timestamp)
@@ -65,6 +67,7 @@ function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
 }
 export default defineComponent({
   name: 'VideoAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     videoUrl: {
       type: String,
@@ -123,6 +126,11 @@ export default defineComponent({
       setVolume,
       setSpeed,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     function makeVideo() {
       const video = document.createElement('video');
       video.preload = 'auto';
@@ -269,6 +277,7 @@ export default defineComponent({
     video.addEventListener('error', logError);
     return {
       data,
+      playbackCursor,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -336,12 +345,20 @@ export default defineComponent({
         </filter>
       </defs>
     </svg>
-    <div ref="imageCursorRef" class="imageCursor">
-      <v-icon> {{ data.imageCursor }} </v-icon>
+    <div
+      ref="imageCursorRef"
+      class="imageCursor"
+    >
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"

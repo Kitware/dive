@@ -35,6 +35,8 @@ Track split | ✔️ | ✔️
 Multi-way track merge | ✔️ | ✔️
 Complex Interactions and activity groups | ✔️ | ✔️
 Freeform or multi-select attributes | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Interactive point-click segmentation | ❌ | ✔️
+| &nbsp;&nbsp;&nbsp; Interactive stereo (warp / length recompute) | ❌ | ✔️
 | **Data Review** |
 Image enhancement (thresholding) | ✔️ | ✔️
 Advanced per-type annotation confidence threshoding | ✔️ | ✔️

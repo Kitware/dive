@@ -321,6 +321,98 @@ function useApi() {
   return use<Readonly<Api>>(ApiSymbol);
 }
 
+/**
+ * Interactive Segmentation Types
+ */
+export interface SegmentationPredictRequest {
+  /** Path to the image file */
+  imagePath: string;
+  /** Point coordinates as [x, y] pairs */
+  points: [number, number][];
+  /** Point labels: 1 for foreground, 0 for background */
+  pointLabels: number[];
+  /** Optional low-res mask from previous prediction for refinement */
+  maskInput?: number[][];
+  /** Whether to return multiple mask options */
+  multimaskOutput?: boolean;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
+}
+
+export interface SegmentationPredictResponse {
+  /** Whether the prediction succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** Polygon coordinates as [x, y] pairs */
+  polygon?: [number, number][];
+  /** Bounding box [x_min, y_min, x_max, y_max] */
+  bounds?: [number, number, number, number];
+  /** Quality score from segmentation model */
+  score?: number;
+  /** Low-res mask for subsequent refinement */
+  lowResMask?: number[][];
+  /** Mask dimensions [height, width] */
+  maskShape?: [number, number];
+  /** RLE-encoded full-resolution mask for display: [[value, count], ...] */
+  rleMask?: [number, number][];
+}
+
+/**
+ * Stereo point-segmentation. The segmentation service warps the seed to the
+ * other camera (configured stereo backend), segments there, and -- when enabled
+ * -- derives head/tail lines + the measurement.
+ */
+export interface SegmentationStereoSegmentRequest {
+  /** The already-segmented source-camera polygon (sampling + measurement). */
+  polygon?: [number, number][];
+  /** Source-camera click points and labels. */
+  points: [number, number][];
+  pointLabels: number[];
+  /** Source (clicked) and other camera image/video paths. */
+  sourceImagePath: string;
+  otherImagePath: string;
+  /** Calibration file path, read by the embedded stereo warper. */
+  calibrationFile?: string;
+  /** Time in seconds when the paths are video files. */
+  frameTime?: number;
+}
+
+export interface SegmentationStereoSegmentResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  /** Other-camera polygon from SAM. */
+  polygon?: [number, number][];
+  bounds?: [number, number, number, number];
+  score?: number;
+  /** Seed point(s) used on the other camera (median of warped samples). */
+  seedPoints?: [number, number][];
+  seedLabels?: number[];
+  /** Optional head/tail lines: source = clicked camera, other = warped. */
+  generateLine?: boolean;
+  lineSource?: [[number, number], [number, number]];
+  lineOther?: [[number, number], [number, number]];
+  /** Stereo measurement for the derived line (calibration units, e.g. mm). */
+  measurement?: {
+    length: number;
+    midpoint_x: number;
+    midpoint_y: number;
+    midpoint_z: number;
+    midpoint_range: number;
+    stereo_rms: number;
+  };
+}
+
+export interface SegmentationStatusResponse {
+  /** Whether segmentation is available */
+  available: boolean;
+  /** Whether the model is currently loaded */
+  loaded?: boolean;
+  /** Whether the service is ready for predictions */
+  ready?: boolean;
+}
+
 export {
   provideApi,
   useApi,

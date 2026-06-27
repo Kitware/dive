@@ -29,7 +29,8 @@ class GeoJSONGeometry(BaseModel):
 class GeoJSONFeature(BaseModel):
     type: str
     geometry: GeoJSONGeometry
-    properties: Dict[str, Union[bool, float, str]]
+    # str first in the Union to keep numeric strings like "1" from coercing to bool/float
+    properties: Dict[str, Union[str, float, bool]]
 
 
 class GeoJSONFeatureCollection(BaseModel):

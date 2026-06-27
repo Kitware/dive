@@ -41,7 +41,9 @@ import {
   useAttributes,
   useComparisonSets,
   useLassoModeContext,
+  useSegmentationPoints,
 } from '../provides';
+import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -170,6 +172,20 @@ export default defineComponent({
       setLassoDrawing,
     );
 
+    // Segmentation points layer for displaying prompt points during point-click segmentation
+    const segmentationPointsRef = useSegmentationPoints();
+    const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
+
+    // Watch for segmentation points updates - only show points for current frame
+    watch([segmentationPointsRef, frameNumberRef], ([newPoints, currentFrame]) => {
+      // Only display points if they belong to the current frame
+      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame) {
+        segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
+      } else {
+        segmentationPointsLayer.clear();
+      }
+    }, { deep: true });
+
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
         if (a.render && b.render) {
@@ -191,6 +207,16 @@ export default defineComponent({
       stateStyling: trackStyleManager.stateStyles,
     };
     uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
+
+    // True when the selected track is a brand-new detection with no geometry yet
+    // on this frame (the user is mid-creation). Used to mirror the creation cursor
+    // onto non-selected cameras so a new detection can be drawn on any camera.
+    function isCreatingNewDetection(frame: number, trackId: AnnotationId | null): boolean {
+      if (trackId === null) return false;
+      const t = cameraStore.getPossibleTrack(trackId, selectedCamera.value);
+      if (!t) return false;
+      return t.getFeature(frame)[0] == null;
+    }
 
     function updateLayers(
       frame: number,
@@ -366,6 +392,15 @@ export default defineComponent({
             editAnnotationLayer.setKey(selectedKey);
             editAnnotationLayer.changeData(editingTracks);
           }
+        } else if (editingTrack && props.camera !== selectedCamera.value
+          && isCreatingNewDetection(frame, selectedTrackId)) {
+          // Seamless multicam creation: keep the creation cursor live on every
+          // camera (not just the selected one) so a brand-new detection can be
+          // drawn on whichever camera the user starts on. The draw is routed to
+          // the drawn-on camera in the update:geojson handler below.
+          editAnnotationLayer.setType(editingTrack);
+          editAnnotationLayer.setKey(selectedKey);
+          editAnnotationLayer.changeData([]);
         } else {
           editAnnotationLayer.disable();
         }
@@ -404,6 +439,7 @@ export default defineComponent({
         typeStylingRef,
         toRef(props, 'colorBy'),
         selectedCamera,
+        selectedKeyRef,
       ],
       () => {
         updateLayers(
@@ -468,28 +504,151 @@ export default defineComponent({
       },
     );
 
+    // Set briefly when a draw finalizes so the same click — e.g. the 2nd line
+    // vertex / rectangle corner landing on an overlapping existing detection —
+    // doesn't also select that detection. Cleared on the next macrotask, so only
+    // the click that completed the draw is suppressed.
+    let justFinalizedCreation = false;
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
-      // If the camera isn't selected yet we ignore the click
+      // The click that just finalized a new detection should not also select an
+      // existing detection underneath the final vertex.
+      if (justFinalizedCreation) {
+        return;
+      }
+      // Clicking a detection in a camera that isn't selected yet: switch to that
+      // camera AND act on the detection in the same click — left-click selects,
+      // right-click edits — instead of requiring a separate click to switch first.
       if (selectedCamera.value !== props.camera) {
+        // Mid new-detection creation, a left-click on this camera is the start of
+        // a draw (handled by the creation layer + update routing) — don't let it
+        // select an existing detection under the first corner. Right-click still
+        // switches to editing the clicked detection.
+        if (editAnnotationLayer.getMode() === 'creation' && !editing) {
+          return;
+        }
+        if (trackId !== null) {
+          handler.selectCamera(props.camera, false);
+          // selectCamera switches synchronously in the normal path; bail if a mode
+          // (e.g. linking) blocked the switch so we don't act on the wrong camera.
+          if (selectedCamera.value === props.camera) {
+            handler.trackSelect(trackId, false, modifiers);
+            if (editing) {
+              handler.trackEdit(trackId);
+            }
+          }
+        }
         return;
       }
       //So we only want to pass the click whjen not in creation mode or editing mode for features
       if (editAnnotationLayer.getMode() !== 'creation') {
         editAnnotationLayer.disable();
-        handler.trackSelect(trackId, editing, modifiers);
+        // When entering editing mode (right-click), use trackEdit so the
+        // geometry type is auto-detected (e.g. LineString vs rectangle).
+        if (editing && trackId !== null) {
+          handler.trackEdit(trackId);
+        } else {
+          handler.trackSelect(trackId, editing, modifiers);
+        }
+      } else if (editing && trackId !== null) {
+        // Right-click on another detection while in creation mode:
+        // cancel creation and switch to editing the clicked detection
+        editAnnotationLayer.disable();
+        handler.trackEdit(trackId);
       }
     };
 
     //Sync of internal geoJS state with the application
-    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean) => {
-      handler.trackSelect(selectedTrackIdRef.value, editing);
+    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
+      if (deselect) {
+        handler.trackSelect(null, false);
+      } else {
+        handler.trackSelect(selectedTrackIdRef.value, editing);
+      }
+    });
+    // Handle right-click to confirm/lock annotation in Point mode (segmentation)
+    editAnnotationLayer.bus.$on('confirm-annotation', () => {
+      handler.confirmRecipe();
+    });
+    // Register callback so pressing 'n' (new detection) finalizes in-progress shapes
+    handler.registerFinalizeCreation(() => {
+      editAnnotationLayer.finalizeInProgress();
     });
     rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
+    // Handle right-click polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+      // If in creation mode, cancel it first so we can select the polygon
+      if (editAnnotationLayer.getMode() === 'creation') {
+        handler.cancelCreation();
+      }
+      // Set the polygon key for the right-clicked polygon
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the selected polygon
+      // This is especially important when already editing the same track
+      // since annotation-right-clicked won't be emitted in that case
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
+    lineLayer.bus.$on('annotation-clicked', Clicked);
+    lineLayer.bus.$on('annotation-right-clicked', Clicked);
+    // Handle polygon selection for multi-polygon support
+    polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      // If in creation mode, don't interrupt - let the edit layer handle clicks for placing points
+      // This is important for hole drawing where left-clicks place hole vertices
+      if (editAnnotationLayer.getMode() === 'creation') {
+        return;
+      }
+      handler.selectFeatureHandle(-1, polygonKey);
+      // Force layer update to load the newly selected polygon
+      // Use nextTick to ensure the selectedKey ref has been updated
+      window.setTimeout(() => {
+        updateLayers(
+          frameNumberRef.value,
+          editingModeRef.value,
+          selectedTrackIdRef.value,
+          multiSeletListRef.value,
+          enabledTracksRef.value,
+          visibleModesRef.value,
+          selectedKeyRef.value,
+          props.colorBy,
+        );
+      }, 0);
+    });
+    // Handle right-click outside polygons to finalize/cancel creation
+    polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
+      if (editAnnotationLayer.getMode() === 'creation') {
+        // Cancel creation and go back to editing the default polygon
+        handler.cancelCreation();
+        handler.selectFeatureHandle(-1, '');
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
+    });
     editAnnotationLayer.bus.$on('update:geojson', (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
@@ -498,6 +657,17 @@ export default defineComponent({
       key = '',
       cb: () => void = () => (undefined),
     ) => {
+      // Seamless multicam creation: a draw that lands on a camera that isn't the
+      // selected one must commit on THIS camera. Switch to it and start a fresh
+      // detection here (the empty origin track is auto-cleaned on camera switch)
+      // so the geometry is applied to the camera the user actually drew on.
+      if (props.camera !== selectedCamera.value
+        && isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
+        handler.selectCamera(props.camera, false);
+        if (selectedCamera.value === props.camera) {
+          handler.trackAdd();
+        }
+      }
       if (type === 'rectangle') {
         const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         // Extract rotation from properties if it exists
@@ -511,6 +681,9 @@ export default defineComponent({
       }
       // Jump into edit mode if we completed a new shape
       if (geometryCompleteEvent) {
+        // Suppress the select that rides along with this same finalizing click.
+        justFinalizedCreation = true;
+        window.setTimeout(() => { justFinalizedCreation = false; }, 0);
         updateLayers(
           frameNumberRef.value,
           editingModeRef.value,
@@ -525,8 +698,59 @@ export default defineComponent({
     });
     editAnnotationLayer.bus.$on(
       'update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key = '') => handler.selectFeatureHandle(index, key),
+      (index: number, _type: EditAnnotationTypes, key?: string) => {
+        // When deselecting (index -1), don't change the key - it may have been
+        // set by polygon-right-clicked/polygon-clicked for multi-polygon selection
+        if (index >= 0 && key !== undefined) {
+          handler.selectFeatureHandle(index, key);
+        } else {
+          // Just update the handle index, preserve the current key
+          handler.selectFeatureHandle(index, selectedKeyRef.value);
+        }
+      },
     );
+    // Handle clicks outside the edit polygon to allow selecting other polygons
+    editAnnotationLayer.bus.$on('click-outside-edit', (geo: { x: number; y: number }) => {
+      // Check which polygon was clicked by iterating through formatted data
+      const point: [number, number] = [geo.x, geo.y];
+      const polygonData = polyAnnotationLayer.formattedData;
+
+      // Find the polygon that contains the click point
+      const clickedPolygon = polygonData.find((data) => {
+        const coords = data.polygon.coordinates[0] as [number, number][];
+        // Ray casting algorithm
+        let inside = false;
+        for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+          const xi = coords[i][0];
+          const yi = coords[i][1];
+          const xj = coords[j][0];
+          const yj = coords[j][1];
+          const intersect = ((yi > point[1]) !== (yj > point[1]))
+            && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      });
+
+      if (clickedPolygon) {
+        const polygonKey = clickedPolygon.polygonKey || '';
+        // Select the clicked polygon
+        handler.selectFeatureHandle(-1, polygonKey);
+        // Force layer update to load the newly selected polygon
+        window.setTimeout(() => {
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        }, 0);
+      }
+    });
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

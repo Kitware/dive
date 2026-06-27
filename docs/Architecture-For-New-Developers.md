@@ -418,8 +418,11 @@ Optional methods on **`Api`** (for example `getTiles`, `getTileURL`, `getLastCal
 - **Renderer:** `main.ts`, `frontend/` — same viewer stack as web
 - **Backend:** `backend/server.ts` — Express routes mirroring Girder
 - **Native jobs:** `backend/native/` — VIAME pipelines, training, media jobs
+- **Interactive service:** `backend/native/interactive.ts` — unified segmentation + stereo subprocess (desktop only)
 - **Serializers:** `backend/serializers/` — format conversion (viame, coco, kpf, dive, …)
-- **Build:** `npm run build:electron` → `dist_electron/`
+- **Build:** `npm run build:electron` → `dist_electron/`; `npm run dev:electron` for local development
+
+Shared segmentation recipe: `dive-common/recipes/segmentationpointclick.ts`. User docs: [Interactive Annotation](Interactive-Annotation.md).
 
 More detail: [client/platform/desktop/README.md](https://github.com/Kitware/dive/blob/main/client/platform/desktop/README.md).
 

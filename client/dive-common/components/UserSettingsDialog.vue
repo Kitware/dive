@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
   name: 'UserSettingsDialog',
@@ -11,10 +12,9 @@ export default defineComponent({
     },
   },
   setup() {
-    const isDesktopRuntime = typeof window !== 'undefined' && 'diveDesktop' in window;
     return {
       clientSettings,
-      isDesktopRuntime,
+      isDesktopRuntime: isDesktopRuntime(),
     };
   },
 });
