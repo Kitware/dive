@@ -275,6 +275,8 @@ class MultiCamMetaStorage(BaseModel):
     cameras: Dict[str, MultiCamCameraMeta]
     cameraOrder: List[str] = Field(default_factory=list)
     calibrationItemId: Optional[str] = None
+    jsonCalibrationItemId: Optional[str] = None
+    calibrationOriginalName: Optional[str] = None
 
 
 class MultiCamMediaCamera(BaseModel):

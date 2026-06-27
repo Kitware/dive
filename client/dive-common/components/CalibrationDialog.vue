@@ -10,7 +10,8 @@ export default defineComponent({
   props: {
     value: { type: Boolean, required: true },
     calibration: { type: Object as PropType<DatasetStereoCalibration | undefined>, default: undefined },
-    fileName: { type: String as PropType<string | undefined>, default: undefined },
+    sourceFileName: { type: String as PropType<string | undefined>, default: undefined },
+    jsonFileName: { type: String as PropType<string | undefined>, default: undefined },
     showDownload: { type: Boolean, default: true },
     showDelete: { type: Boolean, default: true },
   },
@@ -57,9 +58,15 @@ export default defineComponent({
       </v-toolbar>
 
       <v-card-text class="pa-4">
-        <div v-if="fileName" class="mb-4">
-          <span class="text-subtitle-1 font-weight-bold mr-2">File:</span>
-          <span>{{ fileName }}</span>
+        <div v-if="sourceFileName || jsonFileName" class="mb-4">
+          <div v-if="sourceFileName" class="mb-2">
+            <span class="text-subtitle-1 font-weight-bold mr-2">Source file:</span>
+            <span>{{ sourceFileName }}</span>
+          </div>
+          <div v-if="jsonFileName">
+            <span class="text-subtitle-1 font-weight-bold mr-2">JSON file:</span>
+            <span>{{ jsonFileName }}</span>
+          </div>
         </div>
         <div v-if="calibration" class="mb-6">
           <div class="text-subtitle-1 font-weight-bold mb-2">
@@ -162,6 +169,15 @@ export default defineComponent({
             </v-col>
           </v-row>
         </div>
+        <div v-else-if="sourceFileName || jsonFileName">
+          <div class="text-subtitle-1 font-weight-bold mb-2">
+            Calibration Not Ready
+          </div>
+          <div>
+            A calibration file is linked, but its JSON parameters are not available yet.
+            Conversion to the JSON camera-rig format may still be running.
+          </div>
+        </div>
         <div v-else>
           <div class="text-subtitle-1 font-weight-bold mb-2">
             No Calibration Loaded
@@ -182,13 +198,13 @@ export default defineComponent({
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn v-if="fileName && showDelete" color="red" outlined @click="deleteCalibration">
+        <v-btn v-if="(sourceFileName || jsonFileName) && showDelete" color="red" outlined @click="deleteCalibration">
           <v-icon left>
             mdi-delete-outline
           </v-icon>
           Delete
         </v-btn>
-        <v-btn v-if="fileName && showDownload" color="primary" @click="downloadCalibration">
+        <v-btn v-if="(sourceFileName || jsonFileName) && showDownload" color="primary" @click="downloadCalibration">
           <v-icon left>
             mdi-download
           </v-icon>

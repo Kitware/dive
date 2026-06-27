@@ -27,7 +27,7 @@ from dive_tasks.multicam_pipeline import (
     is_stereo_measurement_pipeline,
 )
 from dive_tasks.pipeline_discovery import discover_configs
-from dive_utils import constants, fromMeta
+from dive_utils import asbool, constants, fromMeta
 from dive_utils.types import (
     AvailableJobSchema,
     ExportTrainedPipelineJob,
@@ -724,10 +724,8 @@ def train_pipeline(self: Task, params: TrainingJob):
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_calibration(self: Task, itemId: str):
     """
-    Convert a stereoscopic calibration file (npz/yml/mat/cam/zip) stored in a Girder
-    item to the KWIVER JSON camera-rig format, uploading the JSON into the same item
-    so the viewer can display calibration parameters. No-op when the item already has
-    a .json camera-rig.
+    Convert a calibrationFile item to a JSON camera-rig in a separate Girder item
+    marked jsonCalibrationFile for display.
     """
     conf = Config()
     conf.require_viame_install()
@@ -743,18 +741,23 @@ def convert_calibration(self: Task, itemId: str):
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         item: GirderModel = gc.getItem(itemId)
-        files = list(gc.listFile(itemId))
-
-        if any(f['name'].lower().endswith('.json') for f in files):
-            manager.write('Calibration item already has a JSON camera-rig; skipping.\n')
+        folder_id = str(item.get('folderId'))
+        folder = gc.getFolder(folder_id)
+        multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
+        if multi_cam.get(constants.JsonCalibrationItemIdMarker):
+            manager.write('Calibration JSON item already linked; skipping.\n')
             return
 
+        files = list(gc.listFile(itemId))
         source_file = next(
             (f for f in files if constants.stereoCalibrationRegex.search(f['name'])),
             None,
         )
         if source_file is None:
             manager.write('No convertible calibration file found in item; skipping.\n')
+            return
+        if source_file['name'].lower().endswith('.json'):
+            manager.write('Source calibration is already JSON; skipping conversion.\n')
             return
 
         manager.updateStatus(JobStatus.FETCHING_INPUT)
@@ -783,7 +786,43 @@ def convert_calibration(self: Task, itemId: str):
             raise RuntimeError('Calibration conversion produced no JSON output')
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        gc.uploadFileToItem(itemId, str(output_path))
+        json_name = output_path.name
+        gc.upload(str(output_path), folder_id)
+        json_items = sorted(
+            gc.listItem(folder_id, name=json_name),
+            key=lambda existing: existing.get('created', ''),
+        )
+        if not json_items:
+            raise RuntimeError('Failed to create calibration JSON item')
+        json_item = json_items[-1]
+        json_item_id = str(json_item['_id'])
+        gc.addMetadataToItem(
+            json_item_id,
+            {
+                constants.JsonCalibrationFileMarker: 'true',
+                constants.CalibrationFileMarker: False,
+            },
+        )
+
+        updated_multi_cam = dict(multi_cam)
+        updated_multi_cam.setdefault(constants.CalibrationItemIdMarker, str(itemId))
+        updated_multi_cam[constants.JsonCalibrationItemIdMarker] = json_item_id
+        updated_multi_cam.setdefault(
+            constants.CalibrationOriginalNameMarker,
+            source_file['name'],
+        )
+        gc.addMetadataToFolder(
+            folder_id,
+            {constants.MultiCamMarker: updated_multi_cam},
+        )
+
+        for existing_item in gc.listItem(folder_id):
+            existing_id = str(existing_item['_id'])
+            if existing_id in {json_item_id, str(itemId)}:
+                continue
+            existing_meta = existing_item.get('meta') or {}
+            if asbool(existing_meta.get(constants.JsonCalibrationFileMarker)):
+                gc.delete(f"item/{existing_id}")
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)

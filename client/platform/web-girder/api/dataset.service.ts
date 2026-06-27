@@ -3,7 +3,7 @@ import type { GirderModel } from '@girder/components/src';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
-import { calibrationFileMarker } from 'dive-common/constants';
+import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
@@ -220,7 +220,10 @@ function createMulticamDataset(args: CreateMulticamDatasetArgs) {
 }
 
 async function uploadCalibrationItem(parentFolderId: string, file: File): Promise<string> {
-  const calibrationMeta = { [calibrationFileMarker]: 'true' };
+  const isJson = file.name.toLowerCase().endsWith('.json');
+  const calibrationMeta = isJson
+    ? { [calibrationFileMarker]: 'true', [jsonCalibrationFileMarker]: 'true' }
+    : { [calibrationFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
     params: {
       folderId: parentFolderId,
@@ -250,17 +253,18 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
   return itemId;
 }
 
-function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined): boolean {
-  const marker = meta?.[calibrationFileMarker];
+function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined, key: string): boolean {
+  const marker = meta?.[key];
   return marker === true || marker === 'true' || marker === '1';
 }
 
 async function hasCalibrationFile(datasetId: string): Promise<boolean> {
   const parentId = parentDatasetId(datasetId);
   const folder = await girderRest.get<{
-    meta?: { multiCam?: { calibrationItemId?: string } };
+    meta?: { multiCam?: { calibrationItemId?: string; jsonCalibrationItemId?: string } };
   }>(`folder/${parentId}`);
-  if (folder.data.meta?.multiCam?.calibrationItemId) {
+  const multiCam = folder.data.meta?.multiCam;
+  if (multiCam?.calibrationItemId || multiCam?.jsonCalibrationItemId) {
     return true;
   }
   const items = await girderRest.get<Array<{ name: string; meta?: Record<string, unknown> }>>(
@@ -268,7 +272,10 @@ async function hasCalibrationFile(datasetId: string): Promise<boolean> {
     { params: { folderId: parentId, limit: 0 } },
   );
   return items.data.some(
-    (item) => calibrationMarkerTruthy(item.meta) && isStereoCalibrationFileName(item.name),
+    (item) => (
+      calibrationMarkerTruthy(item.meta, calibrationFileMarker)
+      || calibrationMarkerTruthy(item.meta, jsonCalibrationFileMarker)
+    ) && isStereoCalibrationFileName(item.name),
   );
 }
 

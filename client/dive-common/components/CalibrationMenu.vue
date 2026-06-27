@@ -47,8 +47,14 @@ export default defineComponent({
 
     const hasCalibration = computed(() => !!calibrationResult.value);
 
+    const sourceFileName = computed(
+      () => calibrationResult.value?.originalName,
+    );
+    const jsonFileName = computed(
+      () => calibrationResult.value?.jsonPath ?? calibrationResult.value?.path,
+    );
     const calibrationFileName = computed(
-      () => calibrationResult.value?.originalName ?? calibrationResult.value?.path,
+      () => sourceFileName.value ?? jsonFileName.value,
     );
 
     const openCalibrationDialog = () => {
@@ -71,6 +77,8 @@ export default defineComponent({
       showCalibrationDialog,
       calibrationResult,
       hasCalibration,
+      sourceFileName,
+      jsonFileName,
       calibrationFileName,
       openCalibrationDialog,
       canDownload: !!downloadCalibration,
@@ -117,7 +125,8 @@ export default defineComponent({
     <CalibrationDialog
       v-model="showCalibrationDialog"
       :calibration="calibrationResult?.calibration"
-      :file-name="calibrationFileName"
+      :source-file-name="sourceFileName"
+      :json-file-name="jsonFileName"
       :show-download="canDownload"
       :show-delete="canDelete"
       @download="onDownload"

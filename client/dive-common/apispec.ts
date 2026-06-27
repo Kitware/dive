@@ -226,15 +226,18 @@ interface DatasetStereoCalibration {
 }
 
 interface DatasetCalibrationResult {
-  /** Parsed calibration parameters. May be absent when a calibration file is
-   * present but could not be parsed (e.g. an unconverted non-JSON format). */
+  /** Parsed calibration parameters from the JSON camera-rig file. */
   calibration?: DatasetStereoCalibration
+  /** Source calibration item (calibrationFile). Used by pipelines and download. */
   itemId?: string;
-  /** Name of the calibration file currently associated with the dataset. */
-  path?: string;
-  /** User's original calibration filename (may differ from `path` when the file
-   * was converted/normalized on import). */
+  /** JSON camera-rig item (jsonCalibrationFile). Used for display parameters. */
+  jsonItemId?: string;
+  /** Source calibration filename. */
   originalName?: string;
+  /** JSON camera-rig filename. */
+  jsonPath?: string;
+  /** Alias for jsonPath (legacy). */
+  path?: string;
 }
 
 interface Api {

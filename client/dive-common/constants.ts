@@ -170,8 +170,10 @@ const zipFileTypes = [
 ];
 
 const stereoPipelineMarker = 'measurement';
-/** Girder item meta key marking a stereoscopic calibration file in the dataset folder. */
+/** Girder item meta key marking the original stereoscopic calibration upload (pipeline input). */
 const calibrationFileMarker = 'calibrationFile';
+/** Girder item meta key marking the JSON camera-rig used for calibration display. */
+const jsonCalibrationFileMarker = 'jsonCalibrationFile';
 /** Legacy common_stereo category key; never shown in the run-pipeline menu. */
 const hiddenPipelineCategories = ['stereo'];
 /** Pipeline name/category substrings hidden from the web run-pipeline menu. */
@@ -213,6 +215,7 @@ export {
   zipFileTypes,
   stereoPipelineMarker,
   calibrationFileMarker,
+  jsonCalibrationFileMarker,
   hiddenPipelineCategories,
   webExcludedPipelineTerms,
   multiCamPipelineMarkers,

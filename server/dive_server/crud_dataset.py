@@ -33,6 +33,7 @@ def _clone_calibration_item(
     source_parent: types.GirderModel,
     cloned_parent: types.GirderModel,
     calibration_item_id: str,
+    marker: str,
 ) -> Optional[str]:
     """Copy a stereoscopic calibration item onto a cloned multicam parent folder."""
     cal_item = Item().load(calibration_item_id, level=AccessType.READ, user=owner)
@@ -41,8 +42,58 @@ def _clone_calibration_item(
     if str(cal_item.get('folderId')) != str(source_parent['_id']):
         return None
     copied = Item().copyItem(cal_item, creator=owner, folder=cloned_parent)
-    Item().setMetadata(copied, {constants.CalibrationFileMarker: 'true'})
+    Item().setMetadata(copied, {marker: 'true'})
     return str(copied['_id'])
+
+
+def _clone_calibration_items(
+    owner: types.GirderUserModel,
+    source_folder: types.GirderModel,
+    cloned_folder: types.GirderModel,
+    multi_cam: dict,
+) -> dict:
+    """Copy source and JSON calibration items onto a cloned multicam parent folder."""
+    updated = copy.deepcopy(multi_cam)
+    source_id = updated.get(constants.CalibrationItemIdMarker) or find_calibration_item_id(
+        str(source_folder['_id']), source_folder
+    )
+    json_id = updated.get(constants.JsonCalibrationItemIdMarker) or find_json_calibration_item_id(
+        str(source_folder['_id']), source_folder
+    )
+
+    new_source_id = None
+    new_json_id = None
+    if source_id:
+        new_source_id = _clone_calibration_item(
+            owner,
+            source_folder,
+            cloned_folder,
+            str(source_id),
+            constants.CalibrationFileMarker,
+        )
+    if json_id and str(json_id) != str(source_id):
+        new_json_id = _clone_calibration_item(
+            owner,
+            source_folder,
+            cloned_folder,
+            str(json_id),
+            constants.JsonCalibrationFileMarker,
+        )
+    elif json_id and json_id == source_id and new_source_id:
+        copied = Item().load(new_source_id, level=AccessType.WRITE, user=owner)
+        if copied is not None:
+            Item().setMetadata(copied, {constants.JsonCalibrationFileMarker: 'true'})
+            new_json_id = new_source_id
+
+    if new_source_id:
+        updated[constants.CalibrationItemIdMarker] = new_source_id
+    else:
+        updated.pop(constants.CalibrationItemIdMarker, None)
+    if new_json_id:
+        updated[constants.JsonCalibrationItemIdMarker] = new_json_id
+    else:
+        updated.pop(constants.JsonCalibrationItemIdMarker, None)
+    return updated
 
 
 def _create_multicam_soft_clone(
@@ -90,15 +141,9 @@ def _create_multicam_soft_clone(
 
     updated_multi_cam = copy.deepcopy(multi_cam)
     updated_multi_cam['cameras'] = new_cameras
-    calibration_item_id = updated_multi_cam.get(
-        constants.CalibrationItemIdMarker
-    ) or find_calibration_item_id(str(source_folder['_id']))
-    if calibration_item_id:
-        new_cal_id = _clone_calibration_item(
-            owner, source_folder, cloned_folder, calibration_item_id
-        )
-        if new_cal_id:
-            updated_multi_cam[constants.CalibrationItemIdMarker] = new_cal_id
+    updated_multi_cam = _clone_calibration_items(
+        owner, source_folder, cloned_folder, updated_multi_cam
+    )
     cloned_folder['meta'][constants.MultiCamMarker] = updated_multi_cam
     Folder().save(cloned_folder)
     crud_annotation.clone_annotations(source_folder, cloned_folder, owner, revision)
@@ -560,7 +605,21 @@ def _yield_calibration_files(
     folder_id: str,
 ) -> Generator[bytes, None, None]:
     """Add stereoscopic calibration files from a multicam parent folder root."""
-    for cal_item in _calibration_items_in_folder_root(folder_id):
+    seen_item_ids: set[str] = set()
+    for cal_item in _source_calibration_items_in_folder_root(folder_id):
+        item_id = str(cal_item['_id'])
+        if item_id in seen_item_ids:
+            continue
+        seen_item_ids.add(item_id)
+        for path, file in Item().fileList(cal_item):
+            for data in z.addFile(file, Path(f'{zip_path}{path}')):
+                yield data
+            break
+    for cal_item in _json_calibration_items_in_folder_root(folder_id):
+        item_id = str(cal_item['_id'])
+        if item_id in seen_item_ids:
+            continue
+        seen_item_ids.add(item_id)
         for path, file in Item().fileList(cal_item):
             for data in z.addFile(file, Path(f'{zip_path}{path}')):
                 yield data
@@ -863,31 +922,202 @@ def _mongo_id(value: str):
         return value
 
 
-def _item_has_calibration_marker(cal_item: dict) -> bool:
-    """True when the Girder item is marked as a stereoscopic calibration file."""
+def _item_has_source_calibration_marker(cal_item: dict) -> bool:
+    """True when the Girder item is the original calibration upload (calibrationFile)."""
     return asbool(cal_item.get('meta', {}).get(constants.CalibrationFileMarker))
 
 
-def _calibration_items_in_folder_root(folder_id: str):
+def _item_has_json_calibration_marker(cal_item: dict) -> bool:
+    """True when the Girder item holds the JSON camera-rig (jsonCalibrationFile)."""
+    meta = cal_item.get('meta') or {}
+    if asbool(meta.get(constants.JsonCalibrationFileMarker)):
+        return True
+    if asbool(meta.get(constants.CalibrationFileMarker)) and cal_item['name'].lower().endswith(
+        '.json'
+    ):
+        # Legacy datasets tagged the JSON item with calibrationFile only.
+        return True
+    return False
+
+
+def _multi_cam_meta(folder: Optional[types.GirderModel]) -> dict:
+    multi_cam = fromMeta(folder, constants.MultiCamMarker, default={}) if folder else {}
+    return multi_cam if isinstance(multi_cam, dict) else {}
+
+
+def _load_folder_calibration_meta(
+    folder_id: str,
+    folder: Optional[types.GirderModel],
+) -> dict:
+    multi_cam = _multi_cam_meta(folder)
+    if not multi_cam:
+        folder_doc = Folder().findOne({'_id': _mongo_id(folder_id)})
+        multi_cam = _multi_cam_meta(folder_doc)
+    return multi_cam
+
+
+def _source_calibration_items_in_folder_root(folder_id: str):
     """
-    Yield calibration file items stored in the dataset folder root.
+    Yield calibration source items stored in the dataset folder root.
 
     Camera media lives in child folders; only direct items on folder_id are considered.
-    Scans all folder items and matches meta.calibrationFile in Python so boolean/string
-    metadata values both work.
     """
     for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
-        if _item_has_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
+        if _item_has_source_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
             cal_item['name']
         ):
             yield cal_item
 
 
-def find_calibration_item_id(folder_id: str) -> Optional[str]:
-    """Return the most recent marked calibration file item in the dataset folder root."""
-    for cal_item in _calibration_items_in_folder_root(folder_id):
+def _json_calibration_items_in_folder_root(folder_id: str):
+    """Yield items marked with meta.jsonCalibrationFile (JSON camera-rig)."""
+    for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
+        if _item_has_json_calibration_marker(cal_item):
+            yield cal_item
+
+
+def find_calibration_item_id(
+    folder_id: str,
+    folder: Optional[types.GirderModel] = None,
+) -> Optional[str]:
+    """Return the calibrationFile item id used for pipeline input."""
+    multi_cam = _load_folder_calibration_meta(folder_id, folder)
+
+    cached_id = multi_cam.get(constants.CalibrationItemIdMarker)
+    if cached_id:
+        cal_item = Item().findOne({'_id': _mongo_id(str(cached_id))})
+        if cal_item is not None and str(cal_item.get('folderId')) == folder_id:
+            if not _item_has_source_calibration_marker(cal_item):
+                Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
+            return str(cached_id)
+
+    for cal_item in _source_calibration_items_in_folder_root(folder_id):
         return str(cal_item['_id'])
     return None
+
+
+def find_json_calibration_item_id(
+    folder_id: str,
+    folder: Optional[types.GirderModel] = None,
+) -> Optional[str]:
+    """Return the jsonCalibrationFile item id used for calibration display."""
+    multi_cam = _load_folder_calibration_meta(folder_id, folder)
+    source_id = find_calibration_item_id(folder_id, folder)
+
+    cached_id = multi_cam.get(constants.JsonCalibrationItemIdMarker)
+    if cached_id:
+        cal_item = Item().findOne({'_id': _mongo_id(str(cached_id))})
+        if cal_item is not None and str(cal_item.get('folderId')) == folder_id:
+            if not _item_has_json_calibration_marker(cal_item):
+                Item().setMetadata(cal_item, {constants.JsonCalibrationFileMarker: 'true'})
+            return str(cached_id)
+
+    for cal_item in _json_calibration_items_in_folder_root(folder_id):
+        item_id = str(cal_item['_id'])
+        if source_id and item_id == source_id and not cal_item['name'].lower().endswith('.json'):
+            continue
+        return item_id
+
+    # Legacy: JSON may still be attached to the source calibration item.
+    if source_id:
+        source_item = Item().findOne({'_id': _mongo_id(source_id)})
+        if source_item is not None:
+            files = list(Item().childFiles(source_item))
+            if any(f['name'].lower().endswith('.json') for f in files):
+                return source_id
+    return None
+
+
+def _clear_prior_calibration_items(
+    folder_id: str,
+    *,
+    keep_source_item_id: Optional[str] = None,
+) -> None:
+    """Remove prior calibration items when replacing the dataset calibration."""
+    for prior in _json_calibration_items_in_folder_root(folder_id):
+        if keep_source_item_id and str(prior['_id']) == keep_source_item_id:
+            continue
+        Item().remove(prior)
+    for prior in _source_calibration_items_in_folder_root(folder_id):
+        if keep_source_item_id and str(prior['_id']) == keep_source_item_id:
+            continue
+        Item().setMetadata(prior, {constants.CalibrationFileMarker: False})
+
+
+def _mark_calibration_source_item(cal_item: dict) -> None:
+    Item().setMetadata(
+        cal_item,
+        {
+            constants.CalibrationFileMarker: 'true',
+            constants.JsonCalibrationFileMarker: False,
+        },
+    )
+
+
+def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
+    """JSON uploads serve as both the source file and the JSON camera-rig."""
+    Item().setMetadata(
+        cal_item,
+        {
+            constants.CalibrationFileMarker: 'true',
+            constants.JsonCalibrationFileMarker: 'true',
+        },
+    )
+
+
+def _parse_stereo_calibration_json(data: dict) -> types.DatasetStereoCalibration:
+    calib_left = types.CameraCalibration(
+        cx=data['cx_left'],
+        cy=data['cy_left'],
+        fx=data['fx_left'],
+        fy=data['fy_left'],
+        k1=data['k1_left'],
+        k2=data['k2_left'],
+        k3=data['k3_left'],
+        p1=data['p1_left'],
+        p2=data['p2_left'],
+        rmsError=data['rms_error_left'],
+    )
+    calib_right = types.CameraCalibration(
+        cx=data['cx_right'],
+        cy=data['cy_right'],
+        fx=data['fx_right'],
+        fy=data['fy_right'],
+        k1=data['k1_right'],
+        k2=data['k2_right'],
+        k3=data['k3_right'],
+        p1=data['p1_right'],
+        p2=data['p2_right'],
+        rmsError=data['rms_error_right'],
+    )
+    return types.DatasetStereoCalibration(
+        R=data['R'],
+        T=data['T'],
+        gridHeight=data['grid_height'],
+        gridWidth=data['grid_width'],
+        imageHeight=data['image_height'],
+        imageWidth=data['image_width'],
+        squareSize=data['square_size_mm'],
+        rmsError=data['rms_error_stereo'],
+        calibrations={'left': calib_left, 'right': calib_right},
+    )
+
+
+def _read_json_calibration_file(
+    json_file: dict,
+) -> Optional[types.DatasetStereoCalibration]:
+    try:
+        with File().open(json_file) as fh:
+            chunks = []
+            while True:
+                chunk = fh.read(4096)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+        data = json.loads(b"".join(chunks).decode("utf-8"))
+        return _parse_stereo_calibration_json(data)
+    except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+        return None
 
 
 def pipeline_requires_calibration(pipeline: types.PipelineDescription) -> bool:
@@ -912,7 +1142,7 @@ def resolve_stereo_calibration_item_id(
         return None
 
     folder_id = str(parent_folder['_id'])
-    item_id = find_calibration_item_id(folder_id)
+    item_id = find_calibration_item_id(folder_id, parent_folder)
     if item_id is not None:
         return item_id
 
@@ -930,7 +1160,7 @@ def resolve_stereo_calibration_item_id(
         return None
     if not constants.stereoCalibrationRegex.search(cal_item['name']):
         return None
-    if not _item_has_calibration_marker(cal_item):
+    if not _item_has_source_calibration_marker(cal_item):
         Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
     return str(cal_item['_id'])
 
@@ -1047,7 +1277,8 @@ def create_multicam(
             'type': validated.type,
         }
 
-    calibration_item_id = None
+    calibration_source_item_id = None
+    json_calibration_item_id = None
     if validated.calibrationFileId:
         if validated.subType != 'stereo':
             raise RestException('Calibration is only supported for stereo datasets', code=400)
@@ -1064,10 +1295,13 @@ def create_multicam(
                 'Calibration file must be .npz, .json, .cam, .yml, or .zip',
                 code=400,
             )
-        Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
-        calibration_item_id = str(cal_item['_id'])
-        if not cal_item['name'].lower().endswith('.json'):
-            enqueue_calibration_conversion(user, calibration_item_id, cal_item['name'])
+        calibration_source_item_id = str(cal_item['_id'])
+        if cal_item['name'].lower().endswith('.json'):
+            _mark_calibration_source_and_json_item(cal_item)
+            json_calibration_item_id = calibration_source_item_id
+        else:
+            _mark_calibration_source_item(cal_item)
+            enqueue_calibration_conversion(user, calibration_source_item_id, cal_item['name'])
 
     parent_folder_doc['meta'] = {
         constants.DatasetMarker: True,
@@ -1079,8 +1313,18 @@ def create_multicam(
             'cameraOrder': camera_order,
             'cameras': multi_cam_cameras,
             **(
-                {constants.CalibrationItemIdMarker: calibration_item_id}
-                if calibration_item_id
+                {constants.CalibrationItemIdMarker: calibration_source_item_id}
+                if calibration_source_item_id
+                else {}
+            ),
+            **(
+                {constants.JsonCalibrationItemIdMarker: json_calibration_item_id}
+                if json_calibration_item_id
+                else {}
+            ),
+            **(
+                {constants.CalibrationOriginalNameMarker: cal_item['name']}
+                if calibration_source_item_id
                 else {}
             ),
         },
@@ -1157,83 +1401,49 @@ def get_calibration(
             'Cannot search for calibration file on non stereo/multicam datasets', code=400
         )
 
-    calibration_item_id = find_calibration_item_id(folder_id_str)
-    if calibration_item_id is None:
+    source_item_id = find_calibration_item_id(folder_id_str, folder)
+    json_item_id = find_json_calibration_item_id(folder_id_str, folder)
+    if source_item_id is None and json_item_id is None:
         return None
 
-    calibration_item = Item().load(calibration_item_id, level=AccessType.READ, user=user)
+    multi_cam = _multi_cam_meta(folder)
+    source_name = multi_cam.get(constants.CalibrationOriginalNameMarker)
+    if source_item_id and not source_name:
+        source_item = Item().load(source_item_id, level=AccessType.READ, user=user)
+        if source_item is not None:
+            source_name = source_item['name']
 
-    files = list(Item().childFiles(calibration_item))
-    json_file = next((f for f in files if f['name'].endswith('.json')), None)
-    # File name reported even when parameters can't be parsed (e.g. an .npz or an
-    # unsupported/corrupt file) so the viewer still shows the calibration as loaded.
-    fallback = json_file or (files[0] if files else None) or calibration_item
-    fallback_name = fallback['name']
-
-    if json_file is not None:
-        try:
-            with File().open(json_file) as fh:
-                chunks = []
-                while True:
-                    chunk = fh.read(4096)
-                    if not chunk:
-                        break
-                    chunks.append(chunk)
-
-            data = json.loads(b"".join(chunks).decode("utf-8"))
-
-            calib_left = types.CameraCalibration(
-                cx=data['cx_left'],
-                cy=data['cy_left'],
-                fx=data['fx_left'],
-                fy=data['fy_left'],
-                k1=data['k1_left'],
-                k2=data['k2_left'],
-                k3=data['k3_left'],
-                p1=data['p1_left'],
-                p2=data['p2_left'],
-                rmsError=data['rms_error_left'],
+    json_path = None
+    json_file_model = None
+    if json_item_id:
+        json_item = Item().load(json_item_id, level=AccessType.READ, user=user)
+        if json_item is not None:
+            json_files = list(Item().childFiles(json_item))
+            json_file_model = next(
+                (f for f in json_files if f['name'].lower().endswith('.json')),
+                json_files[0] if json_files else None,
             )
+            if json_file_model is not None:
+                json_path = json_file_model['name']
 
-            calib_right = types.CameraCalibration(
-                cx=data['cx_right'],
-                cy=data['cy_right'],
-                fx=data['fx_right'],
-                fy=data['fy_right'],
-                k1=data['k1_right'],
-                k2=data['k2_right'],
-                k3=data['k3_right'],
-                p1=data['p1_right'],
-                p2=data['p2_right'],
-                rmsError=data['rms_error_right'],
-            )
-
-            dataset_calibration = types.DatasetStereoCalibration(
-                R=data['R'],
-                T=data['T'],
-                gridHeight=data['grid_height'],
-                gridWidth=data['grid_width'],
-                imageHeight=data['image_height'],
-                imageWidth=data['image_width'],
-                squareSize=data['square_size_mm'],
-                rmsError=data['rms_error_stereo'],
-                calibrations={'left': calib_left, 'right': calib_right},
-            )
-
+    if json_file_model is not None:
+        dataset_calibration = _read_json_calibration_file(json_file_model)
+        if dataset_calibration is not None:
             return types.DatasetCalibrationResult(
                 calibration=dataset_calibration,
-                itemId=str(calibration_item['_id']),
-                path=json_file['name'],
+                itemId=source_item_id,
+                jsonItemId=json_item_id,
+                originalName=source_name,
+                jsonPath=json_path,
+                path=json_path,
             )
-        except (ValueError, KeyError, UnicodeDecodeError):
-            # Present-but-unparseable JSON: fall through to a filename-only result.
-            pass
 
-    # A calibration file is attached but its parameters can't be parsed (non-JSON
-    # such as .npz, or malformed). Report its presence and name.
     return types.DatasetCalibrationResult(
-        itemId=str(calibration_item['_id']),
-        path=fallback_name,
+        itemId=source_item_id,
+        jsonItemId=json_item_id,
+        originalName=source_name,
+        jsonPath=json_path,
+        path=json_path,
     )
 
 
@@ -1243,9 +1453,8 @@ def enqueue_calibration_conversion(
     item_name: str,
 ) -> None:
     """
-    Kick off a background worker job to convert a non-JSON calibration file to the
-    JSON camera-rig format (for display). The pipeline can consume the original file
-    directly, so this is best-effort and never blocks the request.
+    Kick off a background worker job to convert a calibrationFile item to a separate
+    jsonCalibrationFile JSON camera-rig item for display.
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     # convert_cam_format.py lives on pipeline workers (VIAME image), not celery workers.
@@ -1289,20 +1498,25 @@ def set_calibration(
     if cal_item is None or str(cal_item.get('folderId')) != str(folder['_id']):
         raise RestException('Calibration file must be stored in the dataset folder', code=400)
 
-    # Unmark any prior calibration items so find_calibration_item_id picks the new one.
-    for prior in _calibration_items_in_folder_root(str(folder['_id'])):
-        if str(prior['_id']) != str(cal_item['_id']):
-            Item().setMetadata(prior, {constants.CalibrationFileMarker: False})
-
-    Item().setMetadata(cal_item, {constants.CalibrationFileMarker: 'true'})
+    folder_id = str(folder['_id'])
+    _clear_prior_calibration_items(folder_id, keep_source_item_id=str(cal_item['_id']))
 
     multi_cam = dict(folder['meta'].get(constants.MultiCamMarker, {}))
     multi_cam[constants.CalibrationItemIdMarker] = str(cal_item['_id'])
+    multi_cam[constants.CalibrationOriginalNameMarker] = file['name']
+    multi_cam.pop(constants.JsonCalibrationItemIdMarker, None)
+
+    if file['name'].lower().endswith('.json'):
+        _mark_calibration_source_and_json_item(cal_item)
+        multi_cam[constants.JsonCalibrationItemIdMarker] = str(cal_item['_id'])
+    else:
+        _mark_calibration_source_item(cal_item)
+        enqueue_calibration_conversion(user, str(cal_item['_id']), cal_item['name'])
+
     folder['meta'][constants.MultiCamMarker] = multi_cam
     Folder().save(folder)
 
-    # Non-JSON formats (e.g. .npz) need conversion before parameters can be displayed.
-    if not file['name'].lower().endswith('.json'):
-        enqueue_calibration_conversion(user, str(cal_item['_id']), cal_item['name'])
-
-    return {'calibrationItemId': str(cal_item['_id'])}
+    return {
+        'calibrationItemId': str(cal_item['_id']),
+        'jsonCalibrationItemId': multi_cam.get(constants.JsonCalibrationItemIdMarker),
+    }

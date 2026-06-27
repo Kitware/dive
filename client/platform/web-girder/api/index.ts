@@ -36,7 +36,7 @@ export function getUri(config: AxiosRequestConfig) {
   return girderRest.apiRoot.replace(/\/*$/i, '/') + girderRest.getUri(config).replace(/^\/*/, '');
 }
 
-/** Trigger a browser download of the dataset's current calibration file. */
+/** Trigger a browser download of the dataset's source calibration file. */
 export async function downloadCalibration(datasetId: string): Promise<void> {
   const { data } = await getDatasetCalibration(datasetId);
   if (data?.itemId) {
@@ -44,10 +44,15 @@ export async function downloadCalibration(datasetId: string): Promise<void> {
   }
 }
 
-/** Delete the Girder item holding the dataset's calibration file. */
+/** Delete the Girder items holding the dataset's calibration files. */
 export async function deleteCalibration(datasetId: string): Promise<void> {
   const { data } = await getDatasetCalibration(datasetId);
+  const itemIds = new Set<string>();
   if (data?.itemId) {
-    await deleteItem(data.itemId);
+    itemIds.add(data.itemId);
   }
+  if (data?.jsonItemId) {
+    itemIds.add(data.jsonItemId);
+  }
+  await Promise.all([...itemIds].map((itemId) => deleteItem(itemId)));
 }

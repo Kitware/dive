@@ -213,17 +213,28 @@ def test_create_multicam_marks_calibration_in_dataset_folder(
     item_cls.return_value.move.assert_not_called()
     item_cls.return_value.setMetadata.assert_called_once_with(
         cal_item,
-        {constants.CalibrationFileMarker: 'true'},
+        {
+            constants.CalibrationFileMarker: 'true',
+            constants.JsonCalibrationFileMarker: 'true',
+        },
     )
     saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
-    assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'cal-id'
+    multi_cam = saved_meta[constants.MultiCamMarker]
+    assert multi_cam[constants.CalibrationItemIdMarker] == 'cal-id'
+    assert multi_cam[constants.JsonCalibrationItemIdMarker] == 'cal-id'
+    assert multi_cam[constants.CalibrationOriginalNameMarker] == 'stereo-cal.json'
 
 
 @patch('dive_server.crud_dataset.Item')
 def test_resolve_stereo_calibration_item_id_from_folder_root(item_cls):
     parent_folder = {
         '_id': 'multi-id',
-        'meta': {constants.SubTypeMarker: 'stereo'},
+        'meta': {
+            constants.SubTypeMarker: 'stereo',
+            constants.MultiCamMarker: {
+                constants.CalibrationItemIdMarker: 'cal-id',
+            },
+        },
     }
     pipeline = {
         'name': 'Stereo',
@@ -237,17 +248,11 @@ def test_resolve_stereo_calibration_item_id_from_folder_root(item_cls):
         'meta': {constants.CalibrationFileMarker: 'true'},
     }
 
-    item_cls.return_value.find.return_value = [cal_item]
+    item_cls.return_value.findOne.return_value = cal_item
 
     result = crud_dataset.resolve_stereo_calibration_item_id(parent_folder, pipeline)
 
     assert result == 'cal-id'
-    item_cls.return_value.find.assert_called_once()
-    from dive_server.crud_dataset import _mongo_id
-
-    assert item_cls.return_value.find.call_args[0][0] == {
-        'folderId': _mongo_id('multi-id'),
-    }
 
 
 @patch('dive_server.crud_dataset.Item')
