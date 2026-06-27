@@ -201,27 +201,27 @@ interface DatasetMeta extends DatasetMetaMutable {
 }
 
 interface CameraCalibration {
-  cx: number
-  cy: number
-  fx: number
-  fy: number
-  k1: number
-  k2: number
-  k3: number
-  p1: number
-  p2: number
-  rmsError: number
+  cx?: number
+  cy?: number
+  fx?: number
+  fy?: number
+  k1?: number
+  k2?: number
+  k3?: number
+  p1?: number
+  p2?: number
+  rmsError?: number
 }
 
 interface DatasetStereoCalibration {
   R: number[]
   T: number[]
-  gridHeight: number
-  gridWidth: number
-  imageHeight: number
-  imageWidth: number
-  squareSize: number
-  rmsError: number
+  gridHeight?: number
+  gridWidth?: number
+  imageHeight?: number
+  imageWidth?: number
+  squareSize?: number
+  rmsError?: number
   calibrations: Record<string, CameraCalibration>
 }
 

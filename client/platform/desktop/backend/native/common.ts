@@ -31,6 +31,7 @@ import {
   PipelineParamType,
   DatasetCalibrationResult,
   DatasetStereoCalibration,
+  CameraCalibration,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -1925,35 +1926,72 @@ async function exportDatasetCalibration(
   return destPath;
 }
 
+function optionalCalibrationNumber(
+  data: Record<string, number | number[]>,
+  key: string,
+): number | undefined {
+  const value = data[key];
+  return value === undefined || value === null ? undefined : value as number;
+}
+
+function parseCameraCalibration(
+  data: Record<string, number | number[]>,
+  side: 'left' | 'right',
+): CameraCalibration {
+  const calib: CameraCalibration = {};
+  const fields: [string, keyof CameraCalibration][] = [
+    [`cx_${side}`, 'cx'],
+    [`cy_${side}`, 'cy'],
+    [`fx_${side}`, 'fx'],
+    [`fy_${side}`, 'fy'],
+    [`k1_${side}`, 'k1'],
+    [`k2_${side}`, 'k2'],
+    [`k3_${side}`, 'k3'],
+    [`p1_${side}`, 'p1'],
+    [`p2_${side}`, 'p2'],
+  ];
+  fields.forEach(([jsonKey, field]) => {
+    const value = optionalCalibrationNumber(data, jsonKey);
+    if (value !== undefined) {
+      calib[field] = value;
+    }
+  });
+  const rmsError = optionalCalibrationNumber(data, `rms_error_${side}`);
+  if (rmsError !== undefined) {
+    calib.rmsError = rmsError;
+  }
+  return calib;
+}
+
 /**
  * Parse a KWIVER/VIAME JSON camera-rig file into the shared
  * DatasetStereoCalibration shape. Mirrors the web server parser
  * (server/dive_server/crud_dataset.py:get_calibration).
  */
 function parseStereoCalibrationJson(data: Record<string, number | number[]>): DatasetStereoCalibration {
-  const cameraFor = (side: 'left' | 'right') => ({
-    cx: data[`cx_${side}`] as number,
-    cy: data[`cy_${side}`] as number,
-    fx: data[`fx_${side}`] as number,
-    fy: data[`fy_${side}`] as number,
-    k1: data[`k1_${side}`] as number,
-    k2: data[`k2_${side}`] as number,
-    k3: data[`k3_${side}`] as number,
-    p1: data[`p1_${side}`] as number,
-    p2: data[`p2_${side}`] as number,
-    rmsError: data[`rms_error_${side}`] as number,
-  });
-  return {
+  const result: DatasetStereoCalibration = {
     R: data.R as number[],
     T: data.T as number[],
-    gridHeight: data.grid_height as number,
-    gridWidth: data.grid_width as number,
-    imageHeight: data.image_height as number,
-    imageWidth: data.image_width as number,
-    squareSize: data.square_size_mm as number,
-    rmsError: data.rms_error_stereo as number,
-    calibrations: { left: cameraFor('left'), right: cameraFor('right') },
+    calibrations: {
+      left: parseCameraCalibration(data, 'left'),
+      right: parseCameraCalibration(data, 'right'),
+    },
   };
+  const optionalFields: [string, keyof DatasetStereoCalibration][] = [
+    ['grid_height', 'gridHeight'],
+    ['grid_width', 'gridWidth'],
+    ['image_height', 'imageHeight'],
+    ['image_width', 'imageWidth'],
+    ['square_size_mm', 'squareSize'],
+    ['rms_error_stereo', 'rmsError'],
+  ];
+  optionalFields.forEach(([jsonKey, field]) => {
+    const value = optionalCalibrationNumber(data, jsonKey);
+    if (value !== undefined) {
+      result[field] = value;
+    }
+  });
+  return result;
 }
 
 /**

@@ -18,6 +18,73 @@ export default defineComponent({
   setup(props, { emit }) {
     const close = () => emit('input', false);
 
+    const formatOptional = (value: number | undefined) => (
+      value === undefined || value === null ? '' : String(value)
+    );
+
+    const formatPair = (first: number | undefined, second: number | undefined) => {
+      const formattedFirst = formatOptional(first);
+      const formattedSecond = formatOptional(second);
+      if (!formattedFirst && !formattedSecond) {
+        return '';
+      }
+      return `${formattedFirst} , ${formattedSecond}`;
+    };
+
+    const formatTriple = (
+      first: number | undefined,
+      second: number | undefined,
+      third: number | undefined,
+    ) => {
+      const formattedFirst = formatOptional(first);
+      const formattedSecond = formatOptional(second);
+      const formattedThird = formatOptional(third);
+      if (!formattedFirst && !formattedSecond && !formattedThird) {
+        return '';
+      }
+      return `${formattedFirst} , ${formattedSecond} , ${formattedThird}`;
+    };
+
+    const formatResolution = (
+      width: number | undefined,
+      height: number | undefined,
+    ) => {
+      const formattedWidth = formatOptional(width);
+      const formattedHeight = formatOptional(height);
+      if (!formattedWidth && !formattedHeight) {
+        return '';
+      }
+      return `${formattedWidth} x ${formattedHeight} px`;
+    };
+
+    const formatGrid = (width: number | undefined, height: number | undefined) => {
+      const formattedWidth = formatOptional(width);
+      const formattedHeight = formatOptional(height);
+      if (!formattedWidth && !formattedHeight) {
+        return '';
+      }
+      return `${formattedWidth} x ${formattedHeight}`;
+    };
+
+    const formatWithUnit = (value: number | undefined, unit: string) => {
+      const formatted = formatOptional(value);
+      return formatted ? `${formatted} ${unit}` : '';
+    };
+
+    const formatRotationRow = (rotation: number[] | undefined, start: number) => {
+      if (!rotation || rotation.length < start + 3) {
+        return '';
+      }
+      return `[${rotation[start].toFixed(4)}, ${rotation[start + 1].toFixed(4)}, ${rotation[start + 2].toFixed(4)}]`;
+    };
+
+    const formatTranslation = (translation: number[] | undefined, index: number) => {
+      if (!translation || translation.length <= index) {
+        return '';
+      }
+      return String(translation[index]);
+    };
+
     const downloadCalibration = () => {
       emit('download');
       close();
@@ -31,6 +98,14 @@ export default defineComponent({
       close,
       downloadCalibration,
       deleteCalibration,
+      formatOptional,
+      formatPair,
+      formatTriple,
+      formatResolution,
+      formatGrid,
+      formatWithUnit,
+      formatRotationRow,
+      formatTranslation,
     };
   },
 });
@@ -85,10 +160,10 @@ export default defineComponent({
                 </tr>
               </thead>
               <tbody>
-                <tr><td>Image resolution</td><td>{{ calibration.imageWidth }} x {{ calibration.imageHeight }} px</td></tr>
-                <tr><td>Calibration grid</td><td>{{ calibration.gridWidth }} x {{ calibration.gridHeight }}</td></tr>
-                <tr><td>Square size</td><td>{{ calibration.squareSize }} mm</td></tr>
-                <tr><td>Stereo RMS Error</td><td>{{ calibration.rmsError }}</td></tr>
+                <tr><td>Image resolution</td><td>{{ formatResolution(calibration.imageWidth, calibration.imageHeight) }}</td></tr>
+                <tr><td>Calibration grid</td><td>{{ formatGrid(calibration.gridWidth, calibration.gridHeight) }}</td></tr>
+                <tr><td>Square size</td><td>{{ formatWithUnit(calibration.squareSize, 'mm') }}</td></tr>
+                <tr><td>Stereo RMS Error</td><td>{{ formatOptional(calibration.rmsError) }}</td></tr>
               </tbody>
             </template>
           </v-simple-table>
@@ -112,31 +187,31 @@ export default defineComponent({
                 <tr>
                   <td><strong>Focal (fx, fy)</strong></td>
                   <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
-                    {{ calib.fx }} , {{ calib.fy }}
+                    {{ formatPair(calib.fx, calib.fy) }}
                   </td>
                 </tr>
                 <tr>
                   <td><strong>Optical center (cx, cy)</strong></td>
                   <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
-                    {{ calib.cx }} , {{ calib.cy }}
+                    {{ formatPair(calib.cx, calib.cy) }}
                   </td>
                 </tr>
                 <tr>
                   <td><strong>Radial Distortion (k1, k2, k3)</strong></td>
                   <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
-                    {{ calib.k1 }} , {{ calib.k2 }} , {{ calib.k3 }}
+                    {{ formatTriple(calib.k1, calib.k2, calib.k3) }}
                   </td>
                 </tr>
                 <tr>
                   <td><strong>Tangential Distortion (p1, p2)</strong></td>
                   <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
-                    {{ calib.p1 }} , {{ calib.p2 }}
+                    {{ formatPair(calib.p1, calib.p2) }}
                   </td>
                 </tr>
                 <tr>
                   <td><strong>RMS Error</strong></td>
                   <td v-for="(calib, cameraName) in calibration.calibrations" :key="cameraName">
-                    {{ calib.rmsError }}
+                    {{ formatOptional(calib.rmsError) }}
                   </td>
                 </tr>
               </tbody>
@@ -152,9 +227,9 @@ export default defineComponent({
                 <div class="font-weight-bold mb-1">
                   Translation T (mm):
                 </div>
-                X: {{ calibration.T[0] }}<br>
-                Y: {{ calibration.T[1] }}<br>
-                Z: {{ calibration.T[2] }}
+                X: {{ formatTranslation(calibration.T, 0) }}<br>
+                Y: {{ formatTranslation(calibration.T, 1) }}<br>
+                Z: {{ formatTranslation(calibration.T, 2) }}
               </v-card>
             </v-col>
             <v-col cols="12" md="6">
@@ -162,9 +237,9 @@ export default defineComponent({
                 <div class="font-weight-bold mb-1">
                   Rotation R:
                 </div>
-                [{{ calibration.R[0].toFixed(4) }}, {{ calibration.R[1].toFixed(4) }}, {{ calibration.R[2].toFixed(4) }}]<br>
-                [{{ calibration.R[3].toFixed(4) }}, {{ calibration.R[4].toFixed(4) }}, {{ calibration.R[5].toFixed(4) }}]<br>
-                [{{ calibration.R[6].toFixed(4) }}, {{ calibration.R[7].toFixed(4) }}, {{ calibration.R[8].toFixed(4) }}]
+                {{ formatRotationRow(calibration.R, 0) }}<br>
+                {{ formatRotationRow(calibration.R, 3) }}<br>
+                {{ formatRotationRow(calibration.R, 6) }}
               </v-card>
             </v-col>
           </v-row>

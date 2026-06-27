@@ -182,7 +182,7 @@ class DIVEAnnotationSchema(TypedDict):
     version: int
 
 
-class CameraCalibration(TypedDict):
+class CameraCalibration(TypedDict, total=False):
     cx: float
     cy: float
     fx: float
@@ -198,13 +198,13 @@ class CameraCalibration(TypedDict):
 class DatasetStereoCalibration(TypedDict):
     R: List[float]
     T: List[float]
-    gridHeight: int
-    gridWidth: int
-    imageHeight: int
-    imageWidth: int
-    squareSize: float
-    rmsError: float
     calibrations: Dict[str, CameraCalibration]
+    gridHeight: NotRequired[int]
+    gridWidth: NotRequired[int]
+    imageHeight: NotRequired[int]
+    imageWidth: NotRequired[int]
+    squareSize: NotRequired[float]
+    rmsError: NotRequired[float]
 
 
 class DatasetCalibrationResult(TypedDict):

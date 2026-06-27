@@ -1065,42 +1065,56 @@ def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
     )
 
 
+def _optional_calibration_number(data: dict, key: str) -> float | None:
+    if key not in data or data[key] is None:
+        return None
+    return float(data[key])
+
+
+def _parse_camera_calibration(data: dict, side: str) -> types.CameraCalibration:
+    calib: types.CameraCalibration = {}
+    for json_key, field in (
+        (f'cx_{side}', 'cx'),
+        (f'cy_{side}', 'cy'),
+        (f'fx_{side}', 'fx'),
+        (f'fy_{side}', 'fy'),
+        (f'k1_{side}', 'k1'),
+        (f'k2_{side}', 'k2'),
+        (f'k3_{side}', 'k3'),
+        (f'p1_{side}', 'p1'),
+        (f'p2_{side}', 'p2'),
+    ):
+        value = _optional_calibration_number(data, json_key)
+        if value is not None:
+            calib[field] = value
+    rms_error = _optional_calibration_number(data, f'rms_error_{side}')
+    if rms_error is not None:
+        calib['rmsError'] = rms_error
+    return calib
+
+
 def _parse_stereo_calibration_json(data: dict) -> types.DatasetStereoCalibration:
-    calib_left = types.CameraCalibration(
-        cx=data['cx_left'],
-        cy=data['cy_left'],
-        fx=data['fx_left'],
-        fy=data['fy_left'],
-        k1=data['k1_left'],
-        k2=data['k2_left'],
-        k3=data['k3_left'],
-        p1=data['p1_left'],
-        p2=data['p2_left'],
-        rmsError=data['rms_error_left'],
+    result: types.DatasetStereoCalibration = {
+        'R': data['R'],
+        'T': data['T'],
+        'calibrations': {
+            'left': _parse_camera_calibration(data, 'left'),
+            'right': _parse_camera_calibration(data, 'right'),
+        },
+    }
+    optional_fields = (
+        ('grid_height', 'gridHeight'),
+        ('grid_width', 'gridWidth'),
+        ('image_height', 'imageHeight'),
+        ('image_width', 'imageWidth'),
+        ('square_size_mm', 'squareSize'),
+        ('rms_error_stereo', 'rmsError'),
     )
-    calib_right = types.CameraCalibration(
-        cx=data['cx_right'],
-        cy=data['cy_right'],
-        fx=data['fx_right'],
-        fy=data['fy_right'],
-        k1=data['k1_right'],
-        k2=data['k2_right'],
-        k3=data['k3_right'],
-        p1=data['p1_right'],
-        p2=data['p2_right'],
-        rmsError=data['rms_error_right'],
-    )
-    return types.DatasetStereoCalibration(
-        R=data['R'],
-        T=data['T'],
-        gridHeight=data['grid_height'],
-        gridWidth=data['grid_width'],
-        imageHeight=data['image_height'],
-        imageWidth=data['image_width'],
-        squareSize=data['square_size_mm'],
-        rmsError=data['rms_error_stereo'],
-        calibrations={'left': calib_left, 'right': calib_right},
-    )
+    for json_key, field in optional_fields:
+        value = _optional_calibration_number(data, json_key)
+        if value is not None:
+            result[field] = int(value) if field.startswith('grid') or field.startswith('image') else value
+    return result
 
 
 def _read_json_calibration_file(
