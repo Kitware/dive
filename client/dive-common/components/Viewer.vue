@@ -1461,7 +1461,7 @@ export default defineComponent({
           :items="multiCamList"
           label="Camera"
           class="mx-1 shrink camera-select"
-          style="width: 180px; font-size: 0.9em"
+          :menu-props="{ minWidth: 140 }"
           outlined
           hide-details
           dense
@@ -1884,6 +1884,24 @@ html {
   font-size: 14px;
   font-weight: 600;
   color: white;
+}
+
+.camera-select {
+  width: 100px;
+  max-width: 100px;
+  flex: 0 0 auto;
+  font-size: 0.9em;
+}
+
+.camera-select .v-select__selections {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.camera-select .v-select__selection--comma {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .camera-select fieldset {
