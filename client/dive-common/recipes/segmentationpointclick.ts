@@ -148,8 +148,16 @@ export default class SegmentationPointClick implements Recipe {
   /** Pending mask shape from async prediction */
   private pendingMaskShape: [number, number] | null = null;
 
-  /** Whether a prediction is currently in progress */
-  private isPredicting: boolean = false;
+  /** Number of in-flight predictions (supports rapid successive clicks) */
+  private pendingPredictionCount: number = 0;
+
+  /** Delayed timer before showing the predicting UI state */
+  private predictionLoadingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private static readonly PREDICTION_LOADING_DELAY_MS = 400;
+
+  /** Whether segmentation calculation is in progress (shown after a short delay) */
+  predicting: Ref<boolean>;
 
   /** Whether points were reset since last activation (to distinguish from initial entry) */
   private _wasReset: boolean = false;
@@ -171,6 +179,40 @@ export default class SegmentationPointClick implements Recipe {
     this.toggleable = ref(isDesktopRuntime());
     this.icon = ref('mdi-auto-fix');
     this.loading = ref(false);
+    this.predicting = ref(false);
+  }
+
+  private clearPredictionLoadingTimer(): void {
+    if (this.predictionLoadingTimer !== null) {
+      clearTimeout(this.predictionLoadingTimer);
+      this.predictionLoadingTimer = null;
+    }
+  }
+
+  private clearPredictingState(): void {
+    this.clearPredictionLoadingTimer();
+    this.predicting.value = false;
+    this.pendingPredictionCount = 0;
+  }
+
+  private beginPrediction(): void {
+    this.pendingPredictionCount += 1;
+    if (this.pendingPredictionCount === 1 && this.predictionLoadingTimer === null) {
+      this.predictionLoadingTimer = setTimeout(() => {
+        this.predictionLoadingTimer = null;
+        if (this.pendingPredictionCount > 0) {
+          this.predicting.value = true;
+        }
+      }, SegmentationPointClick.PREDICTION_LOADING_DELAY_MS);
+    }
+  }
+
+  private endPrediction(): void {
+    this.pendingPredictionCount = Math.max(0, this.pendingPredictionCount - 1);
+    if (this.pendingPredictionCount === 0) {
+      this.clearPredictionLoadingTimer();
+      this.predicting.value = false;
+    }
   }
 
   /**
@@ -197,7 +239,7 @@ export default class SegmentationPointClick implements Recipe {
     this.pendingBounds = null;
     this.pendingRleMask = null;
     this.pendingMaskShape = null;
-    this.isPredicting = false;
+    this.clearPredictingState();
     this.frameData.clear();
     // Clear visual feedback for points
     this.bus.$emit('points-updated', { points: [], labels: [], frameNum: this.currentFrame });
@@ -320,7 +362,7 @@ export default class SegmentationPointClick implements Recipe {
       return;
     }
 
-    this.isPredicting = true;
+    this.beginPrediction();
 
     try {
       const imagePath = this.getImagePath(frameNum);
@@ -375,7 +417,7 @@ export default class SegmentationPointClick implements Recipe {
       const errorMessage = error instanceof Error ? error.message : 'Prediction failed';
       this.handlePredictionError(errorMessage, isFirstPoint, frameNum);
     } finally {
-      this.isPredicting = false;
+      this.endPrediction();
     }
   }
 
@@ -630,6 +672,7 @@ export default class SegmentationPointClick implements Recipe {
     // Cancel any pending activation from async init
     this.pendingActivation = false;
     this.loading.value = false;
+    this.clearPredictingState();
     this.reset();
     this._wasReset = false;
     this.icon.value = 'mdi-auto-fix';

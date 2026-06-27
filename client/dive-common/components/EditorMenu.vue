@@ -135,7 +135,8 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
-          loading: r.loading?.value ?? false,
+          loading: (r.loading?.value ?? false)
+            || (r instanceof SegmentationPointClick && r.predicting.value),
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -191,6 +192,10 @@ export default defineComponent({
       return segRecipe || null;
     });
 
+    const segmentationPredicting = computed(
+      () => activeSegmentationRecipe.value?.predicting.value ?? false,
+    );
+
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
         return '';
@@ -225,6 +230,7 @@ export default defineComponent({
       activeEditButton,
       editButtonsMenuKey,
       activeSegmentationRecipe,
+      segmentationPredicting,
     };
   },
 });
@@ -264,6 +270,9 @@ export default defineComponent({
             <span v-else-if="multiSelectActive">
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
+            </span>
+            <span v-else-if="segmentationPredicting">
+              Computing segmentation...
             </span>
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
@@ -376,7 +385,7 @@ export default defineComponent({
           color="error"
           class="mx-1"
           small
-          :disabled="!activeSegmentationRecipe.hasPoints()"
+          :disabled="!activeSegmentationRecipe.hasPoints() || segmentationPredicting"
           @click="activeSegmentationRecipe.resetPoints()"
         >
           <v-icon left>
