@@ -53,6 +53,7 @@ services:
       - ${MONGO_DB_PATH:-mongo_db}:/data/db
   redis:
     image: redis:latest
+    command: ["redis-server", "--maxmemory", "8192MB", "--maxmemory-policy", "volatile-lru"]
     ports:
       - "6379:6379"
     volumes:

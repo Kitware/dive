@@ -77,6 +77,7 @@ class PipeMetadata(TypedDict):
     inputType: Optional[str]
     outputType: Optional[str]
     diveParams: Optional[list[DiveParam]]
+    requiresCalibration: Optional[bool]
 
 
 class PipelineDescription(TypedDict):

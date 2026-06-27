@@ -87,6 +87,19 @@ type FailingKeyword= Record<string, {
 }>;
 
 describe('native.multiCamImport', () => {
+  it('uses datasetName when provided for folder imports', async () => {
+    const output = await beginMultiCamImport({
+      datasetName: 'my_stereo_scene',
+      defaultDisplay: 'left',
+      sourceList: {
+        left: { sourcePath: '/home/user/data/stereoLeftRightImages/left', trackFile: '' },
+        right: { sourcePath: '/home/user/data/stereoLeftRightImages/right', trackFile: '' },
+      },
+      type: 'image-sequence',
+    });
+    expect(output.jsonMeta.name).toBe('my_stereo_scene');
+  });
+
   if (multiCamSetup.folderTests) {
     const folderTests = (multiCamSetup.folderTests as FolderTest);
     Object.entries(folderTests).forEach(([key, val]) => {

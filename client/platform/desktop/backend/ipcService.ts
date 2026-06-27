@@ -3,7 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import {
-  app, ipcMain, shell, dialog,
+  app, ipcMain, shell, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
@@ -93,12 +93,16 @@ export default function register() {
   ipcMain.handle('open-link-in-browser', (_, url: string) => {
     common.openLink(url);
   });
-  ipcMain.handle('desktop:show-open-dialog', (_, options: Electron.OpenDialogOptions) => (
-    dialog.showOpenDialog(options)
-  ));
-  ipcMain.handle('desktop:show-save-dialog', (_, options: Electron.SaveDialogOptions) => (
-    dialog.showSaveDialog(options)
-  ));
+  ipcMain.handle('desktop:show-open-dialog', (event, options: Electron.OpenDialogOptions) => {
+    // Parent the dialog to the requesting window so it opens in front of (and
+    // modal to) DIVE instead of behind it (notably on Linux).
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options);
+  });
+  ipcMain.handle('desktop:show-save-dialog', (event, options: Electron.SaveDialogOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options);
+  });
   ipcMain.handle('desktop:get-app-version', () => getDiveVersion());
   ipcMain.on('desktop:get-app-version-sync', (event) => {
     // Sync IPC reply: Electron sets the return value on the event object.
@@ -177,6 +181,11 @@ export default function register() {
     event,
     { path }: { path: string },
   ) => common.findParentFolderCalibrationFile(path));
+
+  ipcMain.handle('dataset-has-calibration-file', async (
+    event,
+    { datasetId }: { datasetId: string },
+  ) => common.datasetHasCalibrationFile(settings.get(), datasetId));
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);

@@ -1,11 +1,12 @@
 <script lang="ts">
 import {
-  defineComponent,
   computed,
+  defineComponent,
   PropType,
   ref,
   Ref,
   onBeforeMount,
+  watch,
 } from 'vue';
 import {
   Pipelines,
@@ -25,10 +26,14 @@ import {
 } from 'dive-common/constants';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
+import {
+  pipelineDisabledForMissingCalibration,
+} from 'dive-common/pipelineCalibration';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
+import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 
 type MenuState = 'idle' | 'configuring';
 
@@ -40,6 +45,7 @@ export default defineComponent({
     JobConfigFilterTranscodeDialog,
     PipelineParamsDialog,
     RunPipelineToast,
+    PipelineCalibrationWarningIcon,
   },
 
   props: {
@@ -92,7 +98,7 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
-    const { runPipeline, getPipelineList } = useApi();
+    const { runPipeline, getPipelineList, hasCalibrationFile } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const {
       request: _runPipelineRequest,
@@ -137,6 +143,39 @@ export default defineComponent({
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
     });
+
+    const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
+
+    async function refreshCalibrationStatus() {
+      if (!hasCalibrationFile || props.selectedDatasetIds.length === 0) {
+        calibrationAvailableByDatasetId.value = {};
+        return;
+      }
+      const parentIds = [...new Set(props.selectedDatasetIds.map((id) => parentDatasetId(id)))];
+      const entries = await Promise.all(
+        parentIds.map(async (datasetId) => {
+          const available = await hasCalibrationFile(datasetId);
+          return [datasetId, available] as const;
+        }),
+      );
+      calibrationAvailableByDatasetId.value = Object.fromEntries(entries);
+    }
+
+    watch(() => props.selectedDatasetIds, () => {
+      refreshCalibrationStatus();
+    }, { immediate: true });
+
+    function isPipelineDisabledForCalibration(pipeline: Pipe) {
+      return pipelineDisabledForMissingCalibration(
+        pipeline,
+        calibrationAvailableByDatasetId.value,
+        props.selectedDatasetIds.map((id) => parentDatasetId(id)),
+      );
+    }
+
+    function pipelineTooltipDisabled(pipeline: Pipe) {
+      return !pipeline?.metadata?.description;
+    }
 
     const pipelines = computed(() => filterPipelinesForDatasets(
       unsortedPipelines.value,
@@ -202,6 +241,9 @@ export default defineComponent({
     }
 
     async function runPipelineOnSelectedItem(pipeline: Pipe) {
+      if (isPipelineDisabledForCalibration(pipeline)) {
+        return;
+      }
       if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
         openDiveParamsDialog(pipeline);
         return;
@@ -258,6 +300,8 @@ export default defineComponent({
       pipelineParams,
       showParamsDialog,
       confirmPipelineExecution,
+      isPipelineDisabledForCalibration,
+      pipelineTooltipDisabled,
     };
   },
 });
@@ -402,23 +446,29 @@ export default defineComponent({
                       :key="`${pipeline.name}-${pipeline.pipe}`"
                       left
                       :open-delay="250"
-                      :disabled="!pipeline?.metadata?.description"
+                      :disabled="pipelineTooltipDisabled(pipeline)"
                       max-width="400"
                       content-class="pipeline-description-tooltip"
                     >
                       <template #activator="{ on, attrs }">
                         <v-list-item
                           v-bind="attrs"
+                          :class="{ 'pipeline-item--unavailable': isPipelineDisabledForCalibration(pipeline) }"
                           v-on="on"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
                           <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
                             {{ pipeline.name }}
-                            <v-icon style="margin-left: 20px; font-size: 1.5em;">
-                              <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
-                                mdi-cog-outline
-                              </template>
-                            </v-icon>
+                            <span style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
+                              <PipelineCalibrationWarningIcon
+                                v-if="isPipelineDisabledForCalibration(pipeline)"
+                              />
+                              <v-icon style="font-size: 1.5em;">
+                                <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
+                                  mdi-cog-outline
+                                </template>
+                              </v-icon>
+                            </span>
                           </v-list-item-title>
                         </v-list-item>
                       </template>
@@ -477,5 +527,11 @@ export default defineComponent({
 .pipeline-description-tooltip.v-tooltip__content {
   background: #3a3a3a !important;
   opacity: 1 !important;
+}
+
+.pipeline-item--unavailable {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: rgba(251, 140, 0, 0.08);
 }
 </style>

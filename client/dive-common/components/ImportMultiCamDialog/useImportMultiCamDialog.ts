@@ -20,7 +20,9 @@ import {
   groupParentFolderByCamera,
   isValidCameraName,
   organizeSubfolderCameras,
+  parentFolderLabelFromAbsolutePaths,
   pickDefaultMulticamCamera,
+  subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
@@ -350,7 +352,11 @@ export function useImportMultiCamDialog(
         Vue.set(
           subfolderOriginalNames.value,
           cameraName,
-          subfolderSourceDisplayLabel(sourcePath, organized.assignments[i].folderName),
+          subfolderSourceDisplayLabel(
+            sourcePath,
+            organized.assignments[i].folderName,
+            files,
+          ),
         );
         Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
@@ -422,7 +428,7 @@ export function useImportMultiCamDialog(
       props.unregisterSubfolderCamera(oldSourcePath);
     }
     const displayName = props.dataType === VideoType
-      ? (resolvedPath.split(/[/\\]/).pop() || cameraKey)
+      ? subfolderSourceDisplayLabel(resolvedPath, cameraKey, files)
       : ((displayRoot || sourcePath).split(/[/\\]/).pop() || cameraKey);
     Vue.set(subfolderOriginalNames.value, cameraKey, displayName);
     folderList.value[cameraKey].sourcePath = resolvedPath;
@@ -477,6 +483,7 @@ export function useImportMultiCamDialog(
           folder,
           await importRequest(() => props.importMedia(sourcePath)),
         );
+        syncSuggestedDatasetNameFromCameraPaths();
       } else if (importType.value === 'subfolders') {
         const sourcePath = ret.root || path;
         await importRequest(() => updateSubfolderCameraSource(
@@ -567,12 +574,30 @@ export function useImportMultiCamDialog(
     (val: string) => (val || '').trim().length > 0 || 'Dataset name is required',
   ];
 
+  function syncSuggestedDatasetNameFromCameraPaths() {
+    if (!listParentFolderCameras || importType.value !== 'multi') {
+      return;
+    }
+    const paths = Object.values(folderList.value)
+      .map((entry) => entry.sourcePath)
+      .filter((path) => path);
+    const label = parentFolderLabelFromAbsolutePaths(paths);
+    if (label && !datasetName.value.trim()) {
+      datasetName.value = label;
+    }
+  }
+
+  function clearCalibration() {
+    calibrationFile.value = '';
+  }
+
   function subfolderSourceDisplayLabel(
     sourcePath: string,
     folderName: string,
+    files: File[] = [],
   ): string {
     if (props.dataType === VideoType) {
-      return sourcePath.split(/[/\\]/).pop() || folderName;
+      return subfolderVideoDisplayLabel(sourcePath, folderName, files);
     }
     return folderName;
   }
@@ -636,5 +661,6 @@ export function useImportMultiCamDialog(
     deleteSet,
     onRenameCamera,
     openAnnotationFile,
+    clearCalibration,
   };
 }
