@@ -85,6 +85,34 @@ export function useMediaController() {
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
   const resizeTrigger: Ref<number> = ref(0);
+  const emptyControllerFrame = ref(0);
+  const emptyControllerMaxFrame = ref(0);
+  const emptyControllerPlaying = ref(false);
+  const emptyControllerSpeed = ref(1);
+  const emptyControllerVolume = ref(0);
+  const emptyControllerCurrentTime = ref(0);
+  const emptyControllerCameras = computed(() => [] as string[]);
+  const emptyAggregateController: AggregateMediaController = {
+    cameras: emptyControllerCameras,
+    maxFrame: emptyControllerMaxFrame,
+    frame: emptyControllerFrame,
+    seek: () => {},
+    nextFrame: () => {},
+    prevFrame: () => {},
+    volume: emptyControllerVolume,
+    setVolume: () => {},
+    speed: emptyControllerSpeed,
+    setSpeed: () => {},
+    pause: () => {},
+    play: () => {},
+    playing: emptyControllerPlaying,
+    resetZoom: () => {},
+    currentTime: emptyControllerCurrentTime,
+    getController,
+    toggleSynchronizeCameras,
+    cameraSync: synchronizeCameras,
+    resizeTrigger,
+  };
   function clear() {
     geoViewers = {};
     containers = {};
@@ -471,6 +499,11 @@ export function useMediaController() {
   }
 
   const aggregateController: Ref<AggregateMediaController> = computed(() => {
+    if (cameras.value.length === 0) {
+      // During reload the controllers are cleared before new ones are created.
+      // Return a stub so watchers (e.g. LayerManager resizeTrigger) do not throw.
+      return emptyAggregateController;
+    }
     const defaultController = getController();
     return {
       cameras: computed(() => cameras.value.map((v) => String(v))),

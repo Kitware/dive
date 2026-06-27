@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  PropType,
   ref,
   watch,
 } from 'vue';
@@ -20,6 +21,10 @@ export default defineComponent({
   },
   props: {
     datasetId: { type: String, required: true },
+    calibrationFile: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   setup(props) {
     const showCalibrationDialog = ref(false);
@@ -38,10 +43,19 @@ export default defineComponent({
     // when the dataset changes.
     watch(() => showCalibrationDialog.value, (open) => { if (open) refresh(); });
     watch(() => props.datasetId, () => refresh());
+    watch(() => props.calibrationFile, () => refresh());
+
+    const hasCalibration = computed(() => !!calibrationResult.value);
 
     const calibrationFileName = computed(
       () => calibrationResult.value?.originalName ?? calibrationResult.value?.path,
     );
+
+    const openCalibrationDialog = () => {
+      if (hasCalibration.value) {
+        showCalibrationDialog.value = true;
+      }
+    };
 
     const onDownload = () => {
       downloadCalibration?.(props.datasetId);
@@ -56,7 +70,9 @@ export default defineComponent({
     return {
       showCalibrationDialog,
       calibrationResult,
+      hasCalibration,
       calibrationFileName,
+      openCalibrationDialog,
       canDownload: !!downloadCalibration,
       canDelete: !!deleteCalibration,
       onDownload,
@@ -73,20 +89,28 @@ export default defineComponent({
       :z-index="20"
     >
       <template #activator="{ on }">
-        <v-icon
-          class="mx-1"
+        <span
+          class="calibration-menu-inline__activator"
           v-on="on"
-          @click="showCalibrationDialog = true"
         >
-          mdi-checkerboard
-        </v-icon>
+          <v-icon
+            class="mx-1"
+            :class="{ 'calibration-menu-icon--disabled': !hasCalibration }"
+            @click="openCalibrationDialog"
+          >
+            mdi-checkerboard
+          </v-icon>
+        </span>
       </template>
-      <span>
+      <span v-if="hasCalibration">
         Cameras calibration
         <template v-if="calibrationFileName">
           <br>
           {{ calibrationFileName }}
         </template>
+      </span>
+      <span v-else>
+        No calibration file loaded. Use the Import button to import a calibration file.
       </span>
     </v-tooltip>
 
@@ -101,3 +125,15 @@ export default defineComponent({
     />
   </div>
 </template>
+
+<style scoped lang="scss">
+.calibration-menu-inline__activator {
+  display: inline-flex;
+  align-items: center;
+}
+
+.calibration-menu-icon--disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+</style>

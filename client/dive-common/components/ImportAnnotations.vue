@@ -44,7 +44,8 @@ export default defineComponent({
       default: false,
     },
   },
-  setup(props) {
+  emits: ['calibration-imported'],
+  setup(props, { emit }) {
     const api = useApi();
     const { openFromDisk, importAnnotationFile } = api;
     const { reloadAnnotations, save } = useHandler();
@@ -132,7 +133,7 @@ export default defineComponent({
         if (ret.canceled || !ret.filePaths.length) return;
         menuOpen.value = false;
         processing.value = true;
-        await api.importCalibrationFile(props.datasetId, ret.filePaths[0]);
+        const result = await api.importCalibrationFile(props.datasetId, ret.filePaths[0]);
         // A new camera file invalidates length measurements from the prior
         // calibration; clear them (and their length_method locks) when checked.
         if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
@@ -142,7 +143,7 @@ export default defineComponent({
           }
         }
         processing.value = false;
-        await reloadAnnotations();
+        emit('calibration-imported', result.calibration);
       } catch (error) {
         processing.value = false;
         prompt({

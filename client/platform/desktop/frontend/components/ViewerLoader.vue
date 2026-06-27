@@ -1272,6 +1272,27 @@ export default defineComponent({
       });
     }
 
+    function onCalibrationImported(calibrationPath: string) {
+      const dataset = datasets.value[props.id];
+      if (dataset) {
+        dataset.calibration = calibrationPath;
+      }
+      stereoCalibrationFile = calibrationPath;
+      if (!stereoServiceWanted()) return;
+      void (async () => {
+        try {
+          const hasStereo = await loadStereoMetadata();
+          if (!hasStereo) return;
+          const result = await stereoEnable(undefined, stereoCalibrationFile);
+          if (!result.success) return;
+          stereoEnabled.value = true;
+          await ensureStereoFrame(getViewerFrame());
+        } catch (err) {
+          console.warn('[Stereo] Failed to apply calibration after import:', err);
+        }
+      })();
+    }
+
     return {
       datasets,
       viewerRef,
@@ -1297,6 +1318,7 @@ export default defineComponent({
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
+      onCalibrationImported,
     };
   },
 });
@@ -1350,6 +1372,7 @@ export default defineComponent({
           :calibration-file="datasets[id] && datasets[id].calibration"
           v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
           block-on-unsaved
+          @calibration-imported="onCalibrationImported"
         />
         <Export
           v-if="datasets[id]"
@@ -1361,6 +1384,7 @@ export default defineComponent({
         <CalibrationMenu
           v-if="subTypeList[0] === 'stereo'"
           :dataset-id="modifiedId"
+          :calibration-file="datasets[id] && datasets[id].calibration"
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">
