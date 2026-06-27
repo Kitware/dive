@@ -175,6 +175,13 @@ export default defineComponent({
       if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
       }
+      if (activeSegmentationRecipe.value) {
+        return {
+          text: `${props.editingDetails === 'Editing' ? 'Editing' : 'Creating'} Segment`,
+          icon: 'mdi-auto-fix',
+          color: props.editingDetails === 'Creating' ? 'success' : 'primary',
+        };
+      }
       if (props.editingDetails !== 'disabled') {
         return {
           text: `${props.editingDetails} ${props.editingMode} `,
@@ -195,6 +202,8 @@ export default defineComponent({
     const segmentationPredicting = computed(
       () => activeSegmentationRecipe.value?.predicting.value ?? false,
     );
+
+    const segmentationTooltip = 'Left click to add positive points. Middle click or Shift+click for negative points. Right click or Enter to confirm. Escape to cancel.';
 
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
@@ -231,6 +240,7 @@ export default defineComponent({
       editButtonsMenuKey,
       activeSegmentationRecipe,
       segmentationPredicting,
+      segmentationTooltip,
     };
   },
 });
@@ -273,6 +283,9 @@ export default defineComponent({
             </span>
             <span v-else-if="segmentationPredicting">
               Computing segmentation...
+            </span>
+            <span v-else-if="activeSegmentationRecipe">
+              {{ segmentationTooltip }}
             </span>
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
