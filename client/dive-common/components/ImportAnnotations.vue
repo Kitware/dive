@@ -63,8 +63,8 @@ export default defineComponent({
       const parts = (props.datasetId || '').split('/');
       return parts.length > 1 ? parts[1] : null;
     });
-    // Camera/calibration file import is desktop-only (needs importCalibrationFile)
-    // and only meaningful for stereo datasets.
+    // Camera/calibration file import requires importCalibrationFile (web + desktop)
+    // and is only meaningful for stereo datasets.
     const cameraFileSupported = computed(
       () => !!api.importCalibrationFile && props.subType === 'stereo',
     );

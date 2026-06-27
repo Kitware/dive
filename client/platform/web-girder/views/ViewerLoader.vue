@@ -18,6 +18,8 @@ import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { DatasetType, SubType } from 'dive-common/apispec';
+import { useApi } from 'dive-common/apispec';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
@@ -102,7 +104,9 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const router = useRouter();
+    const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
+    const calibrationFile = ref<string | null>(null);
     const { brandData } = useBrand();
     const { pipelinesEnabled } = useConfig();
     const { meta: datasetMeta, loadDataset } = useDataset();
@@ -128,6 +132,33 @@ export default defineComponent({
         reportHandledPromiseRejection('ViewerLoader: loadDataset', reason);
       });
     }, { immediate: true });
+
+    async function refreshCalibrationFile() {
+      if (!getDatasetCalibration || subTypeList.value[0] !== 'stereo') {
+        calibrationFile.value = null;
+        return;
+      }
+      try {
+        const result = await getDatasetCalibration(parentDatasetId(props.id));
+        calibrationFile.value = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+      } catch {
+        calibrationFile.value = null;
+      }
+    }
+
+    watch(
+      () => [props.id, subTypeList.value[0]] as const,
+      () => {
+        refreshCalibrationFile().catch((reason) => {
+          reportHandledPromiseRejection('ViewerLoader: refreshCalibrationFile', reason);
+        });
+      },
+      { immediate: true },
+    );
+
+    function onCalibrationImported(name: string) {
+      calibrationFile.value = name;
+    }
 
     watch(
       () => viewerRef.value?.trackFilters?.timeFilters?.value,
@@ -257,6 +288,8 @@ export default defineComponent({
       timeFilter,
       pipelinesEnabled,
       webExcludedPipelineTerms,
+      calibrationFile,
+      onCalibrationImported,
     };
   },
 });
@@ -311,7 +344,10 @@ export default defineComponent({
         :menu-options="menuOptions"
         :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
         :dataset-id="id"
+        :sub-type="subTypeList[0]"
+        :calibration-file="calibrationFile"
         block-on-unsaved
+        @calibration-imported="onCalibrationImported"
       />
       <Export
         v-bind="{ buttonOptions, menuOptions }"
@@ -329,6 +365,7 @@ export default defineComponent({
       <CalibrationMenu
         v-if="subTypeList[0] === 'stereo'"
         :dataset-id="id"
+        :calibration-file="calibrationFile"
       />
     </template>
     <template #right-sidebar="{ sidebarMode }">

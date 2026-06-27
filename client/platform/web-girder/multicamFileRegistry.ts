@@ -1,6 +1,7 @@
 /** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
 
 import { Location } from '@girder/components/src';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { openFromDisk, GirderUploadManager } from './utils';
 
 const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
@@ -185,15 +186,16 @@ export async function importCalibrationFile(
   if (!file) {
     throw new Error(`Calibration file "${fileName}" is no longer available; please re-select it.`);
   }
+  const parentFolderId = parentDatasetId(datasetId);
   // Import the Girder REST client lazily: its module touches `window` at load time,
   // so a top-level import breaks node-environment unit tests that import this module.
   const { default: girderRest } = await import('platform/web-girder/plugins/girder');
   const manager = new GirderUploadManager(file, {
     $rest: girderRest,
-    parent: { _id: datasetId, _modelType: 'folder' } as Location,
+    parent: { _id: parentFolderId, _modelType: 'folder' } as Location,
   });
   const uploaded = await manager.start() as { _id: string };
-  await girderRest.post(`dive_dataset/${datasetId}/calibration`, null, {
+  await girderRest.post(`dive_dataset/${parentFolderId}/calibration`, null, {
     params: { fileId: uploaded._id },
   });
   localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, file.name);

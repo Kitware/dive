@@ -81,7 +81,7 @@ function clone({
 
 function getDatasetCalibration(datasetId: string) {
   return girderRest.get('dive_dataset/calibration', {
-    params: { folderId: datasetId },
+    params: { folderId: parentDatasetId(datasetId) },
   });
 }
 
