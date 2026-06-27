@@ -67,6 +67,8 @@ export function useImportMultiCamDialog(
   const pendingImportPayloads: Ref<Record<string, MediaImportResponse | null>> = ref({});
   const globList: Ref<Record<string, { glob: string; trackFile: string }>> = ref({});
   const calibrationFile = ref('');
+  const lastCalibrationPath = ref('');
+  const calibrationAutoDiscoveryFailed = ref(false);
   const datasetName = ref('');
   const subfolderOriginalNames: Ref<Record<string, string>> = ref({});
   const cameraOrder: Ref<string[]> = ref([]);
@@ -78,10 +80,23 @@ export function useImportMultiCamDialog(
     if (props.stereo && getLastCalibration) {
       const lastCalibration = await getLastCalibration();
       if (lastCalibration) {
-        calibrationFile.value = lastCalibration;
+        lastCalibrationPath.value = lastCalibration;
       }
     }
   });
+
+  const lastCalibrationFileName = computed(() => {
+    if (!lastCalibrationPath.value) {
+      return '';
+    }
+    return lastCalibrationPath.value.replace(/^.*[\\/]/, '');
+  });
+
+  const showLastCalibrationSuggestion = computed(
+    () => props.stereo
+      && !calibrationFile.value
+      && !!lastCalibrationPath.value,
+  );
 
   const orderedCameraKeys = computed(() => {
     const keys = Object.keys(folderList.value);
@@ -108,6 +123,7 @@ export function useImportMultiCamDialog(
     subfolderLayoutLabel.value = '';
     datasetName.value = '';
     calibrationFile.value = '';
+    calibrationAutoDiscoveryFailed.value = false;
     subfolderOriginalNames.value = {};
     cameraOrder.value = [];
     defaultDisplay.value = props.stereo ? 'left' : 'center';
@@ -467,6 +483,8 @@ export function useImportMultiCamDialog(
       const path = ret.filePaths[0];
       if (folder === 'calibration') {
         calibrationFile.value = path;
+        calibrationAutoDiscoveryFailed.value = false;
+        lastCalibrationPath.value = path;
         if (saveCalibration) {
           saveCalibration(path);
         }
@@ -591,6 +609,14 @@ export function useImportMultiCamDialog(
     calibrationFile.value = '';
   }
 
+  function applyLastCalibration() {
+    if (!lastCalibrationPath.value) {
+      return;
+    }
+    calibrationFile.value = lastCalibrationPath.value;
+    calibrationAutoDiscoveryFailed.value = false;
+  }
+
   function subfolderSourceDisplayLabel(
     sourcePath: string,
     folderName: string,
@@ -622,8 +648,10 @@ export function useImportMultiCamDialog(
       discoveredPath = await findParentFolderCalibrationFile(parentPath);
     }
     if (!discoveredPath) {
+      calibrationAutoDiscoveryFailed.value = true;
       return;
     }
+    calibrationAutoDiscoveryFailed.value = false;
     calibrationFile.value = discoveredPath;
     if (discoveredFile && stashCalibrationFile) {
       stashCalibrationFile(discoveredPath, discoveredFile);
@@ -638,6 +666,10 @@ export function useImportMultiCamDialog(
     globList,
     filteredImages,
     calibrationFile,
+    lastCalibrationFileName,
+    calibrationAutoDiscoveryFailed,
+    showLastCalibrationSuggestion,
+    applyLastCalibration,
     defaultDisplay,
     displayKeys,
     displayKeysKey,

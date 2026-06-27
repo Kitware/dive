@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, PropType,
+  computed, defineComponent, ref, PropType, onMounted,
 } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -48,6 +48,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const api = useApi();
     const { openFromDisk, importAnnotationFile } = api;
+    const lastCalibrationPath = ref('');
     const { reloadAnnotations, save } = useHandler();
     const cameraStore = useCameraStore();
     // Camera/calibration file import is desktop-only (needs importCalibrationFile)
@@ -58,6 +59,22 @@ export default defineComponent({
     const currentCalibrationName = computed(() => {
       if (!props.calibrationFile) return '';
       return props.calibrationFile.replace(/^.*[\\/]/, '');
+    });
+    const showLastCalibrationSuggestion = computed(
+      () => cameraFileSupported.value
+        && !props.calibrationFile
+        && !!lastCalibrationPath.value,
+    );
+    const lastCalibrationFileName = computed(
+      () => lastCalibrationPath.value.replace(/^.*[\\/]/, ''),
+    );
+    onMounted(async () => {
+      if (api.getLastCalibration) {
+        const lastCalibration = await api.getLastCalibration();
+        if (lastCalibration) {
+          lastCalibrationPath.value = lastCalibration;
+        }
+      }
     });
     const sets = computed(() => {
       const data = useAnnotationSets();
@@ -153,9 +170,38 @@ export default defineComponent({
         });
       }
     };
+    const applyLastCalibration = async () => {
+      if (!api.importCalibrationFile || !lastCalibrationPath.value) return;
+      try {
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importCalibrationFile(
+          props.datasetId,
+          lastCalibrationPath.value,
+        );
+        if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
+          const cleared = clearLengthAttributes(cameraStore);
+          if (cleared > 0) {
+            await save();
+          }
+        }
+        processing.value = false;
+        emit('calibration-imported', result.calibration);
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Camera File Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     return {
       openUpload,
       openCalibrationUpload,
+      applyLastCalibration,
+      showLastCalibrationSuggestion,
+      lastCalibrationFileName,
       cameraFileSupported,
       currentCalibrationName,
       processing,
@@ -298,7 +344,18 @@ export default defineComponent({
             Import Camera File
           </v-card-title>
           <v-card-text class="pb-0">
-            <div v-if="currentCalibrationName">
+            <v-alert
+              v-if="showLastCalibrationSuggestion"
+              type="info"
+              outlined
+              dense
+              class="mb-3"
+            >
+              No camera file loaded. Use your last calibration file
+              <strong v-if="lastCalibrationFileName">({{ lastCalibrationFileName }})</strong>
+              or choose a different one.
+            </v-alert>
+            <div v-else-if="currentCalibrationName">
               A camera file is loaded.
             </div>
             <div
@@ -315,12 +372,23 @@ export default defineComponent({
             <v-col>
               <v-row>
                 <v-btn
+                  v-if="showLastCalibrationSuggestion"
+                  depressed
+                  block
+                  color="primary"
+                  class="mb-2"
+                  :disabled="!datasetId || processing"
+                  @click="applyLastCalibration"
+                >
+                  Use last calibration
+                </v-btn>
+                <v-btn
                   depressed
                   block
                   :disabled="!datasetId || processing"
                   @click="openCalibrationUpload"
                 >
-                  Import
+                  {{ showLastCalibrationSuggestion ? 'Choose calibration' : 'Import' }}
                 </v-btn>
               </v-row>
               <v-row>
