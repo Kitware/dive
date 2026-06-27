@@ -1344,11 +1344,6 @@ export default defineComponent({
         :time-filter="timeFilter"
         v-bind="{ buttonOptions, menuOptions }"
         />
-        <CalibrationMenu
-          v-if="subTypeList[0] === 'stereo'"
-          :dataset-id="modifiedId"
-          :button-options="buttonOptions"
-        />
         <ImportAnnotations
           :dataset-id="modifiedId"
           :sub-type="subTypeList[0]"
@@ -1360,6 +1355,12 @@ export default defineComponent({
           v-if="datasets[id]"
           :id="modifiedId"
           v-bind="{ buttonOptions, menuOptions }"
+        />
+      </template>
+      <template #extension-right>
+        <CalibrationMenu
+          v-if="subTypeList[0] === 'stereo'"
+          :dataset-id="modifiedId"
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">

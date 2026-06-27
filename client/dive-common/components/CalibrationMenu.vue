@@ -20,7 +20,6 @@ export default defineComponent({
   },
   props: {
     datasetId: { type: String, required: true },
-    buttonOptions: { type: Object, default: () => ({}) },
   },
   setup(props) {
     const showCalibrationDialog = ref(false);
@@ -68,20 +67,19 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <div class="calibration-menu-inline">
     <v-tooltip
       bottom
       :z-index="20"
     >
       <template #activator="{ on }">
-        <v-btn
-          class="ma-0"
-          v-bind="buttonOptions"
+        <v-icon
+          class="mx-1"
           v-on="on"
           @click="showCalibrationDialog = true"
         >
-          <v-icon>mdi-checkerboard</v-icon>
-        </v-btn>
+          mdi-checkerboard
+        </v-icon>
       </template>
       <span>
         Cameras calibration

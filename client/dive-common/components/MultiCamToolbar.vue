@@ -17,6 +17,9 @@ import {
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { Mousetrap } from 'vue-media-annotator/types';
 
+import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
+import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
+
 interface ToolbarButton {
   id: string;
   icon: string;
@@ -29,6 +32,10 @@ interface ToolbarButton {
 
 export default defineComponent({
   name: 'MultiCamToolbar',
+  components: {
+    OutlinedLabeledGroup,
+    ToolbarExpandToggle,
+  },
   setup() {
     const selectedCamera = useSelectedCamera();
     const selectedTrackId = useSelectedTrackId();
@@ -298,7 +305,7 @@ export default defineComponent({
   <span
     v-if="selectedTrackId !== null && cameras.length > 1"
     v-mousetrap="mousetrap"
-    class="pb-1"
+    class="toolbar-group-host"
   >
     <!-- Dropdown mode when collapsed -->
     <v-menu
@@ -310,19 +317,15 @@ export default defineComponent({
       <template #activator="{ on, attrs }">
         <v-btn
           v-bind="attrs"
-          class="mx-1 mode-button"
+          class="mx-1 mode-button toolbar-group-activator"
           small
           v-on="on"
         >
           <v-icon>mdi-image-multiple</v-icon>
-          <v-btn
-            icon
-            x-small
-            class="ml-1 expand-toggle"
-            @click.stop="toggleExpanded"
-          >
-            <v-icon small>mdi-chevron-right</v-icon>
-          </v-btn>
+          <toolbar-expand-toggle
+            :expanded="false"
+            @click="toggleExpanded"
+          />
         </v-btn>
       </template>
       <v-list dense>
@@ -376,23 +379,22 @@ export default defineComponent({
     </v-menu>
 
     <!-- Full button mode when expanded -->
-    <template v-else>
-      <span class="mr-1 px-3 py-1">
-        <v-icon class="pr-1">
-          mdi-image-multiple
-        </v-icon>
-        <span class="text-subtitle-2">
-          Multi-Cam Tools
+    <outlined-labeled-group v-else>
+      <template #legend>
+        <span class="d-inline-flex align-center">
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-image-multiple
+          </v-icon>
+          <span>Multi-Cam Tools</span>
+          <toolbar-expand-toggle
+            :expanded="true"
+            @click="toggleExpanded"
+          />
         </span>
-        <v-btn
-          icon
-          x-small
-          class="ml-1 mr-0 mr-0 expand-toggle"
-          @click="toggleExpanded"
-        >
-          <v-icon small class="mr-0">mdi-chevron-left</v-icon>
-        </v-btn>
-      </span>
+      </template>
       <!-- Edit/Add detection on opposite camera -->
       <v-tooltip bottom>
         <template #activator="{ on }">
@@ -509,23 +511,18 @@ export default defineComponent({
         </template>
         <span>Delete track from current camera</span>
       </v-tooltip>
-    </template>
+    </outlined-labeled-group>
   </span>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@import './toolbarGroup.scss';
+
 .multicam-toolbar {
   flex-shrink: 0;
 }
 .mode-button {
   border: 1px solid grey;
   min-width: 36px;
-}
-.expand-toggle {
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-.expand-toggle:hover {
-  opacity: 1;
 }
 </style>

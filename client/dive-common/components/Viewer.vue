@@ -1473,6 +1473,8 @@ export default defineComponent({
           </template>
         </v-select>
 
+        <slot name="extension-right" />
+
         <v-divider
           vertical
           class="mx-2"
@@ -1491,8 +1493,6 @@ export default defineComponent({
           </template>
           <span>Menus for Advanced Tools/Settings</span>
         </v-tooltip>
-
-        <slot name="extension-right" />
       </template>
 
       <slot name="title-right" />

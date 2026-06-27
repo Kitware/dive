@@ -1,0 +1,16 @@
+.toolbar-group-host {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-top: -9px;
+}
+
+.toolbar-group-activator.v-btn.v-size--small {
+  height: 28px !important;
+  min-height: 28px !important;
+}
+
+.toolbar-group-activator.mode-button {
+  border: 1px solid grey;
+  min-width: 36px;
+}
