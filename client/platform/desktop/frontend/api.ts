@@ -17,6 +17,7 @@ import {
 import {
   DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
+  ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
   DesktopJob,
 } from 'platform/desktop/constants';
@@ -265,6 +266,32 @@ async function exportConfiguration(id: string): Promise<string> {
   if (!location.canceled && location.filePath) {
     const args: ExportConfigurationArgs = { id, path: location.filePath };
     return window.diveDesktop.invoke('export-configuration', args);
+  }
+  return '';
+}
+
+async function exportMulticamEverything(
+  id: string,
+  exclude: boolean,
+  typeFilter: readonly string[],
+): Promise<string> {
+  const parentId = id.split('/')[0];
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Multicamera Dataset',
+    defaultPath: joinPath(
+      await window.diveDesktop.getAppPath('home'),
+      `${parentId}.zip`,
+    ),
+    filters: [{ name: 'Zip archive', extensions: ['zip'] }],
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportMulticamEverythingArgs = {
+      id: parentId,
+      exclude,
+      path: location.filePath,
+      typeFilter: new Set(typeFilter),
+    };
+    return window.diveDesktop.invoke('export-multicam-everything', args);
   }
   return '';
 }
@@ -597,6 +624,7 @@ export {
   /* Nonstandard APIs */
   exportDataset,
   exportConfiguration,
+  exportMulticamEverything,
   finalizeImport,
   convert,
   importMedia,

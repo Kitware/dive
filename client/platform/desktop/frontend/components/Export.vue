@@ -3,12 +3,17 @@ import {
   defineComponent, reactive, computed, toRef, watch, ref,
 } from 'vue';
 
-import { usePendingSaveCount, useHandler, useTrackFilters } from 'vue-media-annotator/provides';
-import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import {
-  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
+  usePendingSaveCount, useHandler, useTrackFilters, useSelectedCamera,
+} from 'vue-media-annotator/provides';
+import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
+import { MultiType } from 'dive-common/constants';
+import {
+  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile, exportMulticamEverything,
 } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
+
+type ExportType = 'dataset' | 'configuration' | 'trackJSON' | 'coco' | 'everything';
 
 export default defineComponent({
   name: 'Export',
@@ -41,14 +46,18 @@ export default defineComponent({
       outPath: '',
     });
     const savePrompt = ref(false);
+    const pendingExportType = ref<ExportType>('dataset');
 
     const pendingSaveCount = usePendingSaveCount();
     const { save } = useHandler();
     const { checkedTypes } = useTrackFilters();
+    const selectedCamera = useSelectedCamera();
+
+    const parentId = computed(() => props.id.split('/')[0]);
 
     watch(toRef(data, 'menuOpen'), async (newval) => {
       if (newval) {
-        data.meta = await loadMetadata(props.id);
+        data.meta = await loadMetadata(parentId.value);
       } else {
         data.err = null;
         data.outPath = '';
@@ -59,6 +68,16 @@ export default defineComponent({
       data.meta
         ? Object.keys(data.meta.confidenceFilters || {})
         : []));
+
+    const isMulticamDataset = computed(() => data.meta?.type === MultiType);
+
+    const activeCameraName = computed(() => {
+      if (selectedCamera.value) {
+        return selectedCamera.value;
+      }
+      const parts = props.id.split('/');
+      return parts.length > 1 ? parts[1] : null;
+    });
 
     const calibrationFile = computed(() => data.meta?.multiCam?.calibration ?? null);
     const cameraFileSupported = computed(
@@ -75,7 +94,7 @@ export default defineComponent({
       if (location.canceled || !location.filePath) return;
       try {
         data.err = null;
-        await exportCalibrationFile(props.id, location.filePath);
+        await exportCalibrationFile(parentId.value, location.filePath);
         data.outPath = location.filePath;
       } catch (err) {
         data.err = err;
@@ -83,29 +102,35 @@ export default defineComponent({
       }
     }
 
-    async function doExport({ type, forceSave = false }: { type: 'dataset' | 'configuration' | 'trackJSON' | 'coco'; forceSave?: boolean}) {
+    async function doExport({ type, forceSave = false }: { type: ExportType; forceSave?: boolean}) {
       if (pendingSaveCount.value > 0 && forceSave) {
         await save();
         savePrompt.value = false;
       } else if (pendingSaveCount.value > 0) {
+        pendingExportType.value = type;
         savePrompt.value = true;
         return;
       }
       try {
+        const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
         if (type === 'dataset') {
-          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
           data.err = null;
           data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter);
         } else if (type === 'trackJSON') {
-          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
           data.err = null;
           data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter, 'json');
         } else if (type === 'coco') {
-          const typeFilter = data.excludeUncheckedTypes ? checkedTypes.value : [];
           data.err = null;
           data.outPath = await exportDataset(props.id, data.excludeBelowThreshold, typeFilter, 'coco');
         } else if (type === 'configuration') {
           data.outPath = await exportConfiguration(props.id);
+        } else if (type === 'everything') {
+          data.err = null;
+          data.outPath = await exportMulticamEverything(
+            parentId.value,
+            data.excludeBelowThreshold,
+            typeFilter,
+          );
         }
       } catch (err) {
         data.err = err;
@@ -120,8 +145,11 @@ export default defineComponent({
       cameraFileSupported,
       calibrationFile,
       savePrompt,
+      pendingExportType,
       thresholds,
       checkedTypes,
+      isMulticamDataset,
+      activeCameraName,
     };
   },
 });
@@ -197,7 +225,7 @@ export default defineComponent({
           </v-dialog>
           <AutosavePrompt
             v-model="savePrompt"
-            @save="doExport({ type: 'dataset', forceSave: true })"
+            @save="doExport({ type: pendingExportType, forceSave: true })"
           />
           <v-alert
             v-if="data.outPath"
@@ -207,7 +235,25 @@ export default defineComponent({
           >
             Export succeeded.
           </v-alert>
-          <div>Export to Annotations</div>
+          <v-alert
+            v-if="isMulticamDataset && activeCameraName"
+            type="info"
+            outlined
+            class="mb-2 active-camera-alert"
+          >
+            <div class="active-camera-label">
+              Annotations export from the active camera
+            </div>
+            <div class="active-camera-name d-flex align-center">
+              <v-icon class="mr-2">
+                mdi-camera
+              </v-icon>
+              {{ activeCameraName }}
+            </div>
+          </v-alert>
+          <div v-else>
+            Export to Annotations
+          </div>
           <template v-if="thresholds.length">
             <v-checkbox
               v-model="data.excludeBelowThreshold"
@@ -301,7 +347,41 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
         </template>
+        <template v-if="isMulticamDataset">
+          <v-card-text class="pb-0">
+            Zip all cameras: annotations, calibration, and dataset metadata.
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn
+              depressed
+              block
+              @click="doExport({ type: 'everything' })"
+            >
+              Everything
+            </v-btn>
+          </v-card-actions>
+        </template>
       </v-card>
     </template>
   </v-menu>
 </template>
+
+<style scoped>
+.active-camera-alert {
+  padding: 10px 12px;
+}
+
+.active-camera-label {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.active-camera-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+</style>

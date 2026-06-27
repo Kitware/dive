@@ -9,6 +9,7 @@ import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
+  ExportMulticamEverythingArgs,
   DesktopMediaImportResponse,
   ExportTrainedPipeline,
   ConversionArgs,
@@ -123,6 +124,11 @@ export default function register() {
 
   ipcMain.handle('export-configuration', async (_, args: ExportDatasetArgs) => {
     const ret = await common.exportConfiguration(settings.get(), args);
+    return ret;
+  });
+
+  ipcMain.handle('export-multicam-everything', async (_, args: ExportMulticamEverythingArgs) => {
+    const ret = await common.exportMulticamEverything(settings.get(), args);
     return ret;
   });
 

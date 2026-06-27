@@ -283,3 +283,10 @@ export interface ExportConfigurationArgs {
     id: string;
    path: string;
 }
+
+export interface ExportMulticamEverythingArgs {
+  id: string;
+  exclude: boolean;
+  path: string;
+  typeFilter: Set<string>;
+}

@@ -8,7 +8,7 @@ import { clientSettings } from 'dive-common/store/settings';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import { cloneDeep } from 'lodash';
 import {
-  useAnnotationSets, useAnnotationSet, useHandler, useCameraStore,
+  useAnnotationSets, useAnnotationSet, useHandler, useCameraStore, useSelectedCamera,
 } from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
 
@@ -51,6 +51,18 @@ export default defineComponent({
     const lastCalibrationPath = ref('');
     const { reloadAnnotations, save } = useHandler();
     const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
+    const isMulticamDataset = computed(() => cameraStore.camMap.value.size > 1);
+    const activeCameraName = computed(() => {
+      if (!isMulticamDataset.value) {
+        return null;
+      }
+      if (selectedCamera.value) {
+        return selectedCamera.value;
+      }
+      const parts = (props.datasetId || '').split('/');
+      return parts.length > 1 ? parts[1] : null;
+    });
     // Camera/calibration file import is desktop-only (needs importCalibrationFile)
     // and only meaningful for stereo datasets.
     const cameraFileSupported = computed(
@@ -211,6 +223,8 @@ export default defineComponent({
       clientSettings,
       sets,
       currentSet,
+      isMulticamDataset,
+      activeCameraName,
     };
   },
 });
@@ -263,6 +277,26 @@ export default defineComponent({
         <v-card-title>
           Import Annotations
         </v-card-title>
+        <v-card-text
+          v-if="isMulticamDataset && activeCameraName"
+          class="pb-0"
+        >
+          <v-alert
+            type="info"
+            outlined
+            class="mb-0 active-camera-alert"
+          >
+            <div class="active-camera-label">
+              Annotations import to the active camera
+            </div>
+            <div class="active-camera-name d-flex align-center">
+              <v-icon class="mr-2">
+                mdi-camera
+              </v-icon>
+              {{ activeCameraName }}
+            </div>
+          </v-alert>
+        </v-card-text>
         <v-card-text>
           Multiple Data types can be imported:
           <ul>
@@ -404,3 +438,22 @@ export default defineComponent({
     </template>
   </v-menu>
 </template>
+
+<style scoped>
+.active-camera-alert {
+  padding: 10px 12px;
+}
+
+.active-camera-label {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.active-camera-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+</style>
