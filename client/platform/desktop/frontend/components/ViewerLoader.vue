@@ -1359,7 +1359,7 @@ export default defineComponent({
         <Export
           v-if="datasets[id]"
           :id="modifiedId"
-          :button-options="buttonOptions"
+          v-bind="{ buttonOptions, menuOptions }"
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">

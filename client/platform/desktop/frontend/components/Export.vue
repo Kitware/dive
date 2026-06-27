@@ -20,9 +20,13 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    small: {
-      type: Boolean,
-      default: false,
+    buttonOptions: {
+      type: Object,
+      default: () => ({}),
+    },
+    menuOptions: {
+      type: Object,
+      default: () => ({}),
     },
   },
 
@@ -128,33 +132,31 @@ export default defineComponent({
     v-model="data.menuOpen"
     :close-on-content-click="false"
     :nudge-width="280"
-    offset-y
+    v-bind="menuOptions"
     max-width="280"
   >
     <template #activator="{ on: menuOn }">
       <v-tooltip bottom>
         <template #activator="{ on: tooltipOn }">
           <v-btn
-            outlined
-            depressed
-            color="grey"
-            text
-            class="mx-1"
-            :small="small"
+            class="ma-0"
+            v-bind="buttonOptions"
             v-on="{ ...tooltipOn, ...menuOn }"
           >
-            <v-icon>
-              mdi-export
-            </v-icon>
-            <span
-              v-show="!$vuetify.breakpoint.mdAndDown"
-              class="pl-1"
-            >
-              Export
-            </span>
+            <div>
+              <v-icon>
+                mdi-export
+              </v-icon>
+              <span
+                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                class="pl-1"
+              >
+                Export
+              </span>
+            </div>
           </v-btn>
         </template>
-        <span>export annotation data</span>
+        <span> Export Annotation Data </span>
       </v-tooltip>
     </template>
     <template>
