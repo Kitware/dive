@@ -12,6 +12,8 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 | Run single-camera pipelines on one view | ✔️ | ✔️ |
 | Glob / keyword pattern import | ❌ | ✔️ |
 | Export full multicam dataset as one `.zip` | ✔️ | ✔️ |
+| Interactive stereo (auto-warp, length recompute) | ❌ | ✔️ |
+| Interactive point-click segmentation | ❌ | ✔️ |
 
 See [Loading MultiCamera data](#loading-multicamera-data) below for platform-specific import steps. The rest of this page describes behavior that is shared between web and desktop.
 
@@ -66,6 +68,14 @@ Editing and interacting with a camera requires that you select the camera first.
 
 Track creation for a single camera works much in the same way it does for single camera datasets. Using the New Track button or ++n++ key to create a new track and draw. To quickly create a track on another camera and have it link to the current cameras can be done using the "MultiCamera Tools" or by selecting the desired base track and right clicking on the new camera to add the track. This will put the annotation tool into creation mode for the current TrackId on a new camera. Alternatively the MultiCamera Tools panel can simplify this by clicking on the Edit button.
 
+You can also start a new linked detection from **any camera view** without first switching cameras manually — DIVE keeps the multicam track link intact as you draw.
+
+### Cross-camera selection and editing
+
+Selecting a track that exists on multiple cameras selects it on **all** camera views at once. A single click on a linked detection in any camera enters edit mode for that track across the dataset.
+
+![Cross-camera edit](images/MultiCam/CrossCameraEdit.png)
+
 ## MultiCamera Tools
 
 Next to the dropdown for the camera selection is a camera settings icon. Clicking on that will open the context menu. Within this menu is a dropdown menu entry for MultiCam Tools. These tools provide a quick view of the selected track across all cameras.
@@ -107,3 +117,22 @@ There are specific pipelines that can be used on multi-camera or stereo datasets
 | -------- | -------- | ---- | ------- | ----------- |
 | <pre>gmm</pre> | measurement | stereoscopic | 2 | Stereo pipeline used to compute fish length measurement |
 | <pre>X-cam</pre> | X-cam | multicamera | 2 or 3 | Multiple pipelines that can act on either 2 or 3 camera datasets. |
+
+## Interactive Stereo (Desktop)
+
+[DIVE Desktop](Dive-Desktop.md) provides **interactive stereo** tools for real-time annotation assistance on calibrated stereo datasets. These are separate from batch VIAME pipelines like `gmm` above — they run inside the annotator while you work.
+
+Open the ==:material-cog:== creation settings menu in the [Track List](UI-Track-List.md) (or bottom panel) and scroll to **Stereo Settings**:
+
+![Stereo settings](images/CreationMode/StereoSettings.png)
+
+| Setting | What it does |
+|---------|--------------|
+| **Update lengths when modified** | Recomputes stereo length measurements when you edit a head/tail line on a detection linked across both cameras. |
+| **Auto-compute location on other camera** | Warps a new annotation drawn on one camera to the other camera when no detection exists there yet. |
+
+Enabling either option loads the interactive stereo service (shared with [interactive segmentation](Interactive-Annotation.md)). Warped head/tail lines become normal editable line annotations; manual edits are preserved and not overwritten by later auto-warping.
+
+On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled.
+
+Full details: [Interactive Annotation](Interactive-Annotation.md).

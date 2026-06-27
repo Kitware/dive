@@ -212,6 +212,32 @@ entry keyed `dataset_info`:
   annotations to an external database, travels with the exported annotations without
   renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
 
+### VIAME CSV polygons and length
+
+DIVE extends standard VIAME CSV with additional geometry and measurement fields:
+
+**Polygons** — one or more `(poly)` columns per row, each followed by flat `x y` coordinate pairs:
+
+```
+0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(poly) 100 100 200 100 200 200 100 200
+```
+
+**Multiple polygons** — additional `(poly)` columns on the same row:
+
+```
+..., (poly) 100 100 200 100 200 200 100 200, (poly) 300 300 400 300 400 400 300 400
+```
+
+**Holes** — `(hole)` columns follow the outer `(poly)` they belong to:
+
+```
+..., (poly) 100 100 500 100 500 500 100 500, (hole) 200 200 400 200 400 400 200 400
+```
+
+Multiple holes are supported with additional `(hole)` columns.
+
+**Length measurements** — the standard VIAME length column (8th numeric field) stores stereo fish-length values. DIVE also reads and writes a `length` entry in detection attributes; on export, the resolved value is written to both the column and attributes when present. Interactive stereo in [DIVE Desktop](Interactive-Annotation.md) populates these values during annotation.
+
 ## KWIVER Packet Format (KPF)
 
 DIVE supports [MEVA KPF](https://mevadata.org/)

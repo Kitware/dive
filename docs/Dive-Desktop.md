@@ -38,6 +38,15 @@ DIVE Desktop supports single- and multi-camera datasets.
 
 Shared viewer behavior (camera selection, linked tracks, MultiCamera Tools, and pipelines) is documented in [Multicamera and Stereo Data](Multicamera-data.md). The [web version](Web-Version.md#uploading-multicamera-and-stereo-data) supports the same import types with a few desktop-only advanced options.
 
+### Interactive annotation (Desktop only)
+
+DIVE Desktop can run VIAME-backed **interactive segmentation** and **interactive stereo** tools while you annotate. These require a local VIAME install with interactive service support and are not available in the web annotator.
+
+* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button). See [Interactive Annotation](Interactive-Annotation.md).
+* **Interactive stereo** — on stereo datasets, auto-warp annotations between cameras and recompute head/tail length measurements. Configure from the **Stereo Settings** section in the track list creation settings menu.
+
+Both features share one lazy-loaded Python interactive service subprocess. GPU is recommended for model initialization.
+
 ### Importing Datasets
 
 Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :material-file-video:== to begin a single camera default import.  Click the ==:material-chevron-down:== dropdown button to show additional import options.
@@ -157,5 +166,9 @@ If you don't see some pipelines you expect, you may not have installed the addon
 If you experience problems or have questions about DIVE Desktop, [contact us](Support.md) and include the content from the settings page such as `Build Version` as well as your currently installed VIAME version.
 
 It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launch the Dev Tools and look under the console tab.  Errors and warnings will appear in red and yellow.  You can right-click in the console area and click "Save As" to save the log file and [open a support ticket](Support.md)
+
+> Interactive segmentation or stereo fails to load
+
+See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troubleshooting). Verify the VIAME install path, confirm VIAME includes interactive service support, and check the debug console for subprocess errors (message: "Unable to load the interactive service").
 
 ![Debugging Desktop](images/General/desktop-debug.png)

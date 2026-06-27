@@ -132,3 +132,24 @@ Every track is required to have a bounding box, but a polygon region may be adde
 ### Polygon Demo
 
 ![Polygon Demo](videos/CreationModes/PolygonAnnotation.gif)
+
+### Multi-polygon regions with holes
+
+DIVE supports multiple polygon regions on one detection and polygons with interior holes (for example, annotating a ring-shaped object). Holes are preserved in DIVE JSON and [VIAME CSV export](DataFormats.md#viame-csv-polygons-and-length) using `(poly)` and `(hole)` columns.
+
+## Interactive Segmentation (Desktop)
+
+[Interactive point-click segmentation](Interactive-Annotation.md#interactive-segmentation) is available in DIVE Desktop only. It helps you create polygon annotations by clicking include/exclude points instead of placing every vertex manually.
+
+1. Create or select a track/detection (**right-click** to edit).
+2. Click ==Segment== in the [editing bar](UI-Navigation-Editing-Bar.md) or press ++s++.
+3. **Left-click** on the object to add foreground points (green).
+4. **Shift+click** or **middle-click** on areas to exclude (red background points).
+5. **Right-click** or press ++enter++ to confirm and commit the polygon.
+6. Press ++escape++ to cancel; use ==Reset Points== to clear points without leaving segment mode.
+
+![Segmentation mode](images/CreationMode/SegmentationMode.png)
+
+On stereo datasets, confirmed segmentations can be warped to the other camera when [interactive stereo auto-compute](Multicamera-data.md#interactive-stereo-desktop) is enabled.
+
+See [Interactive Annotation](Interactive-Annotation.md) for multi-frame behavior, continuous detection mode, and troubleshooting.

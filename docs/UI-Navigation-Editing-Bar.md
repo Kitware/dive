@@ -38,6 +38,27 @@ On the far left, the editing mode status indicator shows you what mode you're in
 
 Editing mode toggles control the type of geometry being created or edited during annotation.  See the [Annotation Quickstart](Annotation-QuickStart.md) for an in-depth guide to annotation.
 
+Standard geometry modes:
+
+* ==:material-vector-square:== **Rectangle** (++1++)
+* ==:material-vector-polygon:== **Polygon** (++2++)
+* ==:material-vector-line:== **Head/tail line** (++3++)
+
+#### Segment mode (Desktop)
+
+On [DIVE Desktop](Dive-Desktop.md), an additional ==Segment== toggle (magic-wand icon, ++s++ hotkey) activates [interactive point-click segmentation](Interactive-Annotation.md#interactive-segmentation).
+
+![Segmentation editing bar](images/CreationMode/SegmentationMode.png)
+
+While segmentation is active:
+
+* The status indicator shows **Creating Segment** or **Editing Segment** with click instructions.
+* A **Reset Points** button appears to clear prompt points without leaving segmentation mode.
+* Green and red dots show foreground and background prompt points on the image.
+* A loading spinner appears while the model loads or a prediction is in progress.
+
+Segment mode is not available in the web annotator.
+
 ### Visibility Toggles
 
 The **:material-eye: visibility** section contains toggle buttons that control the different types of annotation data can be hidden or shown.

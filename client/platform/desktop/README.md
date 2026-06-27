@@ -49,8 +49,20 @@ After `electron-vite build`, **`electron-builder --config electron-builder.json`
 
 ### npm scripts (in `client/package.json`)
 
-* **`serve:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env).
+* **`serve:electron`** / **`dev:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env). Use this to develop interactive segmentation and stereo features locally.
 * **`build:electron`** — `electron-vite build` then `electron-builder --config electron-builder.json`.
+* **`build:electron:dir`** — same as `build:electron` but produces an unpacked directory instead of an installer (faster iteration for testing).
+
+## Interactive service (segmentation + stereo)
+
+Desktop-only interactive annotation runs through a single persistent Python subprocess managed by `backend/native/interactive.ts`. It hosts:
+
+* **Interactive segmentation** — point-click mask prediction (`backend/native/segmentation.ts`, IPC via `ipcService.ts`)
+* **Interactive stereo** — line transfer, length measurement, dense disparity (`backend/native/stereo.ts`)
+
+Models load lazily on first use. The renderer calls into the service through `frontend/api.ts`; shared UI types live in `dive-common/apispec.ts`. The segmentation recipe is `dive-common/recipes/segmentationpointclick.ts`; stereo wiring is in `platform/desktop/frontend/components/ViewerLoader.vue` and `dive-common/use/useModeManager.ts`.
+
+User documentation: [Interactive Annotation](../../docs/Interactive-Annotation.md).
 
 ## Main process, preload, and renderer
 
