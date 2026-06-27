@@ -1247,11 +1247,9 @@ def enqueue_calibration_conversion(
     JSON camera-rig format (for display). The pipeline can consume the original file
     directly, so this is best-effort and never blocks the request.
     """
-    queue = (
-        f'{user["login"]}@private'
-        if user.get(constants.UserPrivateQueueEnabledMarker, False)
-        else 'celery'
-    )
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+    # convert_cam_format.py lives on pipeline workers (VIAME image), not celery workers.
+    queue = f'{user["login"]}@private' if job_is_private else 'pipelines'
     token = Token().createToken(user=user, days=1)
     tasks.convert_calibration.apply_async(
         queue=queue,
@@ -1259,7 +1257,7 @@ def enqueue_calibration_conversion(
             itemId=item_id,
             girder_job_title=f"Converting calibration {item_name}",
             girder_client_token=str(token["_id"]),
-            girder_job_type="private",
+            girder_job_type="private" if job_is_private else "pipelines",
         ),
     )
 
