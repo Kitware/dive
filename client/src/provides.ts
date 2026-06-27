@@ -8,6 +8,7 @@ import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import type { AnnotationId, StringKeyObject } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
+import type { TrackSupportedFeature } from './track';
 import type {
   Attribute,
   AttributeFilter,
@@ -53,6 +54,12 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
 const MultiSelectSymbol = Symbol('multiSelect');
 type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
+
+const SegmentationPointsSymbol = Symbol('segmentationPoints');
+type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[]; frameNum: number }>>;
+
+const SegmentationCursorLoadingSymbol = Symbol('segmentationCursorLoading');
+type SegmentationCursorLoadingType = Readonly<Ref<boolean>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -126,6 +133,8 @@ export interface Handler {
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
+  /* Confirm/lock the current annotation for active recipes */
+  confirmRecipe(): void;
   /* toggle selection mode for track */
   trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select tracks enclosed by a lasso polygon */
@@ -142,6 +151,13 @@ export interface Handler {
     flickNum: number,
     bounds: RectBounds,
     rotation?: number,
+  ): void;
+  /* Set a feature on the selected track with proper interpolation handling */
+  setTrackFeature(
+    frameNum: number,
+    bounds: RectBounds,
+    geometry: GeoJSON.Feature<TrackSupportedFeature>[],
+    runAfterLogic?: boolean,
   ): void;
   /* update geojson for track */
   updateGeoJSON(
@@ -194,6 +210,14 @@ export interface Handler {
   startLinking(camera: string): void;
   stopLinking(): void;
   setChange(set: string): void;
+  /* Add a hole to the current polygon */
+  addHole(): void;
+  /* Add a new separate polygon */
+  addPolygon(): void;
+  /* Cancel any in-progress creation mode (hole or polygon addition) */
+  cancelCreation(): void;
+  /* Register callback to finalize in-progress shapes (used by LayerManager) */
+  registerFinalizeCreation(cb: () => void): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -209,12 +233,14 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackSeek(...args) { handle('trackSeek', args); },
     seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
+    confirmRecipe(...args) { handle('confirmRecipe', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     lassoSelect(...args) { handle('lassoSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
+    setTrackFeature(...args) { handle('setTrackFeature', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
     removeTrack(...args) { handle('removeTrack', args); },
     removeGroup(...args) { handle('removeGroup', args); },
@@ -237,6 +263,10 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
     setChange(...args) { handle('setChange', args); },
+    addHole(...args) { handle('addHole', args); },
+    addPolygon(...args) { handle('addPolygon', args); },
+    cancelCreation(...args) { handle('cancelCreation', args); },
+    registerFinalizeCreation(...args) { handle('registerFinalizeCreation', args); },
   };
 }
 
@@ -262,6 +292,8 @@ export interface State {
   annotationSet: AnnotationSetType;
   annotationSets: AnnotationSetsType;
   comparisonSets: ComparisonSetsType;
+  segmentationPoints: SegmentationPointsType;
+  segmentationCursorLoading: SegmentationCursorLoadingType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -328,6 +360,8 @@ function dummyState(): State {
     comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
+    segmentationPoints: ref({ points: [], labels: [], frameNum: -1 }),
+    segmentationCursorLoading: ref(false),
     selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
@@ -377,6 +411,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotationSetSymbol, state.annotationSet);
   provide(AnnotationSetsSymbol, state.annotationSets);
   provide(ComparisonSetsSymbol, state.comparisonSets);
+  provide(SegmentationPointsSymbol, state.segmentationPoints);
+  provide(SegmentationCursorLoadingSymbol, state.segmentationCursorLoading);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -513,6 +549,14 @@ function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
+function useSegmentationPoints() {
+  return use<SegmentationPointsType>(SegmentationPointsSymbol);
+}
+
+function useSegmentationCursorLoading() {
+  return use<SegmentationCursorLoadingType>(SegmentationCursorLoadingSymbol);
+}
+
 export {
   LassoModeSymbol,
   dummyHandler,
@@ -547,4 +591,6 @@ export {
   useReadOnlyMode,
   useImageEnhancements,
   useAttributesFilters,
+  useSegmentationPoints,
+  useSegmentationCursorLoading,
 };

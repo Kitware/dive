@@ -24,9 +24,25 @@ import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
 import settings from './state/settings';
 import { listen } from './server';
+import {
+  getInteractiveServiceManager,
+} from './native/interactive';
+import {
+  SegmentationPredictRequest,
+  SegmentationStereoSegmentRequest,
+} from './native/segmentation';
+import {
+  StereoCalibration,
+  StereoSetFrameRequest,
+  StereoTransferLineRequest,
+  StereoTransferPointsRequest,
+  StereoMeasureLineRequest,
+  StereoAggregateLengthsRequest,
+} from './native/stereo';
 
 // defaults to linux if win32 doesn't exist
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
+let samWarningShown = false;
 if (OS.platform() === 'win32') {
   win32.initialize();
 }
@@ -255,5 +271,167 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+
+  /**
+   * Interactive Segmentation Service
+   */
+
+  ipcMain.handle('segmentation-initialize', async () => {
+    const currentSettings = settings.get();
+    const pipelinesDir = path.join(currentSettings.viamePath, 'configs', 'pipelines');
+    const hasSam2 = fs.existsSync(path.join(pipelinesDir, 'interactive_segmenter_sam2.conf'));
+    const hasSam3 = fs.existsSync(path.join(pipelinesDir, 'interactive_segmenter_sam3.conf'));
+    const noSamInstalled = !hasSam2 && !hasSam3;
+
+    // Show a one-time warning if neither SAM pack is installed,
+    // but still proceed with initialization (VIAME has a default GrabCut fallback)
+    const showWarning = noSamInstalled && !samWarningShown;
+    if (showWarning) {
+      samWarningShown = true;
+    }
+
+    const segService = getInteractiveServiceManager();
+    await segService.initialize(currentSettings);
+    return { success: true, noSamInstalled: showWarning };
+  });
+
+  ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
+    const segService = getInteractiveServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.predict(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-stereo-segment', async (_, args: SegmentationStereoSegmentRequest) => {
+    const segService = getInteractiveServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.stereoSegment(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-set-image', async (_, imagePath: string) => {
+    const segService = getInteractiveServiceManager();
+
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    await segService.setImage(imagePath);
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-clear-image', async () => {
+    const segService = getInteractiveServiceManager();
+
+    if (segService.isReady()) {
+      await segService.clearImage();
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle('segmentation-shutdown', async () => {
+    const segService = getInteractiveServiceManager();
+    return segService.shutdownSegmentation();
+  });
+
+  ipcMain.handle('segmentation-is-ready', () => {
+    const segService = getInteractiveServiceManager();
+    return { ready: segService.isSegmentationReady() };
+  });
+
+  /**
+   * Interactive Stereo Service
+   */
+
+  ipcMain.handle('stereo-enable', async (event, args?: { calibration?: StereoCalibration; calibrationFile?: string }) => {
+    const stereoService = getInteractiveServiceManager();
+
+    // Forward async disparity events to the renderer. The manager is a
+    // long-lived singleton, so clear any prior forwarders before re-adding to
+    // avoid accumulating listeners across enable cycles.
+    stereoService.removeAllListeners('disparity_ready');
+    stereoService.removeAllListeners('disparity_error');
+    stereoService.on('disparity_ready', (data) => {
+      event.sender.send('stereo-disparity-ready', data);
+    });
+    stereoService.on('disparity_error', (data) => {
+      event.sender.send('stereo-disparity-error', data);
+    });
+
+    const result = await stereoService.enable(
+      settings.get(),
+      args?.calibration,
+      args?.calibrationFile,
+    );
+    return result;
+  });
+
+  ipcMain.handle('stereo-disable', async () => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.disable();
+    return result;
+  });
+
+  ipcMain.handle('stereo-set-frame', async (_, args: StereoSetFrameRequest) => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.setFrame(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-get-status', async () => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.getStatus();
+    return result;
+  });
+
+  ipcMain.handle('stereo-transfer-line', async (_, args: StereoTransferLineRequest) => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.transferLine(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-transfer-points', async (_, args: StereoTransferPointsRequest) => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.transferPoints(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-measure-line', async (_, args: StereoMeasureLineRequest) => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.measureLine(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-aggregate-lengths', async (_, args: StereoAggregateLengthsRequest) => {
+    const stereoService = getInteractiveServiceManager();
+    const result = await stereoService.aggregateLengths(args);
+    return result;
+  });
+
+  ipcMain.handle('stereo-set-calibration', async (_, args: { calibration: StereoCalibration }) => {
+    const stereoService = getInteractiveServiceManager();
+    await stereoService.setCalibration(args.calibration);
+    return { success: true };
+  });
+
+  ipcMain.handle('stereo-shutdown', async () => {
+    const stereoService = getInteractiveServiceManager();
+    return stereoService.disable();
+  });
+
+  ipcMain.handle('stereo-is-enabled', () => {
+    const stereoService = getInteractiveServiceManager();
+    return { enabled: stereoService.isEnabled() };
   });
 }

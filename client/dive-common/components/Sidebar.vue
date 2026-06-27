@@ -49,6 +49,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isStereoDataset: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup() {
@@ -230,6 +234,7 @@ export default defineComponent({
             <template slot="settings">
               <TrackSettingsPanel
                 :all-types="allTypesRef"
+                :is-stereo-dataset="isStereoDataset"
               />
             </template>
           </TrackList>
@@ -313,6 +318,7 @@ export default defineComponent({
           <template slot="settings">
             <TrackSettingsPanel
               :all-types="allTypesRef"
+              :is-stereo-dataset="isStereoDataset"
             />
           </template>
           <template #header-trailing>

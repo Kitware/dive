@@ -26,7 +26,10 @@ const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
-const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Polygon format: (poly) coordinates
+const PolyRegex = /^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Hole format: (hole) coordinates
+const HoleRegex = /^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const NoteRegex = /^\(note\)\s*(.+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
@@ -93,6 +96,35 @@ function _rowInfo(row: string[]) {
   };
 }
 
+/** Resolve detection length from attributes.length or fishLength (either may be set). */
+function resolveDetectionLength(
+  fishLength?: number,
+  attributes?: StringKeyObject,
+): number | undefined {
+  const lengthAttr = attributes?.length;
+  const fromAttr = lengthAttr !== undefined && lengthAttr !== null ? Number(lengthAttr) : NaN;
+  if (Number.isFinite(fromAttr)) {
+    return fromAttr;
+  }
+  if (fishLength !== undefined && Number.isFinite(fishLength) && fishLength !== -1) {
+    return fishLength;
+  }
+  return undefined;
+}
+
+/** Keep fishLength and attributes.length in sync when either is present. */
+function syncDetectionLengthFields(feature: Feature): Feature {
+  const resolved = resolveDetectionLength(feature.fishLength, feature.attributes);
+  if (resolved === undefined) {
+    return feature;
+  }
+  return {
+    ...feature,
+    fishLength: resolved,
+    attributes: { ...(feature.attributes || {}), length: resolved },
+  };
+}
+
 /**
  * Read dataset metadata from a `dataset_info: <json>` comment field. Returns the parsed
  * object, or a `warning` if the field is present but unusable so the import can continue.
@@ -155,6 +187,18 @@ function _deduceType(value: string): boolean | number | string {
 }
 
 /**
+ * Get the next available polygon key for a feature collection.
+ */
+function _getNextPolygonKey(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+): string {
+  const polygonCount = geoFeatureCollection.features.filter(
+    (f) => f.geometry.type === 'Polygon',
+  ).length;
+  return polygonCount > 0 ? String(polygonCount) : '';
+}
+
+/**
  * Simplified from python variant.  Does not handle duplicate type/key pairs
  * within a single feature.
  *
@@ -183,6 +227,28 @@ function _createGeoJsonFeature(
     geoFeature.geometry.coordinates = coords;
   }
   return geoFeature;
+}
+
+/**
+ * Find an existing polygon feature by key and add a hole to it.
+ * @param geoFeatureCollection the feature collection to search
+ * @param coords hole coordinates
+ * @param key polygon key to find
+ */
+function _addHoleToPolygon(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+  coords: number[][],
+  key = '',
+) {
+  const matchingFeature = geoFeatureCollection.features.find(
+    (feature) => feature.geometry.type === 'Polygon' && feature.properties?.key === key,
+  );
+  if (matchingFeature) {
+    // Add hole as additional ring to the polygon coordinates
+    (matchingFeature.geometry.coordinates as number[][][]).push(coords);
+    return true;
+  }
+  return false;
 }
 
 function _parseRow(row: string[]) {
@@ -241,11 +307,13 @@ function _parseRow(row: string[]) {
       trackAttributes[trackattr[1]] = _deduceType(trackattr[2]);
     }
 
-    /* Polygon */
+    /* Polygon - format: (poly) coordinates
+     * Multiple (poly) entries create separate polygons with auto-generated keys */
     const poly = getCaptureGroups(PolyRegex, value);
     if (poly !== null) {
+      const coordString = poly[1];
       const coords: number[][] = [];
-      const polyList = poly[2].split(' ');
+      const polyList = coordString.split(' ');
       polyList.forEach((coord, j) => {
         if (j % 2 === 0) {
           // Filter out ODDs
@@ -254,7 +322,32 @@ function _parseRow(row: string[]) {
           }
         }
       });
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords));
+      // Create new polygon with auto-generated key
+      const newKey = _getNextPolygonKey(geoFeatureCollection);
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords, newKey));
+    }
+
+    /* Hole - format: (hole) coordinates
+     * Added to the most recent polygon */
+    const hole = getCaptureGroups(HoleRegex, value);
+    if (hole !== null) {
+      const coordString = hole[1];
+      const coords: number[][] = [];
+      const polyList = coordString.split(' ');
+      polyList.forEach((coord, j) => {
+        if (j % 2 === 0) {
+          // Filter out ODDs
+          if (polyList[j + 1]) {
+            coords.push([parseFloat(coord), parseFloat(polyList[j + 1])]);
+          }
+        }
+      });
+      // Add as hole to the most recent polygon
+      const polygons = geoFeatureCollection.features.filter((f) => f.geometry.type === 'Polygon');
+      if (polygons.length > 0) {
+        const lastPolyKey = polygons[polygons.length - 1].properties?.key || '';
+        _addHoleToPolygon(geoFeatureCollection, coords, lastPolyKey);
+      }
     }
 
     /* Note */
@@ -288,21 +381,22 @@ function _parseFeature(row: string[]) {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
   };
-  if (rowInfo.fishLength !== -1) {
+  if (rowInfo.fishLength !== -1 && Number.isFinite(rowInfo.fishLength)) {
     feature.fishLength = rowInfo.fishLength;
   }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
+  const syncedFeature = syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {
-    feature.geometry = rowData.geoFeatureCollection;
+    syncedFeature.geometry = rowData.geoFeatureCollection;
   }
   if (rowData.notes.length > 0) {
-    feature.notes = rowData.notes;
+    syncedFeature.notes = rowData.notes;
   }
   return {
     rowInfo,
-    feature,
+    feature: syncedFeature,
     trackAttributes: rowData.trackAttributes,
     confidencePairs: rowData.confidencePairs,
   };
@@ -638,18 +732,24 @@ async function serialize(
               column2 = moment.utc((feature.frame / meta.fps) * 1000).format('HH:mm:ss.SSSSSS');
             }
 
+            const lengthValue = resolveDetectionLength(feature.fishLength, feature.attributes);
+
             const row = [
               track.id,
               column2,
               feature.frame,
               ...(feature.bounds as number[]),
               sortedPairs[0][1], // always take highest confidence to be track confidence
-              feature.fishLength || -1,
+              (lengthValue !== undefined && Number.isFinite(lengthValue)) ? lengthValue : -1,
               ...flattenDeep(sortedPairs),
             ];
 
-            /* Feature Attributes */
-            Object.entries(feature.attributes || {}).forEach(([key, val]) => {
+            /* Feature Attributes — export length in (atr) as well as the length column */
+            const exportAttributes = { ...(feature.attributes || {}) };
+            if (lengthValue !== undefined && Number.isFinite(lengthValue)) {
+              exportAttributes.length = lengthValue;
+            }
+            Object.entries(exportAttributes).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
             /* Track Attributes */
@@ -661,8 +761,19 @@ async function serialize(
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
               feature.geometry.features.forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
-                  const coordinates = flattenDeep(geoJSONFeature.geometry.coordinates[0]);
-                  row.push(`${PolyToken} ${coordinates.map(Math.round).join(' ')}`);
+                  const allRings = geoJSONFeature.geometry.coordinates as number[][][];
+
+                  // Write outer ring (first ring)
+                  if (allRings.length > 0) {
+                    const outerCoords = flattenDeep(allRings[0]);
+                    row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
+
+                    // Write holes (additional rings)
+                    for (let holeIdx = 0; holeIdx < allRings.length - 1; holeIdx += 1) {
+                      const holeCoords = flattenDeep(allRings[holeIdx + 1]);
+                      row.push(`(hole) ${holeCoords.map(Math.round).join(' ')}`);
+                    }
+                  }
                 } else if (geoJSONFeature.geometry.type === 'Point') {
                   if (geoJSONFeature.properties) {
                     const kpname = geoJSONFeature.properties.key;
@@ -672,7 +783,6 @@ async function serialize(
                     );
                   }
                 }
-                /* TODO support for multiple GeoJSON Objects of the same type */
               });
             }
 

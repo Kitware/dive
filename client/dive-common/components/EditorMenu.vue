@@ -11,6 +11,7 @@ import { flatten } from 'lodash';
 import { Mousetrap } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
+import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
 
@@ -19,6 +20,7 @@ interface ButtonData {
   icon: string;
   type?: VisibleAnnotationTypes;
   active: boolean;
+  loading?: boolean;
   mousetrap?: Mousetrap[];
   description: string;
   click: () => void;
@@ -75,7 +77,11 @@ export default defineComponent({
       default: true,
     },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+  ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
@@ -129,6 +135,8 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
+          loading: (r.loading?.value ?? false)
+            || (r instanceof SegmentationPointClick && r.predicting.value),
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -142,7 +150,9 @@ export default defineComponent({
       ];
     });
 
-    const mousetrap = computed((): Mousetrap[] => flatten(editButtons.value.map((b) => b.mousetrap || [])));
+    const mousetrap = computed((): Mousetrap[] => [
+      ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
+    ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
 
@@ -165,6 +175,13 @@ export default defineComponent({
       if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
       }
+      if (activeSegmentationRecipe.value) {
+        return {
+          text: `${props.editingDetails === 'Editing' ? 'Editing' : 'Creating'} Segment`,
+          icon: 'mdi-auto-fix',
+          color: props.editingDetails === 'Creating' ? 'success' : 'primary',
+        };
+      }
       if (props.editingDetails !== 'disabled') {
         return {
           text: `${props.editingDetails} ${props.editingMode} `,
@@ -174,6 +191,26 @@ export default defineComponent({
       }
       return { text: 'Not editing', icon: 'mdi-pencil-off-outline', color: '' };
     });
+
+    const activeSegmentationRecipe = computed((): SegmentationPointClick | null => {
+      const segRecipe = props.recipes.find(
+        (r) => r instanceof SegmentationPointClick && r.active.value,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe || null;
+    });
+
+    const segmentationPredicting = computed(
+      () => activeSegmentationRecipe.value?.predicting.value ?? false,
+    );
+
+    const segmentationLoading = computed(() => {
+      const segRecipe = props.recipes.find(
+        (r) => r instanceof SegmentationPointClick,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe?.loading.value ?? false;
+    });
+
+    const segmentationTooltip = 'Left click to add positive points. Middle click or Shift+click for negative points. Right click or Enter to confirm. Escape to cancel.';
 
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
@@ -208,6 +245,10 @@ export default defineComponent({
       toggleEditButtonsExpanded,
       activeEditButton,
       editButtonsMenuKey,
+      activeSegmentationRecipe,
+      segmentationPredicting,
+      segmentationLoading,
+      segmentationTooltip,
     };
   },
 });
@@ -248,6 +289,15 @@ export default defineComponent({
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
             </span>
+            <span v-else-if="segmentationLoading">
+              Loading segmentation model...
+            </span>
+            <span v-else-if="segmentationPredicting">
+              Computing segmentation...
+            </span>
+            <span v-else-if="activeSegmentationRecipe">
+              {{ segmentationTooltip }}
+            </span>
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
             </span>
@@ -265,7 +315,7 @@ export default defineComponent({
         <template #activator="{ on, attrs }">
           <v-btn
             v-bind="attrs"
-            :disabled="!editingMode"
+            :disabled="!editingMode || activeEditButton?.loading"
             :outlined="!activeEditButton?.active"
             :color="activeEditButton?.active ? editingHeader.color : ''"
             class="mx-1"
@@ -273,7 +323,9 @@ export default defineComponent({
             v-on="on"
           >
             <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon>{{ activeEditButton?.icon }}</v-icon>
+            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
+              {{ activeEditButton?.icon }}
+            </v-icon>
             <v-btn
               icon
               x-small
@@ -293,7 +345,7 @@ export default defineComponent({
           >
             <v-list-item-icon>
               <v-btn
-                :disabled="!editingMode"
+                :disabled="!editingMode || button.loading"
                 :outlined="!button.active"
                 :color="button.active ? editingHeader.color : ''"
                 class="mx-1"
@@ -301,7 +353,9 @@ export default defineComponent({
                 @click="button.click"
               >
                 <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon>{{ button.icon }}</v-icon>
+                <v-icon :class="{ 'mdi-spin': button.loading }">
+                  {{ button.icon }}
+                </v-icon>
               </v-btn>
             </v-list-item-icon>
             <v-list-item-content>
@@ -332,7 +386,7 @@ export default defineComponent({
         <v-btn
           v-for="button in editButtons"
           :key="button.id + 'view'"
-          :disabled="!editingMode"
+          :disabled="!editingMode || button.loading"
           :outlined="!button.active"
           :color="button.active ? editingHeader.color : ''"
           class="mx-1"
@@ -340,10 +394,35 @@ export default defineComponent({
           @click="button.click"
         >
           <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon>{{ button.icon }}</v-icon>
+          <v-icon :class="{ 'mdi-spin': button.loading }">
+            {{ button.icon }}
+          </v-icon>
         </v-btn>
       </template>
-      <slot name="delete-controls" />
+      <!-- Segmentation Reset button -->
+      <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
+        <v-divider
+          vertical
+          class="mx-2"
+        />
+        <v-btn
+          color="error"
+          class="mx-1"
+          small
+          :disabled="!activeSegmentationRecipe.hasPoints() || segmentationPredicting"
+          @click="activeSegmentationRecipe.resetPoints()"
+        >
+          <v-icon left>
+            mdi-close
+          </v-icon>
+          Reset
+        </v-btn>
+      </template>
+      <!-- Hide delete controls when in segmentation mode -->
+      <slot
+        v-if="!activeSegmentationRecipe"
+        name="delete-controls"
+      />
       <slot name="multicam-controls-left" />
       <v-spacer />
       <slot name="multicam-controls-right" />

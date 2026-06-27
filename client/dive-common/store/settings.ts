@@ -1,6 +1,7 @@
 import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 interface ColumnVisibilitySettings {
   type: boolean;
@@ -66,6 +67,16 @@ interface AnnotationSettings {
   autoSaveSettings: {
     enabled: boolean;
     delaySeconds: number;
+  };
+  stereoSettings: {
+    // Recompute length attributes when a line's vertices are modified on a
+    // detection that is linked across both cameras.
+    updateLengthsOnModify: boolean;
+    // Warp an annotation drawn on one camera to the other camera when that
+    // camera has no detection for it yet.
+    autoComputeOtherCamera: boolean;
+    loading: boolean;
+    loadingMessage: string;
   };
 }
 
@@ -142,6 +153,12 @@ const defaultSettings: AnnotationSettings = {
     enabled: false, // Disabled by default for backward compatibility
     delaySeconds: 60,
   },
+  stereoSettings: {
+    updateLengthsOnModify: true,
+    autoComputeOtherCamera: false,
+    loading: false,
+    loadingMessage: '',
+  },
 };
 const MIN_AUTO_SAVE_DELAY_SECONDS = 10;
 
@@ -162,7 +179,16 @@ function loadStoredSettings(): Partial<AnnotationSettings> {
 function saveSettings() {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('Settings', JSON.stringify(clientSettings));
+      // Exclude transient stereo fields from persistence
+      const toSave = {
+        ...clientSettings,
+        stereoSettings: {
+          ...clientSettings.stereoSettings,
+          loading: false,
+          loadingMessage: '',
+        },
+      };
+      localStorage.setItem('Settings', JSON.stringify(toSave));
     }
   } catch (e) {
     console.warn('Failed to save settings to localStorage:', e);
@@ -175,10 +201,26 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
+  if (!isDesktopRuntime()) {
+    hydrated.stereoSettings.updateLengthsOnModify = false;
+    hydrated.stereoSettings.autoComputeOtherCamera = false;
+  }
   return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
+
+/**
+ * Interactive stereo requires the desktop VIAME interactive service. The
+ * backend service is needed whenever either stereo feature (length update or
+ * cross-camera auto-compute) is enabled.
+ */
+function isStereoInteractiveModeEnabled(): boolean {
+  return isDesktopRuntime() && (
+    clientSettings.stereoSettings.updateLengthsOnModify
+    || clientSettings.stereoSettings.autoComputeOtherCamera
+  );
+}
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {
   // If a type is deleted, reset the default new track type to unknown
@@ -192,6 +234,7 @@ watch(clientSettings, saveSettings, { deep: true });
 
 export {
   clientSettings,
+  isStereoInteractiveModeEnabled,
   AnnotationSettings,
   ColumnVisibilitySettings,
 };

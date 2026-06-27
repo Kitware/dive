@@ -3,6 +3,7 @@ node_modules
 /dist
 /dist_desktop
 /dist_electron
+/coverage
 /.electron
 /lib
 /bin

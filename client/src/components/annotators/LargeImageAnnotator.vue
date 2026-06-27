@@ -5,6 +5,8 @@ import {
 import geo from 'geojs';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
 
 export interface LargeImageDataItem {
@@ -39,6 +41,7 @@ function buildOutputFilename(inputFilename: string): string {
 
 export default defineComponent({
   name: 'LargeImageAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     imageData: {
       type: Array as PropType<LargeImageDataItem[]>,
@@ -124,6 +127,11 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     const updateTileLoadErrorWidth = () => {
       const containerWidth = container.value?.getBoundingClientRect().width;
       tileLoadErrorWidth.value = typeof containerWidth === 'number'
@@ -510,6 +518,7 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
+      playbackCursor,
       tileLoadError,
       tileLoadErrorStyle,
       conversionInputFilename,
@@ -592,12 +601,16 @@ export default defineComponent({
       ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ data.imageCursor }} </v-icon>
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
-      :style="{ cursor: data.cursor }"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"

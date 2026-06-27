@@ -27,6 +27,8 @@ const PaddingVectorZero: [number, number][] = [
   [1, 0],
   [0, 0],
 ];
+/* Cap how skinny a line's box may get: longer side at most this x the shorter. */
+const MAX_BOX_ASPECT_RATIO = 6;
 
 export default class HeadTail implements Recipe {
   active: Ref<boolean>;
@@ -34,6 +36,9 @@ export default class HeadTail implements Recipe {
   name: string;
 
   private startWithHead: boolean;
+
+  /* Whether the track had bounds before line creation started */
+  private hadBoundsOnCreate: boolean;
 
   bus: Vue;
 
@@ -44,6 +49,7 @@ export default class HeadTail implements Recipe {
   constructor() {
     this.bus = new Vue();
     this.startWithHead = true;
+    this.hadBoundsOnCreate = false;
     this.active = ref(false);
     this.name = 'HeadTail';
     this.toggleable = ref(true);
@@ -100,6 +106,58 @@ export default class HeadTail implements Recipe {
       results.push(withinBounds([x, y], bounds));
     }
     return (results.filter((item) => item).length === coords.length);
+  }
+
+  /**
+   * Compute a tight axis-aligned bounding box around coords, expanded by fraction
+   * (e.g. 0.10 = 10% larger in each dimension).
+   */
+  private static tightBoundsExpanded(
+    coords: GeoJSON.Position[],
+    fraction: number,
+  ): GeoJSON.Polygon[] {
+    const xs = coords.map((c) => c[0]);
+    const ys = coords.map((c) => c[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    // Use the other dimension as fallback for degenerate (zero-width/height) cases
+    const padX = width * fraction || height * fraction;
+    const padY = height * fraction || width * fraction;
+    let x0 = minX - padX;
+    let x1 = maxX + padX;
+    let y0 = minY - padY;
+    let y1 = maxY + padY;
+
+    // Cap the aspect ratio so a near-horizontal/vertical line doesn't make a
+    // razor-thin box: grow the shorter side about its center until the
+    // longer:shorter ratio is at most MAX_BOX_ASPECT_RATIO.
+    const boxW = x1 - x0;
+    const boxH = y1 - y0;
+    if (boxW > 0 && boxH > 0) {
+      if (boxW / boxH > MAX_BOX_ASPECT_RATIO) {
+        const grow = (boxW / MAX_BOX_ASPECT_RATIO - boxH) / 2;
+        y0 -= grow;
+        y1 += grow;
+      } else if (boxH / boxW > MAX_BOX_ASPECT_RATIO) {
+        const grow = (boxH / MAX_BOX_ASPECT_RATIO - boxW) / 2;
+        x0 -= grow;
+        x1 += grow;
+      }
+    }
+    return [{
+      type: 'Polygon',
+      coordinates: [[
+        [x0, y0],
+        [x0, y1],
+        [x1, y1],
+        [x1, y0],
+        [x0, y0],
+      ]],
+    }];
   }
 
   private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
@@ -187,14 +245,19 @@ export default class HeadTail implements Recipe {
           } as GeoJSON.LineString;
         }
         if (geom.coordinates.length === 2) {
-          let union = HeadTail.findBounds(geom, PaddingVector);
+          let union: GeoJSON.Polygon[];
           if (bounds !== null) {
             // If both are inside of the bbox don't adjust the union
             if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
               union = [];
             } else if (tail.length > 0) { // If creating new box add padding
               union = HeadTail.findBounds(geom, PaddingVectorZero);
+            } else {
+              union = HeadTail.findBounds(geom, PaddingVector);
             }
+          } else {
+            // No existing box: make box 10% larger than tight box around vertices
+            union = HeadTail.tightBoundsExpanded(geom.coordinates, 0.10);
           }
           // Both head and tail placed, replace them.
           return {
@@ -206,7 +269,8 @@ export default class HeadTail implements Recipe {
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
-          // Only the head placed so far
+          // Only the head placed so far — record if the track already had bounds
+          this.hadBoundsOnCreate = bounds !== null;
           let union = HeadTail.findBounds(geom, PaddingVector);
           if (bounds !== null) {
             if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
@@ -226,6 +290,16 @@ export default class HeadTail implements Recipe {
       /**
        * IF recipe isn't active, but the key matches, we are editing
        */
+        if (this.active.value && !this.hadBoundsOnCreate) {
+          // Creating a new line on a track without a pre-existing box:
+          // use unionWithoutBounds to replace interim bounds with 10% expanded box
+          return {
+            ...EmptyResponse,
+            data: HeadTail.makeGeom(linestring.geometry, true),
+            unionWithoutBounds: HeadTail.tightBoundsExpanded(linestring.geometry.coordinates, 0.20),
+            done: true,
+          };
+        }
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
