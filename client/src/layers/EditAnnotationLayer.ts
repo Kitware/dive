@@ -526,9 +526,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   calculateCursorImage() {
-    if (this.getMode() === 'creation') {
-      // TODO:  we may want to make this more generic or utilize the icons from editMenu
-      this.annotator.setImageCursor(`mdi-vector-${typeMapper.get(this.type)}`);
+    const mode = this.getMode();
+    if (mode === 'creation' || mode === 'editing') {
+      this.annotator.setImageCursor(
+        `mdi-vector-${typeMapper.get(this.type)}`,
+        mode === 'editing',
+      );
     }
   }
 

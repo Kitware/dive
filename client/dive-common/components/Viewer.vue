@@ -266,6 +266,9 @@ export default defineComponent({
     } = useImageEnhancements();
 
     const segmentationRecipe = new SegmentationPointClick();
+    const segmentationCursorLoading = computed(
+      () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+    );
     const recipes = [
       new PolygonBase(),
       new HeadTail(),
@@ -1055,6 +1058,7 @@ export default defineComponent({
         annotationSets: sets,
         comparisonSets: toRef(props, 'comparisonSets'),
         segmentationPoints,
+        segmentationCursorLoading,
         selectedCamera,
         selectedKey,
         selectedTrackId,

@@ -203,6 +203,13 @@ export default defineComponent({
       () => activeSegmentationRecipe.value?.predicting.value ?? false,
     );
 
+    const segmentationLoading = computed(() => {
+      const segRecipe = props.recipes.find(
+        (r) => r instanceof SegmentationPointClick,
+      ) as SegmentationPointClick | undefined;
+      return segRecipe?.loading.value ?? false;
+    });
+
     const segmentationTooltip = 'Left click to add positive points. Middle click or Shift+click for negative points. Right click or Enter to confirm. Escape to cancel.';
 
     const editingTooltip = computed(() => {
@@ -240,6 +247,7 @@ export default defineComponent({
       editButtonsMenuKey,
       activeSegmentationRecipe,
       segmentationPredicting,
+      segmentationLoading,
       segmentationTooltip,
     };
   },
@@ -280,6 +288,9 @@ export default defineComponent({
             <span v-else-if="multiSelectActive">
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
+            </span>
+            <span v-else-if="segmentationLoading">
+              Loading segmentation model...
             </span>
             <span v-else-if="segmentationPredicting">
               Computing segmentation...

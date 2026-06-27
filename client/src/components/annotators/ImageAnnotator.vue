@@ -4,6 +4,8 @@ import {
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
 
 export interface ImageDataItem {
@@ -22,6 +24,7 @@ function loadImageFunc(imageDataItem: ImageDataItem, img: HTMLImageElement) {
 }
 export default defineComponent({
   name: 'ImageAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     imageData: {
       type: Array as PropType<ImageDataItem[]>,
@@ -74,6 +77,11 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     data.maxFrame = props.imageData.length - 1;
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
@@ -392,6 +400,7 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
+      playbackCursor,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -466,12 +475,16 @@ export default defineComponent({
       ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ data.imageCursor }} </v-icon>
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
-      :style="{ cursor: data.cursor }"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"

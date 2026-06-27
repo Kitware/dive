@@ -58,6 +58,9 @@ type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
 const SegmentationPointsSymbol = Symbol('segmentationPoints');
 type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[]; frameNum: number }>>;
 
+const SegmentationCursorLoadingSymbol = Symbol('segmentationCursorLoading');
+type SegmentationCursorLoadingType = Readonly<Ref<boolean>>;
+
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
 
@@ -290,6 +293,7 @@ export interface State {
   annotationSets: AnnotationSetsType;
   comparisonSets: ComparisonSetsType;
   segmentationPoints: SegmentationPointsType;
+  segmentationCursorLoading: SegmentationCursorLoadingType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -357,6 +361,7 @@ function dummyState(): State {
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
     segmentationPoints: ref({ points: [], labels: [], frameNum: -1 }),
+    segmentationCursorLoading: ref(false),
     selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
@@ -407,6 +412,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotationSetsSymbol, state.annotationSets);
   provide(ComparisonSetsSymbol, state.comparisonSets);
   provide(SegmentationPointsSymbol, state.segmentationPoints);
+  provide(SegmentationCursorLoadingSymbol, state.segmentationCursorLoading);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -547,6 +553,10 @@ function useSegmentationPoints() {
   return use<SegmentationPointsType>(SegmentationPointsSymbol);
 }
 
+function useSegmentationCursorLoading() {
+  return use<SegmentationCursorLoadingType>(SegmentationCursorLoadingSymbol);
+}
+
 export {
   LassoModeSymbol,
   dummyHandler,
@@ -582,4 +592,5 @@ export {
   useImageEnhancements,
   useAttributesFilters,
   useSegmentationPoints,
+  useSegmentationCursorLoading,
 };
