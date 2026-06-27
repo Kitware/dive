@@ -1335,6 +1335,7 @@ export default defineComponent({
         class="title pl-3 flex-row"
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
+        <slot name="dataset-name-prefix" />
         {{ datasetName }}
         <v-tooltip
           v-if="currentSet || sets.length > 0 || comparisonSets.length"

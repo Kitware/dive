@@ -336,31 +336,31 @@ export default defineComponent({
               />
             </v-btn>
           </template>
-        <v-list dense>
-          <v-list-item
-            v-for="button in editButtons"
-            :key="`${button.id}-menu`"
-          >
-            <v-list-item-icon>
-              <v-btn
-                :disabled="!editingMode || button.loading"
-                :outlined="!button.active"
-                :color="button.active ? editingHeader.color : ''"
-                class="mx-1"
-                small
-                @click="button.click"
-              >
-                <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon :class="{ 'mdi-spin': button.loading }">
-                  {{ button.icon }}
-                </v-icon>
-              </v-btn>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>{{ button.id }}</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
+          <v-list dense>
+            <v-list-item
+              v-for="button in editButtons"
+              :key="`${button.id}-menu`"
+            >
+              <v-list-item-icon>
+                <v-btn
+                  :disabled="!editingMode || button.loading"
+                  :outlined="!button.active"
+                  :color="button.active ? editingHeader.color : ''"
+                  class="mx-1"
+                  small
+                  @click="button.click"
+                >
+                  <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                  <v-icon :class="{ 'mdi-spin': button.loading }">
+                    {{ button.icon }}
+                  </v-icon>
+                </v-btn>
+              </v-list-item-icon>
+              <v-list-item-content>
+                <v-list-item-title>{{ button.id }}</v-list-item-title>
+              </v-list-item-content>
+            </v-list-item>
+          </v-list>
         </v-menu>
 
         <!-- Expanded mode for edit buttons -->

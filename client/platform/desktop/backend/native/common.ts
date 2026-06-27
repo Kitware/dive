@@ -4,6 +4,7 @@
 
 import npath from 'path';
 import fs from 'fs-extra';
+import { spawn } from 'child_process';
 import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
@@ -1421,11 +1422,13 @@ async function finalizeMediaImport(
   // Store any stereo calibration / camera file alongside the media and normalize
   // it to the VIAME JSON camera-rig format (keeping the original).
   if (jsonMeta.multiCam?.calibration) {
-    jsonMeta.multiCam.calibrationOriginalName = realCalibrationName(jsonMeta.multiCam.calibration);
+    const calibrationSourcePath = npath.resolve(jsonMeta.multiCam.calibration);
+    jsonMeta.multiCam.calibrationSourcePath = calibrationSourcePath;
+    jsonMeta.multiCam.calibrationOriginalName = realCalibrationName(calibrationSourcePath);
     jsonMeta.multiCam.calibration = await prepareDatasetCalibration(
       settings,
       projectDirAbsPath,
-      jsonMeta.multiCam.calibration,
+      calibrationSourcePath,
     );
   }
 
@@ -1543,6 +1546,45 @@ async function openLink(url: string) {
   shell.openExternal(url);
 }
 
+/**
+ * Open a file or folder in the system file manager.
+ * Returns an empty string on success or an error message on failure.
+ *
+ * shell.openPath can hang indefinitely on Linux (never resolving its promise),
+ * which breaks ipcMain.handle callers. Files use showItemInFolder; directories
+ * use a detached platform opener so the IPC handler always replies promptly.
+ */
+async function openPathInFileManager(targetPath: string): Promise<string> {
+  if (!targetPath?.trim()) {
+    return 'No path specified';
+  }
+  const resolved = npath.resolve(targetPath.trim());
+  if (!(await fs.pathExists(resolved))) {
+    return `Path does not exist: ${resolved}`;
+  }
+
+  const stat = await fs.stat(resolved);
+  if (stat.isFile()) {
+    shell.showItemInFolder(resolved);
+    return '';
+  }
+
+  if (process.platform === 'linux') {
+    spawn('xdg-open', [resolved], { detached: true, stdio: 'ignore' }).unref();
+    return '';
+  }
+  if (process.platform === 'win32') {
+    spawn('explorer', [resolved], { detached: true, stdio: 'ignore' }).unref();
+    return '';
+  }
+  if (process.platform === 'darwin') {
+    spawn('open', [resolved], { detached: true, stdio: 'ignore' }).unref();
+    return '';
+  }
+
+  return shell.openPath(resolved);
+}
+
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -1650,14 +1692,16 @@ async function applyCalibrationToUncalibratedStereoDatasets(
         // eslint-disable-next-line no-await-in-loop
         const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
         if (fullMeta.multiCam) {
+          const calibrationSourcePath = npath.resolve(calibrationPath);
           // eslint-disable-next-line no-await-in-loop
           fullMeta.multiCam.calibration = await prepareDatasetCalibration(
             settings,
             projectDirInfo.basePath,
-            calibrationPath,
+            calibrationSourcePath,
           );
+          fullMeta.multiCam.calibrationSourcePath = calibrationSourcePath;
           fullMeta.multiCam.calibrationOriginalName = realCalibrationName(originalName)
-            ?? realCalibrationName(calibrationPath);
+            ?? realCalibrationName(calibrationSourcePath);
           // eslint-disable-next-line no-await-in-loop
           await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
           updatedIds.push(meta.id);
@@ -1726,6 +1770,7 @@ async function setDatasetCalibration(
     sourcePath,
   );
   fullMeta.multiCam.calibration = calibrationPath;
+  fullMeta.multiCam.calibrationSourcePath = npath.resolve(sourcePath);
   fullMeta.multiCam.calibrationOriginalName = realCalibrationName(sourcePath);
   await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
   return calibrationPath;
@@ -1825,6 +1870,8 @@ async function deleteDatasetCalibration(settings: Settings, datasetId: string): 
   }
   if (fullMeta.multiCam) {
     fullMeta.multiCam.calibration = undefined;
+    fullMeta.multiCam.calibrationSourcePath = undefined;
+    fullMeta.multiCam.calibrationOriginalName = undefined;
     await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
   }
 }
@@ -1852,6 +1899,7 @@ export {
   loadAnnotationFile,
   loadDetections,
   openLink,
+  openPathInFileManager,
   ingestDataFiles,
   saveDetections,
   saveMetadata,

@@ -27,6 +27,7 @@ import {
 } from '../store/settings';
 import { setOrGetConversionJob, cpuJobQueue, queuedCpuJobs } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
+import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 import BulkImportDialog from './BulkImportDialog.vue';
@@ -34,6 +35,7 @@ import BulkImportDialog from './BulkImportDialog.vue';
 export default defineComponent({
   components: {
     BrowserLink,
+    DatasetSourceInfo,
     ImportButton,
     ImportDialog,
     BulkImportDialog,
@@ -544,12 +546,18 @@ export default defineComponent({
                   >
                     {{ item.name }}
                   </div>
-                  <div class="grey--text text-caption">
-                    {{
-                      item.imageListPath
-                        || item.originalBasePath
-                        || 'Data imported from several locations'
-                    }}
+                  <div class="grey--text text-caption d-flex align-center">
+                    <dataset-source-info
+                      :dataset-id="item.id"
+                      class="flex-shrink-0 mr-1"
+                    />
+                    <span>
+                      {{
+                        item.imageListPath
+                          || item.originalBasePath
+                          || 'Data imported from several locations'
+                      }}
+                    </span>
                   </div>
                 </span>
               </template>

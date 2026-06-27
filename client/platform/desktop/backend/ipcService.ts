@@ -3,7 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import {
-  app, ipcMain, shell, dialog, BrowserWindow,
+  app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
@@ -110,7 +110,9 @@ export default function register() {
     event.returnValue = getDiveVersion();
   });
   ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
-  ipcMain.handle('desktop:open-path', (_, targetPath: string) => shell.openPath(targetPath));
+  ipcMain.handle('desktop:open-path', async (_, targetPath: string) => (
+    common.openPathInFileManager(targetPath)
+  ));
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });

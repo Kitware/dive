@@ -27,6 +27,7 @@ import {
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
@@ -56,6 +57,7 @@ export default defineComponent({
   components: {
     Export,
     JobTab,
+    DatasetSourceInfo,
     RunPipelineMenu,
     SidebarContext,
     Viewer,
@@ -1272,6 +1274,19 @@ export default defineComponent({
       });
     }
 
+    async function applyCalibrationAfterImport() {
+      try {
+        const hasStereo = await loadStereoMetadata();
+        if (!hasStereo) return;
+        const result = await stereoEnable(undefined, stereoCalibrationFile);
+        if (!result.success) return;
+        stereoEnabled.value = true;
+        await ensureStereoFrame(getViewerFrame());
+      } catch (err) {
+        console.warn('[Stereo] Failed to apply calibration after import:', err);
+      }
+    }
+
     function onCalibrationImported(calibrationPath: string) {
       const dataset = datasets.value[props.id];
       if (dataset) {
@@ -1279,18 +1294,7 @@ export default defineComponent({
       }
       stereoCalibrationFile = calibrationPath;
       if (!stereoServiceWanted()) return;
-      void (async () => {
-        try {
-          const hasStereo = await loadStereoMetadata();
-          if (!hasStereo) return;
-          const result = await stereoEnable(undefined, stereoCalibrationFile);
-          if (!result.success) return;
-          stereoEnabled.value = true;
-          await ensureStereoFrame(getViewerFrame());
-        } catch (err) {
-          console.warn('[Stereo] Failed to apply calibration after import:', err);
-        }
-      })();
+      applyCalibrationAfterImport();
     }
 
     return {
@@ -1337,6 +1341,9 @@ export default defineComponent({
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >
+      <template #dataset-name-prefix>
+        <dataset-source-info :dataset-id="id" />
+      </template>
       <template #title>
         <v-tabs
           icons-and-text
@@ -1358,13 +1365,13 @@ export default defineComponent({
       </template>
       <template #title-right>
         <RunPipelineMenu
-        :selected-dataset-ids="[modifiedId]"
-        :sub-type-list="subTypeList"
-        :camera-numbers="camNumbers"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="readOnlyMode"
-        :time-filter="timeFilter"
-        v-bind="{ buttonOptions, menuOptions }"
+          :selected-dataset-ids="[modifiedId]"
+          :sub-type-list="subTypeList"
+          :camera-numbers="camNumbers"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="readOnlyMode"
+          :time-filter="timeFilter"
+          v-bind="{ buttonOptions, menuOptions }"
         />
         <ImportAnnotations
           :dataset-id="modifiedId"

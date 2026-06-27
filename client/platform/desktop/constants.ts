@@ -55,6 +55,8 @@ export interface MultiCamDesktop {
   // Name of the user's original calibration file (preserved for display, since
   // `calibration` may point at a converted/normalized copy).
   calibrationOriginalName?: string;
+  // Absolute path of the calibration file at import (before project copy/conversion).
+  calibrationSourcePath?: string;
   // Default Display Key for showing multiCam
   defaultDisplay: string;
 }
