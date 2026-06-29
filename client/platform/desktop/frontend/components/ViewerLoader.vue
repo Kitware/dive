@@ -17,6 +17,10 @@ import type {
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
 import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
+import {
+  createStereoLengthRendering,
+  STEREO_LENGTH_ATTRIBUTE_NAME,
+} from 'dive-common/utils/stereoLengthRendering';
 import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
@@ -694,13 +698,24 @@ export default defineComponent({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const existing = (viewer.attributes || []) as any[];
       STEREO_MEASUREMENT_ATTRS.forEach((name) => {
-        if (!existing.find((a) => a.name === name && a.belongs === 'detection')) {
+        const existingAttr = existing.find((a) => a.name === name && a.belongs === 'detection');
+        if (!existingAttr) {
           viewer.handler.setAttribute({
             data: {
               belongs: 'detection',
               datatype: 'number',
               name,
               key: `detection_${name}`,
+              ...(name === STEREO_LENGTH_ATTRIBUTE_NAME
+                ? { render: createStereoLengthRendering(name) }
+                : {}),
+            },
+          });
+        } else if (name === STEREO_LENGTH_ATTRIBUTE_NAME && !existingAttr.render) {
+          viewer.handler.setAttribute({
+            data: {
+              ...existingAttr,
+              render: createStereoLengthRendering(existingAttr.name),
             },
           });
         }
