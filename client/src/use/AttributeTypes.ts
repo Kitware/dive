@@ -12,6 +12,7 @@ export interface StringAttributeEditorOptions {
 export interface AttributeRendering {
   typeFilter: string[];
   selected?: boolean;
+  hideEmpty?: boolean;
   displayName: string;
   displayColor: 'auto' | string;
   displayTextSize: number;

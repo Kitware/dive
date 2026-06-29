@@ -165,6 +165,7 @@ export default defineComponent({
       if (renderingVals.value === undefined) {
         renderingVals.value = {
           typeFilter: ['all'],
+          hideEmpty: true,
           displayName: props.selectedAttribute.name,
           displayColor: 'auto',
           displayTextSize: -1,

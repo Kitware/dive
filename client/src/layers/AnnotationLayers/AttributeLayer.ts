@@ -34,6 +34,38 @@ interface AttributeLayerParams {
 }
 
 const lineHeight = 15;
+
+export function getAttributeValue(
+  annotation: FrameDataTrack,
+  attr: Attribute,
+  user: string,
+): string | number | boolean | undefined {
+  const { name } = attr;
+  if (attr.belongs === 'detection') {
+    if (annotation.features?.attributes) {
+      const { attributes } = annotation.features;
+      if (attr.user && user && attributes.userAttributes?.[user]) {
+        return (attributes.userAttributes[user] as StringKeyObject)[name] as string | boolean | number;
+      }
+      return attributes[name] as string | boolean | number;
+    }
+  }
+  if (attr.belongs === 'track') {
+    const { attributes } = annotation.track;
+    if (attributes) {
+      if (attr.user && user && attributes.userAttributes?.[user]) {
+        return (attributes.userAttributes[user] as StringKeyObject)[name] as string | boolean | number;
+      }
+      return attributes[name] as string | boolean | number;
+    }
+  }
+  return undefined;
+}
+
+export function isEmptyAttributeValue(value: string | number | boolean | undefined): boolean {
+  return value === undefined || value === null || value === '';
+}
+
 // function to calculate x,y as well as bounds based on render settings
 export function calculateAttributeArea(baseBounds: RectBounds, renderSettings: Attribute['render'], renderIndex: number, renderAttrLength: number) {
   // Calculate X Position
@@ -125,40 +157,30 @@ function defaultFormatter(
       return false;
     });
 
-    for (let i = 0; i < renderFiltered.length; i += 1) {
-      const currentRender = renderFiltered[i].render;
-      const { name } = renderFiltered[i];
+    const visibleAttributes = renderFiltered.filter((item) => {
+      if (!item.render) {
+        return false;
+      }
+      if ((item.render.hideEmpty ?? true) && isEmptyAttributeValue(getAttributeValue(annotation, item, user))) {
+        return false;
+      }
+      return true;
+    });
+
+    for (let i = 0; i < visibleAttributes.length; i += 1) {
+      const currentRender = visibleAttributes[i].render;
       if (currentRender !== undefined) {
         const { displayName } = currentRender;
-        const type = renderFiltered[i].belongs;
-        // Calculate Value
-        let value: string | number | boolean = '';
-        if (type === 'detection') {
-          if (annotation.features && annotation.features.attributes) {
-            const { attributes } = annotation.features;
-            if (renderFiltered[i].user && user && attributes.userAttributes && attributes.userAttributes[user]) {
-              value = (attributes.userAttributes[user] as StringKeyObject)[name] as string | boolean | number;
-            } else {
-              value = attributes[name] as string | boolean | number;
-            }
-          }
-        }
-        if (type === 'track') {
-          const { attributes } = annotation.track;
-          if (attributes) {
-            if (renderAttr[i].user && user && attributes.userAttributes && attributes.userAttributes[user]) {
-              value = (attributes.userAttributes[user] as StringKeyObject)[name] as string | boolean | number;
-            } else {
-              value = attributes[name] as string | boolean | number;
-            }
-          }
+        let value = getAttributeValue(annotation, visibleAttributes[i], user);
+        if (value === undefined) {
+          value = '';
         }
 
         const {
           displayX, displayHeight, valueX, valueHeight, offsetY,
-        } = calculateAttributeArea(bounds, currentRender, i, renderFiltered.length);
+        } = calculateAttributeArea(bounds, currentRender, i, visibleAttributes.length);
 
-        const displayColor = currentRender.displayColor === 'auto' ? renderAttr[i].color : currentRender.displayColor;
+        const displayColor = currentRender.displayColor === 'auto' ? visibleAttributes[i].color : currentRender.displayColor;
         const { displayTextSize } = currentRender;
         arr.push({
           selected: annotation.selected,
@@ -172,11 +194,9 @@ function defaultFormatter(
           offsetY,
           offsetX: displayHeight === valueHeight ? 20 : 0,
         });
-        const valueColor = autoColorIndex[i](value);
+        const attrIndex = renderAttr.indexOf(visibleAttributes[i]);
+        const valueColor = autoColorIndex[attrIndex](value);
         const { valueTextSize } = currentRender;
-        if (value === undefined) {
-          value = '';
-        }
         arr.push({
           selected: annotation.selected,
           editing: annotation.editing,

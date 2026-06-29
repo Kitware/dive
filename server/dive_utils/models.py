@@ -169,6 +169,7 @@ class RenderingDisplayDimension(BaseModel):
 class RenderingAttributes(BaseModel):
     typeFilter: List[str]
     selected: Optional[bool]
+    hideEmpty: Optional[bool]
     displayName: str
     displayColor: str
     displayTextSize: float

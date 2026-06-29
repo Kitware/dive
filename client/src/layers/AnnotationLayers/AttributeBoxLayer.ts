@@ -5,7 +5,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { boundToGeojson } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
-import { calculateAttributeArea } from './AttributeLayer';
+import { calculateAttributeArea, getAttributeValue, isEmptyAttributeValue } from './AttributeLayer';
 
 interface RectGeoJSData{
   trackId: number;
@@ -62,12 +62,21 @@ export default class AttributeBoxLayer extends BaseLayer<RectGeoJSData> {
           }
           return false;
         });
-        for (let i = 0; i < renderFiltered.length; i += 1) {
-          const currentRender = renderFiltered[i].render;
+        const visibleAttributes = renderFiltered.filter((item) => {
+          if (!item.render) {
+            return false;
+          }
+          if ((item.render.hideEmpty ?? true) && isEmptyAttributeValue(getAttributeValue(track, item, ''))) {
+            return false;
+          }
+          return true;
+        });
+        for (let i = 0; i < visibleAttributes.length; i += 1) {
+          const currentRender = visibleAttributes[i].render;
           if (currentRender && currentRender.box) {
-            const { newBounds } = calculateAttributeArea(track.features.bounds, renderFiltered[i].render, i, renderFiltered.length);
+            const { newBounds } = calculateAttributeArea(track.features.bounds, visibleAttributes[i].render, i, visibleAttributes.length);
             const polygon = boundToGeojson(newBounds);
-            const lineColor = currentRender.boxColor === 'auto' ? renderFiltered[i].color || 'white' : currentRender.boxColor;
+            const lineColor = currentRender.boxColor === 'auto' ? visibleAttributes[i].color || 'white' : currentRender.boxColor;
             const lineThickness = currentRender.boxThickness || 1;
             const { boxBackground } = currentRender;
             const { boxOpacity } = currentRender;

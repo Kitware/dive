@@ -26,6 +26,7 @@ export default defineComponent({
 
     const mainSettings = reactive({
       selected: props.value.selected || false,
+      hideEmpty: props.value.hideEmpty ?? true,
       typeFilter: props.value.typeFilter || ['all'],
       order: props.value.order,
     });
@@ -103,6 +104,7 @@ export default defineComponent({
     const updateSettings = () => {
       emit('input', {
         selected: mainSettings.selected,
+        hideEmpty: mainSettings.hideEmpty,
         typeFilter: mainSettings.typeFilter,
         order: mainSettings.order,
         displayName: displayNameSettings.displayName,
@@ -227,6 +229,7 @@ export default defineComponent({
               <span>
                 <ul>
                   <li><b>Selected Track</b> : Only display attributes when a track is selected</li>
+                  <li><b>Hide Empty</b> : Only display attributes when the value is non-empty</li>
                   <li><b>Filter Types</b> : Only display attributes on the filtered types</li>
                   <li><b>Order</b> : Order top to bottom for attributes where 0 is higher</li>
                 </ul>
@@ -240,6 +243,13 @@ export default defineComponent({
               v-model="mainSettings.selected"
               label="Selected Track"
               hint="Only display on selected Track"
+              persistent-hint
+              class="mx-2"
+            />
+            <v-switch
+              v-model="mainSettings.hideEmpty"
+              label="Hide Empty"
+              hint="Only display when value is non-empty"
               persistent-hint
               class="mx-2"
             />
