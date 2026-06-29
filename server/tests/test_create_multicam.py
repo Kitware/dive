@@ -164,6 +164,7 @@ def test_create_multicam_rejects_wrong_default_display(_verify, folder_cls, vali
         crud_dataset.create_multicam(user, _dataset_parent(), data)
 
 
+@patch('dive_server.crud_dataset._calibration_file_is_final_json', return_value=True)
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset.Item')
 @patch('dive_server.crud_dataset.crud.valid_images')
@@ -175,6 +176,7 @@ def test_create_multicam_marks_calibration_in_dataset_folder(
     valid_images_mock,
     item_cls,
     _aux,
+    _is_final_json,
 ):
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()
@@ -193,6 +195,7 @@ def test_create_multicam_marks_calibration_in_dataset_folder(
     }[fid]
     valid_images_mock.return_value = [MagicMock(), MagicMock()]
     item_cls.return_value.load.return_value = cal_item
+    item_cls.return_value.childFiles.return_value = [{'name': 'stereo-cal.json'}]
 
     data = {
         'name': 'stereo-set',
