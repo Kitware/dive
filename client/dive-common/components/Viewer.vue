@@ -811,7 +811,7 @@ export default defineComponent({
           groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
         }
         if (meta.attributes) {
-          loadAttributes(meta.attributes);
+          loadAttributes(meta.attributes, { enableStereoLengthRender: meta.subType === 'stereo' });
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
         trackFilters.setTimeFilters(meta.timeFilters ?? null);
