@@ -182,6 +182,44 @@ class DIVEAnnotationSchema(TypedDict):
     version: int
 
 
+class CameraCalibration(TypedDict, total=False):
+    cx: float
+    cy: float
+    fx: float
+    fy: float
+    k1: float
+    k2: float
+    k3: float
+    p1: float
+    p2: float
+    rmsError: float
+
+
+class DatasetStereoCalibration(TypedDict):
+    R: List[float]
+    T: List[float]
+    calibrations: Dict[str, CameraCalibration]
+    gridHeight: NotRequired[int]
+    gridWidth: NotRequired[int]
+    imageHeight: NotRequired[int]
+    imageWidth: NotRequired[int]
+    squareSize: NotRequired[float]
+    rmsError: NotRequired[float]
+
+
+class DatasetCalibrationResult(TypedDict):
+    # `calibration` is absent when the stored file isn't a parseable JSON
+    # camera-rig (e.g. an .npz); the file name is still reported via `jsonPath`.
+    calibration: NotRequired[DatasetStereoCalibration]
+    itemId: NotRequired[str]
+    jsonItemId: NotRequired[str]
+    originalName: NotRequired[str]
+    jsonPath: NotRequired[str]
+    path: NotRequired[str]
+    # Set when a background conversion job failed for the linked source file.
+    conversionError: NotRequired[str]
+
+
 # Attribute metadata discovered while deserializing annotations, keyed by attribute name.
 Attributes = Dict[str, Dict[str, Any]]
 

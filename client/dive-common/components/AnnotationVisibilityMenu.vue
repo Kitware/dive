@@ -9,6 +9,9 @@ import {
 
 import { VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 
+import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
+import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
+
 interface ButtonData {
   id: string;
   icon: string;
@@ -20,6 +23,10 @@ interface ButtonData {
 
 export default defineComponent({
   name: 'AnnotationVisibilityMenu',
+  components: {
+    OutlinedLabeledGroup,
+    ToolbarExpandToggle,
+  },
   props: {
     visibleModes: {
       type: Array as PropType<(VisibleAnnotationTypes)[]>,
@@ -117,6 +124,14 @@ export default defineComponent({
         },
       ]));
 
+    const primaryViewButtons = computed(
+      () => viewButtons.value.filter((button) => button.id !== 'tooltip'),
+    );
+
+    const advancedVisibilityActive = computed(
+      () => isVisible('tooltip') || isVisible('TrackTail'),
+    );
+
     const updateTailSettings = (type: 'before' | 'after', event: Event) => {
       const value = Number.parseFloat((event.target as HTMLInputElement).value);
       const settings = { ...props.tailSettings, [type]: value };
@@ -131,6 +146,8 @@ export default defineComponent({
       isExpanded,
       layoutKey,
       viewButtons,
+      primaryViewButtons,
+      advancedVisibilityActive,
       isVisible,
       toggleVisible,
       toggleExpanded,
@@ -142,7 +159,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <span class="pb-1">
+  <span class="toolbar-group-host">
     <!-- Dropdown mode when collapsed -->
     <v-menu
       v-if="!isExpanded"
@@ -154,19 +171,15 @@ export default defineComponent({
       <template #activator="{ on, attrs }">
         <v-btn
           v-bind="attrs"
-          class="mx-1 mode-button"
+          class="mx-1 mode-button toolbar-group-activator"
           small
           v-on="on"
         >
           <v-icon>mdi-eye</v-icon>
-          <v-btn
-            icon
-            x-small
-            class="ml-1 expand-toggle"
-            @click.stop="toggleExpanded"
-          >
-            <v-icon small>mdi-chevron-right</v-icon>
-          </v-btn>
+          <toolbar-expand-toggle
+            :expanded="false"
+            @click="toggleExpanded"
+          />
         </v-btn>
       </template>
       <v-list dense>
@@ -254,29 +267,27 @@ export default defineComponent({
     </v-menu>
 
     <!-- Full button mode when expanded -->
-    <span
+    <outlined-labeled-group
       v-else
       :key="`visibility-${layoutKey}`"
-      class="visibility-expanded d-inline-flex align-center flex-wrap"
     >
-      <span class="mr-1 px-3 py-1">
-        <v-icon class="pr-1">
-          mdi-eye
-        </v-icon>
-        <span class="text-subtitle-2">
-          Visibility
+      <template #legend>
+        <span class="d-inline-flex align-center">
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-eye
+          </v-icon>
+          <span>Visibility</span>
+          <toolbar-expand-toggle
+            :expanded="true"
+            @click="toggleExpanded"
+          />
         </span>
-        <v-btn
-          icon
-          x-small
-          class="ml-1 expand-toggle"
-          @click="toggleExpanded"
-        >
-          <v-icon small>mdi-chevron-left</v-icon>
-        </v-btn>
-      </span>
+      </template>
       <template
-        v-for="button in viewButtons"
+        v-for="button in primaryViewButtons"
       >
         <v-menu
           v-if="button.id === 'text'"
@@ -323,59 +334,88 @@ export default defineComponent({
         </v-btn>
       </template>
       <v-menu
-        key="track-tail-settings"
-        open-on-hover
-        bottom
+        key="visibility-advanced"
         offset-y
         :close-on-content-click="false"
+        min-width="280"
       >
-        <template #activator="{ on, attrs }">
-          <v-btn
-            v-bind="attrs"
-            :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
-            class="mx-1 mode-button"
-            small
-            v-on="on"
-            @click="toggleVisible('TrackTail')"
-          >
-            <v-icon>mdi-navigation</v-icon>
-          </v-btn>
+        <template #activator="{ on: menuOn, attrs: menuAttrs }">
+          <v-tooltip bottom>
+            <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+              <v-btn
+                v-bind="{ ...menuAttrs, ...tooltipAttrs }"
+                :color="advancedVisibilityActive ? 'grey darken-2' : ''"
+                class="mx-1 mode-button"
+                small
+                v-on="{ ...menuOn, ...tooltipOn }"
+              >
+                <v-icon>mdi-tune</v-icon>
+              </v-btn>
+            </template>
+            <span>Advanced settings</span>
+          </v-tooltip>
         </template>
         <v-card
-          class="pa-4 flex-column d-flex"
+          class="pa-3 flex-column d-flex"
           outlined
         >
-          <label for="frames-before-full">Frames before: {{ tailSettings.before }}</label>
-          <input
-            id="frames-before-full"
-            type="range"
-            name="frames-before-full"
-            class="tail-slider-width"
-            label
-            min="0"
-            max="100"
-            :value="tailSettings.before"
-            @input="updateTailSettings('before', $event)"
-          >
-          <div class="py-2" />
-          <label for="frames-after-full">Frames after: {{ tailSettings.after }}</label>
-          <input
-            id="frames-after-full"
-            type="range"
-            name="frames-after-full"
-            class="tail-slider-width"
-            min="0"
-            max="100"
-            :value="tailSettings.after"
-            @input="updateTailSettings('after', $event)"
-          >
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="isVisible('tooltip') ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleVisible('tooltip')"
+            >
+              <v-icon>mdi-tooltip-text-outline</v-icon>
+            </v-btn>
+            <span class="ml-2">Tooltip</span>
+          </div>
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleVisible('TrackTail')"
+            >
+              <v-icon>mdi-navigation</v-icon>
+            </v-btn>
+            <span class="ml-2">Track Trails</span>
+          </div>
+          <template v-if="isVisible('TrackTail')">
+            <v-divider class="my-2" />
+            <label for="frames-before-full">Frames before: {{ tailSettings.before }}</label>
+            <input
+              id="frames-before-full"
+              type="range"
+              name="frames-before-full"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.before"
+              @input="updateTailSettings('before', $event)"
+            >
+            <div class="py-2" />
+            <label for="frames-after-full">Frames after: {{ tailSettings.after }}</label>
+            <input
+              id="frames-after-full"
+              type="range"
+              name="frames-after-full"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.after"
+              @input="updateTailSettings('after', $event)"
+            >
+          </template>
         </v-card>
       </v-menu>
-    </span>
+    </outlined-labeled-group>
   </span>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@import './toolbarGroup.scss';
+
 .mode-button {
   border: 1px solid grey;
   min-width: 36px;
@@ -383,11 +423,7 @@ export default defineComponent({
 .tail-slider-width {
   width: 240px;
 }
-.expand-toggle {
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-.expand-toggle:hover {
-  opacity: 1;
+.advanced-menu-row + .advanced-menu-row {
+  margin-top: 8px;
 }
 </style>

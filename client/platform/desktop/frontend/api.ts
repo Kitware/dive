@@ -4,6 +4,7 @@ import type {
   DatasetMetaMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
+  DatasetCalibrationResult,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
 } from 'dive-common/apispec';
@@ -16,6 +17,7 @@ import {
 import {
   DesktopMetadata, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
+  ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
   DesktopJob,
 } from 'platform/desktop/constants';
@@ -268,6 +270,32 @@ async function exportConfiguration(id: string): Promise<string> {
   return '';
 }
 
+async function exportMulticamEverything(
+  id: string,
+  exclude: boolean,
+  typeFilter: readonly string[],
+): Promise<string> {
+  const parentId = id.split('/')[0];
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Multicamera Dataset',
+    defaultPath: joinPath(
+      await window.diveDesktop.getAppPath('home'),
+      `${parentId}.zip`,
+    ),
+    filters: [{ name: 'Zip archive', extensions: ['zip'] }],
+  });
+  if (!location.canceled && location.filePath) {
+    const args: ExportMulticamEverythingArgs = {
+      id: parentId,
+      exclude,
+      path: location.filePath,
+      typeFilter: new Set(typeFilter),
+    };
+    return window.diveDesktop.invoke('export-multicam-everything', args);
+  }
+  return '';
+}
+
 async function cancelJob(job: DesktopJob): Promise<void> {
   return window.diveDesktop.invoke('cancel-job', job);
 }
@@ -507,7 +535,7 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
 async function loadMetadata(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
-  return data;
+  return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
 async function loadDetections(datasetId: string) {
@@ -548,6 +576,34 @@ function saveCalibration(path: string): Promise<{ savedPath: string; updatedData
   return window.diveDesktop.invoke('save-calibration', { path });
 }
 
+function importCalibrationFile(datasetId: string, path: string): Promise<{ calibration: string }> {
+  return window.diveDesktop.invoke('import-calibration', { id: datasetId, path });
+}
+
+function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ exportedPath: string }> {
+  return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
+}
+
+function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
+  return window.diveDesktop.invoke('get-dataset-calibration', { datasetId });
+}
+
+async function downloadCalibration(datasetId: string): Promise<void> {
+  const calibration = await getDatasetCalibration(datasetId);
+  const defaultName = calibration?.path ?? `calibration_${datasetId}.json`;
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Camera File',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), defaultName),
+  });
+  if (!location.canceled && location.filePath) {
+    await exportCalibrationFile(datasetId, location.filePath);
+  }
+}
+
+function deleteCalibration(datasetId: string): Promise<void> {
+  return window.diveDesktop.invoke('delete-calibration', { datasetId });
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -568,6 +624,7 @@ export {
   /* Nonstandard APIs */
   exportDataset,
   exportConfiguration,
+  exportMulticamEverything,
   finalizeImport,
   convert,
   importMedia,
@@ -586,6 +643,11 @@ export {
   cancelJob,
   getLastCalibration,
   saveCalibration,
+  importCalibrationFile,
+  exportCalibrationFile,
+  getDatasetCalibration,
+  downloadCalibration,
+  deleteCalibration,
   /* Segmentation APIs */
   segmentationInitialize,
   segmentationPredict,

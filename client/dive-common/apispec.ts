@@ -196,6 +196,50 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  /** Stereo calibration / camera file currently associated with the dataset (desktop). */
+  calibration?: Readonly<string | null>;
+}
+
+interface CameraCalibration {
+  cx?: number
+  cy?: number
+  fx?: number
+  fy?: number
+  k1?: number
+  k2?: number
+  k3?: number
+  p1?: number
+  p2?: number
+  rmsError?: number
+}
+
+interface DatasetStereoCalibration {
+  R: number[]
+  T: number[]
+  gridHeight?: number
+  gridWidth?: number
+  imageHeight?: number
+  imageWidth?: number
+  squareSize?: number
+  rmsError?: number
+  calibrations: Record<string, CameraCalibration>
+}
+
+interface DatasetCalibrationResult {
+  /** Parsed calibration parameters from the JSON camera-rig file. */
+  calibration?: DatasetStereoCalibration
+  /** Source calibration item (calibrationFile). Used by pipelines and download. */
+  itemId?: string;
+  /** JSON camera-rig item (jsonCalibrationFile). Used for display parameters. */
+  jsonItemId?: string;
+  /** Source calibration filename. */
+  originalName?: string;
+  /** JSON camera-rig filename. */
+  jsonPath?: string;
+  /** Alias for jsonPath (legacy). */
+  path?: string;
+  /** Present when a background conversion job failed for the linked source file. */
+  conversionError?: string;
 }
 
 interface Api {
@@ -203,6 +247,7 @@ interface Api {
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
+  getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
@@ -257,6 +302,14 @@ interface Api {
   // Desktop-only calibration persistence functions
   getLastCalibration?(): Promise<string | null>;
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
+  /** Desktop: set the stereo camera/calibration file for a single dataset. */
+  importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
+  /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
+  exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
+  /** Download/export the dataset's current calibration file (platform-specific). */
+  downloadCalibration?(datasetId: string): Promise<void>;
+  /** Remove the calibration file currently associated with the dataset. */
+  deleteCalibration?(datasetId: string): Promise<void>;
 }
 const ApiSymbol = Symbol('api');
 
@@ -378,6 +431,9 @@ export {
   DatasetMetaMutableKeys,
   DatasetType,
   DiveParam,
+  CameraCalibration,
+  DatasetStereoCalibration,
+  DatasetCalibrationResult,
   SubType,
   PipelineParamType,
   FrameImage,

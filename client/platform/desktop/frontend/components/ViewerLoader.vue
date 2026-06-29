@@ -5,6 +5,7 @@ import {
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
+import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -26,6 +27,7 @@ import {
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
@@ -55,10 +57,12 @@ export default defineComponent({
   components: {
     Export,
     JobTab,
+    DatasetSourceInfo,
     RunPipelineMenu,
     SidebarContext,
     Viewer,
     ImportAnnotations,
+    CalibrationMenu,
     ...context.getComponents(),
   },
   props: {
@@ -1270,6 +1274,37 @@ export default defineComponent({
       });
     }
 
+    async function applyCalibrationAfterImport() {
+      try {
+        const hasStereo = await loadStereoMetadata();
+        if (!hasStereo) return;
+        const result = await stereoEnable(undefined, stereoCalibrationFile);
+        if (!result.success) return;
+        stereoEnabled.value = true;
+        await ensureStereoFrame(getViewerFrame());
+      } catch (err) {
+        console.warn('[Stereo] Failed to apply calibration after import:', err);
+      }
+    }
+
+    function onCalibrationImported(calibrationPath: string) {
+      const dataset = datasets.value[props.id];
+      if (dataset) {
+        dataset.calibration = calibrationPath;
+      }
+      stereoCalibrationFile = calibrationPath;
+      if (!stereoServiceWanted()) return;
+      applyCalibrationAfterImport();
+    }
+
+    function onCalibrationDeleted() {
+      const dataset = datasets.value[props.id];
+      if (dataset) {
+        dataset.calibration = undefined;
+      }
+      stereoCalibrationFile = undefined;
+    }
+
     return {
       datasets,
       viewerRef,
@@ -1295,6 +1330,8 @@ export default defineComponent({
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
+      onCalibrationImported,
+      onCalibrationDeleted,
     };
   },
 });
@@ -1313,6 +1350,9 @@ export default defineComponent({
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >
+      <template #dataset-name-prefix>
+        <dataset-source-info :dataset-id="id" />
+      </template>
       <template #title>
         <v-tabs
           icons-and-text
@@ -1344,13 +1384,24 @@ export default defineComponent({
         />
         <ImportAnnotations
           :dataset-id="modifiedId"
+          :sub-type="subTypeList[0]"
+          :calibration-file="datasets[id] && datasets[id].calibration"
           v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
           block-on-unsaved
+          @calibration-imported="onCalibrationImported"
         />
         <Export
           v-if="datasets[id]"
           :id="modifiedId"
-          :button-options="buttonOptions"
+          v-bind="{ buttonOptions, menuOptions }"
+        />
+      </template>
+      <template #extension-right>
+        <CalibrationMenu
+          v-if="subTypeList[0] === 'stereo'"
+          :dataset-id="modifiedId"
+          :calibration-file="datasets[id] && datasets[id].calibration"
+          @calibration-deleted="onCalibrationDeleted"
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">

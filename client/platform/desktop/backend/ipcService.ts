@@ -3,12 +3,13 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import {
-  app, ipcMain, shell, dialog, BrowserWindow,
+  app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
 import type { Pipe } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
+  ExportMulticamEverythingArgs,
   DesktopMediaImportResponse,
   ExportTrainedPipeline,
   ConversionArgs,
@@ -110,7 +111,9 @@ export default function register() {
     event.returnValue = getDiveVersion();
   });
   ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
-  ipcMain.handle('desktop:open-path', (_, targetPath: string) => shell.openPath(targetPath));
+  ipcMain.handle('desktop:open-path', async (_, targetPath: string) => (
+    common.openPathInFileManager(targetPath)
+  ));
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
@@ -121,6 +124,11 @@ export default function register() {
 
   ipcMain.handle('export-configuration', async (_, args: ExportDatasetArgs) => {
     const ret = await common.exportConfiguration(settings.get(), args);
+    return ret;
+  });
+
+  ipcMain.handle('export-multicam-everything', async (_, args: ExportMulticamEverythingArgs) => {
+    const ret = await common.exportMulticamEverything(settings.get(), args);
     return ret;
   });
 
@@ -218,13 +226,30 @@ export default function register() {
 
   ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
 
-  ipcMain.handle('save-calibration', async (_, { path }: { path: string }) => {
-    const savedPath = await common.saveLastCalibration(settings.get(), path);
+  ipcMain.handle('save-calibration', async (_, { path: sourcePath }: { path: string }) => {
+    const savedPath = await common.saveLastCalibration(settings.get(), sourcePath);
     const updatedIds = await common.applyCalibrationToUncalibratedStereoDatasets(
       settings.get(),
       savedPath,
+      path.basename(sourcePath),
     );
     return { savedPath, updatedDatasetIds: updatedIds };
+  });
+
+  ipcMain.handle('import-calibration', async (_, { id, path }: { id: string; path: string }) => {
+    const calibration = await common.setDatasetCalibration(settings.get(), id, path);
+    return { calibration };
+  });
+
+  ipcMain.handle('export-calibration', async (_, { id, destPath }: { id: string; destPath: string }) => {
+    const exportedPath = await common.exportDatasetCalibration(settings.get(), id, destPath);
+    return { exportedPath };
+  });
+
+  ipcMain.handle('get-dataset-calibration', async (_, { datasetId }: { datasetId: string }) => common.getDatasetCalibration(settings.get(), datasetId));
+
+  ipcMain.handle('delete-calibration', async (_, { datasetId }: { datasetId: string }) => {
+    await common.deleteDatasetCalibration(settings.get(), datasetId);
   });
 
   ipcMain.handle('finalize-import', async (event, args: DesktopMediaImportResponse) => common.finalizeMediaImport(settings.get(), args));

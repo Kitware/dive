@@ -16,6 +16,7 @@ import {
   deleteTrainedPipeline,
   runPipeline,
   exportTrainedPipeline,
+  getDatasetCalibration,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
@@ -28,12 +29,15 @@ import {
   getTiles,
   getTileURL,
   hasCalibrationFile,
+  downloadCalibration,
+  deleteCalibration,
 } from './api';
 import {
   getLastCalibration,
   openFromDiskWithRegistry,
   saveCalibration,
   stashCalibrationFile,
+  importCalibrationFile,
 } from './multicamFileRegistry';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
@@ -57,6 +61,9 @@ export default defineComponent({
       deleteTrainedPipeline: unwrap(deleteTrainedPipeline),
       runPipeline: unwrap(runPipeline),
       exportTrainedPipeline: unwrap(exportTrainedPipeline),
+      getDatasetCalibration: unwrap(getDatasetCalibration),
+      downloadCalibration,
+      deleteCalibration,
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,
@@ -70,6 +77,7 @@ export default defineComponent({
       getLastCalibration,
       saveCalibration,
       stashCalibrationFile,
+      importCalibrationFile,
       importAnnotationFile,
       getTiles,
       getTileURL,

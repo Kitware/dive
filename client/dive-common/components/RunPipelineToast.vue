@@ -35,6 +35,8 @@ export default defineComponent({
           return 'mdi-vector-polygon';
         case 'TRACK':
           return 'mdi-gesture';
+        case 'CALIBRATION':
+          return 'mdi-checkerboard';
         default:
           return type;
       }

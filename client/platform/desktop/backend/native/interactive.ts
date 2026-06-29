@@ -213,7 +213,9 @@ export class InteractiveServiceManager extends EventEmitter {
 
       const command = `${viameConstants.setupScriptAbs} && ${pyCommand}`;
 
+      // eslint-disable-next-line no-console
       console.log('[Interactive] Starting interactive service...');
+      // eslint-disable-next-line no-console
       console.log(`[Interactive] Command: ${command}`);
 
       const stderrLines: string[] = [];
@@ -239,6 +241,7 @@ export class InteractiveServiceManager extends EventEmitter {
         this.process.stderr.on('data', (data: Buffer) => {
           const message = data.toString().trim();
           if (message) {
+            // eslint-disable-next-line no-console
             console.log(`[Interactive] ${message}`);
             stderrLines.push(message);
             if (stderrLines.length > maxStderrLines) {
@@ -274,6 +277,7 @@ export class InteractiveServiceManager extends EventEmitter {
       };
 
       this.process.on('exit', (code, signal) => {
+        // eslint-disable-next-line no-console
         console.log(`[Interactive] Process exited with code ${code}, signal ${signal}`);
         this.cleanup();
         if (this.isStarting) {
@@ -632,6 +636,7 @@ export class InteractiveServiceManager extends EventEmitter {
     if (!this.process) {
       return;
     }
+    // eslint-disable-next-line no-console
     console.log('[Interactive] Shutting down interactive service...');
     await new Promise<void>((resolve) => {
       const reqId = this.generateRequestId();
@@ -641,6 +646,7 @@ export class InteractiveServiceManager extends EventEmitter {
       }
       const timeoutId = setTimeout(() => {
         if (this.process) {
+          // eslint-disable-next-line no-console
           console.log('[Interactive] Force killing interactive service...');
           this.process.kill('SIGTERM');
         }

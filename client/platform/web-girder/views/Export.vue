@@ -10,6 +10,7 @@ import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
 import {
   DatasetSourceMedia, getDataset, getDatasetMedia, getUri,
+  hasCalibrationFile, downloadCalibration,
 } from 'platform/web-girder/api';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
 import {
@@ -92,6 +93,7 @@ export default defineComponent({
     const menuOpen = ref(false);
     const excludeBelowThreshold = ref(true);
     const excludeUncheckedTypes = ref(false);
+    const cameraFileSupported = ref(false);
 
     const singleDataSetId: Ref<string|null> = ref(null);
     const dataset = shallowRef(null as GirderMetadataStatic | null);
@@ -109,6 +111,10 @@ export default defineComponent({
         if (dataset.value.type === 'video') {
           datasetMedia.value = (await getDatasetMedia(singleDataSetId.value)).data;
         }
+        cameraFileSupported.value = dataset.value.subType === 'stereo'
+          && await hasCalibrationFile(singleDataSetId.value);
+      } else {
+        cameraFileSupported.value = false;
       }
     });
     watch([toRef(props, 'datasetIds'), menuOpen], loadDatasetMeta);
@@ -235,6 +241,16 @@ export default defineComponent({
       }
     }
 
+    async function exportCameraFile() {
+      if (!singleDataSetId.value) {
+        return;
+      }
+      await request(async () => {
+        await downloadCalibration(singleDataSetId.value as string);
+        menuOpen.value = false;
+      });
+    }
+
     return {
       error,
       dataset,
@@ -253,6 +269,8 @@ export default defineComponent({
       isDatasetDownload,
       isFilesDownload,
       isMulticamDataset,
+      cameraFileSupported,
+      exportCameraFile,
     };
   },
 });
@@ -461,6 +479,23 @@ export default defineComponent({
               Configuration
             </v-btn>
           </v-card-actions>
+
+          <template v-if="cameraFileSupported">
+            <v-card-text class="pb-0">
+              Download the stereo camera / calibration file currently associated
+              with this dataset.
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn
+                depressed
+                block
+                @click="exportCameraFile"
+              >
+                Camera File
+              </v-btn>
+            </v-card-actions>
+          </template>
 
           <v-card-text class="pb-0">
             <span v-if="isMulticamDataset">

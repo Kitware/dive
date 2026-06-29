@@ -1283,6 +1283,7 @@ export default defineComponent({
       showConfidenceFirst,
       showTrackAttributesFirst,
       attributes,
+      datasetId,
       /* Attribute editing for bottom panel */
       editIndividual,
       editingAttribute,
@@ -1334,6 +1335,7 @@ export default defineComponent({
         class="title pl-3 flex-row"
         style="white-space:nowrap;overflow:hidden;text-overflow: ellipsis;"
       >
+        <slot name="dataset-name-prefix" />
         {{ datasetName }}
         <v-tooltip
           v-if="currentSet || sets.length > 0 || comparisonSets.length"
@@ -1459,17 +1461,21 @@ export default defineComponent({
           :value="selectedCamera"
           :items="multiCamList"
           label="Camera"
-          class="shrink"
-          style="width: 180px;"
+          class="mx-1 shrink camera-select"
+          :menu-props="{ minWidth: 140 }"
           outlined
           hide-details
           dense
+          variant="default"
           @change="changeCamera"
         >
           <template #item="{ item }">
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+
+        <slot name="extension-right" />
+
         <v-divider
           vertical
           class="mx-2"
@@ -1488,8 +1494,6 @@ export default defineComponent({
           </template>
           <span>Menus for Advanced Tools/Settings</span>
         </v-tooltip>
-
-        <slot name="extension-right" />
       </template>
 
       <slot name="title-right" />
@@ -1883,4 +1887,26 @@ html {
   color: white;
 }
 
+.camera-select {
+  width: 100px;
+  max-width: 100px;
+  flex: 0 0 auto;
+  font-size: 0.9em;
+}
+
+.camera-select .v-select__selections {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.camera-select .v-select__selection--comma {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camera-select fieldset {
+  height: 33px;
+  margin-top: 4px;
+}
 </style>

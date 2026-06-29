@@ -113,8 +113,13 @@ TypeMarker = "type"
 SubTypeMarker = "subType"
 MultiCamMarker = "multiCam"
 CalibrationItemIdMarker = "calibrationItemId"
-# Girder item meta: marks stereoscopic calibration files in the dataset base folder
+JsonCalibrationItemIdMarker = "jsonCalibrationItemId"
+CalibrationOriginalNameMarker = "calibrationOriginalName"
+CalibrationConversionErrorMarker = "calibrationConversionError"
+# Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
+# Girder item meta: JSON camera-rig used for calibration display
+JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 MarkForPostProcess = "MarkForPostProcess"

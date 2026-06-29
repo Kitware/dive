@@ -1,9 +1,15 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import {
+  computed, defineComponent, ref, PropType, onMounted,
+} from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { clientSettings } from 'dive-common/store/settings';
+import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import { cloneDeep } from 'lodash';
-import { useAnnotationSets, useAnnotationSet, useHandler } from 'vue-media-annotator/provides';
+import {
+  useAnnotationSets, useAnnotationSet, useHandler, useCameraStore, useSelectedCamera,
+} from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 export default defineComponent({
@@ -11,6 +17,14 @@ export default defineComponent({
   props: {
     datasetId: {
       type: String,
+      default: null,
+    },
+    subType: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
+    calibrationFile: {
+      type: String as PropType<string | null>,
       default: null,
     },
     blockOnUnsaved: {
@@ -30,9 +44,50 @@ export default defineComponent({
       default: false,
     },
   },
-  setup(props) {
-    const { openFromDisk, importAnnotationFile } = useApi();
-    const { reloadAnnotations } = useHandler();
+  emits: ['calibration-imported'],
+  setup(props, { emit }) {
+    const api = useApi();
+    const { openFromDisk, importAnnotationFile } = api;
+    const lastCalibrationPath = ref('');
+    const { reloadAnnotations, save } = useHandler();
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
+    const isMulticamDataset = computed(() => cameraStore.camMap.value.size > 1);
+    const activeCameraName = computed(() => {
+      if (!isMulticamDataset.value) {
+        return null;
+      }
+      if (selectedCamera.value) {
+        return selectedCamera.value;
+      }
+      const parts = (props.datasetId || '').split('/');
+      return parts.length > 1 ? parts[1] : null;
+    });
+    // Camera/calibration file import requires importCalibrationFile (web + desktop)
+    // and is only meaningful for stereo datasets.
+    const cameraFileSupported = computed(
+      () => !!api.importCalibrationFile && props.subType === 'stereo',
+    );
+    const currentCalibrationName = computed(() => {
+      if (!props.calibrationFile) return '';
+      return props.calibrationFile.replace(/^.*[\\/]/, '');
+    });
+    const showLastCalibrationSuggestion = computed(
+      () => cameraFileSupported.value
+        && !props.calibrationFile
+        && !!lastCalibrationPath.value,
+    );
+    const lastCalibrationFileName = computed(
+      () => lastCalibrationPath.value.replace(/^.*[\\/]/, ''),
+    );
+    onMounted(async () => {
+      if (api.getLastCalibration) {
+        const lastCalibration = await api.getLastCalibration();
+        if (lastCalibration) {
+          lastCalibrationPath.value = lastCalibration;
+        }
+      }
+    });
     const sets = computed(() => {
       const data = useAnnotationSets();
       const temp = cloneDeep(data.value);
@@ -100,14 +155,76 @@ export default defineComponent({
         processing.value = false;
       }
     };
+    const openCalibrationUpload = async () => {
+      if (!api.importCalibrationFile) return;
+      try {
+        const ret = await openFromDisk('calibration');
+        if (ret.canceled || !ret.filePaths.length) return;
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importCalibrationFile(props.datasetId, ret.filePaths[0]);
+        // A new camera file invalidates length measurements from the prior
+        // calibration; clear them (and their length_method locks) when checked.
+        if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
+          const cleared = clearLengthAttributes(cameraStore);
+          if (cleared > 0) {
+            await save();
+          }
+        }
+        processing.value = false;
+        emit('calibration-imported', result.calibration);
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Camera File Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
+    const applyLastCalibration = async () => {
+      if (!api.importCalibrationFile || !lastCalibrationPath.value) return;
+      try {
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importCalibrationFile(
+          props.datasetId,
+          lastCalibrationPath.value,
+        );
+        if (clientSettings.stereoSettings.clearLengthOnCameraFileLoad) {
+          const cleared = clearLengthAttributes(cameraStore);
+          if (cleared > 0) {
+            await save();
+          }
+        }
+        processing.value = false;
+        emit('calibration-imported', result.calibration);
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Camera File Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     return {
       openUpload,
+      openCalibrationUpload,
+      applyLastCalibration,
+      showLastCalibrationSuggestion,
+      lastCalibrationFileName,
+      cameraFileSupported,
+      currentCalibrationName,
       processing,
       menuOpen,
       additive,
       additivePrepend,
+      clientSettings,
       sets,
       currentSet,
+      isMulticamDataset,
+      activeCameraName,
     };
   },
 });
@@ -158,12 +275,32 @@ export default defineComponent({
         outlined
       >
         <v-card-title>
-          Import Formats
+          Import Annotations
         </v-card-title>
+        <v-card-text
+          v-if="isMulticamDataset && activeCameraName"
+          class="pb-0"
+        >
+          <v-alert
+            type="info"
+            outlined
+            class="mb-0 active-camera-alert"
+          >
+            <div class="active-camera-label">
+              Annotations import to the active camera
+            </div>
+            <div class="active-camera-name d-flex align-center">
+              <v-icon class="mr-2">
+                mdi-camera
+              </v-icon>
+              {{ activeCameraName }}
+            </div>
+          </v-alert>
+        </v-card-text>
         <v-card-text>
           Multiple Data types can be imported:
           <ul>
-            <li> Viame CSV Files </li>
+            <li> VIAME CSV Files </li>
             <li> DIVE Annotation JSON </li>
             <li> DIVE Configuration JSON</li>
             <li> COCO / KWCOCO JSON files </li>
@@ -235,7 +372,88 @@ export default defineComponent({
             </div>
           </v-col>
         </v-container>
+        <template v-if="cameraFileSupported">
+          <v-divider />
+          <v-card-title class="pt-3">
+            Import Camera File
+          </v-card-title>
+          <v-card-text class="pb-0">
+            <v-alert
+              v-if="showLastCalibrationSuggestion"
+              type="info"
+              outlined
+              dense
+              class="mb-3"
+            >
+              No camera file loaded. Use your last calibration file
+              <strong v-if="lastCalibrationFileName">({{ lastCalibrationFileName }})</strong>
+              or choose a different one.
+            </v-alert>
+            <div v-else-if="currentCalibrationName">
+              A camera file is loaded.
+            </div>
+            <div
+              v-else
+              class="grey--text"
+            >
+              No camera file loaded.
+            </div>
+            <div class="caption pt-1">
+              Import any VIAME-supported stereo calibration; it is stored with the dataset.
+            </div>
+          </v-card-text>
+          <v-container>
+            <v-col>
+              <v-row>
+                <v-btn
+                  v-if="showLastCalibrationSuggestion"
+                  depressed
+                  block
+                  color="primary"
+                  class="mb-2"
+                  :disabled="!datasetId || processing"
+                  @click="applyLastCalibration"
+                >
+                  Use last calibration
+                </v-btn>
+                <v-btn
+                  depressed
+                  block
+                  :disabled="!datasetId || processing"
+                  @click="openCalibrationUpload"
+                >
+                  {{ showLastCalibrationSuggestion ? 'Choose calibration' : 'Import' }}
+                </v-btn>
+              </v-row>
+              <v-row>
+                <v-checkbox
+                  v-model="clientSettings.stereoSettings.clearLengthOnCameraFileLoad"
+                  label="Reset length measurements"
+                />
+              </v-row>
+            </v-col>
+          </v-container>
+        </template>
       </v-card>
     </template>
   </v-menu>
 </template>
+
+<style scoped>
+.active-camera-alert {
+  padding: 10px 12px;
+}
+
+.active-camera-label {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.active-camera-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+</style>

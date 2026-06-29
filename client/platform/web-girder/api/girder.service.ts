@@ -17,6 +17,10 @@ function deleteResources(resources: Array<GirderModel>) {
   return girderRest.delete('resource', { data: formData });
 }
 
+function deleteItem(itemId: string) {
+  return girderRest.delete(`item/${itemId}`);
+}
+
 function getItemsInFolder(folderId: string, limit: number) {
   return girderRest.get<GirderModel[]>('item', {
     params: { folderId, limit },
@@ -62,6 +66,7 @@ async function getSharedWithMeFolders(
 
 export {
   deleteResources,
+  deleteItem,
   getItemsInFolder,
   getFolder,
   setUsePrivateQueue,

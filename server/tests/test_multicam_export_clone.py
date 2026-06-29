@@ -48,13 +48,14 @@ def _child_folder(folder_id: str, name: str):
     }
 
 
+@patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset._create_single_camera_soft_clone')
 @patch('dive_server.crud_dataset.Folder')
 def test_create_multicam_soft_clone_rewrites_camera_folder_ids(
-    folder_cls, create_soft_clone_mock, _aux, _clone_ann, _find_cal
+    folder_cls, create_soft_clone_mock, _aux, _clone_ann, _find_cal, _find_json_cal
 ):
     owner = {'login': 'tester'}
     source = _multi_parent_folder()
@@ -86,8 +87,7 @@ def test_create_multicam_soft_clone_rewrites_camera_folder_ids(
     assert cameras['right']['folderId'] == 'clone-right-id'
 
 
-@patch('dive_server.crud_dataset._clone_calibration_item')
-@patch('dive_server.crud_dataset.find_calibration_item_id')
+@patch('dive_server.crud_dataset._clone_calibration_items')
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset._create_single_camera_soft_clone')
@@ -97,12 +97,12 @@ def test_create_multicam_soft_clone_copies_calibration(
     create_soft_clone_mock,
     _aux,
     _clone_ann,
-    find_cal_mock,
-    clone_cal_mock,
+    clone_cals_mock,
 ):
     owner = {'login': 'tester'}
     source = _multi_parent_folder()
-    source['meta'][constants.MultiCamMarker][constants.CalibrationItemIdMarker] = 'cal-id'
+    source['meta'][constants.MultiCamMarker][constants.CalibrationItemIdMarker] = 'cal-src'
+    source['meta'][constants.MultiCamMarker][constants.JsonCalibrationItemIdMarker] = 'cal-json'
     parent = {'_id': 'dest-parent'}
     left = _child_folder('left-id', 'left')
     right = _child_folder('right-id', 'right')
@@ -118,13 +118,18 @@ def test_create_multicam_soft_clone_copies_calibration(
         {**left, '_id': 'clone-left-id'},
         {**right, '_id': 'clone-right-id'},
     ]
-    clone_cal_mock.return_value = 'new-cal-id'
+    clone_cals_mock.side_effect = lambda _owner, _source, _cloned, multi_cam: {
+        **multi_cam,
+        constants.CalibrationItemIdMarker: 'new-cal-src',
+        constants.JsonCalibrationItemIdMarker: 'new-cal-json',
+    }
 
     crud_dataset.createSoftClone(owner, source, parent, 'Clone stereo', None)
 
-    clone_cal_mock.assert_called_once()
+    clone_cals_mock.assert_called_once()
     saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
-    assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'new-cal-id'
+    assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'new-cal-src'
+    assert saved_meta[constants.MultiCamMarker][constants.JsonCalibrationItemIdMarker] == 'new-cal-json'
 
 
 @patch('dive_server.crud_dataset._yield_single_dataset_export')

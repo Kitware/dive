@@ -14,6 +14,8 @@ import Recipe from 'vue-media-annotator/recipe';
 import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
+import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
+import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
 
 interface ButtonData {
   id: string;
@@ -30,6 +32,8 @@ export default defineComponent({
   name: 'EditorMenu',
   components: {
     AnnotationVisibilityMenu,
+    OutlinedLabeledGroup,
+    ToolbarExpandToggle,
   },
   props: {
     editingTrack: {
@@ -306,99 +310,93 @@ export default defineComponent({
         </div>
       </div>
       <!-- Collapsed mode for edit buttons -->
-      <v-menu
-        v-if="!isEditButtonsExpanded"
-        :key="editButtonsMenuKey"
-        offset-y
-        :close-on-content-click="false"
-      >
-        <template #activator="{ on, attrs }">
+      <span class="toolbar-group-host">
+        <v-menu
+          v-if="!isEditButtonsExpanded"
+          :key="editButtonsMenuKey"
+          offset-y
+          :close-on-content-click="false"
+        >
+          <template #activator="{ on, attrs }">
+            <v-btn
+              v-bind="attrs"
+              :disabled="!editingMode || activeEditButton?.loading"
+              :color="activeEditButton?.active ? editingHeader.color : ''"
+              class="mx-1 mode-button toolbar-group-activator"
+              small
+              v-on="on"
+            >
+              <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
+              <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
+                {{ activeEditButton?.icon }}
+              </v-icon>
+              <toolbar-expand-toggle
+                :expanded="false"
+                @click="toggleEditButtonsExpanded"
+              />
+            </v-btn>
+          </template>
+          <v-list dense>
+            <v-list-item
+              v-for="button in editButtons"
+              :key="`${button.id}-menu`"
+            >
+              <v-list-item-icon>
+                <v-btn
+                  :disabled="!editingMode || button.loading"
+                  :outlined="!button.active"
+                  :color="button.active ? editingHeader.color : ''"
+                  class="mx-1"
+                  small
+                  @click="button.click"
+                >
+                  <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                  <v-icon :class="{ 'mdi-spin': button.loading }">
+                    {{ button.icon }}
+                  </v-icon>
+                </v-btn>
+              </v-list-item-icon>
+              <v-list-item-content>
+                <v-list-item-title>{{ button.id }}</v-list-item-title>
+              </v-list-item-content>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <!-- Expanded mode for edit buttons -->
+        <outlined-labeled-group v-else>
+          <template #legend>
+            <span class="d-inline-flex align-center">
+              <v-icon
+                small
+                class="pr-1"
+              >
+                mdi-pencil
+              </v-icon>
+              <span>Edit Types</span>
+              <toolbar-expand-toggle
+                :expanded="true"
+                @click="toggleEditButtonsExpanded"
+              />
+            </span>
+          </template>
           <v-btn
-            v-bind="attrs"
-            :disabled="!editingMode || activeEditButton?.loading"
-            :outlined="!activeEditButton?.active"
-            :color="activeEditButton?.active ? editingHeader.color : ''"
+            v-for="button in editButtons"
+            :key="button.id + 'view'"
+            :disabled="!editingMode || button.loading"
+            :outlined="!button.active"
+            :color="button.active ? editingHeader.color : ''"
             class="mx-1"
             small
-            v-on="on"
+            @click="button.click"
           >
-            <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-            <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
-              {{ activeEditButton?.icon }}
+            <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+            <v-icon :class="{ 'mdi-spin': button.loading }">
+              {{ button.icon }}
             </v-icon>
-            <v-btn
-              icon
-              x-small
-              class="ml-1 expand-toggle"
-              @click.stop="toggleEditButtonsExpanded"
-            >
-              <v-icon small>
-                mdi-chevron-right
-              </v-icon>
-            </v-btn>
           </v-btn>
-        </template>
-        <v-list dense>
-          <v-list-item
-            v-for="button in editButtons"
-            :key="`${button.id}-menu`"
-          >
-            <v-list-item-icon>
-              <v-btn
-                :disabled="!editingMode || button.loading"
-                :outlined="!button.active"
-                :color="button.active ? editingHeader.color : ''"
-                class="mx-1"
-                small
-                @click="button.click"
-              >
-                <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                <v-icon :class="{ 'mdi-spin': button.loading }">
-                  {{ button.icon }}
-                </v-icon>
-              </v-btn>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>{{ button.id }}</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
-      <!-- Expanded mode for edit buttons -->
-      <template v-else>
-        <span class="mr-1 px-3 py-1">
-          <v-icon class="pr-1">
-            mdi-pencil
-          </v-icon>
-          <span class="text-subtitle-2">
-            Edit Types
-          </span>
-          <v-btn
-            icon
-            x-small
-            class="ml-1 expand-toggle"
-            @click="toggleEditButtonsExpanded"
-          >
-            <v-icon small>mdi-chevron-left</v-icon>
-          </v-btn>
-        </span>
-        <v-btn
-          v-for="button in editButtons"
-          :key="button.id + 'view'"
-          :disabled="!editingMode || button.loading"
-          :outlined="!button.active"
-          :color="button.active ? editingHeader.color : ''"
-          class="mx-1"
-          small
-          @click="button.click"
-        >
-          <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-          <v-icon :class="{ 'mdi-spin': button.loading }">
-            {{ button.icon }}
-          </v-icon>
-        </v-btn>
-      </template>
+        </outlined-labeled-group>
+      </span>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-divider
@@ -439,25 +437,17 @@ export default defineComponent({
   </v-row>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@import './toolbarGroup.scss';
+
 .modechip {
   border-radius: 16px;
   white-space: nowrap;
   border: 1px solid;
   cursor: default;
 }
-.mode-group {
-  border: 1px solid grey;
-  border-radius: 4px;
-}
 .mode-button{
   border: 1px solid grey;
-}
-.expand-toggle {
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-.expand-toggle:hover {
-  opacity: 1;
+  min-width: 36px;
 }
 </style>

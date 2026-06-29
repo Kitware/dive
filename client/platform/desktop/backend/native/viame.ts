@@ -386,7 +386,7 @@ async function runPipeline(
           if (calibrationFile) {
             const calibrationPath = npath.join(jobWorkDir, calibrationFile);
             const savedPath = await common.saveLastCalibration(settings, calibrationPath);
-            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath);
+            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath, calibrationFile);
           }
         }
 
