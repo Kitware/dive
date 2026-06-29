@@ -27,7 +27,7 @@ from dive_tasks.multicam_pipeline import (
     is_stereo_measurement_pipeline,
 )
 from dive_tasks.pipeline_discovery import discover_configs
-from dive_utils import asbool, constants, fromMeta
+from dive_utils import asbool, calibration_format, constants, fromMeta
 from dive_utils.types import (
     AvailableJobSchema,
     ExportTrainedPipelineJob,
@@ -744,8 +744,8 @@ def convert_calibration(self: Task, itemId: str):
         folder_id = str(item.get('folderId'))
         folder = gc.getFolder(folder_id)
         multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
-        if multi_cam.get(constants.JsonCalibrationItemIdMarker):
-            manager.write('Calibration JSON item already linked; skipping.\n')
+        if str(multi_cam.get(constants.CalibrationItemIdMarker)) != str(itemId):
+            manager.write('Calibration source was replaced; skipping stale conversion job.\n')
             return
 
         files = list(gc.listFile(itemId))
@@ -756,13 +756,20 @@ def convert_calibration(self: Task, itemId: str):
         if source_file is None:
             manager.write('No convertible calibration file found in item; skipping.\n')
             return
-        if source_file['name'].lower().endswith('.json'):
-            manager.write('Source calibration is already JSON; skipping conversion.\n')
-            return
 
         manager.updateStatus(JobStatus.FETCHING_INPUT)
         gc.downloadItem(itemId, _working_directory_path, name=item.get('name'))
         input_path = _working_directory_path / source_file['name']
+        file_bytes = input_path.read_bytes()
+        if source_file['name'].lower().endswith('.json'):
+            if calibration_format.calibration_upload_is_final_json(source_file['name'], file_bytes):
+                manager.write('Source calibration is already JSON; skipping conversion.\n')
+                return
+            input_path = calibration_format.prepare_conversion_input_path(
+                input_path,
+                file_bytes,
+                _working_directory_path,
+            )
         output_path = input_path.with_suffix('.json')
 
         manager.updateStatus(JobStatus.RUNNING)
@@ -780,10 +787,33 @@ def convert_calibration(self: Task, itemId: str):
             'cwd': str(_working_directory_path),
             'env': conf.gpu_process_env,
         }
-        utils.stream_subprocess(self, context, manager, popen_kwargs)
+        try:
+            utils.stream_subprocess(self, context, manager, popen_kwargs)
+        except Exception as exc:
+            error_msg = str(exc) or 'Calibration conversion failed'
+            updated_multi_cam = dict(multi_cam)
+            updated_multi_cam[constants.CalibrationConversionErrorMarker] = error_msg
+            gc.addMetadataToFolder(
+                folder_id,
+                {constants.MultiCamMarker: updated_multi_cam},
+            )
+            raise
 
         if not output_path.exists() or not output_path.stat().st_size:
-            raise RuntimeError('Calibration conversion produced no JSON output')
+            error_msg = 'Calibration conversion produced no JSON output'
+            updated_multi_cam = dict(multi_cam)
+            updated_multi_cam[constants.CalibrationConversionErrorMarker] = error_msg
+            gc.addMetadataToFolder(
+                folder_id,
+                {constants.MultiCamMarker: updated_multi_cam},
+            )
+            raise RuntimeError(error_msg)
+
+        folder = gc.getFolder(folder_id)
+        multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
+        if str(multi_cam.get(constants.CalibrationItemIdMarker)) != str(itemId):
+            manager.write('Calibration source was replaced during conversion; discarding output.\n')
+            return
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         json_name = output_path.name
@@ -804,6 +834,13 @@ def convert_calibration(self: Task, itemId: str):
             },
         )
 
+        folder = gc.getFolder(folder_id)
+        multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
+        if str(multi_cam.get(constants.CalibrationItemIdMarker)) != str(itemId):
+            manager.write('Calibration source was replaced before linking JSON; discarding output.\n')
+            gc.delete(f'item/{json_item_id}')
+            return
+
         updated_multi_cam = dict(multi_cam)
         updated_multi_cam.setdefault(constants.CalibrationItemIdMarker, str(itemId))
         updated_multi_cam[constants.JsonCalibrationItemIdMarker] = json_item_id
@@ -811,6 +848,7 @@ def convert_calibration(self: Task, itemId: str):
             constants.CalibrationOriginalNameMarker,
             source_file['name'],
         )
+        updated_multi_cam.pop(constants.CalibrationConversionErrorMarker, None)
         gc.addMetadataToFolder(
             folder_id,
             {constants.MultiCamMarker: updated_multi_cam},

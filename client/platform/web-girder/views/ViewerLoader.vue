@@ -160,6 +160,10 @@ export default defineComponent({
       calibrationFile.value = name;
     }
 
+    function onCalibrationDeleted() {
+      calibrationFile.value = null;
+    }
+
     watch(
       () => viewerRef.value?.trackFilters?.timeFilters?.value,
       (value) => {
@@ -290,6 +294,7 @@ export default defineComponent({
       webExcludedPipelineTerms,
       calibrationFile,
       onCalibrationImported,
+      onCalibrationDeleted,
     };
   },
 });
@@ -366,6 +371,7 @@ export default defineComponent({
         v-if="subTypeList[0] === 'stereo'"
         :dataset-id="id"
         :calibration-file="calibrationFile"
+        @calibration-deleted="onCalibrationDeleted"
       />
     </template>
     <template #right-sidebar="{ sidebarMode }">

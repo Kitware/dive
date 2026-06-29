@@ -238,6 +238,8 @@ interface DatasetCalibrationResult {
   jsonPath?: string;
   /** Alias for jsonPath (legacy). */
   path?: string;
+  /** Present when a background conversion job failed for the linked source file. */
+  conversionError?: string;
 }
 
 interface Api {

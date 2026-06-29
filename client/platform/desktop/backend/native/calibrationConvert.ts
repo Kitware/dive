@@ -17,6 +17,13 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 
 const ConvertToolRelativePath = npath.join('configs', 'convert_cam_format.py');
 
+function shellQuote(value: string): string {
+  if (process.platform === 'win32') {
+    return `"${value.replace(/"/g, '\\"')}"`;
+  }
+  return `'${value.replace(/'/g, '\'\\\'\'')}'`;
+}
+
 /**
  * Run VIAME's convert_cam_format.py to convert a calibration file to the
  * KWIVER-compatible JSON camera-rig format.
@@ -34,8 +41,8 @@ async function convertCalibrationToJson(
   if (!(await fs.pathExists(setupScript)) || !(await fs.pathExists(toolPath))) {
     return false;
   }
-  const sourceCmd = isWin ? `call "${setupScript}"` : `. "${setupScript}"`;
-  const command = `${sourceCmd} && python "${toolPath}" "${sourcePath}" "${destJsonPath}"`;
+  const sourceCmd = isWin ? `call ${shellQuote(setupScript)}` : `. ${shellQuote(setupScript)}`;
+  const command = `${sourceCmd} && python ${shellQuote(toolPath)} ${shellQuote(sourcePath)} ${shellQuote(destJsonPath)}`;
   const child = observeChild(spawn(command, { shell: isWin ? true : '/bin/bash' }));
   const exitCode: number | null = await new Promise((resolve) => {
     child.on('exit', (code) => resolve(code));

@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   PropType,
   ref,
   watch,
@@ -11,8 +12,11 @@ import {
   DatasetCalibrationResult,
   useApi,
 } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 import CalibrationDialog from './CalibrationDialog.vue';
+
+const CONVERSION_POLL_INTERVAL_MS = 3000;
 
 export default defineComponent({
   name: 'CalibrationMenu',
@@ -26,17 +30,29 @@ export default defineComponent({
       default: null,
     },
   },
-  setup(props) {
+  emits: ['calibration-deleted'],
+  setup(props, { emit }) {
     const showCalibrationDialog = ref(false);
     const calibrationResult = ref<DatasetCalibrationResult>();
+    const { prompt } = usePrompt();
 
     const {
       getDatasetCalibration, downloadCalibration, deleteCalibration,
     } = useApi();
 
-    const refresh = () => getDatasetCalibration(props.datasetId).then((res) => {
-      calibrationResult.value = res ?? undefined;
-    });
+    const refresh = async () => {
+      try {
+        const res = await getDatasetCalibration(props.datasetId);
+        calibrationResult.value = res ?? undefined;
+      } catch (err) {
+        console.error('Failed to load calibration:', err);
+        await prompt({
+          title: 'Calibration Error',
+          text: ['Failed to load calibration information.', String(err)],
+          confirm: false,
+        });
+      }
+    };
     refresh();
     // The calibration may be imported elsewhere (the Import menu) while this
     // component stays mounted, so re-fetch whenever the dialog is opened and
@@ -47,6 +63,45 @@ export default defineComponent({
 
     const hasCalibration = computed(() => !!calibrationResult.value);
 
+    const conversionPending = computed(() => {
+      const result = calibrationResult.value;
+      if (!result || result.calibration || result.conversionError) {
+        return false;
+      }
+      return !!(result.itemId || result.originalName || result.jsonPath || result.path);
+    });
+
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+    const startPolling = () => {
+      stopPolling();
+      if (!conversionPending.value) {
+        return;
+      }
+      pollTimer = setInterval(() => {
+        refresh().then(() => {
+          if (!conversionPending.value) {
+            stopPolling();
+          }
+        });
+      }, CONVERSION_POLL_INTERVAL_MS);
+    };
+
+    watch(conversionPending, (pending) => {
+      if (pending) {
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    }, { immediate: true });
+
+    onBeforeUnmount(stopPolling);
+
     const sourceFileName = computed(
       () => calibrationResult.value?.originalName,
     );
@@ -56,6 +111,9 @@ export default defineComponent({
     const calibrationFileName = computed(
       () => sourceFileName.value ?? jsonFileName.value,
     );
+    const conversionError = computed(
+      () => calibrationResult.value?.conversionError,
+    );
 
     const openCalibrationDialog = () => {
       if (hasCalibration.value) {
@@ -63,14 +121,45 @@ export default defineComponent({
       }
     };
 
-    const onDownload = () => {
-      downloadCalibration?.(props.datasetId);
+    const onDownload = async () => {
+      if (!downloadCalibration) {
+        return;
+      }
+      if (!calibrationResult.value?.itemId) {
+        await prompt({
+          title: 'Download Unavailable',
+          text: ['No calibration file is available to download.'],
+          confirm: false,
+        });
+        return;
+      }
+      try {
+        await downloadCalibration(props.datasetId);
+      } catch (err) {
+        await prompt({
+          title: 'Download Failed',
+          text: [String(err)],
+          confirm: false,
+        });
+      }
     };
 
-    const onDelete = () => {
-      deleteCalibration?.(props.datasetId).then(() => {
+    const onDelete = async () => {
+      if (!deleteCalibration) {
+        return;
+      }
+      try {
+        await deleteCalibration(props.datasetId);
         calibrationResult.value = undefined;
-      });
+        showCalibrationDialog.value = false;
+        emit('calibration-deleted');
+      } catch (err) {
+        await prompt({
+          title: 'Delete Failed',
+          text: [String(err)],
+          confirm: false,
+        });
+      }
     };
 
     return {
@@ -80,6 +169,7 @@ export default defineComponent({
       sourceFileName,
       jsonFileName,
       calibrationFileName,
+      conversionError,
       openCalibrationDialog,
       canDownload: !!downloadCalibration,
       canDelete: !!deleteCalibration,
@@ -116,6 +206,10 @@ export default defineComponent({
           <br>
           {{ calibrationFileName }}
         </template>
+        <template v-if="conversionError">
+          <br>
+          Conversion failed
+        </template>
       </span>
       <span v-else>
         No calibration file loaded. Use the Import button to import a calibration file.
@@ -127,6 +221,7 @@ export default defineComponent({
       :calibration="calibrationResult?.calibration"
       :source-file-name="sourceFileName"
       :json-file-name="jsonFileName"
+      :conversion-error="conversionError"
       :show-download="canDownload"
       :show-delete="canDelete"
       @download="onDownload"

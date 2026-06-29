@@ -216,6 +216,8 @@ class DatasetCalibrationResult(TypedDict):
     originalName: NotRequired[str]
     jsonPath: NotRequired[str]
     path: NotRequired[str]
+    # Set when a background conversion job failed for the linked source file.
+    conversionError: NotRequired[str]
 
 
 # Attribute metadata discovered while deserializing annotations, keyed by attribute name.

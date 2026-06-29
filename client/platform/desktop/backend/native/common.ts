@@ -30,8 +30,6 @@ import {
   PipeMetadata,
   PipelineParamType,
   DatasetCalibrationResult,
-  DatasetStereoCalibration,
-  CameraCalibration,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -47,6 +45,7 @@ import {
 } from 'dive-common/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
+import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibrationJson';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
@@ -1428,13 +1427,17 @@ async function finalizeMediaImport(
   // it to the VIAME JSON camera-rig format (keeping the original).
   if (jsonMeta.multiCam?.calibration) {
     const calibrationSourcePath = npath.resolve(jsonMeta.multiCam.calibration);
-    jsonMeta.multiCam.calibrationSourcePath = calibrationSourcePath;
+    const preservedOriginalPath = npath.join(
+      projectDirAbsPath,
+      npath.basename(calibrationSourcePath),
+    );
     jsonMeta.multiCam.calibrationOriginalName = realCalibrationName(calibrationSourcePath);
     jsonMeta.multiCam.calibration = await prepareDatasetCalibration(
       settings,
       projectDirAbsPath,
       calibrationSourcePath,
     );
+    jsonMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
   }
 
   // Filter all parts of the input based on glob pattern
@@ -1688,7 +1691,7 @@ async function exportMulticamEverything(
       args.typeFilter,
     );
 
-    const calibrationPath = parentMeta.multiCam.calibration
+    const calibrationPath = await getDatasetCalibrationExportPath(settings, parentId)
       ?? await findParentFolderCalibrationFile(parentDirInfo.basePath);
     if (calibrationPath && await fs.pathExists(calibrationPath)) {
       const calibrationName = parentMeta.multiCam.calibrationOriginalName
@@ -1823,13 +1826,17 @@ async function applyCalibrationToUncalibratedStereoDatasets(
         const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
         if (fullMeta.multiCam) {
           const calibrationSourcePath = npath.resolve(calibrationPath);
+          const preservedOriginalPath = npath.join(
+            projectDirInfo.basePath,
+            npath.basename(calibrationSourcePath),
+          );
           // eslint-disable-next-line no-await-in-loop
           fullMeta.multiCam.calibration = await prepareDatasetCalibration(
             settings,
             projectDirInfo.basePath,
             calibrationSourcePath,
           );
-          fullMeta.multiCam.calibrationSourcePath = calibrationSourcePath;
+          fullMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
           fullMeta.multiCam.calibrationOriginalName = realCalibrationName(originalName)
             ?? realCalibrationName(calibrationSourcePath);
           // eslint-disable-next-line no-await-in-loop
@@ -1865,7 +1872,7 @@ async function datasetHasCalibrationFile(settings: Settings, datasetId: string):
 }
 
 /**
- * Get the calibration / camera file path currently associated with a dataset.
+ * Get the JSON camera-rig path used for pipelines and calibration display.
  */
 async function getDatasetCalibrationPath(
   settings: Settings,
@@ -1874,6 +1881,37 @@ async function getDatasetCalibrationPath(
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
   return fullMeta.multiCam?.calibration ?? null;
+}
+
+/**
+ * Resolve the user's original calibration file for export (not the derived JSON).
+ */
+async function getDatasetCalibrationExportPath(
+  settings: Settings,
+  datasetId: string,
+): Promise<string | null> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const { multiCam } = fullMeta;
+  if (!multiCam) {
+    return null;
+  }
+
+  const originalName = multiCam.calibrationOriginalName;
+  if (originalName) {
+    const projectCopy = npath.join(projectDirInfo.basePath, originalName);
+    if (await fs.pathExists(projectCopy)) {
+      return projectCopy;
+    }
+  }
+  if (multiCam.calibrationSourcePath && await fs.pathExists(multiCam.calibrationSourcePath)) {
+    return multiCam.calibrationSourcePath;
+  }
+  const calibrationPath = multiCam.calibration;
+  if (calibrationPath && await fs.pathExists(calibrationPath)) {
+    return calibrationPath;
+  }
+  return null;
 }
 
 /**
@@ -1894,13 +1932,17 @@ async function setDatasetCalibration(
   if (!fullMeta.multiCam) {
     throw new Error(`Dataset ${parentId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
   }
+  const preservedOriginalPath = npath.join(
+    projectDirInfo.basePath,
+    npath.basename(sourcePath),
+  );
   const calibrationPath = await prepareDatasetCalibration(
     settings,
     projectDirInfo.basePath,
     sourcePath,
   );
   fullMeta.multiCam.calibration = calibrationPath;
-  fullMeta.multiCam.calibrationSourcePath = npath.resolve(sourcePath);
+  fullMeta.multiCam.calibrationSourcePath = npath.resolve(preservedOriginalPath);
   fullMeta.multiCam.calibrationOriginalName = realCalibrationName(sourcePath);
   await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
   return calibrationPath;
@@ -1915,7 +1957,7 @@ async function exportDatasetCalibration(
   datasetId: string,
   destPath: string,
 ): Promise<string> {
-  const calibrationPath = await getDatasetCalibrationPath(settings, datasetId.split('/')[0]);
+  const calibrationPath = await getDatasetCalibrationExportPath(settings, datasetId.split('/')[0]);
   if (!calibrationPath) {
     throw new Error(`Dataset ${datasetId} has no camera/calibration file to export.`);
   }
@@ -1924,74 +1966,6 @@ async function exportDatasetCalibration(
   }
   await fs.copy(calibrationPath, destPath, { overwrite: true });
   return destPath;
-}
-
-function optionalCalibrationNumber(
-  data: Record<string, number | number[]>,
-  key: string,
-): number | undefined {
-  const value = data[key];
-  return value === undefined || value === null ? undefined : value as number;
-}
-
-function parseCameraCalibration(
-  data: Record<string, number | number[]>,
-  side: 'left' | 'right',
-): CameraCalibration {
-  const calib: CameraCalibration = {};
-  const fields: [string, keyof CameraCalibration][] = [
-    [`cx_${side}`, 'cx'],
-    [`cy_${side}`, 'cy'],
-    [`fx_${side}`, 'fx'],
-    [`fy_${side}`, 'fy'],
-    [`k1_${side}`, 'k1'],
-    [`k2_${side}`, 'k2'],
-    [`k3_${side}`, 'k3'],
-    [`p1_${side}`, 'p1'],
-    [`p2_${side}`, 'p2'],
-  ];
-  fields.forEach(([jsonKey, field]) => {
-    const value = optionalCalibrationNumber(data, jsonKey);
-    if (value !== undefined) {
-      calib[field] = value;
-    }
-  });
-  const rmsError = optionalCalibrationNumber(data, `rms_error_${side}`);
-  if (rmsError !== undefined) {
-    calib.rmsError = rmsError;
-  }
-  return calib;
-}
-
-/**
- * Parse a KWIVER/VIAME JSON camera-rig file into the shared
- * DatasetStereoCalibration shape. Mirrors the web server parser
- * (server/dive_server/crud_dataset.py:get_calibration).
- */
-function parseStereoCalibrationJson(data: Record<string, number | number[]>): DatasetStereoCalibration {
-  const result: DatasetStereoCalibration = {
-    R: data.R as number[],
-    T: data.T as number[],
-    calibrations: {
-      left: parseCameraCalibration(data, 'left'),
-      right: parseCameraCalibration(data, 'right'),
-    },
-  };
-  const optionalFields: [string, keyof DatasetStereoCalibration][] = [
-    ['grid_height', 'gridHeight'],
-    ['grid_width', 'gridWidth'],
-    ['image_height', 'imageHeight'],
-    ['image_width', 'imageWidth'],
-    ['square_size_mm', 'squareSize'],
-    ['rms_error_stereo', 'rmsError'],
-  ];
-  optionalFields.forEach(([jsonKey, field]) => {
-    const value = optionalCalibrationNumber(data, jsonKey);
-    if (value !== undefined) {
-      result[field] = value;
-    }
-  });
-  return result;
 }
 
 /**
@@ -2085,6 +2059,7 @@ export {
   applyCalibrationToUncalibratedStereoDatasets,
   datasetHasCalibrationFile,
   getDatasetCalibrationPath,
+  getDatasetCalibrationExportPath,
   setDatasetCalibration,
   exportDatasetCalibration,
   getDatasetCalibration,

@@ -115,6 +115,7 @@ MultiCamMarker = "multiCam"
 CalibrationItemIdMarker = "calibrationItemId"
 JsonCalibrationItemIdMarker = "jsonCalibrationItemId"
 CalibrationOriginalNameMarker = "calibrationOriginalName"
+CalibrationConversionErrorMarker = "calibrationConversionError"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
 # Girder item meta: JSON camera-rig used for calibration display

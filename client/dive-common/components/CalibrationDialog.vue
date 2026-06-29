@@ -12,6 +12,7 @@ export default defineComponent({
     calibration: { type: Object as PropType<DatasetStereoCalibration | undefined>, default: undefined },
     sourceFileName: { type: String as PropType<string | undefined>, default: undefined },
     jsonFileName: { type: String as PropType<string | undefined>, default: undefined },
+    conversionError: { type: String as PropType<string | undefined>, default: undefined },
     showDownload: { type: Boolean, default: true },
     showDelete: { type: Boolean, default: true },
   },
@@ -243,6 +244,14 @@ export default defineComponent({
               </v-card>
             </v-col>
           </v-row>
+        </div>
+        <div v-else-if="conversionError">
+          <div class="text-subtitle-1 font-weight-bold mb-2 error--text">
+            Calibration Conversion Failed
+          </div>
+          <div>
+            {{ conversionError }}
+          </div>
         </div>
         <div v-else-if="sourceFileName || jsonFileName">
           <div class="text-subtitle-1 font-weight-bold mb-2">

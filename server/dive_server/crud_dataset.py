@@ -16,7 +16,7 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils import TRUTHY_META_VALUES, asbool, calibration_format, constants, fromMeta, models, types
 from dive_utils.serializers import kwcoco
 
 
@@ -1041,7 +1041,7 @@ def _clear_prior_calibration_items(
     for prior in _source_calibration_items_in_folder_root(folder_id):
         if keep_source_item_id and str(prior['_id']) == keep_source_item_id:
             continue
-        Item().setMetadata(prior, {constants.CalibrationFileMarker: False})
+        Item().remove(prior)
 
 
 def _mark_calibration_source_item(cal_item: dict) -> None:
@@ -1066,55 +1066,15 @@ def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
 
 
 def _optional_calibration_number(data: dict, key: str) -> float | None:
-    if key not in data or data[key] is None:
-        return None
-    return float(data[key])
+    return calibration_format.optional_calibration_number(data, key)
 
 
 def _parse_camera_calibration(data: dict, side: str) -> types.CameraCalibration:
-    calib: types.CameraCalibration = {}
-    for json_key, field in (
-        (f'cx_{side}', 'cx'),
-        (f'cy_{side}', 'cy'),
-        (f'fx_{side}', 'fx'),
-        (f'fy_{side}', 'fy'),
-        (f'k1_{side}', 'k1'),
-        (f'k2_{side}', 'k2'),
-        (f'k3_{side}', 'k3'),
-        (f'p1_{side}', 'p1'),
-        (f'p2_{side}', 'p2'),
-    ):
-        value = _optional_calibration_number(data, json_key)
-        if value is not None:
-            calib[field] = value
-    rms_error = _optional_calibration_number(data, f'rms_error_{side}')
-    if rms_error is not None:
-        calib['rmsError'] = rms_error
-    return calib
+    return calibration_format.parse_camera_calibration(data, side)
 
 
 def _parse_stereo_calibration_json(data: dict) -> types.DatasetStereoCalibration:
-    result: types.DatasetStereoCalibration = {
-        'R': data['R'],
-        'T': data['T'],
-        'calibrations': {
-            'left': _parse_camera_calibration(data, 'left'),
-            'right': _parse_camera_calibration(data, 'right'),
-        },
-    }
-    optional_fields = (
-        ('grid_height', 'gridHeight'),
-        ('grid_width', 'gridWidth'),
-        ('image_height', 'imageHeight'),
-        ('image_width', 'imageWidth'),
-        ('square_size_mm', 'squareSize'),
-        ('rms_error_stereo', 'rmsError'),
-    )
-    for json_key, field in optional_fields:
-        value = _optional_calibration_number(data, json_key)
-        if value is not None:
-            result[field] = int(value) if field.startswith('grid') or field.startswith('image') else value
-    return result
+    return calibration_format.parse_stereo_calibration_json(data)
 
 
 def _read_json_calibration_file(
@@ -1132,6 +1092,41 @@ def _read_json_calibration_file(
         return _parse_stereo_calibration_json(data)
     except (ValueError, KeyError, TypeError, UnicodeDecodeError):
         return None
+
+
+def _calibration_file_is_final_json(file_model: dict) -> bool:
+    file_bytes = calibration_format.read_file_model_bytes(file_model)
+    return calibration_format.calibration_upload_is_final_json(file_model['name'], file_bytes)
+
+
+def _calibration_conversion_error(folder: types.GirderModel) -> Optional[str]:
+    multi_cam = _multi_cam_meta(folder)
+    error = multi_cam.get(constants.CalibrationConversionErrorMarker)
+    return str(error) if error else None
+
+
+def _dataset_calibration_result(
+    *,
+    source_item_id: Optional[str],
+    json_item_id: Optional[str],
+    source_name: Optional[str],
+    json_path: Optional[str],
+    folder: types.GirderModel,
+    calibration: Optional[types.DatasetStereoCalibration] = None,
+) -> types.DatasetCalibrationResult:
+    result: types.DatasetCalibrationResult = {
+        'itemId': source_item_id,
+        'jsonItemId': json_item_id,
+        'originalName': source_name,
+        'jsonPath': json_path,
+        'path': json_path,
+    }
+    if calibration is not None:
+        result['calibration'] = calibration
+    conversion_error = _calibration_conversion_error(folder)
+    if conversion_error:
+        result['conversionError'] = conversion_error
+    return result
 
 
 def pipeline_requires_calibration(pipeline: types.PipelineDescription) -> bool:
@@ -1310,7 +1305,9 @@ def create_multicam(
                 code=400,
             )
         calibration_source_item_id = str(cal_item['_id'])
-        if cal_item['name'].lower().endswith('.json'):
+        cal_files = list(Item().childFiles(cal_item))
+        cal_file = cal_files[0] if cal_files else None
+        if cal_file is not None and _calibration_file_is_final_json(cal_file):
             _mark_calibration_source_and_json_item(cal_item)
             json_calibration_item_id = calibration_source_item_id
         else:
@@ -1443,21 +1440,21 @@ def get_calibration(
     if json_file_model is not None:
         dataset_calibration = _read_json_calibration_file(json_file_model)
         if dataset_calibration is not None:
-            return types.DatasetCalibrationResult(
+            return _dataset_calibration_result(
+                source_item_id=source_item_id,
+                json_item_id=json_item_id,
+                source_name=source_name,
+                json_path=json_path,
+                folder=folder,
                 calibration=dataset_calibration,
-                itemId=source_item_id,
-                jsonItemId=json_item_id,
-                originalName=source_name,
-                jsonPath=json_path,
-                path=json_path,
             )
 
-    return types.DatasetCalibrationResult(
-        itemId=source_item_id,
-        jsonItemId=json_item_id,
-        originalName=source_name,
-        jsonPath=json_path,
-        path=json_path,
+    return _dataset_calibration_result(
+        source_item_id=source_item_id,
+        json_item_id=json_item_id,
+        source_name=source_name,
+        json_path=json_path,
+        folder=folder,
     )
 
 
@@ -1498,6 +1495,8 @@ def set_calibration(
     """
     if fromMeta(folder, "type", required=True) != constants.MultiType:
         raise RestException('Calibration is only supported for stereo/multicam datasets', code=400)
+    if fromMeta(folder, constants.SubTypeMarker, required=False) != 'stereo':
+        raise RestException('Calibration is only supported for stereo datasets', code=400)
 
     file = File().load(file_id, level=AccessType.READ, user=user)
     if file is None:
@@ -1519,8 +1518,9 @@ def set_calibration(
     multi_cam[constants.CalibrationItemIdMarker] = str(cal_item['_id'])
     multi_cam[constants.CalibrationOriginalNameMarker] = file['name']
     multi_cam.pop(constants.JsonCalibrationItemIdMarker, None)
+    multi_cam.pop(constants.CalibrationConversionErrorMarker, None)
 
-    if file['name'].lower().endswith('.json'):
+    if _calibration_file_is_final_json(file):
         _mark_calibration_source_and_json_item(cal_item)
         multi_cam[constants.JsonCalibrationItemIdMarker] = str(cal_item['_id'])
     else:

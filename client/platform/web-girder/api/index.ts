@@ -2,8 +2,8 @@
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import girderRest from 'platform/web-girder/plugins/girder';
 
-import { getDatasetCalibration } from './dataset.service';
 import { deleteItem } from './girder.service';
+import { clearCalibrationFolderMetadata, getDatasetCalibration } from './dataset.service';
 
 export * from './annotation.service';
 export * from './configuration.service';
@@ -39,9 +39,10 @@ export function getUri(config: AxiosRequestConfig) {
 /** Trigger a browser download of the dataset's source calibration file. */
 export async function downloadCalibration(datasetId: string): Promise<void> {
   const { data } = await getDatasetCalibration(datasetId);
-  if (data?.itemId) {
-    window.location.assign(getUri({ url: `file/${data.itemId}/download` }));
+  if (!data?.itemId) {
+    throw new Error('No calibration file is available to download.');
   }
+  window.location.assign(getUri({ url: `item/${data.itemId}/download` }));
 }
 
 /** Delete the Girder items holding the dataset's calibration files. */
@@ -55,4 +56,5 @@ export async function deleteCalibration(datasetId: string): Promise<void> {
     itemIds.add(data.jsonItemId);
   }
   await Promise.all([...itemIds].map((itemId) => deleteItem(itemId)));
+  await clearCalibrationFolderMetadata(datasetId);
 }

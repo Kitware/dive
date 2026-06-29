@@ -79,17 +79,22 @@ export default defineComponent({
       return parts.length > 1 ? parts[1] : null;
     });
 
-    const calibrationFile = computed(() => data.meta?.multiCam?.calibration ?? null);
+    const calibrationExportName = computed(() => {
+      const multiCam = data.meta?.multiCam;
+      return multiCam?.calibrationOriginalName
+        ?? multiCam?.calibrationSourcePath?.replace(/^.*[\\/]/, '')
+        ?? multiCam?.calibration?.replace(/^.*[\\/]/, '')
+        ?? null;
+    });
     const cameraFileSupported = computed(
-      () => data.meta?.subType === 'stereo' && !!calibrationFile.value,
+      () => data.meta?.subType === 'stereo' && !!calibrationExportName.value,
     );
 
     async function exportCameraFile() {
-      if (!calibrationFile.value) return;
-      const calName = calibrationFile.value.replace(/^.*[\\/]/, '');
+      if (!calibrationExportName.value) return;
       const location = await window.diveDesktop.showSaveDialog({
         title: 'Export Camera File',
-        defaultPath: calName,
+        defaultPath: calibrationExportName.value,
       });
       if (location.canceled || !location.filePath) return;
       try {
@@ -143,7 +148,7 @@ export default defineComponent({
       doExport,
       exportCameraFile,
       cameraFileSupported,
-      calibrationFile,
+      calibrationExportName,
       savePrompt,
       pendingExportType,
       thresholds,

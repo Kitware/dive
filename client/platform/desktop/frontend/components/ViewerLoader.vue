@@ -1297,6 +1297,14 @@ export default defineComponent({
       applyCalibrationAfterImport();
     }
 
+    function onCalibrationDeleted() {
+      const dataset = datasets.value[props.id];
+      if (dataset) {
+        dataset.calibration = undefined;
+      }
+      stereoCalibrationFile = undefined;
+    }
+
     return {
       datasets,
       viewerRef,
@@ -1323,6 +1331,7 @@ export default defineComponent({
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
       onCalibrationImported,
+      onCalibrationDeleted,
     };
   },
 });
@@ -1392,6 +1401,7 @@ export default defineComponent({
           v-if="subTypeList[0] === 'stereo'"
           :dataset-id="modifiedId"
           :calibration-file="datasets[id] && datasets[id].calibration"
+          @calibration-deleted="onCalibrationDeleted"
         />
       </template>
       <template #right-sidebar="{ sidebarMode }">

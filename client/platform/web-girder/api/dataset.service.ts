@@ -258,14 +258,42 @@ function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined, key:
   return marker === true || marker === 'true' || marker === '1';
 }
 
+async function calibrationItemExists(itemId: string): Promise<boolean> {
+  try {
+    await girderRest.get(`item/${itemId}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Remove calibration item references from the dataset folder metadata. */
+async function clearCalibrationFolderMetadata(datasetId: string): Promise<void> {
+  const parentId = parentDatasetId(datasetId);
+  const { data: folder } = await girderRest.get<{
+    meta?: { multiCam?: Record<string, unknown> };
+  }>(`folder/${parentId}`);
+  const multiCam = { ...(folder.meta?.multiCam ?? {}) };
+  delete multiCam.calibrationItemId;
+  delete multiCam.jsonCalibrationItemId;
+  delete multiCam.calibrationOriginalName;
+  delete multiCam.calibrationConversionError;
+  await girderRest.put(`folder/${parentId}/metadata`, { multiCam });
+}
+
 async function hasCalibrationFile(datasetId: string): Promise<boolean> {
   const parentId = parentDatasetId(datasetId);
   const folder = await girderRest.get<{
     meta?: { multiCam?: { calibrationItemId?: string; jsonCalibrationItemId?: string } };
   }>(`folder/${parentId}`);
   const multiCam = folder.data.meta?.multiCam;
-  if (multiCam?.calibrationItemId || multiCam?.jsonCalibrationItemId) {
-    return true;
+  const cachedIds = [multiCam?.calibrationItemId, multiCam?.jsonCalibrationItemId]
+    .filter((id): id is string => !!id);
+  if (cachedIds.length) {
+    const existing = await Promise.all(cachedIds.map((id) => calibrationItemExists(id)));
+    if (existing.some(Boolean)) {
+      return true;
+    }
   }
   const items = await girderRest.get<Array<{ name: string; meta?: Record<string, unknown> }>>(
     'item',
@@ -281,6 +309,7 @@ async function hasCalibrationFile(datasetId: string): Promise<boolean> {
 
 export {
   clone,
+  clearCalibrationFolderMetadata,
   createGirderFolder,
   createMulticamDataset,
   getDataset,
