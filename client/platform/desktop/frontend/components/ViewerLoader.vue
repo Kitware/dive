@@ -246,6 +246,10 @@ export default defineComponent({
             : undefined;
         }
 
+        // Share the resolvers with text query (handles video + multicam).
+        segmentationGetImagePath = getImagePath;
+        segmentationGetFrameTime = getFrameTime;
+
         // Initialize the recipe
         // Desktop uses imagePath from the request, so we ignore the frameNum parameter
         viewerRef.value.segmentationRecipe.initialize({
@@ -285,6 +289,12 @@ export default defineComponent({
       type: string;
       originalVideoFile?: string;
     } | null = null;
+
+    // Frame -> media-path / frame-time resolvers built by initializeSegmentation.
+    // Shared with text query so it resolves video and multicam media the same way
+    // segmentation does (selected-camera aware, video frame-time aware).
+    let segmentationGetImagePath: ((frameNum: number) => string) | null = null;
+    let segmentationGetFrameTime: ((frameNum: number) => number | undefined) | undefined;
 
     /**
      * Get image path for a given frame number
@@ -337,7 +347,11 @@ export default defineComponent({
         }
       }
 
-      const imagePath = getImagePathForFrame(frameNum);
+      // Prefer the segmentation resolvers (selected-camera + video aware); fall
+      // back to the single-cam image-sequence getter if segmentation never
+      // initialized.
+      const imagePath = segmentationGetImagePath?.(frameNum) || getImagePathForFrame(frameNum);
+      const frameTime = segmentationGetFrameTime?.(frameNum);
       if (!imagePath) {
         await prompt({
           title: 'Text Query Error',
@@ -349,6 +363,7 @@ export default defineComponent({
       try {
         const response = await textQuery({
           imagePath,
+          frameTime,
           text,
           boxThreshold,
           maxDetections: 10,

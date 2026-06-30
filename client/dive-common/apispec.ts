@@ -439,8 +439,11 @@ export interface TextQueryDetection {
 }
 
 export interface TextQueryRequest {
-  /** Path to the image file */
+  /** Path to the image file (or video file for video datasets) */
   imagePath: string;
+  /** Frame time in seconds, required when imagePath is a video so the service
+   * extracts the correct frame. Omitted for image-sequence datasets. */
+  frameTime?: number;
   /** Text query describing what to find (e.g., "fish", "person swimming") */
   text: string;
   /** Confidence threshold for detections (default: 0.3) */
