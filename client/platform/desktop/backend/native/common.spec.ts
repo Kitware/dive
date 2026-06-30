@@ -259,6 +259,22 @@ beforeEach(() => {
         'file1.csv': '',
         'file2.csv': '',
       },
+      frameMetadataSource: {
+        'image_0001.jpg': '',
+        'image_0002.jpg': '',
+        'image_0003.jpg': '',
+        'navigation.txt': [
+          'filename,depth,temperature',
+          'image_0001.jpg,192.80,4.0',
+          'image_0002.jpg,193.10,4.1',
+          'image_0003.jpg,193.40,4.2',
+          '',
+        ].join('\n'),
+      },
+      frameMetadataNoSource: {
+        'image_0001.jpg': '',
+        'notes.txt': 'note,value\nhello,world\n',
+      },
     },
     '/home/user/viamedata': {
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -310,6 +326,45 @@ beforeEach(() => {
             originalVideoFile: 'whatever.mp4',
             transcodedVideoFile: 'whatever-transcoded.mp4',
           } as JsonMeta),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadata: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadata',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataSource',
+            originalImageFiles: [
+              'image_0001.jpg',
+              'image_0002.jpg',
+              'image_0003.jpg',
+            ],
+            frameMetadataFields: ['stale_project_field'],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          'frame_metadata.json': JSON.stringify({
+            cameras: {
+              singleCam: {
+                1: { stale_project_field: 'do-not-read' },
+              },
+            },
+          }),
+          auxiliary: {},
+        },
+        projectidFrameMetadataNoSource: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataNoSource',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataNoSource',
+            originalImageFiles: [
+              'image_0001.jpg',
+            ],
+            frameMetadataFields: ['stale_project_field'],
+          }),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
@@ -466,6 +521,32 @@ describe('native.common', () => {
   it('loadJsonMetadata type multi without multiCam', async () => {
     await expect(common.loadMetadata(settings, 'projectid5missingMultiCam', urlMapper))
       .rejects.toThrow('Dataset: missingMulti is of type multiCam or stereo but contains no multiCam data');
+  });
+
+  it('loadFrameMetadata reads a source sidecar next to imagery and applies the requested window', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadata', 1, 2);
+
+    expect(data).toEqual({
+      cameras: {
+        singleCam: {
+          1: {
+            filename: 'image_0002.jpg',
+            depth: '193.10',
+            temperature: '4.1',
+          },
+          2: {
+            filename: 'image_0003.jpg',
+            depth: '193.40',
+            temperature: '4.2',
+          },
+        },
+      },
+    });
+  });
+
+  it('loadFrameMetadata ignores non-telemetry text files', async () => {
+    await expect(common.loadFrameMetadata(settings, 'projectidFrameMetadataNoSource', 0, 0))
+      .resolves.toEqual({ cameras: {} });
   });
 
   it('createWorkingDirectory creates pipeline run directories', async () => {
