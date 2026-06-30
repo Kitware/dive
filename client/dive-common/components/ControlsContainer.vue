@@ -159,7 +159,7 @@ export default defineComponent({
   <v-col
     dense
     :style="bottomLayout
-      ? 'position: relative; padding: 0px; margin: 0px; width: 100%;'
+      ? 'position: relative; padding: 0px; margin: 0px; width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0;'
       : 'position: absolute; bottom: 0px; padding: 0px; margin: 0px;'"
   >
     <Controls
@@ -169,7 +169,7 @@ export default defineComponent({
       :wrap-bottom-controls="wrapBottomControls"
     >
       <template slot="timelineControls">
-        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
+        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: bottomLayout && wrapBottomControls ? 'auto' : '100%' }">
           <v-tooltip
             v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
@@ -319,18 +319,6 @@ export default defineComponent({
           </v-btn>
         </div>
       </template>
-      <template #bottomControlsActivator="{ activatorId }">
-        <v-btn
-          v-if="bottomLayout && wrapBottomControls"
-          :id="activatorId"
-          icon
-          small
-          class="ml-1"
-          title="Timeline controls"
-        >
-          <v-icon>mdi-tune-variant</v-icon>
-        </v-btn>
-      </template>
       <template #middle>
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
@@ -452,6 +440,7 @@ export default defineComponent({
       :frame="frame"
       :display="!collapsed"
       :dataset-type="datasetType"
+      :bottom-layout="bottomLayout"
       @seek="seek"
     >
       <template
