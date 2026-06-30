@@ -450,6 +450,53 @@ export class InteractiveServiceManager extends EventEmitter {
     return { success: true };
   }
 
+  async textQuery(request: {
+    imagePath: string;
+    text: string;
+    boxThreshold?: number;
+    maxDetections?: number;
+    boxes?: [number, number, number, number][];
+    points?: [number, number][];
+    pointLabels?: number[];
+    frameTime?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }): Promise<any> {
+    return this.sendRequest({
+      command: 'text_query',
+      image_path: request.imagePath,
+      text: request.text,
+      box_threshold: request.boxThreshold ?? 0.3,
+      max_detections: request.maxDetections ?? 10,
+      boxes: request.boxes,
+      points: request.points,
+      point_labels: request.pointLabels,
+      frame_time: request.frameTime,
+    }, 'Text query');
+  }
+
+  async refineDetections(request: {
+    imagePath: string;
+    detections: {
+      box: [number, number, number, number];
+      polygon?: [number, number][];
+      score: number;
+      label: string;
+    }[];
+    points?: [number, number][];
+    pointLabels?: number[];
+    refineMasks?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }): Promise<any> {
+    return this.sendRequest({
+      command: 'refine',
+      image_path: request.imagePath,
+      detections: request.detections,
+      points: request.points,
+      point_labels: request.pointLabels,
+      refine_masks: request.refineMasks ?? true,
+    }, 'Refine');
+  }
+
   // ----------------------------------------------------------- stereo API
 
   async enable(

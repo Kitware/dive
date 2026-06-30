@@ -375,6 +375,49 @@ export default function register() {
     return { ready: segService.isSegmentationReady() };
   });
 
+  ipcMain.handle('segmentation-text-query', async (_, args: {
+    imagePath: string;
+    text: string;
+    boxThreshold?: number;
+    maxDetections?: number;
+    boxes?: [number, number, number, number][];
+    points?: [number, number][];
+    pointLabels?: number[];
+  }) => {
+    const segService = getInteractiveServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.textQuery(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-refine', async (_, args: {
+    imagePath: string;
+    detections: {
+      box: [number, number, number, number];
+      polygon?: [number, number][];
+      score: number;
+      label: string;
+    }[];
+    points?: [number, number][];
+    pointLabels?: number[];
+    refineMasks?: boolean;
+  }) => {
+    const segService = getInteractiveServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.refineDetections(args);
+    return response;
+  });
+
   /**
    * Interactive Stereo Service
    */
