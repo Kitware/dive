@@ -442,7 +442,14 @@ export default defineComponent({
           }
           const result = await stereoEnable(undefined, stereoCalibrationFile);
           if (!result.success) {
-            throw new Error(result.error || 'Failed to enable stereo service');
+            // launchFailed means the backend service couldn't even start (e.g.
+            // missing python interpreter or a broken import). That is a real
+            // error and must always be surfaced, even on the load-time
+            // auto-enable, instead of degrading silently like a missing
+            // calibration would.
+            const err = new Error(result.error || 'Failed to enable stereo service');
+            (err as Error & { launchFailed?: boolean }).launchFailed = result.launchFailed;
+            throw err;
           }
           stereoEnabled.value = true;
           stereoLoadingDialog.value = false;
@@ -454,15 +461,18 @@ export default defineComponent({
         } catch (err) {
           stereoEnabled.value = false;
           console.error('[Stereo] Failed to enable interactive stereo:', err);
-          if (userInitiated) {
-            // The user explicitly enabled a feature: revert the toggles and
-            // surface the failure in a dialog.
+          const launchFailed = (err as Error & { launchFailed?: boolean }).launchFailed === true;
+          if (userInitiated || launchFailed) {
+            // The user explicitly enabled a feature, or the backend service
+            // failed to launch (an infrastructure error). Either way, revert the
+            // toggles and surface the failure in a dialog.
             disableStereoFeatureToggles();
             stereoLoadingError.value = err instanceof Error ? err.message : String(err);
             stereoLoadingDialog.value = true;
           } else {
-            // Load-time auto-enable failed: degrade silently and keep the
-            // toggle states so a later calibrated dataset still works.
+            // Load-time auto-enable failed for a benign reason (e.g. an
+            // uncalibrated stereo dataset): degrade silently and keep the toggle
+            // states so a later calibrated dataset still works.
             stereoLoadingDialog.value = false;
           }
         }
