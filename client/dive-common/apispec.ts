@@ -125,8 +125,20 @@ interface FrameImage {
   id?: string;
 }
 
+interface FrameMetadataValues {
+  [field: string]: string;
+}
+
+interface FrameMetadataFrameMap {
+  [frame: string]: FrameMetadataValues;
+}
+
+interface FrameMetadataCameraMap {
+  [camera: string]: FrameMetadataFrameMap;
+}
+
 interface FrameMetadataResponse {
-  cameras: Record<string, Record<string, Record<string, string>>>;
+  cameras: FrameMetadataCameraMap;
 }
 
 export interface MultiCamImportFolderArgs {
@@ -450,7 +462,10 @@ export {
   PipelineRuntimeParams,
   PipeMetadata,
   Pipelines,
+  FrameMetadataCameraMap,
+  FrameMetadataFrameMap,
   FrameMetadataResponse,
+  FrameMetadataValues,
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
