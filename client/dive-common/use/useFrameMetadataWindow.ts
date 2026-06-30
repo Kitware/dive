@@ -71,7 +71,7 @@ function errorMessage(err: unknown) {
 export function frameMetadataWindowForFrame(
   frame: number,
   windowSize = DEFAULT_FRAME_METADATA_WINDOW_SIZE,
-  maxFrame?: number,
+  maxFrame: number | undefined = undefined,
 ): FrameMetadataWindowRange {
   const size = normalizeWindowSize(windowSize);
   const safeMaxFrame = normalizeMaxFrame(maxFrame);
@@ -117,7 +117,7 @@ export function useFrameMetadataWindow({
   async function fetchWindow(targetFrame: number) {
     if (!loadFrameMetadata || !datasetId.value) {
       clearCache();
-      return;
+      return undefined;
     }
 
     const requestDatasetId = datasetId.value;
@@ -182,7 +182,7 @@ export function useFrameMetadataWindow({
       loadedDatasetId.value === datasetId.value
       && containsFrame(windowRange.value, targetFrame)
     ) {
-      return;
+      return undefined;
     }
 
     if (
@@ -211,7 +211,7 @@ export function useFrameMetadataWindow({
   watch(
     () => [datasetId.value, currentFrameKey.value, maxFrame?.value],
     () => {
-      void ensureFrameLoaded();
+      ensureFrameLoaded();
     },
     { immediate: true },
   );
