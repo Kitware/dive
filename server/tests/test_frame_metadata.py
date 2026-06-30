@@ -102,6 +102,22 @@ def test_rejects_viame_annotation_csv_even_when_image_column_matches():
     assert parse_frame_metadata_source(viame_csv, media_keys) is None
 
 
+def test_accepts_viame_shaped_telemetry_without_viame_header():
+    """Telemetry whose rows coincidentally match VIAME's numeric shape but lacks the
+    ``# 1: Detection or Track-id`` comment header is still accepted as telemetry."""
+    media_keys = {"image_0001": 0}
+    text = (
+        "index,image,frame,x,y,depth,altitude,heading,temperature\n"
+        "1,image_0001.jpg,100,46.5,-124.6,192.8,2.7,180.5,4.2\n"
+    )
+
+    source = parse_frame_metadata_source(text, media_keys)
+
+    assert source is not None
+    assert source.join_columns == ["image"]
+    assert source.records["image_0001"]["depth"] == "192.8"
+
+
 def test_rejects_bare_image_list_and_unrelated_text():
     media_keys = {"image_0001": 0}
 

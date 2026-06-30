@@ -73,7 +73,7 @@ def parse_frame_metadata_source(
     media_keys: Mapping[str, int],
     source_name: Optional[str] = None,
 ) -> Optional[ParsedFrameMetadata]:
-    if viame.is_viame_csv(text.splitlines(), dict(media_keys)):
+    if viame.is_viame_csv(text.splitlines()):
         return None
 
     header, rows = parse_table(text)

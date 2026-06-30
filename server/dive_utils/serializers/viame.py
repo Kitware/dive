@@ -73,12 +73,17 @@ def _is_viame_data_row(row: List[str]) -> bool:
     return True
 
 
-def is_viame_csv(rows: List[str], imageMap: Optional[Dict[str, int]] = None) -> bool:
-    """Return true when rows look like a VIAME annotation CSV."""
+def is_viame_csv(rows: List[str]) -> bool:
+    """Return true when rows look like a VIAME annotation CSV.
+
+    DIVE's VIAME exports always carry the ``# 1: Detection or Track-id`` comment
+    header, so detection keys on that header plus at least one VIAME-shaped data
+    row. A telemetry file has a plain field-name header and no ``#`` comment
+    header, so it passes even when one of its columns matches the media names.
+    """
     reader = csv.reader(row for row in rows)
     has_header = False
     has_data_row = False
-    has_matching_image = False
 
     for row in reader:
         if not row:
@@ -86,16 +91,10 @@ def is_viame_csv(rows: List[str], imageMap: Optional[Dict[str, int]] = None) -> 
         if row[0].startswith('#'):
             has_header = has_header or row[0].startswith('# 1: Detection or Track-id')
             continue
-        if not _is_viame_data_row(row):
-            continue
-        has_data_row = True
-        if imageMap:
-            imageName, _ = os.path.splitext(os.path.basename(row[1]))
-            has_matching_image = has_matching_image or imageName in imageMap
+        if _is_viame_data_row(row):
+            has_data_row = True
 
-    if has_header and has_data_row:
-        return True
-    return has_data_row and has_matching_image
+    return has_header and has_data_row
 
 
 def _resolve_detection_length(
