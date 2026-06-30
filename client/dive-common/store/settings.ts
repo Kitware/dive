@@ -154,7 +154,7 @@ const defaultSettings: AnnotationSettings = {
   },
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
-    delaySeconds: 60,
+    delaySeconds: 15,
   },
   stereoSettings: {
     clearLengthOnCameraFileLoad: true,
