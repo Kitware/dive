@@ -341,16 +341,8 @@ beforeEach(() => {
               'image_0002.jpg',
               'image_0003.jpg',
             ],
-            frameMetadataFields: ['stale_project_field'],
           }),
           'result_whatever.json': JSON.stringify({}),
-          'frame_metadata.json': JSON.stringify({
-            cameras: {
-              singleCam: {
-                1: { stale_project_field: 'do-not-read' },
-              },
-            },
-          }),
           auxiliary: {},
         },
         projectidFrameMetadataNoSource: {
@@ -363,7 +355,6 @@ beforeEach(() => {
             originalImageFiles: [
               'image_0001.jpg',
             ],
-            frameMetadataFields: ['stale_project_field'],
           }),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},

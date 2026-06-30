@@ -350,6 +350,23 @@ describe('VIAME datasetInfo passthrough', () => {
     expect(fields?.some((field) => field.startsWith('dataset_info'))).toBe(false);
   });
 
+  it('does not include frame metadata fields in VIAME exports', async () => {
+    const path = '/home/test.json';
+    const stream = fs.createWriteStream(path);
+    await serialize(stream, data, {
+      ...meta,
+      frameMetadataFields: ['depth'],
+      frameMetadata: { singleCam: { 0: { depth: '192.80' } } },
+    } as JsonMeta, new Set<string>(), {
+      excludeBelowThreshold: false,
+      header: true,
+    });
+    const output = fs.readFileSync(path).toString();
+    expect(output).not.toContain('frameMetadataFields');
+    expect(output).not.toContain('frameMetadata');
+    expect(output).not.toContain('frame_metadata');
+  });
+
   it('restores datasetInfo from the # metadata line on parse', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);

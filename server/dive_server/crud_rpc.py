@@ -21,7 +21,7 @@ from dive_tasks import tasks
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
-from dive_utils.serializers import dive, kpf, kwcoco, viame
+from dive_utils.serializers import dive, frame_metadata, kpf, kwcoco, viame
 
 
 class RunTrainingArgs(BaseModel):
@@ -511,6 +511,10 @@ GetDataReturnType = TypedDict(
 )
 
 
+def _is_stored_frame_metadata_json(data: dict) -> bool:
+    return set(data.keys()) == {'cameras'} and isinstance(data.get('cameras'), dict)
+
+
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
@@ -533,12 +537,17 @@ def _get_data_by_type(
 
     # Discover the type of the mystery file
     if file['exts'][-1] == 'csv':
-        as_type = crud.FileType.VIAME_CSV
+        if image_map is not None and frame_metadata.is_frame_metadata(file_string, image_map):
+            as_type = crud.FileType.FRAME_METADATA
+        else:
+            as_type = crud.FileType.VIAME_CSV
     elif file['exts'][-1] == 'json':
         data_dict = json.loads(file_string)
         if type(data_dict) is list:
             raise RestException('No array-type json objects are supported')
-        if kwcoco.is_coco_json(data_dict):
+        if _is_stored_frame_metadata_json(data_dict):
+            as_type = crud.FileType.FRAME_METADATA
+        elif kwcoco.is_coco_json(data_dict):
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
             data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
@@ -567,6 +576,13 @@ def _get_data_by_type(
             'annotations': converted,
             'meta': meta,
             'attributes': attributes,
+            'type': as_type,
+        }, warnings
+    if as_type == crud.FileType.FRAME_METADATA:
+        return {
+            'annotations': None,
+            'meta': None,
+            'attributes': None,
             'type': as_type,
         }, warnings
     if as_type == crud.FileType.MEVA_KPF:
@@ -650,10 +666,7 @@ def process_items(
         # Processing order: oldest to newest
         sort=[("created", pymongo.ASCENDING)],
     )
-    auxiliary = crud.get_or_create_auxiliary_folder(
-        folder,
-        user,
-    )
+    auxiliary = None
     aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
@@ -677,6 +690,14 @@ def process_items(
             Item().remove(item)
             raise RestException(f'Unknown file type for {file["name"]}')
 
+        if results['type'] == crud.FileType.FRAME_METADATA:
+            continue
+
+        if auxiliary is None:
+            auxiliary = crud.get_or_create_auxiliary_folder(
+                folder,
+                user,
+            )
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
         if results['annotations']:

@@ -24,6 +24,7 @@ class FileType(Enum):
     COCO_JSON = 3
     DIVE_CONF = 4
     MEVA_KPF = 5
+    FRAME_METADATA = 6
 
 
 def get_validated_model(model: BaseModel, **kwargs):

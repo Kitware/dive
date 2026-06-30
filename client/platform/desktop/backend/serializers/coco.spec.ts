@@ -213,6 +213,17 @@ describe('COCO serializer', () => {
     expect(out.annotations[0].dive_notes).toEqual(['exported note']);
   });
 
+  it('does not include frame metadata in COCO exports', async () => {
+    await serializeFile('/output/out.coco.json', annotationSchema, {
+      ...imageMeta,
+      frameMetadataFields: ['depth'],
+      frameMetadata: { singleCam: { 0: { depth: '192.80' } } },
+    } as JsonMeta);
+    const out = await fs.readJSON('/output/out.coco.json');
+    expect(out.info).not.toHaveProperty('dive_frame_metadata');
+    expect(out.info.dive_extensions).not.toContain('dive_frame_metadata');
+  });
+
   // --- datasetInfo passthrough ---
 
   const datasetInfo = {

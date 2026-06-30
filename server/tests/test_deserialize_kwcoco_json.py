@@ -754,6 +754,8 @@ def test_export_dive_as_coco_writes_dataset_info():
     )
     assert coco["info"]["dive_dataset_info"] == DATASET_INFO
     assert "dive_dataset_info" in coco["info"]["dive_extensions"]
+    assert "dive_frame_metadata" not in coco["info"]
+    assert "dive_frame_metadata" not in coco["info"]["dive_extensions"]
 
 
 @pytest.mark.parametrize("datasetInfo", [None, {}])

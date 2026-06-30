@@ -523,6 +523,7 @@ def test_dataset_info_on_metadata_line():
     assert isinstance(parsed['cruise'], int)
     assert isinstance(parsed['sta_lat'], float)
     assert isinstance(parsed['gfishsite_id'], str)
+    assert all('frame_metadata' not in field for field in fields)
 
 
 @pytest.mark.parametrize("datasetInfo", [None, {}])
