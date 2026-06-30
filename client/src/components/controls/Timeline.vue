@@ -29,6 +29,10 @@ export default defineComponent({
       type: String as PropType<DatasetType>,
       required: true,
     },
+    bottomLayout: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['seek'],
   setup(props, { emit }) {
@@ -577,6 +581,7 @@ export default defineComponent({
   <div
     ref="timelineEl"
     class="timeline"
+    :class="{ 'timeline-compact': bottomLayout }"
     @wheel="onwheel"
     @mouseup="containerMouseup"
     @mousemove="containerMousemove"
@@ -661,6 +666,13 @@ export default defineComponent({
   position: relative;
   display: flex;
   flex-direction: column;
+
+  &.timeline-compact {
+    // In the bottom panel the height is fixed; fill the space left below the
+    // controls bar and shrink instead of overflowing (which clips the x-axis).
+    min-height: 90px;
+    flex: 1 1 0;
+  }
 
   .work-area {
     flex: 1;
