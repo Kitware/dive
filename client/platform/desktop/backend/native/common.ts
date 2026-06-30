@@ -620,7 +620,7 @@ async function loadMulticamFrameMetadata(
 
   const rootDirectory = projectMetaData.originalBasePath
     || commonParentDirectory(cameraEntries.map(([, camera]) => (
-      frameMetadataSourceDirectory(camera) || camera.originalBasePath
+      frameMetadataSourceDirectory(camera) ?? ''
     )));
   const rootCandidates = await frameMetadataCandidateTexts(rootDirectory);
   const cameras: FrameMetadataResponse['cameras'] = {};
