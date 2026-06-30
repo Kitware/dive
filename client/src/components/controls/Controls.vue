@@ -45,8 +45,6 @@ export default defineComponent({
     const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
-    const activeBottomControlsMenu = ref(false);
-    const bottomControlsActivatorId = 'bottom-controls-menu-activator';
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
@@ -213,8 +211,6 @@ export default defineComponent({
     return {
       activeLockedCamera,
       activeTimeFilter,
-      activeBottomControlsMenu,
-      bottomControlsActivatorId,
       data,
       mediaController,
       dragHandler,
@@ -295,17 +291,48 @@ export default defineComponent({
               justify="start"
               name="timelineControls"
             />
-            <slot
-              name="bottomControlsActivator"
-              :activator-id="bottomControlsActivatorId"
-            />
           </div>
         </v-col>
         <v-col
           v-if="bottomLayout"
-          class="py-1 shrink d-flex align-center bottom-controls-actions"
+          class="py-1 d-flex align-center bottom-controls-actions"
           style="min-width: auto;"
         >
+          <v-btn
+            icon
+            small
+            title="(d, left-arrow) previous frame"
+            @click="mediaController.prevFrame"
+          >
+            <v-icon>mdi-skip-previous</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="!mediaController.playing.value"
+            icon
+            small
+            title="(space) Play"
+            @click="mediaController.play"
+          >
+            <v-icon>mdi-play</v-icon>
+          </v-btn>
+          <v-btn
+            v-else
+            icon
+            small
+            title="(space) Pause"
+            @click="mediaController.pause"
+          >
+            <v-icon>mdi-pause</v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
+            title="(f, right-arrow) next frame"
+            @click="mediaController.nextFrame"
+          >
+            <v-icon>mdi-skip-next</v-icon>
+          </v-btn>
+          <v-divider vertical class="mx-1" />
           <v-menu
             v-model="activeTimeFilter"
             bottom
@@ -562,121 +589,29 @@ export default defineComponent({
             color="warning"
             dot
             overlap
-          />
-          <v-menu
-            v-model="activeBottomControlsMenu"
-            :activator="`#${bottomControlsActivatorId}`"
-            :nudge-left="8"
-            left
             bottom
-            :close-on-content-click="false"
           >
-            <v-card
-              outlined
-              class="pa-2"
-              color="blue-grey darken-3"
-              min-width="360"
+            <v-btn
+              icon
+              small
+              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+              @click="toggleEnhancements"
             >
-              <div class="d-flex align-center mb-2">
-                <slot name="middle" />
-              </div>
-              <div class="d-flex align-center">
-                <v-btn
-                  icon
-                  small
-                  title="(d, left-arrow) previous frame"
-                  @click="mediaController.prevFrame"
-                >
-                  <v-icon>mdi-skip-previous</v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="!mediaController.playing.value"
-                  icon
-                  small
-                  title="(space) Play"
-                  @click="mediaController.play"
-                >
-                  <v-icon>mdi-play</v-icon>
-                </v-btn>
-                <v-btn
-                  v-else
-                  icon
-                  small
-                  title="(space) Pause"
-                  @click="mediaController.pause"
-                >
-                  <v-icon>mdi-pause</v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(f, right-arrow) next frame"
-                  @click="mediaController.nextFrame"
-                >
-                  <v-icon>mdi-skip-next</v-icon>
-                </v-btn>
-                <v-divider vertical class="mx-1" />
-                <v-btn
-                  icon
-                  small
-                  :color="timeFilterActive ? 'primary' : 'default'"
-                  title="Filter tracks by time range"
-                  @click="handleTimeFilterClick"
-                >
-                  <v-icon>
-                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
-                  title="center camera on selected track"
-                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
-                >
-                  <v-icon>
-                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(r)eset pan and zoom"
-                  @click="mediaController.resetZoom"
-                >
-                  <v-icon>mdi-image-filter-center-focus</v-icon>
-                </v-btn>
-                <v-badge
-                  :value="!isDefaultImage"
-                  color="warning"
-                  dot
-                  overlap
-                  bottom
-                >
-                  <v-btn
-                    icon
-                    small
-                    :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
-                    @click="toggleEnhancements"
-                  >
-                    <v-icon>mdi-contrast-box</v-icon>
-                  </v-btn>
-                </v-badge>
-                <v-btn
-                  v-if="mediaController.cameras.value.length > 1"
-                  icon
-                  small
-                  :color="mediaController.cameraSync.value ? 'primary' : 'default'"
-                  title="Synchronize camera controls"
-                  @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
-                >
-                  <v-icon>
-                    {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-                  </v-icon>
-                </v-btn>
-              </div>
-            </v-card>
-          </v-menu>
+              <v-icon>mdi-contrast-box</v-icon>
+            </v-btn>
+          </v-badge>
+          <v-btn
+            v-if="mediaController.cameras.value.length > 1"
+            icon
+            small
+            :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+            title="Synchronize camera controls"
+            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+          >
+            <v-icon>
+              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+            </v-icon>
+          </v-btn>
         </v-col>
         <template v-else>
           <v-col
@@ -1291,45 +1226,38 @@ export default defineComponent({
           </v-col>
         </template>
       </v-row>
+      <div
+        v-if="bottomLayout"
+        class="bottom-controls-filename px-1"
+      >
+        <slot name="middle" />
+      </div>
     </v-card>
   </div>
 </template>
 
 <style scoped>
 .bottom-controls-row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .bottom-controls-row-nowrap {
   flex-wrap: nowrap;
 }
 
-.bottom-controls-left {
-  order: 1;
-}
-
-.bottom-controls-middle {
-  order: 2;
-}
-
-.bottom-controls-actions {
-  order: 3;
-}
-
 .bottom-controls-row .bottom-controls-left {
-  flex: 1 1 auto;
-}
-
-.bottom-controls-row .bottom-controls-middle {
-  flex: 1 1 260px;
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .bottom-controls-row .bottom-controls-actions {
   flex: 0 0 auto;
-  margin-left: auto;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.bottom-controls-filename {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .bottom-controls-row-nowrap .bottom-controls-left {
