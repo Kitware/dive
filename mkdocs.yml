@@ -69,6 +69,7 @@ nav:
         - Attribute Track Filtering: UI-AttributeTrackFiltering.md
       - Group Manager: UI-Group-Manager.md
       - Dataset Info: UI-DatasetInfo.md
+      - Frame Info: UI-FrameInfo.md
       - Annotation Sets: Annotation-Sets.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
@@ -83,6 +84,7 @@ nav:
   - Data Formats: DataFormats.md
   - Developer Guide:
     - Codebase architecture: Architecture-For-New-Developers.md
+    - Frame metadata architecture: Frame-Metadata-Architecture.md
   - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md
