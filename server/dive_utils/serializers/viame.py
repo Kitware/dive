@@ -63,6 +63,41 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
+def _is_viame_data_row(row: List[str]) -> bool:
+    if len(row) < 9:
+        return False
+    try:
+        row_info(row)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def is_viame_csv(rows: List[str], imageMap: Optional[Dict[str, int]] = None) -> bool:
+    """Return true when rows look like a VIAME annotation CSV."""
+    reader = csv.reader(row for row in rows)
+    has_header = False
+    has_data_row = False
+    has_matching_image = False
+
+    for row in reader:
+        if not row:
+            continue
+        if row[0].startswith('#'):
+            has_header = has_header or row[0].startswith('# 1: Detection or Track-id')
+            continue
+        if not _is_viame_data_row(row):
+            continue
+        has_data_row = True
+        if imageMap:
+            imageName, _ = os.path.splitext(os.path.basename(row[1]))
+            has_matching_image = has_matching_image or imageName in imageMap
+
+    if has_header and has_data_row:
+        return True
+    return has_data_row and has_matching_image
+
+
 def _resolve_detection_length(
     attributes: Optional[Dict[str, Any]],
     fish_length_from_column: float,
