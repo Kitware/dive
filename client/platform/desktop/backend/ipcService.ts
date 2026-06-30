@@ -377,6 +377,7 @@ export default function register() {
 
   ipcMain.handle('segmentation-text-query', async (_, args: {
     imagePath: string;
+    frameTime?: number;
     text: string;
     boxThreshold?: number;
     maxDetections?: number;

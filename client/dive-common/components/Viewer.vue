@@ -186,6 +186,17 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Forward a single-frame text query submission to the platform handler,
+     * injecting the current frame number the query should run against.
+     */
+    function onTextQuerySubmit(payload: { text: string; boxThreshold: number }) {
+      emit('text-query-submit', {
+        ...payload,
+        frameNum: aggregateController.value.frame.value,
+      });
+    }
+
     const sideBarCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
     const getInitialSidebarMode = (): 'left' | 'bottom' | 'collapsed' => {
@@ -1250,6 +1261,7 @@ export default defineComponent({
       sideBarCollapsed,
       editorMenuRef,
       onTextQueryServiceReady,
+      onTextQuerySubmit,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -1452,7 +1464,7 @@ export default defineComponent({
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
           @text-query-init="$emit('text-query-init')"
-          @text-query="$emit('text-query', $event)"
+          @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
         >
           <template slot="delete-controls">
