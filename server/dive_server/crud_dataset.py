@@ -385,7 +385,10 @@ def load_frame_metadata(
     endFrame: Optional[int] = None,
 ) -> dict:
     crud.verify_dataset(dsFolder)
-    if fromMeta(dsFolder, constants.TypeMarker) != constants.ImageSequenceType:
+    source_type = fromMeta(dsFolder, constants.TypeMarker)
+    if source_type == constants.MultiType:
+        return _load_multicam_frame_metadata(dsFolder, user, startFrame, endFrame)
+    if source_type != constants.ImageSequenceType:
         return {'cameras': {}}
 
     images = crud.valid_images(dsFolder, user)
@@ -407,6 +410,96 @@ def load_frame_metadata(
             records[str(frame_number)] = source.records[media_key]
 
     return {'cameras': {'singleCam': records}}
+
+
+def _load_multicam_frame_metadata(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+    startFrame: int,
+    endFrame: Optional[int],
+) -> dict:
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    root = crud.getCloneRoot(user, dsFolder)
+    root_candidates = list(_frame_metadata_candidate_texts(root))
+    cameras: Dict[str, Dict[str, Dict[str, str]]] = {}
+    has_source = False
+
+    for camera_name in _multicam_camera_order(multi_cam):
+        cam_info = multi_cam['cameras'][camera_name]
+        child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{camera_name}" was not found',
+                code=404,
+            )
+        if fromMeta(child, constants.TypeMarker) != constants.ImageSequenceType:
+            continue
+
+        child_root = crud.getCloneRoot(user, child)
+        candidates = root_candidates + list(_frame_metadata_candidate_texts(child_root))
+        records = _load_camera_frame_metadata_records(
+            child,
+            user,
+            startFrame,
+            endFrame,
+            candidates,
+        )
+        if records is not None:
+            has_source = True
+            cameras[camera_name] = records
+        else:
+            cameras[camera_name] = {}
+
+    if not has_source:
+        return {'cameras': {}}
+    return {'cameras': cameras}
+
+
+def _load_camera_frame_metadata_records(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+    startFrame: int,
+    endFrame: Optional[int],
+    candidates: Iterable[Tuple[str, str]],
+) -> Optional[Dict[str, Dict[str, str]]]:
+    images = crud.valid_images(folder, user)
+    media_keys = crud.valid_image_names_dict(images)
+    if endFrame is None:
+        endFrame = len(images) - 1
+
+    sources = [
+        source
+        for source in (
+            frame_metadata.parse_frame_metadata_source(text, media_keys, source_name=name)
+            for name, text in candidates
+        )
+        if source is not None
+    ]
+    if not sources:
+        return None
+
+    frame_by_key = {
+        frame_metadata.normalize_key(media_key): frame_number
+        for media_key, frame_number in media_keys.items()
+    }
+    records: Dict[str, Dict[str, str]] = {}
+    collided_frames = set()
+    for source in sources:
+        for media_key, values in source.records.items():
+            frame_number = frame_by_key.get(frame_metadata.normalize_key(media_key))
+            if frame_number is None or not startFrame <= frame_number <= endFrame:
+                continue
+
+            frame_key = str(frame_number)
+            if frame_key in collided_frames:
+                continue
+            if frame_key not in records:
+                records[frame_key] = values
+            elif records[frame_key] != values:
+                records.pop(frame_key, None)
+                collided_frames.add(frame_key)
+
+    return records
 
 
 def _frame_metadata_candidate_texts(folder: types.GirderModel) -> Iterable[Tuple[str, str]]:
