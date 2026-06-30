@@ -65,7 +65,14 @@ function getViameConstants(settings: Settings): viame.ViameConstants {
 }
 
 function getViamePythonExe(settings: Settings): string {
-  return npath.join(settings.viamePath, 'bin', 'python');
+  // Packaged binary installs bundle an interpreter at bin/python. From-source
+  // builds against system python have no such interpreter and instead rely on
+  // setup_viame.sh putting the correct python on PATH, so fall back to that.
+  const bundled = npath.join(settings.viamePath, 'bin', 'python');
+  if (fs.existsSync(bundled)) {
+    return bundled;
+  }
+  return 'python';
 }
 
 async function validateViamePath(settings: Settings): Promise<true | string> {

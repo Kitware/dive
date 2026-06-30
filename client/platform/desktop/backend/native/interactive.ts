@@ -201,12 +201,15 @@ export class InteractiveServiceManager extends EventEmitter {
       const segConfig = npath.join(pipelines, 'interactive_segmenter_default.conf');
       const stereoConfig = npath.join(pipelines, 'interactive_stereo_default.conf');
 
-      // -I: isolated mode — do not prepend the process cwd to sys.path. Without
-      // this, a sibling folder named "coverage" (e.g. Vitest HTML output under
-      // client/coverage/) shadows Python's coverage package, breaks numba import,
-      // and prevents ocv_watershed from registering during plugin load.
+      // -s: ignore the per-user site-packages dir so a stray package in
+      // ~/.local (e.g. a conflicting "coverage" that breaks numba import and
+      // prevents ocv_watershed from registering) can't shadow VIAME's. We can't
+      // use -I/-E here: those also discard PYTHONPATH, which setup_viame.sh uses
+      // to expose the viame module in from-source/system-python builds. The
+      // process cwd is forced to viamePath (below), which has no shadowing
+      // modules, so the cwd entry on sys.path is harmless.
       const pyCommand = [
-        `"${pythonExe}" -I -m viame.core.interactive_service`,
+        `"${pythonExe}" -s -m viame.core.interactive_service`,
         `--segmentation-config "${segConfig}"`,
         `--stereo-config "${stereoConfig}"`,
       ].join(' ');
@@ -456,11 +459,19 @@ export class InteractiveServiceManager extends EventEmitter {
     settings: Settings,
     calibration?: StereoCalibration,
     calibrationFile?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
     try {
       await this.ensureStarted(settings);
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
+      // The service process couldn't even start (missing interpreter, import
+      // failure, etc.). This is an infrastructure error, distinct from a benign
+      // per-dataset enable failure (e.g. missing calibration), so flag it so the
+      // caller always surfaces it rather than degrading silently.
+      return {
+        success: false,
+        launchFailed: true,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
     try {
       const response = await this.sendRequest({
