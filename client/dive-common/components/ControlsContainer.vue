@@ -515,7 +515,8 @@ export default defineComponent({
   display: flex;
   align-items: center;
   white-space: nowrap;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   min-width: 0;
 }
 .middle-content-bottom .text-middle {

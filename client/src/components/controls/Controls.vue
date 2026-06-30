@@ -260,6 +260,7 @@ export default defineComponent({
         disabled: visible(),
       },
     ]"
+    :class="{ 'controls-bottom-layout': bottomLayout }"
     style="position: relative;"
   >
     <v-card
@@ -1228,7 +1229,7 @@ export default defineComponent({
       </v-row>
       <div
         v-if="bottomLayout"
-        class="bottom-controls-filename px-1"
+        class="bottom-controls-filename px-1 py-1"
       >
         <slot name="middle" />
       </div>
@@ -1254,10 +1255,16 @@ export default defineComponent({
   flex-wrap: nowrap;
 }
 
+.controls-bottom-layout {
+  flex-shrink: 0;
+}
+
 .bottom-controls-filename {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   white-space: nowrap;
   text-overflow: ellipsis;
+  line-height: 2;
 }
 
 .bottom-controls-row-nowrap .bottom-controls-left {
