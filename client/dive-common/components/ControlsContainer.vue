@@ -323,8 +323,9 @@ export default defineComponent({
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
             v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
-            class="text-middle px-3"
+            :class="bottomLayout ? 'filename-toolbar' : 'text-middle px-3'"
             display-type="filename"
+            :truncate-filename="bottomLayout"
           />
           <span v-else-if="datasetType === 'video'">
             <span class="mr-2">
@@ -513,16 +514,15 @@ export default defineComponent({
 }
 .middle-content-bottom {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   white-space: nowrap;
   overflow-x: hidden;
   overflow-y: visible;
   min-width: 0;
 }
-.middle-content-bottom .text-middle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
+.middle-content-bottom .filename-toolbar {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 </style>

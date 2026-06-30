@@ -7,8 +7,12 @@ export default defineComponent({
   name: 'FileNameTimeDisplay',
   props: {
     displayType: {
-      type: String as PropType<'filename' |'time'>,
+      type: String as PropType<'filename' | 'time'>,
       required: true,
+    },
+    truncateFilename: {
+      type: Boolean,
+      default: false,
     },
   },
   setup(props) {
@@ -33,29 +37,99 @@ export default defineComponent({
       }
       return value;
     });
+    const showFilenameTooltip = computed(
+      () => props.truncateFilename && props.displayType === 'filename',
+    );
     return {
       display,
       frame,
       currentTime,
       selectedCamera,
+      showFilenameTooltip,
     };
   },
 });
 </script>
 
 <template>
-  <span>
-    <span>
-      {{ display }}
+  <span
+    class="filename-time-display"
+    :class="{ 'filename-time-display--truncate': truncateFilename }"
+  >
+    <span
+      v-if="showFilenameTooltip"
+      class="filename-text-wrap"
+    >
+      <v-tooltip
+        bottom
+        open-delay="300"
+        :z-index="999"
+      >
+        <template #activator="{ on, attrs }">
+          <span
+            class="filename-text"
+            v-bind="attrs"
+            v-on="on"
+          >{{ display }}</span>
+        </template>
+        <span>{{ display }}</span>
+      </v-tooltip>
     </span>
+    <span
+      v-else
+      class="display-text"
+    >{{ display }}</span>
     <span class="border-radius mr-1">frame {{ frame }}</span>
   </span>
 </template>
 
 <style scoped>
+.filename-time-display {
+  vertical-align: baseline;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.filename-time-display--truncate {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.filename-text-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.filename-text-wrap ::v-deep .v-tooltip {
+  display: block;
+  min-width: 0;
+}
+
+.filename-text,
+.display-text {
+  vertical-align: baseline;
+}
+
+.filename-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  min-width: 0;
+}
+
 .border-radius {
   border: 1px solid #888888;
   padding: 2px 5px;
   border-radius: 5px;
+  margin-left: 4px;
 }
 </style>

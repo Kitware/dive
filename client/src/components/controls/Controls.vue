@@ -1260,11 +1260,12 @@ export default defineComponent({
 }
 
 .bottom-controls-filename {
+  display: flex;
+  align-items: baseline;
   overflow-x: hidden;
   overflow-y: visible;
   white-space: nowrap;
-  text-overflow: ellipsis;
-  line-height: 2;
+  min-width: 0;
 }
 
 .bottom-controls-row-nowrap .bottom-controls-left {
