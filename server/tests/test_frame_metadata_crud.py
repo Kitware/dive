@@ -1,6 +1,10 @@
 from unittest.mock import patch
 
+import pytest
+from girder.exceptions import RestException
+
 from dive_server import crud_dataset
+from dive_server.views_dataset import DatasetResource
 from dive_utils import constants
 
 
@@ -72,6 +76,19 @@ def _root_folder(folder_id: str, name: str):
     }
 
 
+def _call_frame_metadata_route(folder, user, params):
+    with patch('dive_server.views_dataset.Folder'):
+        resource = DatasetResource('dive_dataset')
+    resource.getCurrentUser = lambda: user
+    method = DatasetResource.get_frame_metadata.__wrapped__.__wrapped__
+    return method(
+        resource,
+        folder,
+        startFrame=int(params['startFrame']),
+        endFrame=int(params['endFrame']),
+    )
+
+
 def _wire_item_downloads(item_model, file_model, texts_by_name):
     def child_files(item):
         if item['name'] not in texts_by_name:
@@ -116,6 +133,72 @@ def _wire_multicam_valid_images(valid_images, images_by_folder_id):
         return images_by_folder_id.get(folder['_id'], [])
 
     valid_images.side_effect = images
+
+
+@patch('girder.api.rest.Resource.route')
+def test_dataset_resource_registers_frame_metadata_route(route):
+    with patch('dive_server.views_dataset.Folder'):
+        resource = DatasetResource('dive_dataset')
+
+    assert any(
+        call.args == ("GET", (":id", "frame_metadata"), resource.get_frame_metadata)
+        for call in route.call_args_list
+    )
+
+
+@patch('dive_server.views_dataset.crud_dataset.load_frame_metadata')
+def test_get_frame_metadata_route_accepts_explicit_window(load_frame_metadata):
+    dataset = _dataset_folder()
+    user = {'_id': 'user-id'}
+    response = {'cameras': {'singleCam': {'1': {'depth': '193.10'}}}}
+    load_frame_metadata.return_value = response
+
+    result = _call_frame_metadata_route(
+        dataset,
+        user,
+        {'startFrame': '1', 'endFrame': '2'},
+    )
+
+    assert result == response
+    load_frame_metadata.assert_called_once_with(
+        dataset,
+        user,
+        startFrame=1,
+        endFrame=2,
+    )
+
+
+@patch('dive_server.views_dataset.crud_dataset.load_frame_metadata')
+def test_get_frame_metadata_route_returns_empty_cameras_without_source(load_frame_metadata):
+    dataset = _dataset_folder()
+    user = {'_id': 'user-id'}
+    load_frame_metadata.return_value = {'cameras': {}}
+
+    result = _call_frame_metadata_route(
+        dataset,
+        user,
+        {'startFrame': '0', 'endFrame': '0'},
+    )
+
+    assert result == {'cameras': {}}
+
+
+@pytest.mark.parametrize(
+    ('params', 'message'),
+    [
+        ({'startFrame': '-1', 'endFrame': '0'}, 'non-negative'),
+        ({'startFrame': '2', 'endFrame': '1'}, 'less than or equal to endFrame'),
+    ],
+)
+@patch('dive_server.views_dataset.crud_dataset.load_frame_metadata')
+def test_get_frame_metadata_route_rejects_invalid_window(load_frame_metadata, params, message):
+    dataset = _dataset_folder()
+    user = {'_id': 'user-id'}
+
+    with pytest.raises(RestException, match=message):
+        _call_frame_metadata_route(dataset, user, params)
+
+    load_frame_metadata.assert_not_called()
 
 
 @patch('dive_server.crud_dataset.File')

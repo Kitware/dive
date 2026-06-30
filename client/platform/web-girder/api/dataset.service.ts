@@ -1,7 +1,8 @@
 import type { GirderModel } from '@girder/components/src';
 
 import {
-  DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetMetaMutable, FrameImage, FrameMetadataResponse,
+  SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
@@ -62,6 +63,13 @@ export interface DatasetSourceMedia {
 async function getDatasetMedia(datasetId: string) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+}
+
+function loadFrameMetadata(datasetId: string, startFrame: number, endFrame: number) {
+  return girderRest.get<FrameMetadataResponse>(
+    `dive_dataset/${parentDatasetId(datasetId)}/frame_metadata`,
+    { params: { startFrame, endFrame } },
+  );
 }
 
 function clone({
@@ -318,6 +326,7 @@ export {
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,
+  loadFrameMetadata,
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,

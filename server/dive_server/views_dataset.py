@@ -43,6 +43,7 @@ class DatasetResource(Resource):
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
+        self.route("GET", (":id", "frame_metadata"), self.get_frame_metadata)
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
@@ -261,6 +262,37 @@ class DatasetResource(Resource):
     )
     def get_media(self, folder):
         return crud_dataset.get_media(folder, self.getCurrentUser()).dict(exclude_none=True)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Get dataset frame metadata for an explicit frame window")
+        .modelParam("id", level=AccessType.READ, **DatasetModelParam)
+        .param(
+            "startFrame",
+            "Inclusive first frame to return",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+        .param(
+            "endFrame",
+            "Inclusive last frame to return",
+            paramType="query",
+            dataType="integer",
+            required=True,
+        )
+    )
+    def get_frame_metadata(self, folder, startFrame: int, endFrame: int):
+        if startFrame < 0 or endFrame < 0:
+            raise RestException('Frame metadata window bounds must be non-negative', code=400)
+        if startFrame > endFrame:
+            raise RestException('startFrame must be less than or equal to endFrame', code=400)
+        return crud_dataset.load_frame_metadata(
+            folder,
+            self.getCurrentUser(),
+            startFrame=startFrame,
+            endFrame=endFrame,
+        )
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
