@@ -1,10 +1,76 @@
 /// <reference types="vitest" />
+import fs from 'fs-extra';
+import path from 'path';
+
 import {
+  ParsedFrameMetadata,
   findJoinColumns,
   normalizeKey,
   parseFrameMetadataSource,
   selectFrameMetadataSource,
 } from 'platform/desktop/backend/serializers/frameMetadata';
+
+type ContractRecord = Record<string, string>;
+type ContractSource = {
+  header: string[];
+  recordsByFrame: Record<string, ContractRecord>;
+  cameras: Record<string, {
+    joinColumn: string;
+    payloadColumns: string[];
+    frames: string[];
+  }>;
+};
+type Contract = {
+  selectionStatus: Record<'missing' | 'ambiguous', 'none' | 'selected'>;
+  sources: Record<string, ContractSource>;
+};
+
+const fixtureDir = path.resolve(
+  process.cwd(),
+  '../../..',
+  'test-datasets',
+  'fixtures',
+  'frame-metadata',
+);
+const contractPath = path.join(fixtureDir, 'synthetic_auv_nav_expected.json');
+
+function loadContract(): Contract {
+  return fs.readJSONSync(contractPath) as Contract;
+}
+
+function fixtureText(sourceName: string): string {
+  return fs.readFileSync(path.join(fixtureDir, sourceName), 'utf8');
+}
+
+function mediaKeys(
+  cameraRecords: Record<string, ContractRecord>,
+  joinColumn: string,
+): Map<string, number> {
+  return new Map(Object.entries(cameraRecords).map(([frame, record]) => (
+    [normalizeKey(record[joinColumn]), Number(frame)]
+  )));
+}
+
+function recordsByFrame(
+  source: ParsedFrameMetadata,
+  keys: Map<string, number>,
+): Record<string, ContractRecord> {
+  const records: Record<string, ContractRecord> = {};
+  Array.from(keys.entries())
+    .sort(([, frameA], [, frameB]) => frameA - frameB)
+    .forEach(([key, frame]) => {
+      if (source.records[key] !== undefined) {
+        records[String(frame)] = source.records[key];
+      }
+    });
+  return records;
+}
+
+function sourceStatus(
+  source: ReturnType<typeof selectFrameMetadataSource>,
+): 'none' | 'selected' {
+  return source === null ? 'none' : 'selected';
+}
 
 describe('desktop frame metadata serializer', () => {
   it('normalizes media keys the same way as image name maps', () => {
@@ -148,5 +214,62 @@ describe('desktop frame metadata serializer', () => {
       ],
       mediaKeys,
     )).toBeNull();
+  });
+
+  it('matches the shared synthetic AUV fixture contract', () => {
+    const contract = loadContract();
+
+    Object.entries(contract.sources).forEach(([sourceName, expected]) => {
+      const text = fixtureText(sourceName);
+      Object.entries(expected.cameras).forEach(([camera, cameraContract]) => {
+        const expectedRecords = Object.fromEntries(
+          cameraContract.frames.map((frame) => [frame, expected.recordsByFrame[frame]]),
+        );
+        const { joinColumn } = cameraContract;
+        const keys = mediaKeys(expectedRecords, joinColumn);
+        const source = parseFrameMetadataSource(text, keys, sourceName);
+
+        expect(source).not.toBeNull();
+        if (source === null) {
+          throw new Error(`Expected ${sourceName} to parse for ${camera}`);
+        }
+        expect(source.sourceName).toBe(sourceName);
+        expect(source.header).toEqual(expected.header);
+        expect(source.joinColumns).toEqual([joinColumn]);
+        expect(source.payloadColumns).toEqual(cameraContract.payloadColumns);
+        expect(recordsByFrame(source, keys)).toEqual(expectedRecords);
+        expect(Object.values(source.records).every((record) => (
+          Object.values(record).every((value) => typeof value === 'string')
+        ))).toBe(true);
+      });
+    });
+  });
+
+  it('matches shared missing and ambiguous source decisions', () => {
+    const contract = loadContract();
+    const sourceContract = contract.sources['synthetic_auv_nav_rect.txt'];
+    const portContract = sourceContract.cameras.port;
+    const portRecords = Object.fromEntries(
+      portContract.frames.map((frame) => [frame, sourceContract.recordsByFrame[frame]]),
+    );
+    const keys = mediaKeys(portRecords, portContract.joinColumn);
+    const rectText = fixtureText('synthetic_auv_nav_rect.txt');
+
+    const missingSource = selectFrameMetadataSource(
+      [['synthetic_auv_nav_jpg.txt', fixtureText('synthetic_auv_nav_jpg.txt')]],
+      keys,
+    );
+    const ambiguousSource = selectFrameMetadataSource(
+      [
+        ['synthetic_auv_nav_rect.txt', rectText],
+        ['synthetic_auv_nav_rect_copy.csv', rectText],
+      ],
+      keys,
+    );
+
+    expect({
+      missing: sourceStatus(missingSource),
+      ambiguous: sourceStatus(ambiguousSource),
+    }).toEqual(contract.selectionStatus);
   });
 });

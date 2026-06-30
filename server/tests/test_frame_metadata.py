@@ -1,9 +1,45 @@
+import json
+from pathlib import Path
+
 from dive_utils.serializers.frame_metadata import (
     find_join_columns,
     normalize_key,
     parse_frame_metadata_source,
     select_frame_metadata_source,
 )
+
+
+FIXTURE_DIR = (
+    Path(__file__).resolve().parents[4] / "test-datasets" / "fixtures" / "frame-metadata"
+)
+CONTRACT_PATH = FIXTURE_DIR / "synthetic_auv_nav_expected.json"
+
+
+def _load_contract():
+    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+def _fixture_text(source_name):
+    return (FIXTURE_DIR / source_name).read_text(encoding="utf-8")
+
+
+def _media_keys(camera_records, join_column):
+    return {
+        normalize_key(record[join_column]): int(frame)
+        for frame, record in camera_records.items()
+    }
+
+
+def _records_by_frame(source, media_keys):
+    return {
+        str(frame): source.records[key]
+        for key, frame in sorted(media_keys.items(), key=lambda item: item[1])
+        if key in source.records
+    }
+
+
+def _source_status(source):
+    return "none" if source is None else "selected"
 
 
 def test_normalize_key_matches_image_name_map_keys():
@@ -149,3 +185,60 @@ def test_select_source_rejects_ambiguous_candidates_and_non_text_extensions():
         )
         is None
     )
+
+
+def test_shared_synthetic_auv_fixture_contract():
+    contract = _load_contract()
+
+    for source_name, expected in contract["sources"].items():
+        text = _fixture_text(source_name)
+        for camera, camera_contract in expected["cameras"].items():
+            expected_records = {
+                frame: expected["recordsByFrame"][frame]
+                for frame in camera_contract["frames"]
+            }
+            join_column = camera_contract["joinColumn"]
+            media_keys = _media_keys(expected_records, join_column)
+
+            source = parse_frame_metadata_source(text, media_keys, source_name=source_name)
+
+            assert source is not None
+            assert source.source_name == source_name
+            assert source.header == expected["header"]
+            assert source.join_columns == [join_column]
+            assert source.payload_columns == camera_contract["payloadColumns"]
+            assert _records_by_frame(source, media_keys) == expected_records
+            assert all(
+                isinstance(value, str)
+                for record in source.records.values()
+                for value in record.values()
+            )
+
+
+def test_shared_synthetic_auv_selection_status_contract():
+    contract = _load_contract()
+    source_contract = contract["sources"]["synthetic_auv_nav_rect.txt"]
+    port_contract = source_contract["cameras"]["port"]
+    port_records = {
+        frame: source_contract["recordsByFrame"][frame]
+        for frame in port_contract["frames"]
+    }
+    media_keys = _media_keys(port_records, port_contract["joinColumn"])
+    rect_text = _fixture_text("synthetic_auv_nav_rect.txt")
+
+    missing_source = select_frame_metadata_source(
+        [("synthetic_auv_nav_jpg.txt", _fixture_text("synthetic_auv_nav_jpg.txt"))],
+        media_keys,
+    )
+    ambiguous_source = select_frame_metadata_source(
+        [
+            ("synthetic_auv_nav_rect.txt", rect_text),
+            ("synthetic_auv_nav_rect_copy.csv", rect_text),
+        ],
+        media_keys,
+    )
+
+    assert {
+        "missing": _source_status(missing_source),
+        "ambiguous": _source_status(ambiguous_source),
+    } == contract["selectionStatus"]
