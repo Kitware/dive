@@ -7,7 +7,6 @@ import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideB
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
 import DatasetInfo from 'dive-common/components/DatasetInfo.vue';
-import FrameInfo from 'dive-common/components/FrameInfo.vue';
 
 interface ContextState {
   last: string;
@@ -21,19 +20,15 @@ interface ComponentMapItem {
 }
 
 const state: ContextState = reactive({
-  last: 'TypeThreshold',
+  last: 'DatasetInfo',
   active: null,
   subCategory: null,
 });
 
 const componentMap: Record<string, ComponentMapItem> = {
   [DatasetInfo.name]: {
-    description: 'Dataset Info',
+    description: 'Media Metadata',
     component: DatasetInfo,
-  },
-  [FrameInfo.name]: {
-    description: 'Frame Info',
-    component: FrameInfo,
   },
   [TypeThreshold.name]: {
     description: 'Threshold Controls',
@@ -72,7 +67,7 @@ function unregister(item: ComponentMapItem) {
 }
 
 function resetActive() {
-  state.last = 'TypeThreshold';
+  state.last = 'DatasetInfo';
   state.active = null;
 }
 
