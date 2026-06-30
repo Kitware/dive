@@ -3,6 +3,7 @@ import { DatasetStereoCalibration } from 'dive-common/apispec';
 import {
   defineComponent,
   PropType,
+  ref,
 } from 'vue';
 
 export default defineComponent({
@@ -18,6 +19,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const close = () => emit('input', false);
+    const confirmDeleteDialog = ref(false);
 
     const formatOptional = (value: number | undefined) => (
       value === undefined || value === null ? '' : String(value)
@@ -91,14 +93,21 @@ export default defineComponent({
       close();
     };
 
-    const deleteCalibration = () => {
+    const openDeleteConfirmation = () => {
+      confirmDeleteDialog.value = true;
+    };
+
+    const confirmDelete = () => {
       emit('delete');
+      confirmDeleteDialog.value = false;
     };
 
     return {
       close,
       downloadCalibration,
-      deleteCalibration,
+      confirmDeleteDialog,
+      openDeleteConfirmation,
+      confirmDelete,
       formatOptional,
       formatPair,
       formatTriple,
@@ -282,7 +291,7 @@ export default defineComponent({
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn v-if="(sourceFileName || jsonFileName) && showDelete" color="red" outlined @click="deleteCalibration">
+        <v-btn v-if="(sourceFileName || jsonFileName) && showDelete" color="red" outlined @click="openDeleteConfirmation">
           <v-icon left>
             mdi-delete-outline
           </v-icon>
@@ -296,5 +305,32 @@ export default defineComponent({
         </v-btn>
       </v-card-actions>
     </v-card>
+
+    <v-dialog v-model="confirmDeleteDialog" max-width="400px" persistent>
+      <v-card>
+        <v-toolbar flat color="error" dark dense>
+          <v-icon left>
+            mdi-alert
+          </v-icon>
+          <v-toolbar-title class="text-h6">
+            Confirm Deletion
+          </v-toolbar-title>
+          <v-spacer />
+        </v-toolbar>
+
+        <v-card-text class="pt-2">
+          Are you sure you want to delete this dataset calibration?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text color="grey darken-1" @click="confirmDeleteDialog = false">
+            Cancel
+          </v-btn>
+          <v-btn color="error" @click="confirmDelete">
+            Delete
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-dialog>
 </template>
