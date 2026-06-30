@@ -173,6 +173,10 @@ function readRows(text: string): string[][] {
       .map((line) => line.trim().split(/\s+/));
   }
 
+  return parseDelimited(text, delimiter);
+}
+
+function parseDelimited(text: string, delimiter: ',' | '\t'): string[][] {
   return parseSync(text, {
     delimiter,
     relax_column_count: true,
@@ -207,7 +211,7 @@ function isTextCandidate(sourceName: string): boolean {
 }
 
 function isViameCsv(text: string): boolean {
-  const rows = readCsvRows(text);
+  const rows = parseDelimited(text, ',');
   let hasHeader = false;
   let hasDataRow = false;
 
@@ -225,14 +229,6 @@ function isViameCsv(text: string): boolean {
   });
 
   return hasHeader && hasDataRow;
-}
-
-function readCsvRows(text: string): string[][] {
-  return parseSync(text, {
-    delimiter: ',',
-    relax_column_count: true,
-    skip_empty_lines: true,
-  }).map((row: string[]) => row.map((cell) => cell.trim()));
 }
 
 function isViameDataRow(row: string[]): boolean {
