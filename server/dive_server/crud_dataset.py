@@ -17,7 +17,7 @@ from pydantic.main import BaseModel
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, asbool, calibration_format, constants, fromMeta, models, types
-from dive_utils.serializers import kwcoco
+from dive_utils.serializers import frame_metadata, kwcoco
 
 
 def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
@@ -376,6 +376,57 @@ def get_media(
     return models.DatasetSourceMedia(
         imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
+
+
+def load_frame_metadata(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+    startFrame: int = 0,
+    endFrame: Optional[int] = None,
+) -> dict:
+    crud.verify_dataset(dsFolder)
+    if fromMeta(dsFolder, constants.TypeMarker) != constants.ImageSequenceType:
+        return {'cameras': {}}
+
+    images = crud.valid_images(dsFolder, user)
+    media_keys = crud.valid_image_names_dict(images)
+    media_root = crud.getCloneRoot(user, dsFolder)
+    source = frame_metadata.select_frame_metadata_source(
+        _frame_metadata_candidate_texts(media_root),
+        media_keys,
+    )
+    if source is None:
+        return {'cameras': {}}
+
+    if endFrame is None:
+        endFrame = len(images) - 1
+
+    records = {}
+    for media_key, frame_number in media_keys.items():
+        if startFrame <= frame_number <= endFrame and media_key in source.records:
+            records[str(frame_number)] = source.records[media_key]
+
+    return {'cameras': {'singleCam': records}}
+
+
+def _frame_metadata_candidate_texts(folder: types.GirderModel) -> Iterable[Tuple[str, str]]:
+    for item in Folder().childItems(folder):
+        if _is_frame_metadata_source_item(item):
+            yield item['name'], _download_item_text(item)
+
+
+def _is_frame_metadata_source_item(item: types.GirderModel) -> bool:
+    return Path(item['name'].lower()).suffix in {'.txt', '.csv'}
+
+
+def _download_item_text(item: types.GirderModel) -> str:
+    file = next(iter(Item().childFiles(item)), None)
+    if file is None:
+        return ''
+    chunks = File().download(file, headers=False)()
+    return b''.join(
+        chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8') for chunk in chunks
+    ).decode('utf-8')
 
 
 class MetadataMutableUpdateArgs(models.MetadataMutable):
