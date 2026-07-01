@@ -1,5 +1,5 @@
 import {
-  app, protocol, screen, BrowserWindow, session, dialog,
+  app, protocol, screen, BrowserWindow, session, dialog, ipcMain,
 } from 'electron';
 import fs from 'fs';
 import os from 'os';
@@ -32,6 +32,40 @@ app.commandLine.appendSwitch('ignore-gpu-blacklist');
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win: BrowserWindow | null;
+let allowClose = false;
+let closeGuardActive = false;
+
+ipcMain.on('desktop:close-guard-active', (event, active: boolean) => {
+  if (win && event.sender === win.webContents) {
+    closeGuardActive = active;
+  }
+});
+
+ipcMain.on('desktop:close-response', (event, allow: boolean) => {
+  if (win && event.sender === win.webContents && allow) {
+    allowClose = true;
+    win.close();
+  }
+});
+
+// Native three-way prompt shown by the renderer close guard when the window is
+// closed with unsaved changes. Returns the user's choice.
+ipcMain.handle('desktop:confirm-close-unsaved', async (): Promise<'save' | 'discard' | 'cancel'> => {
+  if (!win) return 'discard';
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Save and Exit', 'Exit Without Saving', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    title: 'Unsaved Changes',
+    message: 'You have unsaved changes.',
+    detail: 'Do you want to save your changes before exiting DIVE Desktop?',
+  });
+  if (response === 0) return 'save';
+  if (response === 1) return 'discard';
+  return 'cancel';
+});
 
 // This application uses localStorage with persistent sessions.
 // In order to use this mechanism, only one application instance
@@ -138,7 +172,17 @@ async function createWindow() {
     }
   }
 
+  allowClose = false;
+  closeGuardActive = false;
+  win.on('close', (e) => {
+    if (allowClose || !closeGuardActive) return;
+    e.preventDefault();
+    win?.webContents.send('desktop:close-requested');
+  });
+
   win.on('closed', () => {
+    allowClose = false;
+    closeGuardActive = false;
     win = null;
   });
 }

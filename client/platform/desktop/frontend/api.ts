@@ -493,7 +493,7 @@ interface StereoTransferPointsResponse {
 async function stereoEnable(
   calibration?: StereoCalibration,
   calibrationFile?: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
   return window.diveDesktop.invoke('stereo-enable', { calibration, calibrationFile });
 }
 
