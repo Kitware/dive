@@ -114,8 +114,18 @@ export function useFrameMetadataWindow({
     loadedDatasetId.value = null;
   }
 
+  function clearPendingRequest() {
+    requestToken += 1;
+    pendingRequest = null;
+    pendingDatasetId = null;
+    pendingRange = null;
+    loading.value = false;
+    error.value = null;
+  }
+
   async function fetchWindow(targetFrame: number) {
     if (!loadFrameMetadata || !datasetId.value) {
+      clearPendingRequest();
       clearCache();
       return undefined;
     }

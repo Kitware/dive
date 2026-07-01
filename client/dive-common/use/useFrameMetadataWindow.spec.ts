@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 
 // eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
@@ -69,5 +69,47 @@ describe('useFrameMetadataWindow', () => {
     expect(metadata.windowRange.value).toEqual({ startFrame: 11, endFrame: 15 });
     expect(metadata.currentRows.value).toEqual({ latitude: '59.13', depth_m: '230' });
     expect(metadata.cameras.value.port[10]).toBeUndefined();
+  });
+
+  it('ignores an in-flight response after the dataset is cleared', async () => {
+    const datasetId = ref('dataset-id');
+    const frame = ref(10);
+    const selectedCamera = ref('port');
+    let resolveRequest: (response: FrameMetadataResponse) => void = () => {};
+    const request = new Promise<FrameMetadataResponse>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const loadFrameMetadata = vi.fn(() => request);
+
+    const metadata = useFrameMetadataWindow({
+      datasetId,
+      frame,
+      selectedCamera,
+      loadFrameMetadata,
+      windowSize: 5,
+    });
+
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
+    expect(metadata.loading.value).toBe(true);
+
+    datasetId.value = '';
+    await nextTick();
+
+    expect(metadata.loading.value).toBe(false);
+    expect(metadata.windowRange.value).toBeNull();
+
+    resolveRequest({
+      cameras: {
+        port: {
+          10: { latitude: 'stale' },
+        },
+      },
+    });
+    await request;
+
+    expect(metadata.cameras.value).toEqual({});
+    expect(metadata.currentRows.value).toBeNull();
+    expect(metadata.hasMetadataSource.value).toBe(false);
+    expect(metadata.windowRange.value).toBeNull();
   });
 });
