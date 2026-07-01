@@ -23,10 +23,14 @@ interface ButtonData {
   type?: VisibleAnnotationTypes;
   active: boolean;
   loading?: boolean;
+  unavailable?: boolean;
+  unavailableTooltip?: string;
   mousetrap?: Mousetrap[];
   description: string;
   click: () => void;
 }
+
+const SAM3_ADDON_WIKI_URL = 'https://github.com/VIAME/VIAME/wiki/Model-Zoo-and-Add-Ons';
 
 export default defineComponent({
   name: 'EditorMenu',
@@ -84,6 +88,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    textQueryAvailable: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -92,6 +100,7 @@ export default defineComponent({
     'text-query-init',
     'text-query',
     'text-query-all-frames',
+    'open-external-link',
   ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
@@ -121,6 +130,27 @@ export default defineComponent({
     // When on, existing annotations are removed before the query results are
     // applied. Off by default so results are added alongside existing ones.
     const textQueryReplaceExisting = ref(false);
+    const sam3InfoDialogOpen = ref(false);
+
+    const openSam3InfoDialog = () => {
+      sam3InfoDialogOpen.value = true;
+    };
+
+    const closeSam3InfoDialog = () => {
+      sam3InfoDialogOpen.value = false;
+    };
+
+    const openSam3AddonWiki = () => {
+      emit('open-external-link', SAM3_ADDON_WIKI_URL);
+    };
+
+    const handleTextQueryClick = () => {
+      if (!props.textQueryAvailable) {
+        openSam3InfoDialog();
+        return;
+      }
+      openTextQueryDialog();
+    };
 
     const openTextQueryDialog = () => {
       textQueryDialogOpen.value = true;
@@ -223,12 +253,14 @@ export default defineComponent({
           id: 'Text Query',
           icon: 'mdi-text-search',
           active: false,
+          unavailable: !props.textQueryAvailable,
+          unavailableTooltip: 'SAM3 add-on not installed. Click for more information.',
           description: 'Text Query',
           mousetrap: [{
             bind: 't',
-            handler: () => openTextQueryDialog(),
+            handler: () => handleTextQueryClick(),
           }],
-          click: () => openTextQueryDialog(),
+          click: () => handleTextQueryClick(),
         }] : []),
       ];
     });
@@ -345,6 +377,9 @@ export default defineComponent({
       closeTextQueryDialog,
       onTextQueryServiceReady,
       submitTextQuery,
+      sam3InfoDialogOpen,
+      closeSam3InfoDialog,
+      openSam3AddonWiki,
     };
   },
 });
@@ -434,19 +469,33 @@ export default defineComponent({
               :key="`${button.id}-menu`"
             >
               <v-list-item-icon>
-                <v-btn
-                  :disabled="!editingMode || button.loading"
-                  :outlined="!button.active"
-                  :color="button.active ? editingHeader.color : ''"
-                  class="mx-1"
-                  small
-                  @click="button.click"
+                <v-tooltip
+                  bottom
+                  :disabled="!button.unavailable"
                 >
-                  <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                  <v-icon :class="{ 'mdi-spin': button.loading }">
-                    {{ button.icon }}
-                  </v-icon>
-                </v-btn>
+                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                    <span
+                      v-bind="button.unavailable ? tooltipAttrs : {}"
+                      v-on="button.unavailable ? tooltipOn : {}"
+                    >
+                      <v-btn
+                        :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                        :outlined="!button.active"
+                        :color="button.active ? editingHeader.color : ''"
+                        :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                        class="mx-1"
+                        small
+                        @click="button.click"
+                      >
+                        <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                        <v-icon :class="{ 'mdi-spin': button.loading }">
+                          {{ button.icon }}
+                        </v-icon>
+                      </v-btn>
+                    </span>
+                  </template>
+                  <span>{{ button.unavailableTooltip }}</span>
+                </v-tooltip>
               </v-list-item-icon>
               <v-list-item-content>
                 <v-list-item-title>{{ button.id }}</v-list-item-title>
@@ -472,21 +521,36 @@ export default defineComponent({
               />
             </span>
           </template>
-          <v-btn
+          <v-tooltip
             v-for="button in editButtons"
             :key="button.id + 'view'"
-            :disabled="!editingMode || button.loading"
-            :outlined="!button.active"
-            :color="button.active ? editingHeader.color : ''"
-            class="mx-1"
-            small
-            @click="button.click"
+            bottom
+            :disabled="!button.unavailable"
           >
-            <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-            <v-icon :class="{ 'mdi-spin': button.loading }">
-              {{ button.icon }}
-            </v-icon>
-          </v-btn>
+            <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+              <span
+                v-bind="button.unavailable ? tooltipAttrs : {}"
+                v-on="button.unavailable ? tooltipOn : {}"
+                class="d-inline-block"
+              >
+                <v-btn
+                  :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                  :outlined="!button.active"
+                  :color="button.active ? editingHeader.color : ''"
+                  :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                  class="mx-1"
+                  small
+                  @click="button.click"
+                >
+                  <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
+                  <v-icon :class="{ 'mdi-spin': button.loading }">
+                    {{ button.icon }}
+                  </v-icon>
+                </v-btn>
+              </span>
+            </template>
+            <span>{{ button.unavailableTooltip }}</span>
+          </v-tooltip>
         </outlined-labeled-group>
       </span>
       <!-- Segmentation Reset button -->
@@ -635,6 +699,54 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- SAM3 Add-On Info Dialog -->
+    <v-dialog
+      v-if="textQueryEnabled"
+      v-model="sam3InfoDialogOpen"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          <v-icon left>
+            mdi-package-down
+          </v-icon>
+          SAM3 Add-On Required
+        </v-card-title>
+        <v-card-text>
+          <p class="text-body-2 mb-3">
+            Text query requires the SAM3 Text Query Segmentation and Tracking Models
+            add-on to be installed in your VIAME directory.
+          </p>
+          <p class="text-body-2 mb-0">
+            You can download the add-on from the
+            <span
+              class="sam3-wiki-link"
+              @click="openSam3AddonWiki"
+            >
+              VIAME Model Zoo and Add-Ons
+            </span>
+            page. Extract the package and merge its folders into your existing VIAME
+            installation.
+          </p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            @click="closeSam3InfoDialog"
+          >
+            Close
+          </v-btn>
+          <v-btn
+            color="primary"
+            @click="openSam3AddonWiki"
+          >
+            Open Model Zoo
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-row>
 </template>
 
@@ -645,8 +757,18 @@ export default defineComponent({
   border-radius: 16px;
   white-space: nowrap;
   border: 1px solid;
-  cursor: default;
 }
+
+.edit-btn-unavailable {
+  opacity: 0.45 !important;
+}
+
+.sam3-wiki-link {
+  color: var(--v-primary-base);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .mode-button{
   border: 1px solid grey;
   min-width: 36px;

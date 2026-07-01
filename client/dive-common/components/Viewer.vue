@@ -131,6 +131,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    textQueryAvailable: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -1460,6 +1464,7 @@ export default defineComponent({
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
             textQueryEnabled,
+            textQueryAvailable,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -1468,6 +1473,7 @@ export default defineComponent({
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
+          @open-external-link="$emit('open-external-link', $event)"
         >
           <template slot="delete-controls">
             <delete-controls
