@@ -154,7 +154,8 @@ const defaultSettings: AnnotationSettings = {
   },
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility
-    delaySeconds: 60,
+    // Shorter default delay on desktop; web keeps the longer default to reduce server churn.
+    delaySeconds: isDesktopRuntime() ? 15 : 60,
   },
   stereoSettings: {
     clearLengthOnCameraFileLoad: true,
