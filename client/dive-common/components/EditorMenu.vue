@@ -257,7 +257,7 @@ export default defineComponent({
           unavailableTooltip: 'SAM3 add-on not installed. Click for more information.',
           description: 'Text Query',
           mousetrap: [{
-            bind: 't',
+            bind: 'q',
             handler: () => handleTextQueryClick(),
           }],
           click: () => handleTextQueryClick(),
