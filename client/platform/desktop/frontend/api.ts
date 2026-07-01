@@ -374,21 +374,23 @@ async function runTextQueryPipeline(
   };
 
   // Config keys must address the refiner's sam3 sub-block
-  // (process track_refiner -> :refiner:type sam3 -> block refiner:sam3).
-  const pipelineParams: Record<string, string> = {
+  // (process track_refiner -> :refiner:type sam3 -> block refiner:sam3), and
+  // must go under kwiverParams -- that is the only place runPipeline() threads
+  // into "-s key=value" flags on the viame runner command.
+  const kwiverParams: Record<string, string> = {
     'track_refiner:refiner:sam3:text_query': queryText,
     'track_refiner:refiner:sam3:replace_existing': replaceExisting ? 'true' : 'false',
   };
 
   if (threshold !== undefined) {
-    pipelineParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
+    kwiverParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
   }
 
   const args: RunPipeline = {
     type: JobType.RunPipeline,
     pipeline,
     datasetId,
-    pipelineParams,
+    pipelineParams: { kwiverParams },
   };
   gpuJobQueue.enqueue(args);
 }
