@@ -19,6 +19,7 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
+import { TransformType } from 'vue-media-annotator/transform';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -373,7 +374,7 @@ async function loadMetadata(
 
   // Load standalone camera calibration (transforms + correspondences), if present.
   const calibrationFileAbsPath = npath.join(projectDirData.basePath, CalibrationFileName);
-  let { cameraHomographies, cameraCorrespondences } = projectMetaData;
+  let { cameraHomographies, cameraCorrespondences, cameraTransformTypes } = projectMetaData;
   if (await fs.pathExists(calibrationFileAbsPath)) {
     try {
       const calibration = await _loadAsJson(calibrationFileAbsPath);
@@ -381,6 +382,7 @@ async function loadMetadata(
         ({
           homographies: cameraHomographies,
           correspondences: cameraCorrespondences,
+          transformTypes: cameraTransformTypes,
         } = fromCalibrationPairs(calibration.pairs));
       }
     } catch (err) {
@@ -455,6 +457,7 @@ async function loadMetadata(
     subType,
     cameraHomographies,
     cameraCorrespondences,
+    cameraTransformTypes,
   };
 }
 
@@ -712,12 +715,15 @@ async function _saveAsJson(absPath: string, data: unknown) {
 
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
+type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
 
 /**
  * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
  * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`
  * (the keypointgui points.txt layout); `leftToRight`/`rightToLeft` are the fitted
- * 3x3 homographies, when a fit has been performed.
+ * 3x3 homographies, when a fit has been performed; `transformType` is the fit
+ * model used to compute them (defaults to 'homography' when absent, matching the
+ * in-app default so older calibration.json files still load correctly).
  */
 interface CalibrationPair {
   left: string;
@@ -725,6 +731,7 @@ interface CalibrationPair {
   points: number[][];
   leftToRight: number[][] | null;
   rightToLeft: number[][] | null;
+  transformType?: TransformType;
 }
 
 /**
@@ -734,8 +741,11 @@ interface CalibrationPair {
 function toCalibrationPairs(
   homographies: CameraHomographies,
   correspondences: CameraCorrespondences,
+  transformTypes: CameraTransformTypes,
 ): CalibrationPair[] {
-  const keys = new Set([...Object.keys(homographies), ...Object.keys(correspondences)]);
+  const keys = new Set([
+    ...Object.keys(homographies), ...Object.keys(correspondences), ...Object.keys(transformTypes),
+  ]);
   return [...keys].map((key) => {
     const [left, right] = key.split('::');
     const homography = homographies[key];
@@ -745,16 +755,22 @@ function toCalibrationPairs(
       points: (correspondences[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
       leftToRight: homography ? homography.AtoB : null,
       rightToLeft: homography ? homography.BtoA : null,
+      transformType: transformTypes[key] || 'homography',
     };
   });
 }
 
-/** Rebuild the in-app homographies/correspondences from calibration.json pairs. */
+/** Rebuild the in-app homographies/correspondences/transform types from calibration.json pairs. */
 function fromCalibrationPairs(
   pairs: CalibrationPair[],
-): { homographies: CameraHomographies; correspondences: CameraCorrespondences } {
+): {
+    homographies: CameraHomographies;
+    correspondences: CameraCorrespondences;
+    transformTypes: CameraTransformTypes;
+  } {
   const homographies: CameraHomographies = {};
   const correspondences: CameraCorrespondences = {};
+  const transformTypes: CameraTransformTypes = {};
   pairs.forEach((pair) => {
     const key = `${pair.left}::${pair.right}`;
     if (pair.leftToRight && pair.rightToLeft) {
@@ -765,8 +781,9 @@ function fromCalibrationPairs(
         id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
       }));
     }
+    transformTypes[key] = pair.transformType || 'homography';
   });
-  return { homographies, correspondences };
+  return { homographies, correspondences, transformTypes };
 }
 
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
@@ -802,16 +819,19 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   // standalone calibration.json in the dataset directory rather than embedded in
   // meta.json, so it is easy to find, hand-edit, and consume as a self-contained
   // artifact.
-  if (args.cameraHomographies || args.cameraCorrespondences) {
+  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes) {
     const calibrationFileAbsPath = npath.join(projectDirInfo.basePath, CalibrationFileName);
     // Start from whatever is on disk so a partial update doesn't clobber the rest.
     let homographies: CameraHomographies = {};
     let correspondences: CameraCorrespondences = {};
+    let transformTypes: CameraTransformTypes = {};
     if (await fs.pathExists(calibrationFileAbsPath)) {
       try {
         const existingCalibration = await _loadAsJson(calibrationFileAbsPath);
         if (existingCalibration && Array.isArray(existingCalibration.pairs)) {
-          ({ homographies, correspondences } = fromCalibrationPairs(existingCalibration.pairs));
+          ({ homographies, correspondences, transformTypes } = fromCalibrationPairs(
+            existingCalibration.pairs,
+          ));
         }
       } catch (err) {
         console.warn(`Unable to read existing ${calibrationFileAbsPath}: ${err}`);
@@ -823,9 +843,12 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     if (args.cameraCorrespondences) {
       correspondences = args.cameraCorrespondences;
     }
+    if (args.cameraTransformTypes) {
+      transformTypes = args.cameraTransformTypes;
+    }
     await _saveAsJson(calibrationFileAbsPath, {
       version: CalibrationFileVersion,
-      pairs: toCalibrationPairs(homographies, correspondences),
+      pairs: toCalibrationPairs(homographies, correspondences, transformTypes),
     });
   }
 

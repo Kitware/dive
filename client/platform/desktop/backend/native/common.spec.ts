@@ -659,6 +659,7 @@ describe('native.common', () => {
         points: [[10, 20, 12, 22], [30, 40, 33, 44]],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        transformType: 'homography',
       },
     ]);
 
@@ -666,11 +667,37 @@ describe('native.common', () => {
     const meta = await fs.readJSON(npath.join(projectDir, 'meta.json'));
     expect(meta.cameraHomographies).toBeUndefined();
     expect(meta.cameraCorrespondences).toBeUndefined();
+    expect(meta.cameraTransformTypes).toBeUndefined();
 
     // Rehydrated on load back into the in-app shapes.
     const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
     expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
     expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
+    expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'homography' });
+  });
+
+  it('saveMetadata persists a non-default transformType per pair and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraTransformTypes = { 'rgb::ir': 'rigid' as const };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraTransformTypes });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibration = await fs.readJSON(npath.join(projectDir, 'calibration.json'));
+    expect(calibration.pairs[0].transformType).toBe('rigid');
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
   it('import with CSV annotations without specifying track file', async () => {

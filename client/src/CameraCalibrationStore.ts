@@ -1,7 +1,8 @@
 import { ref, Ref } from 'vue';
 import {
-  solveHomography, invert3, Matrix3, Point,
+  invert3, applyHomography, Matrix3, Point,
 } from './homography';
+import { TransformType, minPointsForTransform, estimateTransform } from './transform';
 
 /**
  * A single picked point pair. `a` is the point in the left camera (camA), `b`
@@ -15,7 +16,7 @@ export interface Correspondence {
   b: Point;
 }
 
-/** Both directions of the fitted homography for one camera pair. */
+/** Both directions of the fitted alignment transform for one camera pair. */
 export interface PairHomography {
   /** Maps left (camA) image coordinates onto right (camB). */
   AtoB: Matrix3;
@@ -23,17 +24,25 @@ export interface PairHomography {
   BtoA: Matrix3;
 }
 
-/** Fitted homographies keyed by {@link CameraCalibrationStore.pairKey}. */
+/** Fitted transforms keyed by {@link CameraCalibrationStore.pairKey}. */
 export type CameraHomographies = Record<string, PairHomography>;
 
 /** Picked correspondences keyed by {@link CameraCalibrationStore.pairKey}. */
 export type CameraCorrespondences = Record<string, Correspondence[]>;
 
-export interface OverlayState {
-  enabled: boolean;
+/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'homography'. */
+export type CameraTransformTypes = Record<string, TransformType>;
+
+/** Which image is warped onto which for the in-app aligned-picking preview. */
+export type AlignmentMode = 'original' | 'AtoB' | 'BtoA';
+
+/** Whether a click in an aligned (ghosted) pane is attributed to that pane's own camera, or the ghosted source camera. */
+export type PickTarget = 'native' | 'ghost';
+
+export interface AlignmentState {
+  mode: AlignmentMode;
   opacity: number;
-  /** Which image to warp onto the other when overlaying. */
-  direction: 'AtoB' | 'BtoA';
+  pickTarget: PickTarget;
 }
 
 /** Active pair. `camA` is the left camera, `camB` the right (user-chosen order). */
@@ -61,7 +70,9 @@ export default class CameraCalibrationStore {
 
   homographies: Ref<CameraHomographies>;
 
-  overlay: Ref<OverlayState>;
+  transformTypes: Ref<CameraTransformTypes>;
+
+  alignment: Ref<AlignmentState>;
 
   private nextId: number;
 
@@ -71,7 +82,8 @@ export default class CameraCalibrationStore {
     this.pendingPoint = ref(null);
     this.correspondences = ref({});
     this.homographies = ref({});
-    this.overlay = ref({ enabled: false, opacity: 0.5, direction: 'AtoB' });
+    this.transformTypes = ref({});
+    this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
     this.nextId = 1;
   }
 
@@ -98,6 +110,10 @@ export default class CameraCalibrationStore {
       this.activePair.value = { camA: left, camB: right };
     }
     this.pendingPoint.value = null;
+    // Switching pairs invalidates any active alignment/ghost picking state: a
+    // stale 'ghost' pick target could otherwise silently misattribute the next
+    // click to the wrong camera once the new pair has its own homography fitted.
+    this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
   }
 
   /**
@@ -125,7 +141,34 @@ export default class CameraCalibrationStore {
     list.push({ id: this.nextId++, a, b });
     this.correspondences.value = { ...this.correspondences.value, [key]: list };
     this.pendingPoint.value = null;
-    this.syncOverlayHomography();
+    this.syncAlignmentHomography();
+  }
+
+  /**
+   * Record a click at `coord` (native pixel coords of `camera`'s own pane). When
+   * alignment is active, the pick target is 'ghost', and `camera` is the pane
+   * currently showing the ghost overlay (the alignment "destination" pane), the
+   * coordinate is inverse-mapped through the fitted homography and attributed to
+   * the *source* camera being ghosted instead of `camera` -- letting the user
+   * complete a correspondence pair from a single pane. Clicking the source
+   * (non-ghosted) pane, or clicking with the pick target set to 'native', always
+   * records a native point for `camera` itself, same as {@link addPoint}.
+   */
+  pickPoint(camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    const { mode, pickTarget } = this.alignment.value;
+    if (pair && mode !== 'original' && pickTarget === 'ghost') {
+      const srcCam = mode === 'BtoA' ? pair.camB : pair.camA;
+      const dstCam = mode === 'BtoA' ? pair.camA : pair.camB;
+      if (camera === dstCam) {
+        const homog = this.homographies.value[this.pairKey(pair.camA, pair.camB)];
+        if (homog) {
+          this.addPoint(srcCam, applyHomography(invert3(homog[mode]), coord));
+          return;
+        }
+      }
+    }
+    this.addPoint(camera, coord);
   }
 
   /** Remove a correspondence (by id) from the active pair. */
@@ -142,7 +185,7 @@ export default class CameraCalibrationStore {
       ...this.correspondences.value,
       [key]: list.filter((c) => c.id !== id),
     };
-    this.syncOverlayHomography();
+    this.syncAlignmentHomography();
   }
 
   /** Drop all correspondences and the pending point for the active pair. */
@@ -153,59 +196,96 @@ export default class CameraCalibrationStore {
       return;
     }
     this.correspondences.value = { ...this.correspondences.value, [key]: [] };
-    this.syncOverlayHomography();
+    this.syncAlignmentHomography();
+  }
+
+  /** The chosen fit model for `key`, defaulting to 'homography' when unset. */
+  transformTypeForPair(key: string): TransformType {
+    return this.transformTypes.value[key] || 'homography';
+  }
+
+  /** Choose the fit model for `key` and immediately (re)fit or clear as needed. */
+  setTransformType(key: string, type: TransformType) {
+    this.transformTypes.value = { ...this.transformTypes.value, [key]: type };
+    this.maybeFitPair(key);
   }
 
   /**
-   * Fit the active pair when it has enough points; otherwise clear its homography
-   * and turn off the overlay preview.
+   * Fit `key` when it has enough points for its chosen transform type; otherwise
+   * clear its homography and, if it's the active (aligned) pair, revert
+   * alignment to 'original'.
    */
+  maybeFitPair(key: string) {
+    const list = this.correspondences.value[key];
+    const required = minPointsForTransform(this.transformTypeForPair(key));
+    if (!list || list.length < required) {
+      const rest = { ...this.homographies.value };
+      delete rest[key];
+      this.homographies.value = rest;
+      if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
+        this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+      }
+      return;
+    }
+    this.fitTransform(key);
+  }
+
+  /** Fit the active pair when it has enough points; otherwise clear/revert as in {@link maybeFitPair}. */
   maybeFitActivePair() {
     const key = this.activePairKey();
     if (!key) {
       return;
     }
-    const list = this.correspondences.value[key];
-    if (!list || list.length < 4) {
-      const { [key]: _removed, ...rest } = this.homographies.value;
-      this.homographies.value = rest;
-      if (this.overlay.value.enabled) {
-        this.overlay.value = { ...this.overlay.value, enabled: false };
-      }
-      return;
-    }
-    this.fitHomography(key);
+    this.maybeFitPair(key);
   }
 
-  /** Enable or disable the overlay preview, fitting the homography when turning on. */
-  setOverlayEnabled(enabled: boolean) {
-    if (enabled) {
+  /** Enable or change the alignment (ghost overlay) mode, fitting the pair first if needed. */
+  setAlignmentMode(mode: AlignmentMode) {
+    if (mode !== 'original') {
       this.maybeFitActivePair();
       const key = this.activePairKey();
       if (!key || !this.homographies.value[key]) {
+        // Not enough points for the active pair's transform type; stay original.
         return;
       }
     }
-    this.overlay.value = { ...this.overlay.value, enabled };
+    const pickTarget = mode === 'original' ? 'native' : this.alignment.value.pickTarget;
+    this.alignment.value = { ...this.alignment.value, mode, pickTarget };
   }
 
-  /** Re-fit the active pair while the overlay preview is enabled. */
-  private syncOverlayHomography() {
-    if (this.overlay.value.enabled) {
+  /** Ghost overlay opacity, independent of alignment mode. */
+  setAlignmentOpacity(opacity: number) {
+    this.alignment.value = { ...this.alignment.value, opacity };
+  }
+
+  /** Choose whether a click in an aligned pane is native or attributed to the ghosted camera. No-op while alignment is 'original'. */
+  setPickTarget(pickTarget: PickTarget) {
+    if (this.alignment.value.mode === 'original') {
+      return;
+    }
+    this.alignment.value = { ...this.alignment.value, pickTarget };
+  }
+
+  /** Re-fit the active pair while alignment is active (mode != 'original'). */
+  private syncAlignmentHomography() {
+    if (this.alignment.value.mode !== 'original') {
       this.maybeFitActivePair();
     }
   }
 
   /**
-   * Fit a homography for `key` from its correspondences (>= 4 required). Computes
-   * both directions and stores them. Returns the fitted pair.
+   * Fit `key`'s chosen transform type from its correspondences (see
+   * {@link minPointsForTransform} for the required count). Computes both
+   * directions and stores them. Returns the fitted pair.
    */
-  fitHomography(key: string): PairHomography {
+  fitTransform(key: string): PairHomography {
     const list = this.correspondences.value[key];
-    if (!list || list.length < 4) {
-      throw new Error('At least 4 point pairs are required to fit a homography');
+    const type = this.transformTypeForPair(key);
+    const required = minPointsForTransform(type);
+    if (!list || list.length < required) {
+      throw new Error(`At least ${required} point pair(s) are required to fit a ${type} transform`);
     }
-    const AtoB = solveHomography(list.map((c) => c.a), list.map((c) => c.b));
+    const AtoB = estimateTransform(type, list.map((c) => c.a), list.map((c) => c.b));
     const BtoA = invert3(AtoB);
     this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
     return { AtoB, BtoA };
@@ -223,14 +303,19 @@ export default class CameraCalibrationStore {
       .join('\n');
   }
 
-  /** Reset state and load saved homographies and correspondences. */
-  hydrate(homographies?: CameraHomographies, correspondences?: CameraCorrespondences) {
+  /** Reset state and load saved homographies, correspondences, and transform type choices. */
+  hydrate(
+    homographies?: CameraHomographies,
+    correspondences?: CameraCorrespondences,
+    transformTypes?: CameraTransformTypes,
+  ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.correspondences.value = correspondences ? { ...correspondences } : {};
+    this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
     this.activePair.value = null;
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
-    this.overlay.value = { enabled: false, opacity: 0.5, direction: 'AtoB' };
+    this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
     // Resume id allocation past any restored correspondences.
     let maxId = 0;
     Object.values(this.correspondences.value).forEach((list) => {
