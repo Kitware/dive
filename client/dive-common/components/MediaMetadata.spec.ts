@@ -20,7 +20,7 @@ import {
   dummyState,
   provideAnnotator,
 } from 'vue-media-annotator/provides';
-import DatasetInfo from './DatasetInfo.vue';
+import MediaMetadata from './MediaMetadata.vue';
 
 Vue.config.ignoredElements = [/^v-/];
 
@@ -82,7 +82,7 @@ function apiWithMetadata({
   };
 }
 
-function mountDatasetInfo({
+function mountMediaMetadata({
   response,
   loadFrameMetadata,
   selectedCamera = 'port',
@@ -115,7 +115,7 @@ function mountDatasetInfo({
   const api = apiWithMetadata({ loadMetadata, loadFrameMetadata: loader, saveMetadata });
 
   const Root = defineComponent({
-    components: { DatasetInfo },
+    components: { MediaMetadata },
     setup() {
       provideApi(api);
       provideAnnotator(
@@ -125,7 +125,7 @@ function mountDatasetInfo({
       );
       return {};
     },
-    template: '<DatasetInfo />',
+    template: '<MediaMetadata />',
   });
 
   const wrapper = mount(Root, {
@@ -142,9 +142,9 @@ function mountDatasetInfo({
   };
 }
 
-describe('DatasetInfo', () => {
+describe('MediaMetadata', () => {
   it('renders frame metadata above dataset info rows in source order', async () => {
-    const { wrapper } = mountDatasetInfo({
+    const { wrapper } = mountMediaMetadata({
       response: {
         cameras: {
           port: {
@@ -177,7 +177,7 @@ describe('DatasetInfo', () => {
   });
 
   it('keeps frame metadata read-only without edit controls', async () => {
-    const { wrapper } = mountDatasetInfo({
+    const { wrapper } = mountMediaMetadata({
       readOnlyMode: false,
       response: {
         cameras: {
@@ -201,7 +201,7 @@ describe('DatasetInfo', () => {
   });
 
   it('shows the unsupported platform state when no load API is provided', async () => {
-    const { wrapper } = mountDatasetInfo();
+    const { wrapper } = mountMediaMetadata();
 
     await nextTick();
 
@@ -210,7 +210,7 @@ describe('DatasetInfo', () => {
   });
 
   it('shows the no-source state after an empty cameras response', async () => {
-    const { wrapper } = mountDatasetInfo({ response: { cameras: {} } });
+    const { wrapper } = mountMediaMetadata({ response: { cameras: {} } });
 
     await flushPromises();
     await nextTick();
@@ -221,7 +221,7 @@ describe('DatasetInfo', () => {
   });
 
   it('shows the no-current-frame state when the dataset has metadata but not this frame', async () => {
-    const { wrapper } = mountDatasetInfo({
+    const { wrapper } = mountMediaMetadata({
       response: {
         cameras: {
           port: {
@@ -249,7 +249,7 @@ describe('DatasetInfo', () => {
         },
       },
     }));
-    const { wrapper, state } = mountDatasetInfo({ loadFrameMetadata });
+    const { wrapper, state } = mountMediaMetadata({ loadFrameMetadata });
 
     await flushPromises();
     await nextTick();

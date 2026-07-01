@@ -14,7 +14,7 @@ import { useFrameMetadataWindow } from 'dive-common/use';
 import DatasetMetaEditorDialog from 'dive-common/components/DatasetMetaEditorDialog.vue';
 
 export default defineComponent({
-  name: 'DatasetInfo',
+  name: 'MediaMetadata',
 
   components: { DatasetMetaEditorDialog },
 
