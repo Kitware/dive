@@ -46,6 +46,9 @@ export default defineComponent({
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
     const canExport = computed(() => correspondences.value.length >= 1);
+    const canClearLast = computed(
+      () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
+    );
 
     const alignmentModeItems = computed(() => [
       { text: 'Original (no alignment)', value: 'original' },
@@ -98,6 +101,19 @@ export default defineComponent({
       }
     }
 
+    /** Trigger a browser download of `text` as `filename`. */
+    function downloadText(text: string, filename: string) {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    }
+
     /**
      * Download the active pair's correspondences as a keypointgui-style
      * points.txt (leftX leftY rightX rightY), for VIAME's
@@ -109,15 +125,73 @@ export default defineComponent({
       if (!key) {
         return;
       }
-      const blob = new Blob([calibration.toPointsText(key)], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${camLeft.value}_to_${camRight.value}_points.txt`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      downloadText(calibration.toPointsText(key), `${camLeft.value}_to_${camRight.value}_points.txt`);
+    }
+
+    /**
+     * Download the fitted homography (fitting first if needed) as a
+     * whitespace-separated 3x3 matrix .txt, matching keypointgui's Save
+     * Left->Right / Right->Left Homography.
+     */
+    function exportHomography(direction: 'AtoB' | 'BtoA') {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      calibration.maybeFitActivePair();
+      const text = calibration.toHomographyText(key, direction);
+      if (!text) {
+        return;
+      }
+      const [from, to] = direction === 'AtoB' ? [camLeft.value, camRight.value] : [camRight.value, camLeft.value];
+      downloadText(text, `${from}_to_${to}_homography.txt`);
+    }
+
+    const pointsFileInput = ref<HTMLInputElement | null>(null);
+    const loadPointsDialog = ref(false);
+    const loadPointsError = ref<string | null>(null);
+    const pendingLoadText = ref<string | null>(null);
+
+    function applyLoadedPoints(text: string, mode: 'replace' | 'merge') {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      loadPointsError.value = null;
+      try {
+        calibration.loadPointsFromText(key, text, mode);
+      } catch (e) {
+        loadPointsError.value = e instanceof Error ? e.message : String(e);
+      }
+    }
+
+    /** File input change handler for Load points.txt; prompts for replace/merge if the pair already has points. */
+    function onPointsFileSelected(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result ?? '');
+        if (correspondences.value.length > 0) {
+          pendingLoadText.value = text;
+          loadPointsDialog.value = true;
+        } else {
+          applyLoadedPoints(text, 'replace');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function confirmLoadPoints(mode: 'replace' | 'merge') {
+      loadPointsDialog.value = false;
+      if (pendingLoadText.value !== null) {
+        applyLoadedPoints(pendingLoadText.value, mode);
+        pendingLoadText.value = null;
+      }
     }
 
     return {
@@ -136,12 +210,19 @@ export default defineComponent({
       alignmentModeItems,
       canFit,
       canExport,
+      canClearLast,
       saving,
+      pointsFileInput,
+      loadPointsDialog,
+      loadPointsError,
       setTransformType,
       setAlignmentMode,
       setPickTarget,
       save,
       exportPoints,
+      exportHomography,
+      onPointsFileSelected,
+      confirmLoadPoints,
     };
   },
 });
@@ -212,13 +293,21 @@ export default defineComponent({
       <h4 class="mb-0">
         Correspondences ({{ correspondences.length }})
       </h4>
-      <tooltip-btn
-        color="error"
-        icon="mdi-delete-sweep"
-        :disabled="correspondences.length === 0"
-        tooltip-text="Clear all correspondences for this pair"
-        @click="calibration.clearPair()"
-      />
+      <div>
+        <tooltip-btn
+          icon="mdi-undo"
+          :disabled="!canClearLast"
+          tooltip-text="Undo the pending point, or the last completed pair"
+          @click="calibration.clearLast()"
+        />
+        <tooltip-btn
+          color="error"
+          icon="mdi-delete-sweep"
+          :disabled="correspondences.length === 0"
+          tooltip-text="Clear all correspondences for this pair"
+          @click="calibration.clearPair()"
+        />
+      </div>
     </div>
     <v-simple-table
       v-if="correspondences.length"
@@ -276,6 +365,91 @@ export default defineComponent({
     <span class="text-caption grey--text">
       Saves rows of "leftX leftY rightX rightY" for VIAME's
       itk_point_set_to_transform (.h5). Columns follow the Camera A / Camera B order above.
+    </span>
+
+    <input
+      ref="pointsFileInput"
+      type="file"
+      accept=".txt"
+      style="display: none"
+      @change="onPointsFileSelected"
+    >
+    <v-btn
+      block
+      outlined
+      small
+      class="mt-2 mb-2"
+      @click="pointsFileInput.click()"
+    >
+      Load points.txt
+    </v-btn>
+    <span
+      v-if="loadPointsError"
+      class="text-caption error--text d-block"
+    >
+      {{ loadPointsError }}
+    </span>
+
+    <v-dialog
+      v-model="loadPointsDialog"
+      max-width="420"
+    >
+      <v-card>
+        <v-card-title>Load points.txt</v-card-title>
+        <v-card-text>
+          This pair already has {{ correspondences.length }} correspondence(s).
+          Replace them with the loaded points, or merge the loaded points in?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            @click="loadPointsDialog = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            text
+            @click="confirmLoadPoints('merge')"
+          >
+            Merge
+          </v-btn>
+          <v-btn
+            color="primary"
+            text
+            @click="confirmLoadPoints('replace')"
+          >
+            Replace
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-divider class="my-3" />
+
+    <v-btn
+      block
+      outlined
+      small
+      :disabled="!canFit"
+      class="mb-2"
+      @click="exportHomography('AtoB')"
+    >
+      Export A→B homography.txt
+    </v-btn>
+    <v-btn
+      block
+      outlined
+      small
+      :disabled="!canFit"
+      class="mb-2"
+      @click="exportHomography('BtoA')"
+    >
+      Export B→A homography.txt
+    </v-btn>
+    <span class="text-caption grey--text">
+      Saves the fitted 3x3 matrix as whitespace-separated rows, matching
+      keypointgui's Save Homography.
     </span>
 
     <v-divider class="my-3" />
