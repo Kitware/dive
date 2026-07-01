@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 import pytest
@@ -76,17 +77,24 @@ def _root_folder(folder_id: str, name: str):
     }
 
 
-def _call_frame_metadata_route(folder, user, params):
-    with patch('dive_server.views_dataset.Folder'):
+def _call_frame_metadata_route(folder, user, params, return_mocks=False):
+    with (
+        patch('dive_server.views_dataset.Folder'),
+        patch('dive_server.views_dataset.setRawResponse') as set_raw_response,
+        patch('dive_server.views_dataset.setResponseHeader') as set_response_header,
+    ):
         resource = DatasetResource('dive_dataset')
-    resource.getCurrentUser = lambda: user
-    method = DatasetResource.get_frame_metadata.__wrapped__.__wrapped__
-    return method(
-        resource,
-        folder,
-        startFrame=int(params['startFrame']),
-        endFrame=int(params['endFrame']),
-    )
+        resource.getCurrentUser = lambda: user
+        method = DatasetResource.get_frame_metadata.__wrapped__.__wrapped__
+        result = method(
+            resource,
+            folder,
+            startFrame=int(params['startFrame']),
+            endFrame=int(params['endFrame']),
+        )
+    if return_mocks:
+        return result, set_response_header, set_raw_response
+    return result
 
 
 def _wire_item_downloads(item_model, file_model, texts_by_name):
@@ -150,16 +158,30 @@ def test_dataset_resource_registers_frame_metadata_route(route):
 def test_get_frame_metadata_route_accepts_explicit_window(load_frame_metadata):
     dataset = _dataset_folder()
     user = {'_id': 'user-id'}
-    response = {'cameras': {'singleCam': {'1': {'depth': '193.10'}}}}
+    response = {
+        'cameras': {
+            'singleCam': {
+                '1': {
+                    'filename': 'image_0002.jpg',
+                    'depth': '193.10',
+                    'temperature': '4.1',
+                },
+            },
+        },
+    }
     load_frame_metadata.return_value = response
 
-    result = _call_frame_metadata_route(
+    result, set_response_header, set_raw_response = _call_frame_metadata_route(
         dataset,
         user,
         {'startFrame': '1', 'endFrame': '2'},
+        return_mocks=True,
     )
 
-    assert result == response
+    assert json.loads(result) == response
+    assert result.index('"filename"') < result.index('"depth"') < result.index('"temperature"')
+    set_response_header.assert_called_once_with('Content-Type', 'application/json')
+    set_raw_response.assert_called_once_with()
     load_frame_metadata.assert_called_once_with(
         dataset,
         user,
@@ -180,7 +202,7 @@ def test_get_frame_metadata_route_returns_empty_cameras_without_source(load_fram
         {'startFrame': '0', 'endFrame': '0'},
     )
 
-    assert result == {'cameras': {}}
+    assert json.loads(result) == {'cameras': {}}
 
 
 @pytest.mark.parametrize(

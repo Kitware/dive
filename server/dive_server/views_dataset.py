@@ -1,14 +1,16 @@
+import json
 from typing import List, Optional
 
 import cherrypy
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, rawResponse
+from girder.api.rest import Resource, rawResponse, setRawResponse, setResponseHeader
 from girder.constants import AccessType, SortDir, TokenScope
 from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
+from girder.utility import JsonEncoder
 
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
@@ -203,7 +205,7 @@ class DatasetResource(Resource):
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
-    
+
     @access.user
     @autoDescribeRoute(
         Description("Get calibration information of dataset")
@@ -287,12 +289,15 @@ class DatasetResource(Resource):
             raise RestException('Frame metadata window bounds must be non-negative', code=400)
         if startFrame > endFrame:
             raise RestException('startFrame must be less than or equal to endFrame', code=400)
-        return crud_dataset.load_frame_metadata(
+        payload = crud_dataset.load_frame_metadata(
             folder,
             self.getCurrentUser(),
             startFrame=startFrame,
             endFrame=endFrame,
         )
+        setResponseHeader('Content-Type', 'application/json')
+        setRawResponse()
+        return json.dumps(payload, allow_nan=False, cls=JsonEncoder)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
