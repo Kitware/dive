@@ -36,6 +36,7 @@ import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
+import { setCloseGuard } from '../store/closeGuard';
 
 // Renderer-safe path helpers. Node's 'path' module is externalized in the
 // renderer (contextIsolation), so npath.* is unavailable here.
@@ -70,6 +71,14 @@ export default defineComponent({
     CalibrationMenu,
     ...context.getComponents(),
   },
+
+  // TODO: This will require an import from vue-router for Vue3 compatibility
+  async beforeRouteLeave(to, from, next) {
+    if (await this.viewerRef.navigateAwayGuard()) {
+      next();
+    }
+  },
+
   props: {
     id: { // always the base ID
       type: String,
@@ -1580,6 +1589,35 @@ export default defineComponent({
       }
       stereoCalibrationFile = undefined;
     }
+
+    // Desktop window-close guard: on unsaved changes, offer a native three-way
+    // choice (save / discard / cancel) rather than the two-button navigate-away
+    // prompt. Resolves true to allow the close, false to keep the app open.
+    async function desktopCloseGuard(): Promise<boolean> {
+      const count = viewerRef.value?.pendingSaveCount ?? 0;
+      if (!count) return true;
+      const choice = await window.diveDesktop.invoke('desktop:confirm-close-unsaved');
+      if (choice === 'cancel') return false;
+      if (choice === 'save') {
+        try {
+          await viewerRef.value.save();
+        } catch {
+          // Save failed; the Viewer surfaces its own error, so keep the app open.
+          return false;
+        }
+      }
+      return true;
+    }
+
+    onMounted(() => {
+      setCloseGuard(desktopCloseGuard);
+      window.diveDesktop.send('desktop:close-guard-active', true);
+    });
+
+    onBeforeUnmount(() => {
+      setCloseGuard(null);
+      window.diveDesktop.send('desktop:close-guard-active', false);
+    });
 
     return {
       datasets,
