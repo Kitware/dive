@@ -69,10 +69,10 @@ export function updateHistory(args: DesktopJobUpdate) {
     existing.job.endTime = args.endTime;
   }
 
-  // Surface a failed job's error to the user. The process reports the cause on
-  // lines beginning with "ERROR:" (DIVE convention); we only prompt when the
-  // job has actually exited with a non-zero, non-cancellation code and at
-  // least one such line was captured.
+  // Surface a failed job to the user with a single dialog once it exits with a
+  // non-zero, non-cancellation code. The process reports a cause on lines
+  // beginning with "ERROR:" (DIVE convention); when present we show those,
+  // otherwise we fall back to a generic message so failures are never silent.
   const finished = existing.job.endTime !== undefined;
   const failed = existing.job.exitCode !== null
     && existing.job.exitCode !== 0
@@ -84,18 +84,22 @@ export function updateHistory(args: DesktopJobUpdate) {
       .map((line) => line.trim())
       .filter((line) => line.startsWith('ERROR:'))
       .map((line) => line.replace(/^ERROR:\s*/, ''));
-    if (errorLines.length > 0) {
-      try {
-        const { prompt } = usePrompt();
-        prompt({
-          title: `${existing.job.title || 'Job'} failed`,
-          text: errorLines,
-          positiveButton: 'OK',
-        });
-      } catch {
-        // Prompt service not available (e.g. very early startup); the error
-        // is still visible in the job log.
-      }
+    const text = errorLines.length > 0
+      ? errorLines
+      : [
+        `The job exited unexpectedly (exit code ${existing.job.exitCode}).`,
+        'Open it from the Jobs page to view the full log.',
+      ];
+    try {
+      const { prompt } = usePrompt();
+      prompt({
+        title: `${existing.job.title || 'Job'} failed`,
+        text,
+        positiveButton: 'OK',
+      });
+    } catch {
+      // Prompt service not available (e.g. very early startup); the error
+      // is still visible in the job log.
     }
   }
 }
