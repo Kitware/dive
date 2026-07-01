@@ -309,6 +309,12 @@ async function segmentationInitialize(): Promise<{ success: boolean; noSamInstal
   return window.diveDesktop.invoke('segmentation-initialize');
 }
 
+// Start the interactive service process without warming the point-segmentation
+// model (used by text query, which loads its own model lazily).
+async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('segmentation-ensure-started');
+}
+
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
   return window.diveDesktop.invoke('segmentation-predict', request);
 }
@@ -703,6 +709,7 @@ export {
   deleteCalibration,
   /* Segmentation APIs */
   segmentationInitialize,
+  segmentationEnsureStarted,
   segmentationPredict,
   segmentationStereoSegment,
   segmentationSetImage,

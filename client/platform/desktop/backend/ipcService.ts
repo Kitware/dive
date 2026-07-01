@@ -333,6 +333,16 @@ export default function register() {
     return { success: true, noSamInstalled: showWarning };
   });
 
+  // Start the interactive service process WITHOUT warming the point-
+  // segmentation model. Used by the text-query dialog: text query loads its
+  // own (often different/heavier) model lazily and must not force a
+  // segmentation-model load.
+  ipcMain.handle('segmentation-ensure-started', async () => {
+    const segService = getInteractiveServiceManager();
+    await segService.ensureStarted(settings.get());
+    return { success: true };
+  });
+
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
     const segService = getInteractiveServiceManager();
 
@@ -404,10 +414,10 @@ export default function register() {
   }) => {
     const segService = getInteractiveServiceManager();
 
-    // Auto-initialize if not ready
-    if (!segService.isSegmentationReady()) {
-      await segService.initialize(settings.get());
-    }
+    // Text query only needs the service process running -- not the (possibly
+    // different) point-segmentation model warmed. Start it without warming;
+    // the text-query model loads lazily inside the text_query request.
+    await segService.ensureStarted(settings.get());
 
     const response = await segService.textQuery(args);
     return response;
