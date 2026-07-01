@@ -1,5 +1,5 @@
 import {
-  app, protocol, screen, BrowserWindow, session, dialog,
+  app, protocol, screen, BrowserWindow, session, dialog, ipcMain,
 } from 'electron';
 import fs from 'fs';
 import os from 'os';
@@ -32,6 +32,21 @@ app.commandLine.appendSwitch('ignore-gpu-blacklist');
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win: BrowserWindow | null;
+let allowClose = false;
+let closeGuardActive = false;
+
+ipcMain.on('desktop:close-guard-active', (event, active: boolean) => {
+  if (win && event.sender === win.webContents) {
+    closeGuardActive = active;
+  }
+});
+
+ipcMain.on('desktop:close-response', (event, allow: boolean) => {
+  if (win && event.sender === win.webContents && allow) {
+    allowClose = true;
+    win.close();
+  }
+});
 
 // This application uses localStorage with persistent sessions.
 // In order to use this mechanism, only one application instance
@@ -138,7 +153,17 @@ async function createWindow() {
     }
   }
 
+  allowClose = false;
+  closeGuardActive = false;
+  win.on('close', (e) => {
+    if (allowClose || !closeGuardActive) return;
+    e.preventDefault();
+    win?.webContents.send('desktop:close-requested');
+  });
+
   win.on('closed', () => {
+    allowClose = false;
+    closeGuardActive = false;
     win = null;
   });
 }

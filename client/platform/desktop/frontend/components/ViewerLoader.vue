@@ -35,6 +35,7 @@ import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
+import { setCloseGuard } from '../store/closeGuard';
 
 // Renderer-safe path helpers. Node's 'path' module is externalized in the
 // renderer (contextIsolation), so npath.* is unavailable here.
@@ -69,6 +70,14 @@ export default defineComponent({
     CalibrationMenu,
     ...context.getComponents(),
   },
+
+  // TODO: This will require an import from vue-router for Vue3 compatibility
+  async beforeRouteLeave(to, from, next) {
+    if (await this.viewerRef.navigateAwayGuard()) {
+      next();
+    }
+  },
+
   props: {
     id: { // always the base ID
       type: String,
@@ -1329,6 +1338,16 @@ export default defineComponent({
       }
       stereoCalibrationFile = undefined;
     }
+
+    onMounted(() => {
+      setCloseGuard(() => viewerRef.value.navigateAwayGuard());
+      window.diveDesktop.send('desktop:close-guard-active', true);
+    });
+
+    onBeforeUnmount(() => {
+      setCloseGuard(null);
+      window.diveDesktop.send('desktop:close-guard-active', false);
+    });
 
     return {
       datasets,
