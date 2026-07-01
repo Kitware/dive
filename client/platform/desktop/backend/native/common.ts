@@ -54,7 +54,7 @@ import {
   JobType, LastCalibrationBaseName,
 } from 'platform/desktop/constants';
 import {
-  cleanString, filterByGlob, makeid, strNumericCompare,
+  cleanString, filterByGlob, makeid, parseFrameTimestamp, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 
 import processTrackAttributes from './attributeProcessor';
@@ -404,13 +404,16 @@ async function loadMetadata(
       imageData = projectMetaData.transcodedImageFiles.map((filename: string) => ({
         url: makeMediaUrl(npath.join(projectDirData.basePath, filename)),
         filename,
+        timestamp: parseFrameTimestamp(filename),
       }));
     } else {
       imageData = projectMetaData.originalImageFiles.map((pathOrFilename: string) => {
         const absPath = npath.join(projectMetaData.originalBasePath, pathOrFilename);
+        const filename = npath.basename(absPath);
         return {
           url: makeMediaUrl(absPath),
-          filename: npath.basename(absPath),
+          filename,
+          timestamp: parseFrameTimestamp(filename),
         };
       });
     }

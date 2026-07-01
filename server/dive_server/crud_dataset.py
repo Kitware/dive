@@ -16,7 +16,16 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, calibration_format, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    calibration_format,
+    constants,
+    fromMeta,
+    models,
+    timestamp_parser,
+    types,
+)
 from dive_utils.serializers import kwcoco
 
 
@@ -357,6 +366,7 @@ def get_media(
                 id=str(image["_id"]),
                 url=get_url(dsFolder, image),
                 filename=image['name'],
+                timestamp=timestamp_parser.parse_frame_timestamp(image['name']),
             )
             for image in crud.valid_images(dsFolder, user)
         ]
