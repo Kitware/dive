@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 from dive_utils.serializers.frame_metadata import (
     find_join_columns,
     normalize_key,
@@ -8,25 +5,67 @@ from dive_utils.serializers.frame_metadata import (
     select_frame_metadata_source,
 )
 
+SYNTHETIC_HEADER = [
+    "port_image",
+    "depth_m",
+    "heading",
+    "starboard_image",
+]
 
-FIXTURE_DIR = (
-    Path(__file__).resolve().parents[4] / "test-datasets" / "fixtures" / "frame-metadata"
-)
-CONTRACT_PATH = FIXTURE_DIR / "synthetic_auv_nav_expected.json"
+SYNTHETIC_RECT_ROWS = [
+    ["rect_port_0001.tif", "192.80", "174.5", "rect_starboard_0001.tif"],
+    ["rect_port_0002.tif", "193.05", "175.1", "rect_starboard_0002.tif"],
+]
+
+SYNTHETIC_JPG_ROWS = [
+    ["jpg_port_0001.jpg", "88.40", "92.5", "jpg_starboard_0001.jpg"],
+    ["jpg_port_0002.jpg", "88.72", "93.1", "jpg_starboard_0002.jpg"],
+]
+
+SYNTHETIC_SOURCES = {
+    "synthetic_auv_nav_rect.txt": SYNTHETIC_RECT_ROWS,
+    "synthetic_auv_nav_jpg.txt": SYNTHETIC_JPG_ROWS,
+}
 
 
 def _load_contract():
-    return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    return {
+        "selectionStatus": {"missing": "none", "ambiguous": "none"},
+        "sources": {
+            source_name: _source_contract(rows) for source_name, rows in SYNTHETIC_SOURCES.items()
+        },
+    }
 
 
 def _fixture_text(source_name):
-    return (FIXTURE_DIR / source_name).read_text(encoding="utf-8")
+    rows = SYNTHETIC_SOURCES[source_name]
+    return "\n".join([" ".join(SYNTHETIC_HEADER), *[" ".join(row) for row in rows], ""])
+
+
+def _source_contract(rows):
+    return {
+        "header": SYNTHETIC_HEADER,
+        "cameras": {
+            "port": _camera_contract("port_image", rows),
+            "starboard": _camera_contract("starboard_image", rows),
+        },
+        "recordsByFrame": {
+            str(frame): dict(zip(SYNTHETIC_HEADER, row)) for frame, row in enumerate(rows)
+        },
+    }
+
+
+def _camera_contract(join_column, rows):
+    return {
+        "joinColumn": join_column,
+        "payloadColumns": [column for column in SYNTHETIC_HEADER if column != join_column],
+        "frames": [str(frame) for frame in range(len(rows))],
+    }
 
 
 def _media_keys(camera_records, join_column):
     return {
-        normalize_key(record[join_column]): int(frame)
-        for frame, record in camera_records.items()
+        normalize_key(record[join_column]): int(frame) for frame, record in camera_records.items()
     }
 
 
@@ -140,7 +179,8 @@ def test_rejects_viame_annotation_csv_even_when_image_column_matches():
 
 def test_rejects_headerless_viame_annotation_csv():
     """A headerless VIAME CSV (no comment header, first row is a detection) must
-    not be mistaken for telemetry, otherwise its detections are dropped on import."""
+    not be mistaken for telemetry, otherwise its detections are dropped on import.
+    """
     media_keys = {"frame_0001": 0, "frame_0002": 1}
     headerless_viame = (
         "1,frame_0001.png,0,10,20,30,40,1.0,-1,fish,0.9\n"
@@ -152,7 +192,8 @@ def test_rejects_headerless_viame_annotation_csv():
 
 def test_accepts_viame_shaped_telemetry_without_viame_header():
     """Telemetry whose rows coincidentally match VIAME's numeric shape but lacks the
-    ``# 1: Detection or Track-id`` comment header is still accepted as telemetry."""
+    ``# 1: Detection or Track-id`` comment header is still accepted as telemetry.
+    """
     media_keys = {"image_0001": 0}
     text = (
         "index,image,frame,x,y,depth,altitude,heading,temperature\n"
@@ -204,10 +245,9 @@ def test_shared_synthetic_auv_fixture_contract():
 
     for source_name, expected in contract["sources"].items():
         text = _fixture_text(source_name)
-        for camera, camera_contract in expected["cameras"].items():
+        for camera_contract in expected["cameras"].values():
             expected_records = {
-                frame: expected["recordsByFrame"][frame]
-                for frame in camera_contract["frames"]
+                frame: expected["recordsByFrame"][frame] for frame in camera_contract["frames"]
             }
             join_column = camera_contract["joinColumn"]
             media_keys = _media_keys(expected_records, join_column)
@@ -232,8 +272,7 @@ def test_shared_synthetic_auv_selection_status_contract():
     source_contract = contract["sources"]["synthetic_auv_nav_rect.txt"]
     port_contract = source_contract["cameras"]["port"]
     port_records = {
-        frame: source_contract["recordsByFrame"][frame]
-        for frame in port_contract["frames"]
+        frame: source_contract["recordsByFrame"][frame] for frame in port_contract["frames"]
     }
     media_keys = _media_keys(port_records, port_contract["joinColumn"])
     rect_text = _fixture_text("synthetic_auv_nav_rect.txt")

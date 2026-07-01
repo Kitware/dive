@@ -1,6 +1,4 @@
 /// <reference types="vitest" />
-import fs from 'fs-extra';
-import path from 'path';
 
 import {
   ParsedFrameMetadata,
@@ -25,21 +23,65 @@ type Contract = {
   sources: Record<string, ContractSource>;
 };
 
-const fixtureDir = path.resolve(
-  process.cwd(),
-  '../../..',
-  'test-datasets',
-  'fixtures',
-  'frame-metadata',
-);
-const contractPath = path.join(fixtureDir, 'synthetic_auv_nav_expected.json');
+const syntheticHeader = [
+  'port_image',
+  'depth_m',
+  'heading',
+  'starboard_image',
+];
+
+const syntheticSources: Record<string, string[][]> = {
+  'synthetic_auv_nav_rect.txt': [
+    ['rect_port_0001.tif', '192.80', '174.5', 'rect_starboard_0001.tif'],
+    ['rect_port_0002.tif', '193.05', '175.1', 'rect_starboard_0002.tif'],
+  ],
+  'synthetic_auv_nav_jpg.txt': [
+    ['jpg_port_0001.jpg', '88.40', '92.5', 'jpg_starboard_0001.jpg'],
+    ['jpg_port_0002.jpg', '88.72', '93.1', 'jpg_starboard_0002.jpg'],
+  ],
+};
+
+function sourceText(sourceName: string): string {
+  const rows = syntheticSources[sourceName];
+  return [syntheticHeader.join(' '), ...rows.map((row) => row.join(' ')), ''].join('\n');
+}
+
+function sourceContract(rows: string[][]): ContractSource {
+  return {
+    header: syntheticHeader,
+    recordsByFrame: Object.fromEntries(rows.map((row, frame) => [
+      String(frame),
+      Object.fromEntries(syntheticHeader.map((field, index) => [field, row[index]])),
+    ])),
+    cameras: {
+      port: cameraContract('port_image', rows),
+      starboard: cameraContract('starboard_image', rows),
+    },
+  };
+}
+
+function cameraContract(joinColumn: string, rows: string[][]) {
+  return {
+    joinColumn,
+    payloadColumns: syntheticHeader.filter((column) => column !== joinColumn),
+    frames: rows.map((_, frame) => String(frame)),
+  };
+}
 
 function loadContract(): Contract {
-  return fs.readJSONSync(contractPath) as Contract;
+  return {
+    selectionStatus: { missing: 'none', ambiguous: 'none' },
+    sources: Object.fromEntries(
+      Object.entries(syntheticSources).map(([sourceName, rows]) => [
+        sourceName,
+        sourceContract(rows),
+      ]),
+    ),
+  };
 }
 
 function fixtureText(sourceName: string): string {
-  return fs.readFileSync(path.join(fixtureDir, sourceName), 'utf8');
+  return sourceText(sourceName);
 }
 
 function mediaKeys(
