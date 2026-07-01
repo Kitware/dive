@@ -238,6 +238,12 @@ class MetadataMutable(BaseModel):
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
     datasetInfo: Optional[types.DatasetInfo]
+    # Per-camera-pair alignment homographies, keyed by directional "left::right".
+    # Each value holds the 3x3 AtoB / BtoA matrices.
+    cameraHomographies: Optional[Dict[str, Dict[str, List[List[float]]]]]
+    # The picked point correspondences behind those homographies, keyed the same
+    # way. Each entry is a list of {id, a: [x, y], b: [x, y]} pairs.
+    cameraCorrespondences: Optional[Dict[str, List[Dict[str, Any]]]]
     fps: Optional[float]
 
     @staticmethod
