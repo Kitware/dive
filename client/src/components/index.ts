@@ -28,6 +28,7 @@ import TypePicker from './TypePicker.vue';
 
 export * from './annotators/useMediaController';
 export { default as useAnnotatorImageCursor } from './annotators/useAnnotatorImageCursor';
+export { default as useCalibrationNavigation } from './annotators/useCalibrationNavigation';
 export {
   /* Annotators */
   AnnotatorImageCursor,

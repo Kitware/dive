@@ -29,6 +29,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  useCalibrationNavigation,
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
@@ -315,6 +316,7 @@ export default defineComponent({
 
     const cameraStore = new CameraStore({ markChangesPending });
     const cameraCalibration = new CameraCalibrationStore();
+    useCalibrationNavigation(aggregateController, cameraCalibration);
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
