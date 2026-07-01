@@ -16,6 +16,7 @@ import {
   RunTraining,
   JsonMeta,
 } from 'platform/desktop/constants';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
 import AsyncCpuJobQueue from './queues/asyncCpuJobQueue';
 import { setRecents } from './dataset';
@@ -24,6 +25,9 @@ interface DesktopJobHistory {
   job: DesktopJob;
   truncatedLogs: string[];
   totalLogLength: number;
+  // Set once we've surfaced this job's failure to the user, so the repeated
+  // updates that arrive don't re-open the dialog.
+  errorNotified?: boolean;
 }
 
 const truncateOutputAtLines = 500;
@@ -63,6 +67,36 @@ export function updateHistory(args: DesktopJobUpdate) {
   }
   if (args.endTime !== undefined) {
     existing.job.endTime = args.endTime;
+  }
+
+  // Surface a failed job's error to the user. The process reports the cause on
+  // lines beginning with "ERROR:" (DIVE convention); we only prompt when the
+  // job has actually exited with a non-zero, non-cancellation code and at
+  // least one such line was captured.
+  const finished = existing.job.endTime !== undefined;
+  const failed = existing.job.exitCode !== null
+    && existing.job.exitCode !== 0
+    && existing.job.exitCode !== cancelledJobExitCode
+    && !existing.job.cancelledJob;
+  if (finished && failed && !existing.errorNotified) {
+    existing.errorNotified = true;
+    const errorLines = existing.truncatedLogs
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('ERROR:'))
+      .map((line) => line.replace(/^ERROR:\s*/, ''));
+    if (errorLines.length > 0) {
+      try {
+        const { prompt } = usePrompt();
+        prompt({
+          title: `${existing.job.title || 'Job'} failed`,
+          text: errorLines,
+          positiveButton: 'OK',
+        });
+      } catch {
+        // Prompt service not available (e.g. very early startup); the error
+        // is still visible in the job log.
+      }
+    }
   }
 }
 
