@@ -524,6 +524,12 @@ export default defineComponent({
           Loading
         </v-progress-circular>
       </div>
+      <div
+        v-if="data.ready && !data.hasFrame"
+        class="no-frame-overlay"
+      >
+        No frame at this instant
+      </div>
     </div>
     <slot v-if="data.ready" />
   </div>

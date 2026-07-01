@@ -388,6 +388,12 @@ export default defineComponent({
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     />
+    <div
+      v-if="data.ready && !data.hasFrame"
+      class="no-frame-overlay"
+    >
+      No frame at this instant
+    </div>
     <slot name="control" />
     <slot v-if="data.ready" />
   </div>

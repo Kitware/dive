@@ -499,6 +499,7 @@ export function useMediaController() {
       maxFrame: toRef(state[camera], 'maxFrame'),
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
+      hasFrame: toRef(state[camera], 'hasFrame'),
       prevFrame,
       nextFrame,
       play: _play,

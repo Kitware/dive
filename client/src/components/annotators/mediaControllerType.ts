@@ -59,6 +59,12 @@ export interface MediaController extends AggregateMediaController {
   /** @deprecated may be removed in a future release */
   syncedFrame: Readonly<Ref<number>>;
   /**
+   * False when an aligned-timeline slot has no frame for this camera (see
+   * AlignedFrameResolver) -- the pane is blank and LayerManager should not
+   * draw annotations for the stale `frame` value left over from before.
+   */
+  hasFrame: Readonly<Ref<boolean>>;
+  /**
    * Per-camera seek accepts undefined when this camera has no frame at the
    * current aligned-timeline slot (see AlignedFrameResolver) -- the camera
    * should blank its pane rather than draw anything for that slot.
