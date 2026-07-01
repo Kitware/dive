@@ -325,8 +325,11 @@ export default defineComponent({
       text: string;
       boxThreshold: number;
       frameNum: number;
+      replaceExisting?: boolean;
     }) {
-      const { text, boxThreshold, frameNum } = params;
+      const {
+        text, boxThreshold, frameNum, replaceExisting = false,
+      } = params;
 
       // Ensure metadata is loaded
       if (!cachedMeta) {
@@ -375,6 +378,35 @@ export default defineComponent({
 
         const detections = response.detections || [];
 
+        // Resolve the target camera/track store up front so that "replace"
+        // can clear the current frame even when the query returns nothing.
+        const cameraStore = viewerRef.value?.cameraStore;
+        const selectedCamera = viewerRef.value?.selectedCamera || 'singleCam';
+        const trackStore = cameraStore?.camMap.value.get(selectedCamera)?.trackStore;
+
+        // When replacing, remove annotations already present on this frame
+        // before adding the query results. Tracks that exist only on this
+        // frame are removed entirely; tracks spanning other frames lose just
+        // this frame's feature (and are removed if that empties them). Other
+        // frames' annotations are left untouched.
+        if (replaceExisting && cameraStore && trackStore) {
+          const removeIds: number[] = [];
+          trackStore.annotationMap.forEach((track) => {
+            if (frameNum < track.begin || frameNum > track.end) {
+              return;
+            }
+            if (track.begin === frameNum && track.end === frameNum) {
+              removeIds.push(track.id);
+            } else {
+              track.deleteFeature(frameNum);
+              if (track.featureIndex.length === 0) {
+                removeIds.push(track.id);
+              }
+            }
+          });
+          removeIds.forEach((id) => cameraStore.remove(id, selectedCamera));
+        }
+
         if (detections.length === 0) {
           await prompt({
             title: 'Text Query Results',
@@ -384,19 +416,7 @@ export default defineComponent({
         }
 
         // Create tracks from detections
-        if (viewerRef.value) {
-          const { cameraStore } = viewerRef.value;
-          const selectedCamera = viewerRef.value.selectedCamera || 'singleCam';
-          const trackStore = cameraStore.camMap.value.get(selectedCamera)?.trackStore;
-
-          if (!trackStore) {
-            await prompt({
-              title: 'Text Query Error',
-              text: ['Could not create tracks - trackStore not found.'],
-            });
-            return;
-          }
-
+        if (cameraStore && trackStore) {
           detections.forEach((det) => {
             // Get a new unique track ID
             const newTrackId = cameraStore.getNewTrackId();
@@ -500,11 +520,12 @@ export default defineComponent({
     async function handleTextQueryAllFrames(params: {
       text: string;
       boxThreshold: number;
+      replaceExisting?: boolean;
     }) {
-      const { text, boxThreshold } = params;
+      const { text, boxThreshold, replaceExisting = false } = params;
 
       try {
-        await runTextQueryPipeline(props.id, text, boxThreshold);
+        await runTextQueryPipeline(props.id, text, boxThreshold, replaceExisting);
         await prompt({
           title: 'Text Query Pipeline Started',
           text: [

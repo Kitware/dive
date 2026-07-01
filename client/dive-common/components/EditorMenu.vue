@@ -118,12 +118,16 @@ export default defineComponent({
     const textQueryInitializing = ref(false);
     const textQueryServiceError = ref('');
     const textQueryAllFrames = ref(false);
+    // When on, existing annotations are removed before the query results are
+    // applied. Off by default so results are added alongside existing ones.
+    const textQueryReplaceExisting = ref(false);
 
     const openTextQueryDialog = () => {
       textQueryDialogOpen.value = true;
       textQueryInput.value = '';
       textQueryServiceError.value = '';
       textQueryAllFrames.value = false;
+      textQueryReplaceExisting.value = false;
       textQueryInitializing.value = true;
       emit('text-query-init');
     };
@@ -134,6 +138,7 @@ export default defineComponent({
       textQueryServiceError.value = '';
       textQueryInitializing.value = false;
       textQueryAllFrames.value = false;
+      textQueryReplaceExisting.value = false;
     };
 
     const onTextQueryServiceReady = (success: boolean, error?: string) => {
@@ -152,11 +157,13 @@ export default defineComponent({
         emit('text-query-all-frames', {
           text: textQueryInput.value.trim(),
           boxThreshold: textQueryThreshold.value,
+          replaceExisting: textQueryReplaceExisting.value,
         });
       } else {
         emit('text-query', {
           text: textQueryInput.value.trim(),
           boxThreshold: textQueryThreshold.value,
+          replaceExisting: textQueryReplaceExisting.value,
         });
       }
       closeTextQueryDialog();
@@ -333,6 +340,7 @@ export default defineComponent({
       textQueryInitializing,
       textQueryServiceError,
       textQueryAllFrames,
+      textQueryReplaceExisting,
       openTextQueryDialog,
       closeTextQueryDialog,
       onTextQueryServiceReady,
@@ -591,6 +599,13 @@ export default defineComponent({
               v-model="textQueryAllFrames"
               label="Apply to all frames"
               hint="Run across all frames instead of only the current (this will run as a job)"
+              persistent-hint
+              :disabled="textQueryLoading"
+            />
+            <v-checkbox
+              v-model="textQueryReplaceExisting"
+              label="Replace existing annotations"
+              hint="Remove annotations already present before adding query results (off = keep them)"
               persistent-hint
               :disabled="textQueryLoading"
             />

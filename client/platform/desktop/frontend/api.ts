@@ -355,19 +355,23 @@ async function runTextQueryPipeline(
   datasetId: string,
   queryText: string,
   threshold?: number,
+  replaceExisting = false,
 ): Promise<void> {
   const pipeline: Pipe = {
     name: 'Text Query',
-    pipe: 'utility_text_query.pipe',
+    pipe: 'utility_text_query_default.pipe',
     type: 'utility',
   };
 
+  // Config keys must address the refiner's sam3 sub-block
+  // (process track_refiner -> :refiner:type sam3 -> block refiner:sam3).
   const pipelineParams: Record<string, string> = {
-    'track_refiner:refiner:text_query': queryText,
+    'track_refiner:refiner:sam3:text_query': queryText,
+    'track_refiner:refiner:sam3:replace_existing': replaceExisting ? 'true' : 'false',
   };
 
   if (threshold !== undefined) {
-    pipelineParams['track_refiner:refiner:detection_threshold'] = threshold.toString();
+    pipelineParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
   }
 
   const args: RunPipeline = {
