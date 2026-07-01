@@ -220,6 +220,28 @@ export default class CameraCalibrationStore {
     this.syncAlignmentHomography();
   }
 
+  /**
+   * Undo one step, mirroring keypointgui's Clear Last button: if there's a
+   * pending (blue) point, drop it; otherwise remove the most recently
+   * completed correspondence for the active pair.
+   */
+  clearLast() {
+    if (this.pendingPoint.value) {
+      this.pendingPoint.value = null;
+      return;
+    }
+    const key = this.activePairKey();
+    if (!key) {
+      return;
+    }
+    const list = this.correspondences.value[key];
+    if (!list || list.length === 0) {
+      return;
+    }
+    this.correspondences.value = { ...this.correspondences.value, [key]: list.slice(0, -1) };
+    this.syncAlignmentHomography();
+  }
+
   /** The chosen fit model for `key`, defaulting to 'homography' when unset. */
   transformTypeForPair(key: string): TransformType {
     return this.transformTypes.value[key] || 'homography';
@@ -375,6 +397,50 @@ export default class CameraCalibrationStore {
     return list
       .map((c) => `${c.a[0]} ${c.a[1]} ${c.b[0]} ${c.b[1]}`)
       .join('\n');
+  }
+
+  /**
+   * Parse keypointgui-style points text (rows of "leftX leftY rightX rightY",
+   * the format written by {@link toPointsText} and by keypointgui's
+   * `np.savetxt`) into correspondences for `key`. Blank lines are ignored.
+   * Throws if any non-blank line doesn't parse to exactly 4 finite numbers.
+   *
+   * `mode: 'replace'` (default) discards `key`'s existing correspondences
+   * first, matching keypointgui's own Load behavior; `'merge'` appends to
+   * them instead.
+   */
+  loadPointsFromText(key: string, text: string, mode: 'replace' | 'merge' = 'replace') {
+    const rows = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    const parsed = rows.map((line, i) => {
+      const parts = line.split(/\s+/).map(Number);
+      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+        throw new Error(`Line ${i + 1} of points file is not "leftX leftY rightX rightY": "${line}"`);
+      }
+      return parts as [number, number, number, number];
+    });
+    const existing = mode === 'merge' ? (this.correspondences.value[key] || []) : [];
+    const added: Correspondence[] = parsed.map(([ax, ay, bx, by]) => ({
+      // eslint-disable-next-line no-plusplus
+      id: this.nextId++,
+      a: [ax, ay] as Point,
+      b: [bx, by] as Point,
+    }));
+    this.correspondences.value = { ...this.correspondences.value, [key]: [...existing, ...added] };
+    this.syncAlignmentHomography();
+  }
+
+  /**
+   * Serialize the fitted homography for `key` in `direction` as whitespace
+   * -separated rows (matching keypointgui's `np.savetxt` output for
+   * `on_save_left_to_right_homography` / `on_save_right_to_left_homography`).
+   * Returns null if `key` has no fitted homography yet.
+   */
+  toHomographyText(key: string, direction: 'AtoB' | 'BtoA'): string | null {
+    const homog = this.homographies.value[key];
+    if (!homog) {
+      return null;
+    }
+    return homog[direction].map((row) => row.join(' ')).join('\n');
   }
 
   /** Reset state and load saved homographies, correspondences, and transform type choices. */
