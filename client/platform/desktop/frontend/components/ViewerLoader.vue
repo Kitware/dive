@@ -24,11 +24,13 @@ import {
 import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
+  segmentationSam3Installed,
   loadMetadata, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
+  openLink,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -131,6 +133,20 @@ export default defineComponent({
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
+    const textQueryAvailable = ref(false);
+
+    async function refreshTextQueryAvailability() {
+      try {
+        const result = await segmentationSam3Installed();
+        textQueryAvailable.value = result.installed;
+      } catch {
+        textQueryAvailable.value = false;
+      }
+    }
+
+    watch(() => settings.value?.viamePath, () => {
+      refreshTextQueryAvailability();
+    });
 
     watch(
       () => viewerRef.value?.trackFilters?.timeFilters?.value,
@@ -513,6 +529,7 @@ export default defineComponent({
     // Initialize segmentation when component is mounted
     onMounted(() => {
       initializeSegmentation();
+      refreshTextQueryAvailability();
     });
 
     /**
@@ -1654,6 +1671,8 @@ export default defineComponent({
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
+      textQueryAvailable,
+      openLink,
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
@@ -1680,11 +1699,13 @@ export default defineComponent({
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :text-query-enabled="true"
+      :text-query-available="textQueryAvailable"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"
+      @open-external-link="openLink"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
       @stereo-annotation-reset="handleStereoAnnotationReset"
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"

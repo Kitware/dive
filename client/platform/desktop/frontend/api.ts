@@ -335,6 +335,10 @@ async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
   return window.diveDesktop.invoke('segmentation-is-ready');
 }
 
+async function segmentationSam3Installed(): Promise<{ installed: boolean }> {
+  return window.diveDesktop.invoke('segmentation-sam3-installed');
+}
+
 /**
  * Text Query API
  * Allows open-vocabulary detection and segmentation using text prompts
@@ -705,6 +709,7 @@ export {
   segmentationClearImage,
   segmentationShutdown,
   segmentationIsReady,
+  segmentationSam3Installed,
   /* Text Query APIs */
   textQuery,
   refineDetections,
