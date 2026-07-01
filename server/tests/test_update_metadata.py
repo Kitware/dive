@@ -5,6 +5,7 @@ import pytest
 
 from dive_server import crud_dataset
 from dive_server.crud_rpc import process_items, resolve_imported_dataset_info
+from dive_utils import constants
 
 
 @patch('dive_server.crud_dataset.Folder')
@@ -153,3 +154,77 @@ def test_process_items_resolves_dataset_info_from_dive_configuration_import(
     assert update_payload['datasetInfo'] == expected
     assert update_payload['version'] == 1
     assert verify is False
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.saveImportAttributes')
+@patch('dive_server.crud_rpc.crud_dataset.update_metadata')
+@patch('dive_server.crud_rpc.crud.valid_images')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+@pytest.mark.parametrize(
+    ('name', 'exts', 'payload'),
+    [
+        (
+            'navigation.csv',
+            ['csv'],
+            '\n'.join(
+                [
+                    'filename,depth,temperature',
+                    'image_0001.jpg,192.80,4.0',
+                    'image_0002.jpg,193.10,4.1',
+                    '',
+                ]
+            ),
+        ),
+        (
+            'frame_metadata.json',
+            ['json'],
+            json.dumps({'cameras': {'singleCam': {'0': {'depth': '192.80'}}}}),
+        ),
+    ],
+)
+def test_process_items_leaves_frame_metadata_import_sources_in_dataset_folder(
+    folder_cls,
+    item_cls,
+    file_cls,
+    get_auxiliary_folder,
+    valid_images,
+    update_metadata,
+    save_import_attributes,
+    save_annotations,
+    name,
+    exts,
+    payload,
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': constants.ImageSequenceType,
+            'fps': 5,
+        },
+    }
+    item = {'_id': 'item-id', 'name': name, 'meta': {}}
+    file = {'_id': 'file-id', 'name': name, 'exts': exts}
+
+    folder_cls.return_value.childItems.return_value = [item]
+    item_cls.return_value.childFiles.return_value = iter([file])
+    file_cls.return_value.download.return_value = lambda: [payload.encode()]
+    valid_images.return_value = [
+        {'name': 'image_0001.jpg'},
+        {'name': 'image_0002.jpg'},
+    ]
+
+    warnings = process_items(folder, {'_id': 'user-id'})
+
+    assert warnings == []
+    assert constants.ProcessedMarker not in item['meta']
+    item_cls.return_value.move.assert_not_called()
+    item_cls.return_value.remove.assert_not_called()
+    get_auxiliary_folder.assert_not_called()
+    save_annotations.assert_not_called()
+    save_import_attributes.assert_not_called()
+    update_metadata.assert_not_called()

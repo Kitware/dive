@@ -13,6 +13,8 @@ export const ProjectsFolderName = 'DIVE_Projects';
 export const JobsFolderName = 'DIVE_Jobs';
 export const JobsOutputFolderName = 'DIVE_Jobs_Output';
 export const PipelinesFolderName = 'DIVE_Pipelines';
+export const FrameMetadataSourceExtensions = ['.txt', '.csv'] as const;
+export const SingleCameraFrameMetadataKey = 'singleCam';
 // Basename (without extension) of the saved "most recently used" calibration.
 // The stored file keeps the source file's real extension (e.g. last_calibration.npz).
 export const LastCalibrationBaseName = 'last_calibration';

@@ -7,6 +7,7 @@ import type {
   DatasetCalibrationResult,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
+  FrameMetadataResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -548,6 +549,14 @@ async function loadDetections(datasetId: string) {
   };
 }
 
+function loadFrameMetadata(
+  datasetId: string,
+  startFrame: number,
+  endFrame: number,
+): Promise<FrameMetadataResponse> {
+  return window.diveDesktop.invoke('load-frame-metadata', { datasetId, startFrame, endFrame });
+}
+
 async function saveMetadata(id: string, args: DatasetMetaMutable) {
   const client = await getClient();
   return client.post(`dataset/${id}/meta`, args);
@@ -608,6 +617,7 @@ export {
   /* Standard Specification APIs */
   loadMetadata,
   loadDetections,
+  loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,

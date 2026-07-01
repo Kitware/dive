@@ -8,7 +8,7 @@ import io
 import json
 import os
 import re
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
 from dive_utils.models import Feature, Track, interpolate
@@ -61,6 +61,54 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     fish_length = float(row[8])
 
     return trackId, filename, frame, bounds, fish_length
+
+
+def _is_viame_data_row(row: List[str]) -> bool:
+    if len(row) < 9:
+        return False
+    try:
+        row_info(row)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def is_viame_csv(rows: List[str]) -> bool:
+    return is_viame_csv_rows(csv.reader(row for row in rows))
+
+
+def is_viame_csv_rows(rows: Iterable[List[str]]) -> bool:
+    """Return true when rows look like a VIAME annotation CSV.
+
+    Two shapes are recognized. DIVE's own exports carry the ``# 1: Detection or
+    Track-id`` comment header, so any file with that header plus a VIAME-shaped
+    data row is VIAME. Headerless VIAME CSVs (produced by external tools) have no
+    text header at all, so their first non-comment row is itself a detection;
+    those are recognized too. A telemetry file instead leads with a plain
+    field-name header row that is *not* VIAME-shaped, so it is left for the frame
+    metadata parser even when one of its columns matches the media names.
+    """
+    has_header = False
+    has_data_row = False
+    first_row_is_detection = False
+    seen_data_row = False
+
+    for row in rows:
+        if not row:
+            continue
+        if row[0].startswith('#'):
+            has_header = has_header or row[0].startswith('# 1: Detection or Track-id')
+            continue
+        row_is_detection = _is_viame_data_row(row)
+        if not seen_data_row:
+            seen_data_row = True
+            first_row_is_detection = row_is_detection
+        if row_is_detection:
+            has_data_row = True
+            if has_header or first_row_is_detection:
+                return True
+
+    return has_data_row and (has_header or first_row_is_detection)
 
 
 def _resolve_detection_length(

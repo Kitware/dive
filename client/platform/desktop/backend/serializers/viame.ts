@@ -96,6 +96,53 @@ function _rowInfo(row: string[]) {
   };
 }
 
+function isViameDataRow(row: string[]): boolean {
+  try {
+    const info = _rowInfo(row);
+    return [
+      info.id,
+      info.frame,
+      info.fishLength,
+      ...info.bounds,
+    ].every((value) => Number.isFinite(value));
+  } catch {
+    return false;
+  }
+}
+
+function isViameCsvRows(rows: string[][]): boolean {
+  let hasHeader = false;
+  let hasDataRow = false;
+  let firstRowIsDetection = false;
+  let seenDataRow = false;
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (row.length) {
+      if (row[0].startsWith('#')) {
+        hasHeader = hasHeader || row[0].startsWith('# 1: Detection or Track-id');
+      } else {
+        const rowIsDetection = isViameDataRow(row);
+        if (!seenDataRow) {
+          seenDataRow = true;
+          firstRowIsDetection = rowIsDetection;
+        }
+        if (rowIsDetection) {
+          hasDataRow = true;
+          if (hasHeader || firstRowIsDetection) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // A headerless VIAME CSV (no text header) leads with a detection row; a DIVE
+  // export carries the comment header. Telemetry leads with a field-name header
+  // that is not VIAME-shaped, so it is left for the frame metadata parser.
+  return hasDataRow && (hasHeader || firstRowIsDetection);
+}
+
 /** Resolve detection length from attributes.length or fishLength (either may be set). */
 function resolveDetectionLength(
   fishLength?: number,
@@ -817,6 +864,7 @@ async function serializeFile(
 }
 
 export {
+  isViameCsvRows,
   parse,
   parseFile,
   serialize,

@@ -30,12 +30,20 @@ import {
   PipeMetadata,
   PipelineParamType,
   DatasetCalibrationResult,
+  FrameMetadataResponse,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  normalizeKey,
+  isFrameMetadataSourceName,
+  parseFrameMetadataSource,
+  selectFrameMetadataSource,
+} from 'platform/desktop/backend/serializers/frameMetadata';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
@@ -52,6 +60,7 @@ import {
   ExportConfigurationArgs, ExportMulticamEverythingArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
   JobType, LastCalibrationBaseName,
+  SingleCameraFrameMetadataKey,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -437,6 +446,269 @@ async function loadMetadata(
 async function loadDetections(settings: Settings, datasetId: string) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   return loadAnnotationFile(projectDirData.trackFileAbsPath);
+}
+
+interface ImageSequenceFrameMetadataSource {
+  originalBasePath: string;
+  originalImageFiles: string[];
+  imageListPath?: string;
+}
+
+type FrameMetadataCandidate = [string, string];
+type FrameMetadataRecords = Record<string, Record<string, string>>;
+
+function frameMetadataSourceDirectory(source: ImageSequenceFrameMetadataSource): string | null {
+  if (source.originalBasePath) {
+    return source.originalBasePath;
+  }
+  if (source.imageListPath) {
+    return npath.dirname(source.imageListPath);
+  }
+  const firstImage = source.originalImageFiles[0];
+  if (firstImage && npath.isAbsolute(firstImage)) {
+    return npath.dirname(firstImage);
+  }
+  return null;
+}
+
+async function frameMetadataCandidateTexts(directory: string | null): Promise<FrameMetadataCandidate[]> {
+  if (!directory || !(await fs.pathExists(directory))) {
+    return [];
+  }
+
+  const names = await fs.readdir(directory);
+  const candidates = await Promise.all(names
+    .filter(isFrameMetadataSourceName)
+    .map(async (name): Promise<FrameMetadataCandidate | null> => {
+      const filePath = npath.join(directory, name);
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) {
+        return null;
+      }
+      return [name, await fs.readFile(filePath, 'utf-8')];
+    }));
+
+  return candidates.filter((candidate): candidate is FrameMetadataCandidate => candidate !== null);
+}
+
+function mediaKeyToFrameMap(mediaKeys: Map<string, number>): Map<string, number> {
+  return new Map(
+    Array.from(mediaKeys.entries()).map(([mediaKey, frameNumber]) => (
+      [normalizeKey(mediaKey), frameNumber]
+    )),
+  );
+}
+
+function frameRecordsForSource(
+  source: { records: Record<string, Record<string, string>> },
+  frameByKey: Map<string, number>,
+  startFrame: number,
+  endFrame: number,
+): FrameMetadataRecords {
+  const records: FrameMetadataRecords = {};
+  Object.entries(source.records).forEach(([mediaKey, values]) => {
+    const frameNumber = frameByKey.get(mediaKey);
+    if (frameNumber !== undefined && startFrame <= frameNumber && frameNumber <= endFrame) {
+      records[String(frameNumber)] = values;
+    }
+  });
+  return records;
+}
+
+// Records are built in source-header order, so two equal records may differ in
+// key order. Compare field-by-field (order-independent) to match the server's
+// dict comparison, otherwise identical metadata is wrongly flagged as a collision.
+function frameMetadataRecordsEqual(
+  a: Record<string, string>,
+  b: Record<string, string>,
+): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) {
+    return false;
+  }
+  return aKeys.every((key) => a[key] === b[key]);
+}
+
+function recordsForFrameWindow(
+  source: { records: Record<string, Record<string, string>> },
+  mediaKeys: Map<string, number>,
+  startFrame: number,
+  endFrame: number,
+): FrameMetadataRecords {
+  return frameRecordsForSource(source, mediaKeyToFrameMap(mediaKeys), startFrame, endFrame);
+}
+
+function mergeFrameRecords(
+  records: FrameMetadataRecords,
+  collidedFrames: Set<string>,
+  nextRecords: FrameMetadataRecords,
+): FrameMetadataRecords {
+  const mergedRecords = { ...records };
+  Object.entries(nextRecords).forEach(([frameKey, values]) => {
+    if (collidedFrames.has(frameKey)) {
+      return;
+    }
+    if (mergedRecords[frameKey] === undefined) {
+      mergedRecords[frameKey] = values;
+    } else if (!frameMetadataRecordsEqual(mergedRecords[frameKey], values)) {
+      delete mergedRecords[frameKey];
+      collidedFrames.add(frameKey);
+    }
+  });
+  return mergedRecords;
+}
+
+async function loadSingleCameraFrameMetadataRecords(
+  sourceMeta: ImageSequenceFrameMetadataSource,
+  startFrame: number,
+  endFrame?: number,
+): Promise<FrameMetadataRecords | null> {
+  const mediaKeys = validImageNamesMap(sourceMeta);
+  if (!mediaKeys) {
+    return null;
+  }
+  const source = selectFrameMetadataSource(
+    await frameMetadataCandidateTexts(frameMetadataSourceDirectory(sourceMeta)),
+    mediaKeys,
+  );
+  if (!source) {
+    return null;
+  }
+  return recordsForFrameWindow(source, mediaKeys, startFrame, endFrame ?? mediaKeys.size - 1);
+}
+
+async function loadMultiCameraFrameMetadataRecords(
+  sourceMeta: ImageSequenceFrameMetadataSource,
+  candidates: FrameMetadataCandidate[],
+  startFrame: number,
+  endFrame?: number,
+): Promise<FrameMetadataRecords | null> {
+  const mediaKeys = validImageNamesMap(sourceMeta);
+  if (!mediaKeys) {
+    return null;
+  }
+
+  const sources = candidates
+    .map(([sourceName, text]) => parseFrameMetadataSource(text, mediaKeys, sourceName))
+    .filter((source): source is NonNullable<typeof source> => source !== null);
+  if (!sources.length) {
+    return null;
+  }
+
+  const frameByKey = mediaKeyToFrameMap(mediaKeys);
+  let records: FrameMetadataRecords = {};
+  const collidedFrames = new Set<string>();
+  const windowEnd = endFrame ?? mediaKeys.size - 1;
+  sources.forEach((source) => {
+    records = mergeFrameRecords(
+      records,
+      collidedFrames,
+      frameRecordsForSource(source, frameByKey, startFrame, windowEnd),
+    );
+  });
+  return records;
+}
+
+function commonParentDirectory(paths: string[]): string | null {
+  const resolved = paths.filter((item) => item).map((item) => npath.resolve(item));
+  if (!resolved.length) {
+    return null;
+  }
+  const [first, ...rest] = resolved;
+  const firstParts = first.split(npath.sep);
+  let { length } = firstParts;
+  rest.forEach((candidate) => {
+    const parts = candidate.split(npath.sep);
+    length = Math.min(length, parts.length);
+    for (let i = 0; i < length; i += 1) {
+      if (firstParts[i] !== parts[i]) {
+        length = i;
+        break;
+      }
+    }
+  });
+  const prefix = firstParts.slice(0, length).join(npath.sep);
+  return prefix || npath.sep;
+}
+
+async function loadMulticamFrameMetadata(
+  projectMetaData: JsonMeta,
+  startFrame: number,
+  endFrame?: number,
+): Promise<FrameMetadataResponse> {
+  const { multiCam } = projectMetaData;
+  if (!multiCam) {
+    return { cameras: {} };
+  }
+
+  const cameraEntries = orderedMultiCamCameraNames({
+    cameras: multiCam.cameras,
+    defaultDisplay: multiCam.defaultDisplay,
+  }).map((cameraName) => [cameraName, multiCam.cameras[cameraName]] as const);
+
+  const rootDirectory = projectMetaData.originalBasePath
+    || commonParentDirectory(cameraEntries.map(([, camera]) => (
+      frameMetadataSourceDirectory(camera) ?? ''
+    )));
+  const rootCandidates = await frameMetadataCandidateTexts(rootDirectory);
+  const cameras: FrameMetadataResponse['cameras'] = {};
+  let hasSource = false;
+
+  for (let i = 0; i < cameraEntries.length; i += 1) {
+    const [cameraName, cameraMeta] = cameraEntries[i];
+    if (cameraMeta.type === 'image-sequence') {
+      const candidates = rootCandidates.concat(
+        // eslint-disable-next-line no-await-in-loop
+        await frameMetadataCandidateTexts(frameMetadataSourceDirectory(cameraMeta)),
+      );
+      // eslint-disable-next-line no-await-in-loop
+      const records = await loadMultiCameraFrameMetadataRecords(
+        cameraMeta,
+        candidates,
+        startFrame,
+        endFrame,
+      );
+      if (records !== null) {
+        hasSource = true;
+        cameras[cameraName] = records;
+      } else {
+        cameras[cameraName] = {};
+      }
+    }
+  }
+
+  if (!hasSource) {
+    return { cameras: {} };
+  }
+  return { cameras };
+}
+
+async function loadFrameMetadata(
+  settings: Settings,
+  datasetId: string,
+  startFrame: number,
+  endFrame?: number,
+): Promise<FrameMetadataResponse> {
+  const parentId = parentDatasetId(datasetId);
+  const projectDirData = await getValidatedProjectDir(settings, parentId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+
+  if (projectMetaData.type === MultiType) {
+    return loadMulticamFrameMetadata(projectMetaData, startFrame, endFrame);
+  }
+  if (projectMetaData.type !== 'image-sequence') {
+    return { cameras: {} };
+  }
+
+  const records = await loadSingleCameraFrameMetadataRecords(
+    projectMetaData,
+    startFrame,
+    endFrame,
+  );
+  if (records === null) {
+    return { cameras: {} };
+  }
+  return { cameras: { [SingleCameraFrameMetadataKey]: records } };
 }
 
 /**
@@ -1319,7 +1591,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   };
 }
 
-function validImageNamesMap(jsonMeta: JsonMeta) {
+function validImageNamesMap(jsonMeta: ImageSequenceFrameMetadataSource) {
   if (jsonMeta.originalImageFiles.length > 0) {
     const imageMap = new Map<string, number>();
     jsonMeta.originalImageFiles.forEach((imgPath, i) => {
@@ -2040,6 +2312,7 @@ export {
   loadJsonMetadata,
   loadAnnotationFile,
   loadDetections,
+  loadFrameMetadata,
   openLink,
   openPathInFileManager,
   ingestDataFiles,

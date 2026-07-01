@@ -125,6 +125,22 @@ interface FrameImage {
   id?: string;
 }
 
+interface FrameMetadataValues {
+  [field: string]: string;
+}
+
+interface FrameMetadataFrameMap {
+  [frame: string]: FrameMetadataValues;
+}
+
+interface FrameMetadataCameraMap {
+  [camera: string]: FrameMetadataFrameMap;
+}
+
+interface FrameMetadataResponse {
+  cameras: FrameMetadataCameraMap;
+}
+
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
@@ -266,6 +282,8 @@ interface Api {
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  loadFrameMetadata?(datasetId: string, startFrame: number, endFrame: number):
+    Promise<FrameMetadataResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -444,6 +462,10 @@ export {
   PipelineRuntimeParams,
   PipeMetadata,
   Pipelines,
+  FrameMetadataCameraMap,
+  FrameMetadataFrameMap,
+  FrameMetadataResponse,
+  FrameMetadataValues,
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
