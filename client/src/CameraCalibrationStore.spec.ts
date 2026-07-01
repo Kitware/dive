@@ -308,4 +308,98 @@ describe('CameraCalibrationStore', () => {
       expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
     });
   });
+
+  describe('linked navigation', () => {
+    it('setLinkedNav toggles the flag', () => {
+      const store = new CameraCalibrationStore();
+      expect(store.linkedNav.value).toBe(false);
+      store.setLinkedNav(true);
+      expect(store.linkedNav.value).toBe(true);
+      store.setLinkedNav(false);
+      expect(store.linkedNav.value).toBe(false);
+    });
+
+    it('linkedPoint maps a point from camA to camB and back, via the fitted homography', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store); // left -> right is +5, -3
+      store.maybeFitActivePair();
+      const fromLeft = store.linkedPoint('left', [1, 1]);
+      expect(fromLeft).toMatchObject({ camera: 'right', coord: [6, -2] });
+      const fromRight = store.linkedPoint('right', [6, -2]);
+      expect(fromRight).toMatchObject({ camera: 'left', coord: [1, 1] });
+    });
+
+    it('linkedPoint returns null when the pair has no fitted homography yet', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      expect(store.linkedPoint('left', [1, 1])).toBeNull();
+    });
+
+    it('linkedPoint returns null for a camera outside the active pair', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      expect(store.linkedPoint('other', [1, 1])).toBeNull();
+    });
+
+    it('resets linkedNav on hydrate', () => {
+      const store = new CameraCalibrationStore();
+      store.setLinkedNav(true);
+      store.hydrate();
+      expect(store.linkedNav.value).toBe(false);
+    });
+  });
+
+  describe('cursor coordinate readout', () => {
+    it('records and clears the cursor coordinate', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.setCursorCoord('left', [12, 34]);
+      expect(store.cursorCoord.value).toEqual({ camera: 'left', coord: [12, 34] });
+      store.clearCursorCoord();
+      expect(store.cursorCoord.value).toBeNull();
+    });
+
+    it('clears the cursor coordinate when switching pairs', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.setCursorCoord('left', [12, 34]);
+      store.setActivePair('left', 'other');
+      expect(store.cursorCoord.value).toBeNull();
+    });
+  });
+
+  describe('requestRecenter', () => {
+    it('records a recenter request for a camera in the active pair', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.requestRecenter('right', [7, 8]);
+      expect(store.recenterRequest.value).toMatchObject({ camera: 'right', coord: [7, 8] });
+    });
+
+    it('ignores a recenter request for a camera outside the active pair', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.requestRecenter('other', [7, 8]);
+      expect(store.recenterRequest.value).toBeNull();
+    });
+
+    it('assigns a new id to each request so repeated identical requests still change', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.requestRecenter('left', [1, 1]);
+      const firstId = store.recenterRequest.value?.id;
+      store.requestRecenter('left', [1, 1]);
+      expect(store.recenterRequest.value?.id).not.toBe(firstId);
+    });
+
+    it('clears the recenter request when switching pairs', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.requestRecenter('left', [1, 1]);
+      store.setActivePair('left', 'other');
+      expect(store.recenterRequest.value).toBeNull();
+    });
+  });
 });

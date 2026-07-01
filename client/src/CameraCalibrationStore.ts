@@ -74,7 +74,22 @@ export default class CameraCalibrationStore {
 
   alignment: Ref<AlignmentState>;
 
+  /** Whether pan/zoom recentering is linked between the active pair's two cameras. */
+  linkedNav: Ref<boolean>;
+
+  /** Native-pixel coordinate under the cursor, for the calibration panel's live readout. */
+  cursorCoord: Ref<{ camera: string; coord: Point } | null>;
+
+  /**
+   * A one-shot "recenter here" request (e.g. from a right-click), keyed by an
+   * incrementing id so repeated requests at the same coordinate still trigger
+   * watchers. See {@link requestRecenter}.
+   */
+  recenterRequest: Ref<{ camera: string; coord: Point; id: number } | null>;
+
   private nextId: number;
+
+  private nextRecenterId: number;
 
   constructor() {
     this.activePair = ref(null);
@@ -84,7 +99,11 @@ export default class CameraCalibrationStore {
     this.homographies = ref({});
     this.transformTypes = ref({});
     this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+    this.linkedNav = ref(false);
+    this.cursorCoord = ref(null);
+    this.recenterRequest = ref(null);
     this.nextId = 1;
+    this.nextRecenterId = 1;
   }
 
   /**
@@ -114,6 +133,8 @@ export default class CameraCalibrationStore {
     // stale 'ghost' pick target could otherwise silently misattribute the next
     // click to the wrong camera once the new pair has its own homography fitted.
     this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
+    this.cursorCoord.value = null;
+    this.recenterRequest.value = null;
   }
 
   /**
@@ -266,6 +287,59 @@ export default class CameraCalibrationStore {
     this.alignment.value = { ...this.alignment.value, pickTarget };
   }
 
+  /** Enable or disable linked pan/zoom recentering between the active pair's cameras. */
+  setLinkedNav(enabled: boolean) {
+    this.linkedNav.value = enabled;
+  }
+
+  /**
+   * Map `coord` (native pixel space of `camera`) to the corresponding point in
+   * the *other* camera of the active pair, via the fitted homography. Returns
+   * `null` when `camera` isn't part of the active pair or the pair has no
+   * fitted homography yet (not enough correspondences) -- callers should treat
+   * that as "nothing to link to" rather than an error.
+   */
+  linkedPoint(camera: string, coord: Point): { camera: string; coord: Point } | null {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return null;
+    }
+    const homog = this.homographies.value[this.pairKey(pair.camA, pair.camB)];
+    if (!homog) {
+      return null;
+    }
+    const other = camera === pair.camA ? pair.camB : pair.camA;
+    const matrix = camera === pair.camA ? homog.AtoB : homog.BtoA;
+    return { camera: other, coord: applyHomography(matrix, coord) };
+  }
+
+  /** Record the native-pixel coordinate under the cursor for `camera` (calibration panel readout). */
+  setCursorCoord(camera: string, coord: Point) {
+    this.cursorCoord.value = { camera, coord };
+  }
+
+  /** Clear the cursor coordinate readout (e.g. on mouse leave). */
+  clearCursorCoord() {
+    this.cursorCoord.value = null;
+  }
+
+  /**
+   * Request that `camera` (native pixel coords `coord`) and, when the pair has
+   * a fitted homography, the other camera of the active pair (via
+   * {@link linkedPoint}) recenter their views on this location. Consumed by
+   * {@link useCalibrationNavigation}; a no-op if `camera` isn't part of the
+   * active pair. Works independent of {@link linkedNav} -- this is a one-shot
+   * "snap to this feature" action, not the continuous pan/zoom link.
+   */
+  requestRecenter(camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return;
+    }
+    // eslint-disable-next-line no-plusplus
+    this.recenterRequest.value = { camera, coord, id: this.nextRecenterId++ };
+  }
+
   /** Re-fit the active pair while alignment is active (mode != 'original'). */
   private syncAlignmentHomography() {
     if (this.alignment.value.mode !== 'original') {
@@ -316,6 +390,9 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
     this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
+    this.linkedNav.value = false;
+    this.cursorCoord.value = null;
+    this.recenterRequest.value = null;
     // Resume id allocation past any restored correspondences.
     let maxId = 0;
     Object.values(this.correspondences.value).forEach((list) => {

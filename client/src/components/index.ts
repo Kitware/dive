@@ -26,6 +26,7 @@ import TypeItem from './TypeItem.vue';
 import TypePicker from './TypePicker.vue';
 
 export * from './annotators/useMediaController';
+export { default as useCalibrationNavigation } from './annotators/useCalibrationNavigation';
 export {
   /* Annotators */
   ImageAnnotator,

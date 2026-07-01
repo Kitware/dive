@@ -68,6 +68,22 @@ export default defineComponent({
       calibration.setPickTarget(target);
     }
 
+    /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
+    const cursorReadout = computed(() => {
+      const cursor = calibration.cursorCoord.value;
+      if (!cursor) {
+        return null;
+      }
+      const [x, y] = cursor.coord;
+      const other = calibration.linkedPoint(cursor.camera, cursor.coord);
+      const here = `${cursor.camera}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
+      if (!other) {
+        return here;
+      }
+      const [ox, oy] = other.coord;
+      return `${here} -> ${other.camera}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
+    });
+
     async function save() {
       saving.value = true;
       try {
@@ -111,6 +127,8 @@ export default defineComponent({
       calibration,
       pickingEnabled: calibration.pickingEnabled,
       alignment: calibration.alignment,
+      linkedNav: calibration.linkedNav,
+      cursorReadout,
       correspondences,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
@@ -164,7 +182,29 @@ export default defineComponent({
     />
     <span class="text-caption grey--text">
       Click a point in one camera, then the matching point in the other.
+      Right-click to recenter both cameras on that point (requires a fitted
+      transform).
     </span>
+
+    <v-switch
+      v-model="linkedNav"
+      label="Link pan/zoom"
+      dense
+      hide-details
+      class="mt-0 mb-2"
+    />
+    <span class="text-caption grey--text">
+      Panning or zooming either camera recenters the other on the same point
+      (requires a fitted transform).
+    </span>
+
+    <div
+      v-if="pickingEnabled"
+      class="text-caption mt-2"
+      style="font-family: monospace;"
+    >
+      {{ cursorReadout || 'Move the cursor over a camera to see its coordinates.' }}
+    </div>
 
     <v-divider class="my-3" />
 

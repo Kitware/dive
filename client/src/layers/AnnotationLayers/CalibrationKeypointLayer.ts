@@ -50,6 +50,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       geo.event.mouseclick,
       (e: GeoEvent) => this.handleClick(e),
     );
+    this.annotator.geoViewerRef.value.geoOn(
+      geo.event.mousemove,
+      (e: GeoEvent) => this.handleMouseMove(e),
+    );
     this.update();
   }
 
@@ -83,17 +87,19 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     super.initialize();
   }
 
-  /** Map-level click handler: records a point when picking is active for this camera. */
+  /**
+   * Map-level click handler: left click records a point when picking is
+   * active for this camera; right click requests a recenter of both cameras
+   * in the active pair on the clicked location (see
+   * {@link CameraCalibrationStore.requestRecenter}) instead of picking.
+   */
   handleClick(e: GeoEvent) {
     if (!this.calibration || !this.calibration.pickingEnabled.value) {
       return;
     }
     // Map-level mouseclick exposes buttonsDown at the top level; feature-level
-    // events nest it under `mouse`. Respond to left clicks only.
+    // events nest it under `mouse`.
     const buttonsDown = e.buttonsDown || (e.mouse && e.mouse.buttonsDown);
-    if (buttonsDown && !buttonsDown.left) {
-      return;
-    }
     const pair = this.calibration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
@@ -103,7 +109,27 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       return;
     }
     // e.geo is already in image (gcs) coordinates.
+    if (buttonsDown && buttonsDown.right) {
+      this.calibration.requestRecenter(cam, [e.geo.x, e.geo.y]);
+      return;
+    }
+    if (buttonsDown && !buttonsDown.left) {
+      return;
+    }
     this.calibration.pickPoint(cam, [e.geo.x, e.geo.y]);
+  }
+
+  /** Map-level mousemove handler: updates the live coordinate readout while picking is active. */
+  handleMouseMove(e: GeoEvent) {
+    if (!this.calibration || !this.calibration.pickingEnabled.value || !e.geo) {
+      return;
+    }
+    const pair = this.calibration.activePair.value;
+    const cam = this.annotator.cameraName.value;
+    if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
+      return;
+    }
+    this.calibration.setCursorCoord(cam, [e.geo.x, e.geo.y]);
   }
 
   // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-unused-vars
