@@ -201,6 +201,7 @@ export default defineComponent({
       calibration,
       pickingEnabled: calibration.pickingEnabled,
       alignment: calibration.alignment,
+      fitError: calibration.fitError,
       linkedNav: calibration.linkedNav,
       cursorReadout,
       correspondences,
@@ -348,6 +349,12 @@ export default defineComponent({
       class="text-caption grey--text"
     >
       No correspondences yet. At least {{ minPoints }} required for the selected transform.
+    </span>
+    <span
+      v-if="fitError"
+      class="text-caption error--text d-block"
+    >
+      Could not fit transform: {{ fitError }}
     </span>
 
     <v-divider class="my-3" />

@@ -87,6 +87,15 @@ export default class CameraCalibrationStore {
    */
   recenterRequest: Ref<{ camera: string; coord: Point; id: number } | null>;
 
+  /**
+   * Message from the most recent failed fit attempt (e.g. collinear/degenerate
+   * points that satisfy the minimum count but can't be solved), or null if the
+   * active pair's last fit attempt (if any) succeeded. Surfaced by the
+   * calibration panel instead of letting the estimator's exception escape a
+   * geojs click handler.
+   */
+  fitError: Ref<string | null>;
+
   private nextId: number;
 
   private nextRecenterId: number;
@@ -102,6 +111,7 @@ export default class CameraCalibrationStore {
     this.linkedNav = ref(false);
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);
+    this.fitError = ref(null);
     this.nextId = 1;
     this.nextRecenterId = 1;
   }
@@ -135,6 +145,7 @@ export default class CameraCalibrationStore {
     this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
+    this.fitError.value = null;
   }
 
   /**
@@ -256,7 +267,10 @@ export default class CameraCalibrationStore {
   /**
    * Fit `key` when it has enough points for its chosen transform type; otherwise
    * clear its homography and, if it's the active (aligned) pair, revert
-   * alignment to 'original'.
+   * alignment to 'original'. A fit can still fail past the minimum-count check
+   * (e.g. collinear/near-duplicate points make the system unsolvable); that's
+   * caught here and surfaced via {@link fitError} instead of throwing out of a
+   * geojs click handler, keeping any previously fitted homography in place.
    */
   maybeFitPair(key: string) {
     const list = this.correspondences.value[key];
@@ -268,9 +282,21 @@ export default class CameraCalibrationStore {
       if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
         this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
       }
+      if (this.activePairKey() === key) {
+        this.fitError.value = null;
+      }
       return;
     }
-    this.fitTransform(key);
+    try {
+      this.fitTransform(key);
+      if (this.activePairKey() === key) {
+        this.fitError.value = null;
+      }
+    } catch (err) {
+      if (this.activePairKey() === key) {
+        this.fitError.value = err instanceof Error ? err.message : String(err);
+      }
+    }
   }
 
   /** Fit the active pair when it has enough points; otherwise clear/revert as in {@link maybeFitPair}. */
@@ -459,6 +485,7 @@ export default class CameraCalibrationStore {
     this.linkedNav.value = false;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
+    this.fitError.value = null;
     // Resume id allocation past any restored correspondences.
     let maxId = 0;
     Object.values(this.correspondences.value).forEach((list) => {
