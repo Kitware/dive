@@ -46,6 +46,7 @@
     "lodash": "^4.17.19",
     "moment": "^2.29.1",
     "mousetrap": "^1.6.5",
+    "onnxruntime-web": "^1.27.0",
     "pngjs": "^7.0.0",
     "semver": "^7.3.5",
     "vue": "^2.7.16",
