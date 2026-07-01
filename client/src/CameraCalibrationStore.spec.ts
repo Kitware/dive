@@ -105,6 +105,54 @@ describe('CameraCalibrationStore', () => {
     expect(() => store.fitTransform(key)).toThrow();
   });
 
+  it('surfaces a fitError instead of throwing when maybeFitPair hits a degenerate configuration', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    // 4 collinear points satisfy the homography minimum count but are degenerate.
+    const pts: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
+    pts.forEach((p) => {
+      store.addPoint('left', p);
+      store.addPoint('right', p);
+    });
+    expect(() => store.maybeFitPair(key)).not.toThrow();
+    expect(store.fitError.value).toMatch(/degenerate/i);
+    expect(store.homographies.value[key]).toBeUndefined();
+  });
+
+  it('clears a stale fitError once the active pair fits successfully', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    const collinear: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
+    collinear.forEach((p) => {
+      store.addPoint('left', p);
+      store.addPoint('right', p);
+    });
+    store.maybeFitPair(key);
+    expect(store.fitError.value).not.toBeNull();
+    store.clearPair();
+    addFourTranslationPairs(store);
+    store.maybeFitPair(key);
+    expect(store.fitError.value).toBeNull();
+    expect(store.homographies.value[key]).toBeDefined();
+  });
+
+  it('clears fitError when switching to a different active pair', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    const collinear: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
+    collinear.forEach((p) => {
+      store.addPoint('left', p);
+      store.addPoint('right', p);
+    });
+    store.maybeFitPair(key);
+    expect(store.fitError.value).not.toBeNull();
+    store.setActivePair('left', 'other');
+    expect(store.fitError.value).toBeNull();
+  });
+
   function addFourTranslationPairs(store: CameraCalibrationStore) {
     const pts: [number, number][] = [[0, 0], [10, 0], [10, 10], [0, 10]];
     pts.forEach((p) => {

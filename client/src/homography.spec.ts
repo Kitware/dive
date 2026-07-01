@@ -62,4 +62,9 @@ describe('homography', () => {
   it('throws with fewer than 4 correspondences', () => {
     expect(() => solveHomography(unitSquare.slice(0, 3), unitSquare.slice(0, 3))).toThrow();
   });
+
+  it('throws on a degenerate (collinear) point configuration despite having 4 points', () => {
+    const collinear: Point[] = [[0, 0], [1, 0], [2, 0], [3, 0]];
+    expect(() => solveHomography(collinear, collinear)).toThrow(/degenerate/i);
+  });
 });

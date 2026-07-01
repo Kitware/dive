@@ -12,7 +12,10 @@ export interface CalibrationPointData {
 }
 
 export interface CameraImage {
-  image: HTMLImageElement;
+  /** The texture source for the geojs quad feature: an `<img>` for image sequences, a `<video>` for video datasets. */
+  source: HTMLImageElement | HTMLVideoElement;
+  /** Which quad-feature data key `source` must be assigned to (geojs' canvas renderer branches on this). */
+  kind: 'image' | 'video';
   width: number;
   height: number;
 }
@@ -212,7 +215,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
         ur: { x: ur[0], y: ur[1] },
         lr: { x: lr[0], y: lr[1] },
         ll: { x: ll[0], y: ll[1] },
-        image: src.image,
+        [src.kind]: src.source,
       }])
       .style('opacity', alignment.opacity)
       .draw();

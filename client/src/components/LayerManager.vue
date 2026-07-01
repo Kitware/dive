@@ -200,7 +200,15 @@ export default defineComponent({
       }
     }, { deep: true });
 
-    /** Resolve another camera's currently displayed frame image (for the overlay). */
+    /**
+     * Resolve another camera's currently displayed frame image (for the ghost
+     * overlay). Matches the `quad.image` data used by ImageAnnotator and the
+     * `quad.video` data used by VideoAnnotator -- geojs' canvas quad renderer
+     * supports both as texture sources. LargeImageAnnotator (tiled/geospatial
+     * imagery) has no single resolvable image element, so it returns null and
+     * the ghost overlay is simply unavailable for those datasets; picking
+     * itself (native-coordinate inverse mapping) is unaffected either way.
+     */
     const getCameraImage = (camera: string) => {
       const ctrl = aggregateController.value.getController(camera);
       const viewer = ctrl?.geoViewerRef?.value;
@@ -214,9 +222,18 @@ export default defineComponent({
           const features = layer.features();
           for (let j = 0; j < features.length; j += 1) {
             const data = typeof features[j].data === 'function' ? features[j].data() : undefined;
-            if (Array.isArray(data) && data[0] && data[0].image) {
-              const image = data[0].image as HTMLImageElement;
-              return { image, width: image.naturalWidth, height: image.naturalHeight };
+            const datum = Array.isArray(data) ? data[0] : undefined;
+            if (datum && datum.image) {
+              const image = datum.image as HTMLImageElement;
+              return {
+                source: image, kind: 'image' as const, width: image.naturalWidth, height: image.naturalHeight,
+              };
+            }
+            if (datum && datum.video) {
+              const video = datum.video as HTMLVideoElement;
+              return {
+                source: video, kind: 'video' as const, width: video.videoWidth, height: video.videoHeight,
+              };
             }
           }
         }
