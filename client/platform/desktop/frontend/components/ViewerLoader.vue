@@ -446,6 +446,14 @@ export default defineComponent({
               newTrackId, // Use the new track ID
             );
 
+            // add() seeds the confidence pair at 1.0; apply the detection's
+            // actual confidence from the text-query model so it isn't shown
+            // as 100%. (setType clamps >=1 to 1.0, which is the correct
+            // behavior for a genuinely-1.0 score.)
+            if (typeof det.score === 'number') {
+              newTrack.setType(det.label, det.score);
+            }
+
             // Calculate bounds from box [x1, y1, x2, y2]
             const [x1, y1, x2, y2] = det.box;
             const bounds = [x1, y1, x2, y2] as [number, number, number, number];
