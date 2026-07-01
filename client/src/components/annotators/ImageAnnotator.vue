@@ -72,6 +72,7 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
+      externallyDriven,
     } = cameraInitializer(props.camera, {
       // allow hoisting for these functions to pass a reference before defining them.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -232,9 +233,26 @@ export default defineComponent({
         cacheNewRange(min, max);
       }
     }
-    async function seek(f: number) {
+    async function seek(f: number | undefined) {
       if (!data.ready) {
         return;
+      }
+      if (f === undefined) {
+        // No frame for this camera at the current aligned-timeline slot: blank
+        // the pane. Deliberately leaves data.frame/data.filename untouched --
+        // those are read elsewhere (e.g. annotation-overlay lookups) and this
+        // phase doesn't touch annotation storage.
+        data.hasFrame = false;
+        if (local.quadFeature !== undefined) {
+          local.quadFeature.layer().node().css('visibility', 'hidden');
+        }
+        return;
+      }
+      if (!data.hasFrame) {
+        data.hasFrame = true;
+        if (local.quadFeature !== undefined) {
+          local.quadFeature.layer().node().css('visibility', '');
+        }
       }
       let newFrame = f;
       if (f < 0) newFrame = 0;
@@ -313,7 +331,12 @@ export default defineComponent({
     async function play() {
       try {
         data.playing = true;
-        syncWithVideo(data.frame + 1);
+        // When a global aligned timeline is driving playback, the aggregate
+        // controller's own centralized tick calls seek() directly -- this
+        // camera must not also free-run its own loop.
+        if (!externallyDriven.value) {
+          syncWithVideo(data.frame + 1);
+        }
         props.updateTime(data);
       } catch (ex) {
         console.error(ex);

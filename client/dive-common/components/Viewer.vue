@@ -62,6 +62,7 @@ import type {
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { buildAlignedTimeline, TimelineResult } from 'dive-common/alignedTimeline';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
@@ -154,6 +155,7 @@ export default defineComponent({
       aggregateController,
       onResize,
       clear: mediaControllerClear,
+      setAlignedFrameResolver,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -175,6 +177,30 @@ export default defineComponent({
       // Total tracks
       total: 0,
     });
+    /**
+     * Global aligned-timeline resolution (SEAL feature 5, Phase II): only
+     * engages when every camera in a multicam dataset has a timestamp on
+     * every frame (see alignedTimeline.ts's canAlign). Otherwise -- including
+     * always for singleCam datasets -- playback falls back to today's exact
+     * positional (broadcast-same-index) behavior via useMediaController.ts.
+     */
+    const alignedTimeline = computed<TimelineResult>(() => {
+      if (!progress.loaded || multiCamList.value.length < 2) {
+        return { aligned: false };
+      }
+      return buildAlignedTimeline(imageData.value);
+    });
+    watch(alignedTimeline, (result) => {
+      if (result.aligned) {
+        setAlignedFrameResolver({
+          slotCount: computed(() => result.slots.length),
+          frameRate: time.frameRate,
+          resolveSlot: (f) => result.slots[f] ?? {},
+        });
+      } else {
+        setAlignedFrameResolver(null);
+      }
+    }, { immediate: true });
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
