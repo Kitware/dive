@@ -48,6 +48,25 @@ ipcMain.on('desktop:close-response', (event, allow: boolean) => {
   }
 });
 
+// Native three-way prompt shown by the renderer close guard when the window is
+// closed with unsaved changes. Returns the user's choice.
+ipcMain.handle('desktop:confirm-close-unsaved', async (): Promise<'save' | 'discard' | 'cancel'> => {
+  if (!win) return 'discard';
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Save and Exit', 'Exit Without Saving', 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    title: 'Unsaved Changes',
+    message: 'You have unsaved changes.',
+    detail: 'Do you want to save your changes before exiting DIVE Desktop?',
+  });
+  if (response === 0) return 'save';
+  if (response === 1) return 'discard';
+  return 'cancel';
+});
+
 // This application uses localStorage with persistent sessions.
 // In order to use this mechanism, only one application instance
 // can exist at a time.  Acquire a lock or quit and focus the running window.
