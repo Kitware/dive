@@ -246,6 +246,10 @@ class MetadataMutable(BaseModel):
     # The picked point correspondences behind those homographies, keyed the same
     # way. Each entry is a list of {id, a: [x, y], b: [x, y]} pairs.
     cameraCorrespondences: Optional[Dict[str, List[Dict[str, Any]]]]
+    # The fit model used to compute each pair's homography (translation / rigid /
+    # similarity / affine / homography), keyed the same way. Missing entries
+    # default to 'homography' client-side.
+    cameraTransformTypes: Optional[Dict[str, str]]
     fps: Optional[float]
 
     @staticmethod
