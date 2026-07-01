@@ -138,6 +138,18 @@ def test_rejects_viame_annotation_csv_even_when_image_column_matches():
     assert parse_frame_metadata_source(viame_csv, media_keys) is None
 
 
+def test_rejects_headerless_viame_annotation_csv():
+    """A headerless VIAME CSV (no comment header, first row is a detection) must
+    not be mistaken for telemetry, otherwise its detections are dropped on import."""
+    media_keys = {"frame_0001": 0, "frame_0002": 1}
+    headerless_viame = (
+        "1,frame_0001.png,0,10,20,30,40,1.0,-1,fish,0.9\n"
+        "2,frame_0002.png,1,11,21,31,41,1.0,-1,fish,0.8\n"
+    )
+
+    assert parse_frame_metadata_source(headerless_viame, media_keys) is None
+
+
 def test_accepts_viame_shaped_telemetry_without_viame_header():
     """Telemetry whose rows coincidentally match VIAME's numeric shape but lacks the
     ``# 1: Detection or Track-id`` comment header is still accepted as telemetry."""

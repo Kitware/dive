@@ -180,6 +180,11 @@ function parseDelimited(text: string, delimiter: ',' | '\t'): string[][] {
   return parseSync(text, {
     delimiter,
     relax_column_count: true,
+    // Telemetry sidecars routinely contain bare quote characters (e.g. depth
+    // 5"); `relax` treats a stray quote in an unquoted field as a literal
+    // character instead of throwing, matching Python's lenient csv.reader on
+    // the server while still honoring properly quoted fields.
+    relax: true,
     skip_empty_lines: true,
   }).map((row: string[]) => row.map((cell) => cell.trim()));
 }
@@ -214,6 +219,8 @@ function isViameCsv(text: string): boolean {
   const rows = parseDelimited(text, ',');
   let hasHeader = false;
   let hasDataRow = false;
+  let firstRowIsDetection = false;
+  let seenDataRow = false;
 
   rows.forEach((row) => {
     if (row.length === 0) {
@@ -223,12 +230,19 @@ function isViameCsv(text: string): boolean {
       hasHeader = hasHeader || row[0].startsWith('# 1: Detection or Track-id');
       return;
     }
+    if (!seenDataRow) {
+      seenDataRow = true;
+      firstRowIsDetection = isViameDataRow(row);
+    }
     if (isViameDataRow(row)) {
       hasDataRow = true;
     }
   });
 
-  return hasHeader && hasDataRow;
+  // A headerless VIAME CSV (no text header) leads with a detection row; a DIVE
+  // export carries the comment header. Telemetry leads with a field-name header
+  // that is not VIAME-shaped, so it is left for the frame metadata parser.
+  return hasDataRow && (hasHeader || firstRowIsDetection);
 }
 
 function isViameDataRow(row: string[]): boolean {

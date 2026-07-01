@@ -174,6 +174,31 @@ describe('desktop frame metadata serializer', () => {
     expect(parseFrameMetadataSource(viameCsv, mediaKeys)).toBeNull();
   });
 
+  it('rejects a headerless VIAME annotation CSV', () => {
+    const mediaKeys = new Map([['frame_0001', 0], ['frame_0002', 1]]);
+    const headerlessViame = [
+      '1,frame_0001.png,0,10,20,30,40,1.0,-1,fish,0.9',
+      '2,frame_0002.png,1,11,21,31,41,1.0,-1,fish,0.8',
+      '',
+    ].join('\n');
+
+    expect(parseFrameMetadataSource(headerlessViame, mediaKeys)).toBeNull();
+  });
+
+  it('parses a sidecar containing a bare double-quote character', () => {
+    const mediaKeys = new Map([['image_0001', 0]]);
+    const text = [
+      'filename,depth',
+      'image_0001.jpg,5"',
+      '',
+    ].join('\n');
+
+    const source = parseFrameMetadataSource(text, mediaKeys);
+
+    expect(source).not.toBeNull();
+    expect(source?.records.image_0001.depth).toBe('5"');
+  });
+
   it('accepts VIAME-shaped telemetry without the VIAME header', () => {
     const mediaKeys = new Map([['image_0001', 0]]);
     const text = [

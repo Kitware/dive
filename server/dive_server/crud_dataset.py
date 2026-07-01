@@ -517,9 +517,12 @@ def _download_item_text(item: types.GirderModel) -> str:
     if file is None:
         return ''
     chunks = File().download(file, headers=False)()
+    # Scientific sidecars are often Latin-1/CP1252 (degree signs, etc.); decode
+    # leniently so one non-UTF-8 file does not 500 the whole frame-metadata route.
+    # The desktop path uses fs.readFile(..., 'utf-8'), which replaces likewise.
     return b''.join(
         chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8') for chunk in chunks
-    ).decode('utf-8')
+    ).decode('utf-8', errors='replace')
 
 
 class MetadataMutableUpdateArgs(models.MetadataMutable):

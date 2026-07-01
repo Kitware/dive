@@ -501,6 +501,20 @@ function mediaKeyToFrameMap(mediaKeys: Map<string, number>): Map<string, number>
   );
 }
 
+// Records are built in source-header order, so two equal records may differ in
+// key order. Compare field-by-field (order-independent) to match the server's
+// dict comparison, otherwise identical metadata is wrongly flagged as a collision.
+function frameMetadataRecordsEqual(
+  a: Record<string, string>,
+  b: Record<string, string>,
+): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) {
+    return false;
+  }
+  return aKeys.every((key) => a[key] === b[key]);
+}
+
 function recordsForFrameWindow(
   source: { records: Record<string, Record<string, string>> },
   mediaKeys: Map<string, number>,
@@ -572,7 +586,7 @@ async function loadMultiCameraFrameMetadataRecords(
       }
       if (records[frameKey] === undefined) {
         records[frameKey] = values;
-      } else if (JSON.stringify(records[frameKey]) !== JSON.stringify(values)) {
+      } else if (!frameMetadataRecordsEqual(records[frameKey], values)) {
         delete records[frameKey];
         collidedFrames.add(frameKey);
       }
