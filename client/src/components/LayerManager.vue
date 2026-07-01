@@ -12,6 +12,7 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
+import CalibrationKeypointLayer from '../layers/AnnotationLayers/CalibrationKeypointLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
@@ -39,6 +40,7 @@ import {
   useAnnotatorPreferences,
   useGroupStyleManager,
   useCameraStore,
+  useCameraCalibration,
   useSelectedCamera,
   useAttributes,
   useComparisonSets,
@@ -77,6 +79,12 @@ export default defineComponent({
       // Viewer may not provide lasso context in tests or minimal embeds.
     }
     const cameraStore = useCameraStore();
+    let cameraCalibration: ReturnType<typeof useCameraCalibration> | undefined;
+    try {
+      cameraCalibration = useCameraCalibration();
+    } catch {
+      // calibration store may not be provided in tests or minimal embeds.
+    }
     const selectedCamera = useSelectedCamera();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
@@ -191,6 +199,56 @@ export default defineComponent({
         segmentationPointsLayer.clear();
       }
     }, { deep: true });
+
+    /** Resolve another camera's currently displayed frame image (for the overlay). */
+    const getCameraImage = (camera: string) => {
+      const ctrl = aggregateController.value.getController(camera);
+      const viewer = ctrl?.geoViewerRef?.value;
+      if (!viewer || typeof viewer.layers !== 'function') {
+        return null;
+      }
+      const layerList = viewer.layers();
+      for (let i = 0; i < layerList.length; i += 1) {
+        const layer = layerList[i];
+        if (typeof layer.features === 'function') {
+          const features = layer.features();
+          for (let j = 0; j < features.length; j += 1) {
+            const data = typeof features[j].data === 'function' ? features[j].data() : undefined;
+            if (Array.isArray(data) && data[0] && data[0].image) {
+              const image = data[0].image as HTMLImageElement;
+              return { image, width: image.naturalWidth, height: image.naturalHeight };
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const calibrationLayer = cameraCalibration
+      ? new CalibrationKeypointLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+        calibration: cameraCalibration,
+        getCameraImage,
+      })
+      : undefined;
+
+    if (cameraCalibration && calibrationLayer) {
+      watch(
+        [
+          cameraCalibration.activePair,
+          cameraCalibration.pickingEnabled,
+          cameraCalibration.correspondences,
+          cameraCalibration.pendingPoint,
+          cameraCalibration.homographies,
+          cameraCalibration.overlay,
+          frameNumberRef,
+        ],
+        () => calibrationLayer.update(),
+        { deep: true },
+      );
+    }
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {

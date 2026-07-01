@@ -18,6 +18,7 @@ import {
 import {
   Track, Group,
   CameraStore,
+  CameraCalibrationStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
@@ -67,6 +68,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import CalibrationToolsVue from './CameraCalibration/CalibrationTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
@@ -312,6 +314,7 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const cameraCalibration = new CameraCalibrationStore();
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -1042,6 +1045,8 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
+        // Rehydrate any saved camera-to-camera calibration homographies and points
+        cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences);
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -1053,10 +1058,18 @@ export default defineComponent({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
           });
+          context.register({
+            component: CalibrationToolsVue,
+            description: 'Camera Calibration',
+          });
         } else {
           context.unregister({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
+          });
+          context.unregister({
+            component: CalibrationToolsVue,
+            description: 'Camera Calibration',
           });
           context.register({
             description: 'Group Manager',
@@ -1148,6 +1161,7 @@ export default defineComponent({
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
+        cameraCalibration,
         datasetId,
         editingMode,
         groupFilters,

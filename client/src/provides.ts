@@ -20,6 +20,7 @@ import type { ImageEnhancements } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
+import CameraCalibrationStore from './CameraCalibrationStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -113,6 +114,7 @@ type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
+const CameraCalibrationSymbol = Symbol('cameraCalibration');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -284,6 +286,7 @@ export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   cameraStore: CameraStore;
+  cameraCalibration: CameraCalibrationStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -352,6 +355,7 @@ function dummyState(): State {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
+    cameraCalibration: new CameraCalibrationStore(),
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -403,6 +407,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
+  provide(CameraCalibrationSymbol, state.cameraCalibration);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -457,6 +462,9 @@ function useAttributesFilters() {
 
 function useCameraStore() {
   return use<CameraStore>(CameraStoreSymbol);
+}
+function useCameraCalibration() {
+  return use<CameraCalibrationStore>(CameraCalibrationSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -569,6 +577,7 @@ export {
   useAnnotatorPreferences,
   useAttributes,
   useCameraStore,
+  useCameraCalibration,
   useDatasetId,
   useEditingMode,
   useHandler,

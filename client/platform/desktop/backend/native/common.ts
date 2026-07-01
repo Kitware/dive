@@ -70,6 +70,10 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
+// Standalone camera-to-camera (modality-to-modality) alignment transforms,
+// stored separately from meta.json in the dataset directory.
+const CalibrationFileName = 'calibration.json';
+const CalibrationFileVersion = 1;
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 /**
@@ -367,6 +371,24 @@ async function loadMetadata(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
+  // Load standalone camera calibration (transforms + correspondences), if present.
+  const calibrationFileAbsPath = npath.join(projectDirData.basePath, CalibrationFileName);
+  let { cameraHomographies, cameraCorrespondences } = projectMetaData;
+  if (await fs.pathExists(calibrationFileAbsPath)) {
+    try {
+      const calibration = await _loadAsJson(calibrationFileAbsPath);
+      if (calibration && Array.isArray(calibration.pairs)) {
+        ({
+          homographies: cameraHomographies,
+          correspondences: cameraCorrespondences,
+        } = fromCalibrationPairs(calibration.pairs));
+      }
+    } catch (err) {
+      // A malformed calibration.json should not block loading the dataset.
+      console.warn(`Unable to read ${calibrationFileAbsPath}: ${err}`);
+    }
+  }
+
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
@@ -431,6 +453,8 @@ async function loadMetadata(
     imageData,
     multiCamMedia,
     subType,
+    cameraHomographies,
+    cameraCorrespondences,
   };
 }
 
@@ -686,6 +710,65 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
+type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
+type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
+
+/**
+ * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
+ * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`
+ * (the keypointgui points.txt layout); `leftToRight`/`rightToLeft` are the fitted
+ * 3x3 homographies, when a fit has been performed.
+ */
+interface CalibrationPair {
+  left: string;
+  right: string;
+  points: number[][];
+  leftToRight: number[][] | null;
+  rightToLeft: number[][] | null;
+}
+
+/**
+ * Convert the in-app calibration state (keyed by directional "left::right") into
+ * the self-describing list of pairs persisted in calibration.json.
+ */
+function toCalibrationPairs(
+  homographies: CameraHomographies,
+  correspondences: CameraCorrespondences,
+): CalibrationPair[] {
+  const keys = new Set([...Object.keys(homographies), ...Object.keys(correspondences)]);
+  return [...keys].map((key) => {
+    const [left, right] = key.split('::');
+    const homography = homographies[key];
+    return {
+      left,
+      right,
+      points: (correspondences[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
+      leftToRight: homography ? homography.AtoB : null,
+      rightToLeft: homography ? homography.BtoA : null,
+    };
+  });
+}
+
+/** Rebuild the in-app homographies/correspondences from calibration.json pairs. */
+function fromCalibrationPairs(
+  pairs: CalibrationPair[],
+): { homographies: CameraHomographies; correspondences: CameraCorrespondences } {
+  const homographies: CameraHomographies = {};
+  const correspondences: CameraCorrespondences = {};
+  pairs.forEach((pair) => {
+    const key = `${pair.left}::${pair.right}`;
+    if (pair.leftToRight && pair.rightToLeft) {
+      homographies[key] = { AtoB: pair.leftToRight, BtoA: pair.rightToLeft };
+    }
+    if (pair.points && pair.points.length) {
+      correspondences[key] = pair.points.map((p, i) => ({
+        id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
+      }));
+    }
+  });
+  return { homographies, correspondences };
+}
+
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
@@ -713,6 +796,37 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   }
   if (args.datasetInfo) {
     existing.datasetInfo = args.datasetInfo;
+  }
+
+  // Camera calibration (transforms + the points behind them) is persisted as a
+  // standalone calibration.json in the dataset directory rather than embedded in
+  // meta.json, so it is easy to find, hand-edit, and consume as a self-contained
+  // artifact.
+  if (args.cameraHomographies || args.cameraCorrespondences) {
+    const calibrationFileAbsPath = npath.join(projectDirInfo.basePath, CalibrationFileName);
+    // Start from whatever is on disk so a partial update doesn't clobber the rest.
+    let homographies: CameraHomographies = {};
+    let correspondences: CameraCorrespondences = {};
+    if (await fs.pathExists(calibrationFileAbsPath)) {
+      try {
+        const existingCalibration = await _loadAsJson(calibrationFileAbsPath);
+        if (existingCalibration && Array.isArray(existingCalibration.pairs)) {
+          ({ homographies, correspondences } = fromCalibrationPairs(existingCalibration.pairs));
+        }
+      } catch (err) {
+        console.warn(`Unable to read existing ${calibrationFileAbsPath}: ${err}`);
+      }
+    }
+    if (args.cameraHomographies) {
+      homographies = args.cameraHomographies;
+    }
+    if (args.cameraCorrespondences) {
+      correspondences = args.cameraCorrespondences;
+    }
+    await _saveAsJson(calibrationFileAbsPath, {
+      version: CalibrationFileVersion,
+      pairs: toCalibrationPairs(homographies, correspondences),
+    });
   }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);

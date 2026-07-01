@@ -624,6 +624,55 @@ describe('native.common', () => {
     });
   });
 
+  it('saveMetadata writes calibration.json (pairs + points) and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    // Directional key: rgb is left, ir is right.
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraCorrespondences = {
+      'rgb::ir': [
+        { id: 1, a: [10, 20], b: [12, 22] },
+        { id: 2, a: [30, 40], b: [33, 44] },
+      ],
+    };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraCorrespondences });
+
+    // Persisted as a standalone calibration.json: pairs labeled left/right, with
+    // points laid out as leftX leftY rightX rightY.
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    expect(await fs.pathExists(calibrationPath)).toBe(true);
+    const calibration = await fs.readJSON(calibrationPath);
+    expect(calibration.pairs).toStrictEqual([
+      {
+        left: 'rgb',
+        right: 'ir',
+        points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    ]);
+
+    // Not embedded in meta.json.
+    const meta = await fs.readJSON(npath.join(projectDir, 'meta.json'));
+    expect(meta.cameraHomographies).toBeUndefined();
+    expect(meta.cameraCorrespondences).toBeUndefined();
+
+    // Rehydrated on load back into the in-app shapes.
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
+    expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
+  });
+
   it('import with CSV annotations without specifying track file', async () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = ''; //It returns null be default but users change it.

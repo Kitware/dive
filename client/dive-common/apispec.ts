@@ -8,6 +8,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import { CameraHomographies, CameraCorrespondences } from 'vue-media-annotator/CameraCalibrationStore';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -181,9 +182,11 @@ interface DatasetMetaMutable {
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
   datasetInfo?: Record<string, unknown>;
+  cameraHomographies?: CameraHomographies;
+  cameraCorrespondences?: CameraCorrespondences;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
