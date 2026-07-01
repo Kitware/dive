@@ -330,6 +330,11 @@ export default defineComponent({
     /**
      * Handle text query submission from Viewer
      */
+    // Loading state for the single-frame (interactive) text query. The
+    // all-frames path runs as a pipeline job with its own progress UI, so it
+    // does not use this.
+    const textQueryRunning = ref(false);
+
     async function handleTextQuerySubmit(params: {
       text: string;
       boxThreshold: number;
@@ -372,6 +377,7 @@ export default defineComponent({
         return;
       }
 
+      textQueryRunning.value = true;
       try {
         const response = await textQuery({
           imagePath,
@@ -380,6 +386,8 @@ export default defineComponent({
           boxThreshold,
           maxDetections: 10,
         });
+        // Query finished; drop the loading bar before any result/error prompts.
+        textQueryRunning.value = false;
 
         if (!response.success) {
           throw new Error(response.error || 'Text query failed');
@@ -480,11 +488,13 @@ export default defineComponent({
           });
         }
       } catch (error) {
+        textQueryRunning.value = false;
         await prompt({
           title: 'Text Query Error',
           text: [`Failed to execute text query: ${error}`],
         });
       } finally {
+        textQueryRunning.value = false;
         // Exit edit/draw mode after text query completes (success or failure)
         if (viewerRef.value?.handler) {
           viewerRef.value.handler.trackAbort();
@@ -1639,6 +1649,7 @@ export default defineComponent({
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
+      textQueryRunning,
       stereoLoadingError,
       stereoLengthSnackbar,
       stereoLengthMessage,
@@ -1736,6 +1747,26 @@ export default defineComponent({
         </SidebarContext>
       </template>
     </Viewer>
+    <v-dialog
+      :value="textQueryRunning"
+      persistent
+      max-width="420"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          Text Query
+        </v-card-title>
+        <v-card-text>
+          <div class="mb-2">
+            Searching the current frame&hellip;
+          </div>
+          <v-progress-linear
+            indeterminate
+            color="primary"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
     <v-dialog
       :value="stereoLoadingDialog"
       persistent
