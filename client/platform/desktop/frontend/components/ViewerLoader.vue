@@ -24,6 +24,7 @@ import {
 import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
+  segmentationEnsureStarted,
   segmentationSam3Installed,
   loadMetadata, textQuery,
   runTextQueryPipeline,
@@ -545,8 +546,9 @@ export default defineComponent({
           return;
         }
 
-        // Try to initialize the service
-        await segmentationInitialize();
+        // Start the service process only -- do NOT warm the point-segmentation
+        // model. The text-query model loads lazily on the first query.
+        await segmentationEnsureStarted();
         viewerRef.value?.onTextQueryServiceReady(true);
       } catch (error) {
         // Provide text-query specific error message instead of generic segmentation error
