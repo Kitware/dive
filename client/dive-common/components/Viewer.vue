@@ -198,7 +198,9 @@ export default defineComponent({
      * Forward a single-frame text query submission to the platform handler,
      * injecting the current frame number the query should run against.
      */
-    function onTextQuerySubmit(payload: { text: string; boxThreshold: number }) {
+    function onTextQuerySubmit(
+      payload: { text: string; boxThreshold: number; replaceExisting?: boolean },
+    ) {
       emit('text-query-submit', {
         ...payload,
         frameNum: aggregateController.value.frame.value,
