@@ -8,6 +8,8 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from dive_utils import constants
 from dive_utils.serializers import viame
 
+FRAME_METADATA_SOURCE_EXTENSIONS = {'.txt', '.csv'}
+
 
 @dataclass(frozen=True)
 class ParsedFrameMetadata:
@@ -29,7 +31,10 @@ def normalize_key(value: str) -> str:
 
 
 def parse_table(text: str) -> Tuple[List[str], List[Dict[str, str]]]:
-    raw_rows = _read_rows(text)
+    return _parse_table_rows(_read_rows(text))
+
+
+def _parse_table_rows(raw_rows: List[List[str]]) -> Tuple[List[str], List[Dict[str, str]]]:
     if not raw_rows:
         return [], []
 
@@ -52,7 +57,14 @@ def find_join_columns(
     rows: Iterable[Mapping[str, str]],
     media_keys: Mapping[str, int],
 ) -> List[str]:
-    normalized_media_keys = _normalized_media_keys(media_keys)
+    return _find_join_columns_for_keys(header, rows, _normalized_media_keys(media_keys))
+
+
+def _find_join_columns_for_keys(
+    header: Sequence[str],
+    rows: Iterable[Mapping[str, str]],
+    normalized_media_keys: set,
+) -> List[str]:
     materialized_rows = list(rows)
     return [
         column
@@ -73,14 +85,16 @@ def parse_frame_metadata_source(
     media_keys: Mapping[str, int],
     source_name: Optional[str] = None,
 ) -> Optional[ParsedFrameMetadata]:
-    if viame.is_viame_csv(text.splitlines()):
+    raw_rows, delimiter = _read_rows_with_delimiter(text)
+    if delimiter == ',' and viame.is_viame_csv_rows(raw_rows):
         return None
 
-    header, rows = parse_table(text)
+    header, rows = _parse_table_rows(raw_rows)
     if not header or not rows:
         return None
 
-    join_columns = find_join_columns(header, rows, media_keys)
+    normalized_media_keys = _normalized_media_keys(media_keys)
+    join_columns = _find_join_columns_for_keys(header, rows, normalized_media_keys)
     if not join_columns:
         return None
 
@@ -89,7 +103,6 @@ def parse_frame_metadata_source(
         return None
 
     records: Dict[str, Dict[str, str]] = {}
-    normalized_media_keys = _normalized_media_keys(media_keys)
     for row in rows:
         for column in join_columns:
             key = normalize_key(row.get(column, ''))
@@ -115,7 +128,7 @@ def select_frame_metadata_source(
 ) -> Optional[ParsedFrameMetadata]:
     matches: List[ParsedFrameMetadata] = []
     for source_name, text in candidates:
-        if not _is_text_candidate(source_name):
+        if not is_frame_metadata_source_name(source_name):
             continue
         source = parse_frame_metadata_source(text, media_keys, source_name=source_name)
         if source is not None:
@@ -127,20 +140,24 @@ def select_frame_metadata_source(
 
 
 def _read_rows(text: str) -> List[List[str]]:
+    return _read_rows_with_delimiter(text)[0]
+
+
+def _read_rows_with_delimiter(text: str) -> Tuple[List[List[str]], Optional[str]]:
     first_line = _first_nonempty_line(text)
     if first_line is None:
-        return []
+        return [], None
 
     delimiter = _sniff_delimiter(first_line)
     if delimiter is None:
-        return [re.split(r'\s+', line.strip()) for line in text.splitlines() if line.strip()]
+        return [re.split(r'\s+', line.strip()) for line in text.splitlines() if line.strip()], None
 
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
     return [
         [cell.strip() for cell in row]
         for row in reader
         if row and any(cell.strip() for cell in row)
-    ]
+    ], delimiter
 
 
 def _first_nonempty_line(text: str) -> Optional[str]:
@@ -162,5 +179,5 @@ def _normalized_media_keys(media_keys: Mapping[str, int]) -> set:
     return {normalize_key(key) for key in media_keys}
 
 
-def _is_text_candidate(source_name: str) -> bool:
-    return os.path.splitext(source_name.lower())[1] in {'.txt', '.csv'}
+def is_frame_metadata_source_name(source_name: str) -> bool:
+    return os.path.splitext(source_name.lower())[1] in FRAME_METADATA_SOURCE_EXTENSIONS

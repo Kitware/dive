@@ -137,14 +137,6 @@ export function useFrameMetadataWindow({
       maxFrame?.value,
     );
 
-    if (
-      pendingRequest
-      && pendingDatasetId === requestDatasetId
-      && containsFrame(pendingRange, targetFrame)
-    ) {
-      return pendingRequest;
-    }
-
     if (loadedDatasetId.value !== requestDatasetId) {
       clearCache();
     }

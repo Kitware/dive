@@ -37,8 +37,10 @@ import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
   normalizeKey,
+  isFrameMetadataSourceName,
   parseFrameMetadataSource,
   selectFrameMetadataSource,
 } from 'platform/desktop/backend/serializers/frameMetadata';
@@ -58,7 +60,7 @@ import {
   ExportConfigurationArgs, ExportMulticamEverythingArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
   JobType, LastCalibrationBaseName,
-  FrameMetadataSourceExtensions, SingleCameraFrameMetadataKey,
+  SingleCameraFrameMetadataKey,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -476,11 +478,7 @@ async function frameMetadataCandidateTexts(directory: string | null): Promise<Fr
 
   const names = await fs.readdir(directory);
   const candidates = await Promise.all(names
-    .filter((name) => (
-      FrameMetadataSourceExtensions.includes(
-        npath.extname(name).toLowerCase() as typeof FrameMetadataSourceExtensions[number],
-      )
-    ))
+    .filter(isFrameMetadataSourceName)
     .map(async (name): Promise<FrameMetadataCandidate | null> => {
       const filePath = npath.join(directory, name);
       const stat = await fs.stat(filePath);
@@ -499,6 +497,22 @@ function mediaKeyToFrameMap(mediaKeys: Map<string, number>): Map<string, number>
       [normalizeKey(mediaKey), frameNumber]
     )),
   );
+}
+
+function frameRecordsForSource(
+  source: { records: Record<string, Record<string, string>> },
+  frameByKey: Map<string, number>,
+  startFrame: number,
+  endFrame: number,
+): FrameMetadataRecords {
+  const records: FrameMetadataRecords = {};
+  Object.entries(source.records).forEach(([mediaKey, values]) => {
+    const frameNumber = frameByKey.get(mediaKey);
+    if (frameNumber !== undefined && startFrame <= frameNumber && frameNumber <= endFrame) {
+      records[String(frameNumber)] = values;
+    }
+  });
+  return records;
 }
 
 // Records are built in source-header order, so two equal records may differ in
@@ -521,15 +535,27 @@ function recordsForFrameWindow(
   startFrame: number,
   endFrame: number,
 ): FrameMetadataRecords {
-  const frameByKey = mediaKeyToFrameMap(mediaKeys);
-  const records: FrameMetadataRecords = {};
-  Object.entries(source.records).forEach(([mediaKey, values]) => {
-    const frameNumber = frameByKey.get(normalizeKey(mediaKey));
-    if (frameNumber !== undefined && startFrame <= frameNumber && frameNumber <= endFrame) {
-      records[String(frameNumber)] = values;
+  return frameRecordsForSource(source, mediaKeyToFrameMap(mediaKeys), startFrame, endFrame);
+}
+
+function mergeFrameRecords(
+  records: FrameMetadataRecords,
+  collidedFrames: Set<string>,
+  nextRecords: FrameMetadataRecords,
+): FrameMetadataRecords {
+  const mergedRecords = { ...records };
+  Object.entries(nextRecords).forEach(([frameKey, values]) => {
+    if (collidedFrames.has(frameKey)) {
+      return;
+    }
+    if (mergedRecords[frameKey] === undefined) {
+      mergedRecords[frameKey] = values;
+    } else if (!frameMetadataRecordsEqual(mergedRecords[frameKey], values)) {
+      delete mergedRecords[frameKey];
+      collidedFrames.add(frameKey);
     }
   });
-  return records;
+  return mergedRecords;
 }
 
 async function loadSingleCameraFrameMetadataRecords(
@@ -570,27 +596,15 @@ async function loadMultiCameraFrameMetadataRecords(
   }
 
   const frameByKey = mediaKeyToFrameMap(mediaKeys);
-  const records: FrameMetadataRecords = {};
+  let records: FrameMetadataRecords = {};
   const collidedFrames = new Set<string>();
   const windowEnd = endFrame ?? mediaKeys.size - 1;
   sources.forEach((source) => {
-    Object.entries(source.records).forEach(([mediaKey, values]) => {
-      const frameNumber = frameByKey.get(normalizeKey(mediaKey));
-      if (frameNumber === undefined || frameNumber < startFrame || frameNumber > windowEnd) {
-        return;
-      }
-
-      const frameKey = String(frameNumber);
-      if (collidedFrames.has(frameKey)) {
-        return;
-      }
-      if (records[frameKey] === undefined) {
-        records[frameKey] = values;
-      } else if (!frameMetadataRecordsEqual(records[frameKey], values)) {
-        delete records[frameKey];
-        collidedFrames.add(frameKey);
-      }
-    });
+    records = mergeFrameRecords(
+      records,
+      collidedFrames,
+      frameRecordsForSource(source, frameByKey, startFrame, windowEnd),
+    );
   });
   return records;
 }
@@ -675,7 +689,7 @@ async function loadFrameMetadata(
   startFrame: number,
   endFrame?: number,
 ): Promise<FrameMetadataResponse> {
-  const parentId = datasetId.split('/')[0];
+  const parentId = parentDatasetId(datasetId);
   const projectDirData = await getValidatedProjectDir(settings, parentId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 

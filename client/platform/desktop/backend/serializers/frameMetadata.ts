@@ -1,8 +1,11 @@
 import parseSync from 'csv-parse/lib/sync';
 import path from 'path';
+import { FrameMetadataSourceExtensions } from 'platform/desktop/constants';
+import { isViameCsvRows } from 'platform/desktop/backend/serializers/viame';
 
 type FrameMetadataRow = Record<string, string>;
 type MediaKeys = Map<string, number> | Record<string, number>;
+type Delimiter = ',' | '\t' | null;
 
 interface ParsedFrameMetadata {
   sourceName?: string;
@@ -33,6 +36,7 @@ const imageExtensions = new Set([
   'r5',
   'r6',
 ]);
+const frameMetadataSourceExtensions = new Set<string>(FrameMetadataSourceExtensions);
 
 function normalizeKey(value: string): string {
   const basename = path.basename(String(value).trim());
@@ -45,7 +49,10 @@ function normalizeKey(value: string): string {
 }
 
 function parseTable(text: string): { header: string[]; rows: FrameMetadataRow[] } {
-  const rawRows = readRows(text);
+  return parseTableRows(readRows(text));
+}
+
+function parseTableRows(rawRows: string[][]): { header: string[]; rows: FrameMetadataRow[] } {
   if (rawRows.length === 0) {
     return { header: [], rows: [] };
   }
@@ -75,7 +82,14 @@ function findJoinColumns(
   rows: FrameMetadataRow[],
   mediaKeys: MediaKeys,
 ): string[] {
-  const normalizedMediaKeys = normalizedKeySet(mediaKeys);
+  return findJoinColumnsForKeys(header, rows, normalizedKeySet(mediaKeys));
+}
+
+function findJoinColumnsForKeys(
+  header: string[],
+  rows: FrameMetadataRow[],
+  normalizedMediaKeys: Set<string>,
+): string[] {
   return header.filter((column) => rows.some((row) => (
     row[column] && normalizedMediaKeys.has(normalizeKey(row[column]))
   )));
@@ -90,16 +104,18 @@ function parseFrameMetadataSource(
   mediaKeys: MediaKeys,
   sourceName?: string,
 ): ParsedFrameMetadata | null {
-  if (isViameCsv(text)) {
+  const { delimiter, rows: rawRows } = readRowsWithDelimiter(text);
+  if (delimiter === ',' && isViameCsvRows(rawRows)) {
     return null;
   }
 
-  const { header, rows } = parseTable(text);
+  const { header, rows } = parseTableRows(rawRows);
   if (header.length === 0 || rows.length === 0) {
     return null;
   }
 
-  const joinColumns = findJoinColumns(header, rows, mediaKeys);
+  const normalizedMediaKeys = normalizedKeySet(mediaKeys);
+  const joinColumns = findJoinColumnsForKeys(header, rows, normalizedMediaKeys);
   if (joinColumns.length === 0) {
     return null;
   }
@@ -110,7 +126,6 @@ function parseFrameMetadataSource(
   }
 
   const records: Record<string, FrameMetadataRow> = {};
-  const normalizedMediaKeys = normalizedKeySet(mediaKeys);
   rows.forEach((row) => {
     joinColumns.forEach((column) => {
       const key = normalizeKey(row[column] || '');
@@ -144,7 +159,7 @@ function selectFrameMetadataSource(
 ): ParsedFrameMetadata | null {
   const matches: ParsedFrameMetadata[] = [];
   candidates.forEach(([sourceName, text]) => {
-    if (!isTextCandidate(sourceName)) {
+    if (!isFrameMetadataSourceName(sourceName)) {
       return;
     }
     const source = parseFrameMetadataSource(text, mediaKeys, sourceName);
@@ -160,20 +175,27 @@ function selectFrameMetadataSource(
 }
 
 function readRows(text: string): string[][] {
+  return readRowsWithDelimiter(text).rows;
+}
+
+function readRowsWithDelimiter(text: string): { delimiter: Delimiter; rows: string[][] } {
   const firstLine = firstNonemptyLine(text);
   if (firstLine === null) {
-    return [];
+    return { delimiter: null, rows: [] };
   }
 
   const delimiter = sniffDelimiter(firstLine);
   if (delimiter === null) {
-    return text
-      .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => line.trim().split(/\s+/));
+    return {
+      delimiter,
+      rows: text
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => line.trim().split(/\s+/)),
+    };
   }
 
-  return parseDelimited(text, delimiter);
+  return { delimiter, rows: parseDelimited(text, delimiter) };
 }
 
 function parseDelimited(text: string, delimiter: ',' | '\t'): string[][] {
@@ -211,54 +233,8 @@ function normalizedKeySet(mediaKeys: MediaKeys): Set<string> {
   return new Set(Object.keys(mediaKeys).map((key) => normalizeKey(key)));
 }
 
-function isTextCandidate(sourceName: string): boolean {
-  return ['.txt', '.csv'].includes(path.extname(sourceName).toLowerCase());
-}
-
-function isViameCsv(text: string): boolean {
-  const rows = parseDelimited(text, ',');
-  let hasHeader = false;
-  let hasDataRow = false;
-  let firstRowIsDetection = false;
-  let seenDataRow = false;
-
-  rows.forEach((row) => {
-    if (row.length === 0) {
-      return;
-    }
-    if (row[0].startsWith('#')) {
-      hasHeader = hasHeader || row[0].startsWith('# 1: Detection or Track-id');
-      return;
-    }
-    if (!seenDataRow) {
-      seenDataRow = true;
-      firstRowIsDetection = isViameDataRow(row);
-    }
-    if (isViameDataRow(row)) {
-      hasDataRow = true;
-    }
-  });
-
-  // A headerless VIAME CSV (no text header) leads with a detection row; a DIVE
-  // export carries the comment header. Telemetry leads with a field-name header
-  // that is not VIAME-shaped, so it is left for the frame metadata parser.
-  return hasDataRow && (hasHeader || firstRowIsDetection);
-}
-
-function isViameDataRow(row: string[]): boolean {
-  if (row.length < 9) {
-    return false;
-  }
-  const trackId = Number.parseInt(row[0], 10);
-  const frame = Number.parseInt(row[2], 10);
-  const bounds = row.slice(3, 7).map((value) => Number.parseFloat(value));
-  const fishLength = Number.parseFloat(row[8]);
-  return (
-    Number.isFinite(trackId)
-    && Number.isFinite(frame)
-    && bounds.every((value) => Number.isFinite(value))
-    && Number.isFinite(fishLength)
-  );
+function isFrameMetadataSourceName(sourceName: string): boolean {
+  return frameMetadataSourceExtensions.has(path.extname(sourceName).toLowerCase());
 }
 
 export {
@@ -267,6 +243,7 @@ export {
   ParsedFrameMetadata,
   findJoinColumns,
   isFrameMetadata,
+  isFrameMetadataSourceName,
   normalizeKey,
   parseFrameMetadataSource,
   parseTable,

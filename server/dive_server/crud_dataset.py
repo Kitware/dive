@@ -486,7 +486,7 @@ def _load_camera_frame_metadata_records(
     collided_frames = set()
     for source in sources:
         for media_key, values in source.records.items():
-            frame_number = frame_by_key.get(frame_metadata.normalize_key(media_key))
+            frame_number = frame_by_key.get(media_key)
             if frame_number is None or not startFrame <= frame_number <= endFrame:
                 continue
 
@@ -509,7 +509,7 @@ def _frame_metadata_candidate_texts(folder: types.GirderModel) -> Iterable[Tuple
 
 
 def _is_frame_metadata_source_item(item: types.GirderModel) -> bool:
-    return Path(item['name'].lower()).suffix in {'.txt', '.csv'}
+    return frame_metadata.is_frame_metadata_source_name(item['name'])
 
 
 def _download_item_text(item: types.GirderModel) -> str:

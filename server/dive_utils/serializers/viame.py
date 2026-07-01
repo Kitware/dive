@@ -8,7 +8,7 @@ import io
 import json
 import os
 import re
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
 from dive_utils.models import Feature, Track, interpolate
@@ -74,6 +74,10 @@ def _is_viame_data_row(row: List[str]) -> bool:
 
 
 def is_viame_csv(rows: List[str]) -> bool:
+    return is_viame_csv_rows(csv.reader(row for row in rows))
+
+
+def is_viame_csv_rows(rows: Iterable[List[str]]) -> bool:
     """Return true when rows look like a VIAME annotation CSV.
 
     Two shapes are recognized. DIVE's own exports carry the ``# 1: Detection or
@@ -84,23 +88,25 @@ def is_viame_csv(rows: List[str]) -> bool:
     field-name header row that is *not* VIAME-shaped, so it is left for the frame
     metadata parser even when one of its columns matches the media names.
     """
-    reader = csv.reader(row for row in rows)
     has_header = False
     has_data_row = False
     first_row_is_detection = False
     seen_data_row = False
 
-    for row in reader:
+    for row in rows:
         if not row:
             continue
         if row[0].startswith('#'):
             has_header = has_header or row[0].startswith('# 1: Detection or Track-id')
             continue
+        row_is_detection = _is_viame_data_row(row)
         if not seen_data_row:
             seen_data_row = True
-            first_row_is_detection = _is_viame_data_row(row)
-        if _is_viame_data_row(row):
+            first_row_is_detection = row_is_detection
+        if row_is_detection:
             has_data_row = True
+            if has_header or first_row_is_detection:
+                return True
 
     return has_data_row and (has_header or first_row_is_detection)
 
