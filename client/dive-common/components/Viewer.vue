@@ -881,8 +881,8 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
-        // Rehydrate any saved camera-to-camera calibration homographies and points
-        cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences);
+        // Rehydrate any saved camera-to-camera calibration homographies, points, and transform types
+        cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences, meta.cameraTransformTypes);
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {

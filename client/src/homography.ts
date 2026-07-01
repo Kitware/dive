@@ -84,7 +84,7 @@ function normalizePoints(pts: Point[]): { normalized: Point[]; transform: Matrix
  * pivoting. A is square (n x n), modified in place.
  */
 /* eslint-disable no-param-reassign */
-function solveLinearSystem(A: number[][], b: number[]): number[] {
+export function solveLinearSystem(A: number[][], b: number[]): number[] {
   const n = b.length;
   for (let col = 0; col < n; col += 1) {
     // Partial pivot: find the row with the largest magnitude in this column.

@@ -220,7 +220,7 @@ export default defineComponent({
           cameraCalibration.correspondences,
           cameraCalibration.pendingPoint,
           cameraCalibration.homographies,
-          cameraCalibration.overlay,
+          cameraCalibration.alignment,
           frameNumberRef,
         ],
         () => calibrationLayer.update(),

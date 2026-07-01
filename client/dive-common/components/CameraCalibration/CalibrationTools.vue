@@ -7,6 +7,7 @@ import {
   useCameraCalibration,
   useDatasetId,
 } from 'vue-media-annotator/provides';
+import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 
@@ -39,11 +40,32 @@ export default defineComponent({
       const key = activeKey.value;
       return key ? (calibration.correspondences.value[key] || []) : [];
     });
-    const canFit = computed(() => correspondences.value.length >= 4);
+    const transformType = computed<TransformType>(
+      () => (activeKey.value ? calibration.transformTypeForPair(activeKey.value) : 'homography'),
+    );
+    const minPoints = computed(() => minPointsForTransform(transformType.value));
+    const canFit = computed(() => correspondences.value.length >= minPoints.value);
     const canExport = computed(() => correspondences.value.length >= 1);
 
-    function setOverlayEnabled(enabled: boolean) {
-      calibration.setOverlayEnabled(enabled);
+    const alignmentModeItems = computed(() => [
+      { text: 'Original (no alignment)', value: 'original' },
+      { text: `Warp ${camLeft.value ?? 'A'} onto ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !canFit.value },
+      { text: `Warp ${camRight.value ?? 'B'} onto ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !canFit.value },
+    ]);
+
+    function setTransformType(type: TransformType) {
+      const key = activeKey.value;
+      if (key) {
+        calibration.setTransformType(key, type);
+      }
+    }
+
+    function setAlignmentMode(mode: 'original' | 'AtoB' | 'BtoA') {
+      calibration.setAlignmentMode(mode);
+    }
+
+    function setPickTarget(target: 'native' | 'ghost') {
+      calibration.setPickTarget(target);
     }
 
     async function save() {
@@ -53,6 +75,7 @@ export default defineComponent({
         await saveMetadata(datasetId.value, {
           cameraHomographies: calibration.homographies.value,
           cameraCorrespondences: calibration.correspondences.value,
+          cameraTransformTypes: calibration.transformTypes.value,
         });
       } finally {
         saving.value = false;
@@ -87,12 +110,18 @@ export default defineComponent({
       camRight,
       calibration,
       pickingEnabled: calibration.pickingEnabled,
-      overlay: calibration.overlay,
+      alignment: calibration.alignment,
       correspondences,
+      transformType,
+      transformTypeItems: TRANSFORM_TYPES,
+      minPoints,
+      alignmentModeItems,
       canFit,
       canExport,
       saving,
-      setOverlayEnabled,
+      setTransformType,
+      setAlignmentMode,
+      setPickTarget,
       save,
       exportPoints,
     };
@@ -103,7 +132,7 @@ export default defineComponent({
 <template>
   <div class="mx-4">
     <span class="text-body-2">
-      Pick corresponding points between two cameras to fit an alignment homography.
+      Pick corresponding points between two cameras to fit an alignment transform.
     </span>
     <v-divider class="my-3" />
 
@@ -189,7 +218,7 @@ export default defineComponent({
       v-else
       class="text-caption grey--text"
     >
-      No correspondences yet. At least 4 are required to preview the overlay.
+      No correspondences yet. At least {{ minPoints }} required for the selected transform.
     </span>
 
     <v-divider class="my-3" />
@@ -225,46 +254,73 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <h4>Overlay (in-app alignment preview)</h4>
-
-    <v-switch
-      :input-value="overlay.enabled"
-      label="Show overlay"
+    <h4>Transform Type</h4>
+    <v-select
+      :value="transformType"
+      :items="transformTypeItems"
+      item-text="text"
+      item-value="value"
+      label="Transform type"
       dense
+      outlined
       hide-details
-      :disabled="!canFit"
-      class="mt-1"
-      @change="setOverlayEnabled"
+      class="my-2"
+      @change="setTransformType"
+    />
+    <span class="text-caption grey--text">
+      Needs at least {{ minPoints }} correspondence pair(s) ({{ correspondences.length }} picked).
+    </span>
+
+    <v-divider class="my-3" />
+
+    <h4>Alignment (in-app aligned picking)</h4>
+
+    <v-select
+      :value="alignment.mode"
+      :items="alignmentModeItems"
+      item-text="text"
+      item-value="value"
+      label="Alignment mode"
+      dense
+      outlined
+      hide-details
+      class="my-2"
+      @change="setAlignmentMode"
     />
     <span
       v-if="!canFit"
       class="text-caption grey--text"
     >
-      At least 4 correspondences are required to preview the overlay.
+      At least {{ minPoints }} correspondence pair(s) are required to align.
     </span>
 
-    <div v-if="canFit">
-      <v-select
-        v-model="overlay.direction"
-        :items="[
-          { text: 'Warp right onto left (B→A)', value: 'BtoA' },
-          { text: 'Warp left onto right (A→B)', value: 'AtoB' },
-        ]"
-        label="Direction"
-        dense
-        outlined
-        hide-details
-        class="my-2"
-      />
-      <span class="text-caption">Opacity</span>
+    <div v-if="alignment.mode !== 'original'">
+      <span class="text-caption">Ghost opacity</span>
       <v-slider
-        v-model="overlay.opacity"
+        v-model="alignment.opacity"
         :min="0"
         :max="1"
         :step="0.05"
         dense
         hide-details
       />
+
+      <div class="mt-2">
+        <span class="text-caption d-block mb-1">Picking for</span>
+        <v-btn-toggle
+          :value="alignment.pickTarget"
+          mandatory
+          dense
+          @change="setPickTarget"
+        >
+          <v-btn value="native" small>
+            This camera
+          </v-btn>
+          <v-btn value="ghost" small>
+            Ghost overlay
+          </v-btn>
+        </v-btn-toggle>
+      </div>
     </div>
   </div>
 </template>

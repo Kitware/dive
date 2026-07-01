@@ -25,9 +25,9 @@ interface CalibrationLayerParams {
 
 /**
  * Renders this camera's picked calibration points (numbered markers, the pending
- * "blue" point highlighted) and, when enabled, an aligned overlay of the other
- * camera's frame warped through the fitted homography (geojs quadFeature). One
- * instance is created per camera in LayerManager.
+ * "blue" point highlighted) and, when alignment mode is active, a ghost overlay
+ * of the other camera's frame warped through the fitted homography (geojs
+ * quadFeature). One instance is created per camera in LayerManager.
  */
 export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPointData> {
   calibration: CameraCalibrationStore;
@@ -103,7 +103,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       return;
     }
     // e.geo is already in image (gcs) coordinates.
-    this.calibration.addPoint(cam, [e.geo.x, e.geo.y]);
+    this.calibration.pickPoint(cam, [e.geo.x, e.geo.y]);
   }
 
   // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-unused-vars
@@ -138,18 +138,21 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   /**
-   * Render (or clear) the aligned overlay quad. The overlay is drawn in the
+   * Render (or clear) the aligned ghost quad. The ghost is drawn in the
    * destination camera's pane: the source camera's image is warped through the
-   * fitted homography for the selected direction.
+   * fitted homography for the selected alignment mode. Uses the same
+   * `homog[mode]` matrix that {@link CameraCalibrationStore.pickPoint} inverts to
+   * attribute a ghost-pane click back to the source camera, so rendering and
+   * click attribution stay direction-consistent.
    */
-  updateOverlay() {
+  updateGhost() {
     if (!this.quadFeature) {
       return;
     }
     const clear = () => this.quadFeature.data([]).draw();
-    const overlay = this.calibration?.overlay.value;
+    const alignment = this.calibration?.alignment.value;
     const pair = this.calibration?.activePair.value;
-    if (!overlay || !overlay.enabled || !pair || !this.getCameraImage) {
+    if (!alignment || alignment.mode === 'original' || !pair || !this.getCameraImage) {
       clear();
       return;
     }
@@ -159,9 +162,9 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       clear();
       return;
     }
-    const { direction } = overlay;
-    const srcCam = direction === 'BtoA' ? pair.camB : pair.camA;
-    const dstCam = direction === 'BtoA' ? pair.camA : pair.camB;
+    const { mode } = alignment;
+    const srcCam = mode === 'BtoA' ? pair.camB : pair.camA;
+    const dstCam = mode === 'BtoA' ? pair.camA : pair.camB;
     if (this.annotator.cameraName.value !== dstCam) {
       clear();
       return;
@@ -171,7 +174,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       clear();
       return;
     }
-    const h = homog[direction];
+    const h = homog[mode];
     const { width: w, height: hgt } = src;
     const ul = applyHomography(h, [0, 0]);
     const ur = applyHomography(h, [w, 0]);
@@ -185,15 +188,15 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
         ll: { x: ll[0], y: ll[1] },
         image: src.image,
       }])
-      .style('opacity', overlay.opacity)
+      .style('opacity', alignment.opacity)
       .draw();
   }
 
-  /** Recompute points and overlay from the store and redraw. */
+  /** Recompute points and the ghost overlay from the store and redraw. */
   update() {
     this.formattedData = this.formatData([]);
     this.redraw();
-    this.updateOverlay();
+    this.updateGhost();
   }
 
   redraw(): null {

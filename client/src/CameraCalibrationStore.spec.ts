@@ -20,6 +20,17 @@ describe('CameraCalibrationStore', () => {
     expect(store.activePair.value).toBeNull();
   });
 
+  it('resets alignment to original when switching pairs', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    addFourTranslationPairs(store);
+    store.setAlignmentMode('AtoB');
+    store.setPickTarget('ghost');
+    expect(store.alignment.value.mode).toBe('AtoB');
+    store.setActivePair('left', 'other');
+    expect(store.alignment.value).toMatchObject({ mode: 'original', pickTarget: 'native' });
+  });
+
   it('forms one correspondence from a blue->red two-click sequence', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
@@ -78,20 +89,20 @@ describe('CameraCalibrationStore', () => {
       store.addPoint('left', p);
       store.addPoint('right', [p[0] + 5, p[1] - 3]);
     });
-    const { AtoB, BtoA } = store.fitHomography(key);
+    const { AtoB, BtoA } = store.fitTransform(key);
     expect(AtoB[0][2]).toBeCloseTo(5, 5);
     expect(AtoB[1][2]).toBeCloseTo(-3, 5);
     expect(BtoA[0][2]).toBeCloseTo(-5, 5);
     expect(store.homographies.value[key]).toBeDefined();
   });
 
-  it('throws when fitting with fewer than 4 pairs', () => {
+  it('throws when fitting with fewer than 4 pairs (default homography type)', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
     store.addPoint('left', [1, 1]);
     store.addPoint('right', [2, 2]);
-    expect(() => store.fitHomography(key)).toThrow();
+    expect(() => store.fitTransform(key)).toThrow();
   });
 
   function addFourTranslationPairs(store: CameraCalibrationStore) {
@@ -102,62 +113,62 @@ describe('CameraCalibrationStore', () => {
     });
   }
 
-  it('fits when enabling the overlay with >= 4 pairs', () => {
+  it('fits when enabling alignment mode with >= 4 pairs', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
     addFourTranslationPairs(store);
-    store.setOverlayEnabled(true);
-    expect(store.overlay.value.enabled).toBe(true);
+    store.setAlignmentMode('AtoB');
+    expect(store.alignment.value.mode).toBe('AtoB');
     expect(store.homographies.value[key]).toBeDefined();
     expect(store.homographies.value[key].AtoB[0][2]).toBeCloseTo(5, 5);
   });
 
-  it('does not enable the overlay with fewer than 4 pairs', () => {
+  it('does not enable alignment mode with fewer than 4 pairs (default homography type)', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     store.addPoint('left', [1, 1]);
     store.addPoint('right', [2, 2]);
-    store.setOverlayEnabled(true);
-    expect(store.overlay.value.enabled).toBe(false);
+    store.setAlignmentMode('AtoB');
+    expect(store.alignment.value.mode).toBe('original');
     expect(store.homographies.value).toEqual({});
   });
 
-  it('refits when correspondences change while the overlay is enabled', () => {
+  it('refits when correspondences change while alignment mode is active', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
     addFourTranslationPairs(store);
-    store.setOverlayEnabled(true);
+    store.setAlignmentMode('AtoB');
     const before = store.homographies.value[key].AtoB[0][2];
     store.addPoint('left', [20, 20]);
     store.addPoint('right', [30, 14]);
     expect(store.homographies.value[key].AtoB[0][2]).not.toBeCloseTo(before, 5);
   });
 
-  it('disables the overlay when correspondences drop below 4', () => {
+  it('reverts alignment to original when correspondences drop below the transform minimum', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
     addFourTranslationPairs(store);
-    store.setOverlayEnabled(true);
+    store.setAlignmentMode('AtoB');
     const { id } = store.correspondences.value[key][0];
     store.removeCorrespondence(id);
     store.removeCorrespondence(store.correspondences.value[key][0].id);
     store.removeCorrespondence(store.correspondences.value[key][0].id);
     store.removeCorrespondence(store.correspondences.value[key][0].id);
     expect(store.correspondences.value[key]).toHaveLength(0);
-    expect(store.overlay.value.enabled).toBe(false);
+    expect(store.alignment.value.mode).toBe('original');
     expect(store.homographies.value[key]).toBeUndefined();
   });
 
-  it('maybeFitActivePair fits without enabling the overlay', () => {
+  it('maybeFitActivePair fits without enabling alignment mode', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
     addFourTranslationPairs(store);
     store.maybeFitActivePair();
-    expect(store.overlay.value.enabled).toBe(false);
+    expect(store.alignment.value.mode).toBe('original');
     expect(store.homographies.value[key]).toBeDefined();
   });
 
@@ -171,6 +182,15 @@ describe('CameraCalibrationStore', () => {
     expect(store.activePair.value).toBeNull();
     expect(store.pendingPoint.value).toBeNull();
     expect(store.correspondences.value).toEqual({});
+    expect(store.transformTypes.value).toEqual({});
+    expect(store.alignment.value).toEqual({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+  });
+
+  it('hydrates transform types alongside homographies', () => {
+    const store = new CameraCalibrationStore();
+    store.hydrate({}, {}, { 'a::b': 'rigid' });
+    expect(store.transformTypeForPair('a::b')).toBe('rigid');
+    expect(store.transformTypeForPair('unset::pair')).toBe('homography');
   });
 
   it('exports points as four columns "leftX leftY rightX rightY"', () => {
@@ -199,5 +219,93 @@ describe('CameraCalibrationStore', () => {
     store.addPoint('rgb', [9, 9]);
     store.addPoint('ir', [10, 10]);
     expect(store.correspondences.value['rgb::ir'][2].id).toBe(3);
+  });
+
+  describe('transform type selection', () => {
+    it('fits a rigid transform from 2 pairs where the default homography type would throw', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.addPoint('left', [0, 0]);
+      store.addPoint('right', [5, -3]);
+      store.addPoint('left', [10, 0]);
+      store.addPoint('right', [15, -3]);
+      expect(() => store.fitTransform(key)).toThrow();
+      store.setTransformType(key, 'rigid');
+      expect(store.homographies.value[key]).toBeDefined();
+      expect(store.homographies.value[key].AtoB[0][2]).toBeCloseTo(5, 4);
+    });
+
+    it('clears the fit and reverts alignment when switching to a type needing more points than are picked', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.addPoint('left', [0, 0]);
+      store.addPoint('right', [5, -3]);
+      store.addPoint('left', [10, 0]);
+      store.addPoint('right', [15, -3]);
+      store.setTransformType(key, 'rigid');
+      store.setAlignmentMode('AtoB');
+      expect(store.alignment.value.mode).toBe('AtoB');
+
+      store.setTransformType(key, 'homography'); // needs 4, only 2 picked
+      expect(store.homographies.value[key]).toBeUndefined();
+      expect(store.alignment.value.mode).toBe('original');
+    });
+  });
+
+  describe('setAlignmentMode / setPickTarget guards', () => {
+    it('setPickTarget is a no-op while alignment mode is original', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.setPickTarget('ghost');
+      expect(store.alignment.value.pickTarget).toBe('native');
+    });
+
+    it('setAlignmentMode leaves mode original when the pair lacks enough points', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.setAlignmentMode('BtoA');
+      expect(store.alignment.value.mode).toBe('original');
+    });
+  });
+
+  describe('pickPoint', () => {
+    it('attributes a ghost-pane click to the source camera via the inverse homography', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store); // left -> right is +5, -3
+      store.setAlignmentMode('AtoB'); // ghost of left shown in right's pane
+      store.setPickTarget('ghost');
+      store.pickPoint('right', [15, 7]);
+      expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [10, 10] });
+    });
+
+    it('always records a native pick in the non-ghosted (source) pane', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      store.setAlignmentMode('AtoB'); // right is the ghosted/destination pane
+      store.setPickTarget('ghost');
+      store.pickPoint('left', [3, 4]); // clicking the source pane, not ghosted
+      expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [3, 4] });
+    });
+
+    it('records a native pick in the ghosted pane when pick target is native', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      store.setAlignmentMode('AtoB');
+      // pickTarget defaults to 'native'
+      store.pickPoint('right', [15, 7]);
+      expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
+    });
+
+    it('behaves exactly like addPoint when alignment mode is original', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.pickPoint('right', [15, 7]);
+      expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
+    });
   });
 });
