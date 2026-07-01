@@ -128,8 +128,8 @@ export default defineComponent({
     const textQueryServiceError = ref('');
     const textQueryAllFrames = ref(false);
     // When on, existing annotations are removed before the query results are
-    // applied. Off by default so results are added alongside existing ones.
-    const textQueryReplaceExisting = ref(false);
+    // applied. On by default so a query replaces rather than accumulates.
+    const textQueryReplaceExisting = ref(true);
     const sam3InfoDialogOpen = ref(false);
 
     const openSam3InfoDialog = () => {
@@ -157,7 +157,7 @@ export default defineComponent({
       textQueryInput.value = '';
       textQueryServiceError.value = '';
       textQueryAllFrames.value = false;
-      textQueryReplaceExisting.value = false;
+      textQueryReplaceExisting.value = true;
       textQueryInitializing.value = true;
       emit('text-query-init');
     };
@@ -168,7 +168,7 @@ export default defineComponent({
       textQueryServiceError.value = '';
       textQueryInitializing.value = false;
       textQueryAllFrames.value = false;
-      textQueryReplaceExisting.value = false;
+      textQueryReplaceExisting.value = true;
     };
 
     const onTextQueryServiceReady = (success: boolean, error?: string) => {
