@@ -121,7 +121,7 @@ describe('desktop frame metadata serializer', () => {
     );
   });
 
-  it('parses NOAA-style rows with multiple image columns', () => {
+  it('parses multicamera rows with multiple image columns', () => {
     const mediaKeys = new Map([
       ['20191009.154056.00082_rect_color', 0],
       ['20191009.154056.00081_rect_color', 0],

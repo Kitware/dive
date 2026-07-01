@@ -87,7 +87,7 @@ def test_normalize_key_matches_image_name_map_keys():
     )
 
 
-def test_parse_noaa_style_rows_with_multiple_image_columns():
+def test_parse_multicamera_rows_with_multiple_image_columns():
     media_keys = {
         "20191009.154056.00082_rect_color": 0,
         "20191009.154056.00081_rect_color": 0,
