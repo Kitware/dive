@@ -1032,6 +1032,41 @@ export default function useModeManager({
   }
 
   /**
+   * Finalize any pending segmentation on the current camera WITHOUT
+   * deselecting the track, then re-arm the recipe. Used by the cross-camera
+   * continuation flow: when a segmentation point click lands on another
+   * camera, the current camera's pending mask is locked in first, and the
+   * recipe's accumulated prompt points are cleared so they cannot leak into
+   * the other camera's prediction (the points belong to this camera's image).
+   */
+  function handleSegmentationFinalizePending() {
+    const activeSegRecipes = recipes.filter(
+      (r): r is SegmentationPointClick => r instanceof SegmentationPointClick && r.active.value,
+    );
+    if (!activeSegRecipes.length) {
+      return;
+    }
+    if (!activeSegRecipes.some((r) => r.hasPendingPrediction() || r.hasPoints())) {
+      // Nothing in progress on this camera: the recipe is already fresh.
+      return;
+    }
+    // confirm() commits the pending mask (or just deactivates when there is
+    // none); the commit targets the still-selected camera's track.
+    activeSegRecipes.forEach((r) => r.confirm());
+    // The confirmed polygons are now permanent.
+    preSegmentationFeatures.clear();
+    onStereoSegmentationFinalize?.();
+    // Re-activate so the next click (on the other camera) segments fresh.
+    // completeActivation re-emits Point editing mode and keeps the current
+    // selection (handleSetAnnotationState re-selects the same track).
+    activeSegRecipes.forEach((r) => {
+      if (!r.active.value) {
+        r.activate();
+      }
+    });
+  }
+
+  /**
    * Merge: Enabled whenever there are candidates in the merge list
    */
   function handleToggleMerge(): TrackId[] {
@@ -1542,6 +1577,7 @@ export default function useModeManager({
     handler: {
       commitMerge: handleCommitMerge,
       confirmRecipe: handleConfirmRecipe,
+      segmentationFinalizePending: handleSegmentationFinalizePending,
       groupAdd: handleAddGroup,
       deleteSelectedTracks: handleDeleteSelectedTracks,
       groupEdit: handleGroupEdit,
