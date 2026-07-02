@@ -583,6 +583,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     // Skip Point mode — segmentation manages its own polygon via the recipe,
     // not through the edit layer's GeoJS annotation.
     if (this.featureLayer && this.type !== 'Point') {
+      // For LineString in creation mode, the native GeoJS annotation is a
+      // garbage trace: the real feature is managed in shapeInProgress (handled
+      // above). Emitting it would commit a bogus line to the track.
+      if (this.type === 'LineString' && this.getMode() === 'creation') {
+        return false;
+      }
       const annotations = this.featureLayer.annotations();
       if (annotations.length > 0) {
         const annotation = annotations[0];
@@ -684,13 +690,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
     if (this.skipNextExternalUpdate === false) {
-      // disable resets things before we load a new/different shape or mode
-      this.disable();
       //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
+        // Defer the whole reset while the left button is held: this layer may
+        // be mid-drag (e.g. an edit handle grabbed on a camera the mousedown
+        // just selected) and disable() would kill the in-progress action.
         this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
       } else {
+        // disable resets things before we load a new/different shape or mode
+        this.disable();
         clearTimeout(this.leftButtonCheckTimeout);
         this.formattedData = this.formatData(frameData);
       }
