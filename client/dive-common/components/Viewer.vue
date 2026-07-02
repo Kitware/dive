@@ -800,13 +800,36 @@ export default defineComponent({
       if (isCreatingNewDetection()) {
         return;
       }
-      // Likewise, a left-click on a camera still missing the selected track's
-      // geometry starts a draw there -- don't switch cameras. Right-click
-      // switching (mouseup.right) and the dropdown (no event) are unaffected.
-      if (event?.button === 0 && isExtendingDetectionToCamera(camera)) {
+      // Likewise, when a camera is still missing the selected track's
+      // geometry its creation cursor is live (see LayerManager): a left-click
+      // there starts a draw and a right-click cancels creation -- finalize
+      // what was committed and deselect, exactly like the single-camera
+      // behavior (the edit layer's own right-click handler does this).
+      // Neither must be stolen to switch cameras: switching mid-draw runs
+      // trackEdit -> finalizeInProgress, which interrupts the in-progress
+      // line instead of finalizing the detection. The dropdown (no event) is
+      // unaffected.
+      if (event && isExtendingDetectionToCamera(camera)) {
         return;
       }
-      if (event) {
+      // A right-click while editing must finalize and deselect the detection
+      // in a single press -- matching single-camera behavior -- not merely
+      // switch cameras (which used to leave the detection selected until a
+      // second right-click on the new camera). Right-clicks ON an annotation
+      // never reach here: the annotation layers' right-click handoff switches
+      // the selected camera synchronously first, so this handler returns at
+      // the top (same camera).
+      if (event?.button === 2 && editingTrack.value) {
+        handler.trackSelect(null, false);
+        return;
+      }
+      // While editing a track that exists on the target camera, its edit
+      // handles are live there too (see LayerManager): this mousedown may be
+      // the start of a handle drag, which preventDefault would kill. The
+      // switch still proceeds so the edit commits to the target camera.
+      const editingOnTarget = editingTrack.value && selectedTrackId.value !== null
+        && !!cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+      if (event && !editingOnTarget) {
         event.preventDefault();
       }
       // Left click should kick out of editing mode, unless the selected track

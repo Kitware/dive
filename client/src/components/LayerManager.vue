@@ -306,7 +306,15 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack && props.camera === selectedCamera.value) {
+              // While editing, show edit handles on EVERY camera where the
+              // selected track has geometry at this frame -- not just the
+              // selected camera -- so a stereo detection can be adjusted on
+              // either camera without selecting it first. The mousedown that
+              // grabs a handle switches the selected camera first
+              // (Viewer.changeCamera keeps edit mode when the track exists on
+              // the target camera), and the update:geojson routing below is
+              // the fallback for edits that land before the switch.
+              if (editingTrack) {
                 editingTracks.push(trackFrame);
               }
               if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
@@ -725,6 +733,19 @@ export default defineComponent({
             // The switch was blocked (e.g. linking mode): a segmentation point
             // clicked on this camera must never be added to the selected
             // camera's prompt points, so drop the click.
+            return;
+          }
+        } else if (editingModeRef.value && selectedTrackIdRef.value !== null
+          && cameraStore.getPossibleTrack(selectedTrackIdRef.value, props.camera)) {
+          // Editing the selected track's existing geometry on this camera
+          // (edit handles are live on every camera showing the track): switch
+          // so the edit commits to THIS camera's track. Normally the mousedown
+          // that grabbed the handle already switched via Viewer.changeCamera;
+          // this is the fallback when the update lands first.
+          handler.selectCamera(props.camera, false);
+          if (selectedCamera.value !== props.camera) {
+            // Switch blocked: never commit this camera's edit to the selected
+            // camera's track.
             return;
           }
         }
