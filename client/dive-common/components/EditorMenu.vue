@@ -530,8 +530,8 @@ export default defineComponent({
             <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
               <span
                 v-bind="button.unavailable ? tooltipAttrs : {}"
-                v-on="button.unavailable ? tooltipOn : {}"
                 class="d-inline-block"
+                v-on="button.unavailable ? tooltipOn : {}"
               >
                 <v-btn
                   :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
