@@ -305,6 +305,14 @@ export default defineComponent({
     const stereoLoadingDialog = ref(false);
     const stereoLoadingMessage = ref('Loading stereo model...');
     const stereoLoadingError = ref('');
+    // Title shown while the loading dialog is in its error state. Lets the same
+    // dialog surface both service-startup and per-transfer failures instead of
+    // spawning a second popup.
+    const stereoErrorTitle = ref('Stereo Service Error');
+    // Alert severity for that error state. A per-transfer failure (no stereo
+    // match found) is a common, recoverable event -- shown as a softer
+    // 'warning' -- whereas a service-startup failure is a hard 'error' (red).
+    const stereoErrorSeverity = ref<'error' | 'warning'>('error');
     const stereoEnabled = ref(false);
     // Transient notification reporting the latest computed stereo length
     const stereoLengthSnackbar = ref(false);
@@ -490,6 +498,8 @@ export default defineComponent({
           // look like annotations simply weren't measuring. Load-time
           // failures (e.g. an uncalibrated dataset) keep the toggles so a
           // later calibrated dataset still works.
+          stereoErrorTitle.value = 'Stereo Service Error';
+          stereoErrorSeverity.value = 'error';
           stereoLoadingError.value = err instanceof Error ? err.message : String(err);
           stereoLoadingDialog.value = true;
         }
@@ -1332,15 +1342,15 @@ export default defineComponent({
         // Success — hide loading dialog
         stereoLoadingDialog.value = false;
       } catch (err) {
-        stereoLoadingDialog.value = false;
+        // Surface the failure in the SAME dialog that was showing the
+        // "Computing stereo correspondence..." spinner: switch it to its error
+        // state (title + message + Close button) rather than hiding it and
+        // popping a separate prompt, which flashed two windows in sequence.
         const message = err instanceof Error ? err.message : String(err);
-        await prompt({
-          title: 'Stereo Transfer Error',
-          text: [
-            'Failed to transfer annotation to the other camera.',
-            message,
-          ],
-        });
+        stereoErrorTitle.value = 'Stereo Transfer Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Failed to transfer annotation to the other camera. ${message}`;
+        stereoLoadingDialog.value = true;
       }
     }
 
@@ -1469,6 +1479,8 @@ export default defineComponent({
       stereoLoadingDialog,
       stereoLoadingMessage,
       stereoLoadingError,
+      stereoErrorTitle,
+      stereoErrorSeverity,
       stereoLengthSnackbar,
       stereoLengthMessage,
       closeStereoLoadingDialog,
@@ -1567,7 +1579,7 @@ export default defineComponent({
       max-width="560"
     >
       <v-card>
-        <v-card-title>{{ stereoLoadingError ? 'Stereo Service Error' : 'Stereo Service' }}</v-card-title>
+        <v-card-title>{{ stereoLoadingError ? stereoErrorTitle : 'Stereo Service' }}</v-card-title>
         <v-card-text>
           <div
             v-if="!stereoLoadingError"
@@ -1582,7 +1594,7 @@ export default defineComponent({
           </div>
           <v-alert
             v-else
-            type="error"
+            :type="stereoErrorSeverity"
             dense
             class="stereo-loading-error"
           >
