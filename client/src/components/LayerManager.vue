@@ -554,12 +554,27 @@ export default defineComponent({
     // the click that completed the draw is suppressed.
     let justFinalizedCreation = false;
 
+    // Guards against a single physical click being handled more than once when
+    // it lands on overlapping features on different layers. A skinny box hugging
+    // its head/tail line is the common case: the click hits both the rectangle
+    // polygon and the line, so both layers emit annotation-(right-)clicked in
+    // the same tick. Because trackEdit toggles edit mode, the second emit would
+    // immediately undo the first (right-click enters edit, then leaves it,
+    // ending up merely selected). Cleared on the next macrotask, so distinct
+    // user clicks (separate ticks) are unaffected.
+    let clickHandledThisTick = false;
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // The click that just finalized a new detection should not also select an
       // existing detection underneath the final vertex.
       if (justFinalizedCreation) {
         return;
       }
+      if (clickHandledThisTick) {
+        return;
+      }
+      clickHandledThisTick = true;
+      window.setTimeout(() => { clickHandledThisTick = false; }, 0);
       // Clicking a detection in a camera that isn't selected yet: switch to that
       // camera AND act on the detection in the same click — left-click selects,
       // right-click edits — instead of requiring a separate click to switch first.
