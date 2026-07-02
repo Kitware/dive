@@ -1,6 +1,6 @@
-# Media Metadata
+# Dataset Info
 
-The **Media Metadata** panel shows read-only frame telemetry, properties of the
+The **Dataset Info** panel shows read-only frame telemetry, properties of the
 whole dataset, and custom metadata attached to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
@@ -11,7 +11,7 @@ re-link annotations to their source records.
 
 ## What it shows
 
-![Media Metadata panel](images/General/DatasetInfo.png){ width=220px align=right }
+![Dataset Info panel](images/General/DatasetInfo.png){ width=220px align=right }
 
 **Frame Metadata** (read-only): per-frame telemetry for the active image, such
 as timestamp, latitude, longitude, depth, or altitude. The panel shows only the
@@ -70,12 +70,12 @@ For a multicamera image sequence, use either placement:
 
 A shared multicam file can contain one filename column per camera, such as
 `port_image` and `starboard_image`, or one filename column with separate rows for
-each camera. The Media Metadata panel follows the active camera, so switching
+each camera. The Dataset Info panel follows the active camera, so switching
 cameras switches the displayed records.
 
 ### Display behavior
 
-Open **Media Metadata** from the context sidebar while viewing an image-sequence
+Open **Dataset Info** from the context sidebar while viewing an image-sequence
 dataset. The Frame Metadata section updates as the playhead moves.
 
 The section shows only the source fields for the active frame. It does not

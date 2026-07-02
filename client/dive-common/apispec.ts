@@ -125,16 +125,16 @@ interface FrameImage {
   id?: string;
 }
 
-interface FrameMetadataValues {
+interface FrameMetadata {
   [field: string]: string;
 }
 
-interface FrameMetadataFrameMap {
-  [frame: string]: FrameMetadataValues;
+interface FrameMetadataMap {
+  [frame: string]: FrameMetadata;
 }
 
 interface FrameMetadataCameraMap {
-  [camera: string]: FrameMetadataFrameMap;
+  [camera: string]: FrameMetadataMap;
 }
 
 interface FrameMetadataResponse {
@@ -463,9 +463,9 @@ export {
   PipeMetadata,
   Pipelines,
   FrameMetadataCameraMap,
-  FrameMetadataFrameMap,
+  FrameMetadataMap,
   FrameMetadataResponse,
-  FrameMetadataValues,
+  FrameMetadata,
   SaveDetectionsArgs,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,

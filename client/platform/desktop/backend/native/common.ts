@@ -30,6 +30,7 @@ import {
   PipeMetadata,
   PipelineParamType,
   DatasetCalibrationResult,
+  FrameMetadataMap,
   FrameMetadataResponse,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
@@ -455,7 +456,6 @@ interface ImageSequenceFrameMetadataSource {
 }
 
 type FrameMetadataCandidate = [string, string];
-type FrameMetadataRecords = Record<string, Record<string, string>>;
 
 function frameMetadataSourceDirectory(source: ImageSequenceFrameMetadataSource): string | null {
   if (source.originalBasePath) {
@@ -504,8 +504,8 @@ function frameRecordsForSource(
   frameByKey: Map<string, number>,
   startFrame: number,
   endFrame: number,
-): FrameMetadataRecords {
-  const records: FrameMetadataRecords = {};
+): FrameMetadataMap {
+  const records: FrameMetadataMap = {};
   Object.entries(source.records).forEach(([mediaKey, values]) => {
     const frameNumber = frameByKey.get(mediaKey);
     if (frameNumber !== undefined && startFrame <= frameNumber && frameNumber <= endFrame) {
@@ -534,15 +534,15 @@ function recordsForFrameWindow(
   mediaKeys: Map<string, number>,
   startFrame: number,
   endFrame: number,
-): FrameMetadataRecords {
+): FrameMetadataMap {
   return frameRecordsForSource(source, mediaKeyToFrameMap(mediaKeys), startFrame, endFrame);
 }
 
 function mergeFrameRecords(
-  records: FrameMetadataRecords,
+  records: FrameMetadataMap,
   collidedFrames: Set<string>,
-  nextRecords: FrameMetadataRecords,
-): FrameMetadataRecords {
+  nextRecords: FrameMetadataMap,
+): FrameMetadataMap {
   const mergedRecords = { ...records };
   Object.entries(nextRecords).forEach(([frameKey, values]) => {
     if (collidedFrames.has(frameKey)) {
@@ -562,7 +562,7 @@ async function loadSingleCameraFrameMetadataRecords(
   sourceMeta: ImageSequenceFrameMetadataSource,
   startFrame: number,
   endFrame?: number,
-): Promise<FrameMetadataRecords | null> {
+): Promise<FrameMetadataMap | null> {
   const mediaKeys = validImageNamesMap(sourceMeta);
   if (!mediaKeys) {
     return null;
@@ -582,7 +582,7 @@ async function loadMultiCameraFrameMetadataRecords(
   candidates: FrameMetadataCandidate[],
   startFrame: number,
   endFrame?: number,
-): Promise<FrameMetadataRecords | null> {
+): Promise<FrameMetadataMap | null> {
   const mediaKeys = validImageNamesMap(sourceMeta);
   if (!mediaKeys) {
     return null;
@@ -596,7 +596,7 @@ async function loadMultiCameraFrameMetadataRecords(
   }
 
   const frameByKey = mediaKeyToFrameMap(mediaKeys);
-  let records: FrameMetadataRecords = {};
+  let records: FrameMetadataMap = {};
   const collidedFrames = new Set<string>();
   const windowEnd = endFrame ?? mediaKeys.size - 1;
   sources.forEach((source) => {

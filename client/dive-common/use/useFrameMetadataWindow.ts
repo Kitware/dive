@@ -6,7 +6,7 @@ import type { Ref } from 'vue';
 import type {
   FrameMetadataCameraMap,
   FrameMetadataResponse,
-  FrameMetadataValues,
+  FrameMetadata,
 } from '../apispec';
 
 export const DEFAULT_FRAME_METADATA_WINDOW_SIZE = 101;
@@ -201,7 +201,7 @@ export function useFrameMetadataWindow({
   const currentFrameKey = computed(() => String(
     normalizeFrame(frame.value, normalizeMaxFrame(maxFrame?.value)),
   ));
-  const currentRows = computed<FrameMetadataValues | null>(() => (
+  const currentRows = computed<FrameMetadata | null>(() => (
     cameras.value[selectedCamera.value]?.[currentFrameKey.value] ?? null
   ));
   const currentEntries = computed(() => (

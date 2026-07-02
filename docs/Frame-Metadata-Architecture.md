@@ -71,7 +71,7 @@ same camera and frame, that frame is omitted rather than resolved by precedence.
 ## Client behavior
 
 The client keeps a bounded frame window around the playhead. It fetches a new
-window only when the active frame leaves the cached range. The Media Metadata
+window only when the active frame leaves the cached range. The Dataset Info
 panel reads from this cache and displays the active camera's current-frame values
 in source order.
 

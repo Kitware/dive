@@ -68,7 +68,7 @@ nav:
         - Attributes Details: UI-AttributeDetails.md
         - Attribute Track Filtering: UI-AttributeTrackFiltering.md
       - Group Manager: UI-Group-Manager.md
-      - Media Metadata: UI-DatasetInfo.md
+      - Dataset Info: UI-DatasetInfo.md
       - Annotation Sets: Annotation-Sets.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:

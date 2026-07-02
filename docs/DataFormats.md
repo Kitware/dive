@@ -22,7 +22,7 @@ annotations or exported in v1.
 ## Per-frame Metadata Text Sidecars
 
 DIVE can display read-only per-frame telemetry in the
-[Media Metadata panel](UI-DatasetInfo.md#frame-metadata). The stored form is a
+[Dataset Info panel](UI-DatasetInfo.md#frame-metadata). The stored form is a
 delimited text file placed next to the image sequence. DIVE reads it at view time
 and joins rows to frames by filename value.
 
@@ -210,7 +210,7 @@ This information provides the specification for an individual dataset.  It consi
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
 * Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.
-  * Edited from the Dataset Info section of the [Media Metadata panel](UI-DatasetInfo.md).
+  * Edited from the Dataset Info section of the [Dataset Info panel](UI-DatasetInfo.md).
   * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
 
@@ -243,7 +243,7 @@ Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sectio
 ### Dataset metadata in the header
 
 DIVE writes a `# metadata` comment line near the top of the CSV carrying dataset-level
-values such as `fps`. When a dataset has [Media Metadata](UI-DatasetInfo.md) custom
+values such as `fps`. When a dataset has [Dataset Info](UI-DatasetInfo.md) custom
 metadata, the whole `datasetInfo` object is added to that line as a single nested JSON
 entry keyed `dataset_info`:
 
@@ -258,7 +258,7 @@ entry keyed `dataset_info`:
 * This is how dataset context, for example a `gfishsite_id` used to re-link
   annotations to an external database, travels with the exported annotations without
   renaming files. See the Dataset Info section of the
-  [Media Metadata panel](UI-DatasetInfo.md) for how to populate it.
+  [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
 
 ### VIAME CSV polygons and length
 
@@ -331,7 +331,7 @@ These extension keys are declared in the COCO `info` object as:
 
 ### Dataset-level metadata (`datasetInfo`)
 
-The dataset's free-form [Media Metadata](UI-DatasetInfo.md) custom metadata
+The dataset's free-form [Dataset Info](UI-DatasetInfo.md) custom metadata
 (e.g. `gfishsite_id`, cruise, station) is written to the COCO `info` block under
 a single `dive_dataset_info` key and advertised in `info.dive_extensions`:
 
