@@ -32,7 +32,7 @@ import {
   FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { getResponseError } from 'vue-media-annotator/utils';
+import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -714,6 +714,13 @@ export default defineComponent({
         });
         return;
       }
+      // Segmentation prompt points belong to the current camera's image: lock
+      // in any pending mask (committed to the still-selected camera) and clear
+      // the points before switching, so they cannot leak into a prediction on
+      // the new camera. No-op when nothing is pending.
+      if (selectedCamera.value !== camera) {
+        handler.segmentationFinalizePending();
+      }
       // EditTrack is set false by the LayerMap before executing this
       if (selectedTrackId.value !== null) {
         // If we had a track selected and it still exists with
@@ -754,23 +761,33 @@ export default defineComponent({
       return track.getFeature(aggregateController.value.frame.value)[0] == null;
     };
     // While editing, the creation cursor is live on any camera still missing
-    // the selected track's geometry at this frame (see LayerManager), so the
-    // detection can be drawn on each camera in turn without switching first.
-    // A left-click on such a camera is the start of that draw -- don't steal
-    // it to switch cameras. Point mode is excluded (segmentation has its own
-    // cross-camera machinery), matching the cursor's own gating.
+    // the selected track's geometry at this frame (see LayerManager's
+    // cameraAwaitingGeometry, which this must mirror), so the detection can
+    // be drawn on each camera in turn without switching first. A left-click
+    // on such a camera is the start of that draw -- don't steal it to switch
+    // cameras. For Point mode (point-click segmentation) "missing" means no
+    // segmentation polygon here yet, so a box-only detection still accepts a
+    // point click.
     const isExtendingDetectionToCamera = (camera: string): boolean => {
       if (selectedTrackId.value === null || !editingTrack.value) {
         return false;
       }
-      if (editingMode.value === 'Point') {
+      const editingType = editingMode.value;
+      if (!editingType) {
         return false;
       }
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, camera);
       if (!track) {
         return true;
       }
-      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+      const [feature] = track.getFeature(aggregateController.value.frame.value);
+      if (feature == null) {
+        return true;
+      }
+      if (editingType === 'Point') {
+        return !featureHasSegmentationPolygon(feature, selectedKey.value);
+      }
+      return false;
     };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track

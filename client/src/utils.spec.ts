@@ -16,8 +16,10 @@ import {
   getRotationArrowLine,
   ROTATION_THRESHOLD,
   ROTATION_ATTRIBUTE_NAME,
+  featureHasSegmentationPolygon,
 } from './utils';
 import type { RectBounds } from './utils';
+import type { Feature } from './track';
 
 describe('updateSubset', () => {
   it('should return null for identical sets', () => {
@@ -333,5 +335,60 @@ describe('Rotation utilities', () => {
         expect(typeof pt[1]).toBe('number');
       });
     });
+  });
+});
+
+describe('featureHasSegmentationPolygon', () => {
+  // Matches the constant in dive-common/recipes/segmentationpointclick.ts
+  const SegmentationPolygonKey = 'SegmentationPolygon';
+  const boxOnly: Feature = {
+    frame: 0,
+    bounds: [0, 0, 10, 10] as RectBounds,
+  };
+  const headPointOnly: Feature = {
+    frame: 0,
+    bounds: [0, 0, 10, 10] as RectBounds,
+    geometry: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [1, 1] },
+          properties: { key: 'head' },
+        },
+      ],
+    },
+  };
+  const withSegmentationMask: Feature = {
+    frame: 0,
+    bounds: [0, 0, 10, 10] as RectBounds,
+    geometry: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [[[0, 0], [5, 0], [5, 5], [0, 0]]] },
+          properties: { key: SegmentationPolygonKey },
+        },
+      ],
+    },
+  };
+
+  it('returns false for a null feature', () => {
+    expect(featureHasSegmentationPolygon(null, SegmentationPolygonKey)).toBe(false);
+  });
+
+  it('a camera already segmented (mask polygon present) has the polygon', () => {
+    expect(featureHasSegmentationPolygon(withSegmentationMask, SegmentationPolygonKey)).toBe(true);
+    // Wrong key does not match
+    expect(featureHasSegmentationPolygon(withSegmentationMask, 'other')).toBe(false);
+  });
+
+  it('a box-only detection still accepts a segmentation click', () => {
+    expect(featureHasSegmentationPolygon(boxOnly, SegmentationPolygonKey)).toBe(false);
+  });
+
+  it('a stray Point geometry (e.g. head marker) does not count as segmented', () => {
+    expect(featureHasSegmentationPolygon(headPointOnly, SegmentationPolygonKey)).toBe(false);
   });
 });

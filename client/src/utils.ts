@@ -1,8 +1,28 @@
 import axios from 'axios';
 import { difference } from 'lodash';
+// Type-only import (erased at runtime) so the utils <-> track cycle is safe.
+import type { Feature } from './track';
 
 // [x1, y1, x2, y2] as (left, top), (bottom, right)
 export type RectBounds = [number, number, number, number];
+
+/**
+ * True when a track feature already carries a segmentation mask: a Polygon
+ * under the selected key. Point-click segmentation commits its mask as that
+ * polygon (the prompt points themselves are never stored on the track), so
+ * cross-camera segmentation uses this to decide whether a camera still
+ * accepts a point click for the selected detection -- a detection that only
+ * has a box (e.g. from a pipeline) must still accept one.
+ */
+export function featureHasSegmentationPolygon(
+  feature: Feature | null,
+  selectedKey: string,
+): boolean {
+  if (!feature) return false;
+  return (feature.geometry?.features || []).some(
+    (f) => f.geometry.type === 'Polygon' && (f.properties?.key ?? '') === selectedKey,
+  );
+}
 
 // Rotation-related constants
 /** Threshold for considering rotation significant (radians) */
