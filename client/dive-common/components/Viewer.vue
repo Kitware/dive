@@ -753,6 +753,25 @@ export default defineComponent({
       }
       return track.getFeature(aggregateController.value.frame.value)[0] == null;
     };
+    // While editing, the creation cursor is live on any camera still missing
+    // the selected track's geometry at this frame (see LayerManager), so the
+    // detection can be drawn on each camera in turn without switching first.
+    // A left-click on such a camera is the start of that draw -- don't steal
+    // it to switch cameras. Point mode is excluded (segmentation has its own
+    // cross-camera machinery), matching the cursor's own gating.
+    const isExtendingDetectionToCamera = (camera: string): boolean => {
+      if (selectedTrackId.value === null || !editingTrack.value) {
+        return false;
+      }
+      if (editingMode.value === 'Point') {
+        return false;
+      }
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+      if (!track) {
+        return true;
+      }
+      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
@@ -762,6 +781,12 @@ export default defineComponent({
       // Don't intercept clicks mid-creation; let the draw land on this camera.
       // The draw is routed to the drawn-on camera in LayerManager's update handler.
       if (isCreatingNewDetection()) {
+        return;
+      }
+      // Likewise, a left-click on a camera still missing the selected track's
+      // geometry starts a draw there -- don't switch cameras. Right-click
+      // switching (mouseup.right) and the dropdown (no event) are unaffected.
+      if (event?.button === 0 && isExtendingDetectionToCamera(camera)) {
         return;
       }
       if (event) {
