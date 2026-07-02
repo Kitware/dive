@@ -24,10 +24,14 @@ import {
 import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
-  loadMetadata,
+  segmentationEnsureStarted,
+  segmentationSam3Installed,
+  loadMetadata, textQuery,
+  runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
+  openLink,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -130,6 +134,20 @@ export default defineComponent({
     });
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
+    const textQueryAvailable = ref(false);
+
+    async function refreshTextQueryAvailability() {
+      try {
+        const result = await segmentationSam3Installed();
+        textQueryAvailable.value = result.installed;
+      } catch {
+        textQueryAvailable.value = false;
+      }
+    }
+
+    watch(() => settings.value?.viamePath, () => {
+      refreshTextQueryAvailability();
+    });
 
     watch(
       () => viewerRef.value?.trackFilters?.timeFilters?.value,
@@ -254,6 +272,10 @@ export default defineComponent({
             : undefined;
         }
 
+        // Share the resolvers with text query (handles video + multicam).
+        segmentationGetImagePath = getImagePath;
+        segmentationGetFrameTime = getFrameTime;
+
         // Initialize the recipe
         // Desktop uses imagePath from the request, so we ignore the frameNum parameter
         viewerRef.value.segmentationRecipe.initialize({
@@ -286,7 +308,7 @@ export default defineComponent({
       }
     }
 
-    // Store metadata for video frame-time / image path resolution
+    // Store metadata for text query image path resolution
     let cachedMeta: {
       originalBasePath: string;
       originalImageFiles: string[];
@@ -294,10 +316,276 @@ export default defineComponent({
       originalVideoFile?: string;
     } | null = null;
 
+    // Frame -> media-path / frame-time resolvers built by initializeSegmentation.
+    // Shared with text query so it resolves video and multicam media the same way
+    // segmentation does (selected-camera aware, video frame-time aware).
+    let segmentationGetImagePath: ((frameNum: number) => string) | null = null;
+    let segmentationGetFrameTime: ((frameNum: number) => number | undefined) | undefined;
+
+    /**
+     * Get image path for a given frame number
+     */
+    function getImagePathForFrame(frameNum: number): string {
+      if (!cachedMeta) {
+        return '';
+      }
+      const { originalBasePath, originalImageFiles, type } = cachedMeta;
+      if (type === 'video') {
+        // Video datasets require frame extraction - not yet supported
+        return npath.join(originalBasePath, cachedMeta.originalVideoFile || '');
+      }
+      if (originalImageFiles && originalImageFiles[frameNum]) {
+        const imagePath = originalImageFiles[frameNum];
+        if (npath.isAbsolute(imagePath)) {
+          return imagePath;
+        }
+        return npath.join(originalBasePath, imagePath);
+      }
+      return '';
+    }
+
+    /**
+     * Handle text query submission from Viewer
+     */
+    // Loading state for the single-frame (interactive) text query. The
+    // all-frames path runs as a pipeline job with its own progress UI, so it
+    // does not use this.
+    const textQueryRunning = ref(false);
+
+    async function handleTextQuerySubmit(params: {
+      text: string;
+      boxThreshold: number;
+      frameNum: number;
+      replaceExisting?: boolean;
+    }) {
+      const {
+        text, boxThreshold, frameNum, replaceExisting = false,
+      } = params;
+
+      // Ensure metadata is loaded
+      if (!cachedMeta) {
+        try {
+          const meta = await loadMetadata(props.id);
+          cachedMeta = {
+            originalBasePath: meta.originalBasePath,
+            originalImageFiles: meta.originalImageFiles,
+            type: meta.type,
+            originalVideoFile: meta.originalVideoFile,
+          };
+        } catch {
+          await prompt({
+            title: 'Text Query Error',
+            text: ['Failed to load dataset metadata for text query.'],
+          });
+          return;
+        }
+      }
+
+      // Prefer the segmentation resolvers (selected-camera + video aware); fall
+      // back to the single-cam image-sequence getter if segmentation never
+      // initialized.
+      const imagePath = segmentationGetImagePath?.(frameNum) || getImagePathForFrame(frameNum);
+      const frameTime = segmentationGetFrameTime?.(frameNum);
+      if (!imagePath) {
+        await prompt({
+          title: 'Text Query Error',
+          text: ['Could not determine image path for current frame.'],
+        });
+        return;
+      }
+
+      textQueryRunning.value = true;
+      try {
+        const response = await textQuery({
+          imagePath,
+          frameTime,
+          text,
+          boxThreshold,
+          maxDetections: 10,
+        });
+        // Query finished; drop the loading bar before any result/error prompts.
+        textQueryRunning.value = false;
+
+        if (!response.success) {
+          throw new Error(response.error || 'Text query failed');
+        }
+
+        const detections = response.detections || [];
+
+        // Resolve the target camera/track store up front so that "replace"
+        // can clear the current frame even when the query returns nothing.
+        const cameraStore = viewerRef.value?.cameraStore;
+        const selectedCamera = viewerRef.value?.selectedCamera || 'singleCam';
+        const trackStore = cameraStore?.camMap.value.get(selectedCamera)?.trackStore;
+
+        // When replacing, remove annotations already present on this frame
+        // before adding the query results. Tracks that exist only on this
+        // frame are removed entirely; tracks spanning other frames lose just
+        // this frame's feature (and are removed if that empties them). Other
+        // frames' annotations are left untouched.
+        if (replaceExisting && cameraStore && trackStore) {
+          const removeIds: number[] = [];
+          trackStore.annotationMap.forEach((track) => {
+            if (frameNum < track.begin || frameNum > track.end) {
+              return;
+            }
+            if (track.begin === frameNum && track.end === frameNum) {
+              removeIds.push(track.id);
+            } else {
+              track.deleteFeature(frameNum);
+              if (track.featureIndex.length === 0) {
+                removeIds.push(track.id);
+              }
+            }
+          });
+          removeIds.forEach((id) => cameraStore.remove(id, selectedCamera));
+        }
+
+        if (detections.length === 0) {
+          await prompt({
+            title: 'Text Query Results',
+            text: [`No objects matching "${text}" were found in the current frame.`],
+          });
+          return;
+        }
+
+        // Create tracks from detections
+        if (cameraStore && trackStore) {
+          detections.forEach((det) => {
+            // Get a new unique track ID
+            const newTrackId = cameraStore.getNewTrackId();
+
+            // Create a new track with the detection label as its type
+            const newTrack = trackStore.add(
+              frameNum,
+              det.label, // Use the detection label as the track type
+              undefined, // No parent track
+              newTrackId, // Use the new track ID
+            );
+
+            // add() seeds the confidence pair at 1.0; apply the detection's
+            // actual confidence from the text-query model so it isn't shown
+            // as 100%. (setType clamps >=1 to 1.0, which is the correct
+            // behavior for a genuinely-1.0 score.)
+            if (typeof det.score === 'number') {
+              newTrack.setType(det.label, det.score);
+            }
+
+            // Calculate bounds from box [x1, y1, x2, y2]
+            const [x1, y1, x2, y2] = det.box;
+            const bounds = [x1, y1, x2, y2] as [number, number, number, number];
+
+            // Create GeoJSON features array for polygon if available
+            const geoJsonFeatures: GeoJSON.Feature[] = [];
+            if (det.polygon && det.polygon.length >= 3) {
+              // Ensure polygon is closed (first point = last point for GeoJSON)
+              const closedPolygon = [...det.polygon];
+              const first = closedPolygon[0];
+              const last = closedPolygon[closedPolygon.length - 1];
+              if (first[0] !== last[0] || first[1] !== last[1]) {
+                closedPolygon.push([...first] as [number, number]);
+              }
+
+              const polygonFeature: GeoJSON.Feature = {
+                type: 'Feature',
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: [closedPolygon],
+                },
+                properties: { key: '' },
+              };
+              geoJsonFeatures.push(polygonFeature);
+            }
+
+            // Set the feature with bounds and optional polygon
+            newTrack.setFeature({
+              frame: frameNum,
+              flick: 0,
+              keyframe: true,
+              bounds,
+              interpolate: false, // Single detection, no interpolation
+            }, geoJsonFeatures.length > 0 ? geoJsonFeatures : undefined);
+          });
+
+          await prompt({
+            title: 'Text Query Results',
+            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
+          });
+        }
+      } catch (error) {
+        textQueryRunning.value = false;
+        await prompt({
+          title: 'Text Query Error',
+          text: [`Failed to execute text query: ${error}`],
+        });
+      } finally {
+        textQueryRunning.value = false;
+        // Exit edit/draw mode after text query completes (success or failure)
+        if (viewerRef.value?.handler) {
+          viewerRef.value.handler.trackAbort();
+        }
+      }
+    }
+
     // Initialize segmentation when component is mounted
     onMounted(() => {
       initializeSegmentation();
+      refreshTextQueryAvailability();
     });
+
+    /**
+     * Handle text query service initialization request
+     * Called when user opens the text query dialog
+     */
+    async function handleTextQueryInit() {
+      try {
+        // Check if the service is already ready
+        const status = await segmentationIsReady();
+        if (status.ready) {
+          viewerRef.value?.onTextQueryServiceReady(true);
+          return;
+        }
+
+        // Start the service process only -- do NOT warm the point-segmentation
+        // model. The text-query model loads lazily on the first query.
+        await segmentationEnsureStarted();
+        viewerRef.value?.onTextQueryServiceReady(true);
+      } catch (error) {
+        // Provide text-query specific error message instead of generic segmentation error
+        const rawMessage = error instanceof Error ? error.message : '';
+        const errorMessage = rawMessage.toLowerCase().includes('segmentation')
+          ? 'Unable to load text query model. Please ensure the service is properly configured.'
+          : (rawMessage || 'Text query model is not available. Please ensure the service is properly configured.');
+        viewerRef.value?.onTextQueryServiceReady(false, errorMessage);
+      }
+    }
+
+    /**
+     * Handle text query on all frames - runs as a pipeline job
+     */
+    async function handleTextQueryAllFrames(params: {
+      text: string;
+      boxThreshold: number;
+      replaceExisting?: boolean;
+    }) {
+      const { text, boxThreshold, replaceExisting = false } = params;
+
+      try {
+        await runTextQueryPipeline(props.id, text, boxThreshold, replaceExisting);
+        await prompt({
+          title: 'Text Query Pipeline Started',
+          text: [
+            `A pipeline job has been started to search for "${text}" in all frames.`,
+            'You will be notified when the job completes.',
+          ],
+        });
+      } catch (error) {
+        await prompt({
+          title: 'Text Query Pipeline Error',
+          text: [`Failed to start text query pipeline: ${error}`],
+        });
+      }
+    }
 
     /**
      * Interactive Stereo Service
@@ -1382,9 +1670,15 @@ export default defineComponent({
       runningPipelines,
       largeImageWarning,
       timeFilter,
+      handleTextQuerySubmit,
+      handleTextQueryInit,
+      handleTextQueryAllFrames,
+      textQueryAvailable,
+      openLink,
       /* Stereo */
       stereoLoadingDialog,
       stereoLoadingMessage,
+      textQueryRunning,
       stereoLoadingError,
       stereoLengthSnackbar,
       stereoLengthMessage,
@@ -1406,8 +1700,14 @@ export default defineComponent({
       :id.sync="id"
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :text-query-enabled="true"
+      :text-query-available="textQueryAvailable"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
+      @text-query-submit="handleTextQuerySubmit"
+      @text-query-init="handleTextQueryInit"
+      @text-query-all-frames="handleTextQueryAllFrames"
+      @open-external-link="openLink"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
       @stereo-annotation-reset="handleStereoAnnotationReset"
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
@@ -1478,6 +1778,26 @@ export default defineComponent({
         </SidebarContext>
       </template>
     </Viewer>
+    <v-dialog
+      :value="textQueryRunning"
+      persistent
+      max-width="420"
+    >
+      <v-card>
+        <v-card-title class="text-h6">
+          Text Query
+        </v-card-title>
+        <v-card-text>
+          <div class="mb-2">
+            Searching the current frame&hellip;
+          </div>
+          <v-progress-linear
+            indeterminate
+            color="primary"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
     <v-dialog
       :value="stereoLoadingDialog"
       persistent
