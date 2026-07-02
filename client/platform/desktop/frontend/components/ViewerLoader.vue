@@ -416,9 +416,8 @@ export default defineComponent({
       }
     }
 
-    // Watch stereo toggle (immediate so a remembered setting enables on load)
     // The backend stereo service is needed whenever either stereo feature is on
-    // (length-on-modify or cross-camera auto-compute). Watch the combined state
+    // (length-on-modify or cross-camera auto-compute). Track the combined state
     // so toggling one feature while the other is already on does not restart it.
     const stereoServiceWanted = () => clientSettings.stereoSettings.updateLengthsOnModify
       || clientSettings.stereoSettings.autoComputeOtherCamera;
@@ -428,13 +427,16 @@ export default defineComponent({
       clientSettings.stereoSettings.autoComputeOtherCamera = false;
     }
 
-    watch(stereoServiceWanted, async (enabled, wasEnabled) => {
-      // wasEnabled === undefined on the initial immediate run. A failure then
-      // (e.g. a stereo dataset without calibration, with length-update on by
-      // default) degrades quietly rather than popping an error dialog or
-      // persisting the feature toggles off.
-      const userInitiated = wasEnabled !== undefined;
+    // Enable or disable the backend stereo service to match the desired state.
+    // userInitiated distinguishes an explicit toggle -- surface failures and
+    // revert the toggles -- from the load-time auto-enable of a remembered
+    // setting, which degrades quietly on benign failures (e.g. an uncalibrated
+    // dataset) so a later calibrated dataset still works.
+    async function applyStereoServiceState(enabled: boolean, userInitiated: boolean) {
       if (enabled) {
+        // Already running (e.g. a user toggle raced the load-time auto-enable):
+        // nothing to do.
+        if (stereoEnabled.value) return;
         stereoLoadingDialog.value = userInitiated;
         stereoLoadingMessage.value = 'Loading stereo model...';
         stereoLoadingError.value = '';
@@ -493,7 +495,33 @@ export default defineComponent({
         }
         stereoEnabled.value = false;
       }
-    }, { immediate: true });
+    }
+
+    // Runtime toggle changes are always user-initiated. This watcher is NOT
+    // immediate: a remembered setting must NOT auto-enable here, because this
+    // runs during setup() -- before the dataset/viewer has loaded. Enabling then
+    // races the not-yet-ready multicam metadata; on failure the load-time path
+    // degrades silently with nothing to retry, so the service would stay off
+    // until the toggle was flipped off and on again. The load-time auto-enable
+    // is deferred to the viewer-ready watcher below instead.
+    watch(stereoServiceWanted, (enabled) => applyStereoServiceState(enabled, true));
+
+    // Load-time auto-enable of a remembered setting: run once the viewer has
+    // actually finished loading the dataset (progress.loaded), so the metadata
+    // and calibration the enable needs are available. One-shot -- stop after the
+    // first load so later dataset reloads (which reset progress.loaded) do not
+    // re-trigger it.
+    const stopStereoAutoEnable = watch(
+      () => viewerRef.value?.progress?.loaded === true,
+      (loaded) => {
+        if (!loaded) return;
+        stopStereoAutoEnable();
+        if (stereoServiceWanted() && !stereoEnabled.value) {
+          applyStereoServiceState(true, false);
+        }
+      },
+      { immediate: true },
+    );
 
     // Watch frame changes to proactively compute disparity
     watch(() => getViewerFrame(), (frameNum) => {
