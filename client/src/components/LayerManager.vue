@@ -218,6 +218,25 @@ export default defineComponent({
       return t.getFeature(frame)[0] == null;
     }
 
+    // True when, while editing, the selected track has no geometry on THIS
+    // camera at this frame (the track may not exist on this camera at all).
+    // Complements isCreatingNewDetection: after the detection is drawn on one
+    // camera, the creation cursor stays live on the cameras still missing it,
+    // so it can be drawn on each in turn (same track id) without selecting the
+    // camera first. Excludes Point mode -- segmentation has its own
+    // cross-camera machinery.
+    function cameraAwaitingGeometry(
+      frame: number,
+      trackId: AnnotationId | null,
+      editingTrack: false | EditAnnotationTypes,
+    ): boolean {
+      if (trackId === null || !editingTrack || editingTrack === 'Point') return false;
+      if (!cameraStore.getAnyPossibleTrack(trackId)) return false;
+      const t = cameraStore.getPossibleTrack(trackId, props.camera);
+      if (!t) return true;
+      return t.getFeature(frame)[0] == null;
+    }
+
     function updateLayers(
       frame: number,
       editingTrack: false | EditAnnotationTypes,
@@ -393,11 +412,14 @@ export default defineComponent({
             editAnnotationLayer.changeData(editingTracks);
           }
         } else if (editingTrack && props.camera !== selectedCamera.value
-          && isCreatingNewDetection(frame, selectedTrackId)) {
+          && (isCreatingNewDetection(frame, selectedTrackId)
+            || cameraAwaitingGeometry(frame, selectedTrackId, editingTrack))) {
           // Seamless multicam creation: keep the creation cursor live on every
           // camera (not just the selected one) so a brand-new detection can be
-          // drawn on whichever camera the user starts on. The draw is routed to
-          // the drawn-on camera in the update:geojson handler below.
+          // drawn on whichever camera the user starts on -- and, once drawn on
+          // one camera, immediately drawn on the others while still in edit
+          // mode. The draw is routed to the drawn-on camera in the
+          // update:geojson handler below.
           editAnnotationLayer.setType(editingTrack);
           editAnnotationLayer.setKey(selectedKey);
           editAnnotationLayer.changeData([]);
@@ -658,14 +680,29 @@ export default defineComponent({
       cb: () => void = () => (undefined),
     ) => {
       // Seamless multicam creation: a draw that lands on a camera that isn't the
-      // selected one must commit on THIS camera. Switch to it and start a fresh
-      // detection here (the empty origin track is auto-cleaned on camera switch)
-      // so the geometry is applied to the camera the user actually drew on.
-      if (props.camera !== selectedCamera.value
-        && isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
-        handler.selectCamera(props.camera, false);
-        if (selectedCamera.value === props.camera) {
-          handler.trackAdd();
+      // selected one must commit on THIS camera.
+      if (props.camera !== selectedCamera.value) {
+        if (isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
+          // Brand-new detection: switch to this camera and start a fresh
+          // detection here (the empty origin track is auto-cleaned on camera
+          // switch) so the geometry is applied to the camera the user drew on.
+          handler.selectCamera(props.camera, false);
+          if (selectedCamera.value === props.camera) {
+            handler.trackAdd();
+          }
+        } else if (cameraAwaitingGeometry(frameNumberRef.value, selectedTrackIdRef.value, editingModeRef.value)) {
+          // Extending the selected detection to this camera (it already has
+          // geometry on another camera): create the same-id track on this
+          // camera BEFORE switching, so selectCamera keeps edit mode without
+          // toggling trackEdit (which would finalize/interrupt the in-progress
+          // draw). The update below then commits here under the same track id.
+          const trackId = selectedTrackIdRef.value as number;
+          if (!cameraStore.getPossibleTrack(trackId, props.camera)) {
+            const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
+            const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
+            trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
+          }
+          handler.selectCamera(props.camera, false);
         }
       }
       if (type === 'rectangle') {
