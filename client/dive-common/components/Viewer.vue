@@ -127,6 +127,14 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    textQueryEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    textQueryAvailable: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -170,6 +178,30 @@ export default defineComponent({
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
+    const editorMenuRef = ref();
+
+    /**
+     * Forward text query service ready status to EditorMenu
+     * Called by ViewerLoader when text query service initialization completes
+     */
+    function onTextQueryServiceReady(success: boolean, error?: string) {
+      if (editorMenuRef.value?.onTextQueryServiceReady) {
+        editorMenuRef.value.onTextQueryServiceReady(success, error);
+      }
+    }
+
+    /**
+     * Forward a single-frame text query submission to the platform handler,
+     * injecting the current frame number the query should run against.
+     */
+    function onTextQuerySubmit(
+      payload: { text: string; boxThreshold: number; replaceExisting?: boolean },
+    ) {
+      emit('text-query-submit', {
+        ...payload,
+        frameNum: aggregateController.value.frame.value,
+      });
+    }
 
     const sideBarCollapsed = ref(false);
     // Sidebar mode: 'left', 'bottom', or 'collapsed'
@@ -1275,6 +1307,9 @@ export default defineComponent({
       controlsHeight,
       controlsCollapsed,
       sideBarCollapsed,
+      editorMenuRef,
+      onTextQueryServiceReady,
+      onTextQuerySubmit,
       sidebarMode,
       cycleSidebarMode,
       sidebarModeIcon,
@@ -1459,6 +1494,7 @@ export default defineComponent({
         </v-tooltip>
 
         <EditorMenu
+          ref="editorMenuRef"
           v-bind="{
             editingMode,
             visibleModes,
@@ -1469,11 +1505,17 @@ export default defineComponent({
             groupEditActive: editingGroupId !== null,
             lassoModeActive: !readonlyState && lassoModeActive,
             lassoDrawing: !readonlyState && lassoDrawing,
+            textQueryEnabled,
+            textQueryAvailable,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @text-query-init="$emit('text-query-init')"
+          @text-query="onTextQuerySubmit"
+          @text-query-all-frames="$emit('text-query-all-frames', $event)"
+          @open-external-link="$emit('open-external-link', $event)"
         >
           <template slot="delete-controls">
             <delete-controls

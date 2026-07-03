@@ -117,12 +117,45 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale gi
 It's possible to split your web server and task runner between multiple nodes.  This may be useful if you want to run DIVE Web without a GPU or if you want to save money by keeping your GPU instance stopped when not in use.  You could also increase parallel task capacity by running task runners on multiple nodes.
 
 * Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
-* Clone the dive repository on both, and set up `.env` on both with the same configuration.
-* On worker nodes, uncomment and set:
-    * `GIRDER_WORKER_BROKER` — RabbitMQ URL reachable on the web server (e.g. `amqp://guest:guest@your-web-host/default`)
-    * `GIRDER_SETTING_WORKER_API_URL` — Girder API URL on the web server (e.g. `http://your-web-host:8080/api/v1`)
-    * `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web server if workers use the same notification settings as Compose (e.g. `redis://your-web-host:6379`)
-* The web server must be network-accessible from workers for the API URL and from workers to RabbitMQ and Redis.
+* Clone the dive repository on both VMs. The `.env` files are **not** identical — the web VM keeps the internal Compose service names, while the worker VM points at the web VM's IP or hostname (referred to below as `WEB_HOST`).
+
+!!! warning
+
+    `GIRDER_SETTING_WORKER_API_URL` is applied by the **web server** as the `worker.api_url` Girder system setting and is then stamped into every job that is dispatched to workers. It must be set on the **web VM**. Setting it only on the worker VM has no effect on the callback URL that workers actually use.
+
+### Web VM `.env`
+
+The web VM runs RabbitMQ, Redis, and Mongo as Compose services, so it keeps the internal service names — with one exception: `GIRDER_SETTING_WORKER_API_URL` must be an address the **remote worker** can reach, not the internal `girder:8080`.
+
+```
+GIRDER_SETTING_WORKER_API_URL=http://WEB_HOST:8010/api/v1
+```
+
+!!! note
+
+    Port `8080` is Girder's in-container port and is **not** published on the host. Traefik publishes the API on host port `8010` (base `docker-compose.yml`) or on `80`/`443` when you also use `docker-compose.prod.yml`. Use the published port here — never `8080`.
+
+    This only applies when workers run on a **separate** host. For a single-node (all-in-one) stack, leave `GIRDER_SETTING_WORKER_API_URL` unset — the default `http://girder:8080/api/v1` is correct because the worker resolves `girder` and reaches port `8080` over the internal Compose network.
+
+### Worker VM `.env`
+
+On the worker VM, uncomment and set these to point at `WEB_HOST`:
+
+* `GIRDER_WORKER_BROKER` — RabbitMQ URL on the web VM (e.g. `amqp://guest:guest@WEB_HOST/default`)
+* `GIRDER_SETTING_WORKER_API_URL` — Girder API URL on the web VM (e.g. `http://WEB_HOST:8010/api/v1`; match the web VM's value)
+* `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web VM (e.g. `redis://WEB_HOST:6379`); required so workers can publish job/UI status notifications
+
+### Required connectivity
+
+The worker VM must be able to reach the web VM on these ports (port `8080` does **not** need to be open between VMs):
+
+| Port | Service | Purpose |
+|------|---------|---------|
+| `8010` | Girder API (via Traefik) | Worker fetches job data and uploads results |
+| `5672` | RabbitMQ | Celery message broker |
+| `6379` | Redis | Job/UI status notifications |
+
+You can verify reachability from the worker VM with `nc -zv WEB_HOST 8010 5672 6379`.
 
 ``` bash
 ## On the web server
@@ -133,6 +166,16 @@ docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girde
 ```
 
 In this split setup, `localworker` on the web server handles the `local` queue, `girder_worker_default` handles standard queue jobs, and the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
+
+### Verify the configuration
+
+After the stack is up, confirm the web server is handing out the correct callback URL (not the internal `girder:8080` default). From the web VM's Swagger page or via curl:
+
+```
+GET /api/v1/system/setting?key=worker.api_url
+```
+
+This must return your `http://WEB_HOST:8010/api/v1` value. If it still shows `http://girder:8080/api/v1`, the web VM's `GIRDER_SETTING_WORKER_API_URL` was not applied — jobs will appear to dispatch (and `GET /worker/status` will look healthy, since that only reflects broker connectivity) but will stall because remote workers cannot reach `girder:8080`.
 
 ## Addon management
 
@@ -190,7 +233,7 @@ This image contains both the backend and client.
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
 | GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string (Celery broker) |
 | GIRDER_WORKER_BACKEND | `rpc://guest:guest@localhost/` | Celery result backend (RPC) |
-| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder REST API URL used by workers |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder REST API URL used by workers. Default is correct for a single-node stack; override with the web host's published URL (e.g. `http://WEB_HOST:8010/api/v1`) only for [split deployments](#splitting-services). |
 | GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis URL for notification fan-out |
 | GIRDER_STATIC_ROOT_DIR | `/opt/dive/clients/girder` | Built web client static files (set in image/Compose) |
 

@@ -7,6 +7,7 @@ import type {
   DatasetCalibrationResult,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
+  TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -308,6 +309,12 @@ async function segmentationInitialize(): Promise<{ success: boolean; noSamInstal
   return window.diveDesktop.invoke('segmentation-initialize');
 }
 
+// Start the interactive service process without warming the point-segmentation
+// model (used by text query, which loads its own model lazily).
+async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('segmentation-ensure-started');
+}
+
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
   return window.diveDesktop.invoke('segmentation-predict', request);
 }
@@ -332,6 +339,60 @@ async function segmentationShutdown(): Promise<{ success: boolean }> {
 
 async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
   return window.diveDesktop.invoke('segmentation-is-ready');
+}
+
+async function segmentationSam3Installed(): Promise<{ installed: boolean }> {
+  return window.diveDesktop.invoke('segmentation-sam3-installed');
+}
+
+/**
+ * Text Query API
+ * Allows open-vocabulary detection and segmentation using text prompts
+ */
+
+async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
+  return window.diveDesktop.invoke('segmentation-text-query', request);
+}
+
+async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
+  return window.diveDesktop.invoke('segmentation-refine', request);
+}
+
+/**
+ * Run text query pipeline on all frames
+ */
+async function runTextQueryPipeline(
+  datasetId: string,
+  queryText: string,
+  threshold?: number,
+  replaceExisting = false,
+): Promise<void> {
+  const pipeline: Pipe = {
+    name: 'Text Query',
+    pipe: 'utility_text_query_default.pipe',
+    type: 'utility',
+  };
+
+  // Config keys must address the refiner's sam3 sub-block
+  // (process track_refiner -> :refiner:type sam3 -> block refiner:sam3), and
+  // must go under kwiverParams -- that is the only place runPipeline() threads
+  // into "-s key=value" flags on the viame runner command.
+  const kwiverParams: Record<string, string> = {
+    'track_refiner:refiner:sam3:text_query': queryText,
+    'track_refiner:refiner:sam3:replace_existing': replaceExisting ? 'true' : 'false',
+  };
+
+  if (threshold !== undefined) {
+    kwiverParams['track_refiner:refiner:sam3:detection_threshold'] = threshold.toString();
+  }
+
+  const args: RunPipeline = {
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId,
+    pipelineParams: { kwiverParams },
+  };
+  gpuJobQueue.enqueue(args);
 }
 
 /**
@@ -650,12 +711,18 @@ export {
   deleteCalibration,
   /* Segmentation APIs */
   segmentationInitialize,
+  segmentationEnsureStarted,
   segmentationPredict,
   segmentationStereoSegment,
   segmentationSetImage,
   segmentationClearImage,
   segmentationShutdown,
   segmentationIsReady,
+  segmentationSam3Installed,
+  /* Text Query APIs */
+  textQuery,
+  refineDetections,
+  runTextQueryPipeline,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,
