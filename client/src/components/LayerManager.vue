@@ -20,7 +20,9 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import { geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME } from '../utils';
+import {
+  geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME, featureHasSegmentationPolygon,
+} from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -176,10 +178,14 @@ export default defineComponent({
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
 
-    // Watch for segmentation points updates - only show points for current frame
-    watch([segmentationPointsRef, frameNumberRef], ([newPoints, currentFrame]) => {
-      // Only display points if they belong to the current frame
-      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame) {
+    // Watch for segmentation points updates - only show points for the current
+    // frame, and only on the selected camera. The prompt points belong to the
+    // image being segmented; without the camera check every camera rendered
+    // them at the same pixel coordinates, which looked like an (unwarped)
+    // point being created on the other camera.
+    watch([segmentationPointsRef, frameNumberRef, selectedCamera], ([newPoints, currentFrame, currentCamera]) => {
+      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame
+        && props.camera === currentCamera) {
         segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
       } else {
         segmentationPointsLayer.clear();
@@ -216,6 +222,33 @@ export default defineComponent({
       const t = cameraStore.getPossibleTrack(trackId, selectedCamera.value);
       if (!t) return false;
       return t.getFeature(frame)[0] == null;
+    }
+
+    // True when, while editing, the selected track has no geometry on THIS
+    // camera at this frame (the track may not exist on this camera at all).
+    // For Point mode (point-click segmentation) and Polygon mode, "no geometry"
+    // means no polygon at the selected key here yet, so a detection that only
+    // has a box still accepts a draw.
+    // Complements isCreatingNewDetection: after the detection is drawn on one
+    // camera, the creation cursor stays live on the cameras still missing it,
+    // so it can be drawn on each in turn (same track id) without selecting the
+    // camera first.
+    function cameraAwaitingGeometry(
+      frame: number,
+      trackId: AnnotationId | null,
+      editingTrack: false | EditAnnotationTypes,
+      selectedKey: string,
+    ): boolean {
+      if (trackId === null || !editingTrack) return false;
+      if (!cameraStore.getAnyPossibleTrack(trackId)) return false;
+      const t = cameraStore.getPossibleTrack(trackId, props.camera);
+      if (!t) return true;
+      const [feature] = t.getFeature(frame);
+      if (feature == null) return true;
+      if (editingTrack === 'Point' || editingTrack === 'Polygon') {
+        return !featureHasSegmentationPolygon(feature, selectedKey);
+      }
+      return false;
     }
 
     function updateLayers(
@@ -273,7 +306,15 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack && props.camera === selectedCamera.value) {
+              // While editing, show edit handles on EVERY camera where the
+              // selected track has geometry at this frame -- not just the
+              // selected camera -- so a stereo detection can be adjusted on
+              // either camera without selecting it first. The mousedown that
+              // grabs a handle switches the selected camera first
+              // (Viewer.changeCamera keeps edit mode when the track exists on
+              // the target camera), and the update:geojson routing below is
+              // the fallback for edits that land before the switch.
+              if (editingTrack) {
                 editingTracks.push(trackFrame);
               }
               if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
@@ -393,11 +434,14 @@ export default defineComponent({
             editAnnotationLayer.changeData(editingTracks);
           }
         } else if (editingTrack && props.camera !== selectedCamera.value
-          && isCreatingNewDetection(frame, selectedTrackId)) {
+          && (isCreatingNewDetection(frame, selectedTrackId)
+            || cameraAwaitingGeometry(frame, selectedTrackId, editingTrack, selectedKey))) {
           // Seamless multicam creation: keep the creation cursor live on every
           // camera (not just the selected one) so a brand-new detection can be
-          // drawn on whichever camera the user starts on. The draw is routed to
-          // the drawn-on camera in the update:geojson handler below.
+          // drawn on whichever camera the user starts on -- and, once drawn on
+          // one camera, immediately drawn on the others while still in edit
+          // mode. The draw is routed to the drawn-on camera in the
+          // update:geojson handler below.
           editAnnotationLayer.setType(editingTrack);
           editAnnotationLayer.setKey(selectedKey);
           editAnnotationLayer.changeData([]);
@@ -510,12 +554,27 @@ export default defineComponent({
     // the click that completed the draw is suppressed.
     let justFinalizedCreation = false;
 
+    // Guards against a single physical click being handled more than once when
+    // it lands on overlapping features on different layers. A skinny box hugging
+    // its head/tail line is the common case: the click hits both the rectangle
+    // polygon and the line, so both layers emit annotation-(right-)clicked in
+    // the same tick. Because trackEdit toggles edit mode, the second emit would
+    // immediately undo the first (right-click enters edit, then leaves it,
+    // ending up merely selected). Cleared on the next macrotask, so distinct
+    // user clicks (separate ticks) are unaffected.
+    let clickHandledThisTick = false;
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // The click that just finalized a new detection should not also select an
       // existing detection underneath the final vertex.
       if (justFinalizedCreation) {
         return;
       }
+      if (clickHandledThisTick) {
+        return;
+      }
+      clickHandledThisTick = true;
+      window.setTimeout(() => { clickHandledThisTick = false; }, 0);
       // Clicking a detection in a camera that isn't selected yet: switch to that
       // camera AND act on the detection in the same click — left-click selects,
       // right-click edits — instead of requiring a separate click to switch first.
@@ -658,14 +717,46 @@ export default defineComponent({
       cb: () => void = () => (undefined),
     ) => {
       // Seamless multicam creation: a draw that lands on a camera that isn't the
-      // selected one must commit on THIS camera. Switch to it and start a fresh
-      // detection here (the empty origin track is auto-cleaned on camera switch)
-      // so the geometry is applied to the camera the user actually drew on.
+      // selected one must commit on THIS camera.
       if (props.camera !== selectedCamera.value
-        && isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
+        && (cameraAwaitingGeometry(frameNumberRef.value, selectedTrackIdRef.value, editingModeRef.value, selectedKeyRef.value)
+          || isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value))) {
+        // Draw landed on a camera that is not selected. Create the same-id
+        // track here when needed, then switch so the update below commits on
+        // this camera under the current track id. Check cameraAwaitingGeometry
+        // before isCreatingNewDetection: once an empty track exists on this
+        // camera the latter is also true, but trackAdd() would deselect and
+        // start a new id. For Point mode, selectCamera finalizes the source
+        // camera's pending mask and clears recipe prompt points.
+        const trackId = selectedTrackIdRef.value as number;
+        if (!cameraStore.getPossibleTrack(trackId, props.camera)) {
+          const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
+          const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
+          trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
+        }
+        // preserveSelection: the source camera's track may have no geometry yet
+        // (the draw is happening here), so selectCamera must not abort it and
+        // null selectedTrackId — the in-progress draw commits under this id.
+        handler.selectCamera(props.camera, false, true);
+        if (editingModeRef.value === 'Point' && selectedCamera.value !== props.camera) {
+          // The switch was blocked (e.g. linking mode): a segmentation point
+          // clicked on this camera must never be added to the selected
+          // camera's prompt points, so drop the click.
+          return;
+        }
+      } else if (props.camera !== selectedCamera.value
+        && editingModeRef.value && selectedTrackIdRef.value !== null
+        && cameraStore.getPossibleTrack(selectedTrackIdRef.value, props.camera)) {
+        // Editing the selected track's existing geometry on this camera
+        // (edit handles are live on every camera showing the track): switch
+        // so the edit commits to THIS camera's track. Normally the mousedown
+        // that grabbed the handle already switched via Viewer.changeCamera;
+        // this is the fallback when the update lands first.
         handler.selectCamera(props.camera, false);
-        if (selectedCamera.value === props.camera) {
-          handler.trackAdd();
+        if (selectedCamera.value !== props.camera) {
+          // Switch blocked: never commit this camera's edit to the selected
+          // camera's track.
+          return;
         }
       }
       if (type === 'rectangle') {

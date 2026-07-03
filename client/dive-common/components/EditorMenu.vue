@@ -437,7 +437,10 @@ export default defineComponent({
         </div>
       </div>
       <!-- Collapsed mode for edit buttons -->
-      <span class="toolbar-group-host">
+      <span
+        class="toolbar-group-host"
+        :class="{ 'toolbar-group-host--expanded': isEditButtonsExpanded }"
+      >
         <v-menu
           v-if="!isEditButtonsExpanded"
           :key="editButtonsMenuKey"
@@ -448,13 +451,14 @@ export default defineComponent({
             <v-btn
               v-bind="attrs"
               :disabled="!editingMode || activeEditButton?.loading"
+              :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
               class="mx-1 mode-button toolbar-group-activator"
               small
               v-on="on"
             >
               <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon :class="{ 'mdi-spin': activeEditButton?.loading }">
+              <v-icon>
                 {{ activeEditButton?.icon }}
               </v-icon>
               <toolbar-expand-toggle
@@ -480,6 +484,7 @@ export default defineComponent({
                     >
                       <v-btn
                         :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                        :loading="!!button.loading"
                         :outlined="!button.active"
                         :color="button.active ? editingHeader.color : ''"
                         :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
@@ -488,7 +493,7 @@ export default defineComponent({
                         @click="button.click"
                       >
                         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                        <v-icon :class="{ 'mdi-spin': button.loading }">
+                        <v-icon>
                           {{ button.icon }}
                         </v-icon>
                       </v-btn>
@@ -535,6 +540,7 @@ export default defineComponent({
               >
                 <v-btn
                   :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                  :loading="!!button.loading"
                   :outlined="!button.active"
                   :color="button.active ? editingHeader.color : ''"
                   :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
@@ -543,7 +549,7 @@ export default defineComponent({
                   @click="button.click"
                 >
                   <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                  <v-icon :class="{ 'mdi-spin': button.loading }">
+                  <v-icon>
                     {{ button.icon }}
                   </v-icon>
                 </v-btn>
@@ -555,10 +561,6 @@ export default defineComponent({
       </span>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
-        <v-divider
-          vertical
-          class="mx-2"
-        />
         <v-btn
           color="error"
           class="mx-1"
@@ -772,5 +774,14 @@ export default defineComponent({
 .mode-button{
   border: 1px solid grey;
   min-width: 36px;
+}
+
+/*
+ * Keep the segmentation reset divider from stretching to the full toolbar
+ * height (the flex row can be tall when the edit-types group is expanded).
+ */
+.segmentation-divider {
+  align-self: center;
+  max-height: 28px;
 }
 </style>

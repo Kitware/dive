@@ -2,6 +2,14 @@
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
+}
+
+/*
+ * Only shift the group up when expanded, to compensate for the fieldset legend
+ * that pokes above the toolbar. In collapsed mode there is no legend, so the
+ * shift would misalign the activator button with the rest of the toolbar.
+ */
+.toolbar-group-host--expanded {
   margin-top: -9px;
 }
 

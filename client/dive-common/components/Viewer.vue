@@ -32,7 +32,7 @@ import {
   FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { getResponseError } from 'vue-media-annotator/utils';
+import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
 import PolygonBase from 'dive-common/recipes/polygonbase';
@@ -736,7 +736,7 @@ export default defineComponent({
       }
     }
 
-    const selectCamera = async (camera: string, editMode = false) => {
+    const selectCamera = async (camera: string, editMode = false, preserveSelection = false) => {
       if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
         await prompt({
           title: 'In Linking Mode',
@@ -746,8 +746,20 @@ export default defineComponent({
         });
         return;
       }
-      // EditTrack is set false by the LayerMap before executing this
-      if (selectedTrackId.value !== null) {
+      // Segmentation prompt points belong to the current camera's image: lock
+      // in any pending mask (committed to the still-selected camera) and clear
+      // the points before switching, so they cannot leak into a prediction on
+      // the new camera. No-op when nothing is pending.
+      if (selectedCamera.value !== camera) {
+        handler.segmentationFinalizePending();
+      }
+      // EditTrack is set false by the LayerMap before executing this.
+      // Skip during cross-camera continuation (preserveSelection): the source
+      // camera's track is legitimately empty because the geometry is being
+      // drawn on the target camera under the same track id. Aborting here would
+      // remove that track and null selectedTrackId, so the in-progress draw
+      // would then commit with no selected track and throw.
+      if (!preserveSelection && selectedTrackId.value !== null) {
         // If we had a track selected and it still exists with
         // a feature length of 0 we need to remove it
         const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
@@ -785,6 +797,35 @@ export default defineComponent({
       }
       return track.getFeature(aggregateController.value.frame.value)[0] == null;
     };
+    // While editing, the creation cursor is live on any camera still missing
+    // the selected track's geometry at this frame (see LayerManager's
+    // cameraAwaitingGeometry, which this must mirror), so the detection can
+    // be drawn on each camera in turn without switching first. A left-click
+    // on such a camera is the start of that draw -- don't steal it to switch
+    // cameras. For Point mode (point-click segmentation) and Polygon mode,
+    // "missing" means no polygon at the selected key here yet, so a box-only
+    // detection still accepts a draw.
+    const isExtendingDetectionToCamera = (camera: string): boolean => {
+      if (selectedTrackId.value === null || !editingTrack.value) {
+        return false;
+      }
+      const editingType = editingMode.value;
+      if (!editingType) {
+        return false;
+      }
+      const track = cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+      if (!track) {
+        return true;
+      }
+      const [feature] = track.getFeature(aggregateController.value.frame.value);
+      if (feature == null) {
+        return true;
+      }
+      if (editingType === 'Point' || editingType === 'Polygon') {
+        return !featureHasSegmentationPolygon(feature, selectedKey.value);
+      }
+      return false;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
@@ -796,7 +837,36 @@ export default defineComponent({
       if (isCreatingNewDetection()) {
         return;
       }
-      if (event) {
+      // Likewise, when a camera is still missing the selected track's
+      // geometry its creation cursor is live (see LayerManager): a left-click
+      // there starts a draw and a right-click cancels creation -- finalize
+      // what was committed and deselect, exactly like the single-camera
+      // behavior (the edit layer's own right-click handler does this).
+      // Neither must be stolen to switch cameras: switching mid-draw runs
+      // trackEdit -> finalizeInProgress, which interrupts the in-progress
+      // line instead of finalizing the detection. The dropdown (no event) is
+      // unaffected.
+      if (event && isExtendingDetectionToCamera(camera)) {
+        return;
+      }
+      // A right-click while editing must finalize and deselect the detection
+      // in a single press -- matching single-camera behavior -- not merely
+      // switch cameras (which used to leave the detection selected until a
+      // second right-click on the new camera). Right-clicks ON an annotation
+      // never reach here: the annotation layers' right-click handoff switches
+      // the selected camera synchronously first, so this handler returns at
+      // the top (same camera).
+      if (event?.button === 2 && editingTrack.value) {
+        handler.trackSelect(null, false);
+        return;
+      }
+      // While editing a track that exists on the target camera, its edit
+      // handles are live there too (see LayerManager): this mousedown may be
+      // the start of a handle drag, which preventDefault would kill. The
+      // switch still proceeds so the edit commits to the target camera.
+      const editingOnTarget = editingTrack.value && selectedTrackId.value !== null
+        && !!cameraStore.getPossibleTrack(selectedTrackId.value, camera);
+      if (event && !editingOnTarget) {
         event.preventDefault();
       }
       // Left click should kick out of editing mode, unless the selected track

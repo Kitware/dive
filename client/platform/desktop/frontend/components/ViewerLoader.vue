@@ -593,6 +593,14 @@ export default defineComponent({
     const stereoLoadingDialog = ref(false);
     const stereoLoadingMessage = ref('Loading stereo model...');
     const stereoLoadingError = ref('');
+    // Title shown while the loading dialog is in its error state. Lets the same
+    // dialog surface both service-startup and per-transfer failures instead of
+    // spawning a second popup.
+    const stereoErrorTitle = ref('Stereo Service Error');
+    // Alert severity for that error state. A per-transfer failure (no stereo
+    // match found) is a common, recoverable event -- shown as a softer
+    // 'warning' -- whereas a service-startup failure is a hard 'error' (red).
+    const stereoErrorSeverity = ref<'error' | 'warning'>('error');
     const stereoEnabled = ref(false);
     // Transient notification reporting the latest computed stereo length
     const stereoLengthSnackbar = ref(false);
@@ -716,17 +724,16 @@ export default defineComponent({
     }
 
     // Enable or disable the backend stereo service to match the desired state.
-    // userInitiated distinguishes an explicit toggle -- surface failures and
-    // revert the toggles -- from the load-time auto-enable of a remembered
-    // setting, which degrades quietly on benign failures (e.g. an uncalibrated
-    // dataset) so a later calibrated dataset still works.
+    // Failures are always surfaced in the (persistent) dialog; userInitiated
+    // additionally reverts the feature toggles, since the user just asked for
+    // something that cannot work, whereas a load-time auto-enable failure
+    // (e.g. an uncalibrated dataset) keeps the remembered toggles so a later
+    // calibrated dataset still works.
     async function applyStereoServiceState(enabled: boolean, userInitiated: boolean) {
       if (enabled) {
         // Already running (e.g. a user toggle raced the load-time auto-enable):
         // nothing to do.
         if (stereoEnabled.value) return;
-        stereoLoadingDialog.value = userInitiated;
-        stereoLoadingMessage.value = 'Loading stereo model...';
         stereoLoadingError.value = '';
 
         try {
@@ -734,11 +741,19 @@ export default defineComponent({
           if (!hasStereo) {
             // Single-camera dataset: nothing to enable. Do NOT spin up the
             // stereo service. Leave the toggles untouched so the defaults still
-            // apply when a stereo dataset is opened later.
+            // apply when a stereo dataset is opened later. Remember the
+            // determination so the per-annotation self-heal doesn't re-check.
+            stereoDatasetUnavailable = true;
             stereoEnabled.value = false;
             stereoLoadingDialog.value = false;
             return;
           }
+          // Show the (persistent, annotation-blocking) loading dialog while
+          // the service starts -- including the load-time auto-enable, so
+          // entering a sequence with a stereo feature on visibly blocks
+          // annotation until measurements will actually work.
+          stereoLoadingMessage.value = 'Loading stereo model...';
+          stereoLoadingDialog.value = true;
           const result = await stereoEnable(undefined, stereoCalibrationFile);
           if (!result.success) {
             // launchFailed means the backend service couldn't even start (e.g.
@@ -763,17 +778,18 @@ export default defineComponent({
           const launchFailed = (err as Error & { launchFailed?: boolean }).launchFailed === true;
           if (userInitiated || launchFailed) {
             // The user explicitly enabled a feature, or the backend service
-            // failed to launch (an infrastructure error). Either way, revert the
-            // toggles and surface the failure in a dialog.
+            // failed to launch (an infrastructure error): revert the toggles.
             disableStereoFeatureToggles();
-            stereoLoadingError.value = err instanceof Error ? err.message : String(err);
-            stereoLoadingDialog.value = true;
-          } else {
-            // Load-time auto-enable failed for a benign reason (e.g. an
-            // uncalibrated stereo dataset): degrade silently and keep the toggle
-            // states so a later calibrated dataset still works.
-            stereoLoadingDialog.value = false;
           }
+          // Always surface the failure -- a stereo feature is on, so lengths
+          // and transfers will NOT work; silently degrading here made that
+          // look like annotations simply weren't measuring. Load-time
+          // failures (e.g. an uncalibrated dataset) keep the toggles so a
+          // later calibrated dataset still works.
+          stereoErrorTitle.value = 'Stereo Service Error';
+          stereoErrorSeverity.value = 'error';
+          stereoLoadingError.value = err instanceof Error ? err.message : String(err);
+          stereoLoadingDialog.value = true;
         }
       } else {
         try {
@@ -785,6 +801,43 @@ export default defineComponent({
       }
     }
 
+    // In-flight enable/disable promise. Stereo work requested while the
+    // service is still starting (spawning the backend service on a fresh
+    // launch can take a while) waits for it via stereoServiceReady instead of
+    // being dropped -- e.g. a line drawn on both cameras right after launch
+    // must still get its length computed once the service comes up.
+    let stereoStatePromise: Promise<void> | null = null;
+    // True once this dataset was determined to have no stereo pair, so the
+    // per-annotation self-heal below doesn't re-load metadata on every draw
+    // in single-camera datasets.
+    let stereoDatasetUnavailable = false;
+
+    function requestStereoServiceState(enabled: boolean, userInitiated: boolean): Promise<void> {
+      const p = applyStereoServiceState(enabled, userInitiated).finally(() => {
+        if (stereoStatePromise === p) stereoStatePromise = null;
+      });
+      stereoStatePromise = p;
+      return p;
+    }
+
+    // Wait out any in-flight enable/disable; returns whether the service is up.
+    async function stereoServiceReady(): Promise<boolean> {
+      // Self-heal: a stereo feature is wanted but no enable is running and
+      // none succeeded (e.g. the load-time auto-enable never fired or failed
+      // transiently) -- kick one off now, driven by the annotation that needs
+      // it. This guarantees drawing a line always forces the stereo service
+      // up rather than silently producing no measurement.
+      if (!stereoEnabled.value && !stereoStatePromise
+        && !stereoDatasetUnavailable && stereoServiceWanted()) {
+        requestStereoServiceState(true, false);
+      }
+      while (stereoStatePromise) {
+        // eslint-disable-next-line no-await-in-loop
+        await stereoStatePromise;
+      }
+      return stereoEnabled.value;
+    }
+
     // Runtime toggle changes are always user-initiated. This watcher is NOT
     // immediate: a remembered setting must NOT auto-enable here, because this
     // runs during setup() -- before the dataset/viewer has loaded. Enabling then
@@ -792,7 +845,7 @@ export default defineComponent({
     // degrades silently with nothing to retry, so the service would stay off
     // until the toggle was flipped off and on again. The load-time auto-enable
     // is deferred to the viewer-ready watcher below instead.
-    watch(stereoServiceWanted, (enabled) => applyStereoServiceState(enabled, true));
+    watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
 
     // Load-time auto-enable of a remembered setting: run once the viewer has
     // actually finished loading the dataset (progress.loaded), so the metadata
@@ -805,7 +858,7 @@ export default defineComponent({
         if (!loaded) return;
         stopStereoAutoEnable();
         if (stereoServiceWanted() && !stereoEnabled.value) {
-          applyStereoServiceState(true, false);
+          requestStereoServiceState(true, false);
         }
       },
       { immediate: true },
@@ -1214,7 +1267,8 @@ export default defineComponent({
      * right tracks now have a 2-point line.
      */
     async function handleStereoTrackLinked(trackId: number) {
-      if (!stereoEnabled.value) return;
+      // Wait out a still-starting service rather than dropping the recompute.
+      if (!stereoEnabled.value && !(await stereoServiceReady())) return;
       // Linking a pair across cameras only (re)computes their stereo lengths.
       if (!clientSettings.stereoSettings.updateLengthsOnModify) return;
       const viewer = viewerRef.value;
@@ -1257,7 +1311,25 @@ export default defineComponent({
      * Warps annotation from source camera to the other camera
      */
     async function handleStereoAnnotationComplete(params: StereoAnnotationCompleteParams) {
-      if (!stereoEnabled.value) return;
+      // This handler only fires on human edits — the stereo warp writes
+      // geometry directly, bypassing the annotation-complete event — so the
+      // camera the user just drew/edited is now human-authored. Mark it
+      // BEFORE any waiting below (no service is needed for this): the wait
+      // can be long on a fresh launch, and a line drawn on the other camera
+      // in the meantime must see this one as human-authored, not
+      // machine-generated, so the warp can never overwrite it.
+      if (params.type === 'line') {
+        const sourceTrack = viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, params.camera);
+        sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
+      }
+
+      // The service may still be starting (the load-time auto-enable spawns
+      // the backend service, which can take a while on a fresh launch). Wait
+      // for it rather than dropping the annotation's stereo work -- the
+      // other-camera state below is re-read after the wait, so lines drawn on
+      // both cameras in the meantime still get their length computed.
+      if (!stereoEnabled.value && !(await stereoServiceReady())) return;
 
       const viewer = viewerRef.value;
       if (!viewer) return;
@@ -1282,13 +1354,6 @@ export default defineComponent({
       const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
 
       if (params.type === 'line') {
-        // This handler only fires on human edits — the stereo warp writes geometry
-        // directly, bypassing the annotation-complete event — so the camera the
-        // user just drew/edited is now human-authored. Mark it so the opposite
-        // side's warp can never overwrite it later.
-        const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
-        sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
-
         const otherIsHuman = otherHasFeature
           && otherFeature?.attributes?.[STEREO_USER_LINE_ATTR] === true;
         if (otherIsHuman || !autoCompute) {
@@ -1565,15 +1630,15 @@ export default defineComponent({
         // Success — hide loading dialog
         stereoLoadingDialog.value = false;
       } catch (err) {
-        stereoLoadingDialog.value = false;
+        // Surface the failure in the SAME dialog that was showing the
+        // "Computing stereo correspondence..." spinner: switch it to its error
+        // state (title + message + Close button) rather than hiding it and
+        // popping a separate prompt, which flashed two windows in sequence.
         const message = err instanceof Error ? err.message : String(err);
-        await prompt({
-          title: 'Stereo Transfer Error',
-          text: [
-            'Failed to transfer annotation to the other camera.',
-            message,
-          ],
-        });
+        stereoErrorTitle.value = 'Stereo Transfer Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Failed to transfer annotation to the other camera. ${message}`;
+        stereoLoadingDialog.value = true;
       }
     }
 
@@ -1708,6 +1773,8 @@ export default defineComponent({
       stereoLoadingMessage,
       textQueryRunning,
       stereoLoadingError,
+      stereoErrorTitle,
+      stereoErrorSeverity,
       stereoLengthSnackbar,
       stereoLengthMessage,
       closeStereoLoadingDialog,
@@ -1832,7 +1899,7 @@ export default defineComponent({
       max-width="560"
     >
       <v-card>
-        <v-card-title>{{ stereoLoadingError ? 'Stereo Service Error' : 'Stereo Service' }}</v-card-title>
+        <v-card-title>{{ stereoLoadingError ? stereoErrorTitle : 'Stereo Service' }}</v-card-title>
         <v-card-text>
           <div
             v-if="!stereoLoadingError"
@@ -1847,7 +1914,7 @@ export default defineComponent({
           </div>
           <v-alert
             v-else
-            type="error"
+            :type="stereoErrorSeverity"
             dense
             class="stereo-loading-error"
           >

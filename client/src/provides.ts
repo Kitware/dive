@@ -135,6 +135,8 @@ export interface Handler {
   trackEdit(AnnotationId: AnnotationId): void;
   /* Confirm/lock the current annotation for active recipes */
   confirmRecipe(): void;
+  /* Finalize pending segmentation without deselecting (cross-camera handoff) */
+  segmentationFinalizePending(): void;
   /* toggle selection mode for track */
   trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select tracks enclosed by a lasso polygon */
@@ -178,7 +180,7 @@ export interface Handler {
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* selectCamera */
-  selectCamera(camera: string, editMode: boolean): void;
+  selectCamera(camera: string, editMode: boolean, preserveSelection?: boolean): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
   /* set an Attribute in the metaData */
@@ -234,6 +236,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
     confirmRecipe(...args) { handle('confirmRecipe', args); },
+    segmentationFinalizePending(...args) { handle('segmentationFinalizePending', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     lassoSelect(...args) { handle('lassoSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
