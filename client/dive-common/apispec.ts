@@ -418,6 +418,81 @@ export interface SegmentationStatusResponse {
   ready?: boolean;
 }
 
+/**
+ * Text Query Types for open-vocabulary detection/segmentation
+ */
+
+/** A single detection returned from a text query */
+export interface TextQueryDetection {
+  /** Bounding box [x1, y1, x2, y2] */
+  box: [number, number, number, number];
+  /** Polygon coordinates as [x, y] pairs */
+  polygon?: [number, number][];
+  /** Confidence score */
+  score: number;
+  /** Label/class name (often the query text) */
+  label: string;
+  /** Low-res mask for refinement (optional) */
+  lowResMask?: number[][];
+}
+
+export interface TextQueryRequest {
+  /** Path to the image file (or video file for video datasets) */
+  imagePath: string;
+  /** Frame time in seconds, required when imagePath is a video so the service
+   * extracts the correct frame. Omitted for image-sequence datasets. */
+  frameTime?: number;
+  /** Text query describing what to find (e.g., "fish", "person swimming") */
+  text: string;
+  /** Confidence threshold for detections (default: 0.3) */
+  boxThreshold?: number;
+  /** Maximum number of detections to return (default: 10) */
+  maxDetections?: number;
+  /** Optional boxes to refine [x1, y1, x2, y2][] */
+  boxes?: [number, number, number, number][];
+  /** Optional keypoints for refinement [x, y][] */
+  points?: [number, number][];
+  /** Labels for points: 1 for foreground, 0 for background */
+  pointLabels?: number[];
+  /** Optional masks to refine */
+  masks?: number[][][];
+}
+
+export interface TextQueryResponse {
+  /** Whether the query succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** List of detections found */
+  detections?: TextQueryDetection[];
+  /** The original query text */
+  query?: string;
+  /** Whether fallback method was used (no native text support) */
+  fallback?: boolean;
+}
+
+export interface RefineDetectionsRequest {
+  /** Path to the image file */
+  imagePath: string;
+  /** Detections to refine */
+  detections: TextQueryDetection[];
+  /** Optional additional keypoints for refinement [x, y][] */
+  points?: [number, number][];
+  /** Labels for additional points: 1 for foreground, 0 for background */
+  pointLabels?: number[];
+  /** Whether to include refined masks in response */
+  refineMasks?: boolean;
+}
+
+export interface RefineDetectionsResponse {
+  /** Whether the refinement succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** Refined detections */
+  detections?: TextQueryDetection[];
+}
+
 export {
   provideApi,
   useApi,

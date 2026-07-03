@@ -44,6 +44,18 @@ import {
 // defaults to linux if win32 doesn't exist
 const currentPlatform = OS.platform() === 'win32' ? win32 : linux;
 let samWarningShown = false;
+
+const SAM3_PIPELINE_CONFIGS = [
+  'interactive_segmenter_sam3.conf',
+  'interactive_sam3_segmenter.conf',
+];
+
+function isSam3Installed(viamePath: string): boolean {
+  const pipelinesDir = path.join(viamePath, 'configs', 'pipelines');
+  return SAM3_PIPELINE_CONFIGS.some((configName) => fs.existsSync(
+    path.join(pipelinesDir, configName),
+  ));
+}
 if (OS.platform() === 'win32') {
   win32.initialize();
 }
@@ -306,7 +318,7 @@ export default function register() {
     const currentSettings = settings.get();
     const pipelinesDir = path.join(currentSettings.viamePath, 'configs', 'pipelines');
     const hasSam2 = fs.existsSync(path.join(pipelinesDir, 'interactive_segmenter_sam2.conf'));
-    const hasSam3 = fs.existsSync(path.join(pipelinesDir, 'interactive_segmenter_sam3.conf'));
+    const hasSam3 = isSam3Installed(currentSettings.viamePath);
     const noSamInstalled = !hasSam2 && !hasSam3;
 
     // Show a one-time warning if neither SAM pack is installed,
@@ -319,6 +331,16 @@ export default function register() {
     const segService = getInteractiveServiceManager();
     await segService.initialize(currentSettings);
     return { success: true, noSamInstalled: showWarning };
+  });
+
+  // Start the interactive service process WITHOUT warming the point-
+  // segmentation model. Used by the text-query dialog: text query loads its
+  // own (often different/heavier) model lazily and must not force a
+  // segmentation-model load.
+  ipcMain.handle('segmentation-ensure-started', async () => {
+    const segService = getInteractiveServiceManager();
+    await segService.ensureStarted(settings.get());
+    return { success: true };
   });
 
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
@@ -373,6 +395,55 @@ export default function register() {
   ipcMain.handle('segmentation-is-ready', () => {
     const segService = getInteractiveServiceManager();
     return { ready: segService.isSegmentationReady() };
+  });
+
+  ipcMain.handle('segmentation-sam3-installed', () => {
+    const currentSettings = settings.get();
+    return { installed: isSam3Installed(currentSettings.viamePath) };
+  });
+
+  ipcMain.handle('segmentation-text-query', async (_, args: {
+    imagePath: string;
+    frameTime?: number;
+    text: string;
+    boxThreshold?: number;
+    maxDetections?: number;
+    boxes?: [number, number, number, number][];
+    points?: [number, number][];
+    pointLabels?: number[];
+  }) => {
+    const segService = getInteractiveServiceManager();
+
+    // Text query only needs the service process running -- not the (possibly
+    // different) point-segmentation model warmed. Start it without warming;
+    // the text-query model loads lazily inside the text_query request.
+    await segService.ensureStarted(settings.get());
+
+    const response = await segService.textQuery(args);
+    return response;
+  });
+
+  ipcMain.handle('segmentation-refine', async (_, args: {
+    imagePath: string;
+    detections: {
+      box: [number, number, number, number];
+      polygon?: [number, number][];
+      score: number;
+      label: string;
+    }[];
+    points?: [number, number][];
+    pointLabels?: number[];
+    refineMasks?: boolean;
+  }) => {
+    const segService = getInteractiveServiceManager();
+
+    // Auto-initialize if not ready
+    if (!segService.isSegmentationReady()) {
+      await segService.initialize(settings.get());
+    }
+
+    const response = await segService.refineDetections(args);
+    return response;
   });
 
   /**
