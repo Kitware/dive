@@ -684,8 +684,16 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
     if (this.skipNextExternalUpdate === false) {
-      // disable resets things before we load a new/different shape or mode
-      this.disable();
+      // disable resets things before we load a new/different shape or mode.
+      // Skip while a polygon/line is mid-creation: a cross-camera handoff
+      // switches selectedCamera and triggers changeData during the same
+      // mousedown that is placing the first vertex — tearing down here
+      // corrupts GeoJS and clears shapeInProgress before update:geojson runs.
+      const midCreationStroke = this.shapeInProgress !== null
+        && ['LineString', 'Polygon'].includes(this.type);
+      if (!midCreationStroke) {
+        this.disable();
+      }
       //TODO: Find a better way to track mouse up after placing a point or completing geometry
       //For line drawings and the actions of any recipes we want
       if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
@@ -772,6 +780,29 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * True when a finalized annotation has enough vertices to be a real shape.
+   * Guards against degenerate geometry emitted by a programmatic mode change.
+   */
+  // eslint-disable-next-line class-methods-use-this
+  isValidCompletedGeometry(feature: GeoJSON.Feature): boolean {
+    const { geometry } = feature;
+    if (!geometry) return false;
+    if (geometry.type === 'Polygon') {
+      const ring = geometry.coordinates?.[0] as GeoJSON.Position[] | undefined;
+      return !!ring && ring.length >= 3;
+    }
+    if (geometry.type === 'LineString') {
+      const coords = geometry.coordinates as GeoJSON.Position[] | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    if (geometry.type === 'Point') {
+      const coords = geometry.coordinates as GeoJSON.Position | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    return true;
+  }
+
+  /**
    *
    * @param e geo.event emitting by handlers
    */
@@ -780,6 +811,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
+        // Ignore degenerate geometry. A programmatic setMode (e.g. changeData([])
+        // keeping the creation cursor live on a non-drawing camera) can finalize
+        // an empty stale annotation as 'done'; committing it would add a bogus
+        // shape. Real user completions always have enough vertices.
+        if (!geoJSONData[0] || !this.isValidCompletedGeometry(geoJSONData[0])) {
+          return;
+        }
         if (this.type === 'rectangle') {
           geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
             geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],

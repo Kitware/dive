@@ -226,9 +226,9 @@ export default defineComponent({
 
     // True when, while editing, the selected track has no geometry on THIS
     // camera at this frame (the track may not exist on this camera at all).
-    // For Point mode (point-click segmentation) "no geometry" means no
-    // segmentation polygon here yet, so a detection that only has a box still
-    // accepts a point click.
+    // For Point mode (point-click segmentation) and Polygon mode, "no geometry"
+    // means no polygon at the selected key here yet, so a detection that only
+    // has a box still accepts a draw.
     // Complements isCreatingNewDetection: after the detection is drawn on one
     // camera, the creation cursor stays live on the cameras still missing it,
     // so it can be drawn on each in turn (same track id) without selecting the
@@ -245,7 +245,7 @@ export default defineComponent({
       if (!t) return true;
       const [feature] = t.getFeature(frame);
       if (feature == null) return true;
-      if (editingTrack === 'Point') {
+      if (editingTrack === 'Point' || editingTrack === 'Polygon') {
         return !featureHasSegmentationPolygon(feature, selectedKey);
       }
       return false;
@@ -695,38 +695,31 @@ export default defineComponent({
     ) => {
       // Seamless multicam creation: a draw that lands on a camera that isn't the
       // selected one must commit on THIS camera.
-      if (props.camera !== selectedCamera.value) {
-        if (isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value)) {
-          // Brand-new detection: switch to this camera and start a fresh
-          // detection here (the empty origin track is auto-cleaned on camera
-          // switch) so the geometry is applied to the camera the user drew on.
-          handler.selectCamera(props.camera, false);
-          if (selectedCamera.value === props.camera) {
-            handler.trackAdd();
-          }
-        } else if (cameraAwaitingGeometry(frameNumberRef.value, selectedTrackIdRef.value, editingModeRef.value, selectedKeyRef.value)) {
-          // Extending the selected detection to this camera (it already has
-          // geometry on another camera): create the same-id track on this
-          // camera BEFORE switching, so selectCamera keeps edit mode without
-          // toggling trackEdit (which would finalize/interrupt the in-progress
-          // draw). The update below then commits here under the same track id.
-          // For Point mode (point-click segmentation), selectCamera also
-          // finalizes the source camera's pending mask and clears the recipe's
-          // accumulated prompt points -- those points belong to the source
-          // camera's image and must not leak into this camera's prediction.
-          const trackId = selectedTrackIdRef.value as number;
-          if (!cameraStore.getPossibleTrack(trackId, props.camera)) {
-            const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
-            const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-            trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
-          }
-          handler.selectCamera(props.camera, false);
-          if (editingModeRef.value === 'Point' && selectedCamera.value !== props.camera) {
-            // The switch was blocked (e.g. linking mode): a segmentation point
-            // clicked on this camera must never be added to the selected
-            // camera's prompt points, so drop the click.
-            return;
-          }
+      if (props.camera !== selectedCamera.value
+        && (cameraAwaitingGeometry(frameNumberRef.value, selectedTrackIdRef.value, editingModeRef.value, selectedKeyRef.value)
+          || isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value))) {
+        // Draw landed on a camera that is not selected. Create the same-id
+        // track here when needed, then switch so the update below commits on
+        // this camera under the current track id. Check cameraAwaitingGeometry
+        // before isCreatingNewDetection: once an empty track exists on this
+        // camera the latter is also true, but trackAdd() would deselect and
+        // start a new id. For Point mode, selectCamera finalizes the source
+        // camera's pending mask and clears recipe prompt points.
+        const trackId = selectedTrackIdRef.value as number;
+        if (!cameraStore.getPossibleTrack(trackId, props.camera)) {
+          const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
+          const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
+          trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
+        }
+        // preserveSelection: the source camera's track may have no geometry yet
+        // (the draw is happening here), so selectCamera must not abort it and
+        // null selectedTrackId — the in-progress draw commits under this id.
+        handler.selectCamera(props.camera, false, true);
+        if (editingModeRef.value === 'Point' && selectedCamera.value !== props.camera) {
+          // The switch was blocked (e.g. linking mode): a segmentation point
+          // clicked on this camera must never be added to the selected
+          // camera's prompt points, so drop the click.
+          return;
         }
       }
       if (type === 'rectangle') {

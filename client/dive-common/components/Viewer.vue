@@ -736,7 +736,7 @@ export default defineComponent({
       }
     }
 
-    const selectCamera = async (camera: string, editMode = false) => {
+    const selectCamera = async (camera: string, editMode = false, preserveSelection = false) => {
       if (linkingCamera.value !== '' && linkingCamera.value !== camera) {
         await prompt({
           title: 'In Linking Mode',
@@ -753,8 +753,13 @@ export default defineComponent({
       if (selectedCamera.value !== camera) {
         handler.segmentationFinalizePending();
       }
-      // EditTrack is set false by the LayerMap before executing this
-      if (selectedTrackId.value !== null) {
+      // EditTrack is set false by the LayerMap before executing this.
+      // Skip during cross-camera continuation (preserveSelection): the source
+      // camera's track is legitimately empty because the geometry is being
+      // drawn on the target camera under the same track id. Aborting here would
+      // remove that track and null selectedTrackId, so the in-progress draw
+      // would then commit with no selected track and throw.
+      if (!preserveSelection && selectedTrackId.value !== null) {
         // If we had a track selected and it still exists with
         // a feature length of 0 we need to remove it
         const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
@@ -797,9 +802,9 @@ export default defineComponent({
     // cameraAwaitingGeometry, which this must mirror), so the detection can
     // be drawn on each camera in turn without switching first. A left-click
     // on such a camera is the start of that draw -- don't steal it to switch
-    // cameras. For Point mode (point-click segmentation) "missing" means no
-    // segmentation polygon here yet, so a box-only detection still accepts a
-    // point click.
+    // cameras. For Point mode (point-click segmentation) and Polygon mode,
+    // "missing" means no polygon at the selected key here yet, so a box-only
+    // detection still accepts a draw.
     const isExtendingDetectionToCamera = (camera: string): boolean => {
       if (selectedTrackId.value === null || !editingTrack.value) {
         return false;
@@ -816,7 +821,7 @@ export default defineComponent({
       if (feature == null) {
         return true;
       }
-      if (editingType === 'Point') {
+      if (editingType === 'Point' || editingType === 'Polygon') {
         return !featureHasSegmentationPolygon(feature, selectedKey.value);
       }
       return false;

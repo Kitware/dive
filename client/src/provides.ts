@@ -180,7 +180,7 @@ export interface Handler {
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* selectCamera */
-  selectCamera(camera: string, editMode: boolean): void;
+  selectCamera(camera: string, editMode: boolean, preserveSelection?: boolean): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
   /* set an Attribute in the metaData */
