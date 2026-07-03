@@ -437,7 +437,10 @@ export default defineComponent({
         </div>
       </div>
       <!-- Collapsed mode for edit buttons -->
-      <span class="toolbar-group-host">
+      <span
+        class="toolbar-group-host"
+        :class="{ 'toolbar-group-host--expanded': isEditButtonsExpanded }"
+      >
         <v-menu
           v-if="!isEditButtonsExpanded"
           :key="editButtonsMenuKey"
@@ -555,10 +558,6 @@ export default defineComponent({
       </span>
       <!-- Segmentation Reset button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
-        <v-divider
-          vertical
-          class="mx-2"
-        />
         <v-btn
           color="error"
           class="mx-1"
@@ -772,5 +771,14 @@ export default defineComponent({
 .mode-button{
   border: 1px solid grey;
   min-width: 36px;
+}
+
+/*
+ * Keep the segmentation reset divider from stretching to the full toolbar
+ * height (the flex row can be tall when the edit-types group is expanded).
+ */
+.segmentation-divider {
+  align-self: center;
+  max-height: 28px;
 }
 </style>
