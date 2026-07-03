@@ -306,7 +306,15 @@ export default defineComponent({
             };
             frameData.push(trackFrame);
             if (trackFrame.selected) {
-              if (editingTrack && props.camera === selectedCamera.value) {
+              // While editing, show edit handles on EVERY camera where the
+              // selected track has geometry at this frame -- not just the
+              // selected camera -- so a stereo detection can be adjusted on
+              // either camera without selecting it first. The mousedown that
+              // grabs a handle switches the selected camera first
+              // (Viewer.changeCamera keeps edit mode when the track exists on
+              // the target camera), and the update:geojson routing below is
+              // the fallback for edits that land before the switch.
+              if (editingTrack) {
                 editingTracks.push(trackFrame);
               }
               if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
@@ -546,12 +554,27 @@ export default defineComponent({
     // the click that completed the draw is suppressed.
     let justFinalizedCreation = false;
 
+    // Guards against a single physical click being handled more than once when
+    // it lands on overlapping features on different layers. A skinny box hugging
+    // its head/tail line is the common case: the click hits both the rectangle
+    // polygon and the line, so both layers emit annotation-(right-)clicked in
+    // the same tick. Because trackEdit toggles edit mode, the second emit would
+    // immediately undo the first (right-click enters edit, then leaves it,
+    // ending up merely selected). Cleared on the next macrotask, so distinct
+    // user clicks (separate ticks) are unaffected.
+    let clickHandledThisTick = false;
+
     const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
       // The click that just finalized a new detection should not also select an
       // existing detection underneath the final vertex.
       if (justFinalizedCreation) {
         return;
       }
+      if (clickHandledThisTick) {
+        return;
+      }
+      clickHandledThisTick = true;
+      window.setTimeout(() => { clickHandledThisTick = false; }, 0);
       // Clicking a detection in a camera that isn't selected yet: switch to that
       // camera AND act on the detection in the same click — left-click selects,
       // right-click edits — instead of requiring a separate click to switch first.
@@ -719,6 +742,20 @@ export default defineComponent({
           // The switch was blocked (e.g. linking mode): a segmentation point
           // clicked on this camera must never be added to the selected
           // camera's prompt points, so drop the click.
+          return;
+        }
+      } else if (props.camera !== selectedCamera.value
+        && editingModeRef.value && selectedTrackIdRef.value !== null
+        && cameraStore.getPossibleTrack(selectedTrackIdRef.value, props.camera)) {
+        // Editing the selected track's existing geometry on this camera
+        // (edit handles are live on every camera showing the track): switch
+        // so the edit commits to THIS camera's track. Normally the mousedown
+        // that grabbed the handle already switched via Viewer.changeCamera;
+        // this is the fallback when the update lands first.
+        handler.selectCamera(props.camera, false);
+        if (selectedCamera.value !== props.camera) {
+          // Switch blocked: never commit this camera's edit to the selected
+          // camera's track.
           return;
         }
       }

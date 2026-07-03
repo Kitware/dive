@@ -583,6 +583,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     // Skip Point mode — segmentation manages its own polygon via the recipe,
     // not through the edit layer's GeoJS annotation.
     if (this.featureLayer && this.type !== 'Point') {
+      // For LineString in creation mode, the native GeoJS annotation is a
+      // garbage trace: the real feature is managed in shapeInProgress (handled
+      // above). Emitting it would commit a bogus line to the track.
+      if (this.type === 'LineString' && this.getMode() === 'creation') {
+        return false;
+      }
       const annotations = this.featureLayer.annotations();
       if (annotations.length > 0) {
         const annotation = annotations[0];
@@ -684,27 +690,41 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
     if (this.skipNextExternalUpdate === false) {
-      // disable resets things before we load a new/different shape or mode.
-      // Skip while a polygon/line is mid-creation: a cross-camera handoff
-      // switches selectedCamera and triggers changeData during the same
-      // mousedown that is placing the first vertex — tearing down here
-      // corrupts GeoJS and clears shapeInProgress before update:geojson runs.
+      // disable() resets this layer before loading a new shape/mode, but a
+      // cross-camera handoff triggers changeData during the very mousedown that
+      // started an action on the newly selected camera, and resetting mid-action
+      // forces the user to click a second time. Guard both cases:
+      //  - Mid-creation stroke (polygon/line first vertex): skip the reset
+      //    entirely, otherwise disable() clears shapeInProgress before the
+      //    in-progress geometry is committed.
+      //  - Left button still held (e.g. an edit handle just grabbed on the
+      //    camera the mousedown selected): defer the reset until release, and
+      //    crucially do NOT disable() first — that would cancel the drag.
       const midCreationStroke = this.shapeInProgress !== null
         && ['LineString', 'Polygon'].includes(this.type);
       if (!midCreationStroke) {
-        this.disable();
-      }
-      //TODO: Find a better way to track mouse up after placing a point or completing geometry
-      //For line drawings and the actions of any recipes we want
-      if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
-        this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
-      } else {
+        // Always cancel a pending deferred reset before (re)deciding what to do.
+        // Otherwise rapid changeData calls during a cross-camera edit stack up
+        // multiple timeouts, and an earlier one — holding stale pre-edit
+        // frameData in its closure — fires after mouse-up and snaps the
+        // annotation back to its original geometry.
         clearTimeout(this.leftButtonCheckTimeout);
-        this.formattedData = this.formatData(frameData);
+        //TODO: Find a better way to track mouse up after placing a point or completing geometry
+        //For line drawings and the actions of any recipes we want
+        if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
+          this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
+        } else {
+          // disable resets things before we load a new/different shape or mode
+          this.disable();
+          this.formattedData = this.formatData(frameData);
+        }
       }
     } else {
-      // prevent was called and it has prevented this update.
-      // disable the skip for next time.
+      // A self-made change (e.g. a just-committed rectangle/geometry edit)
+      // triggered this update. Skip it, and cancel any deferred reset still
+      // pending from the drag so it can't overwrite the commit and revert the
+      // annotation to its pre-edit geometry.
+      clearTimeout(this.leftButtonCheckTimeout);
       this.skipNextExternalUpdate = false;
     }
     this.calculateCursorImage();
