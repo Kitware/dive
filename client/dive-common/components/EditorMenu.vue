@@ -652,7 +652,7 @@ export default defineComponent({
             />
             <v-slider
               v-model="textQueryThreshold"
-              label="Confidence threshold"
+              :label="`Confidence threshold: ${Number(textQueryThreshold).toFixed(2)}`"
               min="0.1"
               max="0.9"
               step="0.05"
