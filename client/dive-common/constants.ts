@@ -165,6 +165,11 @@ const listFileTypes = [
   'txt',
 ];
 
+/** ITK transform files (HDF5-serialized, e.g. from itk_point_set_to_transform). */
+const transformFileTypes = [
+  'h5',
+];
+
 const zipFileTypes = [
   'zip',
 ];
@@ -212,6 +217,7 @@ export {
   getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
+  transformFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
   calibrationFileMarker,

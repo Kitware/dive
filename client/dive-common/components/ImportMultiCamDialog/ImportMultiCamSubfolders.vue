@@ -8,6 +8,7 @@ import { DatasetType } from 'dive-common/apispec';
 import { ImageSequenceType } from 'dive-common/constants';
 import ImportMultiCamCameraGroup from './ImportMultiCamCameraGroup.vue';
 import ImportMultiCamChooseSource from './ImportMultiCamChooseSource.vue';
+import ImportMultiCamChooseTransform from './ImportMultiCamChooseTransform.vue';
 import ImportMultiCamCameraOrderControls from './ImportMultiCamCameraOrderControls.vue';
 import ImportMultiCamFinalizeStep from './ImportMultiCamFinalizeStep.vue';
 import { importMultiCamContextProp } from './importMultiCamContext';
@@ -17,6 +18,7 @@ export default defineComponent({
   components: {
     ImportMultiCamCameraGroup,
     ImportMultiCamChooseSource,
+    ImportMultiCamChooseTransform,
     ImportMultiCamCameraOrderControls,
     ImportMultiCamFinalizeStep,
   },
@@ -39,11 +41,15 @@ export default defineComponent({
       orderedCameraKeys: props.ctx.orderedCameraKeys,
       subfolderOriginalNames: props.ctx.subfolderOriginalNames,
       pendingImportPayloads: props.ctx.pendingImportPayloads,
+      folderList: props.ctx.folderList,
       camerasReady: props.ctx.camerasReady,
       deleteSet: props.ctx.deleteSet,
       onRenameCamera: props.ctx.onRenameCamera,
       openParentFolder: props.ctx.openParentFolder,
       open: props.ctx.open,
+      showTransformFileField: props.ctx.showTransformFileField,
+      openTransformFile: props.ctx.openTransformFile,
+      clearTransformFile: props.ctx.clearTransformFile,
       ImageSequenceType,
     };
   },
@@ -134,6 +140,14 @@ export default defineComponent({
       >
         {{ pendingImportPayloads[key].jsonMeta.originalImageFiles.length }} files
       </v-chip>
+      <ImportMultiCamChooseTransform
+        v-if="folderList[key] && folderList[key].sourcePath && showTransformFileField(key)"
+        :camera-name="key"
+        :transform-file="folderList[key].transformFile"
+        class="my-3"
+        @clear="clearTransformFile(key)"
+        @open="openTransformFile(key)"
+      />
     </ImportMultiCamCameraGroup>
     <ImportMultiCamFinalizeStep
       v-if="camerasReady"

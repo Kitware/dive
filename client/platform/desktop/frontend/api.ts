@@ -13,7 +13,7 @@ import type {
 import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes,
-  largeImageDesktopTypes,
+  largeImageDesktopTypes, transformFileTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -46,7 +46,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -69,6 +69,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'transform') {
+    filters = [
+      { name: 'ITK transform', extensions: transformFileTypes },
       allFiles,
     ];
   }
