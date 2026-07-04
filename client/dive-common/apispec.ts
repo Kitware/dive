@@ -131,6 +131,47 @@ interface FrameImage {
   timestamp?: number;
 }
 
+/**
+ * Frame metadata: declared `.meta.csv` / `.meta.txt` sidecars, resolved by the one shared
+ * TypeScript resolver (`dive-common/frameMetadata/resolve.ts`) on both platforms. Nothing derived
+ * is persisted; the sidecar the user dropped is the only stored form.
+ *
+ * The resolved payload is compact: each camera holds its payload `columns` order once and each
+ * frame is a row of cell values aligned to that order (never a `{field: value}` object, so
+ * numeric-named headers stay in file order). The panel materializes a per-frame `{column: value}`
+ * record lazily from a single frame's row (W-12 memory posture, no size cap).
+ */
+interface ResolvedFrameMetadata {
+  /** camera key -> (frame number -> row of cell values aligned to `columns[camera]`). */
+  cameras: Record<string, Record<number, string[]>>;
+  /** camera key -> matched sidecar filenames in precedence order (winner first). */
+  sources: Record<string, string[]>;
+  /** camera key -> payload column names in file / precedence order. */
+  columns: Record<string, string[]>;
+}
+
+/** One sidecar item as listed by the server sources endpoint (no parsing). */
+interface FrameMetadataSourceItem {
+  itemId: string;
+  name: string;
+}
+
+/**
+ * Response of `GET /dive_dataset/:id/frame_metadata_sources`: which sidecar items exist per
+ * camera, in precedence order (camera folder -> clone root -> dataset folder -> parent root),
+ * deduped by folder. Cameras are keyed `singleCam` (SingleCameraFrameMetadataKey) or the multicam
+ * camera names; non-image-sequence datasets return empty `cameras`.
+ */
+interface FrameMetadataSourcesResponse {
+  cameras: Record<string, FrameMetadataSourceItem[]>;
+}
+
+/**
+ * Camera key for single-camera datasets on the frame-metadata contract; must match the key the
+ * server sources endpoint and the desktop resolver emit for single-camera media.
+ */
+export const SingleCameraFrameMetadataKey = 'singleCam';
+
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
@@ -290,6 +331,12 @@ interface Api {
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  /** Web: which sidecar items exist per camera (server sources endpoint, no parsing). */
+  loadFrameMetadataSources?(datasetId: string): Promise<FrameMetadataSourcesResponse>;
+  /** Web: download one sidecar item's raw text by item id, for the shared TypeScript resolver. */
+  downloadItemText?(itemId: string): Promise<string>;
+  /** Desktop: the resolver runs in the backend and returns the resolved per-camera payload. */
+  loadFrameMetadata?(datasetId: string): Promise<ResolvedFrameMetadata>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -560,6 +607,9 @@ export {
   SubType,
   PipelineParamType,
   FrameImage,
+  ResolvedFrameMetadata,
+  FrameMetadataSourceItem,
+  FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,

@@ -5,13 +5,74 @@ hide:
 
 # Data Formats
 
-DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.
+DIVE Desktop and Web support a number of annotation, configuration, and
+media-side metadata formats. The annotation and configuration formats below can
+be uploaded or imported alongside your media and will be automatically parsed.
 
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
 * VIAME CSV
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
+
+Per-frame telemetry sidecars are different: DIVE reads `.meta.csv` and
+`.meta.txt` files from the image-sequence folder on demand. They are not imported
+into annotations or exported in v1.
+
+## Per-frame Metadata Text Sidecars
+
+DIVE can display read-only per-frame telemetry in the
+[Dataset Info panel](UI-DatasetInfo.md#frame-metadata). The stored form is a
+delimited text file placed next to the image sequence. A file is treated as
+telemetry if and only if its name ends in `.meta.csv` or `.meta.txt`
+(case-insensitive) — the naming convention declares it, so DIVE never sniffs
+content or confuses it with an annotation CSV. DIVE reads it at view time and
+joins rows to frames by filename value.
+
+Supported sidecar contract:
+
+* A file named `*.meta.csv` or `*.meta.txt` in the dataset folder for
+  single-camera image sequences.
+* For multicamera image sequences, either one shared `*.meta.csv`/`*.meta.txt`
+  file in the multicam parent folder, or one sidecar in each camera child folder.
+* Header row with field names.
+* Comma, tab, or whitespace delimiter.
+* At least one filename column whose values match the image filenames.
+* At least one metadata column beyond the filename column.
+
+There is no size limit: a declared sidecar is never size-gated and declared
+telemetry is never silently dropped. A large file costs one parse, which DIVE
+caches and serves to every frame window.
+
+Example (`AUV_nav.meta.txt`):
+
+```text
+image_file timestamp latitude longitude water_depth
+img_0001.tif 15:40:56 46.575870 -124.603094 192.80
+img_0002.tif 15:41:04 46.575912 -124.603080 193.10
+```
+
+Rows are matched by filename value, not by row order. DIVE ignores the filename
+extension while matching, so `img_0001.tif` can match an image key of
+`img_0001`. Rows that do not match an image are omitted.
+
+Because classification is by name, a plain `nav.csv` uploaded as annotations that
+fails to parse prompts a rename hint (`… rename it to end in .meta.csv and
+re-upload.`), and the desktop app refuses to import a `.meta.csv`/`.meta.txt`
+file through the annotation flow — it belongs in the media folder, where it is
+read automatically.
+
+For multicamera data, a shared source can contain one filename column per camera,
+such as `port_image` and `starboard_image`. Each active camera displays the rows
+that matched that camera's imagery.
+
+Values are shown as raw strings in source field order. DIVE does not infer
+types, units, or pinned display order for v1 frame telemetry.
+
+Frame metadata sidecars are read-only. They are not edited in DIVE, saved as
+derived metadata, imported as annotations, or included in VIAME, DIVE JSON, COCO,
+KWCOCO, or zip exports. Video telemetry, embedded KLV, embedded EXIF, and
+manually selecting a source from another location are future work.
 
 ## DIVE Annotation JSON
 
@@ -169,7 +230,7 @@ This information provides the specification for an individual dataset.  It consi
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
 * Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.
-  * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
+  * Edited from the Dataset Info section of the [Dataset Info panel](UI-DatasetInfo.md).
   * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
 
@@ -236,7 +297,8 @@ entry keyed `dataset_info`:
   * A CSV with no `dataset_info` entry leaves existing metadata untouched.
 * This is how dataset context, for example a `gfishsite_id` used to re-link
   annotations to an external database, travels with the exported annotations without
-  renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
+  renaming files. See the Dataset Info section of the
+  [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
 
 ### VIAME CSV polygons and length
 
@@ -325,9 +387,9 @@ These extension keys are declared in the COCO `info` object as:
 
 ### Dataset-level metadata (`datasetInfo`)
 
-The dataset's free-form [Dataset Info](UI-DatasetInfo.md) metadata (e.g. `gfishsite_id`,
-cruise, station) is written to the COCO `info` block under a single `dive_dataset_info` key and
-advertised in `info.dive_extensions`:
+The dataset's free-form [Dataset Info](UI-DatasetInfo.md) custom metadata
+(e.g. `gfishsite_id`, cruise, station) is written to the COCO `info` block under
+a single `dive_dataset_info` key and advertised in `info.dive_extensions`:
 
 * `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
 

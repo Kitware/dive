@@ -1,0 +1,2 @@
+filename	Position (lat, lon)	Depth (m)
+img001.png	42.35, -70.90	12.4

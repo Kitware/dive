@@ -1,0 +1,11 @@
+{
+  "nav.meta.csv": true,
+  "NAV.META.CSV": true,
+  "a.b.meta.txt": true,
+  "nav.csv": false,
+  "nav.txt": false,
+  "nav.meta.tsv": false,
+  "navmeta.csv": false,
+  "nav.meta.csv.bak": false,
+  ".meta.csv": true
+}

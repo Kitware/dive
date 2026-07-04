@@ -1,7 +1,7 @@
 # Dataset Info
 
-The **Dataset Info** panel shows properties of the whole dataset and lets you attach
-custom metadata to it. It is one pane of the
+The **Dataset Info** panel shows read-only frame telemetry, properties of the
+whole dataset, and custom metadata attached to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
 Metadata you add travels with the dataset: it is shown while annotating and written into
@@ -13,6 +13,10 @@ re-link annotations to their source records.
 
 ![Dataset Info panel](images/General/DatasetInfo.png){ width=220px align=right }
 
+**Frame Metadata** (read-only): per-frame telemetry for the active image, such
+as timestamp, latitude, longitude, depth, or altitude. The panel shows only the
+source fields for the active frame, in the order they appear in the source file.
+
 **Standard information** (read-only): Name, Type, FPS, Original FPS and Subtype (when
 set), Created date, and ID (the Girder folder id).
 
@@ -20,6 +24,80 @@ set), Created date, and ID (the Girder folder id).
 example a station id, cruise number, or dive number.
 
 <div style="clear: both;"/>
+
+## Frame Metadata
+
+Frame telemetry is not an annotation stream. DIVE reads it from a `.meta.csv` or
+`.meta.txt` sidecar file next to the imagery and displays the values for the
+active frame. The sidecar remains the source of truth; DIVE does not import it
+into an editable store or save a derived copy.
+
+### Source file
+
+Name the file so it ends in `.meta.csv` or `.meta.txt` (case-insensitive) — that
+naming convention is what tells DIVE the file is telemetry rather than an
+annotation CSV. Use a delimited text file with:
+
+* a header row,
+* one or more columns containing image filenames,
+* at least one metadata column beyond the filename column.
+
+The delimiter can be comma, tab, or whitespace. DIVE joins rows to frames by
+matching filename values, not by row order. A row that does not match an image is
+ignored instead of being shifted onto another frame.
+
+Example (`AUV_nav.meta.txt`):
+
+```text
+image_file timestamp latitude longitude water_depth
+img_0001.tif 15:40:56 46.575870 -124.603094 192.80
+img_0002.tif 15:41:04 46.575912 -124.603080 193.10
+```
+
+The filename extension is ignored during matching, so `img_0001.tif` matches the
+image key `img_0001`. Values are displayed as raw strings in the order they
+appear in the source file.
+
+### Placement
+
+For a single-camera image sequence, place the `.meta.csv` or `.meta.txt` file in
+the dataset folder beside the images.
+
+For a multicamera image sequence, use either placement:
+
+* Place one shared file at the multicam parent folder. Each camera selects the
+  rows or filename column that match its own images.
+* Place one file inside each camera child folder. Each file is read only for that
+  camera.
+
+A shared multicam file can contain one filename column per camera, such as
+`port_image` and `starboard_image`, or one filename column with separate rows for
+each camera. The Dataset Info panel follows the active camera, so switching
+cameras switches the displayed records.
+
+### Display behavior
+
+Open **Dataset Info** from the context sidebar while viewing an image-sequence
+dataset. The Frame Metadata section updates as the playhead moves.
+
+The section shows only the source fields for the active frame. It does not
+repeat the current frame number or filename, which are already shown by the
+playback controls.
+
+The section may show an empty state when:
+
+* the platform or dataset type does not support frame metadata,
+* no matching `.meta.csv` or `.meta.txt` source is present,
+* the current frame has no matching row.
+
+Frame telemetry is read-only in v1. There is no edit, save, import, or export
+flow for these values. The desktop app refuses to import a `.meta.csv`/`.meta.txt`
+file through the annotation flow; a plain annotation CSV that fails to parse
+suggests renaming it to `.meta.csv` if it is actually telemetry. Video telemetry, embedded KLV, embedded EXIF, and manual
+selection of a source file from another location are future work.
+
+See [Data Formats](DataFormats.md#per-frame-metadata-text-sidecars) for the
+sidecar file contract.
 
 ## Where the data is stored
 

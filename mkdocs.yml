@@ -84,6 +84,7 @@ nav:
   - Data Formats: DataFormats.md
   - Developer Guide:
     - Codebase architecture: Architecture-For-New-Developers.md
+    - Frame metadata architecture: Frame-Metadata-Architecture.md
   - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md

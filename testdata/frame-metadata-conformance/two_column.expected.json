@@ -1,0 +1,7 @@
+{
+  "mediaKeys": { "img001.png": 0, "img002.png": 1 },
+  "records": {
+    "img001": { "image": "img001.png", "altitude": "10" },
+    "img002": { "image": "img002.png", "altitude": "12" }
+  }
+}
