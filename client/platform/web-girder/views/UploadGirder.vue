@@ -89,14 +89,11 @@ export default Vue.extend({
       };
     },
     async uploadPending(pendingUpload, uploaded) {
-      const {
-        name, createSubFolders, meta, annotationFile, mediaList,
-      } = pendingUpload;
-      //Combine the files for uploading
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      const { name, createSubFolders, uploadFiles } = pendingUpload;
+      // The validated package is the only source of files to upload.
+      const files = uploadFiles
+        .map((item) => this.convertFileToInternal(item))
+        .filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
       const fps = parseInt(pendingUpload.fps, 10);
@@ -173,13 +170,12 @@ export default Vue.extend({
      * Upload a single camera dataset folder (used by multicam import).
      */
     async uploadCameraDataset({
-      name, fps, type, mediaList, meta = null, annotationFile = null, skipTranscoding = true,
-      parentFolderId = null,
+      name, fps, type, uploadFiles, skipTranscoding = true, parentFolderId = null,
     }) {
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      // The validated package is the only source of files to upload for the camera.
+      const files = uploadFiles
+        .map((item) => this.convertFileToInternal(item))
+        .filter((item) => item !== null);
       const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);

@@ -100,6 +100,33 @@ export function getAnnotationFile(key: string): File | undefined {
   return annotationFilesByKey.get(key);
 }
 
+/**
+ * Explicit annotation File objects chosen for a camera, as an array (0 or 1
+ * entries), suitable for concatenating into a camera upload package.
+ */
+export function getExplicitAnnotationFiles(key?: string): File[] {
+  const file = key ? getAnnotationFile(key) : undefined;
+  return file ? [file] : [];
+}
+
+/**
+ * Assemble the complete file package for one multicam camera: the camera folder's
+ * files plus any explicit annotation file chosen for that camera. The explicit
+ * annotation file is deduplicated by name, so a file that is both present in the
+ * folder selection and picked explicitly (a distinct File object from a separate
+ * picker) is only sent once — otherwise the server would validate a duplicate name.
+ *
+ * `flattenUploadFiles` is applied here, before validation, so the names sent to
+ * the server for validation match the names uploaded to Girder.
+ */
+export function getCameraPackageFiles(folderFiles: File[], annotationKey?: string): File[] {
+  const flattened = flattenUploadFiles(folderFiles);
+  const flattenedNames = new Set(flattened.map((file) => file.name));
+  const explicit = getExplicitAnnotationFiles(annotationKey)
+    .filter((file) => !flattenedNames.has(file.name));
+  return [...flattened, ...explicit];
+}
+
 function calibrationLookupKeys(key: string): string[] {
   const keys = new Set<string>();
   if (key) {

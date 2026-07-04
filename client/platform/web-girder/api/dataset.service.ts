@@ -5,7 +5,7 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetMetaMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
@@ -243,12 +243,26 @@ async function importCameraRegistration(
   return summary;
 }
 
-interface ValidationResponse {
-  ok: boolean;
-  type: 'video' | 'image-sequence' | 'large-image';
+export interface ValidatedUploadRoleMap {
   media: string[];
   annotations: string[];
+  datasetConfig: string[];
+  frameMetadata: string[];
+}
+
+export interface IgnoredUploadFile {
+  name: string;
+  reason: string;
+}
+
+export interface ValidationResponse {
+  ok: boolean;
+  // Empty string when validation fails (no single media type could be determined).
+  type: DatasetType | '';
   message: string;
+  roles: ValidatedUploadRoleMap;
+  upload: string[];
+  ignored: IgnoredUploadFile[];
 }
 
 function validateUploadGroup(names: string[]) {
