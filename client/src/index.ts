@@ -2,6 +2,7 @@
 import * as layers from './layers';
 import * as components from './components';
 
+import AlignedViewStore from './AlignedViewStore';
 import BaseAnnotation from './BaseAnnotation';
 import BaseAnnotationStore from './BaseAnnotationStore';
 import CameraStore from './CameraStore';
@@ -26,6 +27,7 @@ export {
   layers,
   components,
   /* other */
+  AlignedViewStore,
   BaseAnnotation,
   BaseAnnotationStore,
   CameraStore,

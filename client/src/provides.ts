@@ -21,6 +21,7 @@ import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
 import CameraCalibrationStore from './CameraCalibrationStore';
+import AlignedViewStore from './AlignedViewStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -115,6 +116,7 @@ type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
 const CameraCalibrationSymbol = Symbol('cameraCalibration');
+const AlignedViewSymbol = Symbol('alignedView');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -287,6 +289,7 @@ export interface State {
   attributes: AttributesType;
   cameraStore: CameraStore;
   cameraCalibration: CameraCalibrationStore;
+  alignedView: AlignedViewStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -356,6 +359,7 @@ function dummyState(): State {
     attributes: ref([]),
     cameraStore,
     cameraCalibration: new CameraCalibrationStore(),
+    alignedView: new AlignedViewStore(),
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -408,6 +412,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
   provide(CameraCalibrationSymbol, state.cameraCalibration);
+  provide(AlignedViewSymbol, state.alignedView);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -465,6 +470,9 @@ function useCameraStore() {
 }
 function useCameraCalibration() {
   return use<CameraCalibrationStore>(CameraCalibrationSymbol);
+}
+function useAlignedView() {
+  return use<AlignedViewStore>(AlignedViewSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -578,6 +586,7 @@ export {
   useAttributes,
   useCameraStore,
   useCameraCalibration,
+  useAlignedView,
   useDatasetId,
   useEditingMode,
   useHandler,
