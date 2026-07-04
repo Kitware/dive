@@ -1,5 +1,7 @@
 import type { FrameImage } from './apispec';
-import { buildAlignedTimeline, canAlign } from './alignedTimeline';
+import {
+  buildAlignedTimeline, buildInverseAlignedIndex, canAlign, computeGapSlots,
+} from './alignedTimeline';
 
 function frame(timestamp?: number): FrameImage {
   return { url: `url-${timestamp}`, filename: `frame-${timestamp}.png`, timestamp };
@@ -94,5 +96,47 @@ describe('alignedTimeline', () => {
     };
     expect(canAlign(camerasFrames)).toBe(false);
     expect(buildAlignedTimeline(camerasFrames)).toEqual({ aligned: false });
+  });
+
+  describe('computeGapSlots', () => {
+    it('returns no gaps when every camera has a frame at every slot', () => {
+      const camerasFrames = {
+        A: [frame(100), frame(200)],
+        B: [frame(100), frame(200)],
+      };
+      const result = buildAlignedTimeline(camerasFrames);
+      expect(result.aligned).toBe(true);
+      expect(result.aligned && computeGapSlots(result.slots)).toEqual([]);
+    });
+
+    it('flags slots where any camera is missing a frame', () => {
+      const camerasFrames = {
+        A: [frame(100), frame(200), frame(300)],
+        B: [frame(100.1), frame(300.2)],
+      };
+      const result = buildAlignedTimeline(camerasFrames);
+      expect(result.aligned).toBe(true);
+      expect(result.aligned && computeGapSlots(result.slots)).toEqual([1]);
+    });
+  });
+
+  describe('buildInverseAlignedIndex', () => {
+    it('maps each camera\'s local frame back to its global slot', () => {
+      const camerasFrames = {
+        A: [frame(100), frame(200), frame(300)],
+        B: [frame(100.1), frame(300.2)],
+      };
+      const result = buildAlignedTimeline(camerasFrames);
+      expect(result.aligned).toBe(true);
+      if (!result.aligned) return;
+      const inverse = buildInverseAlignedIndex(result.slots);
+      expect(inverse.A.get(0)).toBe(0);
+      expect(inverse.A.get(1)).toBe(1);
+      expect(inverse.A.get(2)).toBe(2);
+      expect(inverse.B.get(0)).toBe(0);
+      expect(inverse.B.get(1)).toBe(2);
+      // B has no local frame 2 -- it only ever appears in slots 0 and 2.
+      expect(inverse.B.get(2)).toBeUndefined();
+    });
   });
 });

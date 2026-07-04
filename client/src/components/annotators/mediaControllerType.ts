@@ -13,6 +13,19 @@ export interface AlignedFrameResolver {
   slotCount: Readonly<Ref<number>>;
   frameRate: Readonly<Ref<number>>;
   resolveSlot: (globalFrame: number) => Record<string, number | undefined>;
+  /**
+   * Inverse of resolveSlot (see dive-common/alignedTimeline.ts's
+   * buildInverseAlignedIndex): given a camera and its own local frame,
+   * returns the global aligned-timeline slot it appears in, or undefined if
+   * that local frame isn't part of any slot.
+   */
+  resolveGlobalSlot: (camera: string, localFrame: number) => number | undefined;
+  /**
+   * Global slot indices where at least one camera has no frame (see
+   * dive-common/alignedTimeline.ts's computeGapSlots) -- used to render a
+   * gap indicator on the timeline scrubber.
+   */
+  gapSlots: Readonly<Ref<number[]>>;
 }
 
 /**
@@ -32,6 +45,12 @@ export interface AggregateMediaController {
   cameraSync: Readonly<Ref<boolean>>;
   /** Incremented when the viewer is resized, used to trigger layer redraws */
   resizeTrigger: Readonly<Ref<number>>;
+  /**
+   * Global aligned-timeline slot indices with at least one camera missing a
+   * frame (see AlignedFrameResolver's gapSlots); empty whenever alignment
+   * isn't active.
+   */
+  alignedGapSlots: Readonly<Ref<number[]>>;
 
   pause: () => void;
   play: () => void;
@@ -43,6 +62,15 @@ export interface AggregateMediaController {
   setSpeed: (speed: number) => void;
   getController: (cameraName: string) => MediaController;
   toggleSynchronizeCameras: (sync: boolean) => void;
+  /**
+   * Seeks so that `camera` lands on its own local frame `localFrame` (e.g.
+   * jumping to a track's stored begin/end, which is in local-frame units).
+   * Under an aligned timeline (see AlignedFrameResolver) this translates
+   * through the global slot so every camera stays aligned; otherwise it's
+   * equivalent to seek(localFrame), since local and global frame numbers are
+   * identical under today's positional broadcast.
+   */
+  seekCameraFrame: (camera: string, localFrame: number) => void;
 }
 
 /**

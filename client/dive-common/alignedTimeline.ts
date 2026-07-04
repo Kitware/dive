@@ -110,3 +110,46 @@ export function buildAlignedTimeline(
 
   return { aligned: true, slots };
 }
+
+/**
+ * Inverse of a slot lookup: for each camera, maps its own local frame index
+ * to the global aligned-timeline slot it appears in. Used to translate a
+ * "seek this camera to its own local frame X" request (e.g. jumping to a
+ * track's start/end, which is stored in local-frame units) into the correct
+ * global slot, so every camera stays aligned instead of just the one camera
+ * jumping independently. Each camera appears in at most one slot per local
+ * frame (buildAlignedTimeline's first-come-first-served rule), so this is
+ * always a 1:1 mapping.
+ */
+export type InverseAlignedIndex = Record<string, Map<number, number>>;
+
+export function buildInverseAlignedIndex(slots: AlignedSlot[]): InverseAlignedIndex {
+  const inverse: InverseAlignedIndex = {};
+  slots.forEach((slot, slotIndex) => {
+    Object.entries(slot).forEach(([camera, localIndex]) => {
+      if (localIndex === undefined) {
+        return;
+      }
+      if (!inverse[camera]) {
+        inverse[camera] = new Map();
+      }
+      inverse[camera].set(localIndex, slotIndex);
+    });
+  });
+  return inverse;
+}
+
+/**
+ * Global aligned-timeline slot indices where at least one loaded camera has
+ * no frame -- i.e. scrubbing to that slot will blank at least one camera's
+ * pane. Used to render a gap indicator on the timeline scrubber.
+ */
+export function computeGapSlots(slots: AlignedSlot[]): number[] {
+  const gaps: number[] = [];
+  slots.forEach((slot, index) => {
+    if (Object.values(slot).some((localIndex) => localIndex === undefined)) {
+      gaps.push(index);
+    }
+  });
+  return gaps;
+}

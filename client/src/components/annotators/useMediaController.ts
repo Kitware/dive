@@ -98,6 +98,7 @@ export function useMediaController() {
   const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
   const alignedCurrentFrame: Ref<number> = ref(0);
   const externallyDriven = computed(() => alignedFrameResolver.value !== null);
+  const alignedGapSlots = computed(() => alignedFrameResolver.value?.gapSlots.value ?? []);
   let alignedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
   const emptyControllerFrame = ref(0);
   const emptyControllerMaxFrame = ref(0);
@@ -126,6 +127,8 @@ export function useMediaController() {
     toggleSynchronizeCameras,
     cameraSync: synchronizeCameras,
     resizeTrigger,
+    alignedGapSlots,
+    seekCameraFrame: aggregateSeekCameraFrame,
   };
   function stopAlignedPlaybackTimer() {
     if (alignedPlaybackTimer !== undefined) {
@@ -554,6 +557,28 @@ export function useMediaController() {
     }
   }
 
+  /**
+   * Seeks so that `camera` lands on its own local frame `localFrame`. Without
+   * alignment, local and global frame numbers are identical (today's
+   * positional broadcast), so this is just aggregateSeek. Under an aligned
+   * timeline, translates through the global slot via resolveGlobalSlot so
+   * every camera stays aligned; falls back to seeking only `camera` itself
+   * if that local frame isn't part of any slot (shouldn't normally happen).
+   */
+  function aggregateSeekCameraFrame(camera: string, localFrame: number) {
+    const resolver = alignedFrameResolver.value;
+    if (!resolver) {
+      aggregateSeek(localFrame);
+      return;
+    }
+    const slot = resolver.resolveGlobalSlot(camera, localFrame);
+    if (slot !== undefined) {
+      alignedSeek(resolver, slot);
+    } else {
+      getController(camera).seek(localFrame);
+    }
+  }
+
   function aggregateNextFrame() {
     const resolver = alignedFrameResolver.value;
     if (resolver) {
@@ -630,6 +655,8 @@ export function useMediaController() {
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
       resizeTrigger,
+      alignedGapSlots,
+      seekCameraFrame: aggregateSeekCameraFrame,
     };
   });
 

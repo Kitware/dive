@@ -32,6 +32,7 @@ import {
   FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import type { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
@@ -62,7 +63,9 @@ import type {
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
-import { buildAlignedTimeline, TimelineResult } from 'dive-common/alignedTimeline';
+import {
+  buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
+} from 'dive-common/alignedTimeline';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
@@ -192,10 +195,13 @@ export default defineComponent({
     });
     watch(alignedTimeline, (result) => {
       if (result.aligned) {
+        const inverseIndex = buildInverseAlignedIndex(result.slots);
         setAlignedFrameResolver({
           slotCount: computed(() => result.slots.length),
           frameRate: time.frameRate,
           resolveSlot: (f) => result.slots[f] ?? {},
+          resolveGlobalSlot: (camera, localFrame) => inverseIndex[camera]?.get(localFrame),
+          gapSlots: computed(() => computeGapSlots(result.slots)),
         });
       } else {
         setAlignedFrameResolver(null);
@@ -415,6 +421,24 @@ export default defineComponent({
         emit('stereo-segmentation-finalize', params);
       },
     });
+
+    /**
+     * Every camera pane calls updateTime() from its own seek/play/pause, but
+     * useTime()'s frame/flick is a single shared value consumed app-wide as
+     * "the current frame" (track split, keyframe toggling, attribute editing,
+     * etc.). Under an aligned timeline (SEAL feature 5) cameras can sit on
+     * different local frames for the same instant, so only the selected
+     * camera's updates may reach it -- otherwise whichever camera's annotator
+     * happened to seek last would silently win, regardless of which camera
+     * the user is actually looking at/editing.
+     */
+    function selectedCameraUpdateTime(camera: string): SetTimeFunc {
+      return (data) => {
+        if (selectedCamera.value === camera) {
+          updateTime(data);
+        }
+      };
+    }
 
     const {
       attributesList: attributes,
@@ -794,6 +818,12 @@ export default defineComponent({
         }
       }
       selectedCamera.value = camera;
+      // Immediately resync the shared time observer to the newly selected
+      // camera's own local frame (see selectedCameraUpdateTime) -- otherwise
+      // it would keep reporting the previously selected camera's local frame
+      // until the next seek/play/pause happens to land on this camera.
+      const newCameraController = aggregateController.value.getController(camera);
+      updateTime({ frame: newCameraController.frame.value, flick: newCameraController.flick.value });
       /**
        * Enters edit mode if no track exists for the camera and forcing edit mode
        * or if a track exists and are alrady in edit mode we don't set it again
@@ -821,7 +851,13 @@ export default defineComponent({
       if (!track) {
         return false;
       }
-      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+      // Must use selectedCamera's own local frame, not aggregateController's
+      // frame: under an aligned timeline (SEAL feature 5) the aggregate frame
+      // is the global slot index, which diverges from any camera's local
+      // frame -- and getFeature() is keyed by local frame, same as tracks are
+      // stored. See LayerManager.vue's identically-named helper.
+      const cameraFrame = aggregateController.value.getController(selectedCamera.value).frame.value;
+      return track.getFeature(cameraFrame)[0] == null;
     };
     // While editing, the creation cursor is live on any camera still missing
     // the selected track's geometry at this frame (see LayerManager's
@@ -1438,7 +1474,7 @@ export default defineComponent({
       save,
       saveThreshold,
       saveTimeFilter,
-      updateTime,
+      selectedCameraUpdateTime,
       // multicam
       multiCamList,
       defaultCamera,
@@ -1760,7 +1796,7 @@ export default defineComponent({
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
-                  updateTime,
+                  updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
                   camera,
@@ -1856,7 +1892,7 @@ export default defineComponent({
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
-                  updateTime,
+                  updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
                   camera,
