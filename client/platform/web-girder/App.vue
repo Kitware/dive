@@ -17,6 +17,8 @@ import {
   runPipeline,
   exportTrainedPipeline,
   getDatasetCalibration,
+  getFrameMetadataSources,
+  downloadItemText,
   getTrainingConfigurations,
   runTraining,
   saveMetadata,
@@ -70,6 +72,10 @@ export default defineComponent({
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,
+      // Web frame-metadata read path: the browser lists sidecar items, downloads their bytes, and
+      // runs the shared TypeScript resolver. loadFrameMetadata (backend-resolved) stays desktop-only.
+      loadFrameMetadataSources: getFrameMetadataSources,
+      downloadItemText,
       saveDetections: unwrap(saveDetections),
       saveMetadata: unwrap(saveMetadata),
       saveAttributes: unwrap(saveAttributes),

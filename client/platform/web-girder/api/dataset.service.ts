@@ -5,7 +5,8 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetMetaMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetMetaMutable, DatasetType, FrameImage, FrameMetadataSourcesResponse,
+  SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
@@ -76,6 +77,32 @@ async function getDatasetMedia(datasetId: string) {
   // Parse per-frame capture timestamps client-side (see getDataset above).
   attachFrameTimestamps(response.data.imageData ?? []);
   return response;
+}
+
+/**
+ * List the declared frame-metadata sidecar items per camera (server sources endpoint, no
+ * parsing). The endpoint resolves multicam cameras itself, so it is always addressed by the
+ * parent-root dataset folder id (a camera suffix is stripped) and returns every camera at once.
+ */
+async function getFrameMetadataSources(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  const folderId = parentDatasetId(datasetId);
+  const { data } = await girderRest.get<FrameMetadataSourcesResponse>(
+    `dive_dataset/${folderId}/frame_metadata_sources`,
+  );
+  return data;
+}
+
+/**
+ * Download a Girder item's raw bytes as text over the existing item-download route. Used by the
+ * web frame-metadata read path to hand sidecar text to the shared parser. The axios JSON
+ * transform is disabled so a numeric-heavy CSV/TXT is returned verbatim, never coerced.
+ */
+async function downloadItemText(itemId: string): Promise<string> {
+  const { data } = await girderRest.get<string>(`item/${itemId}/download`, {
+    responseType: 'text',
+    transformResponse: [(value: string) => value],
+  });
+  return typeof data === 'string' ? data : String(data);
 }
 
 function clone({
@@ -396,9 +423,11 @@ export {
   clearCalibrationFolderMetadata,
   createGirderFolder,
   createMulticamDataset,
+  downloadItemText,
   getDataset,
   getDatasetList,
   getDatasetMedia,
+  getFrameMetadataSources,
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,
