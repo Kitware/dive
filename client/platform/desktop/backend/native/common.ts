@@ -26,7 +26,14 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
+  ResolvedFrameMetadata,
+  SingleCameraFrameMetadataKey,
 } from 'dive-common/apispec';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { isFrameMetadataSourceName } from 'dive-common/frameMetadata/naming';
+import { buildMediaKeyIndex, resolveCameras } from 'dive-common/frameMetadata/resolve';
+import type { CameraCandidateTexts, CameraMediaKeys } from 'dive-common/frameMetadata/resolve';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -461,6 +468,226 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
+ * Frame-metadata read path. Declared `*.meta.csv` / `*.meta.txt` sidecars are discovered on disk,
+ * read, and resolved against the dataset's media by the shared TypeScript resolver
+ * (dive-common/frameMetadata). The resolver runs here in the backend so raw multi-MB sidecar text
+ * never crosses the IPC wire -- only the compact ResolvedFrameMetadata payload is returned. Nothing
+ * derived is persisted; the sidecar the user dropped is the only stored form.
+ */
+interface ImageSequenceFrameMetadataSource {
+  originalBasePath: string;
+  originalImageFiles: string[];
+  imageListPath?: string;
+}
+
+// A declared sidecar resolved to its on-disk identity (no read yet). There is no parse/read cache
+// in this design: the resolver is called once per request and reads texts lazily.
+interface FrameMetadataCandidate {
+  name: string;
+  absolutePath: string;
+}
+
+// Directories that may hold a camera's sidecars: the media base path, the image-list directory,
+// and any absolute image-list entry directories. Deduped, order-preserving.
+function frameMetadataSourceDirectories(source: ImageSequenceFrameMetadataSource): string[] {
+  const directories = [
+    source.originalBasePath,
+    source.imageListPath ? npath.dirname(source.imageListPath) : '',
+    // Only absolute image-list entries reveal extra directories; relative names are
+    // resolved against originalBasePath, already covered above.
+    ...source.originalImageFiles
+      .filter((image) => npath.isAbsolute(image))
+      .map((image) => npath.dirname(image)),
+  ];
+  const seen = new Set<string>();
+  const resolved: string[] = [];
+  directories.forEach((directory) => {
+    if (!directory) {
+      return;
+    }
+    const absolute = npath.resolve(directory);
+    if (!seen.has(absolute)) {
+      seen.add(absolute);
+      resolved.push(absolute);
+    }
+  });
+  return resolved;
+}
+
+// Discover declared sidecars in one directory: name-filtered (isFrameMetadataSourceName),
+// case-insensitively sorted so first-wins precedence within a folder is deterministic and matches
+// the server's sorted order, and never size-gated (no-cap product decision). Non-file entries and
+// unreadable entries are skipped so one bad sidecar never sinks the scan.
+async function frameMetadataCandidateDescriptors(
+  directory: string | null,
+): Promise<FrameMetadataCandidate[]> {
+  if (!directory || !(await fs.pathExists(directory))) {
+    return [];
+  }
+  const names = (await fs.readdir(directory))
+    .filter(isFrameMetadataSourceName)
+    .sort((a, b) => {
+      const al = a.toLowerCase();
+      const bl = b.toLowerCase();
+      if (al < bl) {
+        return -1;
+      }
+      if (al > bl) {
+        return 1;
+      }
+      return 0;
+    });
+  const candidates = await Promise.all(names
+    .map(async (name): Promise<FrameMetadataCandidate | null> => {
+      try {
+        const absolutePath = npath.join(directory, name);
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile()) {
+          return null;
+        }
+        return { name, absolutePath };
+      } catch {
+        // A broken symlink or unreadable sidecar must not sink the whole scan.
+        return null;
+      }
+    }));
+  return candidates.filter((candidate): candidate is FrameMetadataCandidate => candidate !== null);
+}
+
+async function gatherFrameMetadataCandidates(
+  directories: string[],
+): Promise<FrameMetadataCandidate[]> {
+  const perDirectory = await Promise.all(
+    directories.map((directory) => frameMetadataCandidateDescriptors(directory)),
+  );
+  return ([] as FrameMetadataCandidate[]).concat(...perDirectory);
+}
+
+// Read each candidate's text (memoized by path so a sidecar shared across cameras is read once),
+// returning [sourceName, text] pairs in candidate (precedence) order. An unreadable candidate is
+// skipped rather than sinking the others.
+async function readCandidateTexts(
+  candidates: FrameMetadataCandidate[],
+  textMemo: Map<string, string>,
+): Promise<Array<[string, string]>> {
+  const texts = await Promise.all(
+    candidates.map(async (candidate): Promise<[string, string] | null> => {
+      try {
+        const memoized = textMemo.get(candidate.absolutePath);
+        const text = memoized ?? await fs.readFile(candidate.absolutePath, 'utf-8');
+        if (memoized === undefined) {
+          textMemo.set(candidate.absolutePath, text);
+        }
+        return [candidate.name, text];
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return texts.filter((entry): entry is [string, string] => entry !== null);
+}
+
+function commonParentDirectory(paths: string[]): string | null {
+  const resolved = paths.filter((item) => item).map((item) => npath.resolve(item));
+  if (!resolved.length) {
+    return null;
+  }
+  const [first, ...rest] = resolved;
+  const firstParts = first.split(npath.sep);
+  let { length } = firstParts;
+  rest.forEach((candidate) => {
+    const parts = candidate.split(npath.sep);
+    length = Math.min(length, parts.length);
+    for (let i = 0; i < length; i += 1) {
+      if (firstParts[i] !== parts[i]) {
+        length = i;
+        break;
+      }
+    }
+  });
+  const prefix = firstParts.slice(0, length).join(npath.sep);
+  // Return null rather than the filesystem root when cameras share no common prefix,
+  // so an unrelated-mount multicam never scans every sidecar at '/'.
+  return prefix || null;
+}
+
+async function loadMulticamFrameMetadata(
+  projectMetaData: JsonMeta,
+): Promise<ResolvedFrameMetadata> {
+  const { multiCam } = projectMetaData;
+  if (!multiCam) {
+    return { cameras: {}, sources: {}, columns: {} };
+  }
+
+  const cameraEntries = orderedMultiCamCameraNames({
+    cameras: multiCam.cameras,
+    defaultDisplay: multiCam.defaultDisplay,
+  }).map((cameraName) => [cameraName, multiCam.cameras[cameraName]] as const);
+
+  const rootDirectory = projectMetaData.originalBasePath
+    || commonParentDirectory(cameraEntries.flatMap(([, camera]) => (
+      frameMetadataSourceDirectories(camera)
+    )));
+  const resolvedRoot = rootDirectory ? npath.resolve(rootDirectory) : null;
+  const rootCandidates = await frameMetadataCandidateDescriptors(rootDirectory);
+
+  // Read each candidate file at most once per request, even when cameras share the parent/root.
+  const textMemo = new Map<string, string>();
+
+  const cameraTexts: CameraCandidateTexts = {};
+  const mediaKeysPerCamera: CameraMediaKeys = {};
+
+  // Cameras load independently; resolve their candidate texts in parallel.
+  await Promise.all(cameraEntries.map(async ([cameraName, cameraMeta]) => {
+    if (cameraMeta.type !== 'image-sequence') {
+      return;
+    }
+    // Camera-local directories precede the multicam parent/root folder (precedence).
+    const cameraDirectories = frameMetadataSourceDirectories(cameraMeta);
+    const cameraCandidates = await gatherFrameMetadataCandidates(cameraDirectories);
+    // Root dedup (mirror of the server's folder-id dedup): a camera whose own media dir is the
+    // root already gathered the root's sidecars, so do not concatenate them a second time.
+    const candidates = resolvedRoot !== null && !cameraDirectories.includes(resolvedRoot)
+      ? cameraCandidates.concat(rootCandidates)
+      : cameraCandidates;
+    cameraTexts[cameraName] = await readCandidateTexts(candidates, textMemo);
+    mediaKeysPerCamera[cameraName] = buildMediaKeyIndex(cameraMeta.originalImageFiles);
+  }));
+
+  // The shared resolver runs in the backend so raw sidecar text stays off the IPC wire.
+  return resolveCameras(cameraTexts, mediaKeysPerCamera);
+}
+
+async function loadFrameMetadata(
+  settings: Settings,
+  datasetId: string,
+): Promise<ResolvedFrameMetadata> {
+  const parentId = parentDatasetId(datasetId);
+  const projectDirData = await getValidatedProjectDir(settings, parentId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+
+  if (projectMetaData.type === MultiType) {
+    return loadMulticamFrameMetadata(projectMetaData);
+  }
+  if (projectMetaData.type !== 'image-sequence') {
+    return { cameras: {}, sources: {}, columns: {} };
+  }
+
+  const candidates = await gatherFrameMetadataCandidates(
+    frameMetadataSourceDirectories(projectMetaData),
+  );
+  const textMemo = new Map<string, string>();
+  const cameraTexts: CameraCandidateTexts = {
+    [SingleCameraFrameMetadataKey]: await readCandidateTexts(candidates, textMemo),
+  };
+  const mediaKeysPerCamera: CameraMediaKeys = {
+    [SingleCameraFrameMetadataKey]: buildMediaKeyIndex(projectMetaData.originalImageFiles),
+  };
+  // The shared resolver runs in the backend so raw sidecar text stays off the IPC wire.
+  return resolveCameras(cameraTexts, mediaKeysPerCamera);
+}
+
+/**
  * Look through DIVE project path, find subfolders that
  * look like datasets, and return them.
  */
@@ -811,6 +1038,11 @@ async function _ingestFilePath(
   if (fs.statSync(path).size === 0) {
     return null;
   }
+  // Contract N9: a declared telemetry sidecar is read automatically at read-time and must never
+  // be imported as annotations. Reject before copying to auxiliary.
+  if (isFrameMetadataSourceName(path)) {
+    throw new Error(`${npath.basename(path)} is a frame-metadata (telemetry) file. Place it in the dataset's media folder; it is read automatically and cannot be imported as annotations.`);
+  }
   let warnings: string[] = [];
   // Make a copy of the file in aux
   const projectInfo = getProjectDir(settings, datasetId);
@@ -843,7 +1075,13 @@ async function _ingestFilePath(
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
-    const data = await viameSerializers.parseFile(path, imageMap);
+    let data: Awaited<ReturnType<typeof viameSerializers.parseFile>>;
+    try {
+      data = await viameSerializers.parseFile(path, imageMap);
+    } catch (e) {
+      // A plain CSV that fails to parse as annotations is often telemetry: hint at the rename.
+      throw new Error(`${(e as Error).message} If this file is telemetry rather than annotations, rename it to end in .meta.csv.`);
+    }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
@@ -1049,7 +1287,10 @@ async function findTrackandMetaFileinFolder(path: string) {
   let { trackFileAbsPath } = results;
   const { metaFileAbsPath } = results;
   if (!trackFileAbsPath) {
-    const csvFileCandidates = await _findCSVTrackFiles(path);
+    // Declared telemetry sidecars (*.meta.csv) stay in place for read-time discovery; the first
+    // remaining CSV is unconditionally the annotation track file.
+    const csvFileCandidates = (await _findCSVTrackFiles(path))
+      .filter((candidate) => !isFrameMetadataSourceName(candidate));
     if (csvFileCandidates.length) {
       [trackFileAbsPath] = csvFileCandidates;
     }
@@ -1742,6 +1983,9 @@ export {
   loadJsonMetadata,
   loadAnnotationFile,
   loadDetections,
+  loadFrameMetadata,
+  frameMetadataSourceDirectories,
+  frameMetadataCandidateDescriptors,
   openLink,
   openPathInFileManager,
   ingestDataFiles,
