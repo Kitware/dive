@@ -259,8 +259,8 @@ def upload_zipped_flat_media_files(
     root_folderId = folderId
     default_fps = gc.getFolder(root_folderId).get(f"meta.{constants.FPSMarker}", -1)
     if validation.get('ok', False):
-        manager.write(f"Annotations: {validation['annotations']}\n")
-        manager.write(f"Media: {validation['media']}\n")
+        manager.write(f"Annotations: {validation['roles']['annotations']}\n")
+        manager.write(f"Media: {validation['roles']['media']}\n")
         dataset_type = validation['type']
         manager.write(f"Type: {dataset_type}\n")
         if create_subfolder != '':

@@ -19,7 +19,15 @@ import pymongo
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    constants,
+    frame_metadata,
+    fromMeta,
+    models,
+    types,
+)
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 
@@ -645,10 +653,18 @@ def process_items(
     unprocessed_items = Folder().childItems(
         folder,
         filters={
-            "$or": [
-                {"lowerName": {"$regex": constants.csvRegex}},
-                {"lowerName": {"$regex": constants.jsonRegex}},
-                {"lowerName": {"$regex": constants.ymlRegex}},
+            "$and": [
+                {
+                    "$or": [
+                        {"lowerName": {"$regex": constants.csvRegex}},
+                        {"lowerName": {"$regex": constants.jsonRegex}},
+                        {"lowerName": {"$regex": constants.ymlRegex}},
+                    ]
+                },
+                # Frame-metadata sidecars are marked processed but stay in the dataset
+                # folder; excluding them here keeps a left-in-place sidecar from being
+                # re-swept on a later postprocess.
+                {f'meta.{constants.ProcessedMarker}': {'$ne': True}},
             ]
         },
         # Processing order: oldest to newest
@@ -663,6 +679,18 @@ def process_items(
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
             raise RestException('Item had no associated files')
+
+        if frame_metadata.is_frame_metadata_source_name(file["name"]):
+            # Declared telemetry sidecar: keep it in the dataset folder for read-time
+            # discovery. Mark it processed so it is not re-swept, but never import it as
+            # annotations, move it, or remove it.
+            item['meta'][constants.ProcessedMarker] = True
+            Item().save(item)
+            aggregate_warnings.append(
+                f'{file["name"]} was stored as frame metadata, not annotations; '
+                'it stays in the dataset folder.'
+            )
+            continue
 
         try:
             image_map = None

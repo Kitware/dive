@@ -21,6 +21,7 @@ from dive_utils import (
     asbool,
     calibration_format,
     constants,
+    frame_metadata,
     fromMeta,
     models,
     multicam_camera_order,
@@ -974,9 +975,9 @@ def _source_calibration_items_in_folder_root(folder_id: str):
     Camera media lives in child folders; only direct items on folder_id are considered.
     """
     for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
-        if _item_has_source_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
-            cal_item['name']
-        ):
+        if _item_has_source_calibration_marker(
+            cal_item
+        ) and constants.stereoCalibrationRegex.search(cal_item['name']):
             yield cal_item
 
 
@@ -1373,55 +1374,114 @@ def create_multicam(
 
 def validate_files(files: List[str]):
     """
-    Given a collection of filenames, guess based on regular expressions
-    if the collection represents a valid dataset, and if so, which files
-    represent which type of data
+    Given a collection of filenames, classify each into a semantic upload role.
+
+    The response is authoritative for what the client uploads: accepted files are
+    listed under ``roles`` and concatenated into ``upload`` in a stable order, while
+    any file that is not needed is returned in ``ignored`` with a visible reason. No
+    selected file is silently discarded.
     """
+    # Partition frame-metadata sidecars first so a .meta.csv/.meta.txt never trips the
+    # generic csv/txt classification below.
+    frame_meta = [f for f in files if frame_metadata.is_frame_metadata_source_name(f)]
+    frame_meta_set = set(frame_meta)
+
+    videos = [f for f in files if constants.videoRegex.search(f) and f not in frame_meta_set]
+    images = [f for f in files if constants.imageRegex.search(f) and f not in frame_meta_set]
+    large_images = [
+        f for f in files if constants.largeImageRegEx.search(f) and f not in frame_meta_set
+    ]
+    media = images + videos + large_images
+
+    # Dataset config JSON follows the same meta/config filename contract as the client's
+    # JsonMetaRegEx; annotation JSON is every other .json.
+    dataset_config = [
+        f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
+    ]
+    dataset_config_set = set(dataset_config)
+
+    annotation_csvs = [f for f in files if constants.csvRegex.search(f) and f not in frame_meta_set]
+    annotation_ymls = [f for f in files if constants.ymlRegex.search(f)]
+    annotation_jsons = [
+        f for f in files if constants.jsonRegex.search(f) and f not in dataset_config_set
+    ]
+    annotations = annotation_csvs + annotation_ymls + annotation_jsons
+
+    if len(videos):
+        mediatype = constants.VideoType
+    elif len(images):
+        mediatype = constants.ImageSequenceType
+    elif len(large_images):
+        mediatype = constants.LargeImageType
+    else:
+        mediatype = ""
+
     ok = True
     message = ""
-    mediatype = ""
-    videos = [f for f in files if constants.videoRegex.search(f)]
-    csvs = [f for f in files if constants.csvRegex.search(f)]
-    images = [f for f in files if constants.imageRegex.search(f)]
-    large_images = [f for f in files if constants.largeImageRegEx.search(f)]
-    ymls = [f for f in files if constants.ymlRegex.search(f)]
-    jsons = [f for f in files if constants.jsonRegex.search(f)]
     if len(videos) and (len(images) or len(large_images)):
         ok = False
         message = "Do not upload images and videos in the same batch."
     elif len(large_images) and len(images):
         ok = False
         message = "Do not upload images and tile images in the same batch."
-    elif len(csvs) > 1:
+    elif len(annotation_csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
-    elif len(jsons) > 2:
+    elif len(dataset_config) > 1:
         ok = False
-        message = (
-            "Can only upload a single JSON Annotation and single configuration JSON per import"
-        )
-    elif len(csvs) == 1 and len(ymls):
+        message = "Can only upload a single configuration JSON per import"
+    elif len(annotation_jsons) > 1:
+        ok = False
+        message = "Can only upload a single annotation JSON per import"
+    elif len(annotation_csvs) and len(annotation_ymls):
         ok = False
         message = "Cannot mix annotation import types"
-    elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
+    elif len(annotation_ymls) > 1:
+        ok = False
+        message = "Can only upload a single YAML Annotation per import"
+    elif len(annotation_csvs) + len(annotation_ymls) + len(annotation_jsons) > 1:
+        # Multiple annotation sources across formats (e.g. CSV + JSON) would silently
+        # overwrite each other at import, so only one annotation source is allowed.
+        ok = False
+        message = "Cannot mix annotation import types"
+    elif len(videos) > 1 and (len(annotations) or len(dataset_config)):
         ok = False
         message = "Annotation upload is not supported when multiple videos are uploaded"
-    elif (not len(videos)) and (not len(images)) and (not len(large_images)):
+    elif not (len(videos) or len(images) or len(large_images)):
         ok = False
         message = "No supported media-type files found"
-    elif len(videos):
-        mediatype = constants.VideoType
-    elif len(images):
-        mediatype = constants.ImageSequenceType
-    elif len(large_images):
-        mediatype = constants.LargeImageType
+
+    # Frame metadata is only read for image sequences (Decision D4). On any other media
+    # type the sidecar is preserved as ignored-with-reason rather than uploaded.
+    frame_metadata_role = frame_meta if mediatype == constants.ImageSequenceType else []
+
+    roles = {
+        "media": media,
+        "annotations": annotations,
+        "datasetConfig": dataset_config,
+        "frameMetadata": frame_metadata_role,
+    }
+    upload = media + annotations + dataset_config + frame_metadata_role
+
+    accepted = set(upload)
+    ignored = []
+    for f in files:
+        if f in accepted:
+            continue
+        if f in frame_meta_set:
+            ignored.append(
+                {"name": f, "reason": "Frame metadata is not supported for this media type"}
+            )
+        else:
+            ignored.append({"name": f, "reason": "Unsupported side file"})
 
     return {
         "ok": ok,
         "message": message,
         "type": mediatype,
-        "media": images + videos + large_images,
-        "annotations": csvs + ymls + jsons,
+        "roles": roles,
+        "upload": upload,
+        "ignored": ignored,
     }
 
 
