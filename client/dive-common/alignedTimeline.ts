@@ -140,6 +140,55 @@ export function buildInverseAlignedIndex(slots: AlignedSlot[]): InverseAlignedIn
 }
 
 /**
+ * Builds the CSS linear-gradient that Controls.vue paints under the frame
+ * scrubber to mark aligned-timeline gap slots (slots where at least one
+ * camera has no frame). Pure so it is unit-testable.
+ *
+ * Geometry: a v-slider thumb for value v sits at v/maxFrame of the track
+ * width, so each gap band is centered on the thumb position for its slot --
+ * slot s paints [(s - 0.5) / maxFrame, (s + 0.5) / maxFrame], clamped to
+ * [0, 100]. Consecutive gap slots are merged into a single band so the CSS
+ * stop count tracks the number of distinct gaps, not the number of gap
+ * frames. Bands narrower than `minWidthPct` are widened around their center
+ * so single-frame gaps stay visible on long timelines.
+ */
+export function computeGapGradient(
+  gapSlots: number[],
+  maxFrame: number,
+  minWidthPct = 0.25,
+): string {
+  if (!gapSlots.length || maxFrame <= 0) {
+    return 'none';
+  }
+  const ranges: [number, number][] = [];
+  let rangeStart = gapSlots[0];
+  let rangeEnd = gapSlots[0];
+  for (let i = 1; i < gapSlots.length; i += 1) {
+    if (gapSlots[i] === rangeEnd + 1) {
+      rangeEnd = gapSlots[i];
+    } else {
+      ranges.push([rangeStart, rangeEnd]);
+      rangeStart = gapSlots[i];
+      rangeEnd = gapSlots[i];
+    }
+  }
+  ranges.push([rangeStart, rangeEnd]);
+  const toPct = (frame: number) => (frame / maxFrame) * 100;
+  const stops: string[] = [];
+  ranges.forEach(([start, end]) => {
+    let startPct = Math.max(0, toPct(start - 0.5));
+    let endPct = Math.min(100, toPct(end + 0.5));
+    if (endPct - startPct < minWidthPct) {
+      const mid = (startPct + endPct) / 2;
+      startPct = Math.max(0, mid - minWidthPct / 2);
+      endPct = Math.min(100, mid + minWidthPct / 2);
+    }
+    stops.push(`transparent ${startPct}%`, `#ff5252 ${startPct}%`, `#ff5252 ${endPct}%`, `transparent ${endPct}%`);
+  });
+  return `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
+/**
  * Global aligned-timeline slot indices where at least one loaded camera has
  * no frame -- i.e. scrubbing to that slot will blank at least one camera's
  * pane. Used to render a gap indicator on the timeline scrubber.

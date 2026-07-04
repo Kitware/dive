@@ -7,6 +7,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
 import { DatasetType, useApi } from 'dive-common/apispec';
+import { computeGapGradient } from 'dive-common/alignedTimeline';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
 import { useTime, useTrackFilters, useDatasetId } from '../../provides';
@@ -65,46 +66,15 @@ export default defineComponent({
      * A CSS gradient overlay marking timeline slots where at least one camera
      * has no frame (SEAL feature 5's aligned timeline, see alignedTimeline.ts).
      * Uses a gradient rather than one element per gap so this stays cheap
-     * regardless of how many gaps there are; consecutive gap frames are
-     * merged into a single stop so the stop count tracks the number of
-     * distinct gaps, not the number of gap frames. This is a lightweight
-     * visual approximation drawn under the v-slider, not pixel-exact with its
-     * clickable thumb track.
+     * regardless of how many gaps there are. Each band is centered on the
+     * v-slider thumb position for its slot (see computeGapGradient); this is
+     * a lightweight visual approximation drawn under the v-slider, not
+     * pixel-exact with its clickable thumb track.
      */
-    const alignedGapGradient = computed(() => {
-      const gaps = mediaController.alignedGapSlots.value;
-      const maxFrame = mediaController.maxFrame.value;
-      if (!gaps.length || maxFrame <= 0) {
-        return 'none';
-      }
-      const ranges: [number, number][] = [];
-      let rangeStart = gaps[0];
-      let rangeEnd = gaps[0];
-      for (let i = 1; i < gaps.length; i += 1) {
-        if (gaps[i] === rangeEnd + 1) {
-          rangeEnd = gaps[i];
-        } else {
-          ranges.push([rangeStart, rangeEnd]);
-          rangeStart = gaps[i];
-          rangeEnd = gaps[i];
-        }
-      }
-      ranges.push([rangeStart, rangeEnd]);
-      const toPct = (frame: number) => (frame / maxFrame) * 100;
-      const minWidthPct = 0.25; // keep single-frame gaps visible at any zoom
-      const stops: string[] = [];
-      ranges.forEach(([start, end]) => {
-        let startPct = toPct(start);
-        let endPct = toPct(end + 1);
-        if (endPct - startPct < minWidthPct) {
-          const mid = (startPct + endPct) / 2;
-          startPct = Math.max(0, mid - minWidthPct / 2);
-          endPct = Math.min(100, mid + minWidthPct / 2);
-        }
-        stops.push(`transparent ${startPct}%`, `#ff5252 ${startPct}%`, `#ff5252 ${endPct}%`, `transparent ${endPct}%`);
-      });
-      return `linear-gradient(to right, ${stops.join(', ')})`;
-    });
+    const alignedGapGradient = computed(() => computeGapGradient(
+      mediaController.alignedGapSlots.value,
+      mediaController.maxFrame.value,
+    ));
     const alignedGapCount = computed(() => mediaController.alignedGapSlots.value.length);
     function togglePlay(_: HTMLElement, keyEvent: KeyboardEvent) {
       // Prevent scroll from spacebar and other default effects.

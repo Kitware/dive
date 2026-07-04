@@ -1,6 +1,6 @@
 import type { FrameImage } from './apispec';
 import {
-  buildAlignedTimeline, buildInverseAlignedIndex, canAlign, computeGapSlots,
+  buildAlignedTimeline, buildInverseAlignedIndex, canAlign, computeGapGradient, computeGapSlots,
 } from './alignedTimeline';
 
 function frame(timestamp?: number): FrameImage {
@@ -117,6 +117,55 @@ describe('alignedTimeline', () => {
       const result = buildAlignedTimeline(camerasFrames);
       expect(result.aligned).toBe(true);
       expect(result.aligned && computeGapSlots(result.slots)).toEqual([1]);
+    });
+  });
+
+  describe('computeGapGradient', () => {
+    it('returns none with no gaps or a non-positive maxFrame', () => {
+      expect(computeGapGradient([], 10)).toBe('none');
+      expect(computeGapGradient([1], 0)).toBe('none');
+      expect(computeGapGradient([1], -5)).toBe('none');
+    });
+
+    it('centers a gap band on the slider thumb position for its slot', () => {
+      // Thumb for value 4 of maxFrame 8 sits at 50%; band is [43.75%, 56.25%].
+      expect(computeGapGradient([4], 8)).toBe(
+        'linear-gradient(to right, transparent 43.75%, #ff5252 43.75%, #ff5252 56.25%, transparent 56.25%)',
+      );
+    });
+
+    it('keeps a trailing gap at slot === maxFrame visible (clamped to 100%)', () => {
+      expect(computeGapGradient([8], 8)).toBe(
+        'linear-gradient(to right, transparent 93.75%, #ff5252 93.75%, #ff5252 100%, transparent 100%)',
+      );
+    });
+
+    it('keeps a leading gap at slot 0 visible (clamped to 0%)', () => {
+      expect(computeGapGradient([0], 8)).toBe(
+        'linear-gradient(to right, transparent 0%, #ff5252 0%, #ff5252 6.25%, transparent 6.25%)',
+      );
+    });
+
+    it('merges consecutive gap slots into a single band', () => {
+      expect(computeGapGradient([2, 3], 8)).toBe(
+        'linear-gradient(to right, transparent 18.75%, #ff5252 18.75%, #ff5252 43.75%, transparent 43.75%)',
+      );
+    });
+
+    it('emits one band per distinct gap run', () => {
+      expect(computeGapGradient([1, 3], 8)).toBe(
+        'linear-gradient(to right, '
+        + 'transparent 6.25%, #ff5252 6.25%, #ff5252 18.75%, transparent 18.75%, '
+        + 'transparent 31.25%, #ff5252 31.25%, #ff5252 43.75%, transparent 43.75%)',
+      );
+    });
+
+    it('widens sub-minimum-width bands around their center so they stay visible', () => {
+      // One slot of 1024 is ~0.098% wide -- below the 0.25% minimum, so the
+      // band is widened to exactly 0.25% centered on the thumb at 50%.
+      expect(computeGapGradient([512], 1024)).toBe(
+        'linear-gradient(to right, transparent 49.875%, #ff5252 49.875%, #ff5252 50.125%, transparent 50.125%)',
+      );
     });
   });
 
