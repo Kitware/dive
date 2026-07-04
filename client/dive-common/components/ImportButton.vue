@@ -27,6 +27,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    batchMultiCamImport: { // Desktop-only batch import of collect folders (collect/camera/images)
+      type: Boolean,
+      default: false,
+    },
     buttonAttrs: {
       type: Object,
       default: () => DefaultButtonAttrs,
@@ -169,6 +173,18 @@ export default defineComponent({
             </v-list-item-icon>
             <v-list-item-content>
               <v-list-item-title>MultiCam</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            v-if="batchMultiCamImport"
+            style="align-items':'center"
+            @click="$emit('multi-cam-batch')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-multiple-image</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>MultiCam Batch</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>
