@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from girder.exceptions import RestException
 import pytest
 
 from dive_server.crud_rpc import process_items
@@ -127,3 +128,70 @@ def test_plain_annotation_csv_still_imports(
     save_annotations.assert_called_once()
     # An imported annotation is not tagged as a kept-in-place sidecar.
     item_cls.return_value.save.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.valid_images')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_two_plain_csvs_in_folder_side_door_guard(
+    folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
+):
+    # Two plain (non-.meta.) annotation CSVs can only reach the folder together outside the
+    # pre-upload validation path. The guard fires before anything is removed, moved, or saved.
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item_a = {'_id': 'a', 'name': 'a.csv', 'meta': {}}
+    item_b = {'_id': 'b', 'name': 'b.csv', 'meta': {}}
+    file_a = {'_id': 'fa', 'name': 'a.csv', 'exts': ['csv']}
+    file_b = {'_id': 'fb', 'name': 'b.csv', 'exts': ['csv']}
+
+    folder_cls.return_value.childItems.return_value = [item_a, item_b]
+    item_cls.return_value.childFiles.side_effect = _childfiles_side_effect(
+        {'a': file_a, 'b': file_b}
+    )
+    file_cls.return_value.download.side_effect = _download_side_effect(
+        {'fa': _viame_csv('image_0001.jpg').encode(), 'fb': _viame_csv('image_0002.jpg').encode()}
+    )
+
+    with pytest.raises(RestException, match='Multiple annotation CSVs present') as excinfo:
+        process_items(folder, {'_id': 'user-id'})
+
+    assert 'a.csv' in str(excinfo.value)
+    assert 'b.csv' in str(excinfo.value)
+    item_cls.return_value.remove.assert_not_called()
+    item_cls.return_value.move.assert_not_called()
+    item_cls.return_value.save.assert_not_called()
+    save_annotations.assert_not_called()
+    get_auxiliary_folder.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.valid_images')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_undecodable_plain_csv_fails_loudly_with_rename_hint(
+    folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
+):
+    # A plain .csv whose bytes are not valid UTF-8 fails the strict annotation decode; the
+    # loud failure carries the rename hint pointing telemetry users at .meta.csv.
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item = {'_id': 'item-id', 'name': 'annotations.csv', 'meta': {}}
+    file = {'_id': 'file-id', 'name': 'annotations.csv', 'exts': ['csv']}
+    # Latin-1 accented bytes are invalid UTF-8, so the utf-8-sig decode raises (ValueError).
+    raw = 'filename,species\nimage_0001.jpg,poisson-\xe9p\xe9e\n'.encode('latin-1')
+
+    folder_cls.return_value.childItems.return_value = [item]
+    item_cls.return_value.childFiles.side_effect = _childfiles_side_effect({'item-id': file})
+    file_cls.return_value.download.side_effect = _download_side_effect({'file-id': raw})
+    valid_images.return_value = [{'name': 'image_0001.jpg'}, {'name': 'image_0002.jpg'}]
+
+    with pytest.raises(RestException, match='Failed to import annotations.csv') as excinfo:
+        process_items(folder, {'_id': 'user-id'})
+
+    assert '.meta.csv' in str(excinfo.value)
+    item_cls.return_value.remove.assert_called_once_with(item)
+    save_annotations.assert_not_called()

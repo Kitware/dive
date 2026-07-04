@@ -250,6 +250,30 @@ def _multicam_camera_order(multi_cam: dict) -> List[str]:
     return multicam_camera_order(multi_cam)
 
 
+def _iter_multicam_camera_folders(
+    multi_cam: dict,
+    user: types.GirderUserModel,
+) -> Iterable[Tuple[str, types.GirderModel]]:
+    """Yield (camera_name, camera_folder) in display order, loading each child folder.
+
+    Raises a 400 when a camera entry is missing its folderId, and a 404 when a camera's
+    folder cannot be loaded, matching the media and frame-metadata read paths.
+    """
+    cameras_meta = multi_cam.get('cameras') or {}
+    for camera_name in _multicam_camera_order(multi_cam):
+        cam_info = cameras_meta[camera_name]
+        folder_id = cam_info.get('folderId')
+        if not folder_id:
+            raise RestException(f'Camera "{camera_name}" missing folderId', code=400)
+        child = Folder().load(folder_id, level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{camera_name}" was not found',
+                code=404,
+            )
+        yield camera_name, child
+
+
 def get_multi_cam_media(
     dsFolder: types.GirderModel, user: types.GirderUserModel
 ) -> models.MultiCamMedia:
@@ -382,6 +406,95 @@ def get_media(
     return models.DatasetSourceMedia(
         imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
+
+
+# 'singleCam' is the single-camera key of the frame-metadata sources wire contract; the
+# client mirrors it (SingleCameraFrameMetadataKey).
+SINGLE_CAMERA_FRAME_METADATA_KEY = 'singleCam'
+
+
+def _frame_metadata_source_items(
+    folder: types.GirderModel,
+) -> List[Dict[str, str]]:
+    """List a folder's declared sidecar items as {itemId, name}, name-sorted (no download).
+
+    Only identity is resolved here: the server classifies sidecars by name and never reads,
+    parses, or joins them. The client downloads and parses the bytes at read time.
+    """
+    items = [
+        item
+        for item in Folder().childItems(folder)
+        if frame_metadata.is_frame_metadata_source_name(item['name'])
+    ]
+    return [
+        {'itemId': str(item['_id']), 'name': item['name']}
+        for item in sorted(items, key=lambda entry: str(entry['name']).lower())
+    ]
+
+
+def _collect_frame_metadata_sources(
+    folders: Iterable[Optional[types.GirderModel]],
+) -> List[Dict[str, str]]:
+    """Assemble ordered {itemId, name} sidecar descriptors across folders in precedence order.
+
+    Folders are deduped by id so a folder shared across cameras (the dataset folder, the
+    parent clone root) contributes its sidecars once, and a co-located dataset (whose clone
+    root is the folder itself) is listed at most once.
+    """
+    seen_folder_ids: set[str] = set()
+    sources: List[Dict[str, str]] = []
+    for folder in folders:
+        if folder is None:
+            continue
+        folder_id = str(folder['_id'])
+        if folder_id in seen_folder_ids:
+            continue
+        seen_folder_ids.add(folder_id)
+        sources.extend(_frame_metadata_source_items(folder))
+    return sources
+
+
+def load_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    """List declared frame-metadata sidecar items per camera, in precedence order (no parsing).
+
+    Returns ``{'cameras': {<camera>: [{'itemId', 'name'}]}}``. Cameras are keyed by the
+    single-camera key or the multicam camera names; items precede in precedence order
+    (camera folder -> its clone root -> dataset folder -> parent root), deduped by folder id.
+    Non-image-sequence media types return no cameras.
+    """
+    crud.verify_dataset(dsFolder)
+    source_type = fromMeta(dsFolder, constants.TypeMarker)
+    if source_type == constants.MultiType:
+        return _load_multicam_frame_metadata_sources(dsFolder, user)
+    if source_type != constants.ImageSequenceType:
+        return {'cameras': {}}
+    # Contract 1: local dataset-folder candidates precede the clone media root.
+    sources = _collect_frame_metadata_sources([dsFolder, crud.getCloneRoot(user, dsFolder)])
+    if not sources:
+        return {'cameras': {}}
+    return {'cameras': {SINGLE_CAMERA_FRAME_METADATA_KEY: sources}}
+
+
+def _load_multicam_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    parent_root = crud.getCloneRoot(user, dsFolder)
+    cameras: Dict[str, List[Dict[str, str]]] = {}
+    for camera_name, child in _iter_multicam_camera_folders(multi_cam, user):
+        if fromMeta(child, constants.TypeMarker) != constants.ImageSequenceType:
+            continue
+        # Contract 1: camera-local folder + clone root precede the multicam parent folders.
+        sources = _collect_frame_metadata_sources(
+            [child, crud.getCloneRoot(user, child), dsFolder, parent_root]
+        )
+        if sources:
+            cameras[camera_name] = sources
+    return {'cameras': cameras}
 
 
 class MetadataMutableUpdateArgs(models.MetadataMutable):

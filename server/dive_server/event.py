@@ -16,7 +16,7 @@ from girder_jobs.models.job import Job
 from girder_plugin_worker.utils import getWorkerApiUrl
 
 from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
-from dive_utils import asbool, fromMeta
+from dive_utils import asbool, frame_metadata, fromMeta
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     AssetstoreSourceMarker,
@@ -106,6 +106,10 @@ def process_assetstore_import(event, meta: dict):
         # Set the dataset to Video Type
         dataset_type = VideoType
     elif possibleAnnotationRegex.search(importPath):
+        if frame_metadata.is_frame_metadata_source_name(item['name']):
+            # Declared telemetry sidecars are plain files: leave them in place for
+            # read-time discovery, no marker and no relocation.
+            return
         # Look for parent folder with same name
         parentFolder = Folder().findOne({"_id": item["folderId"]})
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']
@@ -161,6 +165,9 @@ def process_dangling_annotation_files(folder, user):
         {'folderId': folder['_id'], f'meta.{AnnotationFileFutureProcessMarker}': True}
     )
     for item in annotation_items:
+        if frame_metadata.is_frame_metadata_source_name(item['name']):
+            # Declared telemetry sidecars are plain files: never marked or relocated.
+            continue
         # check if the parent folder of the annotation item is of type image or large image
         parent_folder_id = item['folderId']
         parent_folder = Folder().findOne({'_id': parent_folder_id})
