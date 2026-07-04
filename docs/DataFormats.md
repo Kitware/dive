@@ -16,8 +16,8 @@ be uploaded or imported alongside your media and will be automatically parsed.
 * COCO and KWCOCO
 
 Per-frame telemetry sidecars are different: DIVE reads `.meta.csv` and
-`.meta.txt` files from the image-sequence folder on demand. They are not imported
-into annotations or exported in v1.
+`.meta.txt` files from the image-sequence folder when the dataset opens. They are
+not imported into annotations or exported in v1.
 
 ## Per-frame Metadata Text Sidecars
 
@@ -26,8 +26,10 @@ DIVE can display read-only per-frame telemetry in the
 delimited text file placed next to the image sequence. A file is treated as
 telemetry if and only if its name ends in `.meta.csv` or `.meta.txt`
 (case-insensitive) — the naming convention declares it, so DIVE never sniffs
-content or confuses it with an annotation CSV. DIVE reads it at view time and
-joins rows to frames by filename value.
+content or confuses it with an annotation CSV. DIVE reads and parses it with one
+shared TypeScript parser when the dataset opens (in the browser on Web, in the
+Electron backend on Desktop; the Python server never parses telemetry) and joins
+rows to frames by filename value.
 
 Supported sidecar contract:
 
@@ -35,14 +37,22 @@ Supported sidecar contract:
   single-camera image sequences.
 * For multicamera image sequences, either one shared `*.meta.csv`/`*.meta.txt`
   file in the multicam parent folder, or one sidecar in each camera child folder.
+  A camera's own folder takes precedence over the shared parent (see below).
 * Header row with field names.
 * Comma, tab, or whitespace delimiter.
 * At least one filename column whose values match the image filenames.
 * At least one metadata column beyond the filename column.
 
 There is no size limit: a declared sidecar is never size-gated and declared
-telemetry is never silently dropped. A large file costs one parse, which DIVE
-caches and serves to every frame window.
+telemetry is never silently dropped. A large sidecar is parsed once when the
+dataset opens; the first load is loud and proportional to file size (the panel
+shows a loading state) rather than silently dropped. There is no windowed read
+and no parse cache.
+
+When a camera matches more than one sidecar, DIVE uses all of them in a fixed
+precedence order — camera folder, then that camera's clone media root, then the
+dataset folder, then the multicam parent root — and merges first-wins: the first
+source (and, within a file, the first row) to claim a frame wins.
 
 Example (`AUV_nav.meta.txt`):
 

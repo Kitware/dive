@@ -80,15 +80,24 @@ cameras switches the displayed records.
 Open **Dataset Info** from the context sidebar while viewing an image-sequence
 dataset. The Frame Metadata section updates as the playhead moves.
 
-The section shows only the source fields for the active frame. It does not
-repeat the current frame number or filename, which are already shown by the
-playback controls.
+The section shows only the source fields for the active frame, in the column
+order of the source file. It does not repeat the current frame number or
+filename, which are already shown by the playback controls.
+
+A **`Source:`** line names the sidecar file (or files, winner first) that supplied
+the values for the active camera, so you can tell at a glance which telemetry file
+DIVE read and confirm it is the one you dropped.
 
 The section may show an empty state when:
 
-* the platform or dataset type does not support frame metadata,
-* no matching `.meta.csv` or `.meta.txt` source is present,
-* the current frame has no matching row.
+* **the platform or dataset type does not support frame metadata** — for example
+  a video or large-image dataset;
+* **no matching `.meta.csv` or `.meta.txt` source is present** — the empty state
+  points at the naming convention (drop a delimited text file next to the imagery
+  and name it so it ends in `.meta.csv` or `.meta.txt`), because there is no
+  import-time warning when a sidecar matches no frames;
+* **the current frame has no matching row** — a source is present, but no row's
+  filename value matches this frame.
 
 Frame telemetry is read-only in v1. There is no edit, save, import, or export
 flow for these values. The desktop app refuses to import a `.meta.csv`/`.meta.txt`
