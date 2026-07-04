@@ -2,7 +2,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies -- Vue Test Utils is only used in tests
 import { mount } from '@vue/test-utils';
 import Vue, {
-  defineComponent, nextTick, ref,
+  computed, defineComponent, nextTick, ref,
 } from 'vue';
 
 // eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
@@ -12,7 +12,6 @@ import {
 
 import {
   DatasetMeta,
-  FrameMetadataResponse,
   provideApi,
 } from 'dive-common/apispec';
 import {
@@ -22,12 +21,69 @@ import {
 } from 'vue-media-annotator/provides';
 import DatasetInfo from './DatasetInfo.vue';
 
+// DatasetInfo consumes the shared `useFrameMetadata` composable; the composable's own resolver /
+// download / stale-token behaviour is covered by its dedicated spec. Here we mock it to drive the
+// panel's rendering and empty states directly off the resolved contract (columns + per-frame rows).
+const frameMetadataControl = vi.hoisted(() => ({
+  impl: (() => ({})) as (opts: unknown) => unknown,
+}));
+
+vi.mock('dive-common/use', () => ({
+  useFrameMetadata: (opts: unknown) => frameMetadataControl.impl(opts),
+}));
+
 Vue.config.ignoredElements = [/^v-/];
 
 function flushPromises() {
   return new Promise((resolve) => {
     window.setTimeout(resolve, 0);
   });
+}
+
+interface FrameMetadataScenario {
+  /** camera -> column names, in the order the panel must render them. */
+  columns?: Record<string, string[]>;
+  /** camera -> (frame number -> row of cell values aligned to `columns[camera]`). */
+  cameras?: Record<string, Record<number, string[]>>;
+  /** camera -> matched sidecar filenames (winner first). Presence => `hasMetadataSource`. */
+  sources?: Record<string, string[]>;
+  /** camera -> raw sidecar item filenames present, independent of whether any of them joined. */
+  sidecarItems?: Record<string, string[]>;
+}
+
+interface FrameMetadataOptions {
+  frame: { value: number };
+  selectedCamera: { value: string };
+}
+
+/**
+ * Faithful stand-in for `useFrameMetadata`: derives `currentEntries` from a single compact row in
+ * `columns` order and tracks the active camera reactively, exactly as the real composable does.
+ */
+function fakeFrameMetadata(opts: FrameMetadataOptions, scenario: FrameMetadataScenario) {
+  const columns = scenario.columns ?? {};
+  const cameras = scenario.cameras ?? {};
+  const sources = scenario.sources ?? {};
+  const sidecarItems = scenario.sidecarItems ?? {};
+  const currentEntries = computed<[string, string][]>(() => {
+    const camera = opts.selectedCamera.value;
+    const cols = columns[camera];
+    const row = cameras[camera]?.[opts.frame.value];
+    if (cols === undefined || row === undefined) {
+      return [];
+    }
+    return cols.map((column, i): [string, string] => [column, row[i] ?? '']);
+  });
+  return {
+    currentEntries,
+    currentSources: computed(() => sources[opts.selectedCamera.value] ?? []),
+    hasMetadataSource: computed(() => opts.selectedCamera.value in sources),
+    hasSidecarItems: computed(() => (sidecarItems[opts.selectedCamera.value]?.length ?? 0) > 0),
+    sidecarSourceNames: computed(() => sidecarItems[opts.selectedCamera.value] ?? []),
+    loading: ref(false),
+    error: ref<string | null>(null),
+    ensure: async () => undefined,
+  };
 }
 
 const defaultMetadata: DatasetMeta = {
@@ -49,13 +105,13 @@ const defaultMetadata: DatasetMeta = {
 
 function apiWithMetadata({
   loadMetadata,
-  loadFrameMetadata,
   saveMetadata,
+  frameMetadataSupported = true,
 }: {
   loadMetadata: (datasetId: string) => Promise<DatasetMeta>;
-  loadFrameMetadata?: (datasetId: string, startFrame: number, endFrame: number) =>
-    Promise<FrameMetadataResponse>;
   saveMetadata: Parameters<typeof provideApi>[0]['saveMetadata'];
+  /** False mimics a platform with neither web nor desktop frame-metadata read path wired up. */
+  frameMetadataSupported?: boolean;
 }): Parameters<typeof provideApi>[0] {
   return {
     getPipelineList: async () => ({}),
@@ -72,7 +128,10 @@ function apiWithMetadata({
       groups: [],
       sets: [],
     }),
-    loadFrameMetadata,
+    ...(frameMetadataSupported ? {
+      loadFrameMetadataSources: async () => ({ cameras: {} }),
+      downloadItemText: async () => '',
+    } : {}),
     saveDetections: async () => undefined,
     saveMetadata,
     saveAttributes: async () => undefined,
@@ -83,36 +142,37 @@ function apiWithMetadata({
 }
 
 function mountDatasetInfo({
-  response,
-  loadFrameMetadata,
+  scenario = {},
   selectedCamera = 'port',
+  frame = 10,
   readOnlyMode = true,
   metadata = defaultMetadata,
+  frameMetadataSupported = true,
 }: {
-  response?: FrameMetadataResponse;
-  loadFrameMetadata?: (datasetId: string, startFrame: number, endFrame: number) =>
-    Promise<FrameMetadataResponse>;
+  scenario?: FrameMetadataScenario;
   selectedCamera?: string;
+  frame?: number;
   readOnlyMode?: boolean;
   metadata?: DatasetMeta;
+  frameMetadataSupported?: boolean;
 } = {}) {
   const state = dummyState();
   state.datasetId = ref('dataset-id');
   state.selectedCamera = ref(selectedCamera);
   state.time = {
     ...state.time,
-    frame: ref(10),
+    frame: ref(frame),
   };
   state.readOnlyMode = ref(readOnlyMode);
 
-  const loader = loadFrameMetadata ?? (
-    response === undefined
-      ? undefined
-      : vi.fn(async () => response)
+  const useFrameMetadataSpy = vi.fn(
+    (opts: FrameMetadataOptions) => fakeFrameMetadata(opts, scenario),
   );
+  frameMetadataControl.impl = useFrameMetadataSpy as (opts: unknown) => unknown;
+
   const loadMetadata = vi.fn(async () => metadata);
   const saveMetadata = vi.fn(async () => undefined);
-  const api = apiWithMetadata({ loadMetadata, loadFrameMetadata: loader, saveMetadata });
+  const api = apiWithMetadata({ loadMetadata, saveMetadata, frameMetadataSupported });
 
   const Root = defineComponent({
     components: { DatasetInfo },
@@ -136,7 +196,7 @@ function mountDatasetInfo({
   return {
     wrapper,
     state,
-    loadFrameMetadata: loader,
+    useFrameMetadataSpy,
     loadMetadata,
     saveMetadata,
   };
@@ -145,16 +205,10 @@ function mountDatasetInfo({
 describe('DatasetInfo', () => {
   it('renders frame metadata above dataset info rows in source order', async () => {
     const { wrapper } = mountDatasetInfo({
-      response: {
-        cameras: {
-          port: {
-            10: {
-              latitude: '58.10',
-              depth_m: '100',
-              note: '  raw text  ',
-            },
-          },
-        },
+      scenario: {
+        columns: { port: ['latitude', 'depth_m', 'note'] },
+        cameras: { port: { 10: ['58.10', '100', '  raw text  '] } },
+        sources: { port: ['nav.meta.csv'] },
       },
     });
 
@@ -170,6 +224,7 @@ describe('DatasetInfo', () => {
     const text = wrapper.text();
     expect(text.indexOf('Frame Metadata')).toBeLessThan(text.indexOf('Dataset Info'));
     expect(text.indexOf('Dataset Info')).toBeLessThan(text.indexOf('Custom Metadata'));
+    expect(wrapper.find('.frame-metadata-section').text()).toContain('Source: nav.meta.csv');
     expect(wrapper.find('.dataset-info-section').text()).toContain('Mouss Set');
     expect(wrapper.find('.dataset-info-section').text()).toContain('image-sequence');
     expect(wrapper.find('.custom-metadata-section').text()).toContain('cruise');
@@ -179,14 +234,10 @@ describe('DatasetInfo', () => {
   it('keeps frame metadata read-only without edit controls', async () => {
     const { wrapper } = mountDatasetInfo({
       readOnlyMode: false,
-      response: {
-        cameras: {
-          port: {
-            10: {
-              latitude: '58.10',
-            },
-          },
-        },
+      scenario: {
+        columns: { port: ['latitude'] },
+        cameras: { port: { 10: ['58.10'] } },
+        sources: { port: ['nav.meta.csv'] },
       },
     });
 
@@ -200,25 +251,68 @@ describe('DatasetInfo', () => {
     expect(wrapper.find('.custom-metadata-section').find('v-btn').exists()).toBe(true);
   });
 
-  it('shows the no-source state after an empty cameras response', async () => {
-    const { wrapper } = mountDatasetInfo({ response: { cameras: {} } });
+  it('shows the no-source state when the dataset has no sidecar', async () => {
+    const { wrapper } = mountDatasetInfo({ scenario: {} });
 
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.find('.frame-metadata-section').text()).toContain('No frame metadata source found.');
     expect(wrapper.find('.frame-metadata-section').text())
-      .toContain('Place a .txt or .csv telemetry file next to the imagery.');
+      .toContain('No frame metadata source found.');
+    expect(wrapper.find('.frame-metadata-section').text())
+      .toContain('Add a *.meta.csv or *.meta.txt file beside the imagery.');
+  });
+
+  it('shows the unsupported-media state for a non-image-sequence dataset type', async () => {
+    const { wrapper } = mountDatasetInfo({
+      scenario: {},
+      metadata: { ...defaultMetadata, type: 'video' },
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('.frame-metadata-section').text())
+      .toContain('Frame metadata is available for image-sequence datasets only.');
+    expect(wrapper.find('.frame-metadata-section').text())
+      .not.toContain('No frame metadata source found.');
+  });
+
+  it('shows the unsupported-media state when the platform has no frame-metadata read path', async () => {
+    const { wrapper } = mountDatasetInfo({
+      scenario: {},
+      frameMetadataSupported: false,
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('.frame-metadata-section').text())
+      .toContain('Frame metadata is available for image-sequence datasets only.');
+  });
+
+  it('shows the present-but-unmatched state when a sidecar exists but joined no frames', async () => {
+    const { wrapper } = mountDatasetInfo({
+      scenario: {
+        sidecarItems: { port: ['nav.meta.csv'] },
+      },
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    const text = wrapper.find('.frame-metadata-section').text();
+    expect(text).toContain('A frame metadata file (nav.meta.csv) is present but none of its rows matched');
+    expect(text).toContain('check its filename column.');
+    expect(text).not.toContain('No frame metadata source found.');
   });
 
   it('shows the no-current-frame state when the dataset has metadata but not this frame', async () => {
     const { wrapper } = mountDatasetInfo({
-      response: {
-        cameras: {
-          port: {
-            11: { latitude: '58.11' },
-          },
-        },
+      scenario: {
+        columns: { port: ['latitude'] },
+        cameras: { port: { 11: ['58.11'] } },
+        sources: { port: ['nav.meta.csv'] },
       },
     });
 
@@ -229,18 +323,14 @@ describe('DatasetInfo', () => {
       .toContain('No frame metadata for the current frame.');
   });
 
-  it('follows the active multicam camera from the cached frame window', async () => {
-    const loadFrameMetadata = vi.fn(async () => ({
-      cameras: {
-        port: {
-          10: { latitude: '58.10' },
-        },
-        starboard: {
-          10: { latitude: '59.10' },
-        },
+  it('follows the active multicam camera without re-creating the composable', async () => {
+    const { wrapper, state, useFrameMetadataSpy } = mountDatasetInfo({
+      scenario: {
+        columns: { port: ['latitude'], starboard: ['latitude'] },
+        cameras: { port: { 10: ['58.10'] }, starboard: { 10: ['59.10'] } },
+        sources: { port: ['port.meta.csv'], starboard: ['starboard.meta.csv'] },
       },
-    }));
-    const { wrapper, state } = mountDatasetInfo({ loadFrameMetadata });
+    });
 
     await flushPromises();
     await nextTick();
@@ -251,6 +341,6 @@ describe('DatasetInfo', () => {
 
     expect(wrapper.find('.frame-metadata-section').text()).toContain('59.10');
     expect(wrapper.find('.frame-metadata-section').text()).not.toContain('58.10');
-    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
+    expect(useFrameMetadataSpy).toHaveBeenCalledTimes(1);
   });
 });

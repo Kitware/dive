@@ -1,7 +1,8 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, watch,
+  computed, defineComponent, inject, ref, watch,
 } from 'vue';
+import type { InjectionKey } from 'vue';
 import {
   useDatasetId,
   useReadOnlyMode,
@@ -10,8 +11,18 @@ import {
 } from 'vue-media-annotator/provides';
 import { useApi, DatasetMeta } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useFrameMetadataWindow } from 'dive-common/use';
+import { useFrameMetadata } from 'dive-common/use';
 import DatasetMetaEditorDialog from 'dive-common/components/DatasetMetaEditorDialog.vue';
+
+/** Given a camera key, the viewer's ordered image filenames for it (frame = array index). */
+export type GetCameraMediaNames = (camera: string) => string[] | undefined;
+
+/**
+ * Injection key for the viewer-held, per-camera ordered image filenames. Viewer.vue provides it;
+ * the Frame Info panel feeds it to the shared frame-metadata resolver so the web read path can
+ * join sidecar rows to frames in the browser. Undefined when the panel renders outside a viewer.
+ */
+export const CameraMediaNamesSymbol: InjectionKey<GetCameraMediaNames> = Symbol('cameraMediaNames');
 
 export default defineComponent({
   name: 'DatasetInfo',
@@ -23,7 +34,16 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const selectedCamera = useSelectedCamera();
     const time = useTime();
-    const { loadMetadata, saveMetadata, loadFrameMetadata } = useApi();
+    const {
+      loadMetadata,
+      saveMetadata,
+      loadFrameMetadataSources,
+      downloadItemText,
+      loadFrameMetadata,
+    } = useApi();
+    // Viewer.vue provides each camera's ordered image filenames; the web read path joins sidecar
+    // rows to frames against them. Absent (undefined) outside a viewer or on the desktop path.
+    const getCameraMediaNames = inject(CameraMediaNamesSymbol, undefined);
     const { prompt } = usePrompt();
     const meta = ref<DatasetMeta | null>(null);
     const customMeta = ref<Record<string, unknown>>({});
@@ -45,11 +65,27 @@ export default defineComponent({
 
     watch(datasetId, fetchMetadata, { immediate: true });
 
-    const frameMetadata = useFrameMetadataWindow({
+    // One composable, two platforms: the web deps (sources listing + item download + the viewer's
+    // ordered media names) drive the browser-side resolver, while the desktop dep returns the
+    // backend-resolved payload. Whichever the active platform provides via useApi() wins; the other
+    // is undefined. Scrubbing the playhead never refetches (frame drives currentEntries only).
+    const frameMetadata = useFrameMetadata({
       datasetId,
       frame: time.frame,
       selectedCamera,
+      loadFrameMetadataSources,
+      downloadItemText,
+      getCameraMediaNames,
       loadFrameMetadata,
+    });
+
+    // Frame metadata only exists for image-sequence datasets: the server sources endpoint returns
+    // empty cameras for video/large-image/multi, and desktop resolves nothing for them either. A
+    // platform lacking both read paths (neither dep provided by `useApi()`) is equally unsupported.
+    const frameMetadataUnsupported = computed(() => {
+      const noReadPath = loadFrameMetadataSources === undefined && loadFrameMetadata === undefined;
+      const unsupportedType = meta.value !== null && meta.value.type !== 'image-sequence';
+      return noReadPath || unsupportedType;
     });
 
     const frameMetadataEmptyState = computed(() => {
@@ -59,8 +95,15 @@ export default defineComponent({
       if (frameMetadata.error.value) {
         return `Unable to load frame metadata: ${frameMetadata.error.value}`;
       }
+      if (frameMetadataUnsupported.value) {
+        return 'Frame metadata is available for image-sequence datasets only.';
+      }
+      if (frameMetadata.hasSidecarItems.value && !frameMetadata.hasMetadataSource.value) {
+        const names = frameMetadata.sidecarSourceNames.value.join(', ');
+        return `A frame metadata file (${names}) is present but none of its rows matched this dataset's image filenames — check its filename column.`;
+      }
       if (!frameMetadata.hasMetadataSource.value) {
-        return 'No frame metadata source found. Place a .txt or .csv telemetry file next to the imagery.';
+        return 'No frame metadata source found. Add a *.meta.csv or *.meta.txt file beside the imagery.';
       }
       return 'No frame metadata for the current frame.';
     });
