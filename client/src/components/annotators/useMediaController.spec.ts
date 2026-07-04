@@ -244,6 +244,51 @@ describe('useMediaController', () => {
     expect(composable.aggregateController.value.alignedGapSlots.value).toEqual([]);
   });
 
+  it('installing a resolver immediately performs an aligned seek to slot 0', () => {
+    const { composable, mocks } = mountMediaController();
+    // Gap at slot 0: A has no frame there and must blank right away rather
+    // than continuing to show its local frame 0 until the first user seek.
+    const resolver: AlignedFrameResolver = {
+      slotCount: ref(3),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({
+        A: f === 0 ? undefined : f - 1,
+        B: f,
+      }),
+      resolveGlobalSlot: (camera: string, localFrame: number) => (
+        camera === 'B' ? localFrame : localFrame + 1),
+      gapSlots: ref([0]),
+    };
+    composable.setAlignedFrameResolver(resolver);
+    expect(mocks.seekA).toHaveBeenCalledWith(undefined);
+    expect(mocks.seekB).toHaveBeenCalledWith(0);
+    expect(composable.aggregateController.value.frame.value).toBe(0);
+  });
+
+  it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {
+    const { composable, wrapper } = mountMediaController();
+    const resolver: AlignedFrameResolver = {
+      slotCount: ref(3),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({ A: f, B: f, C: f + 10 }),
+      resolveGlobalSlot: (_camera: string, localFrame: number) => localFrame,
+      gapSlots: ref([]),
+    };
+    composable.setAlignedFrameResolver(resolver);
+    composable.aggregateController.value.seek(1);
+
+    // A late-mounting annotator (e.g. it registered after Viewer installed
+    // the resolver) self-seeks to its own local frame 0 during init; the
+    // roster watcher must re-seek it onto the current slot afterwards.
+    const seekC = vi.fn();
+    composable.initialize('C', {
+      seek: seekC, play: noop, pause: noop, setVolume: noop, setSpeed: noop,
+    });
+    await wrapper.vm.$nextTick();
+    expect(seekC).toHaveBeenLastCalledWith(11);
+    expect(composable.aggregateController.value.frame.value).toBe(1);
+  });
+
   it('setAlignedFrameResolver(null) resets the aligned frame and hands control back to camera aliasing', () => {
     const { composable } = mountMediaController();
     composable.setAlignedFrameResolver(makeGappedResolver());

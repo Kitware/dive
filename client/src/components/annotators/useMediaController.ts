@@ -4,7 +4,7 @@ import geo, { GeoEvent } from 'geojs';
 import * as d3 from 'd3';
 
 import Vue, {
-  ref, shallowRef, reactive, provide, toRef, Ref, UnwrapRef, computed,
+  ref, shallowRef, reactive, provide, toRef, Ref, UnwrapRef, computed, watch,
 } from 'vue';
 import { map, over } from 'lodash';
 
@@ -145,8 +145,32 @@ export function useMediaController() {
   function setAlignedFrameResolver(resolver: AlignedFrameResolver | null) {
     stopAlignedPlaybackTimer();
     alignedFrameResolver.value = resolver;
-    alignedCurrentFrame.value = 0;
+    if (resolver) {
+      // Immediately perform an aligned seek to slot 0 so that any camera with
+      // no frame at that slot blanks right away, rather than continuing to
+      // show its own local frame 0 until the first user-driven seek.
+      alignedSeek(resolver, 0);
+    } else {
+      alignedCurrentFrame.value = 0;
+    }
   }
+
+  /**
+   * Re-apply the current aligned slot whenever the camera roster changes
+   * while a resolver is active. Annotators self-seek to their own local
+   * frame 0 during init (see ImageAnnotator's init()), so a camera that
+   * mounts after the resolver was installed would wrongly display its local
+   * frame 0 even when the current slot has no frame for it. flush: 'post'
+   * ensures this runs after the mounting annotator's own init-time seek.
+   * (Watch the length via a getter: under Vue 2.7 a shallow watch on the ref
+   * itself does not fire for in-place array mutation like push/splice.)
+   */
+  watch(() => cameras.value.length, () => {
+    const resolver = alignedFrameResolver.value;
+    if (resolver && cameras.value.length > 0) {
+      alignedSeek(resolver, alignedCurrentFrame.value);
+    }
+  }, { flush: 'post' });
 
   function clear() {
     geoViewers = {};
