@@ -1298,8 +1298,13 @@ export default defineComponent({
     ));
 
     function seekToFrame(frame: number) {
+      // `frame` arrives in the selected camera's own local frame space (track
+      // begin/end from TrackItem/TrackList/TrackDetailsPanel, keyframe
+      // navigation, BottomPanel...). Under an aligned timeline (SEAL feature
+      // 5) the aggregate seek() expects a global slot index, so translate via
+      // seekCameraFrame -- a passthrough when alignment isn't active.
       try {
-        aggregateController.value.seek(frame);
+        aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
       } catch {
         // Ignore seek requests while controllers are initializing.
       }
