@@ -191,7 +191,15 @@ export default defineComponent({
       if (!progress.loaded || multiCamList.value.length < 2) {
         return { aligned: false };
       }
-      return buildAlignedTimeline(imageData.value);
+      // Only consider cameras that are actually part of this dataset:
+      // imageData could retain keys from before the load (e.g. the initial
+      // 'singleCam' entry), and a single leftover empty camera would make
+      // canAlign() disqualify the whole dataset.
+      const camerasFrames: Record<string, FrameImage[]> = {};
+      multiCamList.value.forEach((camera) => {
+        camerasFrames[camera] = imageData.value[camera] ?? [];
+      });
+      return buildAlignedTimeline(camerasFrames);
     });
     watch(alignedTimeline, (result) => {
       if (result.aligned) {
@@ -988,6 +996,16 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
+        // Rebuild imageData with exactly this dataset's cameras, dropping the
+        // initial 'singleCam' placeholder (on multicam datasets) and any
+        // previous dataset's leftovers. A stale empty entry would make
+        // alignedTimeline's canAlign() disqualify the dataset. Replacing the
+        // whole object (rather than adding keys with bracket assignment,
+        // which is non-reactive for new keys under Vue 2.7) also keeps the
+        // alignedTimeline computed and the template reactive to these keys.
+        imageData.value = Object.fromEntries(
+          multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
+        );
         for (let i = 0; i < multiCamList.value.length; i += 1) {
           const camera = multiCamList.value[i];
           let cameraId = baseMulticamDatasetId.value;
@@ -998,7 +1016,10 @@ export default defineComponent({
           const subCameraMeta = await loadMetadata(cameraId);
           datasetType.value = subCameraMeta.type as DatasetType;
 
-          imageData.value[camera] = cloneDeep(subCameraMeta.imageData) as FrameImage[];
+          imageData.value = {
+            ...imageData.value,
+            [camera]: cloneDeep(subCameraMeta.imageData) as FrameImage[],
+          };
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
