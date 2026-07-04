@@ -16,7 +16,9 @@ import CalibrationKeypointLayer from '../layers/AnnotationLayers/CalibrationKeyp
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
+import AlignedImageLayer from '../layers/AlignedImageLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
+import { applyHomography } from '../homography';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
@@ -41,6 +43,7 @@ import {
   useGroupStyleManager,
   useCameraStore,
   useCameraCalibration,
+  useAlignedView,
   useSelectedCamera,
   useAttributes,
   useComparisonSets,
@@ -85,6 +88,12 @@ export default defineComponent({
     } catch {
       // calibration store may not be provided in tests or minimal embeds.
     }
+    let alignedView: ReturnType<typeof useAlignedView> | undefined;
+    try {
+      alignedView = useAlignedView();
+    } catch {
+      // aligned view store may not be provided in tests or minimal embeds.
+    }
     const selectedCamera = useSelectedCamera();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
@@ -113,6 +122,76 @@ export default defineComponent({
     const annotator = aggregateController.value.getController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
+
+    /**
+     * Resolve another camera's currently displayed frame image (for the ghost
+     * overlay and the aligned-view warp). Matches the `quad.image` data used
+     * by ImageAnnotator and the `quad.video` data used by VideoAnnotator --
+     * geojs' canvas quad renderer supports both as texture sources.
+     * LargeImageAnnotator (tiled/geospatial imagery) has no single resolvable
+     * image element, so it returns null and the ghost overlay / display warp
+     * is simply unavailable for those datasets; picking itself
+     * (native-coordinate inverse mapping) is unaffected either way.
+     */
+    const getCameraImage = (camera: string) => {
+      const ctrl = aggregateController.value.getController(camera);
+      const viewer = ctrl?.geoViewerRef?.value;
+      if (!viewer || typeof viewer.layers !== 'function') {
+        return null;
+      }
+      const layerList = viewer.layers();
+      for (let i = 0; i < layerList.length; i += 1) {
+        const layer = layerList[i];
+        if (typeof layer.features === 'function') {
+          const features = layer.features();
+          for (let j = 0; j < features.length; j += 1) {
+            const data = typeof features[j].data === 'function' ? features[j].data() : undefined;
+            const datum = Array.isArray(data) ? data[0] : undefined;
+            if (datum && datum.image) {
+              const image = datum.image as HTMLImageElement;
+              return {
+                source: image, kind: 'image' as const, width: image.naturalWidth, height: image.naturalHeight,
+              };
+            }
+            if (datum && datum.video) {
+              const video = datum.video as HTMLVideoElement;
+              return {
+                source: video, kind: 'video' as const, width: video.videoWidth, height: video.videoHeight,
+              };
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    /**
+     * Aligned view (SEAL-TK features 2 + 3): while active, this camera's
+     * display transform (native -> reference space, null when unwarped) and
+     * a global editing block. Stored geometry stays native (decision D3);
+     * the transform is applied at draw time only.
+     */
+    const alignedDisplayTransform = computed(
+      () => (alignedView ? alignedView.cameraTransform(props.camera) : null),
+    );
+    const alignedViewActive = computed(() => !!alignedView?.active.value);
+    /** Map a native-space location into display space for view centering. */
+    const mapDisplayPoint = (x: number, y: number) => {
+      const matrix = alignedDisplayTransform.value;
+      if (!matrix) {
+        return { x, y };
+      }
+      const [mx, my] = applyHomography(matrix, [x, y]);
+      return { x: mx, y: my };
+    };
+
+    // Created before the annotation layers below so its geojs layer z-orders
+    // beneath boxes/polygons/text (geojs stacks layers by creation order).
+    const alignedImageLayer = new AlignedImageLayer({
+      annotator,
+      getImage: () => getCameraImage(props.camera),
+      getTransform: () => alignedDisplayTransform.value,
+    });
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
@@ -199,47 +278,6 @@ export default defineComponent({
         segmentationPointsLayer.clear();
       }
     }, { deep: true });
-
-    /**
-     * Resolve another camera's currently displayed frame image (for the ghost
-     * overlay). Matches the `quad.image` data used by ImageAnnotator and the
-     * `quad.video` data used by VideoAnnotator -- geojs' canvas quad renderer
-     * supports both as texture sources. LargeImageAnnotator (tiled/geospatial
-     * imagery) has no single resolvable image element, so it returns null and
-     * the ghost overlay is simply unavailable for those datasets; picking
-     * itself (native-coordinate inverse mapping) is unaffected either way.
-     */
-    const getCameraImage = (camera: string) => {
-      const ctrl = aggregateController.value.getController(camera);
-      const viewer = ctrl?.geoViewerRef?.value;
-      if (!viewer || typeof viewer.layers !== 'function') {
-        return null;
-      }
-      const layerList = viewer.layers();
-      for (let i = 0; i < layerList.length; i += 1) {
-        const layer = layerList[i];
-        if (typeof layer.features === 'function') {
-          const features = layer.features();
-          for (let j = 0; j < features.length; j += 1) {
-            const data = typeof features[j].data === 'function' ? features[j].data() : undefined;
-            const datum = Array.isArray(data) ? data[0] : undefined;
-            if (datum && datum.image) {
-              const image = datum.image as HTMLImageElement;
-              return {
-                source: image, kind: 'image' as const, width: image.naturalWidth, height: image.naturalHeight,
-              };
-            }
-            if (datum && datum.video) {
-              const video = datum.video as HTMLVideoElement;
-              return {
-                source: video, kind: 'video' as const, width: video.videoWidth, height: video.videoHeight,
-              };
-            }
-          }
-        }
-      }
-      return null;
-    };
 
     const calibrationLayer = cameraCalibration
       ? new CalibrationKeypointLayer({
@@ -352,7 +390,7 @@ export default defineComponent({
 
     function updateLayers(
       frame: number,
-      editingTrack: false | EditAnnotationTypes,
+      requestedEditingTrack: false | EditAnnotationTypes,
       selectedTrackId: AnnotationId | null,
       multiSelectList: readonly AnnotationId[],
       enabledTracks: readonly TrackWithContext[],
@@ -360,6 +398,11 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
+      // Editing is disabled while the aligned view is on: the edit layer
+      // draws and stores geometry in native image space, so its handles
+      // would not land on warped imagery (decision D3 phase scope). The
+      // Viewer toolbar shows an "editing disabled" hint while in effect.
+      const editingTrack = alignedViewActive.value ? false : requestedEditingTrack;
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
@@ -418,9 +461,13 @@ export default defineComponent({
               }
               if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
                 if (trackFrame.features?.bounds) {
+                  // Under the aligned view the display is warped, so center
+                  // on the displayed (warped) location, not the native one.
                   const coords = {
-                    x: (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
-                    y: (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
+                    ...mapDisplayPoint(
+                      (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
+                      (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
+                    ),
                     z: 0,
                   };
                   const [x0, y0, x1, y1] = trackFrame.features.bounds;
@@ -439,10 +486,14 @@ export default defineComponent({
                     const halfWidth = (width * multiplyBoundsVal) / 2.0;
                     const halfHeight = (height * multiplyBoundsVal) / 2.0;
 
-                    const left = centerX - halfWidth;
-                    const right = centerX + halfWidth;
-                    const top = centerY - halfHeight;
-                    const bottom = centerY + halfHeight;
+                    // Map the zoom-target corners into display space too
+                    // (identity when the aligned view is off).
+                    const ulMapped = mapDisplayPoint(centerX - halfWidth, centerY - halfHeight);
+                    const lrMapped = mapDisplayPoint(centerX + halfWidth, centerY + halfHeight);
+                    const left = Math.min(ulMapped.x, lrMapped.x);
+                    const right = Math.max(ulMapped.x, lrMapped.x);
+                    const top = Math.min(ulMapped.y, lrMapped.y);
+                    const bottom = Math.max(ulMapped.y, lrMapped.y);
 
                     const zoomAndCenter = annotator.geoViewerRef.value.zoomAndCenterFromBounds({
                       left, top, right, bottom,
@@ -482,7 +533,11 @@ export default defineComponent({
       } else {
         lineLayer.disable();
       }
-      if (visibleModes.includes('TrackTail')) {
+      // Track tails read multi-frame geometry straight from the trackStore
+      // (not FrameDataTrack) and are not routed through the display
+      // transform, so they are hidden for warped cameras while the aligned
+      // view is on rather than rendered in the wrong (native) space.
+      if (visibleModes.includes('TrackTail') && !alignedDisplayTransform.value) {
         tailLayer.updateSettings(
           frame,
           annotatorPrefs.value.trackTails.before,
@@ -568,6 +623,49 @@ export default defineComponent({
         selectedKeyRef.value,
         props.colorBy,
       );
+    });
+
+    /** Layers whose stored-geometry rendering follows the aligned-view warp. */
+    const displayTransformedLayers = [
+      rectAnnotationLayer,
+      overlapLayer,
+      polyAnnotationLayer,
+      lineLayer,
+      pointLayer,
+      textLayer,
+      attributeBoxLayer,
+      attributeLayer,
+    ];
+
+    /**
+     * Apply (or clear) the aligned-view display transform: warp the imagery
+     * quad and point every geometry layer's draw-time mapping at the same
+     * matrix, then re-render. Immediate so a LayerManager created while the
+     * aligned view is already on (e.g. a view-mode switch) starts warped.
+     */
+    watch(alignedDisplayTransform, (matrix) => {
+      displayTransformedLayers.forEach((layer) => layer.setDisplayTransform(matrix));
+      alignedImageLayer.update();
+      updateLayers(
+        frameNumberRef.value,
+        editingModeRef.value,
+        selectedTrackIdRef.value,
+        multiSeletListRef.value,
+        enabledTracksRef.value,
+        visibleModesRef.value,
+        selectedKeyRef.value,
+        props.colorBy,
+      );
+    }, { immediate: true });
+
+    // The warped imagery must follow frame changes: the annotator swaps its
+    // <img> element asynchronously after each seek, and AlignedImageLayer
+    // polls briefly after every trigger to catch that swap. Guarded so this
+    // is a strict no-op whenever the camera renders unwarped.
+    watch(frameNumberRef, () => {
+      if (alignedDisplayTransform.value) {
+        alignedImageLayer.update();
+      }
     });
 
     /** Shallow watch */

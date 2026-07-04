@@ -2,6 +2,7 @@
 import Vue, { Ref } from 'vue';
 
 import { MediaController } from '../components/annotators/mediaControllerType';
+import { applyHomography, Matrix3 } from '../homography';
 import { StateStyles, TypeStyling } from '../StyleManager';
 import { FrameDataTrack } from './LayerTypes';
 
@@ -67,6 +68,16 @@ export default abstract class BaseLayer<D> {
 
   bus: Vue;
 
+  /**
+   * Draw-time display transform (native image space -> aligned/reference
+   * space), set while the multicam aligned view warps this camera's display.
+   * Stored annotation geometry always stays native (decision D3); the layers
+   * apply this only in their geojs `position` accessors, so rendered
+   * geometry lands on the warped imagery. Null (the default) keeps behavior
+   * byte-identical to an unwarped viewer.
+   */
+  private displayTransform: Matrix3 | null = null;
+
   constructor({
     annotator,
     stateStyling,
@@ -101,6 +112,32 @@ export default abstract class BaseLayer<D> {
   }
 
     abstract redraw(): void;
+
+    /**
+     * Set (or clear) the aligned-view display transform. Callers must
+     * trigger a data refresh afterwards so geojs re-evaluates positions.
+     */
+    setDisplayTransform(matrix: Matrix3 | null) {
+      this.displayTransform = matrix;
+    }
+
+    /** Map a native-space vertex into display space (identity when unwarped). */
+    protected transformPoint(point: [number, number]): { x: number; y: number } {
+      if (!this.displayTransform) {
+        return { x: point[0], y: point[1] };
+      }
+      const [x, y] = applyHomography(this.displayTransform, point);
+      return { x, y };
+    }
+
+    /** Map a native-space `{x, y}` datum into display space (identity when unwarped). */
+    protected transformXY(data: { x: number; y: number }): { x: number; y: number } {
+      if (!this.displayTransform) {
+        return { x: data.x, y: data.y };
+      }
+      const [x, y] = applyHomography(this.displayTransform, [data.x, data.y]);
+      return { x, y };
+    }
 
     changeData(frameData: FrameDataTrack[], comparisons: string[] = []) {
       this.formattedData = this.formatData(frameData, comparisons);

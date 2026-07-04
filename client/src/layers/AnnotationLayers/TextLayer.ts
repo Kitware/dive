@@ -122,7 +122,7 @@ export default class TextLayer extends BaseLayer<TextData> {
     this.featureLayer = layer
       .createFeature('text')
       .text((data: TextData) => data.text)
-      .position((data: TextData) => ({ x: data.x, y: data.y }));
+      .position((data: TextData) => this.transformXY(data));
     super.initialize();
   }
 
