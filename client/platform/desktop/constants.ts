@@ -37,6 +37,27 @@ export interface Settings {
 
 // Handles Importing and storing of multi camera data
 
+/**
+ * A 2-D transform imported from an ITK HDF5 (.h5) file for an extra camera,
+ * reduced to a plain matrix at import time by
+ * `backend/native/itkTransformReader.ts` (see its docstring for the full
+ * convention and the physical-space assumption).
+ */
+export interface CameraTransform {
+  /** Row-major 3x3 homogeneous matrix with [0, 0, 1] bottom row. */
+  matrix: number[][];
+  /** Original ITK TransformType string, e.g. 'AffineTransform_double_2_2'. */
+  type: string;
+  /**
+   * ITK's forward TransformPoint direction as stored in the file:
+   * maps reference-camera (fixed) pixel coordinates to this camera's
+   * (moving) pixel coordinates. Invert the matrix for the opposite mapping.
+   */
+  direction: 'fixed-to-moving';
+  /** Absolute path of the source .h5 file at import time. */
+  source: string;
+}
+
 export interface Camera {
   type: 'image-sequence' | 'video';
   originalBasePath: string;
@@ -46,6 +67,8 @@ export interface Camera {
   transcodedVideoFile: string;
   transcodedMisalign?: boolean;
   imageListPath?: string;
+  // Optional display transform imported from an ITK .h5 file (cameras >= 2)
+  transform?: CameraTransform;
 }
 
 export interface MultiCamDesktop {

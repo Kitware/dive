@@ -136,6 +136,11 @@ export interface MultiCamImportFolderArgs {
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
+    /**
+     * Optional ITK .h5 transform file for cameras after the first
+     * (desktop only; parsed at import time into meta.multiCam camera data).
+     */
+    transformFile?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
   type: 'image-sequence' | 'video';

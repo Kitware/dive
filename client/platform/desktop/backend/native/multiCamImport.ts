@@ -16,6 +16,7 @@ import {
   Camera,
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { readItkTransform } from './itkTransformReader';
 import { findImagesInFolder } from './common';
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
@@ -86,6 +87,23 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         transcodedImageFiles: [],
         transcodedVideoFile: '',
       };
+    });
+  }
+
+  if (isFolderArgs(args)) {
+    // Parse any per-camera ITK .h5 transform files up front so a bad file
+    // fails the import with a clear message instead of storing partial state.
+    await asyncForEach(Object.entries(args.sourceList), async ([cameraName, item]) => {
+      if (!item.transformFile) {
+        return;
+      }
+      try {
+        const parsed = await readItkTransform(item.transformFile);
+        cameras[cameraName].transform = { ...parsed, source: item.transformFile };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Camera "${cameraName}": invalid ITK transform file: ${message}`);
+      }
     });
   }
 
