@@ -131,7 +131,14 @@ export default function useModeManager({
    * for the identical pattern elsewhere.
    */
   function selectedCameraFrame(): number {
-    return aggregateController.value.getController(selectedCamera.value).frame.value;
+    try {
+      return aggregateController.value.getController(selectedCamera.value).frame.value;
+    } catch {
+      // No controller registered for the selected camera (e.g. its annotator
+      // hasn't mounted yet during load/reload); fall back to the aggregate
+      // frame rather than throwing.
+      return aggregateController.value.frame.value;
+    }
   }
 
   const linkingState = ref(false);

@@ -830,8 +830,15 @@ export default defineComponent({
       // camera's own local frame (see selectedCameraUpdateTime) -- otherwise
       // it would keep reporting the previously selected camera's local frame
       // until the next seek/play/pause happens to land on this camera.
-      const newCameraController = aggregateController.value.getController(camera);
-      updateTime({ frame: newCameraController.frame.value, flick: newCameraController.flick.value });
+      // During load (loadData calls changeCamera before progress.loaded, so
+      // no annotator has mounted yet) there is no controller for the camera:
+      // skip the resync gracefully -- the annotator syncs time on mount.
+      try {
+        const newCameraController = aggregateController.value.getController(camera);
+        updateTime({ frame: newCameraController.frame.value, flick: newCameraController.flick.value });
+      } catch {
+        // No controller registered for this camera (yet); nothing to resync.
+      }
       /**
        * Enters edit mode if no track exists for the camera and forcing edit mode
        * or if a track exists and are alrady in edit mode we don't set it again
@@ -864,7 +871,14 @@ export default defineComponent({
       // is the global slot index, which diverges from any camera's local
       // frame -- and getFeature() is keyed by local frame, same as tracks are
       // stored. See LayerManager.vue's identically-named helper.
-      const cameraFrame = aggregateController.value.getController(selectedCamera.value).frame.value;
+      let cameraFrame: number;
+      try {
+        cameraFrame = aggregateController.value.getController(selectedCamera.value).frame.value;
+      } catch {
+        // This camera's annotator never mounted (e.g. mid load/reload); fall
+        // back to the aggregate frame rather than throwing.
+        cameraFrame = aggregateController.value.frame.value;
+      }
       return track.getFeature(cameraFrame)[0] == null;
     };
     // While editing, the creation cursor is live on any camera still missing
