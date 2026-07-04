@@ -43,6 +43,7 @@
     "geojs": "~1.6.2",
     "geotiff": "^3.0.0",
     "glob-to-regexp": "^0.4.1",
+    "h5wasm": "^0.10.3",
     "lodash": "^4.17.19",
     "moment": "^2.29.1",
     "mousetrap": "^1.6.5",
