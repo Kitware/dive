@@ -252,6 +252,28 @@ export default defineComponent({
       : undefined;
 
     if (cameraCalibration && calibrationLayer) {
+      const calibration = cameraCalibration;
+      /**
+       * Frame number of the camera whose image is being ghosted into another
+       * pane, or null when no ghost is active. Watched so the ghost re-renders
+       * when the *source* pane scrubs, not just this pane -- this pane's own
+       * frameNumberRef can update before (or without) the source's, and the
+       * source image element itself only swaps after its frame finishes
+       * loading (see CalibrationKeypointLayer.scheduleGhostRefresh).
+       */
+      const ghostSourceFrame = computed(() => {
+        const { mode } = calibration.alignment.value;
+        const pair = calibration.activePair.value;
+        if (mode === 'original' || !pair) {
+          return null;
+        }
+        const srcCam = mode === 'BtoA' ? pair.camB : pair.camA;
+        try {
+          return aggregateController.value.getController(srcCam).frame.value;
+        } catch {
+          return null;
+        }
+      });
       watch(
         [
           cameraCalibration.activePair,
@@ -261,6 +283,7 @@ export default defineComponent({
           cameraCalibration.homographies,
           cameraCalibration.alignment,
           frameNumberRef,
+          ghostSourceFrame,
         ],
         () => calibrationLayer.update(),
         { deep: true },

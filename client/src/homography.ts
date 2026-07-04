@@ -55,6 +55,94 @@ export function applyHomography(h: Matrix3, p: Point): Point {
 }
 
 /**
+ * One cell of a subdivided image warp: the axis-aligned source-image rectangle
+ * `crop` (in source pixels) and the four destination corners it maps to under
+ * the exact projective transform. See {@link subdivideWarpQuads}.
+ */
+export interface WarpQuad {
+  ul: Point;
+  ur: Point;
+  lr: Point;
+  ll: Point;
+  crop: { left: number; top: number; right: number; bottom: number };
+}
+
+/**
+ * Choose a subdivision grid size for rendering the warp of a `width` x `height`
+ * image through `h` with an affine-only quad renderer (e.g. geojs' canvas
+ * renderer, which draws each quad from only three of its corners). A pure
+ * affine matrix (zero perspective row terms) warps exactly as a single
+ * parallelogram, so 1 is returned; when the perspective terms are
+ * non-negligible over the image extent, `maxN` is returned so each sub-quad is
+ * approximately affine.
+ */
+export function warpGridSize(h: Matrix3, width: number, height: number, maxN = 8): number {
+  // Homogeneous w at each image corner: constant w <=> affine transform.
+  const wAt = (x: number, y: number) => h[2][0] * x + h[2][1] * y + h[2][2];
+  const ws = [wAt(0, 0), wAt(width, 0), wAt(width, height), wAt(0, height)];
+  if (ws.some((w) => !Number.isFinite(w) || w === 0)) {
+    return maxN;
+  }
+  const absW = ws.map((w) => Math.abs(w));
+  const maxAbs = Math.max(...absW);
+  const minAbs = Math.min(...absW);
+  // Sign change means the horizon line crosses the image: definitely projective.
+  if (ws.some((w) => w * ws[0] < 0)) {
+    return maxN;
+  }
+  // Relative variation of w across the quad; below ~0.1% the affine
+  // approximation is visually indistinguishable (sub-pixel for typical sizes).
+  return (maxAbs - minAbs) / maxAbs < 1e-3 ? 1 : maxN;
+}
+
+/**
+ * Subdivide the warp of a `width` x `height` image through `h` into an n x n
+ * grid of {@link WarpQuad}s. Every sub-quad corner is mapped through the exact
+ * projective transform, so rendering each cell as an (approximately affine)
+ * textured quad converges to the true projective warp as n grows -- unlike
+ * rendering the whole image as a single quad, which an affine canvas renderer
+ * collapses to a parallelogram. Grid lines land on integer source pixels;
+ * degenerate (zero-area) cells from tiny images are skipped.
+ */
+export function subdivideWarpQuads(
+  h: Matrix3,
+  width: number,
+  height: number,
+  n: number,
+): WarpQuad[] {
+  const cells = Math.max(1, Math.floor(n));
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = 0; i <= cells; i += 1) {
+    xs.push(Math.round((i * width) / cells));
+    ys.push(Math.round((i * height) / cells));
+  }
+  const quads: WarpQuad[] = [];
+  for (let row = 0; row < cells; row += 1) {
+    for (let col = 0; col < cells; col += 1) {
+      const left = xs[col];
+      const right = xs[col + 1];
+      const top = ys[row];
+      const bottom = ys[row + 1];
+      if (right <= left || bottom <= top) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+      quads.push({
+        ul: applyHomography(h, [left, top]),
+        ur: applyHomography(h, [right, top]),
+        lr: applyHomography(h, [right, bottom]),
+        ll: applyHomography(h, [left, bottom]),
+        crop: {
+          left, top, right, bottom,
+        },
+      });
+    }
+  }
+  return quads;
+}
+
+/**
  * Hartley normalization: translate points to the centroid and scale so the
  * mean distance from the origin is sqrt(2). Returns the normalized points and
  * the 3x3 transform T such that normalized = T * original.
@@ -95,7 +183,7 @@ export function solveLinearSystem(A: number[][], b: number[]): number[] {
       }
     }
     if (Math.abs(A[pivot][col]) < 1e-12) {
-      throw new Error('Degenerate point configuration; cannot solve homography');
+      throw new Error('Degenerate point configuration; cannot solve linear system');
     }
     if (pivot !== col) {
       [A[col], A[pivot]] = [A[pivot], A[col]];

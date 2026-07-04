@@ -2,7 +2,7 @@ import geo, { GeoEvent } from 'geojs';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import CameraCalibrationStore from '../../CameraCalibrationStore';
-import { applyHomography } from '../../homography';
+import { subdivideWarpQuads, warpGridSize } from '../../homography';
 
 export interface CalibrationPointData {
   x: number;
@@ -27,6 +27,14 @@ interface CalibrationLayerParams {
 }
 
 /**
+ * How many animation frames to keep re-checking whether the ghost source
+ * camera's displayed image element has changed after an update trigger (image
+ * sequences swap their quad datum asynchronously once the new frame loads).
+ * ~60 frames is about one second at typical refresh rates.
+ */
+const GHOST_REFRESH_MAX_ATTEMPTS = 60;
+
+/**
  * Renders this camera's picked calibration points (numbered markers, the pending
  * "blue" point highlighted) and, when alignment mode is active, a ghost overlay
  * of the other camera's frame warped through the fitted homography (geojs
@@ -36,6 +44,14 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   calibration: CameraCalibrationStore;
 
   getCameraImage?: (camera: string) => CameraImage | null;
+
+  /** The source element currently rendered as the ghost overlay, if any. */
+  private ghostSource: HTMLImageElement | HTMLVideoElement | null = null;
+
+  /** Pending requestAnimationFrame handle for the ghost staleness re-check loop. */
+  private ghostRetryHandle: number | null = null;
+
+  private ghostRetryAttempts = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   textFeature: any;
@@ -167,18 +183,28 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   /**
-   * Render (or clear) the aligned ghost quad. The ghost is drawn in the
+   * Render (or clear) the aligned ghost overlay. The ghost is drawn in the
    * destination camera's pane: the source camera's image is warped through the
-   * fitted homography for the selected alignment mode. Uses the same
-   * `homog[mode]` matrix that {@link CameraCalibrationStore.pickPoint} inverts to
-   * attribute a ghost-pane click back to the source camera, so rendering and
-   * click attribution stay direction-consistent.
+   * fitted `homog[mode]` matrix -- the same matrix that
+   * {@link CameraCalibrationStore.pickPoint} inverts to attribute a ghost-pane
+   * click back to the source camera, so rendering and click attribution use the
+   * same exact projective mapping. Because geojs' canvas quad renderer is
+   * affine-only (a single quad is drawn as a parallelogram from three of its
+   * corners), a transform with non-negligible perspective terms is rendered as
+   * an n x n grid of sub-quads whose corners are each mapped through the exact
+   * homography (see {@link subdivideWarpQuads}); each sub-quad is approximately
+   * affine, so the rendered warp matches the projective mapping to sub-pixel
+   * accuracy and ghost-targeted picks land where the user visually aligned.
    */
   updateGhost() {
     if (!this.quadFeature) {
       return;
     }
-    const clear = () => this.quadFeature.data([]).draw();
+    const clear = () => {
+      this.ghostSource = null;
+      this.cancelGhostRefresh();
+      this.quadFeature.data([]).draw();
+    };
     const alignment = this.calibration?.alignment.value;
     const pair = this.calibration?.activePair.value;
     if (!alignment || alignment.mode === 'original' || !pair || !this.getCameraImage) {
@@ -201,24 +227,77 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     const src = this.getCameraImage(srcCam);
     if (!src || !src.width || !src.height) {
       clear();
+      // The source pane's frame may simply not have finished loading yet;
+      // keep re-checking briefly (see scheduleGhostRefresh).
+      this.scheduleGhostRefresh(srcCam);
       return;
     }
     const h = homog[mode];
     const { width: w, height: hgt } = src;
-    const ul = applyHomography(h, [0, 0]);
-    const ur = applyHomography(h, [w, 0]);
-    const lr = applyHomography(h, [w, hgt]);
-    const ll = applyHomography(h, [0, hgt]);
+    const grid = warpGridSize(h, w, hgt);
+    const quads = subdivideWarpQuads(h, w, hgt, grid).map((q) => ({
+      ul: { x: q.ul[0], y: q.ul[1] },
+      ur: { x: q.ur[0], y: q.ur[1] },
+      lr: { x: q.lr[0], y: q.lr[1] },
+      ll: { x: q.ll[0], y: q.ll[1] },
+      // geojs crop: left/top/right/bottom select the source-pixel region;
+      // x/y (the "size after crop") are set to the full source size so that
+      // region stretches across the whole sub-quad.
+      crop: {
+        ...q.crop, x: w, y: hgt,
+      },
+      [src.kind]: src.source,
+    }));
+    this.ghostSource = src.source;
     this.quadFeature
-      .data([{
-        ul: { x: ul[0], y: ul[1] },
-        ur: { x: ur[0], y: ur[1] },
-        lr: { x: lr[0], y: lr[1] },
-        ll: { x: ll[0], y: ll[1] },
-        [src.kind]: src.source,
-      }])
+      .data(quads)
       .style('opacity', alignment.opacity)
       .draw();
+    if (src.kind === 'image') {
+      // Image sequences swap the source pane's <img> asynchronously after the
+      // frame finishes loading, with no event reaching this layer; poll
+      // briefly so the ghost catches up (video elements update in place).
+      this.scheduleGhostRefresh(srcCam);
+    } else {
+      this.cancelGhostRefresh();
+    }
+  }
+
+  /** Cancel any pending ghost staleness re-check. */
+  private cancelGhostRefresh() {
+    if (this.ghostRetryHandle !== null) {
+      cancelAnimationFrame(this.ghostRetryHandle);
+      this.ghostRetryHandle = null;
+    }
+  }
+
+  /**
+   * Bounded requestAnimationFrame loop that re-checks whether `srcCam`'s
+   * displayed image element differs from the one the ghost was rendered from,
+   * and re-renders the ghost when it does. This covers the gap between a frame
+   * change (which triggers {@link update} immediately) and the moment
+   * ImageAnnotator actually swaps the loaded <img> into its quad datum.
+   */
+  private scheduleGhostRefresh(srcCam: string) {
+    this.cancelGhostRefresh();
+    this.ghostRetryAttempts = 0;
+    if (typeof requestAnimationFrame !== 'function') {
+      return;
+    }
+    const tick = () => {
+      this.ghostRetryHandle = null;
+      const src = this.getCameraImage ? this.getCameraImage(srcCam) : null;
+      if (src && src.source && src.width && src.height && src.source !== this.ghostSource) {
+        // Re-render with the new element; updateGhost restarts this loop.
+        this.updateGhost();
+        return;
+      }
+      this.ghostRetryAttempts += 1;
+      if (this.ghostRetryAttempts < GHOST_REFRESH_MAX_ATTEMPTS) {
+        this.ghostRetryHandle = requestAnimationFrame(tick);
+      }
+    };
+    this.ghostRetryHandle = requestAnimationFrame(tick);
   }
 
   /** Recompute points and the ghost overlay from the store and redraw. */
@@ -237,6 +316,8 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   disable() {
     this.featureLayer.data([]).draw();
     this.textFeature.data([]).draw();
+    this.ghostSource = null;
+    this.cancelGhostRefresh();
     if (this.quadFeature) {
       this.quadFeature.data([]).draw();
     }

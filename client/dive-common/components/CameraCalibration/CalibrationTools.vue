@@ -461,11 +461,16 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
+    <!--
+      Deliberately not gated on the active pair having correspondences
+      (unlike the export buttons above): saving must also be able to persist
+      a cleared state (so stale saved calibration doesn't survive Clear All /
+      per-row deletes) and state belonging to non-active pairs.
+    -->
     <v-btn
       block
       color="success"
       small
-      :disabled="!canExport"
       :loading="saving"
       class="mb-2"
       @click="save"
