@@ -254,8 +254,28 @@ export default defineComponent({
   <div>
     <v-container>
       <section class="frame-metadata-section">
-        <div class="text-subtitle-1 font-weight-medium px-1 pb-1">
+        <div class="text-subtitle-1 font-weight-medium px-1 pb-1 d-flex align-center">
           Frame Metadata
+          <v-spacer />
+          <v-tooltip
+            v-if="frameMetadataSourceLabel"
+            bottom
+            max-width="320"
+          >
+            <template #activator="{ on, attrs }">
+              <v-icon
+                small
+                color="grey lighten-1"
+                class="frame-metadata-source-icon"
+                :aria-label="frameMetadataSourceLabel"
+                v-bind="attrs"
+                v-on="on"
+              >
+                mdi-information-outline
+              </v-icon>
+            </template>
+            <span>{{ frameMetadataSourceLabel }}</span>
+          </v-tooltip>
         </div>
         <v-divider />
 
@@ -285,13 +305,6 @@ export default defineComponent({
           class="pa-2 grey--text"
         >
           {{ frameMetadataEmptyState }}
-        </div>
-
-        <div
-          v-if="frameMetadataSourceLabel"
-          class="px-2 pb-2 text-caption grey--text wrap-text frame-metadata-source"
-        >
-          {{ frameMetadataSourceLabel }}
         </div>
       </section>
 

@@ -2,7 +2,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies -- Vue Test Utils is only used in tests
 import { mount } from '@vue/test-utils';
 import Vue, {
-  computed, defineComponent, nextTick, ref,
+  computed, CreateElement, defineComponent, nextTick, ref,
 } from 'vue';
 
 // eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
@@ -33,6 +33,15 @@ vi.mock('dive-common/use', () => ({
 }));
 
 Vue.config.ignoredElements = [/^v-/];
+
+// v-tooltip only renders its activator slot when it is a real component; stub it so the
+// frame-metadata source icon (behind the activator slot) renders for assertions.
+const VTooltipStub = {
+  render(this: Vue, h: CreateElement) {
+    const activator = this.$scopedSlots.activator?.({ on: {}, attrs: {} });
+    return h('div', [activator]);
+  },
+};
 
 function flushPromises() {
   return new Promise((resolve) => {
@@ -191,6 +200,7 @@ function mountDatasetInfo({
   const wrapper = mount(Root, {
     stubs: {
       DatasetMetaEditorDialog: true,
+      'v-tooltip': VTooltipStub,
     },
   });
   return {
@@ -224,7 +234,8 @@ describe('DatasetInfo', () => {
     const text = wrapper.text();
     expect(text.indexOf('Frame Metadata')).toBeLessThan(text.indexOf('Dataset Info'));
     expect(text.indexOf('Dataset Info')).toBeLessThan(text.indexOf('Custom Metadata'));
-    expect(wrapper.find('.frame-metadata-section').text()).toContain('Source: nav.meta.csv');
+    expect(wrapper.find('.frame-metadata-source-icon').attributes('aria-label'))
+      .toBe('Source: nav.meta.csv');
     expect(wrapper.find('.dataset-info-section').text()).toContain('Mouss Set');
     expect(wrapper.find('.dataset-info-section').text()).toContain('image-sequence');
     expect(wrapper.find('.custom-metadata-section').text()).toContain('cruise');
