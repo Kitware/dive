@@ -359,43 +359,82 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <v-btn
-      block
-      color="info"
-      small
-      :disabled="!canExport"
-      class="mb-2"
-      @click="exportPoints"
+    <v-expansion-panels
+      flat
+      accordion
     >
-      Export points.txt
-    </v-btn>
-    <span class="text-caption grey--text">
-      Saves rows of "leftX leftY rightX rightY" for VIAME's
-      itk_point_set_to_transform (.h5). Columns follow the Camera A / Camera B order above.
-    </span>
+      <v-expansion-panel>
+        <v-expansion-panel-header class="px-1">
+          points.txt / homography files
+        </v-expansion-panel-header>
+        <v-expansion-panel-content class="px-0">
+          <v-btn
+            block
+            color="info"
+            small
+            :disabled="!canExport"
+            class="mb-2"
+            @click="exportPoints"
+          >
+            Export points.txt
+          </v-btn>
+          <span class="text-caption grey--text">
+            Saves rows of "leftX leftY rightX rightY" for VIAME's
+            itk_point_set_to_transform (.h5). Columns follow the Camera A / Camera B order above.
+          </span>
 
-    <input
-      ref="pointsFileInput"
-      type="file"
-      accept=".txt"
-      style="display: none"
-      @change="onPointsFileSelected"
-    >
-    <v-btn
-      block
-      outlined
-      small
-      class="mt-2 mb-2"
-      @click="pointsFileInput.click()"
-    >
-      Load points.txt
-    </v-btn>
-    <span
-      v-if="loadPointsError"
-      class="text-caption error--text d-block"
-    >
-      {{ loadPointsError }}
-    </span>
+          <input
+            ref="pointsFileInput"
+            type="file"
+            accept=".txt"
+            style="display: none"
+            @change="onPointsFileSelected"
+          >
+          <v-btn
+            block
+            outlined
+            small
+            class="mt-2 mb-2"
+            @click="pointsFileInput.click()"
+          >
+            Load points.txt
+          </v-btn>
+          <span
+            v-if="loadPointsError"
+            class="text-caption error--text d-block"
+          >
+            {{ loadPointsError }}
+          </span>
+
+          <v-divider class="my-3" />
+
+          <v-btn
+            block
+            outlined
+            small
+            :disabled="!canFit"
+            class="mb-2"
+            @click="exportHomography('AtoB')"
+          >
+            Export A→B homography.txt
+          </v-btn>
+          <v-btn
+            block
+            outlined
+            small
+            :disabled="!canFit"
+            class="mb-2"
+            @click="exportHomography('BtoA')"
+          >
+            Export B→A homography.txt
+          </v-btn>
+          <span class="text-caption grey--text">
+            Saves the fitted 3x3 matrix as whitespace-separated rows, matching
+            keypointgui's Save Homography.
+          </span>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <v-dialog
       v-model="loadPointsDialog"
@@ -431,52 +470,6 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
-
-    <v-divider class="my-3" />
-
-    <v-btn
-      block
-      outlined
-      small
-      :disabled="!canFit"
-      class="mb-2"
-      @click="exportHomography('AtoB')"
-    >
-      Export A→B homography.txt
-    </v-btn>
-    <v-btn
-      block
-      outlined
-      small
-      :disabled="!canFit"
-      class="mb-2"
-      @click="exportHomography('BtoA')"
-    >
-      Export B→A homography.txt
-    </v-btn>
-    <span class="text-caption grey--text">
-      Saves the fitted 3x3 matrix as whitespace-separated rows, matching
-      keypointgui's Save Homography.
-    </span>
-
-    <v-divider class="my-3" />
-
-    <!--
-      Deliberately not gated on the active pair having correspondences
-      (unlike the export buttons above): saving must also be able to persist
-      a cleared state (so stale saved calibration doesn't survive Clear All /
-      per-row deletes) and state belonging to non-active pairs.
-    -->
-    <v-btn
-      block
-      color="success"
-      small
-      :loading="saving"
-      class="mb-2"
-      @click="save"
-    >
-      Save calibration
-    </v-btn>
 
     <v-divider class="my-3" />
 
@@ -548,5 +541,24 @@ export default defineComponent({
         </v-btn-toggle>
       </div>
     </div>
+
+    <v-divider class="my-3" />
+
+    <!--
+      Deliberately not gated on the active pair having correspondences
+      (unlike the export buttons above): saving must also be able to persist
+      a cleared state (so stale saved calibration doesn't survive Clear All /
+      per-row deletes) and state belonging to non-active pairs.
+    -->
+    <v-btn
+      block
+      color="success"
+      small
+      :loading="saving"
+      class="mb-2"
+      @click="save"
+    >
+      Save calibration
+    </v-btn>
   </div>
 </template>

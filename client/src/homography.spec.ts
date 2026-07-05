@@ -6,6 +6,7 @@ import {
   matMul3,
   subdivideWarpQuads,
   warpGridSize,
+  localLinkedScale,
   Point,
   Matrix3,
 } from './homography';
@@ -196,5 +197,41 @@ describe('subdivideWarpQuads', () => {
     // (w varies ~2x across the image) is down to a couple of pixels.
     expect(gridError).toBeLessThan(3);
     expect(gridError).toBeLessThan(singleQuadError / 20);
+  });
+});
+
+describe('localLinkedScale', () => {
+  const mapper = (matrix: Matrix3) => (p: Point) => applyHomography(matrix, p);
+
+  it('returns 1 for the identity mapping', () => {
+    const identity: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    expect(localLinkedScale(mapper(identity), [100, 200])).toBeCloseTo(1);
+  });
+
+  it('recovers a uniform similarity scale regardless of rotation', () => {
+    const s = 2.5;
+    const cos = Math.cos(Math.PI / 6) * s;
+    const sin = Math.sin(Math.PI / 6) * s;
+    const similarity: Matrix3 = [[cos, -sin, 10], [sin, cos, -4], [0, 0, 1]];
+    expect(localLinkedScale(mapper(similarity), [50, 75])).toBeCloseTo(s);
+  });
+
+  it('samples the local scale of a projective transform at the given point', () => {
+    const homography: Matrix3 = [[1, 0, 0], [0, 1, 0], [0.001, 0, 1]];
+    const nearOrigin = localLinkedScale(mapper(homography), [0, 0], 1);
+    const farRight = localLinkedScale(mapper(homography), [500, 0], 1);
+    expect(nearOrigin).toBeCloseTo(1, 1);
+    // At x=500 the perspective divide (w = 1.5) has shrunk the local scale
+    // well below 1; exact value differs per axis, so just assert the shrink.
+    expect(farRight).not.toBeNull();
+    expect(farRight as number).toBeLessThan(0.7);
+  });
+
+  it('returns null when the mapping is unavailable', () => {
+    expect(localLinkedScale(() => null, [10, 10])).toBeNull();
+  });
+
+  it('returns null for a degenerate (collapsing) mapping', () => {
+    expect(localLinkedScale(() => [3, 3], [10, 10])).toBeNull();
   });
 });

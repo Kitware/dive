@@ -55,6 +55,35 @@ export function applyHomography(h: Matrix3, p: Point): Point {
 }
 
 /**
+ * Local scale factor of a point mapping around `center`: how many target-image
+ * pixels one source-image pixel spans there, estimated by probing `delta`
+ * pixels along each axis and averaging. For similarity/affine transforms this
+ * is constant; for homographies it varies with position, which is why it's
+ * sampled at a specific point (e.g. the current view center for linked
+ * pan/zoom). Returns null when the mapping is unavailable or degenerate at
+ * that point.
+ */
+export function localLinkedScale(
+  mapPoint: (p: Point) => Point | null,
+  center: Point,
+  delta = 10,
+): number | null {
+  const mapped = mapPoint(center);
+  const mappedX = mapPoint([center[0] + delta, center[1]]);
+  const mappedY = mapPoint([center[0], center[1] + delta]);
+  if (!mapped || !mappedX || !mappedY) {
+    return null;
+  }
+  const scaleX = Math.hypot(mappedX[0] - mapped[0], mappedX[1] - mapped[1]) / delta;
+  const scaleY = Math.hypot(mappedY[0] - mapped[0], mappedY[1] - mapped[1]) / delta;
+  const scale = (scaleX + scaleY) / 2;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
+  }
+  return scale;
+}
+
+/**
  * One cell of a subdivided image warp: the axis-aligned source-image rectangle
  * `crop` (in source pixels) and the four destination corners it maps to under
  * the exact projective transform. See {@link subdivideWarpQuads}.

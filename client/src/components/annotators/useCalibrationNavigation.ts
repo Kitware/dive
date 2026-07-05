@@ -4,6 +4,7 @@ import {
 } from 'vue';
 import type { AggregateMediaController } from './mediaControllerType';
 import type CameraCalibrationStore from '../../CameraCalibrationStore';
+import { localLinkedScale } from '../../homography';
 import type { Point } from '../../homography';
 
 /**
@@ -56,8 +57,25 @@ export default function useCalibrationNavigation(
       if (!linked || linked.camera !== otherCamera) {
         return;
       }
+      // Match the visible extent, not just the center: one source pixel spans
+      // `scale` target pixels around this point, so the target must display
+      // `scale`x the units-per-pixel of the source. geojs zoom is log2-based
+      // (unitsPerPixel(z) = unitsPerPixel(0) / 2^z), so invert through the
+      // target's own zoom-0 baseline -- the two viewers' baselines differ
+      // whenever the images differ in resolution (e.g. EO vs IR).
+      const scale = localLinkedScale(
+        (p) => calibration.linkedPoint(camera, p)?.coord ?? null,
+        [center.x, center.y],
+      );
       guard = true;
       try {
+        if (scale !== null) {
+          const desiredUnitsPerPixel = sourceViewer.unitsPerPixel(sourceViewer.zoom()) * scale;
+          const targetZoom = Math.log2(targetViewer.unitsPerPixel(0) / desiredUnitsPerPixel);
+          if (Number.isFinite(targetZoom)) {
+            targetViewer.zoom(targetZoom);
+          }
+        }
         targetViewer.center({ x: linked.coord[0], y: linked.coord[1] });
       } finally {
         guard = false;
