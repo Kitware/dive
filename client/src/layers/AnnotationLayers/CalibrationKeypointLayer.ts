@@ -64,10 +64,16 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   quadFeature: any;
 
-  /** Marker currently being drag-refined, or null. */
-  private dragTarget: { correspondenceId?: number; pending: boolean } | null = null;
+  /**
+   * Marker currently being drag-refined, or null/undefined. NOTE: these two
+   * fields deliberately have no initializers -- BaseLayer's constructor calls
+   * initialize() (which assigns mapNode) before subclass field initializers
+   * would run, so an `= null` here would wipe the assignment afterward (same
+   * reason textFeature/quadFeature above are declared bare).
+   */
+  private dragTarget?: { correspondenceId?: number; pending: boolean } | null;
 
-  private mapNode: HTMLElement | null = null;
+  private mapNode?: HTMLElement;
 
   private boundDragMove = (evt: MouseEvent) => this.handleDragMove(evt);
 
