@@ -5,6 +5,7 @@ import {
 import type { AggregateMediaController } from './mediaControllerType';
 import type AlignedViewStore from '../../AlignedViewStore';
 import type CameraCalibrationStore from '../../CameraCalibrationStore';
+import { localLinkedScale } from '../../homography';
 
 /**
  * Links pan/zoom recentering across ALL loaded cameras while the aligned
@@ -82,6 +83,23 @@ export default function useAlignedNavigation(
             return;
           }
           if (targetViewer) {
+            // Match the visible extent, not just the center: one source pixel
+            // spans `scale` target pixels around this point, so the target
+            // needs `scale`x the source's units-per-pixel. geojs zoom is
+            // log2-based (unitsPerPixel(z) = unitsPerPixel(0) / 2^z); invert
+            // through the target's own zoom-0 baseline since the two images
+            // may differ in resolution (e.g. EO vs IR).
+            const scale = localLinkedScale(
+              (p) => alignedView.mapCameraPoint(camera, otherCamera, p),
+              [center.x, center.y],
+            );
+            if (scale !== null) {
+              const desiredUnitsPerPixel = sourceViewer.unitsPerPixel(sourceViewer.zoom()) * scale;
+              const targetZoom = Math.log2(targetViewer.unitsPerPixel(0) / desiredUnitsPerPixel);
+              if (Number.isFinite(targetZoom)) {
+                targetViewer.zoom(targetZoom);
+              }
+            }
             targetViewer.center({ x: mapped[0], y: mapped[1] });
           }
         });
