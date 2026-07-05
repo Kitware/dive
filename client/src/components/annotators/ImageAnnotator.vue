@@ -364,7 +364,15 @@ export default defineComponent({
     }
     function init() {
       data.maxFrame = props.imageData.length - 1;
-      // Below are configuration settings we can set until we decide on good numbers to utilize.
+      // When the viewer already exists, an imageData change is a URL swap for
+      // the same camera (e.g. the percentile-stretch display remap). Rebuild
+      // only the image cache and redraw the current frame in place: calling
+      // initializeViewer again would replace the geojs map, orphaning every
+      // feature layer and event handler that other components (LayerManager
+      // and its annotation/calibration layers) attached to the old map. Any
+      // dimension change is already handled by drawImage/resetMapDimensions.
+      const reusableQuad = data.ready && geoViewer.value !== undefined
+        ? local.quadFeature : undefined;
       local = {
         playCache: 1, // seconds required to be fully cached before playback
         cacheSeconds: 6, // seconds to cache from the current frame
@@ -372,29 +380,54 @@ export default defineComponent({
         imgs: new Array<ImageDataItemInternal | undefined>(props.imageData.length),
         pendingImgs: new Set<ImageDataItemInternal>(),
         lastFrame: -1,
-        width: 0,
-        height: 0,
+        width: reusableQuad !== undefined ? local.width : 0,
+        height: reusableQuad !== undefined ? local.height : 0,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        quadFeature: undefined as any,
+        quadFeature: reusableQuad as any,
       };
-      if (local.imgs.length) {
-        const imgInternal = cacheFrame(0);
-        imgInternal.onloadPromise.then(() => {
-          initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
-          const quadFeatureLayer = geoViewer.value.createLayer('feature', {
-            features: ['quad'],
-            autoshareRenderer: false,
-            renderer: 'canvas',
-          });
-          // Set quadFeature and conditionally apply brightness filter
-          local.quadFeature = quadFeatureLayer.createFeature('quad');
-          data.ready = true;
-          seek(0);
-          if (!props.isDefaultImage) {
-            local.quadFeature.layer().node().css('filter', `url(#${props.filterId})`);
-          }
-        });
+      if (!local.imgs.length) {
+        return;
       }
+      if (reusableQuad !== undefined) {
+        if (data.frame > data.maxFrame) {
+          data.frame = data.maxFrame;
+          data.syncedFrame = data.maxFrame;
+        }
+        data.filename = props.imageData[data.frame].filename;
+        // seek() short-circuits on a same-frame re-seek, so drive the redraw
+        // directly through the fresh cache.
+        cacheImages();
+        const imgInternal = expectFrame(data.frame);
+        drawImage(imgInternal.image);
+        if (!imgInternal.cached) {
+          loadingImage.value = true;
+          imgInternal.onloadPromise.then(() => {
+            if (imgInternal.frame === data.frame) {
+              loadingImage.value = false;
+              drawImage(imgInternal.image);
+            }
+          });
+        } else {
+          loadingImage.value = false;
+        }
+        return;
+      }
+      const imgInternal = cacheFrame(0);
+      imgInternal.onloadPromise.then(() => {
+        initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+        const quadFeatureLayer = geoViewer.value.createLayer('feature', {
+          features: ['quad'],
+          autoshareRenderer: false,
+          renderer: 'canvas',
+        });
+        // Set quadFeature and conditionally apply brightness filter
+        local.quadFeature = quadFeatureLayer.createFeature('quad');
+        data.ready = true;
+        seek(0);
+        if (!props.isDefaultImage) {
+          local.quadFeature.layer().node().css('filter', `url(#${props.filterId})`);
+        }
+      });
     }
     // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
