@@ -203,6 +203,38 @@ export default class CameraCalibrationStore {
     this.addPoint(camera, coord);
   }
 
+  /**
+   * Move one side of an existing correspondence (drag-to-refine). `camera`
+   * selects which side (a for camA, b for camB); the pair is refit live so
+   * the alignment ghost and linked navigation track the drag.
+   */
+  updateCorrespondencePoint(id: number, camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return;
+    }
+    const key = this.pairKey(pair.camA, pair.camB);
+    const list = this.correspondences.value[key];
+    if (!list || !list.some((c) => c.id === id)) {
+      return;
+    }
+    const side = camera === pair.camA ? 'a' : 'b';
+    this.correspondences.value = {
+      ...this.correspondences.value,
+      [key]: list.map((c) => (c.id === id ? { ...c, [side]: coord } : c)),
+    };
+    this.syncAlignmentHomography();
+  }
+
+  /** Move the pending (blue) point while it is being drag-refined. */
+  movePendingPoint(camera: string, coord: Point) {
+    const pending = this.pendingPoint.value;
+    if (!pending || pending.camera !== camera) {
+      return;
+    }
+    this.pendingPoint.value = { camera, coord };
+  }
+
   /** Remove a correspondence (by id) from the active pair. */
   removeCorrespondence(id: number) {
     const key = this.activePairKey();

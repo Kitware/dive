@@ -9,6 +9,8 @@ export interface CalibrationPointData {
   y: number;
   label: string;
   pending: boolean;
+  /** Owning correspondence id; undefined for the pending (blue) point. */
+  correspondenceId?: number;
 }
 
 export interface CameraImage {
@@ -34,6 +36,9 @@ interface CalibrationLayerParams {
  */
 const GHOST_REFRESH_MAX_ATTEMPTS = 60;
 
+/** Display-pixel radius within which a mousedown grabs an existing marker to drag-refine it. */
+const DRAG_HIT_RADIUS_PX = 10;
+
 /**
  * Renders this camera's picked calibration points (numbered markers, the pending
  * "blue" point highlighted) and, when alignment mode is active, a ghost overlay
@@ -58,6 +63,15 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   quadFeature: any;
+
+  /** Marker currently being drag-refined, or null. */
+  private dragTarget: { correspondenceId?: number; pending: boolean } | null = null;
+
+  private mapNode: HTMLElement | null = null;
+
+  private boundDragMove = (evt: MouseEvent) => this.handleDragMove(evt);
+
+  private boundDragEnd = () => this.handleDragEnd();
 
   constructor(params: BaseLayerParams & CalibrationLayerParams) {
     super(params);
@@ -90,6 +104,14 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
 
     const pointLayer = geoViewer.createLayer('feature', { features: ['point'] });
     this.featureLayer = pointLayer.createFeature('point');
+
+    // Drag-to-refine: a capture-phase mousedown on the map node runs before
+    // geojs' own interactor sees the event, so grabbing a marker can suppress
+    // the pan gesture (and the click that would otherwise place a new point).
+    [this.mapNode] = geoViewer.node();
+    if (this.mapNode) {
+      this.mapNode.addEventListener('mousedown', (evt: MouseEvent) => this.handleDragStart(evt), true);
+    }
 
     const textLayer = geoViewer.createLayer('feature', { features: ['text'] });
     this.textFeature = textLayer
@@ -138,7 +160,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     this.calibration.pickPoint(cam, [e.geo.x, e.geo.y]);
   }
 
-  /** Map-level mousemove handler: updates the live coordinate readout while picking is active. */
+  /**
+   * Map-level mousemove handler: updates the live coordinate readout while
+   * picking is active, and shows a grab cursor over draggable markers.
+   */
   handleMouseMove(e: GeoEvent) {
     if (!this.calibration || !this.calibration.pickingEnabled.value || !e.geo) {
       return;
@@ -149,6 +174,97 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       return;
     }
     this.calibration.setCursorCoord(cam, [e.geo.x, e.geo.y]);
+    if (this.mapNode && !this.dragTarget && e.map) {
+      const hit = this.findMarkerAtDisplay(e.map);
+      this.mapNode.style.cursor = hit ? 'grab' : '';
+    }
+  }
+
+  /** Nearest rendered marker within DRAG_HIT_RADIUS_PX of a display-space point, or null. */
+  private findMarkerAtDisplay(display: { x: number; y: number }): CalibrationPointData | null {
+    const map = this.annotator.geoViewerRef.value;
+    if (!map) {
+      return null;
+    }
+    let best: CalibrationPointData | null = null;
+    let bestDist = DRAG_HIT_RADIUS_PX;
+    this.formattedData.forEach((d) => {
+      const disp = map.gcsToDisplay({ x: d.x, y: d.y });
+      const dist = Math.hypot(disp.x - display.x, disp.y - display.y);
+      if (dist <= bestDist) {
+        best = d;
+        bestDist = dist;
+      }
+    });
+    return best;
+  }
+
+  /** Display-space coordinates of a DOM mouse event relative to the map node. */
+  private eventDisplayCoords(evt: MouseEvent): { x: number; y: number } | null {
+    if (!this.mapNode) {
+      return null;
+    }
+    const rect = this.mapNode.getBoundingClientRect();
+    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
+
+  /**
+   * Capture-phase mousedown: when picking is active and the press lands on an
+   * existing marker, start dragging it instead of letting geojs pan the map
+   * (or synthesize the click that would place a new point on top of it).
+   */
+  private handleDragStart(evt: MouseEvent) {
+    if (evt.button !== 0 || !this.calibration || !this.calibration.pickingEnabled.value) {
+      return;
+    }
+    const pair = this.calibration.activePair.value;
+    const cam = this.annotator.cameraName.value;
+    if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
+      return;
+    }
+    const display = this.eventDisplayCoords(evt);
+    if (!display) {
+      return;
+    }
+    const hit = this.findMarkerAtDisplay(display);
+    if (!hit) {
+      return;
+    }
+    evt.preventDefault();
+    evt.stopImmediatePropagation();
+    this.dragTarget = { correspondenceId: hit.correspondenceId, pending: hit.pending };
+    if (this.mapNode) {
+      this.mapNode.style.cursor = 'grabbing';
+    }
+    window.addEventListener('mousemove', this.boundDragMove);
+    window.addEventListener('mouseup', this.boundDragEnd);
+  }
+
+  private handleDragMove(evt: MouseEvent) {
+    if (!this.dragTarget || !this.calibration) {
+      return;
+    }
+    const map = this.annotator.geoViewerRef.value;
+    const display = this.eventDisplayCoords(evt);
+    if (!map || !display) {
+      return;
+    }
+    const gcs = map.displayToGcs(display);
+    const cam = this.annotator.cameraName.value;
+    if (this.dragTarget.pending) {
+      this.calibration.movePendingPoint(cam, [gcs.x, gcs.y]);
+    } else if (this.dragTarget.correspondenceId !== undefined) {
+      this.calibration.updateCorrespondencePoint(this.dragTarget.correspondenceId, cam, [gcs.x, gcs.y]);
+    }
+  }
+
+  private handleDragEnd() {
+    this.dragTarget = null;
+    if (this.mapNode) {
+      this.mapNode.style.cursor = '';
+    }
+    window.removeEventListener('mousemove', this.boundDragMove);
+    window.removeEventListener('mouseup', this.boundDragEnd);
   }
 
   // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-unused-vars
@@ -167,7 +283,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     list.forEach((c, i) => {
       const coord = cam === pair.camA ? c.a : c.b;
       result.push({
-        x: coord[0], y: coord[1], label: `${i + 1}`, pending: false,
+        x: coord[0], y: coord[1], label: `${i + 1}`, pending: false, correspondenceId: c.id,
       });
     });
     const pending = this.calibration.pendingPoint.value;

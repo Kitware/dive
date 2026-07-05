@@ -79,6 +79,54 @@ describe('CameraCalibrationStore', () => {
     expect(store.correspondences.value[key]).toHaveLength(0);
   });
 
+  it('moves one side of a correspondence via updateCorrespondencePoint', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    store.addPoint('left', [1, 1]);
+    store.addPoint('right', [2, 2]);
+    const { id } = store.correspondences.value[key][0];
+    store.updateCorrespondencePoint(id, 'left', [5, 6]);
+    expect(store.correspondences.value[key][0].a).toEqual([5, 6]);
+    expect(store.correspondences.value[key][0].b).toEqual([2, 2]);
+    store.updateCorrespondencePoint(id, 'right', [7, 8]);
+    expect(store.correspondences.value[key][0].b).toEqual([7, 8]);
+  });
+
+  it('ignores updateCorrespondencePoint for unknown ids or cameras outside the pair', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    store.addPoint('left', [1, 1]);
+    store.addPoint('right', [2, 2]);
+    const { id } = store.correspondences.value[key][0];
+    store.updateCorrespondencePoint(id + 99, 'left', [5, 6]);
+    store.updateCorrespondencePoint(id, 'other', [5, 6]);
+    expect(store.correspondences.value[key][0]).toMatchObject({ a: [1, 1], b: [2, 2] });
+  });
+
+  it('refits the pair homography when a point is drag-refined while alignment is active', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    const key = store.pairKey('left', 'right');
+    addFourTranslationPairs(store);
+    store.setAlignmentMode('AtoB');
+    const before = store.homographies.value[key].AtoB[0][2];
+    const { id } = store.correspondences.value[key][0];
+    store.updateCorrespondencePoint(id, 'right', [40, 40]);
+    expect(store.homographies.value[key].AtoB[0][2]).not.toBeCloseTo(before, 5);
+  });
+
+  it('moves the pending point only for its own camera', () => {
+    const store = new CameraCalibrationStore();
+    store.setActivePair('left', 'right');
+    store.addPoint('left', [1, 1]);
+    store.movePendingPoint('right', [9, 9]);
+    expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [1, 1] });
+    store.movePendingPoint('left', [9, 9]);
+    expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [9, 9] });
+  });
+
   it('fits a homography from >= 4 pairs and stores both directions', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
