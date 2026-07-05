@@ -189,7 +189,14 @@ export default defineComponent({
     // beneath boxes/polygons/text (geojs stacks layers by creation order).
     const alignedImageLayer = new AlignedImageLayer({
       annotator,
-      getImage: () => getCameraImage(props.camera),
+      getImage: () => {
+        try {
+          return getCameraImage(props.camera);
+        } catch {
+          // Controllers may be cleared mid-poll during a dataset reload.
+          return null;
+        }
+      },
       getTransform: () => alignedDisplayTransform.value,
     });
 
