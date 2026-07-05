@@ -79,10 +79,17 @@ export function buildAlignedTimeline(
     });
   });
 
+  // Tie-break equal timestamps by local index BEFORE camera name: when several
+  // cameras share identical capture timestamps (e.g. a calibration set where
+  // every C/L/R shot carries one collection timestamp), interleaving by index
+  // pairs frame i of every camera into the same slot. Camera-name-first
+  // ordering would instead sweep all of one camera's same-time frames into
+  // consecutive single-camera slots (spill), producing a timeline of mostly
+  // blank panes for data that is really positionally aligned.
   triples.sort((a, b) => (
     a.timestamp - b.timestamp
-    || a.camera.localeCompare(b.camera)
     || a.localIndex - b.localIndex
+    || a.camera.localeCompare(b.camera)
   ));
 
   const slots: AlignedSlot[] = [];

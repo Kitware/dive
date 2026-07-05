@@ -81,6 +81,26 @@ describe('alignedTimeline', () => {
     });
   });
 
+  it('pairs frames positionally when every frame shares one identical timestamp', () => {
+    // Calibration-style datasets (e.g. C/L/R shots stamped with a single
+    // collection timestamp) must reduce to positional pairing, not spill each
+    // camera's frames into separate mostly-blank slots.
+    const t = 1712495277.206341;
+    const camerasFrames = {
+      EO: [frame(t), frame(t), frame(t)],
+      IR: [frame(t), frame(t), frame(t)],
+    };
+    const result = buildAlignedTimeline(camerasFrames, 0.5);
+    expect(result).toEqual({
+      aligned: true,
+      slots: [
+        { EO: 0, IR: 0 },
+        { EO: 1, IR: 1 },
+        { EO: 2, IR: 2 },
+      ],
+    });
+  });
+
   it('disqualifies a dataset with an empty-array (e.g. video-backed) camera', () => {
     const camerasFrames = {
       A: [] as FrameImage[],

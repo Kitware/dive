@@ -201,7 +201,19 @@ export default defineComponent({
       });
       return buildAlignedTimeline(camerasFrames);
     });
+    // Serialized shape of the currently installed timeline. The computed
+    // re-evaluates whenever any camera's imageData array identity changes --
+    // including pure display-URL swaps (e.g. the percentile-stretch remap)
+    // that don't alter timestamps at all. Installing a new resolver re-seeks
+    // every camera (a visible reload/blank flash), so skip the reinstall
+    // when the slot structure is unchanged.
+    let installedTimelineKey: string | null = null;
     watch(alignedTimeline, (result) => {
+      const timelineKey = result.aligned ? JSON.stringify(result.slots) : null;
+      if (timelineKey === installedTimelineKey) {
+        return;
+      }
+      installedTimelineKey = timelineKey;
       if (result.aligned) {
         const inverseIndex = buildInverseAlignedIndex(result.slots);
         setAlignedFrameResolver({
