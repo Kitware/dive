@@ -19,8 +19,11 @@ import {
   Track, Group,
   CameraStore,
   CameraCalibrationStore,
+  AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
+import { extractMetaCameraTransforms, resolveToReferenceTransforms } from 'vue-media-annotator/alignedView';
+import type { Matrix3 } from 'vue-media-annotator/homography';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -30,6 +33,7 @@ import {
   LayerManager,
   useMediaController,
   useCalibrationNavigation,
+  useAlignedNavigation,
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
@@ -340,6 +344,51 @@ export default defineComponent({
     const cameraStore = new CameraStore({ markChangesPending });
     const cameraCalibration = new CameraCalibrationStore();
     useCalibrationNavigation(aggregateController, cameraCalibration);
+
+    /**
+     * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
+     * has a usable transform into the reference camera's space, the user may
+     * warp displays and link pan/zoom across all cameras during normal
+     * review. Reference camera = first camera in display order
+     * (multiCamList[0]). Transforms come from a per-camera
+     * meta.multiCam.cameras[<name>].transform.matrix (preferred; read
+     * defensively -- added by a parallel branch) or from the calibration
+     * tool's fitted pair homographies, composed through the pair graph.
+     */
+    const alignedView = new AlignedViewStore();
+    // Per-camera matrices read from dataset meta at load time.
+    const metaCameraTransforms: Ref<Record<string, Matrix3>> = ref({});
+    const alignedResolution = computed(() => {
+      if (multiCamList.value.length < 2) {
+        return null;
+      }
+      const reference = multiCamList.value[0];
+      const toReference = resolveToReferenceTransforms(multiCamList.value, reference, {
+        metaTransforms: metaCameraTransforms.value,
+        homographies: cameraCalibration.homographies.value,
+      });
+      return toReference ? { reference, toReference } : null;
+    });
+    watch(alignedResolution, (resolution) => {
+      alignedView.setTransforms(
+        resolution?.reference ?? null,
+        resolution?.toReference ?? null,
+      );
+    }, { immediate: true });
+    // Calibration point picking records raw native-space clicks and renders
+    // its own aligned preview; suspend the general warp while it is active
+    // so picks are never taken against a warped display (risk K2).
+    watch(cameraCalibration.pickingEnabled, (picking) => {
+      alignedView.setSuspended(picking);
+    }, { immediate: true });
+    useAlignedNavigation(aggregateController, alignedView, multiCamList, cameraCalibration);
+    const alignedViewAvailable = computed(() => alignedView.available.value);
+    const alignedViewEnabled = computed(() => alignedView.enabled.value);
+    const alignedViewActive = computed(() => alignedView.active.value);
+    const alignedViewReference = computed(() => alignedView.reference.value);
+    const toggleAlignedView = () => {
+      alignedView.setEnabled(!alignedView.enabled.value);
+    };
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -1072,6 +1121,12 @@ export default defineComponent({
         }
         // Rehydrate any saved camera-to-camera calibration homographies, points, and transform types
         cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences, meta.cameraTransformTypes);
+        // Read optional per-camera display transforms from meta (desktop
+        // meta.multiCam; absent on web or older datasets) and reset the
+        // aligned-view toggle for the newly loaded dataset (no persistence
+        // this phase).
+        metaCameraTransforms.value = extractMetaCameraTransforms(meta);
+        alignedView.setEnabled(false);
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -1187,6 +1242,7 @@ export default defineComponent({
         attributes,
         cameraStore,
         cameraCalibration,
+        alignedView,
         datasetId,
         editingMode,
         groupFilters,
@@ -1441,6 +1497,11 @@ export default defineComponent({
       deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
+      alignedViewAvailable,
+      alignedViewEnabled,
+      alignedViewActive,
+      alignedViewReference,
+      toggleAlignedView,
       seekToFrame,
       resetAggregateZoom,
       /* large image methods */
@@ -1624,6 +1685,61 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+        <!--
+          Aligned view (SEAL-TK features 2 + 3): warp every camera's display
+          into the reference camera's space and link pan/zoom across all
+          panes. Only offered when a usable transform exists for every
+          non-reference camera. Distinct from the "sync cameras" toggle in
+          the playback controls, which forwards raw screen deltas and assumes
+          identical pixel scale between panes.
+        -->
+        <v-tooltip
+          v-if="multiCamList.length > 1 && alignedViewAvailable"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-btn
+              icon
+              small
+              class="mx-1"
+              :color="alignedViewEnabled ? 'primary' : 'default'"
+              v-on="on"
+              @click="toggleAlignedView"
+            >
+              <v-icon>
+                {{ alignedViewEnabled ? 'mdi-vector-intersection' : 'mdi-vector-difference' }}
+              </v-icon>
+            </v-btn>
+          </template>
+          <span>
+            Aligned view: warp cameras into {{ alignedViewReference }}'s space and
+            link pan/zoom. Editing is disabled while on.
+          </span>
+        </v-tooltip>
+        <v-tooltip
+          v-if="alignedViewActive"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-chip
+              class="pr-1"
+              color="primary"
+              outlined
+              style="white-space:nowrap;"
+              small
+              v-on="on"
+            >
+              Aligned view
+              <v-icon
+                class="pl-1"
+                small
+              >
+                mdi-pencil-off-outline
+              </v-icon>
+            </v-chip>
+          </template>
+          <span>Aligned view is on: displays are warped into {{ alignedViewReference }}'s space and editing is disabled</span>
+        </v-tooltip>
 
         <slot name="extension-right" />
 
