@@ -58,22 +58,26 @@ function normalizeKey(value: string): string {
   return imageExtensions.has(extension) ? stem : basename;
 }
 
-// Normalize a raw media-key mapping to the shared index. The public resolver keeps the ordered
-// last-wins builder (buildMediaKeyIndex in resolve.ts); this internal form serves the corpus and
-// import call sites that already hold a keyed map.
-function normalizeMediaKeys(mediaKeys: MediaKeys): MediaKeyIndex {
-  const entries = mediaKeys instanceof Map
-    ? Array.from(mediaKeys.entries())
-    : Object.entries(mediaKeys);
+// Build the shared media-key index from (name, frame) entries: normalize each name and record it,
+// last-wins on a normalized-key collision. The single owner of the normalize + collision rule,
+// shared by the read path's ordered builder (buildMediaKeyIndex in resolve.ts) and the raw-map
+// normalizer below, so the two can never drift.
+export function indexFromEntries(entries: Iterable<[string, number]>): MediaKeyIndex {
   const normalizedKeys = new Set<string>();
   const frameByKey = new Map<string, number>();
-  entries.forEach(([name, frame]) => {
+  Array.from(entries).forEach(([name, frame]) => {
     const key = normalizeKey(name);
     normalizedKeys.add(key);
-    // Last-wins on a normalized-key collision, matching the read path's map build.
     frameByKey.set(key, frame);
   });
   return { normalizedKeys, frameByKey };
+}
+
+// Normalize a raw media-key mapping (a Map or plain object of name -> frame) to the shared index.
+// Serves the conformance corpus / specs, which hold explicit frame numbers; the production read
+// path builds its index from an ordered media list via buildMediaKeyIndex instead.
+function normalizeMediaKeys(mediaKeys: MediaKeys): MediaKeyIndex {
+  return indexFromEntries(mediaKeys instanceof Map ? mediaKeys : Object.entries(mediaKeys));
 }
 
 function isMediaKeyIndex(value: MediaKeyIndex | MediaKeys): value is MediaKeyIndex {

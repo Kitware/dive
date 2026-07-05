@@ -99,7 +99,6 @@ export function useFrameMetadata({
   const sidecarsByCamera = ref<Record<string, FrameMetadataSourceItem[]>>({});
   let sourcesFetched = false;
   const resolvedCameras = new Set<string>();
-  const textByItemId = new Map<string, string>();
 
   // In-flight work counter: owns `loading` so both the eager (dataset-open) and lazy (per-camera,
   // on-selection) web resolves show a loading state, not just the initial sources fetch.
@@ -125,7 +124,6 @@ export function useFrameMetadata({
     sidecarsByCamera.value = {};
     sourcesFetched = false;
     resolvedCameras.clear();
-    textByItemId.clear();
   }
 
   function mergeResolved(result: ResolvedFrameMetadata) {
@@ -167,7 +165,11 @@ export function useFrameMetadata({
     sourcesFetched = entry.sourcesFetched;
   }
 
-  async function resolveWebCamera(camera: string, requestToken: number) {
+  async function resolveWebCamera(
+    camera: string,
+    requestToken: number,
+    passTexts: Map<string, Promise<string>>,
+  ) {
     if (downloadItemText === undefined || resolvedCameras.has(camera)) {
       return;
     }
@@ -188,12 +190,14 @@ export function useFrameMetadata({
     try {
       const candidates = await Promise.all(
         items.map(async (item): Promise<[string, string]> => {
-          let text = textByItemId.get(item.itemId);
-          if (text === undefined) {
-            text = await downloadItemText(item.itemId);
-            textByItemId.set(item.itemId, text);
+          // Dedupe concurrent downloads within a resolve pass: a sidecar the server lists for
+          // several cameras (a shared parent/dataset-root file) is fetched once, not per camera.
+          let pending = passTexts.get(item.itemId);
+          if (pending === undefined) {
+            pending = downloadItemText(item.itemId);
+            passTexts.set(item.itemId, pending);
           }
-          return [item.name, text];
+          return [item.name, await pending];
         }),
       );
       if (requestToken !== token) {
@@ -201,8 +205,6 @@ export function useFrameMetadata({
       }
       const index = buildMediaKeyIndex(mediaNames);
       mergeResolved(resolveCameras({ [camera]: candidates }, { [camera]: index }));
-      // The compact merged payload is retained; the raw downloaded text is not (W-12 posture).
-      items.forEach((item) => textByItemId.delete(item.itemId));
       syncSessionCache();
     } catch (err) {
       resolvedCameras.delete(camera);
@@ -228,8 +230,14 @@ export function useFrameMetadata({
       sourcesFetched = true;
       // Eagerly resolve every camera whose media list is already available; the rest resolve
       // lazily on first selection. An empty listing simply resolves nothing (negative cache).
+      // One text cache per pass: shared sidecars download once across cameras, and the raw text
+      // (a multi-MB nav log under no-cap) is released when this map goes out of scope — only the
+      // compact resolved payload is retained (W-12 posture).
+      const passTexts = new Map<string, Promise<string>>();
       await Promise.all(
-        Object.keys(sidecarsByCamera.value).map((camera) => resolveWebCamera(camera, requestToken)),
+        Object.keys(sidecarsByCamera.value).map(
+          (camera) => resolveWebCamera(camera, requestToken, passTexts),
+        ),
       );
       if (requestToken === token) {
         syncSessionCache();
@@ -247,7 +255,7 @@ export function useFrameMetadata({
     if (loadFrameMetadata === undefined) {
       return;
     }
-    loading.value = true;
+    beginWork();
     try {
       const payload = await loadFrameMetadata(id);
       if (requestToken !== token) {
@@ -262,9 +270,7 @@ export function useFrameMetadata({
         error.value = getResponseError(err);
       }
     } finally {
-      if (requestToken === token) {
-        loading.value = false;
-      }
+      endWork(requestToken);
     }
   }
 
@@ -290,7 +296,7 @@ export function useFrameMetadata({
         // Panel remount for a dataset already resolved this session: hydrate without a refetch.
         hydrateFromCache(cached);
         if (sourcesFetched) {
-          await resolveWebCamera(selectedCamera.value, requestToken);
+          await resolveWebCamera(selectedCamera.value, requestToken, new Map());
         }
       } else if (loadFrameMetadataSources !== undefined) {
         await runWeb(id, requestToken);
@@ -301,7 +307,7 @@ export function useFrameMetadata({
     }
     // Same dataset: lazily resolve the active web camera if its media list has since loaded.
     if (sourcesFetched) {
-      await resolveWebCamera(selectedCamera.value, token);
+      await resolveWebCamera(selectedCamera.value, token, new Map());
     }
   }
 

@@ -499,19 +499,8 @@ function frameMetadataSourceDirectories(source: ImageSequenceFrameMetadataSource
       .filter((image) => npath.isAbsolute(image))
       .map((image) => npath.dirname(image)),
   ];
-  const seen = new Set<string>();
-  const resolved: string[] = [];
-  directories.forEach((directory) => {
-    if (!directory) {
-      return;
-    }
-    const absolute = npath.resolve(directory);
-    if (!seen.has(absolute)) {
-      seen.add(absolute);
-      resolved.push(absolute);
-    }
-  });
-  return resolved;
+  // uniq keeps first-occurrence order, so folder precedence (base path first) is preserved.
+  return uniq(directories.filter(Boolean).map((directory) => npath.resolve(directory)));
 }
 
 // Discover declared sidecars in one directory: name-filtered (isFrameMetadataSourceName),

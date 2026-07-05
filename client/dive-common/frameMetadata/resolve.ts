@@ -1,5 +1,5 @@
 import type { ResolvedFrameMetadata } from 'dive-common/apispec';
-import { normalizeKey, parseFrameMetadataSource } from './parser';
+import { indexFromEntries, parseFrameMetadataSource } from './parser';
 import type { MediaKeyIndex, ParsedFrameMetadata } from './parser';
 
 // The resolver joins a camera's candidate sidecar texts to its media list and merges them into
@@ -20,14 +20,7 @@ type CameraMediaKeys = Record<string, MediaKeyIndex>;
 // `normalizeKey` strips any directory prefix and one image extension, so entries may be bare
 // filenames or full paths.
 function buildMediaKeyIndex(mediaNames: string[]): MediaKeyIndex {
-  const normalizedKeys = new Set<string>();
-  const frameByKey = new Map<string, number>();
-  mediaNames.forEach((name, frame) => {
-    const key = normalizeKey(name);
-    normalizedKeys.add(key);
-    frameByKey.set(key, frame);
-  });
-  return { normalizedKeys, frameByKey };
+  return indexFromEntries(mediaNames.map((name, frame) => [name, frame]));
 }
 
 // Ordered union of the payload columns across a camera's parsed sources: the first (winning)
