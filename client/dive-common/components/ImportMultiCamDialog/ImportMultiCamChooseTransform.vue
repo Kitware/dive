@@ -1,7 +1,9 @@
 <!--
-  Optional per-camera ITK transform (.h5) file picker with clear and open actions.
-  Shown for cameras after the first; the desktop backend parses the file at import
-  time and stores the reduced 3x3 matrix on the dataset's multicam metadata.
+  Optional per-camera transform/calibration file picker with clear and open
+  actions. Shown for cameras after the first; the desktop backend parses the
+  file at import time and seeds the dataset's saved camera calibration (the
+  same calibration the in-app panel edits and the Align button applies).
+  Accepts a DIVE calibration .json or a legacy ITK .h5 transform.
 -->
 <script lang="ts">
 import { defineComponent } from 'vue';
@@ -20,9 +22,9 @@ export default defineComponent({
     no-gutters
   >
     <v-text-field
-      label="ITK Transform File (.h5)"
+      label="Transform file (.json / .h5)"
       :placeholder="`Transform mapping the first camera to ${cameraName}`"
-      hint="Optional registration transform from itk_point_set_to_transform"
+      hint="Optional: DIVE calibration .json, or ITK .h5 from itk_point_set_to_transform"
       persistent-hint
       outlined
       dense

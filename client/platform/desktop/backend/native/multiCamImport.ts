@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import mime from 'mime-types';
 import {
   DatasetType,
+  DatasetMetaMutable,
   MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
   MultiCamImportArgs,
@@ -16,8 +17,14 @@ import {
   Camera,
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { invert3 } from 'vue-media-annotator/homography';
+import { readTransformMatrix } from 'vue-media-annotator/alignedView';
 import { readItkTransform } from './itkTransformReader';
-import { findImagesInFolder } from './common';
+import { findImagesInFolder, fromCalibrationPairs } from './common';
+
+type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
+type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
+type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
   if ('sourceList' in s && 'defaultDisplay' in s) {
@@ -90,19 +97,52 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     });
   }
 
+  // Per-camera transform/calibration files seed the dataset's saved camera
+  // calibration -- the same single calibration the in-app panel edits and the
+  // aligned view consumes (loadMetadata falls back to these meta fields until
+  // a panel save writes the standalone calibration.json).
+  const seedHomographies: CameraHomographies = {};
+  const seedCorrespondences: CameraCorrespondences = {};
+  const seedTransformTypes: CameraTransformTypes = {};
   if (isFolderArgs(args)) {
-    // Parse any per-camera ITK .h5 transform files up front so a bad file
-    // fails the import with a clear message instead of storing partial state.
+    // Parse the files up front so a bad file fails the import with a clear
+    // message instead of storing partial state.
+    const referenceCamera = Object.keys(args.sourceList)[0];
     await asyncForEach(Object.entries(args.sourceList), async ([cameraName, item]) => {
       if (!item.transformFile) {
         return;
       }
       try {
-        const parsed = await readItkTransform(item.transformFile);
-        cameras[cameraName].transform = { ...parsed, source: item.transformFile };
+        if (/\.json$/i.test(item.transformFile)) {
+          // A DIVE calibration .json (the panel's save format / the project
+          // calibration.json shape): pairs name their own cameras, so merge
+          // them all in.
+          const data = await fs.readJson(item.transformFile);
+          if (!data || !Array.isArray(data.pairs)) {
+            throw new Error('not a DIVE calibration file (expected a "pairs" list)');
+          }
+          const parsed = fromCalibrationPairs(data.pairs);
+          Object.entries(parsed.homographies).forEach(([key, homography]) => {
+            if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
+              throw new Error(`pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
+            }
+            seedHomographies[key] = homography;
+          });
+          Object.assign(seedCorrespondences, parsed.correspondences);
+          Object.assign(seedTransformTypes, parsed.transformTypes);
+        } else {
+          // An ITK .h5: a single matrix mapping the reference (first) camera
+          // onto this camera (ITK's forward, fixed-to-moving direction).
+          if (cameraName === referenceCamera) {
+            throw new Error('the first (reference) camera cannot take an .h5 transform; transforms map the other cameras onto it');
+          }
+          const parsed = await readItkTransform(item.transformFile);
+          const key = `${referenceCamera}::${cameraName}`;
+          seedHomographies[key] = { AtoB: parsed.matrix, BtoA: invert3(parsed.matrix) };
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new Error(`Camera "${cameraName}": invalid ITK transform file: ${message}`);
+        throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);
       }
     });
   }
@@ -129,6 +169,11 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     },
     subType: null,
   };
+  if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {
+    jsonMeta.cameraHomographies = seedHomographies;
+    jsonMeta.cameraCorrespondences = seedCorrespondences;
+    jsonMeta.cameraTransformTypes = seedTransformTypes;
+  }
 
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];

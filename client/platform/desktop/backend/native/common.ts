@@ -2239,4 +2239,5 @@ export {
   exportDatasetCalibration,
   getDatasetCalibration,
   deleteDatasetCalibration,
+  fromCalibrationPairs,
 };

@@ -137,8 +137,9 @@ export interface MultiCamImportFolderArgs {
     sourcePath: string;
     trackFile: string;
     /**
-     * Optional ITK .h5 transform file for cameras after the first
-     * (desktop only; parsed at import time into meta.multiCam camera data).
+     * Optional alignment transform file for cameras after the first (desktop
+     * only): a DIVE calibration .json or a legacy ITK .h5. Parsed at import
+     * time to seed the dataset's saved camera calibration.
      */
     transformFile?: string;
   }>; // path/track file per camera

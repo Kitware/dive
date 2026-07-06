@@ -74,7 +74,7 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   }
   if (datasetType === 'transform') {
     filters = [
-      { name: 'ITK transform', extensions: transformFileTypes },
+      { name: 'Transform / calibration', extensions: transformFileTypes },
       allFiles,
     ];
   }
