@@ -46,6 +46,7 @@ beforeAll(() => {
   fs.writeJsonSync(calibrationJsonPath, {
     type: 'dive-camera-calibration',
     version: 1,
+    source: { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
     pairs: [{
       left: 'eo',
       right: 'ir',
@@ -77,6 +78,10 @@ describe('multiCamImport transform wire-through', () => {
     );
     expect(output.jsonMeta.cameraCorrespondences?.['eo::ir']).toHaveLength(2);
     expect(output.jsonMeta.cameraTransformTypes?.['eo::ir']).toBe('translation');
+    // The producer provenance stamp travels with the seed.
+    expect(output.jsonMeta.cameraCalibrationSource).toEqual(
+      { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
+    );
   });
 
   it('leaves the calibration unset when no transform file is given', async () => {

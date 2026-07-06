@@ -23,6 +23,7 @@ import { findImagesInFolder, fromCalibrationPairs } from './common';
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
 type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
+type CalibrationSource = NonNullable<DatasetMetaMutable['cameraCalibrationSource']>;
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
   if ('sourceList' in s && 'defaultDisplay' in s) {
@@ -102,6 +103,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   const seedHomographies: CameraHomographies = {};
   const seedCorrespondences: CameraCorrespondences = {};
   const seedTransformTypes: CameraTransformTypes = {};
+  let seedCalibrationSource: CalibrationSource | null = null;
   if (isFolderArgs(args)) {
     // Parse the files up front so a bad file fails the import with a clear
     // message instead of storing partial state.
@@ -126,6 +128,13 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         });
         Object.assign(seedCorrespondences, parsed.correspondences);
         Object.assign(seedTransformTypes, parsed.transformTypes);
+        // Producer provenance travels with the seed. With one transform file
+        // per dataset (the expected case) this is that file's stamp; with
+        // several, the last stamped file wins, matching the merge order of the
+        // pairs above.
+        if (data.source && typeof data.source === 'object' && !Array.isArray(data.source)) {
+          seedCalibrationSource = data.source as CalibrationSource;
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);
@@ -159,6 +168,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     jsonMeta.cameraHomographies = seedHomographies;
     jsonMeta.cameraCorrespondences = seedCorrespondences;
     jsonMeta.cameraTransformTypes = seedTransformTypes;
+    if (seedCalibrationSource) {
+      jsonMeta.cameraCalibrationSource = seedCalibrationSource;
+    }
   }
 
   /* mediaConvertList is a list of absolute paths of media to convert */
