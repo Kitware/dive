@@ -288,7 +288,7 @@ beforeEach(() => {
         'image_0001.jpg': '',
         'image_0002.jpg': '',
         'image_0003.jpg': '',
-        'navigation.meta.txt': [
+        'frame-metadata.txt': [
           'filename,depth,temperature',
           'image_0001.jpg,192.80,4.0',
           'image_0002.jpg,193.10,4.1',
@@ -296,19 +296,19 @@ beforeEach(() => {
           '',
         ].join('\n'),
       },
-      // Two sidecars in one folder: name-sorted 'aaa' wins per-frame over 'zzz'; 'zzz'
+      // Two sidecars in one folder: name-sorted TXT wins per-frame over CSV; CSV
       // introduces a new column ('temperature') and a new frame (image_0003).
       frameMetadataPrecedence: {
         'image_0001.jpg': '',
         'image_0002.jpg': '',
         'image_0003.jpg': '',
-        'aaa.meta.csv': [
+        'frame-metadata.txt': [
           'filename,depth',
           'image_0001.jpg,10',
           'image_0002.jpg,20',
           '',
         ].join('\n'),
-        'zzz.meta.csv': [
+        'frame_metadata.csv': [
           'filename,depth,temperature',
           'image_0001.jpg,99,5.0',
           'image_0003.jpg,40,7.0',
@@ -317,7 +317,7 @@ beforeEach(() => {
       },
       frameMetadataDoubleExt: {
         'photo.jpg.png': '',
-        'nav.meta.csv': [
+        'frame_metadata.csv': [
           'filename,depth',
           'photo.jpg.png,10',
           '',
@@ -330,7 +330,7 @@ beforeEach(() => {
       // Duplicate image basename across subfolders: the read path keys last-wins instead of
       // throwing like the import-path validator (Contract READ-KEYS).
       frameMetadataDupSource: {
-        'nav.meta.csv': [
+        'frame_metadata.csv': [
           'filename,depth',
           'image_0001.jpg,10',
           'image_0002.jpg,20',
@@ -340,7 +340,7 @@ beforeEach(() => {
       // Multicam whose root (originalBasePath) is also the 'left' camera's media dir; the shared
       // sidecar must be listed once for 'left' and 'right' names other images so it joins nothing.
       multicamRootDedup: {
-        'nav.meta.csv': [
+        'frame_metadata.csv': [
           'filename,depth',
           'img_l1.jpg,100',
           'img_l2.jpg,200',
@@ -353,7 +353,7 @@ beforeEach(() => {
       // Multicam whose parent root holds one wide sidecar naming both cameras' images; each
       // camera's media lives in its own subfolder, so the shared root file binds both cameras.
       multicamSharedRoot: {
-        'nav.meta.csv': [
+        'frame_metadata.csv': [
           'filename,depth',
           'img_l1.jpg,100',
           'img_l2.jpg,110',
@@ -373,23 +373,23 @@ beforeEach(() => {
       // Import-gate fixtures.
       fmGateMixed: {
         // Sorts first but is declared telemetry: skipped as a track-file candidate, left on disk.
-        'aaa_nav.meta.csv': 'filename,depth\nimage_0001.jpg,10\n',
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
         'zzz_annotations.csv': '# comment line\n# metadata,fps: 32,"whatever"\n#comment line',
       },
       fmGateTelemetryOnly: {
-        'nav.meta.csv': 'filename,depth\nimage_0001.jpg,10\n',
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
       },
       fmGateExplicit: {
-        'nav.meta.csv': 'filename,depth\nimage_0001.jpg,10\n',
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
       },
       // A plain CSV (not declared) whose contents fail to parse as VIAME annotations: the error
       // gains the rename hint. The unterminated quote makes csv-parse reject.
       fmGateViameFail: {
         'telemetry.csv': 'filename,depth\n"unterminated,10\n',
       },
-      // No size gate: a .meta.csv over the old 10 MB bound is discovered without being read.
+      // No size gate: a declared sidecar over the old 10 MB bound is discovered without being read.
       frameMetadataSized: {
-        'small.meta.csv': 'filename,depth\nimage_0001.jpg,10\n',
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
       },
     },
     '/home/user/viamedata': {
@@ -1540,13 +1540,13 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
           2: ['image_0003.jpg', '193.40', '4.2'],
         },
       },
-      sources: { singleCam: ['navigation.meta.txt'] },
+      sources: { singleCam: ['frame-metadata.txt'] },
       columns: { singleCam: ['filename', 'depth', 'temperature'] },
     });
   });
 
   it('merges two sidecars first-wins and unions their columns in file order', async () => {
-    // aaa.meta.csv (name-sorted first) claims frames 0 and 1; zzz.meta.csv cannot overwrite an
+    // frame-metadata.txt (name-sorted first) claims frames 0 and 1; frame_metadata.csv cannot overwrite an
     // already-claimed frame's row (frame 0 keeps depth 10, not 99; temperature stays empty), but
     // it introduces the 'temperature' column and claims the unclaimed frame 2.
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataPrecedence');
@@ -1558,7 +1558,7 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
           2: ['image_0003.jpg', '40', '7.0'],
         },
       },
-      sources: { singleCam: ['aaa.meta.csv', 'zzz.meta.csv'] },
+      sources: { singleCam: ['frame-metadata.txt', 'frame_metadata.csv'] },
       columns: { singleCam: ['filename', 'depth', 'temperature'] },
     });
   });
@@ -1574,7 +1574,7 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDoubleExt');
     expect(data).toEqual({
       cameras: { singleCam: { 0: ['photo.jpg.png', '10'] } },
-      sources: { singleCam: ['nav.meta.csv'] },
+      sources: { singleCam: ['frame_metadata.csv'] },
       columns: { singleCam: ['filename', 'depth'] },
     });
   });
@@ -1585,7 +1585,7 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDup');
     expect(data).toEqual({
       cameras: { singleCam: { 1: ['image_0001.jpg', '10'], 2: ['image_0002.jpg', '20'] } },
-      sources: { singleCam: ['nav.meta.csv'] },
+      sources: { singleCam: ['frame_metadata.csv'] },
       columns: { singleCam: ['filename', 'depth'] },
     });
   });
@@ -1596,7 +1596,7 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
     const data = await common.loadFrameMetadata(settings, 'projectidMulticamRootDedup');
     expect(data).toEqual({
       cameras: { left: { 0: ['img_l1.jpg', '100'], 1: ['img_l2.jpg', '200'] } },
-      sources: { left: ['nav.meta.csv'] },
+      sources: { left: ['frame_metadata.csv'] },
       columns: { left: ['filename', 'depth'] },
     });
   });
@@ -1610,7 +1610,7 @@ describe('frame metadata read path (shared resolver in the backend)', () => {
         left: { 0: ['img_l1.jpg', '100'], 1: ['img_l2.jpg', '110'] },
         right: { 0: ['img_r1.jpg', '300'], 1: ['img_r2.jpg', '310'] },
       },
-      sources: { left: ['nav.meta.csv'], right: ['nav.meta.csv'] },
+      sources: { left: ['frame_metadata.csv'], right: ['frame_metadata.csv'] },
       columns: { left: ['filename', 'depth'], right: ['filename', 'depth'] },
     });
   });
@@ -1626,14 +1626,13 @@ describe('frame metadata discovery', () => {
     // 10 MB + 1 byte: over the old (deleted) size cap. A declared sidecar is never size-gated and
     // is only stat'd during discovery, not read.
     const dir = '/home/user/data/frameMetadataSized';
-    await fs.writeFile(npath.join(dir, 'huge.meta.csv'), Buffer.alloc(10 * 1024 * 1024 + 1, 0x61));
+    await fs.writeFile(npath.join(dir, 'frame_metadata.csv'), Buffer.alloc(10 * 1024 * 1024 + 1, 0x61));
 
     const candidates = await common.frameMetadataCandidateDescriptors(dir);
     const names = candidates.map((candidate) => candidate.name);
-    expect(names).toContain('small.meta.csv');
-    expect(names).toContain('huge.meta.csv');
-    const huge = candidates.find((candidate) => candidate.name === 'huge.meta.csv');
-    expect(huge?.absolutePath).toBe(npath.join(dir, 'huge.meta.csv'));
+    expect(names).toContain('frame_metadata.csv');
+    const huge = candidates.find((candidate) => candidate.name === 'frame_metadata.csv');
+    expect(huge?.absolutePath).toBe(npath.join(dir, 'frame_metadata.csv'));
   });
 
   it('frameMetadataSourceDirectories returns the base path for a directory import', () => {
@@ -1676,27 +1675,27 @@ describe('frame metadata discovery', () => {
 });
 
 describe('frame metadata import gates', () => {
-  it('picks the annotation CSV and leaves a declared .meta.csv sidecar in place', async () => {
-    // 'aaa_nav.meta.csv' sorts first but is declared telemetry: it must be skipped as a track-file
+  it('picks the annotation CSV and leaves a declared frame metadata sidecar in place', async () => {
+    // 'frame_metadata.csv' sorts first but is declared telemetry: it must be skipped as a track-file
     // candidate and stay on disk for read-time discovery.
     const dir = '/home/user/data/fmGateMixed';
     const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(dir);
     expect(trackFileAbsPath).toBe(npath.join(dir, 'zzz_annotations.csv'));
-    expect(fs.existsSync(npath.join(dir, 'aaa_nav.meta.csv'))).toBe(true);
+    expect(fs.existsSync(npath.join(dir, 'frame_metadata.csv'))).toBe(true);
   });
 
-  it('leaves no track file when only a declared .meta.csv sidecar is present', async () => {
+  it('leaves no track file when only a declared frame metadata sidecar is present', async () => {
     const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(
       '/home/user/data/fmGateTelemetryOnly',
     );
     expect(trackFileAbsPath).toBeFalsy();
   });
 
-  it('rejects an explicit import of a .meta.csv telemetry file', async () => {
+  it('rejects an explicit import of a frame metadata telemetry file', async () => {
     await expect(common.ingestDataFiles(
       settings,
       'projectid1',
-      ['/home/user/data/fmGateExplicit/nav.meta.csv'],
+      ['/home/user/data/fmGateExplicit/frame_metadata.csv'],
     )).rejects.toThrow(/frame-metadata \(telemetry\) file/);
   });
 
@@ -1705,7 +1704,7 @@ describe('frame metadata import gates', () => {
       settings,
       'projectid1',
       ['/home/user/data/fmGateViameFail/telemetry.csv'],
-    )).rejects.toThrow(/rename it to end in \.meta\.csv/);
+    )).rejects.toThrow(/rename it to frame-metadata\.csv/);
   });
 });
 

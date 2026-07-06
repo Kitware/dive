@@ -15,16 +15,19 @@ be uploaded or imported alongside your media and will be automatically parsed.
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
 
-Per-frame telemetry sidecars are different: DIVE reads `.meta.csv` and
-`.meta.txt` files from the image-sequence folder when the dataset opens. They are
-not imported into annotations or exported in v1.
+Per-frame telemetry sidecars are different: DIVE reads `frame-metadata.csv` and
+`frame-metadata.txt` files from the image-sequence folder when the dataset opens.
+The snake_case spellings `frame_metadata.csv` and `frame_metadata.txt` are also
+accepted.
+They are not imported into annotations or exported in v1.
 
 ## Per-frame Metadata Text Sidecars
 
 DIVE can display read-only per-frame telemetry in the
 [Dataset Info panel](UI-DatasetInfo.md#frame-metadata). The stored form is a
 delimited text file placed next to the image sequence. A file is treated as
-telemetry if and only if its name ends in `.meta.csv` or `.meta.txt`
+telemetry if and only if its basename is `frame-metadata.csv`,
+`frame-metadata.txt`, `frame_metadata.csv`, or `frame_metadata.txt`
 (case-insensitive) — the naming convention declares it, so DIVE never sniffs
 content or confuses it with an annotation CSV. DIVE reads and parses it with one
 shared TypeScript parser when the dataset opens (in the browser on Web, in the
@@ -33,11 +36,13 @@ rows to frames by filename value.
 
 Supported sidecar contract:
 
-* A file named `*.meta.csv` or `*.meta.txt` in the dataset folder for
+* A file named `frame-metadata.csv` or `frame-metadata.txt` in the dataset folder for
   single-camera image sequences.
-* For multicamera image sequences, either one shared `*.meta.csv`/`*.meta.txt`
-  file in the multicam parent folder, or one sidecar in each camera child folder.
-  A camera's own folder takes precedence over the shared parent (see below).
+* For multicamera image sequences, either one shared `frame-metadata.csv` or
+  `frame-metadata.txt` file in the multicam parent folder, or one sidecar in
+  each camera child folder. A camera's own folder takes precedence over the
+  shared parent (see below).
+* `frame_metadata.csv` and `frame_metadata.txt` are also accepted aliases.
 * Header row with field names.
 * Comma, tab, or whitespace delimiter.
 * At least one filename column whose values match the image filenames.
@@ -54,7 +59,7 @@ precedence order — camera folder, then that camera's clone media root, then th
 dataset folder, then the multicam parent root — and merges first-wins: the first
 source (and, within a file, the first row) to claim a frame wins.
 
-Example (`AUV_nav.meta.txt`):
+Example (`frame-metadata.txt`):
 
 ```text
 image_file timestamp latitude longitude water_depth
@@ -67,9 +72,9 @@ extension while matching, so `img_0001.tif` can match an image key of
 `img_0001`. Rows that do not match an image are omitted.
 
 Because classification is by name, a plain `nav.csv` uploaded as annotations that
-fails to parse prompts a rename hint (`… rename it to end in .meta.csv and
-re-upload.`), and the desktop app refuses to import a `.meta.csv`/`.meta.txt`
-file through the annotation flow — it belongs in the media folder, where it is
+fails to parse prompts a rename hint (`… rename it to frame-metadata.csv and
+re-upload.`), and the desktop app refuses to import a declared frame metadata
+sidecar through the annotation flow — it belongs in the media folder, where it is
 read automatically.
 
 For multicamera data, a shared source can contain one filename column per camera,

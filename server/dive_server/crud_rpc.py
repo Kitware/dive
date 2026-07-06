@@ -538,7 +538,7 @@ def _get_data_by_type(
     """
     if file is None:
         return None, None
-    # Telemetry sidecars are declared by name (.meta.csv/.meta.txt): classify without
+    # Telemetry sidecars are declared by basename: classify without
     # reading, parsing, or joining. Their content is read only at read time, by the
     # client's shared TypeScript parser, never here.
     if frame_metadata.is_frame_metadata_source_name(file['name']):
@@ -724,8 +724,8 @@ def process_items(
             Item().remove(item)
             if isinstance(e, ValueError):
                 hint = (
-                    ' If this file is telemetry rather than annotations, rename it to end '
-                    'in .meta.csv and re-upload.'
+                    ' If this file is telemetry rather than annotations, rename it to '
+                    'frame-metadata.csv and re-upload.'
                     if constants.csvRegex.search(file['name'])
                     else ''
                 )

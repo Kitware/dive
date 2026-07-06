@@ -136,21 +136,21 @@ describe('multicam camera package construction', () => {
   });
 
   it('uploads validated camera-folder annotations and sidecars, not just media', () => {
-    // tracks.csv and nav.meta.csv are auto-detected in the camera folder; both
+    // tracks.csv and frame_metadata.csv are auto-detected in the camera folder; both
     // must ride along with the camera, which the old media-only path dropped.
-    const folderFiles = [file('img001.png'), file('tracks.csv'), file('nav.meta.csv')];
+    const folderFiles = [file('img001.png'), file('tracks.csv'), file('frame_metadata.csv')];
     const cameraFiles = getCameraPackageFiles(folderFiles);
     const resp = validation({
       roles: {
         media: ['img001.png'],
         annotations: ['tracks.csv'],
         datasetConfig: [],
-        frameMetadata: ['nav.meta.csv'],
+        frameMetadata: ['frame_metadata.csv'],
       },
-      upload: ['img001.png', 'tracks.csv', 'nav.meta.csv'],
+      upload: ['img001.png', 'tracks.csv', 'frame_metadata.csv'],
     });
     const { uploadFiles } = buildValidatedUploadPackage(cameraFiles, resp);
-    expect(uploadFiles.map((f) => f.name)).toEqual(['img001.png', 'tracks.csv', 'nav.meta.csv']);
+    expect(uploadFiles.map((f) => f.name)).toEqual(['img001.png', 'tracks.csv', 'frame_metadata.csv']);
   });
 
   it('uploads the explicit track file only when validation accepts it', () => {

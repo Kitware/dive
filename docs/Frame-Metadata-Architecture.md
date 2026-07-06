@@ -4,13 +4,14 @@ Per-frame metadata is read-only telemetry that describes the media at capture
 time, such as timestamp, latitude, longitude, depth, or altitude. DIVE treats it
 as a media-side property, not as editable annotation data.
 
-The stored source is the user's `.meta.csv` or `.meta.txt` file next to the
-imagery. Everything DIVE displays is a read-time projection of that source:
-nothing derived is persisted, and the file the user dropped is the only stored
-form.
+The stored source is the user's `frame-metadata.csv` or `frame-metadata.txt` file
+next to the imagery. Snake_case aliases are accepted for tolerance. Everything
+DIVE displays is a read-time projection of that source: nothing derived is
+persisted, and the file the user dropped is the only stored form.
 
-**The invariant:** a file is telemetry if and only if its name says `.meta.`
-(`.meta.csv` or `.meta.txt`, case-insensitive). Import never parses, deletes, or
+**The invariant:** a file is telemetry if and only if its basename is
+`frame-metadata.csv`, `frame-metadata.txt`, `frame_metadata.csv`, or
+`frame_metadata.txt` (case-insensitive). Import never parses, deletes, or
 reroutes a declared sidecar; non-sidecar files behave exactly as on `main`.
 Classification is by declaration, never by content sniffing — the naming
 convention is the one flag that travels all of DIVE's ingestion paths.
@@ -21,8 +22,8 @@ There is exactly one implementation of the telemetry format, and it is
 TypeScript. It lives in `client/dive-common/frameMetadata/` and is shared by both
 platforms:
 
-* **`naming.ts`** — `isFrameMetadataSourceName(name)`, the `.meta.(csv|txt)`
-  predicate.
+* **`naming.ts`** — `isFrameMetadataSourceName(name)`, the
+  `frame-metadata` / `frame_metadata` plus `.csv` / `.txt` predicate.
 * **`parser.ts`** — `parseFrameMetadataSource(text, mediaIndex)`, which turns one
   sidecar's raw text into columns plus filename-keyed records.
 * **`resolve.ts`** — `buildMediaKeyIndex(mediaNames)` and
@@ -52,9 +53,9 @@ A declared sidecar rides along with the imagery and is never treated as
 annotations:
 
 * **Web upload.** Upload validation buckets the sidecar under a
-  `frameMetadata` role, shows it pre-upload as "frame metadata: `nav.meta.csv`",
-  and uploads it into the dataset folder alongside the media. It is excluded from
-  the single-annotation-CSV cap.
+  `frameMetadata` role, shows it pre-upload as "frame metadata:
+  `frame-metadata.csv`", and uploads it into the dataset folder alongside the
+  media. It is excluded from the single-annotation-CSV cap.
 * **Assetstore import.** The importer leaves a declared sidecar in place instead
   of relocating it as an annotation; no `ProcessedMarker`, no move.
 * **Server import sweep.** When a sidecar is encountered, DIVE emits a warning
@@ -80,13 +81,13 @@ web upload packaging refactor is a prerequisite rather than a follow-up:
 
 1. **Pre-upload role display** (from the packaging refactor). Before anything is
    sent, the upload UI names each selected file's role — "frame metadata:
-   `nav.meta.csv`" — or lists it as ignored with a reason. A sidecar the user
+   `frame-metadata.csv`" — or lists it as ignored with a reason. A sidecar the user
    expected to be annotations, or an annotation CSV they expected to be
    telemetry, is visible before upload. Crucially, the refactor closes the one
    silent-loss path (a browser dropping a sidecar before upload), which nothing
    downstream could otherwise detect.
 2. **The Frame Info panel's empty state and `Source:` line.** After open, the
-   panel names the sidecar it read (`Source: nav.meta.csv`) and, when nothing
+   panel names the sidecar it read (`Source: frame-metadata.csv`) and, when nothing
    matched, shows an empty-state hint pointing at the naming convention. A sidecar
    whose filenames match no frame surfaces as an empty panel with a hint, not a
    silent nothing.
@@ -94,18 +95,19 @@ web upload packaging refactor is a prerequisite rather than a follow-up:
 Two guards keep telemetry and annotations from being confused:
 
 * **Rename hint (web/desktop).** When an annotation CSV fails to parse, the error
-  appends `If this file is telemetry rather than annotations, rename it to end in
-  .meta.csv and re-upload.` so a misfiled nav CSV is easy to correct.
-* **Explicit-import guard (desktop).** Importing a `.meta.csv`/`.meta.txt` file
-  through the annotation import flow throws — the file must live in the dataset's
-  media folder, where it is read automatically, and cannot be imported as
-  annotations.
+  appends `If this file is telemetry rather than annotations, rename it to
+  frame-metadata.csv and re-upload.` so a misfiled nav CSV is easy to correct.
+* **Explicit-import guard (desktop).** Importing a declared frame metadata
+  sidecar through the annotation import flow throws — the file must live in the
+  dataset's media folder, where it is read automatically, and cannot be imported
+  as annotations.
 
 ## Source contract
 
 v1 supports delimited text sidecars for image sequences:
 
-* a name ending in `.meta.csv` or `.meta.txt` (case-insensitive),
+* a basename of `frame-metadata.csv`, `frame-metadata.txt`, `frame_metadata.csv`,
+  or `frame_metadata.txt` (case-insensitive),
 * a header row,
 * a comma, tab, or whitespace delimiter (sniffed from the first non-comment line),
 * at least one column whose values match image filenames (the join column, chosen
@@ -158,7 +160,7 @@ GET /dive_dataset/:id/frame_metadata_sources
 {
   "cameras": {
     "singleCam": [
-      { "itemId": "6630…", "name": "AUV_telemetry.meta.csv" }
+      { "itemId": "6630…", "name": "frame-metadata.csv" }
     ]
   }
 }

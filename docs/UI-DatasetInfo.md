@@ -27,16 +27,19 @@ example a station id, cruise number, or dive number.
 
 ## Frame Metadata
 
-Frame telemetry is not an annotation stream. DIVE reads it from a `.meta.csv` or
-`.meta.txt` sidecar file next to the imagery and displays the values for the
-active frame. The sidecar remains the source of truth; DIVE does not import it
-into an editable store or save a derived copy.
+Frame telemetry is not an annotation stream. DIVE reads it from a
+`frame-metadata.csv` or `frame-metadata.txt` sidecar file next to the imagery and
+displays the values for the active frame. The snake_case spellings
+`frame_metadata.csv` and `frame_metadata.txt` are also accepted. The sidecar
+remains the source of truth; DIVE does not import it into an editable store or
+save a derived copy.
 
 ### Source file
 
-Name the file so it ends in `.meta.csv` or `.meta.txt` (case-insensitive) — that
-naming convention is what tells DIVE the file is telemetry rather than an
-annotation CSV. Use a delimited text file with:
+Name the file `frame-metadata.csv` or `frame-metadata.txt` (case-insensitive).
+`frame_metadata.csv` and `frame_metadata.txt` are also accepted aliases. The naming
+convention is what tells DIVE the file is telemetry rather than an annotation
+CSV. Use a delimited text file with:
 
 * a header row,
 * one or more columns containing image filenames,
@@ -46,7 +49,7 @@ The delimiter can be comma, tab, or whitespace. DIVE joins rows to frames by
 matching filename values, not by row order. A row that does not match an image is
 ignored instead of being shifted onto another frame.
 
-Example (`AUV_nav.meta.txt`):
+Example (`frame-metadata.txt`):
 
 ```text
 image_file timestamp latitude longitude water_depth
@@ -60,8 +63,8 @@ appear in the source file.
 
 ### Placement
 
-For a single-camera image sequence, place the `.meta.csv` or `.meta.txt` file in
-the dataset folder beside the images.
+For a single-camera image sequence, place `frame-metadata.csv` or
+`frame-metadata.txt` in the dataset folder beside the images.
 
 For a multicamera image sequence, use either placement:
 
@@ -92,17 +95,18 @@ The section may show an empty state when:
 
 * **the platform or dataset type does not support frame metadata** — for example
   a video or large-image dataset;
-* **no matching `.meta.csv` or `.meta.txt` source is present** — the empty state
+* **no matching `frame-metadata.csv` or `frame-metadata.txt` source is present** — the empty state
   points at the naming convention (drop a delimited text file next to the imagery
-  and name it so it ends in `.meta.csv` or `.meta.txt`), because there is no
+  and name it `frame-metadata.csv` or `frame-metadata.txt`), because there is no
   import-time warning when a sidecar matches no frames;
 * **the current frame has no matching row** — a source is present, but no row's
   filename value matches this frame.
 
 Frame telemetry is read-only in v1. There is no edit, save, import, or export
-flow for these values. The desktop app refuses to import a `.meta.csv`/`.meta.txt`
-file through the annotation flow; a plain annotation CSV that fails to parse
-suggests renaming it to `.meta.csv` if it is actually telemetry. Video telemetry, embedded KLV, embedded EXIF, and manual
+flow for these values. The desktop app refuses to import a declared frame
+metadata sidecar through the annotation flow; a plain annotation CSV that fails
+to parse suggests renaming it to `frame-metadata.csv` if it is actually
+telemetry. Video telemetry, embedded KLV, embedded EXIF, and manual
 selection of a source file from another location are future work.
 
 See [Data Formats](DataFormats.md#per-frame-metadata-text-sidecars) for the

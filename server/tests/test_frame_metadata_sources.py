@@ -98,8 +98,11 @@ def test_sources_single_camera_co_located_name_sorted_and_deduped(get_clone_root
     folder_model = folder_cls.return_value
     folder_model.childItems.return_value = [
         _source_item('image_0001.jpg'),
-        _source_item('beta.meta.csv'),
-        _source_item('Alpha.meta.csv'),
+        _source_item('frame_metadata.csv'),
+        _source_item('frame_metadata.txt'),
+        _source_item('frame-metadata.csv'),
+        _source_item('frame-metadata.txt'),
+        _source_item('nav.meta.csv'),
         _source_item('frame_metadata.json'),
     ]
 
@@ -108,7 +111,12 @@ def test_sources_single_camera_co_located_name_sorted_and_deduped(get_clone_root
     # Only declared sidecars, name-sorted case-insensitively, keyed by the single-camera key.
     assert result == {
         'cameras': {
-            'singleCam': [_descriptor('Alpha.meta.csv'), _descriptor('beta.meta.csv')],
+            'singleCam': [
+                _descriptor('frame-metadata.csv'),
+                _descriptor('frame-metadata.txt'),
+                _descriptor('frame_metadata.csv'),
+                _descriptor('frame_metadata.txt'),
+            ],
         },
     }
     folder_model.childItems.assert_called_once_with(dataset)
@@ -125,8 +133,8 @@ def test_sources_single_camera_clone_local_precedes_root(get_clone_root, folder_
     _child_items_by_folder(
         folder_model,
         {
-            'clone-id': [_source_item('local.meta.csv')],
-            'source-root-id': [_source_item('root.meta.csv'), _source_item('image_0001.jpg')],
+            'clone-id': [_source_item('frame_metadata.csv')],
+            'source-root-id': [_source_item('frame-metadata.txt'), _source_item('image_0001.jpg')],
         },
     )
 
@@ -135,7 +143,7 @@ def test_sources_single_camera_clone_local_precedes_root(get_clone_root, folder_
     # Precedence: the clone-local sidecar is listed before the media-root sidecar.
     assert result == {
         'cameras': {
-            'singleCam': [_descriptor('local.meta.csv'), _descriptor('root.meta.csv')],
+            'singleCam': [_descriptor('frame_metadata.csv'), _descriptor('frame-metadata.txt')],
         },
     }
 
@@ -190,12 +198,12 @@ def test_sources_multicam_routes_per_camera_with_shared_parent_root(get_clone_ro
     _child_items_by_folder(
         folder_model,
         {
-            'port-id': [_source_item('port_local.meta.csv')],
+            'port-id': [_source_item('frame_metadata.csv')],
             'port-root-id': [],
             'starboard-id': [],
             'starboard-root-id': [],
             'parent-id': [],
-            'parent-root-id': [_source_item('shared.meta.csv')],
+            'parent-root-id': [_source_item('frame-metadata.txt')],
         },
     )
     _wire_clone_roots(
@@ -212,8 +220,8 @@ def test_sources_multicam_routes_per_camera_with_shared_parent_root(get_clone_ro
     # Camera-local precedes the shared parent root; the shared sidecar binds both cameras.
     assert result == {
         'cameras': {
-            'port': [_descriptor('port_local.meta.csv'), _descriptor('shared.meta.csv')],
-            'starboard': [_descriptor('shared.meta.csv')],
+            'port': [_descriptor('frame_metadata.csv'), _descriptor('frame-metadata.txt')],
+            'starboard': [_descriptor('frame-metadata.txt')],
         },
     }
 
@@ -232,7 +240,7 @@ def test_sources_multicam_skips_non_image_sequence_camera(get_clone_root, folder
     _child_items_by_folder(
         folder_model,
         {
-            'port-id': [_source_item('port.meta.csv')],
+            'port-id': [_source_item('frame_metadata.csv')],
             'port-root-id': [],
             'parent-id': [],
             'parent-root-id': [],
@@ -246,7 +254,7 @@ def test_sources_multicam_skips_non_image_sequence_camera(get_clone_root, folder
     result = crud_dataset.load_frame_metadata_sources(parent, user)
 
     # The video camera is skipped entirely; only the image-sequence camera is keyed.
-    assert result == {'cameras': {'port': [_descriptor('port.meta.csv')]}}
+    assert result == {'cameras': {'port': [_descriptor('frame_metadata.csv')]}}
 
 
 @patch('dive_server.crud_dataset.Folder')
@@ -279,7 +287,7 @@ def test_dataset_resource_registers_frame_metadata_sources_route(route):
 def test_get_frame_metadata_sources_route_delegates(load_sources):
     dataset = _dataset_folder()
     user = {'_id': 'user-id'}
-    load_sources.return_value = {'cameras': {'singleCam': [_descriptor('nav.meta.csv')]}}
+    load_sources.return_value = {'cameras': {'singleCam': [_descriptor('frame_metadata.csv')]}}
 
     with patch('dive_server.views_dataset.Folder'):
         resource = DatasetResource('dive_dataset')
@@ -287,5 +295,5 @@ def test_get_frame_metadata_sources_route_delegates(load_sources):
         method = DatasetResource.get_frame_metadata_sources.__wrapped__.__wrapped__
         result = method(resource, dataset)
 
-    assert result == {'cameras': {'singleCam': [_descriptor('nav.meta.csv')]}}
+    assert result == {'cameras': {'singleCam': [_descriptor('frame_metadata.csv')]}}
     load_sources.assert_called_once_with(dataset, user)

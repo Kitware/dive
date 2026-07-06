@@ -13,31 +13,66 @@ def _ignored_reason(result, name):
     return next(entry["reason"] for entry in result["ignored"] if entry["name"] == name)
 
 
-def test_image_sequence_with_annotation_csv_and_meta_csv():
-    result = validate_files(['image_0001.jpg', 'tracks.csv', 'nav.meta.csv'])
+def test_image_sequence_with_annotation_csv_and_frame_metadata_csv():
+    result = validate_files(['image_0001.jpg', 'tracks.csv', 'frame_metadata.csv'])
 
     assert result['ok'] is True
     assert result['type'] == constants.ImageSequenceType
     assert 'tracks.csv' in result['roles']['annotations']
-    assert 'nav.meta.csv' in result['roles']['frameMetadata']
+    assert 'frame_metadata.csv' in result['roles']['frameMetadata']
     # The annotation CSV is not misclassified as a sidecar, and the sidecar is not an annotation.
-    assert 'nav.meta.csv' not in result['roles']['annotations']
+    assert 'frame_metadata.csv' not in result['roles']['annotations']
     assert 'tracks.csv' not in result['roles']['frameMetadata']
     assert 'tracks.csv' in result['upload']
-    assert 'nav.meta.csv' in result['upload']
+    assert 'frame_metadata.csv' in result['upload']
     assert result['ignored'] == []
 
 
-def test_image_sequence_with_meta_csv_and_meta_txt():
-    result = validate_files(['image_0001.jpg', 'nav.meta.csv', 'nav.meta.txt'])
+def test_image_sequence_with_frame_metadata_csv_and_txt_names():
+    result = validate_files(
+        [
+            'image_0001.jpg',
+            'frame_metadata.csv',
+            'frame_metadata.txt',
+            'frame-metadata.csv',
+            'frame-metadata.txt',
+        ]
+    )
 
     assert result['ok'] is True
     assert result['type'] == constants.ImageSequenceType
-    assert result['roles']['frameMetadata'] == ['nav.meta.csv', 'nav.meta.txt']
-    assert 'nav.meta.csv' in result['upload']
-    assert 'nav.meta.txt' in result['upload']
+    assert result['roles']['frameMetadata'] == [
+        'frame_metadata.csv',
+        'frame_metadata.txt',
+        'frame-metadata.csv',
+        'frame-metadata.txt',
+    ]
+    assert 'frame_metadata.csv' in result['upload']
+    assert 'frame_metadata.txt' in result['upload']
+    assert 'frame-metadata.csv' in result['upload']
+    assert 'frame-metadata.txt' in result['upload']
     assert result['roles']['annotations'] == []
     assert result['ignored'] == []
+
+
+def test_image_sequence_with_frame_metadata_paths_for_multicamera_import():
+    result = validate_files(
+        [
+            'left/image_0001.jpg',
+            'left/frame-metadata.txt',
+            'right/image_0001.jpg',
+            'right/frame_metadata.csv',
+        ]
+    )
+
+    assert result['ok'] is True
+    assert result['type'] == constants.ImageSequenceType
+    assert result['roles']['frameMetadata'] == [
+        'left/frame-metadata.txt',
+        'right/frame_metadata.csv',
+    ]
+    assert 'left/frame-metadata.txt' in result['upload']
+    assert 'right/frame_metadata.csv' in result['upload']
 
 
 def test_image_sequence_with_yaml_annotation():
@@ -95,33 +130,33 @@ def test_annotation_json_and_config_json_are_distinguished():
     assert 'config.json' not in result['roles']['annotations']
 
 
-def test_video_with_meta_csv_ignores_sidecar():
-    result = validate_files(['movie.mp4', 'nav.meta.csv'])
+def test_video_with_frame_metadata_csv_ignores_sidecar():
+    result = validate_files(['movie.mp4', 'frame_metadata.csv'])
 
     assert result['ok'] is True
     assert result['type'] == constants.VideoType
     assert result['roles']['frameMetadata'] == []
-    assert 'nav.meta.csv' in _ignored_names(result)
-    assert _ignored_reason(result, 'nav.meta.csv') == FRAME_METADATA_UNSUPPORTED_REASON
-    assert 'nav.meta.csv' not in result['upload']
+    assert 'frame_metadata.csv' in _ignored_names(result)
+    assert _ignored_reason(result, 'frame_metadata.csv') == FRAME_METADATA_UNSUPPORTED_REASON
+    assert 'frame_metadata.csv' not in result['upload']
 
 
-def test_large_image_with_meta_csv_ignores_sidecar():
-    result = validate_files(['mosaic.tif', 'nav.meta.csv'])
+def test_large_image_with_frame_metadata_csv_ignores_sidecar():
+    result = validate_files(['mosaic.tif', 'frame_metadata.csv'])
 
     assert result['ok'] is True
     assert result['type'] == constants.LargeImageType
     assert result['roles']['frameMetadata'] == []
-    assert 'nav.meta.csv' in _ignored_names(result)
-    assert _ignored_reason(result, 'nav.meta.csv') == FRAME_METADATA_UNSUPPORTED_REASON
-    assert 'nav.meta.csv' not in result['upload']
+    assert 'frame_metadata.csv' in _ignored_names(result)
+    assert _ignored_reason(result, 'frame_metadata.csv') == FRAME_METADATA_UNSUPPORTED_REASON
+    assert 'frame_metadata.csv' not in result['upload']
 
 
 def test_upload_order_is_media_then_annotations_then_config_then_frame_metadata():
-    result = validate_files(['image_0001.jpg', 'tracks.csv', 'meta.json', 'nav.meta.csv'])
+    result = validate_files(['image_0001.jpg', 'tracks.csv', 'meta.json', 'frame_metadata.csv'])
 
     assert result['ok'] is True
-    assert result['upload'] == ['image_0001.jpg', 'tracks.csv', 'meta.json', 'nav.meta.csv']
+    assert result['upload'] == ['image_0001.jpg', 'tracks.csv', 'meta.json', 'frame_metadata.csv']
 
 
 def test_images_and_videos_mixed_is_rejected():

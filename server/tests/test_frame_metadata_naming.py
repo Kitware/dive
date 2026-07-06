@@ -1,9 +1,10 @@
 """Python side of the frame-metadata naming parity contract.
 
-``*.meta.csv`` / ``*.meta.txt`` is the single declared-by-name flag that travels every
-ingestion path. The predicate is mirrored in Python (``dive_utils.frame_metadata``) and in the
-shared TypeScript module; both harnesses assert the same accepted/rejected truth table so the
-two mirrors can never drift. This is the only mirrored logic left in the feature.
+``frame_metadata`` / ``frame-metadata`` with a ``.csv`` or ``.txt`` extension is the
+single declared-by-name flag that travels every ingestion path. The predicate is mirrored
+in Python (``dive_utils.frame_metadata``) and in the shared TypeScript module; both
+harnesses assert the same accepted/rejected truth table so the two mirrors can never
+drift. This is the only mirrored logic left in the feature.
 """
 
 import json

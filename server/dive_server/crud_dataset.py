@@ -1494,7 +1494,7 @@ def validate_files(files: List[str]):
     any file that is not needed is returned in ``ignored`` with a visible reason. No
     selected file is silently discarded.
     """
-    # Partition frame-metadata sidecars first so a .meta.csv/.meta.txt never trips the
+    # Partition frame-metadata sidecars first so telemetry never trips the
     # generic csv/txt classification below.
     frame_meta = [f for f in files if frame_metadata.is_frame_metadata_source_name(f)]
     frame_meta_set = set(frame_meta)

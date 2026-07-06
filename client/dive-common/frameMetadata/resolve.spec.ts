@@ -25,14 +25,14 @@ describe('resolveCameras', () => {
   it('resolves a single camera single source into the compact payload', () => {
     const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
     const resolved = resolveCameras(
-      { singleCam: [['nav.meta.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
+      { singleCam: [['frame_metadata.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
       { singleCam: media },
     );
 
     expect(resolved.columns.singleCam).toEqual(['filename', 'depth']);
     expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '10']);
     expect(resolved.cameras.singleCam[1]).toEqual(['img002.png', '12']);
-    expect(resolved.sources.singleCam).toEqual(['nav.meta.csv']);
+    expect(resolved.sources.singleCam).toEqual(['frame_metadata.csv']);
   });
 
   it('first-wins merges frames across sources in precedence order', () => {
@@ -41,9 +41,9 @@ describe('resolveCameras', () => {
       {
         singleCam: [
           // The earlier (higher-precedence) source claims frame 0.
-          ['primary.meta.csv', 'filename,depth\nimg001.png,10\n'],
+          ['frame-metadata.txt', 'filename,depth\nimg001.png,10\n'],
           // The later source re-lists frame 0 (ignored) and adds frame 1.
-          ['secondary.meta.csv', 'filename,depth\nimg001.png,99\nimg002.png,20\n'],
+          ['frame_metadata.csv', 'filename,depth\nimg001.png,99\nimg002.png,20\n'],
         ],
       },
       { singleCam: media },
@@ -51,7 +51,7 @@ describe('resolveCameras', () => {
 
     expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '10']);
     expect(resolved.cameras.singleCam[1]).toEqual(['img002.png', '20']);
-    expect(resolved.sources.singleCam).toEqual(['primary.meta.csv', 'secondary.meta.csv']);
+    expect(resolved.sources.singleCam).toEqual(['frame-metadata.txt', 'frame_metadata.csv']);
   });
 
   it('unions columns across sources in precedence and file order', () => {
@@ -59,8 +59,8 @@ describe('resolveCameras', () => {
     const resolved = resolveCameras(
       {
         singleCam: [
-          ['a.meta.csv', 'filename,depth\nimg001.png,10\n'],
-          ['b.meta.csv', 'filename,heading\nimg002.png,180\n'],
+          ['frame-metadata.txt', 'filename,depth\nimg001.png,10\n'],
+          ['frame_metadata.csv', 'filename,heading\nimg002.png,180\n'],
         ],
       },
       { singleCam: media },
@@ -82,7 +82,7 @@ describe('resolveCameras', () => {
       '',
     ].join('\n');
     const resolved = resolveCameras(
-      { left: [['nav.meta.csv', text]], right: [['nav.meta.csv', text]] },
+      { left: [['frame_metadata.csv', text]], right: [['frame_metadata.csv', text]] },
       {
         left: buildMediaKeyIndex(['port001.tif', 'port002.tif']),
         // Reversed order so the join, not the row order, drives right's frame keys.
@@ -100,7 +100,7 @@ describe('resolveCameras', () => {
   it('tolerates duplicate media basenames when resolving (last-wins frame)', () => {
     const media = buildMediaKeyIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
     const resolved = resolveCameras(
-      { singleCam: [['nav.meta.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
+      { singleCam: [['frame_metadata.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
       { singleCam: media },
     );
 
@@ -115,7 +115,7 @@ describe('resolveCameras', () => {
     const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
     const text = 'filename,3,1,2\nimg001.png,c,a,b\nimg002.png,cc,aa,bb\n';
     const resolved = resolveCameras(
-      { singleCam: [['nav.meta.csv', text]] },
+      { singleCam: [['frame_metadata.csv', text]] },
       { singleCam: media },
     );
 
@@ -126,7 +126,7 @@ describe('resolveCameras', () => {
 
   it('omits a camera with no matching sidecar', () => {
     const resolved = resolveCameras(
-      { singleCam: [['unrelated.meta.csv', 'station,depth\nA,10\n']] },
+      { singleCam: [['frame_metadata.csv', 'station,depth\nA,10\n']] },
       { singleCam: buildMediaKeyIndex(['img001.png', 'img002.png']) },
     );
 

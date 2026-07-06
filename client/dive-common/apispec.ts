@@ -132,9 +132,11 @@ interface FrameImage {
 }
 
 /**
- * Frame metadata: declared `.meta.csv` / `.meta.txt` sidecars, resolved by the one shared
- * TypeScript resolver (`dive-common/frameMetadata/resolve.ts`) on both platforms. Nothing derived
- * is persisted; the sidecar the user dropped is the only stored form.
+ * Frame metadata: declared `frame-metadata.csv` / `frame-metadata.txt` sidecars
+ * (with `frame_metadata.csv` / `frame_metadata.txt` also accepted), resolved by the
+ * one shared TypeScript resolver (`dive-common/frameMetadata/resolve.ts`) on both
+ * platforms. Nothing derived is persisted; the sidecar the user dropped is the only
+ * stored form.
  *
  * The resolved payload is compact: each camera holds its payload `columns` order once and each
  * frame is a row of cell values aligned to that order (never a `{field: value}` object, so

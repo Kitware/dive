@@ -218,7 +218,7 @@ describe('DatasetInfo', () => {
       scenario: {
         columns: { port: ['latitude', 'depth_m', 'note'] },
         cameras: { port: { 10: ['58.10', '100', '  raw text  '] } },
-        sources: { port: ['nav.meta.csv'] },
+        sources: { port: ['frame_metadata.csv'] },
       },
     });
 
@@ -235,7 +235,7 @@ describe('DatasetInfo', () => {
     expect(text.indexOf('Frame Metadata')).toBeLessThan(text.indexOf('Dataset Info'));
     expect(text.indexOf('Dataset Info')).toBeLessThan(text.indexOf('Custom Metadata'));
     expect(wrapper.find('.frame-metadata-source-icon').attributes('aria-label'))
-      .toBe('Source: nav.meta.csv');
+      .toBe('Source: frame_metadata.csv');
     expect(wrapper.find('.dataset-info-section').text()).toContain('Mouss Set');
     expect(wrapper.find('.dataset-info-section').text()).toContain('image-sequence');
     expect(wrapper.find('.custom-metadata-section').text()).toContain('cruise');
@@ -248,7 +248,7 @@ describe('DatasetInfo', () => {
       scenario: {
         columns: { port: ['latitude'] },
         cameras: { port: { 10: ['58.10'] } },
-        sources: { port: ['nav.meta.csv'] },
+        sources: { port: ['frame_metadata.csv'] },
       },
     });
 
@@ -271,7 +271,7 @@ describe('DatasetInfo', () => {
     expect(wrapper.find('.frame-metadata-section').text())
       .toContain('No frame metadata source found.');
     expect(wrapper.find('.frame-metadata-section').text())
-      .toContain('Add a *.meta.csv or *.meta.txt file beside the imagery.');
+      .toContain('Add frame-metadata.csv or frame-metadata.txt beside the imagery.');
   });
 
   it('shows the unsupported-media state for a non-image-sequence dataset type', async () => {
@@ -305,7 +305,7 @@ describe('DatasetInfo', () => {
   it('shows the present-but-unmatched state when a sidecar exists but joined no frames', async () => {
     const { wrapper } = mountDatasetInfo({
       scenario: {
-        sidecarItems: { port: ['nav.meta.csv'] },
+        sidecarItems: { port: ['frame_metadata.csv'] },
       },
     });
 
@@ -313,7 +313,7 @@ describe('DatasetInfo', () => {
     await nextTick();
 
     const text = wrapper.find('.frame-metadata-section').text();
-    expect(text).toContain('A frame metadata file (nav.meta.csv) is present but none of its rows matched');
+    expect(text).toContain('A frame metadata file (frame_metadata.csv) is present but none of its rows matched');
     expect(text).toContain('check its filename column.');
     expect(text).not.toContain('No frame metadata source found.');
   });
@@ -323,7 +323,7 @@ describe('DatasetInfo', () => {
       scenario: {
         columns: { port: ['latitude'] },
         cameras: { port: { 11: ['58.11'] } },
-        sources: { port: ['nav.meta.csv'] },
+        sources: { port: ['frame_metadata.csv'] },
       },
     });
 
@@ -339,7 +339,7 @@ describe('DatasetInfo', () => {
       scenario: {
         columns: { port: ['latitude'], starboard: ['latitude'] },
         cameras: { port: { 10: ['58.10'] }, starboard: { 10: ['59.10'] } },
-        sources: { port: ['port.meta.csv'], starboard: ['starboard.meta.csv'] },
+        sources: { port: ['frame_metadata.csv'], starboard: ['frame-metadata.txt'] },
       },
     });
 

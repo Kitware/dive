@@ -468,7 +468,7 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
- * Frame-metadata read path. Declared `*.meta.csv` / `*.meta.txt` sidecars are discovered on disk,
+ * Frame-metadata read path. Declared frame metadata sidecars are discovered on disk,
  * read, and resolved against the dataset's media by the shared TypeScript resolver
  * (dive-common/frameMetadata). The resolver runs here in the backend so raw multi-MB sidecar text
  * never crosses the IPC wire -- only the compact ResolvedFrameMetadata payload is returned. Nothing
@@ -1069,7 +1069,7 @@ async function _ingestFilePath(
       data = await viameSerializers.parseFile(path, imageMap);
     } catch (e) {
       // A plain CSV that fails to parse as annotations is often telemetry: hint at the rename.
-      throw new Error(`${(e as Error).message} If this file is telemetry rather than annotations, rename it to end in .meta.csv.`);
+      throw new Error(`${(e as Error).message} If this file is telemetry rather than annotations, rename it to frame-metadata.csv.`);
     }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
@@ -1276,7 +1276,7 @@ async function findTrackandMetaFileinFolder(path: string) {
   let { trackFileAbsPath } = results;
   const { metaFileAbsPath } = results;
   if (!trackFileAbsPath) {
-    // Declared telemetry sidecars (*.meta.csv) stay in place for read-time discovery; the first
+    // Declared telemetry sidecars stay in place for read-time discovery; the first
     // remaining CSV is unconditionally the annotation track file.
     const csvFileCandidates = (await _findCSVTrackFiles(path))
       .filter((candidate) => !isFrameMetadataSourceName(candidate));

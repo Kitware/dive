@@ -17,12 +17,12 @@ _OWNER_ID = '000000000000000000000000'
 @patch('dive_server.event.Folder')
 @patch('dive_server.event.Item')
 def test_assetstore_import_leaves_meta_sidecar_unmarked(item_cls, folder_cls, user_cls):
-    item = {'_id': 'i1', 'name': 'nav.meta.csv', 'meta': {}, 'folderId': 'f1'}
+    item = {'_id': 'i1', 'name': 'frame_metadata.csv', 'meta': {}, 'folderId': 'f1'}
     item_model = item_cls.return_value
     item_model.findOne.return_value = item
 
     event.process_assetstore_import(
-        _event({'type': 'item', 'importPath': '/data/nav.meta.csv', 'id': 'i1'}),
+        _event({'type': 'item', 'importPath': '/data/frame_metadata.csv', 'id': 'i1'}),
         {},
     )
 
@@ -67,7 +67,7 @@ def test_assetstore_import_marks_plain_annotation_csv(item_cls, folder_cls, user
 def test_process_dangling_skips_meta_sidecar(item_cls, folder_cls):
     meta_item = {
         '_id': 'm1',
-        'name': 'nav.meta.csv',
+        'name': 'frame_metadata.csv',
         'meta': {AnnotationFileFutureProcessMarker: True},
         'folderId': 'f1',
     }

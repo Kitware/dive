@@ -103,7 +103,7 @@ export default defineComponent({
         return `A frame metadata file (${names}) is present but none of its rows matched this dataset's image filenames — check its filename column.`;
       }
       if (!frameMetadata.hasMetadataSource.value) {
-        return 'No frame metadata source found. Add a *.meta.csv or *.meta.txt file beside the imagery.';
+        return 'No frame metadata source found. Add frame-metadata.csv or frame-metadata.txt beside the imagery.';
       }
       return 'No frame metadata for the current frame.';
     });

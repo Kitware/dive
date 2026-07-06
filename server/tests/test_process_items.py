@@ -41,12 +41,12 @@ def _childfiles_side_effect(file_by_item_id):
 @patch('dive_server.crud_rpc.File')
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_meta_csv_is_kept_in_place_for_every_media_type(
+def test_frame_metadata_csv_is_kept_in_place_for_every_media_type(
     folder_cls, item_cls, file_cls, get_auxiliary_folder, save_annotations, dataset_type
 ):
     folder = {'_id': 'ds', 'meta': {'type': dataset_type, 'fps': 5}}
-    item = {'_id': 'item-id', 'name': 'nav.meta.csv', 'meta': {}}
-    file = {'_id': 'file-id', 'name': 'nav.meta.csv', 'exts': ['meta', 'csv']}
+    item = {'_id': 'item-id', 'name': 'frame_metadata.csv', 'meta': {}}
+    file = {'_id': 'file-id', 'name': 'frame_metadata.csv', 'exts': ['csv']}
 
     folder_cls.return_value.childItems.return_value = [item]
     item_cls.return_value.childFiles.side_effect = _childfiles_side_effect({'item-id': file})
@@ -56,7 +56,7 @@ def test_meta_csv_is_kept_in_place_for_every_media_type(
     # Declared by name: marked processed and left in the dataset folder, never imported as
     # annotations, moved, or removed. The bytes are never even downloaded.
     assert len(warnings) == 1
-    assert 'nav.meta.csv' in warnings[0]
+    assert 'frame_metadata.csv' in warnings[0]
     assert 'stays in the dataset folder' in warnings[0]
     assert item['meta'][constants.ProcessedMarker] is True
     item_cls.return_value.save.assert_called_once_with(item)
@@ -70,12 +70,12 @@ def test_meta_csv_is_kept_in_place_for_every_media_type(
 @patch('dive_server.crud_rpc.File')
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_meta_csv_marked_processed_is_not_reswept(
+def test_frame_metadata_csv_marked_processed_is_not_reswept(
     folder_cls, item_cls, file_cls, get_auxiliary_folder
 ):
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
-    item = {'_id': 'item-id', 'name': 'navigation.meta.csv', 'meta': {}}
-    file = {'_id': 'file-id', 'name': 'navigation.meta.csv', 'exts': ['meta', 'csv']}
+    item = {'_id': 'item-id', 'name': 'frame_metadata.csv', 'meta': {}}
+    file = {'_id': 'file-id', 'name': 'frame_metadata.csv', 'exts': ['csv']}
 
     # Emulate the ProcessedMarker "$ne: True" query filter: a marked sidecar is no longer
     # listed, so a later process_items call never re-adjudicates it.
@@ -139,7 +139,7 @@ def test_plain_annotation_csv_still_imports(
 def test_two_plain_csvs_in_folder_side_door_guard(
     folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
 ):
-    # Two plain (non-.meta.) annotation CSVs can only reach the folder together outside the
+    # Two plain (non-frame-metadata) annotation CSVs can only reach the folder together outside the
     # pre-upload validation path. The guard fires before anything is removed, moved, or saved.
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
     item_a = {'_id': 'a', 'name': 'a.csv', 'meta': {}}
@@ -177,7 +177,7 @@ def test_undecodable_plain_csv_fails_loudly_with_rename_hint(
     folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
 ):
     # A plain .csv whose bytes are not valid UTF-8 fails the strict annotation decode; the
-    # loud failure carries the rename hint pointing telemetry users at .meta.csv.
+    # loud failure carries the rename hint pointing telemetry users at frame-metadata.csv.
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
     item = {'_id': 'item-id', 'name': 'annotations.csv', 'meta': {}}
     file = {'_id': 'file-id', 'name': 'annotations.csv', 'exts': ['csv']}
@@ -192,6 +192,6 @@ def test_undecodable_plain_csv_fails_loudly_with_rename_hint(
     with pytest.raises(RestException, match='Failed to import annotations.csv') as excinfo:
         process_items(folder, {'_id': 'user-id'})
 
-    assert '.meta.csv' in str(excinfo.value)
+    assert 'frame-metadata.csv' in str(excinfo.value)
     item_cls.return_value.remove.assert_called_once_with(item)
     save_annotations.assert_not_called()

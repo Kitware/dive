@@ -31,7 +31,7 @@ describe('useFrameMetadata', () => {
     const first = new Promise<ResolvedFrameMetadata>((resolve) => { resolveFirst = resolve; });
     const second: ResolvedFrameMetadata = {
       cameras: { singleCam: { 10: ['second'] } },
-      sources: { singleCam: ['second.meta.csv'] },
+      sources: { singleCam: ['frame_metadata.csv'] },
       columns: { singleCam: ['label'] },
     };
     const loadFrameMetadata = vi.fn()
@@ -58,12 +58,12 @@ describe('useFrameMetadata', () => {
     // The stale dataset-a response arrives late; its token no longer matches, so it is ignored.
     resolveFirst({
       cameras: { singleCam: { 10: ['stale'] } },
-      sources: { singleCam: ['stale.meta.csv'] },
+      sources: { singleCam: ['frame-metadata.txt'] },
       columns: { singleCam: ['label'] },
     });
     await settle();
     expect(metadata.currentEntries.value).toEqual([['label', 'second']]);
-    expect(metadata.currentSources.value).toEqual(['second.meta.csv']);
+    expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.error.value).toBeNull();
   });
 
@@ -108,7 +108,7 @@ describe('useFrameMetadata', () => {
 
   it('resolves web sidecars against the media list and exposes the current frame row', async () => {
     const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'nav.meta.csv' }] },
+      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
     }));
     const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\nimg002.png,12\n');
     const getCameraMediaNames = vi.fn((camera: string) => (
@@ -131,7 +131,7 @@ describe('useFrameMetadata', () => {
     expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
     expect(downloadItemText).toHaveBeenCalledWith('item-1');
     expect(metadata.hasMetadataSource.value).toBe(true);
-    expect(metadata.currentSources.value).toEqual(['nav.meta.csv']);
+    expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '10']]);
 
     // Scrubbing re-materializes the row lazily from held data, with no refetch/redownload.
@@ -153,8 +153,8 @@ describe('useFrameMetadata', () => {
     };
     const loadFrameMetadataSources = vi.fn(async () => ({
       cameras: {
-        port: [{ itemId: 'port-item', name: 'port.meta.csv' }],
-        starboard: [{ itemId: 'star-item', name: 'star.meta.csv' }],
+        port: [{ itemId: 'port-item', name: 'frame_metadata.csv' }],
+        starboard: [{ itemId: 'star-item', name: 'frame-metadata.txt' }],
       },
     }));
     const downloadItemText = vi.fn(async (itemId: string) => texts[itemId]);
@@ -188,7 +188,7 @@ describe('useFrameMetadata', () => {
     await settle();
     expect(downloadItemText).toHaveBeenCalledTimes(2);
     expect(metadata.hasMetadataSource.value).toBe(true);
-    expect(metadata.currentSources.value).toEqual(['star.meta.csv']);
+    expect(metadata.currentSources.value).toEqual(['frame-metadata.txt']);
     expect(metadata.currentEntries.value).toEqual([['filename', 'star001.png'], ['depth', '20']]);
     // No source refetch across the whole interaction.
     expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
@@ -201,8 +201,8 @@ describe('useFrameMetadata', () => {
         starboard: { 10: ['59.10'] },
       },
       sources: {
-        port: ['AUV_telemetry.meta.csv', 'nav.meta.txt'],
-        starboard: ['starboard_nav.meta.csv'],
+        port: ['frame_metadata.csv', 'frame-metadata.txt'],
+        starboard: ['frame_metadata.csv'],
       },
       columns: {
         port: ['latitude'],
@@ -218,13 +218,13 @@ describe('useFrameMetadata', () => {
     });
 
     await settle();
-    expect(metadata.currentSources.value).toEqual(['AUV_telemetry.meta.csv', 'nav.meta.txt']);
+    expect(metadata.currentSources.value).toEqual(['frame_metadata.csv', 'frame-metadata.txt']);
     expect(metadata.hasMetadataSource.value).toBe(true);
     expect(metadata.currentEntries.value).toEqual([['latitude', '58.10']]);
 
     selectedCamera.value = 'starboard';
     await nextTick();
-    expect(metadata.currentSources.value).toEqual(['starboard_nav.meta.csv']);
+    expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.hasMetadataSource.value).toBe(true);
     expect(metadata.currentEntries.value).toEqual([['latitude', '59.10']]);
 
@@ -237,7 +237,7 @@ describe('useFrameMetadata', () => {
 
   it('resolves the single camera once its initially-empty media list populates (reactive retry)', async () => {
     const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'nav.meta.csv' }] },
+      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
     }));
     const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\n');
     // Mirrors Viewer.vue: imageData (and so getCameraMediaNames) starts at `[]`, not `undefined`.
@@ -274,7 +274,7 @@ describe('useFrameMetadata', () => {
 
   it('exposes hasSidecarItems for a present sidecar whose rows match no media filename', async () => {
     const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'nav.meta.csv' }] },
+      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
     }));
     // None of this sidecar's rows correspond to an actual media filename in the index.
     const downloadItemText = vi.fn(async () => 'filename,depth\nother001.png,10\n');
@@ -296,14 +296,14 @@ describe('useFrameMetadata', () => {
 
     await settle();
     expect(metadata.hasSidecarItems.value).toBe(true);
-    expect(metadata.sidecarSourceNames.value).toEqual(['nav.meta.csv']);
+    expect(metadata.sidecarSourceNames.value).toEqual(['frame_metadata.csv']);
     expect(metadata.hasMetadataSource.value).toBe(false);
     expect(metadata.currentEntries.value).toEqual([]);
   });
 
   it('reuses the module-level session cache across composable instances (panel remount)', async () => {
     const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'nav.meta.csv' }] },
+      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
     }));
     const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\n');
     const getCameraMediaNames = vi.fn((camera: string) => (

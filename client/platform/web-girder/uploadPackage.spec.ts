@@ -27,15 +27,15 @@ function validation(overrides: Partial<ValidationResponse>): ValidationResponse 
 
 describe('buildValidatedUploadPackage', () => {
   it('keeps both an annotation CSV and a frame-metadata sidecar in uploadFiles', () => {
-    const selected = [file('img001.png'), file('annotations.csv'), file('nav.meta.csv')];
+    const selected = [file('img001.png'), file('annotations.csv'), file('frame_metadata.csv')];
     const resp = validation({
       roles: {
         media: ['img001.png'],
         annotations: ['annotations.csv'],
         datasetConfig: [],
-        frameMetadata: ['nav.meta.csv'],
+        frameMetadata: ['frame_metadata.csv'],
       },
-      upload: ['img001.png', 'annotations.csv', 'nav.meta.csv'],
+      upload: ['img001.png', 'annotations.csv', 'frame_metadata.csv'],
     });
 
     const { uploadFiles, roles, ignored } = buildValidatedUploadPackage(selected, resp);
@@ -43,7 +43,7 @@ describe('buildValidatedUploadPackage', () => {
     expect(uploadFiles.map((f) => f.name)).toEqual([
       'img001.png',
       'annotations.csv',
-      'nav.meta.csv',
+      'frame_metadata.csv',
     ]);
     // The original File objects are preserved.
     expect(uploadFiles).toEqual([selected[0], selected[1], selected[2]]);
