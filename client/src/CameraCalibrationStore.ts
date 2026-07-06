@@ -123,6 +123,13 @@ export default class CameraCalibrationStore {
 
   alignment: Ref<AlignmentState>;
 
+  /**
+   * Correspondence currently selected in the picking UI (grabbed marker /
+   * clicked table row), highlighted in BOTH cameras' panes and deletable via
+   * the panel or the Delete key. Authoring state only -- never persisted.
+   */
+  selectedCorrespondenceId: Ref<number | null>;
+
   /** Native-pixel coordinate under the cursor, for the calibration panel's live readout. */
   cursorCoord: Ref<{ camera: string; coord: Point } | null>;
 
@@ -166,6 +173,7 @@ export default class CameraCalibrationStore {
     this.homographies = ref({});
     this.transformTypes = ref({});
     this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+    this.selectedCorrespondenceId = ref(null);
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
@@ -202,6 +210,7 @@ export default class CameraCalibrationStore {
     // stale 'ghost' pick target could otherwise silently misattribute the next
     // click to the wrong camera once the new pair has its own homography fitted.
     this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
+    this.selectedCorrespondenceId.value = null;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
     this.fitError.value = null;
@@ -294,7 +303,7 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = { camera, coord };
   }
 
-  /** Remove a correspondence (by id) from the active pair. */
+  /** Remove a correspondence (by id) from the active pair -- both cameras' points at once. */
   removeCorrespondence(id: number) {
     const key = this.activePairKey();
     if (!key) {
@@ -308,7 +317,33 @@ export default class CameraCalibrationStore {
       ...this.correspondences.value,
       [key]: list.filter((c) => c.id !== id),
     };
+    if (this.selectedCorrespondenceId.value === id) {
+      this.selectedCorrespondenceId.value = null;
+    }
     this.syncAlignmentHomography();
+  }
+
+  /**
+   * Select a correspondence marker for inspection/deletion (null clears).
+   * Only ids belonging to the active pair are selectable; anything else
+   * clears the selection.
+   */
+  selectCorrespondence(id: number | null) {
+    if (id === null) {
+      this.selectedCorrespondenceId.value = null;
+      return;
+    }
+    const key = this.activePairKey();
+    const list = key ? this.correspondences.value[key] : undefined;
+    this.selectedCorrespondenceId.value = (list && list.some((c) => c.id === id)) ? id : null;
+  }
+
+  /** Remove the selected correspondence (both cameras' points). No-op without a selection. */
+  removeSelectedCorrespondence() {
+    const id = this.selectedCorrespondenceId.value;
+    if (id !== null) {
+      this.removeCorrespondence(id);
+    }
   }
 
   /**
@@ -318,6 +353,7 @@ export default class CameraCalibrationStore {
   clearPair() {
     const key = this.activePairKey();
     this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
     if (!key) {
       return;
     }
@@ -345,6 +381,9 @@ export default class CameraCalibrationStore {
     const list = this.correspondences.value[key];
     if (!list || list.length === 0) {
       return;
+    }
+    if (this.selectedCorrespondenceId.value === list[list.length - 1].id) {
+      this.selectedCorrespondenceId.value = null;
     }
     this.correspondences.value = { ...this.correspondences.value, [key]: list.slice(0, -1) };
     this.syncAlignmentHomography();
@@ -638,6 +677,7 @@ export default class CameraCalibrationStore {
     this.source.value = source;
     this.markHomographySources();
     this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
     this.fitError.value = null;
     this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
     return { cameras: [...cameras], pairCount: file.pairs.length };
@@ -715,6 +755,7 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
     this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
+    this.selectedCorrespondenceId.value = null;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
     this.fitError.value = null;

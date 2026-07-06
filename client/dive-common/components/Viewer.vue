@@ -391,6 +391,30 @@ export default defineComponent({
     const alignedViewTooltip = computed(() => (alignedViewEnabled.value
       ? 'Align View on (editing disabled)'
       : 'Align View (requires calibration)'));
+    /**
+     * Camera panes currently displayed. While picking points with an active
+     * pair on a 3+ camera dataset, only the pair's two panes show, so the
+     * two-click flow reads left/right without unrelated panes in between.
+     * Panes are hidden (v-show), not unmounted, so their viewers keep state.
+     */
+    const displayedCameras = computed(() => {
+      const pair = cameraCalibration.activePair.value;
+      if (cameraCalibration.pickingEnabled.value && pair) {
+        const pairCameras = multiCamList.value.filter(
+          (camera) => camera === pair.camA || camera === pair.camB,
+        );
+        if (pairCameras.length === 2) {
+          return pairCameras;
+        }
+      }
+      return multiCamList.value;
+    });
+    watch(displayedCameras, async () => {
+      // Hidden/shown siblings change the remaining panes' sizes; resize the
+      // geojs maps once the DOM has settled.
+      await nextTick();
+      handleResize();
+    });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -1505,6 +1529,7 @@ export default defineComponent({
       alignedViewAvailable,
       alignedViewEnabled,
       alignedViewTooltip,
+      displayedCameras,
       toggleAlignedView,
       seekToFrame,
       resetAggregateZoom,
@@ -1851,6 +1876,7 @@ export default defineComponent({
           <div class="d-flex grow">
             <div
               v-for="camera in multiCamList"
+              v-show="displayedCameras.includes(camera)"
               :key="camera"
               class="d-flex flex-column grow"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"

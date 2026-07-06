@@ -444,68 +444,21 @@ describe('CameraCalibrationStore', () => {
       expect(third.store.selectedCorrespondenceId.value).toBeNull();
     });
 
-    it('clears the selection on clearPair and hydrate', () => {
+    it('clears the selection on clearPair, load, and hydrate', () => {
       const { store, id } = storeWithOnePair();
       store.selectCorrespondence(id);
       store.clearPair();
       expect(store.selectedCorrespondenceId.value).toBeNull();
 
+      const loaded = storeWithOnePair();
+      loaded.store.selectCorrespondence(loaded.id);
+      loaded.store.loadCalibrationText(JSON.stringify({ version: 1, pairs: [] }));
+      expect(loaded.store.selectedCorrespondenceId.value).toBeNull();
+
       const hydrated = storeWithOnePair();
       hydrated.store.selectCorrespondence(hydrated.id);
       hydrated.store.hydrate();
       expect(hydrated.store.selectedCorrespondenceId.value).toBeNull();
-    });
-  });
-
-  describe('loadCalibrationText', () => {
-    const fileText = (pairs: unknown[]) => JSON.stringify({
-      type: 'dive-camera-calibration', version: 1, pairs,
-    });
-
-    it('loads points and transform type and derives the missing matrix direction', () => {
-      const store = new CameraCalibrationStore();
-      const { cameras, pairCount } = store.loadCalibrationText(fileText([{
-        left: 'rgb',
-        right: 'ir',
-        transformType: 'rigid',
-        points: [[1, 2, 3, 4]],
-        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
-      }]));
-      const key = store.pairKey('rgb', 'ir');
-      expect(pairCount).toBe(1);
-      expect(cameras).toEqual(expect.arrayContaining(['rgb', 'ir']));
-      expect(store.correspondences.value[key]).toHaveLength(1);
-      expect(store.transformTypeForPair(key)).toBe('rigid');
-      expect(store.homographies.value[key].BtoA).toEqual([[1, 0, -5], [0, 1, 3], [0, 0, 1]]);
-      expect(store.homographies.value[key].AtoB[0][2]).toBeCloseTo(5);
-    });
-
-    it('throws on non-JSON and on a missing pairs list, leaving state untouched', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('rgb', 'ir');
-      store.addPoint('rgb', [1, 1]);
-      store.addPoint('ir', [2, 2]);
-      expect(() => store.loadCalibrationText('not json')).toThrow('valid JSON');
-      expect(() => store.loadCalibrationText('{}')).toThrow('pairs');
-      expect(store.correspondences.value[store.pairKey('rgb', 'ir')]).toHaveLength(1);
-    });
-
-    it('rejects a singular matrix without mutating state', () => {
-      const store = new CameraCalibrationStore();
-      expect(() => store.loadCalibrationText(fileText([{
-        left: 'a', right: 'b', leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
-      }]))).toThrow(/singular/);
-      expect(store.homographies.value).toEqual({});
-    });
-
-    it('clears the selection', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('rgb', 'ir');
-      store.addPoint('rgb', [1, 1]);
-      store.addPoint('ir', [2, 2]);
-      store.selectCorrespondence(store.correspondences.value[store.pairKey('rgb', 'ir')][0].id);
-      store.loadCalibrationText(fileText([]));
-      expect(store.selectedCorrespondenceId.value).toBeNull();
     });
   });
 

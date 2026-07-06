@@ -63,10 +63,6 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   textFeature: any;
 
-  /** Small bright dot drawn at each marker's exact pixel (inside the ring). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  centerFeature: any;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   quadFeature: any;
 
@@ -116,28 +112,6 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
 
     const pointLayer = geoViewer.createLayer('feature', { features: ['point'] });
     this.featureLayer = pointLayer.createFeature('point');
-    // A second point feature on the same layer, created after the ring so it
-    // renders on top: a small bright dot marking each marker's exact pixel.
-    // Bright fill + the ring's dark outline color reproduce the original
-    // two-tone marker at the precise target point.
-    this.centerFeature = pointLayer.createFeature('point').style({
-      fill: true,
-      fillColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'orange';
-        }
-        return data.pending ? 'cyan' : 'yellow';
-      },
-      fillOpacity: 1,
-      radius: (data: CalibrationPointData) => (data.selected ? 3.5 : 2.5),
-      strokeColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'white';
-        }
-        return data.pending ? 'blue' : 'red';
-      },
-      strokeWidth: 1,
-    });
 
     // Drag-to-refine: a capture-phase mousedown on the map node runs before
     // geojs' own interactor sees the event, so grabbing a marker can suppress
@@ -479,14 +453,12 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
 
   redraw(): null {
     this.featureLayer.data(this.formattedData).draw();
-    this.centerFeature.data(this.formattedData).draw();
     this.textFeature.data(this.formattedData).draw();
     return null;
   }
 
   disable() {
     this.featureLayer.data([]).draw();
-    this.centerFeature.data([]).draw();
     this.textFeature.data([]).draw();
     this.ghostSource = null;
     this.cancelGhostRefresh();
@@ -499,22 +471,22 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   createStyle(): LayerStyle<CalibrationPointData> {
     return {
       ...super.createStyle(),
-      // Hollow ring: leave the center transparent so the exact pixel being
-      // picked stays visible through the marker (a solid disc hides the very
-      // target it marks). The ring keeps the original dark outline color; a
-      // bright center dot (see centerFeature) marks the exact pixel. Together
-      // the dark ring + bright dot stay legible on both light and dark imagery.
-      // The selected correspondence gets a larger white ring.
-      fill: false,
-      fillOpacity: 0,
-      radius: (data: CalibrationPointData) => (data.selected ? 9 : 7),
-      strokeColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'white';
+      fill: true,
+      fillColor: (data: CalibrationPointData) => {
+        if (data.pending) {
+          return 'cyan';
         }
-        return data.pending ? 'blue' : 'red';
+        return data.selected ? 'orange' : 'yellow';
       },
-      strokeWidth: (data: CalibrationPointData) => (data.selected ? 3 : 2),
+      fillOpacity: 1,
+      radius: (data: CalibrationPointData) => (data.selected ? 8 : 6),
+      strokeColor: (data: CalibrationPointData) => {
+        if (data.pending) {
+          return 'blue';
+        }
+        return data.selected ? 'white' : 'red';
+      },
+      strokeWidth: 2,
     };
   }
 }
