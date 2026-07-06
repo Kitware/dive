@@ -22,7 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
-import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView';
+import { resolveToReferenceTransforms } from 'vue-media-annotator/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -390,31 +390,7 @@ export default defineComponent({
     const toggleAlignedView = () => {
       alignedView.setEnabled(!alignedView.enabled.value);
     };
-    /**
-     * Why the Align button is disabled/inert right now, or the normal usage
-     * text: the button stays visible for every multicam dataset so an
-     * incomplete calibration or the picking suspension is explained rather
-     * than silently hiding it.
-     */
-    const alignedViewTooltip = computed(() => {
-      if (!alignedViewAvailable.value) {
-        const missing = unresolvedCameras(
-          multiCamList.value,
-          multiCamList.value[0],
-          cameraCalibration.homographies.value,
-        );
-        const cameraText = missing.length ? missing.join(', ') : 'some cameras';
-        return `Aligned view unavailable: no transform maps ${cameraText} onto `
-          + `${multiCamList.value[0]}. Pick points (or load a calibration) for the missing pair(s), `
-          + 'then Save calibration.';
-      }
-      if (alignedViewEnabled.value && !alignedViewActive.value) {
-        return 'Aligned view is on but suspended while "Pick points" is active in the '
-          + 'calibration panel. Turn off point picking to apply it.';
-      }
-      return `Aligned view: warp cameras into ${alignedViewReference.value}'s space and `
-        + 'link pan/zoom. Editing is disabled while on.';
-    });
+    const alignedViewTooltip = 'Align View (requires calibration)';
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -1719,14 +1695,13 @@ export default defineComponent({
           Aligned view (SEAL-TK features 2 + 3): warp every camera's display
           into the reference camera's space and link pan/zoom across all
           panes. Usable when a transform exists for every non-reference
-          camera; shown (disabled, with the reason in the tooltip) for every
-          multicam dataset so an incomplete calibration is explained rather
-          than the button silently disappearing.
+          camera; shown (disabled) for every multicam dataset so an
+          incomplete calibration reads as "needs calibration" rather than
+          the button silently disappearing.
         -->
         <v-tooltip
           v-if="multiCamList.length > 1"
           bottom
-          max-width="360"
         >
           <template #activator="{ on }">
             <!-- span wrapper: a disabled v-btn swallows the tooltip's hover events -->
