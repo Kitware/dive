@@ -860,6 +860,54 @@ describe('CameraCalibrationStore', () => {
       expect(store.source.value).toBeNull();
     });
 
+    it('flags a pair as refined once an in-app fit replaces a stamped matrix', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        source: { model: 'colmap-x' },
+        pairs: [{
+          left: 'left', right: 'right', points: [], leftToRight: null, rightToLeft: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        }],
+      }));
+      // Fresh from the producer: loaded, not refined.
+      expect(store.isRefinedFromSource(key)).toBe(false);
+      addFourTranslationPairs(store);
+      store.maybeFitPair(key);
+      expect(store.isRefinedFromSource(key)).toBe(true);
+    });
+
+    it('does not flag fits as refined when no source stamp is loaded', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      addFourTranslationPairs(store);
+      store.fitTransform(key);
+      expect(store.isRefinedFromSource(key)).toBe(false);
+    });
+
+    it('keeps the refined flag across a save/load round trip', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        source: { model: 'colmap-x' },
+        pairs: [{
+          left: 'left', right: 'right', points: [], leftToRight: null, rightToLeft: [[1, 0, 100], [0, 1, 100], [0, 0, 1]],
+        }],
+      }));
+      addFourTranslationPairs(store);
+      store.maybeFitPair(key);
+
+      const restored = new CameraCalibrationStore();
+      restored.loadCalibrationText(store.toCalibrationJson());
+      // The refit pair saved with its backing points, so it re-marks as
+      // fitted (refined) rather than loaded.
+      expect(restored.isRefinedFromSource(key)).toBe(true);
+    });
+
     it('rejects non-JSON, missing pairs, malformed pairs, and bad matrices without clobbering state', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');

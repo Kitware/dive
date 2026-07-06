@@ -58,6 +58,17 @@ export default defineComponent({
       const key = activeKey.value;
       return Boolean(key && calibration.homographies.value[key] && calibration.isLoadedHomography(key));
     });
+    /**
+     * The active pair was refit in-app while a producer-stamped calibration is
+     * loaded, so its transform has diverged from what the stamped source
+     * shipped -- worth saving and sending back to the producer.
+     */
+    const refinedFromSource = computed(() => {
+      const key = activeKey.value;
+      // Touch homographies so provenance changes recompute this (see store docs).
+      return Boolean(key && calibration.homographies.value[key]
+        && calibration.isRefinedFromSource(key));
+    });
     const canClearPair = computed(
       () => correspondences.value.length > 0 || hasLoadedTransform.value,
     );
@@ -212,6 +223,7 @@ export default defineComponent({
       alignmentModeItems,
       hasTransform,
       hasLoadedTransform,
+      refinedFromSource,
       canClearPair,
       canClearLast,
       saving,
@@ -269,6 +281,14 @@ export default defineComponent({
       class="text-caption grey--text d-block"
     >
       Source: {{ sourceReadout }}
+    </span>
+    <span
+      v-if="refinedFromSource"
+      class="text-caption warning--text d-block"
+    >
+      This pair has been refined in-app since the source calibration was
+      produced. Save calibration to capture the refinement (and its points)
+      for the producer.
     </span>
     <v-divider class="my-3" />
 

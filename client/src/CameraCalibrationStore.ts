@@ -363,6 +363,21 @@ export default class CameraCalibrationStore {
     return this.homographySources[key] === 'loaded';
   }
 
+  /**
+   * True when `key`'s transform was fitted from in-app picked points while a
+   * producer-stamped calibration is loaded -- i.e. the pair has diverged from
+   * what the stamped {@link source} shipped (producer files carry matrix-only
+   * pairs, so any point-backed fit is a human refinement). Derived rather
+   * than stored: it survives save/reload naturally, because point-backed
+   * pairs re-mark as fitted on hydrate. Read alongside {@link homographies},
+   * same reactivity caveat as {@link isLoadedHomography}.
+   */
+  isRefinedFromSource(key: string): boolean {
+    return this.source.value !== null
+      && this.homographies.value[key] !== undefined
+      && this.homographySources[key] === 'fit';
+  }
+
   /** The chosen fit model for `key`, defaulting to 'homography' when unset. */
   transformTypeForPair(key: string): TransformType {
     return this.transformTypes.value[key] || 'homography';
