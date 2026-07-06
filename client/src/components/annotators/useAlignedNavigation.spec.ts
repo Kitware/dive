@@ -69,6 +69,22 @@ function makeHarness() {
 }
 
 describe('useAlignedNavigation', () => {
+  it('snaps panes to the reference view immediately on activation', async () => {
+    const { eo, ir, alignedView } = makeHarness();
+    eo.center({ x: 250, y: 150 });
+    eo.zoom(1); // units-per-pixel = 0.5
+    alignedView.setTransforms('eo', {
+      eo: IDENTITY,
+      ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
+    });
+    alignedView.setEnabled(true);
+    await nextTick();
+
+    // No pan/zoom event fired: activation itself aligned the panes.
+    expect(ir.center()).toEqual({ x: 250, y: 150 });
+    expect(ir.zoom()).toBeCloseTo(Math.log2(8 / 0.5), 6);
+  });
+
   it('links panes by IDENTITY center in the shared reference space', async () => {
     const { eo, ir, alignedView } = makeHarness();
     // ir's imagery renders warped through ir->eo (translation +100), so its

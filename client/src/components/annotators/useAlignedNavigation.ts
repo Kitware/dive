@@ -126,6 +126,14 @@ export default function useAlignedNavigation(
       viewer.geoOn(geo.event.zoom, handler);
       attached.push({ viewer, handler });
     });
+    // Snap immediately: run one link pass from the reference pane so hitting
+    // the Align button lines every pane up right away, instead of waiting for
+    // the first pan/zoom event to trigger the link. (Re-running on resize /
+    // camera changes is a no-op when panes are already synced.)
+    const reference = alignedView.reference.value;
+    if (reference && cameras.value.includes(reference)) {
+      link(reference)();
+    }
   }
 
   watch(
