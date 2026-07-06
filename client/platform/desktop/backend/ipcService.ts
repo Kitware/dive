@@ -22,6 +22,7 @@ import { updateJobFilesOnCancel } from 'platform/desktop/backend/native/utils';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
+import readItkTransform from './native/itkTransformReader';
 import beginMultiCamImport from './native/multiCamImport';
 import settings from './state/settings';
 import { listen } from './server';
@@ -246,6 +247,21 @@ export default function register() {
       path.basename(sourcePath),
     );
     return { savedPath, updatedDatasetIds: updatedIds };
+  });
+
+  // Parse an in-memory legacy ITK HDF5 (.h5) transform file. The renderer
+  // sends file contents (not a path) so the shared calibration panel can use
+  // a plain <input type="file">; h5wasm's node build only reads from the
+  // filesystem, so stage the bytes in a temp file.
+  ipcMain.handle('parse-itk-transform', async (_, data: Uint8Array) => {
+    const tmpDir = await fs.promises.mkdtemp(path.join(OS.tmpdir(), 'dive-itk-'));
+    const tmpFile = path.join(tmpDir, 'transform.h5');
+    try {
+      await fs.promises.writeFile(tmpFile, Buffer.from(data));
+      return await readItkTransform(tmpFile);
+    } finally {
+      await fs.promises.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 
   ipcMain.handle('import-calibration', async (_, { id, path }: { id: string; path: string }) => {

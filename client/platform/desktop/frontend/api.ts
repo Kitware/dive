@@ -671,6 +671,14 @@ function deleteCalibration(datasetId: string): Promise<void> {
   return window.diveDesktop.invoke('delete-calibration', { datasetId });
 }
 
+function parseItkTransformBuffer(data: ArrayBuffer): Promise<{
+  matrix: number[][];
+  type: string;
+  direction: 'fixed-to-moving';
+}> {
+  return window.diveDesktop.invoke('parse-itk-transform', new Uint8Array(data));
+}
+
 export {
   /* Standard Specification APIs */
   loadMetadata,
@@ -715,6 +723,7 @@ export {
   getDatasetCalibration,
   downloadCalibration,
   deleteCalibration,
+  parseItkTransformBuffer,
   /* Segmentation APIs */
   segmentationInitialize,
   segmentationEnsureStarted,
