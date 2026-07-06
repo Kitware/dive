@@ -774,30 +774,54 @@ describe('CameraCalibrationStore', () => {
       expect(store.activePair.value).toEqual({ camA: 'left', camB: 'right' });
     });
 
-    it('rejects non-JSON, wrong type, malformed pairs, and bad matrices without clobbering state', () => {
+    it('loads a desktop-persisted calibration.json (no "type" field, one direction only)', () => {
+      const store = new CameraCalibrationStore();
+      const result = store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        pairs: [{
+          left: 'eo',
+          right: 'ir',
+          points: [[0, 0, 5, -3]],
+          leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          rightToLeft: null,
+          transformType: 'translation',
+        }],
+      }));
+      expect(result.pairCount).toBe(1);
+      const key = store.pairKey('eo', 'ir');
+      expect(store.correspondences.value[key]).toHaveLength(1);
+      // The missing direction is derived by inversion.
+      expect(store.homographies.value[key].BtoA[0][2]).toBeCloseTo(-5);
+      expect(store.transformTypeForPair(key)).toBe('translation');
+    });
+
+    it('rejects non-JSON, missing pairs, malformed pairs, and bad matrices without clobbering state', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
       addFourTranslationPairs(store);
       expect(() => store.loadCalibrationText('not json')).toThrow(/valid JSON/);
-      expect(() => store.loadCalibrationText('{"type": "other"}')).toThrow(/dive-camera-calibration/);
+      expect(() => store.loadCalibrationText('{"type": "other"}')).toThrow(/pairs/);
       expect(() => store.loadCalibrationText(JSON.stringify({
-        type: 'dive-camera-calibration', version: 1, pairs: [{ cameraA: 'a', cameraB: 'a' }],
+        version: 1, pairs: [{ left: 'a', right: 'a' }],
       }))).toThrow(/distinct/);
       expect(() => store.loadCalibrationText(JSON.stringify({
-        type: 'dive-camera-calibration',
         version: 1,
         pairs: [{
-          cameraA: 'a',
-          cameraB: 'b',
-          correspondences: [],
-          homography: { AtoB: [[1, 0], [0, 1]], BtoA: [[1, 0], [0, 1]] },
+          left: 'a',
+          right: 'b',
+          points: [],
+          leftToRight: [[1, 0], [0, 1]],
+          rightToLeft: null,
         }],
       }))).toThrow(/3x3/);
       expect(() => store.loadCalibrationText(JSON.stringify({
-        type: 'dive-camera-calibration',
         version: 1,
-        pairs: [{ cameraA: 'a', cameraB: 'b', transformType: 'bogus' }],
+        pairs: [{ left: 'a', right: 'b', points: [[1, 2, 3]] }],
+      }))).toThrow(/points row/);
+      expect(() => store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        pairs: [{ left: 'a', right: 'b', transformType: 'bogus' }],
       }))).toThrow(/transformType/);
       // Failed loads left the existing calibration alone.
       expect(store.correspondences.value[key]).toHaveLength(4);

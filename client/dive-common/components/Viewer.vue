@@ -360,9 +360,11 @@ export default defineComponent({
         return null;
       }
       const reference = multiCamList.value[0];
-      const toReference = resolveToReferenceTransforms(multiCamList.value, reference, {
-        homographies: cameraCalibration.homographies.value,
-      });
+      const toReference = resolveToReferenceTransforms(
+        multiCamList.value,
+        reference,
+        cameraCalibration.homographies.value,
+      );
       return toReference ? { reference, toReference } : null;
     });
     watch(alignedResolution, (resolution) => {

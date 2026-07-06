@@ -14,11 +14,9 @@
  *   edges (breadth-first, so up-to-3-camera rigs may chain e.g. UV->IR->EO).
  * - The calibration store is the SINGLE source the viewer resolves from:
  *   whatever the calibration panel shows/saves is what the Align button
- *   applies. Legacy per-camera matrices at
- *   `meta.multiCam.cameras[<name>].transform.matrix` (written by .h5 import)
- *   are no longer consumed automatically -- load the .h5 through the
- *   calibration panel instead. `metaTransforms` / extractMetaCameraTransforms
- *   below remain for callers that still need to read that metadata.
+ *   applies. External transform files (.h5 / calibration .json) enter that
+ *   same store, either through the panel's Load calibration button or by
+ *   seeding the saved calibration at multicam import time.
  */
 import {
   Matrix3, matMul3, invert3, applyHomography, Point,
@@ -67,29 +65,6 @@ export function readTransformMatrix(raw: unknown): Matrix3 | null {
     return null;
   }
   return m;
-}
-
-/**
- * Extract per-camera transform matrices from a loaded dataset meta object,
- * reading `meta.multiCam.cameras[<name>].transform.matrix` without assuming
- * the field exists (it is being added by a parallel branch; this must compose
- * with or without it). Invalid entries are simply omitted.
- */
-export function extractMetaCameraTransforms(meta: unknown): Record<string, Matrix3> {
-  const result: Record<string, Matrix3> = {};
-  const cameras = (meta as {
-    multiCam?: { cameras?: Record<string, { transform?: { matrix?: unknown } }> };
-  })?.multiCam?.cameras;
-  if (!cameras || typeof cameras !== 'object') {
-    return result;
-  }
-  Object.entries(cameras).forEach(([name, camera]) => {
-    const matrix = readTransformMatrix(camera?.transform?.matrix);
-    if (matrix) {
-      result[name] = matrix;
-    }
-  });
-  return result;
 }
 
 /** One directed edge of the calibration-pair graph: `matrix` maps `from` pixels onto `to`. */
@@ -153,36 +128,28 @@ export function composeThroughPairs(
   return null;
 }
 
-export interface ResolveTransformSources {
-  /** Per-camera native->reference matrices from stored meta (preferred). */
-  metaTransforms?: Record<string, Matrix3>;
-  /** Calibration-tool pair homographies keyed `camA::camB` (fallback). */
-  homographies?: CameraHomographies;
-}
-
 /**
- * Resolve a native->reference matrix for EVERY camera in `cameras`, or null
- * when any camera lacks a usable transform (the aligned view is all-or-none:
- * a partially-aligned display would be misleading). The reference camera
- * always maps by the identity.
+ * Resolve a native->reference matrix for EVERY camera in `cameras` from the
+ * calibration store's pair homographies, or null when any camera lacks a
+ * usable transform (the aligned view is all-or-none: a partially-aligned
+ * display would be misleading). The reference camera always maps by the
+ * identity.
  */
 export function resolveToReferenceTransforms(
   cameras: string[],
   reference: string,
-  sources: ResolveTransformSources,
+  homographies: CameraHomographies,
 ): Record<string, Matrix3> | null {
   if (!cameras.length || !cameras.includes(reference)) {
     return null;
   }
-  const metaTransforms = sources.metaTransforms || {};
-  const homographies = sources.homographies || {};
   const result: Record<string, Matrix3> = {};
   for (let i = 0; i < cameras.length; i += 1) {
     const camera = cameras[i];
     if (camera === reference) {
       result[camera] = IDENTITY3;
     } else {
-      const matrix = metaTransforms[camera] || composeThroughPairs(camera, reference, homographies);
+      const matrix = composeThroughPairs(camera, reference, homographies);
       if (!matrix) {
         return null;
       }

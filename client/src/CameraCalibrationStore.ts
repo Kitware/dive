@@ -38,19 +38,28 @@ export type CameraHomographies = Record<string, PairHomography>;
  */
 type HomographySource = 'fit' | 'loaded';
 
-/** One camera pair in the portable calibration JSON file. */
+/**
+ * One camera pair in the portable calibration JSON file. This is the same
+ * self-describing shape the desktop platform persists as the project's
+ * standalone calibration.json (see desktop backend/native/common.ts), so a
+ * panel-saved file, the on-disk artifact, and an import-time seed are all
+ * interchangeable: correspondences flattened as [leftX, leftY, rightX,
+ * rightY] rows, plus both fitted directions (null when unfitted).
+ */
 export interface CalibrationFilePair {
-  cameraA: string;
-  cameraB: string;
-  transformType: TransformType;
-  correspondences: { a: Point; b: Point }[];
-  homography: PairHomography | null;
+  left: string;
+  right: string;
+  points?: number[][];
+  leftToRight?: Matrix3 | null;
+  rightToLeft?: Matrix3 | null;
+  transformType?: TransformType;
 }
 
 /** Portable calibration file: everything needed to restore all pairs. */
 export interface CalibrationFile {
-  type: 'dive-camera-calibration';
-  version: 1;
+  /** Written by panel saves for self-identification; optional on load. */
+  type?: string;
+  version: number;
   pairs: CalibrationFilePair[];
 }
 
@@ -593,13 +602,15 @@ export default class CameraCalibrationStore {
       ...Object.keys(this.homographies.value),
     ]);
     const pairs: CalibrationFilePair[] = [...keys].sort().map((key) => {
-      const [cameraA, cameraB] = key.split('::');
+      const [left, right] = key.split('::');
+      const homography = this.homographies.value[key] || null;
       return {
-        cameraA,
-        cameraB,
+        left,
+        right,
+        points: (this.correspondences.value[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
+        leftToRight: homography ? homography.AtoB : null,
+        rightToLeft: homography ? homography.BtoA : null,
         transformType: this.transformTypeForPair(key),
-        correspondences: (this.correspondences.value[key] || []).map((c) => ({ a: c.a, b: c.b })),
-        homography: this.homographies.value[key] || null,
       };
     });
     const file: CalibrationFile = { type: CALIBRATION_FILE_TYPE, version: 1, pairs };
@@ -624,11 +635,8 @@ export default class CameraCalibrationStore {
       throw new Error('File is not valid JSON');
     }
     const file = data as Partial<CalibrationFile>;
-    if (file?.type !== CALIBRATION_FILE_TYPE) {
-      throw new Error(`Not a DIVE camera calibration file (expected "type": "${CALIBRATION_FILE_TYPE}")`);
-    }
-    if (!Array.isArray(file.pairs)) {
-      throw new Error('Calibration file is missing its "pairs" list');
+    if (!Array.isArray(file?.pairs)) {
+      throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
     }
     const correspondences: CameraCorrespondences = {};
     const homographies: CameraHomographies = {};
@@ -636,13 +644,13 @@ export default class CameraCalibrationStore {
     const cameras = new Set<string>();
     file.pairs.forEach((pair, i) => {
       const context = `Pair ${i + 1}`;
-      if (typeof pair?.cameraA !== 'string' || typeof pair?.cameraB !== 'string'
-        || !pair.cameraA || !pair.cameraB || pair.cameraA === pair.cameraB) {
-        throw new Error(`${context}: cameraA and cameraB must be two distinct camera names`);
+      if (typeof pair?.left !== 'string' || typeof pair?.right !== 'string'
+        || !pair.left || !pair.right || pair.left === pair.right) {
+        throw new Error(`${context}: "left" and "right" must be two distinct camera names`);
       }
-      const key = this.pairKey(pair.cameraA, pair.cameraB);
-      cameras.add(pair.cameraA);
-      cameras.add(pair.cameraB);
+      const key = this.pairKey(pair.left, pair.right);
+      cameras.add(pair.left);
+      cameras.add(pair.right);
       if (pair.transformType !== undefined) {
         if (!TRANSFORM_TYPES.some((t) => t.value === pair.transformType)) {
           throw new Error(
@@ -651,16 +659,23 @@ export default class CameraCalibrationStore {
         }
         transformTypes[key] = pair.transformType;
       }
-      correspondences[key] = (pair.correspondences || []).map((c, j) => ({
+      correspondences[key] = (pair.points || []).map((row, j) => {
+        const [ax, ay, bx, by] = CameraCalibrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
         // eslint-disable-next-line no-plusplus
-        id: this.nextId++,
-        a: CameraCalibrationStore.readPoint(c?.a, `${context}, correspondence ${j + 1}, "a"`),
-        b: CameraCalibrationStore.readPoint(c?.b, `${context}, correspondence ${j + 1}, "b"`),
-      }));
-      if (pair.homography !== null && pair.homography !== undefined) {
+        return { id: this.nextId++, a: [ax, ay] as Point, b: [bx, by] as Point };
+      });
+      const leftToRight = (pair.leftToRight === null || pair.leftToRight === undefined)
+        ? null
+        : CameraCalibrationStore.readMatrix(pair.leftToRight, `${context}, leftToRight`);
+      const rightToLeft = (pair.rightToLeft === null || pair.rightToLeft === undefined)
+        ? null
+        : CameraCalibrationStore.readMatrix(pair.rightToLeft, `${context}, rightToLeft`);
+      if (leftToRight || rightToLeft) {
+        // If only one direction is present, derive the other by inversion
+        // (readMatrix guarantees invertibility).
         homographies[key] = {
-          AtoB: CameraCalibrationStore.readMatrix(pair.homography.AtoB, `${context}, homography AtoB`),
-          BtoA: CameraCalibrationStore.readMatrix(pair.homography.BtoA, `${context}, homography BtoA`),
+          AtoB: leftToRight ?? invert3(rightToLeft as Matrix3),
+          BtoA: rightToLeft ?? invert3(leftToRight as Matrix3),
         };
       }
     });
@@ -674,16 +689,16 @@ export default class CameraCalibrationStore {
     return { cameras: [...cameras], pairCount: file.pairs.length };
   }
 
-  /** Validate an untrusted value as a 2-element finite point. */
-  private static readPoint(raw: unknown, context: string): Point {
-    if (!Array.isArray(raw) || raw.length !== 2) {
-      throw new Error(`${context}: expected [x, y]`);
+  /** Validate an untrusted value as a 4-element finite [leftX, leftY, rightX, rightY] row. */
+  private static readPointsRow(raw: unknown, context: string): [number, number, number, number] {
+    if (!Array.isArray(raw) || raw.length !== 4) {
+      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY]`);
     }
     const nums = raw.map(Number);
     if (nums.some((n) => !Number.isFinite(n))) {
-      throw new Error(`${context}: expected [x, y] with finite numbers`);
+      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY] with finite numbers`);
     }
-    return [nums[0], nums[1]];
+    return [nums[0], nums[1], nums[2], nums[3]];
   }
 
   /** Validate an untrusted value as an invertible row-major 3x3 matrix. */

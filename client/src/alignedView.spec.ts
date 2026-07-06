@@ -3,7 +3,6 @@ import {
   IDENTITY3,
   isIdentityMatrix3,
   readTransformMatrix,
-  extractMetaCameraTransforms,
   composeThroughPairs,
   resolveToReferenceTransforms,
   cameraPairTransform,
@@ -59,29 +58,6 @@ describe('readTransformMatrix', () => {
   });
 });
 
-describe('extractMetaCameraTransforms', () => {
-  it('reads valid matrices and omits invalid or missing ones', () => {
-    const meta = {
-      multiCam: {
-        cameras: {
-          eo: {},
-          ir: { transform: { matrix: [[2, 0, 0], [0, 2, 0], [0, 0, 1]] } },
-          uv: { transform: { matrix: [[1, 1], [0, 1]] } },
-        },
-      },
-    };
-    const result = extractMetaCameraTransforms(meta);
-    expect(Object.keys(result)).toEqual(['ir']);
-    expect(result.ir).toEqual([[2, 0, 0], [0, 2, 0], [0, 0, 1]]);
-  });
-  it('tolerates meta without multiCam or cameras', () => {
-    expect(extractMetaCameraTransforms(undefined)).toEqual({});
-    expect(extractMetaCameraTransforms({})).toEqual({});
-    expect(extractMetaCameraTransforms({ multiCam: null })).toEqual({});
-    expect(extractMetaCameraTransforms({ multiCam: { cameras: undefined } })).toEqual({});
-  });
-});
-
 describe('composeThroughPairs', () => {
   const irToEo = translation(100, 50);
   const uvToIr = scale(2);
@@ -118,29 +94,20 @@ describe('resolveToReferenceTransforms', () => {
     'uv::ir': { AtoB: scale(2), BtoA: scale(0.5) },
   };
   it('resolves every camera through calibration pairs', () => {
-    const result = resolveToReferenceTransforms(cameras, 'eo', { homographies });
+    const result = resolveToReferenceTransforms(cameras, 'eo', homographies);
     expect(result).not.toBeNull();
     const transforms = result as Record<string, Matrix3>;
     expect(transforms.eo).toEqual(IDENTITY3);
     expectPointClose(applyHomography(transforms.ir, [5, 5]), [105, 5]);
     expectPointClose(applyHomography(transforms.uv, [5, 5]), [110, 10]);
   });
-  it('prefers a meta matrix over a calibration fit for the same camera', () => {
-    const metaTransforms = { ir: translation(999, 0) };
-    const result = resolveToReferenceTransforms(cameras, 'eo', { homographies, metaTransforms });
-    expect(result).not.toBeNull();
-    const transforms = result as Record<string, Matrix3>;
-    expectPointClose(applyHomography(transforms.ir, [0, 0]), [999, 0]);
-    // uv still resolves through the calibration graph.
-    expectPointClose(applyHomography(transforms.uv, [5, 5]), [110, 10]);
-  });
   it('is all-or-none: any unresolved camera fails the whole set', () => {
-    expect(resolveToReferenceTransforms(['eo', 'ir', 'flir'], 'eo', { homographies })).toBeNull();
+    expect(resolveToReferenceTransforms(['eo', 'ir', 'flir'], 'eo', homographies)).toBeNull();
     expect(resolveToReferenceTransforms(cameras, 'eo', {})).toBeNull();
   });
   it('fails when the reference is not among the cameras or the list is empty', () => {
-    expect(resolveToReferenceTransforms([], 'eo', { homographies })).toBeNull();
-    expect(resolveToReferenceTransforms(['ir', 'uv'], 'eo', { homographies })).toBeNull();
+    expect(resolveToReferenceTransforms([], 'eo', homographies)).toBeNull();
+    expect(resolveToReferenceTransforms(['ir', 'uv'], 'eo', homographies)).toBeNull();
   });
 });
 
