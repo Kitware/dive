@@ -160,6 +160,23 @@ export function resolveToReferenceTransforms(
 }
 
 /**
+ * The cameras in `cameras` with no composed transform path to `reference` --
+ * the reason {@link resolveToReferenceTransforms} returned null, named so the
+ * UI can say exactly which pair(s) still need calibrating instead of silently
+ * hiding the aligned view.
+ */
+export function unresolvedCameras(
+  cameras: string[],
+  reference: string,
+  homographies: CameraHomographies,
+): string[] {
+  return cameras.filter(
+    (camera) => camera !== reference
+      && composeThroughPairs(camera, reference, homographies) === null,
+  );
+}
+
+/**
  * Matrix mapping `from`-camera native pixels onto `to`-camera native pixels,
  * composed through the shared reference space:
  * p_to = inv(T_to->ref) * T_from->ref * p_from.

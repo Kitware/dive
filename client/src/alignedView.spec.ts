@@ -5,6 +5,7 @@ import {
   readTransformMatrix,
   composeThroughPairs,
   resolveToReferenceTransforms,
+  unresolvedCameras,
   cameraPairTransform,
   mapPoint,
 } from './alignedView';
@@ -108,6 +109,19 @@ describe('resolveToReferenceTransforms', () => {
   it('fails when the reference is not among the cameras or the list is empty', () => {
     expect(resolveToReferenceTransforms([], 'eo', homographies)).toBeNull();
     expect(resolveToReferenceTransforms(['ir', 'uv'], 'eo', homographies)).toBeNull();
+  });
+});
+
+describe('unresolvedCameras', () => {
+  const homographies: CameraHomographies = {
+    'eo::ir': { AtoB: translation(-100, 0), BtoA: translation(100, 0) },
+  };
+  it('names cameras with no path to the reference', () => {
+    expect(unresolvedCameras(['eo', 'ir', 'uv'], 'eo', homographies)).toEqual(['uv']);
+    expect(unresolvedCameras(['eo', 'ir', 'uv'], 'eo', {})).toEqual(['ir', 'uv']);
+  });
+  it('is empty when every camera resolves', () => {
+    expect(unresolvedCameras(['eo', 'ir'], 'eo', homographies)).toEqual([]);
   });
 });
 
