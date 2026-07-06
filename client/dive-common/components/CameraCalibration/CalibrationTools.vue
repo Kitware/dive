@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, ref, watch,
+  computed, defineComponent, onBeforeUnmount, ref, watch,
 } from 'vue';
 import {
   useCameraStore,
@@ -36,6 +36,14 @@ export default defineComponent({
     watch([camLeft, camRight], () => {
       calibration.setActivePair(camLeft.value, camRight.value);
     }, { immediate: true });
+
+    // Picking is scoped to this panel: closing the calibration tab (which
+    // unmounts it) always turns picking off, so the viewer can't be left in
+    // picking mode -- pair-only panes, suspended aligned view -- with no
+    // visible control to get back out.
+    onBeforeUnmount(() => {
+      calibration.pickingEnabled.value = false;
+    });
 
     const activeKey = computed(() => calibration.activePairKey());
     const correspondences = computed(() => {

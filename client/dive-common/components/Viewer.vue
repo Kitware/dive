@@ -391,6 +391,9 @@ export default defineComponent({
     const alignedViewTooltip = computed(() => (alignedViewEnabled.value
       ? 'Align View on (editing disabled)'
       : 'Align View (requires calibration)'));
+    // The aligned view is suspended while picking, so the button reads as
+    // unavailable rather than accepting a toggle that has no visible effect.
+    const calibrationPickingEnabled = computed(() => cameraCalibration.pickingEnabled.value);
     /**
      * Camera panes currently displayed. While picking points with an active
      * pair on a 3+ camera dataset, only the pair's two panes show, so the
@@ -1529,6 +1532,7 @@ export default defineComponent({
       alignedViewAvailable,
       alignedViewEnabled,
       alignedViewTooltip,
+      calibrationPickingEnabled,
       displayedCameras,
       toggleAlignedView,
       seekToFrame,
@@ -1734,7 +1738,7 @@ export default defineComponent({
                 small
                 class="mx-1"
                 :color="alignedViewEnabled ? 'primary' : 'default'"
-                :disabled="!alignedViewAvailable"
+                :disabled="!alignedViewAvailable || calibrationPickingEnabled"
                 @click="toggleAlignedView"
               >
                 <v-icon>
