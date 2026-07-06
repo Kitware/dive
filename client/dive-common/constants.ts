@@ -167,12 +167,10 @@ const listFileTypes = [
 
 /**
  * Per-camera alignment transform files: DIVE calibration .json (the
- * calibration panel's save format) or legacy ITK .h5 (HDF5-serialized, e.g.
- * from itk_point_set_to_transform).
+ * calibration panel's save format).
  */
 const transformFileTypes = [
   'json',
-  'h5',
 ];
 
 const zipFileTypes = [

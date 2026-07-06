@@ -17,9 +17,7 @@ import {
   Camera,
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
-import { invert3 } from 'vue-media-annotator/homography';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { readItkTransform } from './itkTransformReader';
 import { findImagesInFolder, fromCalibrationPairs } from './common';
 
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
@@ -107,39 +105,27 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   if (isFolderArgs(args)) {
     // Parse the files up front so a bad file fails the import with a clear
     // message instead of storing partial state.
-    const referenceCamera = Object.keys(args.sourceList)[0];
     await asyncForEach(Object.entries(args.sourceList), async ([cameraName, item]) => {
       if (!item.transformFile) {
         return;
       }
       try {
-        if (/\.json$/i.test(item.transformFile)) {
-          // A DIVE calibration .json (the panel's save format / the project
-          // calibration.json shape): pairs name their own cameras, so merge
-          // them all in.
-          const data = await fs.readJson(item.transformFile);
-          if (!data || !Array.isArray(data.pairs)) {
-            throw new Error('not a DIVE calibration file (expected a "pairs" list)');
-          }
-          const parsed = fromCalibrationPairs(data.pairs);
-          Object.entries(parsed.homographies).forEach(([key, homography]) => {
-            if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
-              throw new Error(`pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
-            }
-            seedHomographies[key] = homography;
-          });
-          Object.assign(seedCorrespondences, parsed.correspondences);
-          Object.assign(seedTransformTypes, parsed.transformTypes);
-        } else {
-          // An ITK .h5: a single matrix mapping the reference (first) camera
-          // onto this camera (ITK's forward, fixed-to-moving direction).
-          if (cameraName === referenceCamera) {
-            throw new Error('the first (reference) camera cannot take an .h5 transform; transforms map the other cameras onto it');
-          }
-          const parsed = await readItkTransform(item.transformFile);
-          const key = `${referenceCamera}::${cameraName}`;
-          seedHomographies[key] = { AtoB: parsed.matrix, BtoA: invert3(parsed.matrix) };
+        // A DIVE calibration .json (the panel's save format / the project
+        // calibration.json shape): pairs name their own cameras, so merge
+        // them all in.
+        const data = await fs.readJson(item.transformFile);
+        if (!data || !Array.isArray(data.pairs)) {
+          throw new Error('not a DIVE calibration file (expected a "pairs" list)');
         }
+        const parsed = fromCalibrationPairs(data.pairs);
+        Object.entries(parsed.homographies).forEach(([key, homography]) => {
+          if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
+            throw new Error(`pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
+          }
+          seedHomographies[key] = homography;
+        });
+        Object.assign(seedCorrespondences, parsed.correspondences);
+        Object.assign(seedTransformTypes, parsed.transformTypes);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);

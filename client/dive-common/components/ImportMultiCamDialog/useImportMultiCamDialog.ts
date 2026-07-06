@@ -37,9 +37,9 @@ export interface UseImportMultiCamDialogProps {
   dataType: typeof VideoType | typeof ImageSequenceType;
   importMedia: (path: string) => Promise<MediaImportResponse>;
   /**
-   * Offer a per-camera ITK .h5 transform file picker for cameras after the
-   * first (desktop only; the file is parsed by the desktop backend at
-   * import time). Ignored for stereo imports, which use calibration files.
+   * Offer a per-camera calibration .json transform file picker for cameras
+   * after the first (desktop only; the file is parsed by the desktop backend
+   * at import time). Ignored for stereo imports, which use calibration files.
    */
   enableTransformImport?: boolean;
   enableSubfolderImport?: boolean;
@@ -108,7 +108,7 @@ export function useImportMultiCamDialog(
       && !!lastCalibrationPath.value,
   );
 
-  // Per-camera ITK transform pickers: multicam only (stereo uses calibration),
+  // Per-camera transform pickers: multicam only (stereo uses calibration),
   // folder-based modes only, and never for the first (reference) camera.
   const transformImportEnabled = computed(
     () => !!props.enableTransformImport && !props.stereo,

@@ -42,7 +42,7 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    /** Offer per-camera transform/calibration pickers (.json / .h5; desktop multicam only). */
+    /** Offer per-camera calibration .json transform pickers (desktop multicam only). */
     enableTransformImport: {
       type: Boolean,
       default: false,

@@ -138,8 +138,8 @@ export interface MultiCamImportFolderArgs {
     trackFile: string;
     /**
      * Optional alignment transform file for cameras after the first (desktop
-     * only): a DIVE calibration .json or a legacy ITK .h5. Parsed at import
-     * time to seed the dataset's saved camera calibration.
+     * only): a DIVE calibration .json, parsed at import time to seed the
+     * dataset's saved camera calibration.
      */
     transformFile?: string;
   }>; // path/track file per camera
