@@ -1,3 +1,4 @@
+import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
 import { Matrix3, subdivideWarpQuads, warpGridSize } from '../homography';
 import type { CameraImage } from './AnnotationLayers/CalibrationKeypointLayer';
@@ -16,6 +17,12 @@ interface AlignedImageLayerParams {
   getImage: () => CameraImage | null;
   /** Current native->reference display transform, or null when unwarped. */
   getTransform: () => Matrix3 | null;
+  /**
+   * Whether the aligned view is active for the dataset (true for the
+   * reference pane too, whose own transform is null/identity). Gates the
+   * right-click recenter below.
+   */
+  getActive: () => boolean;
 }
 
 /**
@@ -39,6 +46,8 @@ export default class AlignedImageLayer {
 
   private getTransform: () => Matrix3 | null;
 
+  private getActive: () => boolean;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private quadLayer: any;
 
@@ -60,12 +69,35 @@ export default class AlignedImageLayer {
     this.annotator = params.annotator;
     this.getImage = params.getImage;
     this.getTransform = params.getTransform;
+    this.getActive = params.getActive;
     this.quadLayer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['quad'],
       autoshareRenderer: false,
       renderer: 'canvas',
     });
     this.quadFeature = this.quadLayer.createFeature('quad');
+    // Right-click recenter while the aligned view is active: center this pane
+    // on the clicked location; the aligned pan/zoom link then recenters every
+    // other pane on the same reference-space point. (While calibration point
+    // picking is active the aligned view is suspended -- getActive() false --
+    // and CalibrationKeypointLayer owns the right-click instead.)
+    this.annotator.geoViewerRef.value.geoOn(
+      geo.event.mouseclick,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (e: any) => this.handleClick(e),
+    );
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private handleClick(e: any) {
+    if (!this.getActive() || !e.geo) {
+      return;
+    }
+    const buttonsDown = e.buttonsDown || (e.mouse && e.mouse.buttonsDown);
+    if (!buttonsDown || !buttonsDown.right) {
+      return;
+    }
+    this.annotator.geoViewerRef.value.center({ x: e.geo.x, y: e.geo.y });
   }
 
   /**

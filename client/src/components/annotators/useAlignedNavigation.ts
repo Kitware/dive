@@ -146,5 +146,21 @@ export default function useAlignedNavigation(
     setup,
   );
 
+  // Leaving the aligned view (toggle off, or suspension by point picking)
+  // strands every pane at reference-space centers/zooms while the content
+  // reverts to native coordinates -- reset each pane to its own full native
+  // view so the imagery is on-screen again.
+  watch(alignedView.active, (active, wasActive) => {
+    if (!active && wasActive) {
+      cameras.value.forEach((camera) => {
+        try {
+          aggregateController.value.getController(camera).resetZoom();
+        } catch {
+          // A pane may already be torn down during dataset unload.
+        }
+      });
+    }
+  });
+
   onBeforeUnmount(teardown);
 }

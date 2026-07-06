@@ -198,6 +198,7 @@ export default defineComponent({
         }
       },
       getTransform: () => alignedDisplayTransform.value,
+      getActive: () => alignedViewActive.value,
     });
 
     const rectAnnotationLayer = new RectangleLayer({

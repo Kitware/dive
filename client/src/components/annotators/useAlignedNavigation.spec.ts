@@ -48,9 +48,10 @@ function makeHarness() {
   // EO: high-res pane (fine zoom-0 baseline); IR: low-res pane.
   const eo = fakeViewer(1);
   const ir = fakeViewer(8);
-  const controllers: Record<string, { geoViewerRef: Ref<unknown> }> = {
-    eo: { geoViewerRef: ref(eo) },
-    ir: { geoViewerRef: ref(ir) },
+  const resetZoom = vi.fn();
+  const controllers: Record<string, { geoViewerRef: Ref<unknown>; resetZoom: () => void }> = {
+    eo: { geoViewerRef: ref(eo), resetZoom },
+    ir: { geoViewerRef: ref(ir), resetZoom },
   };
   const cameraSync = ref(false);
   // shallowRef: a plain ref would deep-unwrap the nested cameraSync /
@@ -64,7 +65,7 @@ function makeHarness() {
   const alignedView = new AlignedViewStore();
   useAlignedNavigation(aggregate, alignedView, cameras);
   return {
-    eo, ir, cameraSync, alignedView,
+    eo, ir, cameraSync, alignedView, resetZoom,
   };
 }
 
@@ -120,6 +121,19 @@ describe('useAlignedNavigation', () => {
     ir.trigger('geo_pan');
 
     expect(eo.center()).toEqual({ x: 40, y: 60 });
+  });
+
+  it('resets every pane to its native view when the aligned view deactivates', async () => {
+    const { alignedView, resetZoom } = makeHarness();
+    alignedView.setTransforms('eo', { eo: IDENTITY, ir: IDENTITY });
+    alignedView.setEnabled(true);
+    await nextTick();
+    expect(resetZoom).not.toHaveBeenCalled();
+
+    alignedView.setEnabled(false);
+    await nextTick();
+    // Once per pane (eo + ir).
+    expect(resetZoom).toHaveBeenCalledTimes(2);
   });
 
   it('stands down while inactive, suspended, or raw camera sync is on', async () => {
