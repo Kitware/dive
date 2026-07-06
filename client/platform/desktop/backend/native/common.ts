@@ -21,6 +21,7 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import { TransformType } from 'vue-media-annotator/transform';
 import { CALIBRATION_FILE_TYPE } from 'vue-media-annotator/CameraCalibrationStore';
+import { invert3, Matrix3 } from 'vue-media-annotator/homography';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -791,8 +792,19 @@ function fromCalibrationPairs(
   const transformTypes: CameraTransformTypes = {};
   pairs.forEach((pair) => {
     const key = `${pair.left}::${pair.right}`;
-    if (pair.leftToRight && pair.rightToLeft) {
-      homographies[key] = { AtoB: pair.leftToRight, BtoA: pair.rightToLeft };
+    // Mirror the panel loader (CameraCalibrationStore.loadCalibrationText):
+    // producer files may carry only one fitted direction, so derive the
+    // missing one by inversion. A singular matrix can't participate in the
+    // warp either way, so such pairs contribute points only.
+    if (pair.leftToRight || pair.rightToLeft) {
+      try {
+        homographies[key] = {
+          AtoB: pair.leftToRight ?? invert3(pair.rightToLeft as Matrix3),
+          BtoA: pair.rightToLeft ?? invert3(pair.leftToRight as Matrix3),
+        };
+      } catch {
+        // Singular / non-invertible: skip the matrix, keep the points.
+      }
     }
     if (pair.points && pair.points.length) {
       correspondences[key] = pair.points.map((p, i) => ({
@@ -2258,6 +2270,7 @@ export {
   listParentFolderCameras,
   findParentFolderCalibrationFile,
   findParentFolderTransformFile,
+  fromCalibrationPairs,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,
@@ -2270,5 +2283,4 @@ export {
   exportDatasetCalibration,
   getDatasetCalibration,
   deleteDatasetCalibration,
-  fromCalibrationPairs,
 };
