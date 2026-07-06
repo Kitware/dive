@@ -4,6 +4,7 @@ import {
 } from 'vue';
 import type { AggregateMediaController } from './mediaControllerType';
 import type CameraCalibrationStore from '../../CameraCalibrationStore';
+import type AlignedViewStore from '../../AlignedViewStore';
 import { localLinkedScale } from '../../homography';
 import type { Point } from '../../homography';
 
@@ -15,10 +16,17 @@ import type { Point } from '../../homography';
  * general "sync cameras" toggle (Controls.vue), which forwards raw screen
  * deltas/zoom levels and assumes identical pixel scale between panes -- not
  * true for cross-modality (e.g. EO/IR) rigs with differing resolutions.
+ *
+ * The homography mapping assumes UNWARPED panes displaying native
+ * coordinates, so this link stands down while the aligned view is actively
+ * warping displays into reference space (useAlignedNavigation links all
+ * panes by identity there); it takes over whenever picking suspends the
+ * aligned view during authoring.
  */
 export default function useCalibrationNavigation(
   aggregateController: Ref<AggregateMediaController>,
   calibration: CameraCalibrationStore,
+  alignedView?: AlignedViewStore,
 ) {
   // Re-entrancy guard: setting a camera's center from a link handler must not
   // itself trigger that camera's own pan/zoom listener.
@@ -37,6 +45,12 @@ export default function useCalibrationNavigation(
   function link(camera: string, otherCamera: string) {
     return () => {
       if (guard) {
+        return;
+      }
+      // Panes render in reference space while the aligned view is active;
+      // this link's native-coordinate mapping would double-apply the
+      // transform there. useAlignedNavigation owns linking in that state.
+      if (alignedView?.active.value) {
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +152,10 @@ export default function useCalibrationNavigation(
     request: { camera: string; coord: Point; id: number } | null,
   ) {
     if (!request) {
+      return;
+    }
+    // Same native-coordinate assumption as the continuous link above.
+    if (alignedView?.active.value) {
       return;
     }
     const pair = calibration.activePair.value;

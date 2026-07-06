@@ -4,29 +4,31 @@ import {
 } from 'vue';
 import type { AggregateMediaController } from './mediaControllerType';
 import type AlignedViewStore from '../../AlignedViewStore';
-import type CameraCalibrationStore from '../../CameraCalibrationStore';
-import { localLinkedScale } from '../../homography';
 
 /**
  * Links pan/zoom recentering across ALL loaded cameras while the aligned
- * view is active (SEAL-TK feature 3): panning or zooming any camera
- * recenters every other camera on the same world location, mapped through
- * the stored transforms composed via the reference camera
- * ({@link AlignedViewStore.mapCameraPoint}).
+ * view is active (SEAL-TK feature 3).
+ *
+ * While the aligned view is active, every pane RENDERS in the shared
+ * reference space: AlignedImageLayer draws each camera's imagery -- and
+ * LayerManager maps its geometry -- through that camera's native->reference
+ * transform. The link between panes is therefore the IDENTITY on
+ * coordinates: same center, same reference-units-per-screen-pixel. Mapping
+ * centers through the camera-to-camera transforms here would re-apply a
+ * transform the rendering has already applied, offsetting every non-reference
+ * pane by exactly its pair transform.
  *
  * Distinct from (a) the general "sync cameras" toggle (Controls.vue), which
- * forwards raw screen deltas/zoom levels and assumes identical pixel scale
- * between panes, and (b) the calibration pair link
- * (useCalibrationNavigation.ts), which is scoped to the active calibration
- * pair while authoring correspondences. To avoid three handlers fighting
- * over the same pan event, this link stands down while either of those is
- * turned on.
+ * forwards raw screen deltas/zoom levels for UNWARPED panes (it is hidden
+ * and disabled whenever the aligned view is available), and (b) the
+ * calibration pair link (useCalibrationNavigation.ts), which maps through
+ * the homography because it operates on unwarped panes while authoring
+ * correspondences -- it stands down while the aligned view is active.
  */
 export default function useAlignedNavigation(
   aggregateController: Ref<AggregateMediaController>,
   alignedView: AlignedViewStore,
   cameras: Ref<string[]>,
-  calibration?: CameraCalibrationStore,
 ) {
   // Re-entrancy guard: setting a camera's center from a link handler must not
   // itself trigger that camera's own pan/zoom listener.
@@ -50,8 +52,10 @@ export default function useAlignedNavigation(
       if (!alignedView.active.value) {
         return;
       }
-      // Stand down while another camera-linking mechanism is driving.
-      if (aggregateController.value.cameraSync.value || calibration?.linkedNav.value) {
+      // Stand down while the raw screen-delta sync is driving (it should be
+      // unreachable while the aligned view is available, but never let two
+      // handlers fight over the same pan event).
+      if (aggregateController.value.cameraSync.value) {
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,15 +68,18 @@ export default function useAlignedNavigation(
       if (!sourceViewer) {
         return;
       }
+      // Shared reference space: copy the center verbatim and match the
+      // visible extent. Viewers keep their own zoom-0 baselines (sized to
+      // each camera's native image), so an equal units-per-pixel still needs
+      // converting through the target's baseline rather than copying the
+      // zoom level (geojs zoom is log2-based:
+      // unitsPerPixel(z) = unitsPerPixel(0) / 2^z).
       const center = sourceViewer.center();
+      const desiredUnitsPerPixel = sourceViewer.unitsPerPixel(sourceViewer.zoom());
       guard = true;
       try {
         cameras.value.forEach((otherCamera) => {
           if (otherCamera === camera) {
-            return;
-          }
-          const mapped = alignedView.mapCameraPoint(camera, otherCamera, [center.x, center.y]);
-          if (!mapped) {
             return;
           }
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,24 +90,11 @@ export default function useAlignedNavigation(
             return;
           }
           if (targetViewer) {
-            // Match the visible extent, not just the center: one source pixel
-            // spans `scale` target pixels around this point, so the target
-            // needs `scale`x the source's units-per-pixel. geojs zoom is
-            // log2-based (unitsPerPixel(z) = unitsPerPixel(0) / 2^z); invert
-            // through the target's own zoom-0 baseline since the two images
-            // may differ in resolution (e.g. EO vs IR).
-            const scale = localLinkedScale(
-              (p) => alignedView.mapCameraPoint(camera, otherCamera, p),
-              [center.x, center.y],
-            );
-            if (scale !== null) {
-              const desiredUnitsPerPixel = sourceViewer.unitsPerPixel(sourceViewer.zoom()) * scale;
-              const targetZoom = Math.log2(targetViewer.unitsPerPixel(0) / desiredUnitsPerPixel);
-              if (Number.isFinite(targetZoom)) {
-                targetViewer.zoom(targetZoom);
-              }
+            const targetZoom = Math.log2(targetViewer.unitsPerPixel(0) / desiredUnitsPerPixel);
+            if (Number.isFinite(targetZoom)) {
+              targetViewer.zoom(targetZoom);
             }
-            targetViewer.center({ x: mapped[0], y: mapped[1] });
+            targetViewer.center({ x: center.x, y: center.y });
           }
         });
       } finally {

@@ -342,7 +342,6 @@ export default defineComponent({
 
     const cameraStore = new CameraStore({ markChangesPending });
     const cameraCalibration = new CameraCalibrationStore();
-    useCalibrationNavigation(aggregateController, cameraCalibration);
 
     /**
      * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
@@ -355,6 +354,10 @@ export default defineComponent({
      * panel edits and saves is exactly what the Align button applies.
      */
     const alignedView = new AlignedViewStore();
+    // The calibration pair link maps through the homography for UNWARPED
+    // panes, so it needs the aligned view state to stand down while displays
+    // are warped into reference space.
+    useCalibrationNavigation(aggregateController, cameraCalibration, alignedView);
     const alignedResolution = computed(() => {
       if (multiCamList.value.length < 2) {
         return null;
@@ -379,7 +382,7 @@ export default defineComponent({
     watch(cameraCalibration.pickingEnabled, (picking) => {
       alignedView.setSuspended(picking);
     }, { immediate: true });
-    useAlignedNavigation(aggregateController, alignedView, multiCamList, cameraCalibration);
+    useAlignedNavigation(aggregateController, alignedView, multiCamList);
     const alignedViewAvailable = computed(() => alignedView.available.value);
     const alignedViewEnabled = computed(() => alignedView.enabled.value);
     const alignedViewActive = computed(() => alignedView.active.value);
