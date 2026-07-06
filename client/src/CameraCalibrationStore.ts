@@ -9,8 +9,8 @@ import {
 /**
  * A single picked point pair. `a` is the point in the left camera (camA), `b`
  * the point in the right camera (camB). Left/right is the order the user chose,
- * which is preserved (not alphabetized) so it can drive ordered exports such as
- * the keypointgui-style points.txt consumed by VIAME/SealTk.
+ * which is preserved (not alphabetized) so it survives round trips through the
+ * calibration JSON's ordered `[leftX, leftY, rightX, rightY]` rows.
  */
 export interface Correspondence {
   id: number;
@@ -31,10 +31,9 @@ export type CameraHomographies = Record<string, PairHomography>;
 
 /**
  * Where a pair's homography came from: fitted in-app from picked points, or
- * loaded from a calibration file (which may carry no points at all, e.g. a
- * legacy ITK .h5 transform). Loaded homographies persist through refit checks
- * that would otherwise clear an under-pointed pair, until enough points are
- * picked to fit a replacement.
+ * loaded from a calibration file (which may carry no points at all). Loaded
+ * homographies persist through refit checks that would otherwise clear an
+ * under-pointed pair, until enough points are picked to fit a replacement.
  */
 type HomographySource = 'fit' | 'loaded';
 
@@ -508,85 +507,6 @@ export default class CameraCalibrationStore {
     this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
     this.homographySources[key] = 'fit';
     return { AtoB, BtoA };
-  }
-
-  /**
-   * Install a homography for `key` from an external transform file (legacy
-   * ITK .h5) that carries no point correspondences. `matrix` maps camB pixels
-   * onto camA ('BtoA') by default -- the direction VIAME's
-   * itk_point_set_to_transform produces for a points.txt exported with camA
-   * in the left columns -- and the opposite direction is its inverse.
-   * Replaces any picked correspondences for the pair (the loaded transform is
-   * now the pair's source of truth) and persists until enough new points are
-   * picked to fit a replacement or the pair is explicitly cleared.
-   * Throws if the matrix is singular (non-invertible).
-   */
-  applyLoadedHomography(key: string, matrix: Matrix3, direction: 'AtoB' | 'BtoA' = 'BtoA') {
-    const AtoB = direction === 'AtoB' ? matrix : invert3(matrix);
-    const BtoA = direction === 'BtoA' ? matrix : invert3(matrix);
-    this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
-    this.homographySources[key] = 'loaded';
-    this.correspondences.value = { ...this.correspondences.value, [key]: [] };
-    this.pendingPoint.value = null;
-    if (this.activePairKey() === key) {
-      this.fitError.value = null;
-    }
-  }
-
-  /**
-   * Serialize a pair's correspondences as keypointgui-style points text: one row
-   * per pair, four space-separated columns `leftX leftY rightX rightY`. This is
-   * the format consumed by VIAME's `itk_point_set_to_transform` to build the .h5.
-   */
-  toPointsText(key: string): string {
-    const list = this.correspondences.value[key] || [];
-    return list
-      .map((c) => `${c.a[0]} ${c.a[1]} ${c.b[0]} ${c.b[1]}`)
-      .join('\n');
-  }
-
-  /**
-   * Parse keypointgui-style points text (rows of "leftX leftY rightX rightY",
-   * the format written by {@link toPointsText} and by keypointgui's
-   * `np.savetxt`) into correspondences for `key`. Blank lines are ignored.
-   * Throws if any non-blank line doesn't parse to exactly 4 finite numbers.
-   *
-   * `mode: 'replace'` (default) discards `key`'s existing correspondences
-   * first, matching keypointgui's own Load behavior; `'merge'` appends to
-   * them instead.
-   */
-  loadPointsFromText(key: string, text: string, mode: 'replace' | 'merge' = 'replace') {
-    const rows = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
-    const parsed = rows.map((line, i) => {
-      const parts = line.split(/\s+/).map(Number);
-      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
-        throw new Error(`Line ${i + 1} of points file is not "leftX leftY rightX rightY": "${line}"`);
-      }
-      return parts as [number, number, number, number];
-    });
-    const existing = mode === 'merge' ? (this.correspondences.value[key] || []) : [];
-    const added: Correspondence[] = parsed.map(([ax, ay, bx, by]) => ({
-      // eslint-disable-next-line no-plusplus
-      id: this.nextId++,
-      a: [ax, ay] as Point,
-      b: [bx, by] as Point,
-    }));
-    this.correspondences.value = { ...this.correspondences.value, [key]: [...existing, ...added] };
-    this.syncAlignmentHomography();
-  }
-
-  /**
-   * Serialize the fitted homography for `key` in `direction` as whitespace
-   * -separated rows (matching keypointgui's `np.savetxt` output for
-   * `on_save_left_to_right_homography` / `on_save_right_to_left_homography`).
-   * Returns null if `key` has no fitted homography yet.
-   */
-  toHomographyText(key: string, direction: 'AtoB' | 'BtoA'): string | null {
-    const homog = this.homographies.value[key];
-    if (!homog) {
-      return null;
-    }
-    return homog[direction].map((row) => row.join(' ')).join('\n');
   }
 
   /**

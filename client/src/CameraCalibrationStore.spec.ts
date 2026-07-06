@@ -654,13 +654,21 @@ describe('CameraCalibrationStore', () => {
     // Pure translation by (+5, -3): trivially invertible.
     const translate = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
 
-    it('applies an .h5 matrix as B->A with its inverse as A->B and drops picked points', () => {
+    /** Load a matrix-only (point-less) pair from calibration JSON, marking it 'loaded'. */
+    function loadMatrixOnlyPair(store: CameraCalibrationStore, left: string, right: string, rightToLeft: number[][]) {
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        pairs: [{
+          left, right, points: [], leftToRight: null, rightToLeft,
+        }],
+      }));
+    }
+
+    it('loads a matrix-only pair as B->A with its inverse as A->B and no points', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
-      store.addPoint('left', [0, 0]);
-      store.addPoint('right', [1, 1]);
-      store.applyLoadedHomography(key, translate);
+      loadMatrixOnlyPair(store, 'left', 'right', translate);
       expect(store.correspondences.value[key]).toHaveLength(0);
       expect(store.isLoadedHomography(key)).toBe(true);
       const homog = store.homographies.value[key];
@@ -673,7 +681,7 @@ describe('CameraCalibrationStore', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
-      store.applyLoadedHomography(key, translate);
+      loadMatrixOnlyPair(store, 'left', 'right', translate);
       store.maybeFitPair(key);
       expect(store.homographies.value[key]).toBeDefined();
       // Alignment can activate directly off the loaded transform.
@@ -685,7 +693,7 @@ describe('CameraCalibrationStore', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
-      store.applyLoadedHomography(key, [[1, 0, 100], [0, 1, 100], [0, 0, 1]]);
+      loadMatrixOnlyPair(store, 'left', 'right', [[1, 0, 100], [0, 1, 100], [0, 0, 1]]);
       addFourTranslationPairs(store);
       store.maybeFitPair(key);
       expect(store.isLoadedHomography(key)).toBe(false);
@@ -698,7 +706,7 @@ describe('CameraCalibrationStore', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
-      store.applyLoadedHomography(key, translate);
+      loadMatrixOnlyPair(store, 'left', 'right', translate);
       store.clearPair();
       expect(store.homographies.value[key]).toBeUndefined();
       expect(store.isLoadedHomography(key)).toBe(false);
@@ -716,9 +724,8 @@ describe('CameraCalibrationStore', () => {
 
     it('rejects a singular loaded matrix', () => {
       const store = new CameraCalibrationStore();
-      const key = store.pairKey('left', 'right');
-      expect(() => store.applyLoadedHomography(key, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]))
-        .toThrow();
+      expect(() => loadMatrixOnlyPair(store, 'left', 'right', [[0, 0, 0], [0, 0, 0], [0, 0, 0]]))
+        .toThrow(/singular/);
     });
 
     it('hydrate marks an under-pointed homography as loaded so it survives refit checks', () => {
@@ -756,7 +763,12 @@ describe('CameraCalibrationStore', () => {
     it('includes pairs that only have a loaded homography (no points)', () => {
       const store = new CameraCalibrationStore();
       const key = store.pairKey('uv', 'ir');
-      store.applyLoadedHomography(key, [[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        pairs: [{
+          left: 'uv', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: null,
+        }],
+      }));
       const restored = new CameraCalibrationStore();
       restored.loadCalibrationText(store.toCalibrationJson());
       expect(restored.homographies.value[key]).toBeDefined();

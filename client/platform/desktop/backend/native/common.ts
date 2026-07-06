@@ -719,8 +719,8 @@ type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes
 
 /**
  * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
- * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`
- * (the keypointgui points.txt layout); `leftToRight`/`rightToLeft` are the fitted
+ * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`;
+ * `leftToRight`/`rightToLeft` are the fitted
  * 3x3 homographies, when a fit has been performed; `transformType` is the fit
  * model used to compute them (defaults to 'homography' when absent, matching the
  * in-app default so older calibration.json files still load correctly).

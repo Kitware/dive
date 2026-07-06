@@ -8,7 +8,6 @@ import {
   useDatasetId,
 } from 'vue-media-annotator/provides';
 import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
-import type { Matrix3 } from 'vue-media-annotator/homography';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -21,7 +20,7 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const calibration = useCameraCalibration();
     const datasetId = useDatasetId();
-    const { saveMetadata, parseItkTransformBuffer } = useApi();
+    const { saveMetadata } = useApi();
     const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
@@ -48,7 +47,6 @@ export default defineComponent({
     );
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
-    const canExport = computed(() => correspondences.value.length >= 1);
     const canClearLast = computed(
       () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
     );
@@ -136,89 +134,7 @@ export default defineComponent({
       URL.revokeObjectURL(url);
     }
 
-    /**
-     * Download the active pair's correspondences as a keypointgui-style
-     * points.txt (leftX leftY rightX rightY), for VIAME's
-     * itk_point_set_to_transform to build the .h5. Left/right order matches the
-     * panel's Camera A / Camera B selection.
-     */
-    function exportPoints() {
-      const key = activeKey.value;
-      if (!key) {
-        return;
-      }
-      downloadText(calibration.toPointsText(key), `${camLeft.value}_to_${camRight.value}_points.txt`);
-    }
-
-    /**
-     * Download the fitted homography (fitting first if needed) as a
-     * whitespace-separated 3x3 matrix .txt, matching keypointgui's Save
-     * Left->Right / Right->Left Homography.
-     */
-    function exportHomography(direction: 'AtoB' | 'BtoA') {
-      const key = activeKey.value;
-      if (!key) {
-        return;
-      }
-      calibration.maybeFitActivePair();
-      const text = calibration.toHomographyText(key, direction);
-      if (!text) {
-        return;
-      }
-      const [from, to] = direction === 'AtoB' ? [camLeft.value, camRight.value] : [camRight.value, camLeft.value];
-      downloadText(text, `${from}_to_${to}_homography.txt`);
-    }
-
-    const pointsFileInput = ref<HTMLInputElement | null>(null);
-    const loadPointsDialog = ref(false);
-    const loadPointsError = ref<string | null>(null);
-    const pendingLoadText = ref<string | null>(null);
-
-    function applyLoadedPoints(text: string, mode: 'replace' | 'merge') {
-      const key = activeKey.value;
-      if (!key) {
-        return;
-      }
-      loadPointsError.value = null;
-      try {
-        calibration.loadPointsFromText(key, text, mode);
-      } catch (e) {
-        loadPointsError.value = e instanceof Error ? e.message : String(e);
-      }
-    }
-
-    /** File input change handler for Load points.txt; prompts for replace/merge if the pair already has points. */
-    function onPointsFileSelected(event: Event) {
-      const input = event.target as HTMLInputElement;
-      const file = input.files?.[0];
-      input.value = '';
-      if (!file) {
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = String(reader.result ?? '');
-        if (correspondences.value.length > 0) {
-          pendingLoadText.value = text;
-          loadPointsDialog.value = true;
-        } else {
-          applyLoadedPoints(text, 'replace');
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function confirmLoadPoints(mode: 'replace' | 'merge') {
-      loadPointsDialog.value = false;
-      if (pendingLoadText.value !== null) {
-        applyLoadedPoints(pendingLoadText.value, mode);
-        pendingLoadText.value = null;
-      }
-    }
-
     const calibrationFileInput = ref<HTMLInputElement | null>(null);
-    // Legacy ITK .h5 transforms need the desktop backend to parse HDF5.
-    const calibrationFileAccept = computed(() => (parseItkTransformBuffer ? '.json,.h5' : '.json'));
     const loadCalibrationError = ref<string | null>(null);
     const loadCalibrationWarning = ref<string | null>(null);
 
@@ -248,39 +164,6 @@ export default defineComponent({
       }
     }
 
-    /**
-     * Load a legacy ITK .h5 transform into the active pair. The file carries a
-     * single matrix and no points; it is applied as Camera B -> Camera A, the
-     * direction VIAME's itk_point_set_to_transform produces from a points.txt
-     * whose left columns are Camera A.
-     */
-    async function loadH5Calibration(file: File) {
-      if (!parseItkTransformBuffer) {
-        throw new Error('Loading legacy .h5 transforms requires the desktop app; use a calibration .json instead.');
-      }
-      const key = activeKey.value;
-      if (!key) {
-        throw new Error('Select two different cameras (A and B) before loading an .h5 transform.');
-      }
-      const confirmed = await prompt({
-        title: 'Load legacy .h5 transform',
-        text: [
-          `The transform will be applied as ${camRight.value} onto ${camLeft.value} (Camera B onto `
-          + 'Camera A), the direction VIAME\'s itk_point_set_to_transform produces. Swap the '
-          + 'Camera A / B selections first if your file goes the other way.',
-          ...(correspondences.value.length
-            ? [`This pair's ${correspondences.value.length} picked point(s) will be discarded.`]
-            : []),
-        ],
-        confirm: true,
-      });
-      if (!confirmed) {
-        return;
-      }
-      const parsed = await parseItkTransformBuffer(await file.arrayBuffer());
-      calibration.applyLoadedHomography(key, parsed.matrix as Matrix3, 'BtoA');
-    }
-
     function onCalibrationFileSelected(event: Event) {
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0];
@@ -290,8 +173,7 @@ export default defineComponent({
       }
       loadCalibrationError.value = null;
       loadCalibrationWarning.value = null;
-      const loader = /\.h5$/i.test(file.name) ? loadH5Calibration : loadJsonCalibration;
-      loader(file).catch((err) => {
+      loadJsonCalibration(file).catch((err) => {
         loadCalibrationError.value = err instanceof Error ? err.message : String(err);
       });
     }
@@ -314,24 +196,15 @@ export default defineComponent({
       hasTransform,
       hasLoadedTransform,
       canClearPair,
-      canExport,
       canClearLast,
       saving,
-      pointsFileInput,
-      loadPointsDialog,
-      loadPointsError,
       calibrationFileInput,
-      calibrationFileAccept,
       loadCalibrationError,
       loadCalibrationWarning,
       setTransformType,
       setAlignmentMode,
       setPickTarget,
       save,
-      exportPoints,
-      exportHomography,
-      onPointsFileSelected,
-      confirmLoadPoints,
       onCalibrationFileSelected,
     };
   },
@@ -348,7 +221,7 @@ export default defineComponent({
     <input
       ref="calibrationFileInput"
       type="file"
-      :accept="calibrationFileAccept"
+      accept=".json"
       style="display: none"
       @change="onCalibrationFileSelected"
     >
@@ -506,120 +379,6 @@ export default defineComponent({
     >
       Could not fit transform: {{ fitError }}
     </span>
-
-    <v-divider class="my-3" />
-
-    <v-expansion-panels
-      flat
-      accordion
-    >
-      <v-expansion-panel>
-        <v-expansion-panel-header class="px-1">
-          points.txt / homography files
-        </v-expansion-panel-header>
-        <v-expansion-panel-content class="px-0">
-          <v-btn
-            block
-            color="info"
-            small
-            :disabled="!canExport"
-            class="mb-2"
-            @click="exportPoints"
-          >
-            Export points.txt
-          </v-btn>
-          <span class="text-caption grey--text">
-            Saves rows of "leftX leftY rightX rightY" for VIAME's
-            itk_point_set_to_transform (.h5). Columns follow the Camera A / Camera B order above.
-          </span>
-
-          <input
-            ref="pointsFileInput"
-            type="file"
-            accept=".txt"
-            style="display: none"
-            @change="onPointsFileSelected"
-          >
-          <v-btn
-            block
-            outlined
-            small
-            class="mt-2 mb-2"
-            @click="pointsFileInput.click()"
-          >
-            Load points.txt
-          </v-btn>
-          <span
-            v-if="loadPointsError"
-            class="text-caption error--text d-block"
-          >
-            {{ loadPointsError }}
-          </span>
-
-          <v-divider class="my-3" />
-
-          <v-btn
-            block
-            outlined
-            small
-            :disabled="!hasTransform"
-            class="mb-2"
-            @click="exportHomography('AtoB')"
-          >
-            Export A→B homography.txt
-          </v-btn>
-          <v-btn
-            block
-            outlined
-            small
-            :disabled="!hasTransform"
-            class="mb-2"
-            @click="exportHomography('BtoA')"
-          >
-            Export B→A homography.txt
-          </v-btn>
-          <span class="text-caption grey--text">
-            Saves the fitted 3x3 matrix as whitespace-separated rows, matching
-            keypointgui's Save Homography.
-          </span>
-        </v-expansion-panel-content>
-      </v-expansion-panel>
-    </v-expansion-panels>
-
-    <v-dialog
-      v-model="loadPointsDialog"
-      max-width="420"
-    >
-      <v-card>
-        <v-card-title>Load points.txt</v-card-title>
-        <v-card-text>
-          This pair already has {{ correspondences.length }} correspondence(s).
-          Replace them with the loaded points, or merge the loaded points in?
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            text
-            @click="loadPointsDialog = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            text
-            @click="confirmLoadPoints('merge')"
-          >
-            Merge
-          </v-btn>
-          <v-btn
-            color="primary"
-            text
-            @click="confirmLoadPoints('replace')"
-          >
-            Replace
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
 
     <v-divider class="my-3" />
 

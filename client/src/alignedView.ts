@@ -14,9 +14,9 @@
  *   edges (breadth-first, so up-to-3-camera rigs may chain e.g. UV->IR->EO).
  * - The calibration store is the SINGLE source the viewer resolves from:
  *   whatever the calibration panel shows/saves is what the Align button
- *   applies. External transform files (.h5 / calibration .json) enter that
- *   same store, either through the panel's Load calibration button or by
- *   seeding the saved calibration at multicam import time.
+ *   applies. External calibration .json files enter that same store, either
+ *   through the panel's Load calibration button or by seeding the saved
+ *   calibration at multicam import time.
  */
 import {
   Matrix3, matMul3, invert3, applyHomography, Point,
