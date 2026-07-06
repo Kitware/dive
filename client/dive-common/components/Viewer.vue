@@ -1874,11 +1874,16 @@ export default defineComponent({
           class="d-flex flex-column grow"
         >
           <div class="d-flex grow">
+            <!--
+              Hidden panes swap to Vuetify's d-none instead of using v-show:
+              d-flex is `display: flex !important`, which defeats v-show's
+              inline `display: none`. Panes stay mounted either way, so their
+              viewers keep state.
+            -->
             <div
               v-for="camera in multiCamList"
-              v-show="displayedCameras.includes(camera)"
               :key="camera"
-              class="d-flex flex-column grow"
+              :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"
