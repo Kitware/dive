@@ -385,12 +385,12 @@ export default defineComponent({
     useAlignedNavigation(aggregateController, alignedView, multiCamList);
     const alignedViewAvailable = computed(() => alignedView.available.value);
     const alignedViewEnabled = computed(() => alignedView.enabled.value);
-    const alignedViewActive = computed(() => alignedView.active.value);
-    const alignedViewReference = computed(() => alignedView.reference.value);
     const toggleAlignedView = () => {
       alignedView.setEnabled(!alignedView.enabled.value);
     };
-    const alignedViewTooltip = 'Align View (requires calibration)';
+    const alignedViewTooltip = computed(() => (alignedViewEnabled.value
+      ? 'Align View on (editing disabled)'
+      : 'Align View (requires calibration)'));
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -1504,8 +1504,6 @@ export default defineComponent({
       showMultiCamToolbar,
       alignedViewAvailable,
       alignedViewEnabled,
-      alignedViewActive,
-      alignedViewReference,
       alignedViewTooltip,
       toggleAlignedView,
       seekToFrame,
@@ -1721,30 +1719,6 @@ export default defineComponent({
             </span>
           </template>
           <span>{{ alignedViewTooltip }}</span>
-        </v-tooltip>
-        <v-tooltip
-          v-if="alignedViewActive"
-          bottom
-        >
-          <template #activator="{ on }">
-            <v-chip
-              class="pr-1"
-              color="primary"
-              outlined
-              style="white-space:nowrap;"
-              small
-              v-on="on"
-            >
-              Aligned view
-              <v-icon
-                class="pl-1"
-                small
-              >
-                mdi-pencil-off-outline
-              </v-icon>
-            </v-chip>
-          </template>
-          <span>Aligned view is on: displays are warped into {{ alignedViewReference }}'s space and editing is disabled</span>
         </v-tooltip>
 
         <slot name="extension-right" />
