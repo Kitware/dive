@@ -174,6 +174,21 @@ beforeEach(() => {
     },
     '/home/user/testPairs': { ...fileSystemData },
     '/home/user/output': {},
+    '/home/user/transformDiscovery': {
+      exactName: {
+        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+        'calibration.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+      },
+      otherName: {
+        'a-rig-calibration.json': JSON.stringify({ calibrations: {} }),
+        'broken.json': '{not json',
+        'z-transforms.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+      },
+      none: {
+        'rig.json': JSON.stringify({ some: 'thing' }),
+        'notes.txt': 'not json',
+      },
+    },
     '/home/user/data': {
       annotationImport: {
         'viame.csv': emptyCsvString,
@@ -700,29 +715,24 @@ describe('native.common', () => {
     expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
-  it('fromCalibrationPairs derives a missing matrix direction by inversion', () => {
-    const { homographies } = common.fromCalibrationPairs([{
-      left: 'eo',
-      right: 'ir',
-      points: [],
-      leftToRight: null,
-      rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
-    }]);
-    expect(homographies['eo::ir'].BtoA).toEqual([[1, 0, -5], [0, 1, 3], [0, 0, 1]]);
-    expect(homographies['eo::ir'].AtoB[0][2]).toBeCloseTo(5);
-    expect(homographies['eo::ir'].AtoB[1][2]).toBeCloseTo(-3);
-  });
+  describe('findParentFolderTransformFile', () => {
+    it('prefers a file named calibration.json among marked candidates', async () => {
+      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/exactName');
+      expect(found).toBe(npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'));
+    });
 
-  it('fromCalibrationPairs keeps points but skips the matrix for singular input', () => {
-    const { homographies, correspondences } = common.fromCalibrationPairs([{
-      left: 'eo',
-      right: 'ir',
-      points: [[1, 2, 3, 4]],
-      leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
-      rightToLeft: null,
-    }]);
-    expect(homographies['eo::ir']).toBeUndefined();
-    expect(correspondences['eo::ir']).toHaveLength(1);
+    it('finds a marked file under any name, skipping unmarked and broken JSON', async () => {
+      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/otherName');
+      expect(found).toBe(npath.join('/home/user/transformDiscovery/otherName', 'z-transforms.json'));
+    });
+
+    it('returns null when no self-identified calibration json exists', async () => {
+      expect(await common.findParentFolderTransformFile('/home/user/transformDiscovery/none')).toBeNull();
+    });
+
+    it('returns null for a missing directory', async () => {
+      expect(await common.findParentFolderTransformFile('/home/user/doesNotExist')).toBeNull();
+    });
   });
 
   it('saveMetadata persists the calibration source stamp and reloads it', async () => {

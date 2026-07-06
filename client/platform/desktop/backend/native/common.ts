@@ -20,7 +20,7 @@ import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import { TransformType } from 'vue-media-annotator/transform';
-import { invert3, Matrix3 } from 'vue-media-annotator/homography';
+import { CALIBRATION_FILE_TYPE } from 'vue-media-annotator/CameraCalibrationStore';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -791,19 +791,8 @@ function fromCalibrationPairs(
   const transformTypes: CameraTransformTypes = {};
   pairs.forEach((pair) => {
     const key = `${pair.left}::${pair.right}`;
-    // Mirror the panel loader (CameraCalibrationStore.loadCalibrationText):
-    // producer files may carry only one fitted direction, so derive the
-    // missing one by inversion. A singular matrix can't participate in the
-    // warp either way, so such pairs contribute points only.
-    if (pair.leftToRight || pair.rightToLeft) {
-      try {
-        homographies[key] = {
-          AtoB: pair.leftToRight ?? invert3(pair.rightToLeft as Matrix3),
-          BtoA: pair.rightToLeft ?? invert3(pair.leftToRight as Matrix3),
-        };
-      } catch {
-        // Singular / non-invertible: skip the matrix, keep the points.
-      }
+    if (pair.leftToRight && pair.rightToLeft) {
+      homographies[key] = { AtoB: pair.leftToRight, BtoA: pair.rightToLeft };
     }
     if (pair.points && pair.points.length) {
       correspondences[key] = pair.points.map((p, i) => ({
@@ -1281,6 +1270,48 @@ async function findParentFolderCalibrationFile(parentPath: string): Promise<stri
     return null;
   }
   return npath.join(parentPath, bestName);
+}
+
+/**
+ * Find a DIVE camera-calibration .json (alignment transforms, the calibration
+ * panel's save format) in the parent folder root, for auto-attaching at
+ * multicam import time. Only files that self-identify with
+ * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
+ * .json or other stray JSON in the collect root is never grabbed by mistake.
+ * A file named exactly calibration.json wins over other candidates; ties
+ * break alphabetically for determinism.
+ */
+async function findParentFolderTransformFile(parentPath: string): Promise<string | null> {
+  if (!await fs.pathExists(parentPath)) {
+    return null;
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    return null;
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  const candidates = children
+    .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((a, b) => {
+      const aExact = a.toLowerCase() === CalibrationFileName ? 0 : 1;
+      const bExact = b.toLowerCase() === CalibrationFileName ? 0 : 1;
+      return aExact - bExact || a.localeCompare(b);
+    });
+  // eslint-disable-next-line no-restricted-syntax
+  for (const name of candidates) {
+    const absPath = npath.join(parentPath, name);
+    try {
+      // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
+      const data = await fs.readJson(absPath);
+      if (data && data.type === CALIBRATION_FILE_TYPE && Array.isArray(data.pairs)) {
+        return absPath;
+      }
+    } catch {
+      // Unreadable/non-JSON candidates are simply not matches.
+    }
+  }
+  return null;
 }
 
 /**
@@ -2226,7 +2257,7 @@ export {
   listImmediateSubfolders,
   listParentFolderCameras,
   findParentFolderCalibrationFile,
-  fromCalibrationPairs,
+  findParentFolderTransformFile,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,

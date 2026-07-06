@@ -303,6 +303,8 @@ interface Api {
   ): Promise<string>;
   /** Desktop: stereoscopic calibration file in a parent folder root. */
   findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
+  /** Desktop: DIVE camera-calibration .json (alignment transforms) in a parent folder root. */
+  findParentFolderTransformFile?(parentPath: string): Promise<string | null>;
   /** True when the dataset folder has an attached stereoscopic calibration file. */
   hasCalibrationFile?(datasetId: string): Promise<boolean>;
   /** Web: stash a calibration File for multicam upload lookup. */

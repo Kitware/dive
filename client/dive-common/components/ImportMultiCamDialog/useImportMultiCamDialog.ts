@@ -64,6 +64,7 @@ export function useImportMultiCamDialog(
     listParentFolderCameras,
     resolveMulticamCameraSourcePath,
     findParentFolderCalibrationFile,
+    findParentFolderTransformFile,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
   const folderList: Ref<Record<string, {
@@ -400,6 +401,7 @@ export function useImportMultiCamDialog(
         { preferLeftForStereo: props.stereo },
       );
       syncDefaultDisplay();
+      await discoverParentFolderTransform(parentPath);
     });
   }
 
@@ -667,6 +669,29 @@ export function useImportMultiCamDialog(
       return subfolderVideoDisplayLabel(sourcePath, folderName, files);
     }
     return folderName;
+  }
+
+  /**
+   * Auto-attach a DIVE camera-calibration .json found in the parent folder
+   * root as the import's transform file (desktop multicam subfolder imports
+   * only). It is attached to the first camera after the reference -- the
+   * file's pairs name their own cameras, so which slot carries it doesn't
+   * matter -- and shows in that camera's (clearable) transform field.
+   */
+  async function discoverParentFolderTransform(parentPath: string) {
+    if (!transformImportEnabled.value || !findParentFolderTransformFile) {
+      return;
+    }
+    const discovered = await findParentFolderTransformFile(parentPath);
+    if (!discovered) {
+      return;
+    }
+    const target = orderedCameraKeys.value.find(
+      (key, index) => index > 0 && folderList.value[key] && !folderList.value[key].transformFile,
+    );
+    if (target) {
+      folderList.value[target].transformFile = discovered;
+    }
   }
 
   async function discoverParentFolderCalibration(
