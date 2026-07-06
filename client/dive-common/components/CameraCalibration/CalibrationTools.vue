@@ -225,7 +225,6 @@ export default defineComponent({
       pickingEnabled: calibration.pickingEnabled,
       alignment: calibration.alignment,
       fitError: calibration.fitError,
-      linkedNav: calibration.linkedNav,
       cursorReadout,
       correspondences,
       transformType,
@@ -332,17 +331,9 @@ export default defineComponent({
     />
     <span class="text-caption grey--text">
       Click a point in one camera, then the matching point in the other.
-      Right-click to recenter both cameras on that point (requires a fitted
-      transform).
+      Once a transform is fitted, pan/zoom is linked between the pair and
+      right-click recenters both cameras on the clicked point.
     </span>
-
-    <v-switch
-      v-model="linkedNav"
-      label="Link pan/zoom"
-      dense
-      hide-details
-      class="mt-0 mb-2"
-    />
 
     <div
       v-if="pickingEnabled"

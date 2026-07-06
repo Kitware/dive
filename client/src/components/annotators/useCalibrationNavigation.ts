@@ -17,11 +17,12 @@ import type { Point } from '../../homography';
  * deltas/zoom levels and assumes identical pixel scale between panes -- not
  * true for cross-modality (e.g. EO/IR) rigs with differing resolutions.
  *
- * The homography mapping assumes UNWARPED panes displaying native
- * coordinates, so this link stands down while the aligned view is actively
- * warping displays into reference space (useAlignedNavigation links all
- * panes by identity there); it takes over whenever picking suspends the
- * aligned view during authoring.
+ * Active whenever point picking is (no separate toggle): during authoring
+ * the panes are unwarped and this link maps through the pair homography;
+ * outside picking the Align button's link (useAlignedNavigation) owns
+ * navigation instead. The homography mapping assumes UNWARPED panes
+ * displaying native coordinates, so this link also stands down defensively
+ * if the aligned view is somehow active.
  */
 export default function useCalibrationNavigation(
   aggregateController: Ref<AggregateMediaController>,
@@ -100,7 +101,10 @@ export default function useCalibrationNavigation(
   function setup() {
     teardown();
     const pair = calibration.activePair.value;
-    if (!calibration.linkedNav.value || !pair) {
+    // The pair link is authoring UI: it is simply active whenever point
+    // picking is (once a fit exists, linkedPoint starts returning matches).
+    // Outside picking, the Align button's link owns navigation.
+    if (!calibration.pickingEnabled.value || !pair) {
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,7 +136,7 @@ export default function useCalibrationNavigation(
 
   watch(
     [
-      calibration.linkedNav,
+      calibration.pickingEnabled,
       calibration.activePair,
       calibration.homographies,
       aggregateController.value.resizeTrigger,
@@ -142,11 +146,11 @@ export default function useCalibrationNavigation(
   );
 
   /**
-   * One-shot recenter (right-click): center the clicked camera on the clicked
-   * point, and -- when the pair has a fitted homography -- center the other
-   * camera on the corresponding point. Independent of {@link
-   * CameraCalibrationStore.linkedNav}; the `guard` flag still applies so this
-   * doesn't loop back through the continuous pan/zoom link above when it's on.
+   * One-shot recenter (right-click while picking): center the clicked camera
+   * on the clicked point, and -- when the pair has a fitted homography --
+   * center the other camera on the corresponding point. The `guard` flag
+   * still applies so this doesn't loop back through the continuous pan/zoom
+   * link above.
    */
   function handleRecenterRequest(
     request: { camera: string; coord: Point; id: number } | null,

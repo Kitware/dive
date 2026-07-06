@@ -198,7 +198,9 @@ export default defineComponent({
         }
       },
       getTransform: () => alignedDisplayTransform.value,
-      getActive: () => alignedViewActive.value,
+      // Right-click means "remove last point" while creating/editing
+      // geometry; recenter everywhere else.
+      getRecenterEnabled: () => !editingModeRef.value,
     });
 
     const rectAnnotationLayer = new RectangleLayer({

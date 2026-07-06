@@ -510,15 +510,6 @@ describe('CameraCalibrationStore', () => {
   });
 
   describe('linked navigation', () => {
-    it('setLinkedNav toggles the flag', () => {
-      const store = new CameraCalibrationStore();
-      expect(store.linkedNav.value).toBe(false);
-      store.setLinkedNav(true);
-      expect(store.linkedNav.value).toBe(true);
-      store.setLinkedNav(false);
-      expect(store.linkedNav.value).toBe(false);
-    });
-
     it('linkedPoint maps a point from camA to camB and back, via the fitted homography', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
@@ -541,13 +532,6 @@ describe('CameraCalibrationStore', () => {
       store.setActivePair('left', 'right');
       addFourTranslationPairs(store);
       expect(store.linkedPoint('other', [1, 1])).toBeNull();
-    });
-
-    it('resets linkedNav on hydrate', () => {
-      const store = new CameraCalibrationStore();
-      store.setLinkedNav(true);
-      store.hydrate();
-      expect(store.linkedNav.value).toBe(false);
     });
   });
 

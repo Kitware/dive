@@ -123,9 +123,6 @@ export default class CameraCalibrationStore {
 
   alignment: Ref<AlignmentState>;
 
-  /** Whether pan/zoom recentering is linked between the active pair's two cameras. */
-  linkedNav: Ref<boolean>;
-
   /** Native-pixel coordinate under the cursor, for the calibration panel's live readout. */
   cursorCoord: Ref<{ camera: string; coord: Point } | null>;
 
@@ -169,7 +166,6 @@ export default class CameraCalibrationStore {
     this.homographies = ref({});
     this.transformTypes = ref({});
     this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
-    this.linkedNav = ref(false);
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
@@ -466,11 +462,6 @@ export default class CameraCalibrationStore {
     this.alignment.value = { ...this.alignment.value, pickTarget };
   }
 
-  /** Enable or disable linked pan/zoom recentering between the active pair's cameras. */
-  setLinkedNav(enabled: boolean) {
-    this.linkedNav.value = enabled;
-  }
-
   /**
    * Map `coord` (native pixel space of `camera`) to the corresponding point in
    * the *other* camera of the active pair, via the fitted homography. Returns
@@ -507,8 +498,8 @@ export default class CameraCalibrationStore {
    * a fitted homography, the other camera of the active pair (via
    * {@link linkedPoint}) recenter their views on this location. Consumed by
    * {@link useCalibrationNavigation}; a no-op if `camera` isn't part of the
-   * active pair. Works independent of {@link linkedNav} -- this is a one-shot
-   * "snap to this feature" action, not the continuous pan/zoom link.
+   * active pair. A one-shot "snap to this feature" action, distinct from the
+   * continuous pan/zoom link that is active while picking.
    */
   requestRecenter(camera: string, coord: Point) {
     const pair = this.activePair.value;
@@ -724,7 +715,6 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
     this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
-    this.linkedNav.value = false;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
     this.fitError.value = null;

@@ -18,11 +18,12 @@ interface AlignedImageLayerParams {
   /** Current native->reference display transform, or null when unwarped. */
   getTransform: () => Matrix3 | null;
   /**
-   * Whether the aligned view is active for the dataset (true for the
-   * reference pane too, whose own transform is null/identity). Gates the
-   * right-click recenter below.
+   * Whether the right-click recenter is currently allowed. Right-click
+   * recenters in EVERY view mode (aligned or not, multicam or single); the
+   * caller disables it while annotation geometry is being created/edited,
+   * where right-click already means "remove last point".
    */
-  getActive: () => boolean;
+  getRecenterEnabled: () => boolean;
 }
 
 /**
@@ -46,7 +47,7 @@ export default class AlignedImageLayer {
 
   private getTransform: () => Matrix3 | null;
 
-  private getActive: () => boolean;
+  private getRecenterEnabled: () => boolean;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private quadLayer: any;
@@ -69,18 +70,18 @@ export default class AlignedImageLayer {
     this.annotator = params.annotator;
     this.getImage = params.getImage;
     this.getTransform = params.getTransform;
-    this.getActive = params.getActive;
+    this.getRecenterEnabled = params.getRecenterEnabled;
     this.quadLayer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['quad'],
       autoshareRenderer: false,
       renderer: 'canvas',
     });
     this.quadFeature = this.quadLayer.createFeature('quad');
-    // Right-click recenter while the aligned view is active: center this pane
-    // on the clicked location; the aligned pan/zoom link then recenters every
-    // other pane on the same reference-space point. (While calibration point
-    // picking is active the aligned view is suspended -- getActive() false --
-    // and CalibrationKeypointLayer owns the right-click instead.)
+    // Right-click recenter: center this pane on the clicked location, in any
+    // view mode. While the aligned view is active, the aligned pan/zoom link
+    // then recenters every other pane on the same reference-space point;
+    // during calibration picking, CalibrationKeypointLayer additionally maps
+    // the recenter across the active pair.
     this.annotator.geoViewerRef.value.geoOn(
       geo.event.mouseclick,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +91,7 @@ export default class AlignedImageLayer {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private handleClick(e: any) {
-    if (!this.getActive() || !e.geo) {
+    if (!this.getRecenterEnabled() || !e.geo) {
       return;
     }
     const buttonsDown = e.buttonsDown || (e.mouse && e.mouse.buttonsDown);
