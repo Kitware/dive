@@ -127,11 +127,13 @@ export default defineComponent({
     });
 
     /**
-     * Persist the calibration (all pairs) to the dataset AND download it as a
-     * portable calibration .json. Deliberately not gated on the active pair
-     * having correspondences: saving must also be able to persist a cleared
-     * state (so stale saved calibration doesn't survive Clear All / per-row
-     * deletes) and state belonging to non-active pairs.
+     * Persist the calibration (all pairs) with the dataset: it is written as
+     * the project's calibration.json and restored on every dataset load (so
+     * the Align button works across sessions). Deliberately not gated on the
+     * active pair having correspondences: saving must also be able to persist
+     * a cleared state (so stale saved calibration doesn't survive Clear All /
+     * per-row deletes) and state belonging to non-active pairs. Use
+     * {@link exportCalibration} to get a portable copy for sharing.
      */
     async function save() {
       saving.value = true;
@@ -143,10 +145,19 @@ export default defineComponent({
           cameraTransformTypes: calibration.transformTypes.value,
           cameraCalibrationSource: calibration.source.value,
         });
-        downloadText(calibration.toCalibrationJson(), 'camera-calibration.json');
       } finally {
         saving.value = false;
       }
+    }
+
+    /**
+     * Download the calibration as a portable .json -- for handing refinements
+     * (points included) back to an external producer, or reusing on another
+     * dataset. Saving is separate: see {@link save}.
+     */
+    function exportCalibration() {
+      calibration.maybeFitActivePair();
+      downloadText(calibration.toCalibrationJson(), 'camera-calibration.json');
     }
 
     /** Trigger a browser download of `text` as `filename`. */
@@ -235,6 +246,7 @@ export default defineComponent({
       setAlignmentMode,
       setPickTarget,
       save,
+      exportCalibration,
       onCalibrationFileSelected,
     };
   },
@@ -287,8 +299,8 @@ export default defineComponent({
       class="text-caption warning--text d-block"
     >
       This pair has been refined in-app since the source calibration was
-      produced. Save calibration to capture the refinement (and its points)
-      for the producer.
+      produced. Export the calibration to hand the refinement (and its
+      points) back to the producer.
     </span>
     <v-divider class="my-3" />
 
@@ -506,6 +518,18 @@ export default defineComponent({
       @click="save"
     >
       Save calibration
+    </v-btn>
+    <span class="text-caption grey--text d-block mb-2">
+      Saves with the dataset; restored automatically when it is reopened.
+    </span>
+    <v-btn
+      block
+      outlined
+      small
+      class="mb-2"
+      @click="exportCalibration"
+    >
+      Export calibration (.json)
     </v-btn>
   </div>
 </template>
