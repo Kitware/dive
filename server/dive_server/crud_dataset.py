@@ -7,9 +7,9 @@ from bson.objectid import InvalidId, ObjectId
 import cherrypy
 from girder.constants import AccessType
 from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.file import File
 from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel

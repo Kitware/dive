@@ -214,7 +214,9 @@ test_tuple: List[Tuple[dict, list, list]] = [
                                     "properties": {"key": ""},
                                     "geometry": {
                                         "type": "Polygon",
-                                        "coordinates": [[[100, 100], [200, 100], [200, 200], [100, 200]]],
+                                        "coordinates": [
+                                            [[100, 100], [200, 100], [200, 200], [100, 200]]
+                                        ],
                                     },
                                 },
                                 {
@@ -222,7 +224,9 @@ test_tuple: List[Tuple[dict, list, list]] = [
                                     "properties": {"key": "1"},
                                     "geometry": {
                                         "type": "Polygon",
-                                        "coordinates": [[[300, 300], [400, 300], [400, 400], [300, 400]]],
+                                        "coordinates": [
+                                            [[300, 300], [400, 300], [400, 400], [300, 400]]
+                                        ],
                                     },
                                 },
                             ],
@@ -560,9 +564,7 @@ def test_fps_parsed_case_insensitively_from_metadata():
     csv_text = ''.join(viame.export_tracks_as_csv([], header=True, fps=23.976))
     assert '# metadata' in csv_text and 'fps: 23.976' in csv_text  # exported lowercase
     rows = csv_text.splitlines()
-    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(
-        rows
-    )
+    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
     assert float(fps) == 23.976
 
 

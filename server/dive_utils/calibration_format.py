@@ -28,7 +28,7 @@ def is_valid_json_bytes(data: bytes) -> bool:
 
 def looks_like_zip_bytes(data: bytes) -> bool:
     """True when data starts with ZIP local-file-header magic (e.g. mislabeled .npz)."""
-    return len(data) >= 2 and data[0] == 0x50 and data[1] == 0x4b
+    return len(data) >= 2 and data[0] == 0x50 and data[1] == 0x4B
 
 
 def calibration_upload_is_final_json(file_name: str, file_bytes: bytes) -> bool:
@@ -112,5 +112,7 @@ def parse_stereo_calibration_json(data: dict) -> types.DatasetStereoCalibration:
     for json_key, field in optional_fields:
         value = optional_calibration_number(data, json_key)
         if value is not None:
-            result[field] = int(value) if field.startswith('grid') or field.startswith('image') else value
+            result[field] = (
+                int(value) if field.startswith('grid') or field.startswith('image') else value
+            )
     return result

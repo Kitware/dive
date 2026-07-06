@@ -193,7 +193,9 @@ def test_multiple_videos_with_config_json_is_rejected():
     result = validate_files(['a.mp4', 'b.mp4', 'config.json'])
 
     assert result['ok'] is False
-    assert result['message'] == "Annotation upload is not supported when multiple videos are uploaded"
+    assert (
+        result['message'] == "Annotation upload is not supported when multiple videos are uploaded"
+    )
 
 
 def test_multiple_videos_without_annotations_is_allowed():

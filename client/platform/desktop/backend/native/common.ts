@@ -30,7 +30,7 @@ import {
   SingleCameraFrameMetadataKey,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
-import { isFrameMetadataSourceName } from 'dive-common/frameMetadata/naming';
+import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import { buildMediaKeyIndex, resolveCameras } from 'dive-common/frameMetadata/resolve';
 import type { CameraCandidateTexts, CameraMediaKeys } from 'dive-common/frameMetadata/resolve';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';

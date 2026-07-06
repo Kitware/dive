@@ -129,7 +129,10 @@ def test_create_multicam_soft_clone_copies_calibration(
     clone_cals_mock.assert_called_once()
     saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
     assert saved_meta[constants.MultiCamMarker][constants.CalibrationItemIdMarker] == 'new-cal-src'
-    assert saved_meta[constants.MultiCamMarker][constants.JsonCalibrationItemIdMarker] == 'new-cal-json'
+    assert (
+        saved_meta[constants.MultiCamMarker][constants.JsonCalibrationItemIdMarker]
+        == 'new-cal-json'
+    )
 
 
 @patch('dive_server.crud_dataset._yield_single_dataset_export')

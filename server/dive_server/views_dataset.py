@@ -203,11 +203,10 @@ class DatasetResource(Resource):
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
-    
+
     @access.user
     @autoDescribeRoute(
-        Description("Get calibration information of dataset")
-        .modelParam(
+        Description("Get calibration information of dataset").modelParam(
             "folderId",
             description="Folder id of a video clip",
             model=Folder,
@@ -220,9 +219,7 @@ class DatasetResource(Resource):
         self,
         folder,
     ):
-        return crud_dataset.get_calibration(
-            self.getCurrentUser(), folder
-        )
+        return crud_dataset.get_calibration(self.getCurrentUser(), folder)
 
     @access.user
     @autoDescribeRoute(

@@ -8,7 +8,7 @@ import {
   normalizeKey,
   parseFrameMetadataSource,
 } from './parser';
-import { isFrameMetadataSourceName } from './naming';
+import isFrameMetadataSourceName from './naming';
 import { buildMediaKeyIndex } from './resolve';
 
 type ContractRecord = Record<string, string>;
