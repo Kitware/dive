@@ -361,21 +361,6 @@ export default defineComponent({
     >
       Load calibration
     </v-btn>
-    <v-btn
-      block
-      color="success"
-      small
-      :loading="saving"
-      class="mb-2"
-      @click="save"
-    >
-      Save calibration
-    </v-btn>
-    <span class="text-caption grey--text">
-      Calibration files are JSON (every pair's points and transforms). Saving also
-      stores the calibration with the dataset. Legacy ITK .h5 transforms load into
-      the selected camera pair.
-    </span>
     <span
       v-if="loadCalibrationError"
       class="text-caption error--text d-block"
@@ -429,10 +414,6 @@ export default defineComponent({
       hide-details
       class="mt-0 mb-2"
     />
-    <span class="text-caption grey--text">
-      Panning or zooming either camera recenters the other on the same point
-      (requires a fitted transform).
-    </span>
 
     <div
       v-if="pickingEnabled"
@@ -444,73 +425,81 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <div class="d-flex align-center justify-space-between mb-1">
-      <h4 class="mb-0">
-        Correspondences ({{ correspondences.length }})
-      </h4>
-      <div>
-        <tooltip-btn
-          icon="mdi-undo"
-          :disabled="!canClearLast"
-          tooltip-text="Undo the pending point, or the last completed pair"
-          @click="calibration.clearLast()"
-        />
-        <tooltip-btn
-          color="error"
-          icon="mdi-delete-sweep"
-          :disabled="!canClearPair"
-          tooltip-text="Clear all correspondences and any loaded transform for this pair"
-          @click="calibration.clearPair()"
-        />
-      </div>
-    </div>
-    <v-simple-table
-      v-if="correspondences.length"
-      dense
-      class="mb-2"
+    <v-expansion-panels
+      flat
+      accordion
     >
-      <template #default>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>A (x, y)</th>
-            <th>B (x, y)</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(c, i) in correspondences"
-            :key="c.id"
+      <v-expansion-panel>
+        <v-expansion-panel-header class="px-1">
+          Correspondences ({{ correspondences.length }})
+        </v-expansion-panel-header>
+        <v-expansion-panel-content class="px-0">
+          <div class="d-flex justify-end mb-1">
+            <tooltip-btn
+              icon="mdi-undo"
+              :disabled="!canClearLast"
+              tooltip-text="Undo the pending point, or the last completed pair"
+              @click="calibration.clearLast()"
+            />
+            <tooltip-btn
+              color="error"
+              icon="mdi-delete-sweep"
+              :disabled="!canClearPair"
+              tooltip-text="Clear all correspondences and any loaded transform for this pair"
+              @click="calibration.clearPair()"
+            />
+          </div>
+          <v-simple-table
+            v-if="correspondences.length"
+            dense
+            class="mb-2"
           >
-            <td>{{ i + 1 }}</td>
-            <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
-            <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
-            <td>
-              <tooltip-btn
-                color="error"
-                icon="mdi-delete"
-                tooltip-text="Remove this pair"
-                @click="calibration.removeCorrespondence(c.id)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </template>
-    </v-simple-table>
-    <span
-      v-else-if="hasLoadedTransform"
-      class="text-caption grey--text"
-    >
-      Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
-      points and fitting will replace it.
-    </span>
-    <span
-      v-else
-      class="text-caption grey--text"
-    >
-      No correspondences yet. At least {{ minPoints }} required for the selected transform.
-    </span>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>A (x, y)</th>
+                  <th>B (x, y)</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(c, i) in correspondences"
+                  :key="c.id"
+                >
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
+                  <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
+                  <td>
+                    <tooltip-btn
+                      color="error"
+                      icon="mdi-delete"
+                      tooltip-text="Remove this pair"
+                      @click="calibration.removeCorrespondence(c.id)"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+          <span
+            v-else-if="hasLoadedTransform"
+            class="text-caption grey--text"
+          >
+            Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
+            points and fitting will replace it.
+          </span>
+          <span
+            v-else
+            class="text-caption grey--text"
+          >
+            No correspondences yet. At least {{ minPoints }} required for the selected transform.
+          </span>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </v-expansion-panels>
+    <!-- Kept outside the collapsed panel so fit failures stay visible. -->
     <span
       v-if="fitError"
       class="text-caption error--text d-block"
@@ -702,5 +691,18 @@ export default defineComponent({
         </v-btn-toggle>
       </div>
     </div>
+
+    <v-divider class="my-3" />
+
+    <v-btn
+      block
+      color="success"
+      small
+      :loading="saving"
+      class="mb-2"
+      @click="save"
+    >
+      Save calibration
+    </v-btn>
   </div>
 </template>
