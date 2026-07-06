@@ -9,7 +9,7 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import {
-  CameraHomographies, CameraCorrespondences, CameraTransformTypes,
+  CameraHomographies, CameraCorrespondences, CameraTransformTypes, CalibrationSource,
 } from 'vue-media-annotator/CameraCalibrationStore';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
@@ -187,9 +187,11 @@ interface DatasetMetaMutable {
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
+  /** Producer provenance of the camera calibration (see CalibrationSource). */
+  cameraCalibrationSource?: CalibrationSource | null;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraCalibrationSource'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;

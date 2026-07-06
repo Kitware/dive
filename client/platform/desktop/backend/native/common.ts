@@ -374,7 +374,9 @@ async function loadMetadata(
 
   // Load standalone camera calibration (transforms + correspondences), if present.
   const calibrationFileAbsPath = npath.join(projectDirData.basePath, CalibrationFileName);
-  let { cameraHomographies, cameraCorrespondences, cameraTransformTypes } = projectMetaData;
+  let {
+    cameraHomographies, cameraCorrespondences, cameraTransformTypes, cameraCalibrationSource,
+  } = projectMetaData;
   if (await fs.pathExists(calibrationFileAbsPath)) {
     try {
       const calibration = await _loadAsJson(calibrationFileAbsPath);
@@ -384,6 +386,7 @@ async function loadMetadata(
           correspondences: cameraCorrespondences,
           transformTypes: cameraTransformTypes,
         } = fromCalibrationPairs(calibration.pairs));
+        cameraCalibrationSource = readCalibrationSource(calibration.source);
       }
     } catch (err) {
       // A malformed calibration.json should not block loading the dataset.
@@ -458,6 +461,7 @@ async function loadMetadata(
     cameraHomographies,
     cameraCorrespondences,
     cameraTransformTypes,
+    cameraCalibrationSource,
   };
 }
 
@@ -716,6 +720,19 @@ async function _saveAsJson(absPath: string, data: unknown) {
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
 type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
+type CalibrationSource = NonNullable<DatasetMetaMutable['cameraCalibrationSource']>;
+
+/**
+ * Best-effort read of the calibration file's producer provenance stamp: a
+ * plain object, or null for anything else. Preserved verbatim across
+ * load/refine/save round trips; never interpreted by DIVE.
+ */
+function readCalibrationSource(raw: unknown): CalibrationSource | null {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as CalibrationSource;
+  }
+  return null;
+}
 
 /**
  * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
@@ -819,12 +836,14 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   // standalone calibration.json in the dataset directory rather than embedded in
   // meta.json, so it is easy to find, hand-edit, and consume as a self-contained
   // artifact.
-  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes) {
+  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
+    || args.cameraCalibrationSource) {
     const calibrationFileAbsPath = npath.join(projectDirInfo.basePath, CalibrationFileName);
     // Start from whatever is on disk so a partial update doesn't clobber the rest.
     let homographies: CameraHomographies = {};
     let correspondences: CameraCorrespondences = {};
     let transformTypes: CameraTransformTypes = {};
+    let source: CalibrationSource | null = null;
     if (await fs.pathExists(calibrationFileAbsPath)) {
       try {
         const existingCalibration = await _loadAsJson(calibrationFileAbsPath);
@@ -832,6 +851,7 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
           ({ homographies, correspondences, transformTypes } = fromCalibrationPairs(
             existingCalibration.pairs,
           ));
+          source = readCalibrationSource(existingCalibration.source);
         }
       } catch (err) {
         console.warn(`Unable to read existing ${calibrationFileAbsPath}: ${err}`);
@@ -846,8 +866,13 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     if (args.cameraTransformTypes) {
       transformTypes = args.cameraTransformTypes;
     }
+    // undefined leaves the on-disk stamp alone; null/object replaces it.
+    if (args.cameraCalibrationSource !== undefined) {
+      source = args.cameraCalibrationSource;
+    }
     await _saveAsJson(calibrationFileAbsPath, {
       version: CalibrationFileVersion,
+      ...(source ? { source } : {}),
       pairs: toCalibrationPairs(homographies, correspondences, transformTypes),
     });
   }

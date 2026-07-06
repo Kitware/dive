@@ -83,6 +83,22 @@ export default defineComponent({
       calibration.setPickTarget(target);
     }
 
+    /**
+     * Human-readable summary of the loaded calibration's provenance stamp
+     * (scalar entries only -- nested structures are preserved in the file but
+     * not displayed).
+     */
+    const sourceReadout = computed(() => {
+      const source = calibration.source.value;
+      if (!source) {
+        return null;
+      }
+      const entries = Object.entries(source)
+        .filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v))
+        .map(([k, v]) => `${k}: ${v}`);
+      return entries.length ? entries.join(' · ') : 'present (no displayable fields)';
+    });
+
     /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
     const cursorReadout = computed(() => {
       const cursor = calibration.cursorCoord.value;
@@ -114,6 +130,7 @@ export default defineComponent({
           cameraHomographies: calibration.homographies.value,
           cameraCorrespondences: calibration.correspondences.value,
           cameraTransformTypes: calibration.transformTypes.value,
+          cameraCalibrationSource: calibration.source.value,
         });
         downloadText(calibration.toCalibrationJson(), 'camera-calibration.json');
       } finally {
@@ -198,6 +215,7 @@ export default defineComponent({
       canClearPair,
       canClearLast,
       saving,
+      sourceReadout,
       calibrationFileInput,
       loadCalibrationError,
       loadCalibrationWarning,
@@ -245,6 +263,12 @@ export default defineComponent({
       class="text-caption warning--text d-block"
     >
       {{ loadCalibrationWarning }}
+    </span>
+    <span
+      v-if="sourceReadout"
+      class="text-caption grey--text d-block"
+    >
+      Source: {{ sourceReadout }}
     </span>
     <v-divider class="my-3" />
 

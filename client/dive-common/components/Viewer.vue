@@ -1117,8 +1117,14 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
-        // Rehydrate any saved camera-to-camera calibration homographies, points, and transform types
-        cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences, meta.cameraTransformTypes);
+        // Rehydrate any saved camera-to-camera calibration homographies, points,
+        // transform types, and producer provenance
+        cameraCalibration.hydrate(
+          meta.cameraHomographies,
+          meta.cameraCorrespondences,
+          meta.cameraTransformTypes,
+          meta.cameraCalibrationSource,
+        );
         // Reset the aligned-view toggle for the newly loaded dataset (no
         // persistence this phase).
         alignedView.setEnabled(false);

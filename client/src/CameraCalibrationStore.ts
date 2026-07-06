@@ -38,6 +38,15 @@ export type CameraHomographies = Record<string, PairHomography>;
 type HomographySource = 'fit' | 'loaded';
 
 /**
+ * Free-form provenance stamped into the calibration file by whatever produced
+ * the transforms (e.g. an external COLMAP/KAMERA model step: model version,
+ * swathe/flight id, generation time). DIVE never interprets it -- it is
+ * preserved verbatim through load/refine/save round trips so an external
+ * re-solver can tell which model version a returning file was refined against.
+ */
+export type CalibrationSource = Record<string, unknown>;
+
+/**
  * One camera pair in the portable calibration JSON file. This is the same
  * self-describing shape the desktop platform persists as the project's
  * standalone calibration.json (see desktop backend/native/common.ts), so a
@@ -59,6 +68,8 @@ export interface CalibrationFile {
   /** Written by panel saves for self-identification; optional on load. */
   type?: string;
   version: number;
+  /** Producer provenance, preserved verbatim across round trips. */
+  source?: CalibrationSource | null;
   pairs: CalibrationFilePair[];
 }
 
@@ -134,6 +145,15 @@ export default class CameraCalibrationStore {
    */
   fitError: Ref<string | null>;
 
+  /**
+   * Provenance of the loaded calibration (see {@link CalibrationSource}).
+   * Deliberately NOT cleared by in-app edits or refits -- refinements are
+   * exactly what should travel back to the producer stamped with the model
+   * lineage they were made against. Replaced (or cleared) only when a
+   * calibration file is loaded or the store is re-hydrated.
+   */
+  source: Ref<CalibrationSource | null>;
+
   private nextId: number;
 
   private nextRecenterId: number;
@@ -153,6 +173,7 @@ export default class CameraCalibrationStore {
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
+    this.source = ref(null);
     this.nextId = 1;
     this.nextRecenterId = 1;
     this.homographySources = {};
@@ -533,7 +554,12 @@ export default class CameraCalibrationStore {
         transformType: this.transformTypeForPair(key),
       };
     });
-    const file: CalibrationFile = { type: CALIBRATION_FILE_TYPE, version: 1, pairs };
+    const file: CalibrationFile = {
+      type: CALIBRATION_FILE_TYPE,
+      version: 1,
+      ...(this.source.value ? { source: this.source.value } : {}),
+      pairs,
+    };
     return JSON.stringify(file, null, 2);
   }
 
@@ -558,6 +584,7 @@ export default class CameraCalibrationStore {
     if (!Array.isArray(file?.pairs)) {
       throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
     }
+    const source = CameraCalibrationStore.readSource(file.source);
     const correspondences: CameraCorrespondences = {};
     const homographies: CameraHomographies = {};
     const transformTypes: CameraTransformTypes = {};
@@ -602,11 +629,23 @@ export default class CameraCalibrationStore {
     this.correspondences.value = correspondences;
     this.homographies.value = homographies;
     this.transformTypes.value = transformTypes;
+    this.source.value = source;
     this.markHomographySources();
     this.pendingPoint.value = null;
     this.fitError.value = null;
     this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
     return { cameras: [...cameras], pairCount: file.pairs.length };
+  }
+
+  /** Validate an untrusted `source` value: a plain object, or absent (-> null). */
+  private static readSource(raw: unknown): CalibrationSource | null {
+    if (raw === undefined || raw === null) {
+      return null;
+    }
+    if (typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('"source" must be an object when present');
+    }
+    return raw as CalibrationSource;
   }
 
   /** Validate an untrusted value as a 4-element finite [leftX, leftY, rightX, rightY] row. */
@@ -654,15 +693,17 @@ export default class CameraCalibrationStore {
     });
   }
 
-  /** Reset state and load saved homographies, correspondences, and transform type choices. */
+  /** Reset state and load saved homographies, correspondences, transform type choices, and provenance. */
   hydrate(
     homographies?: CameraHomographies,
     correspondences?: CameraCorrespondences,
     transformTypes?: CameraTransformTypes,
+    source?: CalibrationSource | null,
   ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.correspondences.value = correspondences ? { ...correspondences } : {};
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
+    this.source.value = source ?? null;
     this.markHomographySources();
     this.activePair.value = null;
     this.pendingPoint.value = null;

@@ -807,6 +807,59 @@ describe('CameraCalibrationStore', () => {
       expect(store.transformTypeForPair(key)).toBe('translation');
     });
 
+    it('preserves the producer source stamp across load, refinement, and save', () => {
+      const store = new CameraCalibrationStore();
+      const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
+      store.setActivePair('left', 'right');
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        source,
+        pairs: [{
+          left: 'left', right: 'right', points: [], leftToRight: null, rightToLeft: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        }],
+      }));
+      expect(store.source.value).toStrictEqual(source);
+      // In-app refinement replaces the transform but keeps the lineage stamp.
+      addFourTranslationPairs(store);
+      store.maybeFitPair(store.pairKey('left', 'right'));
+      expect(store.source.value).toStrictEqual(source);
+      const saved = JSON.parse(store.toCalibrationJson());
+      expect(saved.source).toStrictEqual(source);
+    });
+
+    it('omits the source key when no stamp was loaded', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      expect('source' in JSON.parse(store.toCalibrationJson())).toBe(false);
+    });
+
+    it('clears a previous stamp when loading a file without one', () => {
+      const store = new CameraCalibrationStore();
+      store.loadCalibrationText(JSON.stringify({
+        version: 1,
+        source: { model: 'old' },
+        pairs: [],
+      }));
+      store.loadCalibrationText(JSON.stringify({ version: 1, pairs: [] }));
+      expect(store.source.value).toBeNull();
+    });
+
+    it('rejects a non-object source', () => {
+      const store = new CameraCalibrationStore();
+      expect(() => store.loadCalibrationText(JSON.stringify({
+        version: 1, source: 'colmap', pairs: [],
+      }))).toThrow(/"source" must be an object/);
+    });
+
+    it('hydrate restores the source stamp', () => {
+      const store = new CameraCalibrationStore();
+      store.hydrate({}, {}, {}, { model: 'colmap-x' });
+      expect(store.source.value).toStrictEqual({ model: 'colmap-x' });
+      store.hydrate({}, {}, {});
+      expect(store.source.value).toBeNull();
+    });
+
     it('rejects non-JSON, missing pairs, malformed pairs, and bad matrices without clobbering state', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');

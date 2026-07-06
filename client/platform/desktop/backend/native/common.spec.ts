@@ -700,6 +700,45 @@ describe('native.common', () => {
     expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
+  it('saveMetadata persists the calibration source stamp and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
+
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraCalibrationSource: source,
+    });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    expect((await fs.readJSON(calibrationPath)).source).toStrictEqual(source);
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraCalibrationSource).toStrictEqual(source);
+
+    // A save that doesn't mention the stamp leaves it alone.
+    await common.saveMetadata(settings, final.id, {
+      cameraTransformTypes: { 'rgb::ir': 'rigid' },
+    });
+    expect((await fs.readJSON(calibrationPath)).source).toStrictEqual(source);
+
+    // An explicit null clears it.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraCalibrationSource: null,
+    });
+    expect('source' in (await fs.readJSON(calibrationPath))).toBe(false);
+  });
+
   it('import with CSV annotations without specifying track file', async () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = ''; //It returns null be default but users change it.

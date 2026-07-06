@@ -250,6 +250,11 @@ class MetadataMutable(BaseModel):
     # similarity / affine / homography), keyed the same way. Missing entries
     # default to 'homography' client-side.
     cameraTransformTypes: Optional[Dict[str, str]]
+    # Free-form producer provenance for the camera calibration (e.g. an external
+    # model step's version / swathe / generation time). Never interpreted by
+    # DIVE; preserved verbatim so refined calibrations can be traced back to the
+    # model version they were made against.
+    cameraCalibrationSource: Optional[Dict[str, Any]]
     fps: Optional[float]
 
     @staticmethod
