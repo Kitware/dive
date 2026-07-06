@@ -316,6 +316,16 @@ interface Api {
   downloadCalibration?(datasetId: string): Promise<void>;
   /** Remove the calibration file currently associated with the dataset. */
   deleteCalibration?(datasetId: string): Promise<void>;
+  /**
+   * Desktop: parse a legacy ITK HDF5 (.h5) transform file's contents into a
+   * row-major 3x3 pixel matrix (ITK's forward, fixed-to-moving direction).
+   * Absent on web, where only calibration JSON can be loaded.
+   */
+  parseItkTransformBuffer?(data: ArrayBuffer): Promise<{
+    matrix: number[][];
+    type: string;
+    direction: 'fixed-to-moving';
+  }>;
 }
 const ApiSymbol = Symbol('api');
 

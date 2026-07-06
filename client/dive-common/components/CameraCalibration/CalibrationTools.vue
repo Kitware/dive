@@ -8,6 +8,7 @@ import {
   useDatasetId,
 } from 'vue-media-annotator/provides';
 import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
+import type { Matrix3 } from 'vue-media-annotator/homography';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -20,7 +21,7 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const calibration = useCameraCalibration();
     const datasetId = useDatasetId();
-    const { saveMetadata } = useApi();
+    const { saveMetadata, parseItkTransformBuffer } = useApi();
     const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
@@ -47,19 +48,26 @@ export default defineComponent({
     );
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
-    const selectedCorrespondenceId = computed(() => calibration.selectedCorrespondenceId.value);
-    /** Delete the selected correspondence (both cameras' points). Bound to Del/Backspace. */
-    function deleteSelectedCorrespondence() {
-      calibration.removeSelectedCorrespondence();
-    }
+    const canExport = computed(() => correspondences.value.length >= 1);
     const canClearLast = computed(
       () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
+    );
+    /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
+    const hasTransform = computed(() => canFit.value
+      || Boolean(activeKey.value && calibration.homographies.value[activeKey.value]));
+    /** The active pair's transform came from a calibration file (no in-app fit backing it). */
+    const hasLoadedTransform = computed(() => {
+      const key = activeKey.value;
+      return Boolean(key && calibration.homographies.value[key] && calibration.isLoadedHomography(key));
+    });
+    const canClearPair = computed(
+      () => correspondences.value.length > 0 || hasLoadedTransform.value,
     );
 
     const alignmentModeItems = computed(() => [
       { text: 'Original (no alignment)', value: 'original' },
-      { text: `Warp ${camLeft.value ?? 'A'} onto ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !canFit.value },
-      { text: `Warp ${camRight.value ?? 'B'} onto ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !canFit.value },
+      { text: `Warp ${camLeft.value ?? 'A'} onto ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
+      { text: `Warp ${camRight.value ?? 'B'} onto ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
     ]);
 
     function setTransformType(type: TransformType) {
@@ -93,6 +101,13 @@ export default defineComponent({
       return `${here} -> ${other.camera}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
     });
 
+    /**
+     * Persist the calibration (all pairs) to the dataset AND download it as a
+     * portable calibration .json. Deliberately not gated on the active pair
+     * having correspondences: saving must also be able to persist a cleared
+     * state (so stale saved calibration doesn't survive Clear All / per-row
+     * deletes) and state belonging to non-active pairs.
+     */
     async function save() {
       saving.value = true;
       try {
@@ -102,12 +117,108 @@ export default defineComponent({
           cameraCorrespondences: calibration.correspondences.value,
           cameraTransformTypes: calibration.transformTypes.value,
         });
+        downloadText(calibration.toCalibrationJson(), 'camera-calibration.json');
       } finally {
         saving.value = false;
       }
     }
 
+    /** Trigger a browser download of `text` as `filename`. */
+    function downloadText(text: string, filename: string) {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    }
+
+    /**
+     * Download the active pair's correspondences as a keypointgui-style
+     * points.txt (leftX leftY rightX rightY), for VIAME's
+     * itk_point_set_to_transform to build the .h5. Left/right order matches the
+     * panel's Camera A / Camera B selection.
+     */
+    function exportPoints() {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      downloadText(calibration.toPointsText(key), `${camLeft.value}_to_${camRight.value}_points.txt`);
+    }
+
+    /**
+     * Download the fitted homography (fitting first if needed) as a
+     * whitespace-separated 3x3 matrix .txt, matching keypointgui's Save
+     * Left->Right / Right->Left Homography.
+     */
+    function exportHomography(direction: 'AtoB' | 'BtoA') {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      calibration.maybeFitActivePair();
+      const text = calibration.toHomographyText(key, direction);
+      if (!text) {
+        return;
+      }
+      const [from, to] = direction === 'AtoB' ? [camLeft.value, camRight.value] : [camRight.value, camLeft.value];
+      downloadText(text, `${from}_to_${to}_homography.txt`);
+    }
+
+    const pointsFileInput = ref<HTMLInputElement | null>(null);
+    const loadPointsDialog = ref(false);
+    const loadPointsError = ref<string | null>(null);
+    const pendingLoadText = ref<string | null>(null);
+
+    function applyLoadedPoints(text: string, mode: 'replace' | 'merge') {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      loadPointsError.value = null;
+      try {
+        calibration.loadPointsFromText(key, text, mode);
+      } catch (e) {
+        loadPointsError.value = e instanceof Error ? e.message : String(e);
+      }
+    }
+
+    /** File input change handler for Load points.txt; prompts for replace/merge if the pair already has points. */
+    function onPointsFileSelected(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result ?? '');
+        if (correspondences.value.length > 0) {
+          pendingLoadText.value = text;
+          loadPointsDialog.value = true;
+        } else {
+          applyLoadedPoints(text, 'replace');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function confirmLoadPoints(mode: 'replace' | 'merge') {
+      loadPointsDialog.value = false;
+      if (pendingLoadText.value !== null) {
+        applyLoadedPoints(pendingLoadText.value, mode);
+        pendingLoadText.value = null;
+      }
+    }
+
     const calibrationFileInput = ref<HTMLInputElement | null>(null);
+    // Legacy ITK .h5 transforms need the desktop backend to parse HDF5.
+    const calibrationFileAccept = computed(() => (parseItkTransformBuffer ? '.json,.h5' : '.json'));
     const loadCalibrationError = ref<string | null>(null);
     const loadCalibrationWarning = ref<string | null>(null);
 
@@ -137,7 +248,39 @@ export default defineComponent({
       }
     }
 
-    /** File input change handler for Load calibration. */
+    /**
+     * Load a legacy ITK .h5 transform into the active pair. The file carries a
+     * single matrix and no points; it is applied as Camera B -> Camera A, the
+     * direction VIAME's itk_point_set_to_transform produces from a points.txt
+     * whose left columns are Camera A.
+     */
+    async function loadH5Calibration(file: File) {
+      if (!parseItkTransformBuffer) {
+        throw new Error('Loading legacy .h5 transforms requires the desktop app; use a calibration .json instead.');
+      }
+      const key = activeKey.value;
+      if (!key) {
+        throw new Error('Select two different cameras (A and B) before loading an .h5 transform.');
+      }
+      const confirmed = await prompt({
+        title: 'Load legacy .h5 transform',
+        text: [
+          `The transform will be applied as ${camRight.value} onto ${camLeft.value} (Camera B onto `
+          + 'Camera A), the direction VIAME\'s itk_point_set_to_transform produces. Swap the '
+          + 'Camera A / B selections first if your file goes the other way.',
+          ...(correspondences.value.length
+            ? [`This pair's ${correspondences.value.length} picked point(s) will be discarded.`]
+            : []),
+        ],
+        confirm: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      const parsed = await parseItkTransformBuffer(await file.arrayBuffer());
+      calibration.applyLoadedHomography(key, parsed.matrix as Matrix3, 'BtoA');
+    }
+
     function onCalibrationFileSelected(event: Event) {
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0];
@@ -147,7 +290,8 @@ export default defineComponent({
       }
       loadCalibrationError.value = null;
       loadCalibrationWarning.value = null;
-      loadJsonCalibration(file).catch((err) => {
+      const loader = /\.h5$/i.test(file.name) ? loadH5Calibration : loadJsonCalibration;
+      loader(file).catch((err) => {
         loadCalibrationError.value = err instanceof Error ? err.message : String(err);
       });
     }
@@ -161,38 +305,41 @@ export default defineComponent({
       alignment: calibration.alignment,
       fitError: calibration.fitError,
       linkedNav: calibration.linkedNav,
-      selectedCorrespondenceId,
-      deleteSelectedCorrespondence,
-      calibrationFileInput,
-      loadCalibrationError,
-      loadCalibrationWarning,
-      onCalibrationFileSelected,
       cursorReadout,
       correspondences,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
       alignmentModeItems,
-      canFit,
+      hasTransform,
+      hasLoadedTransform,
+      canClearPair,
+      canExport,
       canClearLast,
       saving,
+      pointsFileInput,
+      loadPointsDialog,
+      loadPointsError,
+      calibrationFileInput,
+      calibrationFileAccept,
+      loadCalibrationError,
+      loadCalibrationWarning,
       setTransformType,
       setAlignmentMode,
       setPickTarget,
       save,
+      exportPoints,
+      exportHomography,
+      onPointsFileSelected,
+      confirmLoadPoints,
+      onCalibrationFileSelected,
     };
   },
 });
 </script>
 
 <template>
-  <div
-    v-mousetrap="[
-      { bind: 'del', handler: deleteSelectedCorrespondence },
-      { bind: 'backspace', handler: deleteSelectedCorrespondence },
-    ]"
-    class="mx-4"
-  >
+  <div class="mx-4">
     <span class="text-body-2">
       Pick corresponding points between two cameras to fit an alignment transform.
     </span>
@@ -201,7 +348,7 @@ export default defineComponent({
     <input
       ref="calibrationFileInput"
       type="file"
-      accept=".json"
+      :accept="calibrationFileAccept"
       style="display: none"
       @change="onCalibrationFileSelected"
     >
@@ -214,6 +361,21 @@ export default defineComponent({
     >
       Load calibration
     </v-btn>
+    <v-btn
+      block
+      color="success"
+      small
+      :loading="saving"
+      class="mb-2"
+      @click="save"
+    >
+      Save calibration
+    </v-btn>
+    <span class="text-caption grey--text">
+      Calibration files are JSON (every pair's points and transforms). Saving also
+      stores the calibration with the dataset. Legacy ITK .h5 transforms load into
+      the selected camera pair.
+    </span>
     <span
       v-if="loadCalibrationError"
       class="text-caption error--text d-block"
@@ -226,22 +388,7 @@ export default defineComponent({
     >
       {{ loadCalibrationWarning }}
     </span>
-
     <v-divider class="my-3" />
-
-    <v-switch
-      v-model="pickingEnabled"
-      label="Pick points"
-      dense
-      hide-details
-      class="mt-0 mb-2"
-    />
-    <span class="text-caption grey--text">
-      Click a point in one camera, then the matching point in the other.
-      Click a placed marker to select it (Delete removes its point in both
-      cameras); drag a marker to refine it. Right-click to recenter both
-      cameras on that point (requires a fitted transform).
-    </span>
 
     <v-select
       v-model="camLeft"
@@ -250,7 +397,7 @@ export default defineComponent({
       dense
       outlined
       hide-details
-      class="mt-3 mb-3"
+      class="mb-3"
     />
     <v-select
       v-model="camRight"
@@ -261,6 +408,19 @@ export default defineComponent({
       hide-details
       class="mb-3"
     />
+
+    <v-switch
+      v-model="pickingEnabled"
+      label="Pick points"
+      dense
+      hide-details
+      class="mt-0 mb-2"
+    />
+    <span class="text-caption grey--text">
+      Click a point in one camera, then the matching point in the other.
+      Right-click to recenter both cameras on that point (requires a fitted
+      transform).
+    </span>
 
     <v-switch
       v-model="linkedNav"
@@ -284,83 +444,193 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <v-expansion-panels
-      flat
-      accordion
+    <div class="d-flex align-center justify-space-between mb-1">
+      <h4 class="mb-0">
+        Correspondences ({{ correspondences.length }})
+      </h4>
+      <div>
+        <tooltip-btn
+          icon="mdi-undo"
+          :disabled="!canClearLast"
+          tooltip-text="Undo the pending point, or the last completed pair"
+          @click="calibration.clearLast()"
+        />
+        <tooltip-btn
+          color="error"
+          icon="mdi-delete-sweep"
+          :disabled="!canClearPair"
+          tooltip-text="Clear all correspondences and any loaded transform for this pair"
+          @click="calibration.clearPair()"
+        />
+      </div>
+    </div>
+    <v-simple-table
+      v-if="correspondences.length"
+      dense
+      class="mb-2"
     >
-      <v-expansion-panel>
-        <v-expansion-panel-header class="px-1">
-          Correspondences ({{ correspondences.length }})
-        </v-expansion-panel-header>
-        <v-expansion-panel-content class="px-0">
-          <div class="d-flex justify-end mb-1">
-            <tooltip-btn
-              icon="mdi-undo"
-              :disabled="!canClearLast"
-              tooltip-text="Undo the pending point, or the last completed pair"
-              @click="calibration.clearLast()"
-            />
-            <tooltip-btn
-              color="error"
-              icon="mdi-delete-sweep"
-              :disabled="correspondences.length === 0"
-              tooltip-text="Clear all correspondences for this pair"
-              @click="calibration.clearPair()"
-            />
-          </div>
-          <v-simple-table
-            v-if="correspondences.length"
-            dense
-            class="mb-2"
+      <template #default>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>A (x, y)</th>
+            <th>B (x, y)</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(c, i) in correspondences"
+            :key="c.id"
           >
-            <template #default>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>A (x, y)</th>
-                  <th>B (x, y)</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(c, i) in correspondences"
-                  :key="c.id"
-                  :style="c.id === selectedCorrespondenceId
-                    ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
-                    : undefined"
-                  @click="calibration.selectCorrespondence(c.id)"
-                >
-                  <td>{{ i + 1 }}</td>
-                  <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
-                  <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
-                  <td>
-                    <tooltip-btn
-                      color="error"
-                      icon="mdi-delete"
-                      tooltip-text="Remove this pair"
-                      @click="calibration.removeCorrespondence(c.id)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </template>
-          </v-simple-table>
-          <span
-            v-else
-            class="text-caption grey--text"
-          >
-            No correspondences yet. At least {{ minPoints }} required for the selected transform.
-          </span>
-        </v-expansion-panel-content>
-      </v-expansion-panel>
-    </v-expansion-panels>
+            <td>{{ i + 1 }}</td>
+            <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
+            <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
+            <td>
+              <tooltip-btn
+                color="error"
+                icon="mdi-delete"
+                tooltip-text="Remove this pair"
+                @click="calibration.removeCorrespondence(c.id)"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </template>
+    </v-simple-table>
+    <span
+      v-else-if="hasLoadedTransform"
+      class="text-caption grey--text"
+    >
+      Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
+      points and fitting will replace it.
+    </span>
+    <span
+      v-else
+      class="text-caption grey--text"
+    >
+      No correspondences yet. At least {{ minPoints }} required for the selected transform.
+    </span>
     <span
       v-if="fitError"
       class="text-caption error--text d-block"
     >
       Could not fit transform: {{ fitError }}
     </span>
+
+    <v-divider class="my-3" />
+
+    <v-expansion-panels
+      flat
+      accordion
+    >
+      <v-expansion-panel>
+        <v-expansion-panel-header class="px-1">
+          points.txt / homography files
+        </v-expansion-panel-header>
+        <v-expansion-panel-content class="px-0">
+          <v-btn
+            block
+            color="info"
+            small
+            :disabled="!canExport"
+            class="mb-2"
+            @click="exportPoints"
+          >
+            Export points.txt
+          </v-btn>
+          <span class="text-caption grey--text">
+            Saves rows of "leftX leftY rightX rightY" for VIAME's
+            itk_point_set_to_transform (.h5). Columns follow the Camera A / Camera B order above.
+          </span>
+
+          <input
+            ref="pointsFileInput"
+            type="file"
+            accept=".txt"
+            style="display: none"
+            @change="onPointsFileSelected"
+          >
+          <v-btn
+            block
+            outlined
+            small
+            class="mt-2 mb-2"
+            @click="pointsFileInput.click()"
+          >
+            Load points.txt
+          </v-btn>
+          <span
+            v-if="loadPointsError"
+            class="text-caption error--text d-block"
+          >
+            {{ loadPointsError }}
+          </span>
+
+          <v-divider class="my-3" />
+
+          <v-btn
+            block
+            outlined
+            small
+            :disabled="!hasTransform"
+            class="mb-2"
+            @click="exportHomography('AtoB')"
+          >
+            Export A→B homography.txt
+          </v-btn>
+          <v-btn
+            block
+            outlined
+            small
+            :disabled="!hasTransform"
+            class="mb-2"
+            @click="exportHomography('BtoA')"
+          >
+            Export B→A homography.txt
+          </v-btn>
+          <span class="text-caption grey--text">
+            Saves the fitted 3x3 matrix as whitespace-separated rows, matching
+            keypointgui's Save Homography.
+          </span>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </v-expansion-panels>
+
+    <v-dialog
+      v-model="loadPointsDialog"
+      max-width="420"
+    >
+      <v-card>
+        <v-card-title>Load points.txt</v-card-title>
+        <v-card-text>
+          This pair already has {{ correspondences.length }} correspondence(s).
+          Replace them with the loaded points, or merge the loaded points in?
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            @click="loadPointsDialog = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            text
+            @click="confirmLoadPoints('merge')"
+          >
+            Merge
+          </v-btn>
+          <v-btn
+            color="primary"
+            text
+            @click="confirmLoadPoints('replace')"
+          >
+            Replace
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-divider class="my-3" />
 
@@ -398,7 +668,7 @@ export default defineComponent({
       @change="setAlignmentMode"
     />
     <span
-      v-if="!canFit"
+      v-if="!hasTransform"
       class="text-caption grey--text"
     >
       At least {{ minPoints }} correspondence pair(s) are required to align.
@@ -432,24 +702,5 @@ export default defineComponent({
         </v-btn-toggle>
       </div>
     </div>
-
-    <v-divider class="my-3" />
-
-    <!--
-      Deliberately not gated on the active pair having correspondences
-      (unlike the export buttons above): saving must also be able to persist
-      a cleared state (so stale saved calibration doesn't survive Clear All /
-      per-row deletes) and state belonging to non-active pairs.
-    -->
-    <v-btn
-      block
-      color="success"
-      small
-      :loading="saving"
-      class="mb-2"
-      @click="save"
-    >
-      Save calibration
-    </v-btn>
   </div>
 </template>

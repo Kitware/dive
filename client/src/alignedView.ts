@@ -8,16 +8,17 @@
  * - The REFERENCE camera is the first camera in display order
  *   (`meta.multiCamMedia.cameraOrder[0]`, i.e. `multiCamList[0]`). Its
  *   transform is the identity.
- * - A per-camera matrix stored at `meta.multiCam.cameras[<name>].transform
- *   .matrix` (row-major 3x3) is assumed to map that camera's native pixel
- *   coordinates INTO the reference camera's space (camera N -> camera 1).
  * - Calibration-tool homographies are stored per directional pair key
  *   `camA::camB` with `AtoB` mapping camA pixels onto camB (and `BtoA` the
  *   inverse); a camera's path to the reference is found by composing pair
  *   edges (breadth-first, so up-to-3-camera rigs may chain e.g. UV->IR->EO).
- * - When both sources provide a matrix for a camera, the stored meta matrix
- *   wins (it is the imported/authoritative artifact; the calibration fit is
- *   the in-app draft).
+ * - The calibration store is the SINGLE source the viewer resolves from:
+ *   whatever the calibration panel shows/saves is what the Align button
+ *   applies. Legacy per-camera matrices at
+ *   `meta.multiCam.cameras[<name>].transform.matrix` (written by .h5 import)
+ *   are no longer consumed automatically -- load the .h5 through the
+ *   calibration panel instead. `metaTransforms` / extractMetaCameraTransforms
+ *   below remain for callers that still need to read that metadata.
  */
 import {
   Matrix3, matMul3, invert3, applyHomography, Point,

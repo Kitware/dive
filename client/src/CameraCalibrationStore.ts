@@ -29,37 +29,39 @@ export interface PairHomography {
 /** Fitted transforms keyed by {@link CameraCalibrationStore.pairKey}. */
 export type CameraHomographies = Record<string, PairHomography>;
 
-/** Picked correspondences keyed by {@link CameraCalibrationStore.pairKey}. */
-export type CameraCorrespondences = Record<string, Correspondence[]>;
-
-/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'homography'. */
-export type CameraTransformTypes = Record<string, TransformType>;
-
 /**
- * One camera pair inside a portable calibration file. `points` are the picked
- * correspondences as [leftX, leftY, rightX, rightY] rows; `leftToRight` /
- * `rightToLeft` are the fitted directions (either may be omitted/null -- the
- * loader derives the missing one by inversion).
+ * Where a pair's homography came from: fitted in-app from picked points, or
+ * loaded from a calibration file (which may carry no points at all, e.g. a
+ * legacy ITK .h5 transform). Loaded homographies persist through refit checks
+ * that would otherwise clear an under-pointed pair, until enough points are
+ * picked to fit a replacement.
  */
+type HomographySource = 'fit' | 'loaded';
+
+/** One camera pair in the portable calibration JSON file. */
 export interface CalibrationFilePair {
-  left: string;
-  right: string;
-  points?: number[][];
-  leftToRight?: Matrix3 | null;
-  rightToLeft?: Matrix3 | null;
-  transformType?: TransformType;
+  cameraA: string;
+  cameraB: string;
+  transformType: TransformType;
+  correspondences: { a: Point; b: Point }[];
+  homography: PairHomography | null;
 }
 
 /** Portable calibration file: everything needed to restore all pairs. */
 export interface CalibrationFile {
-  /** Written for self-identification; optional on load. */
-  type?: string;
-  version: number;
+  type: 'dive-camera-calibration';
+  version: 1;
   pairs: CalibrationFilePair[];
 }
 
 /** Identifying `type` value of the calibration JSON format. */
 export const CALIBRATION_FILE_TYPE = 'dive-camera-calibration';
+
+/** Picked correspondences keyed by {@link CameraCalibrationStore.pairKey}. */
+export type CameraCorrespondences = Record<string, Correspondence[]>;
+
+/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'homography'. */
+export type CameraTransformTypes = Record<string, TransformType>;
 
 /** Which image is warped onto which for the in-app aligned-picking preview. */
 export type AlignmentMode = 'original' | 'AtoB' | 'BtoA';
@@ -102,13 +104,6 @@ export default class CameraCalibrationStore {
 
   alignment: Ref<AlignmentState>;
 
-  /**
-   * Correspondence currently selected in the picking UI (grabbed marker /
-   * clicked table row), highlighted in BOTH cameras' panes and deletable via
-   * the panel or the Delete key. Authoring state only -- never persisted.
-   */
-  selectedCorrespondenceId: Ref<number | null>;
-
   /** Whether pan/zoom recentering is linked between the active pair's two cameras. */
   linkedNav: Ref<boolean>;
 
@@ -135,6 +130,9 @@ export default class CameraCalibrationStore {
 
   private nextRecenterId: number;
 
+  /** Provenance per homography key; missing entries behave like 'fit'. */
+  private homographySources: Record<string, HomographySource>;
+
   constructor() {
     this.activePair = ref(null);
     this.pickingEnabled = ref(false);
@@ -143,13 +141,13 @@ export default class CameraCalibrationStore {
     this.homographies = ref({});
     this.transformTypes = ref({});
     this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
-    this.selectedCorrespondenceId = ref(null);
     this.linkedNav = ref(false);
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
     this.nextId = 1;
     this.nextRecenterId = 1;
+    this.homographySources = {};
   }
 
   /**
@@ -179,7 +177,6 @@ export default class CameraCalibrationStore {
     // stale 'ghost' pick target could otherwise silently misattribute the next
     // click to the wrong camera once the new pair has its own homography fitted.
     this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
-    this.selectedCorrespondenceId.value = null;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
     this.fitError.value = null;
@@ -272,7 +269,7 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = { camera, coord };
   }
 
-  /** Remove a correspondence (by id) from the active pair -- both cameras' points at once. */
+  /** Remove a correspondence (by id) from the active pair. */
   removeCorrespondence(id: number) {
     const key = this.activePairKey();
     if (!key) {
@@ -286,45 +283,24 @@ export default class CameraCalibrationStore {
       ...this.correspondences.value,
       [key]: list.filter((c) => c.id !== id),
     };
-    if (this.selectedCorrespondenceId.value === id) {
-      this.selectedCorrespondenceId.value = null;
-    }
     this.syncAlignmentHomography();
   }
 
   /**
-   * Select a correspondence marker for inspection/deletion (null clears).
-   * Only ids belonging to the active pair are selectable; anything else
-   * clears the selection.
+   * Drop all correspondences, the pending point, and any homography
+   * (fitted or file-loaded) for the active pair.
    */
-  selectCorrespondence(id: number | null) {
-    if (id === null) {
-      this.selectedCorrespondenceId.value = null;
-      return;
-    }
-    const key = this.activePairKey();
-    const list = key ? this.correspondences.value[key] : undefined;
-    this.selectedCorrespondenceId.value = (list && list.some((c) => c.id === id)) ? id : null;
-  }
-
-  /** Remove the selected correspondence (both cameras' points). No-op without a selection. */
-  removeSelectedCorrespondence() {
-    const id = this.selectedCorrespondenceId.value;
-    if (id !== null) {
-      this.removeCorrespondence(id);
-    }
-  }
-
-  /** Drop all correspondences and the pending point for the active pair. */
   clearPair() {
     const key = this.activePairKey();
     this.pendingPoint.value = null;
-    this.selectedCorrespondenceId.value = null;
     if (!key) {
       return;
     }
     this.correspondences.value = { ...this.correspondences.value, [key]: [] };
-    this.syncAlignmentHomography();
+    // Clearing is explicit: a file-loaded homography goes too. Dropping the
+    // 'loaded' mark lets maybeFitPair remove it through the normal path.
+    delete this.homographySources[key];
+    this.maybeFitPair(key);
   }
 
   /**
@@ -345,11 +321,17 @@ export default class CameraCalibrationStore {
     if (!list || list.length === 0) {
       return;
     }
-    if (this.selectedCorrespondenceId.value === list[list.length - 1].id) {
-      this.selectedCorrespondenceId.value = null;
-    }
     this.correspondences.value = { ...this.correspondences.value, [key]: list.slice(0, -1) };
     this.syncAlignmentHomography();
+  }
+
+  /**
+   * True when `key`'s homography came from a calibration file rather than an
+   * in-app fit. Not independently reactive -- always read alongside
+   * {@link homographies} (provenance only changes when that map does).
+   */
+  isLoadedHomography(key: string): boolean {
+    return this.homographySources[key] === 'loaded';
   }
 
   /** The chosen fit model for `key`, defaulting to 'homography' when unset. */
@@ -375,11 +357,17 @@ export default class CameraCalibrationStore {
     const list = this.correspondences.value[key];
     const required = minPointsForTransform(this.transformTypeForPair(key));
     if (!list || list.length < required) {
-      const rest = { ...this.homographies.value };
-      delete rest[key];
-      this.homographies.value = rest;
-      if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
-        this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+      // A file-loaded homography has no backing points; it stays in place
+      // until enough points are picked to fit a replacement (or the pair is
+      // explicitly cleared, which drops its 'loaded' mark first).
+      if (this.homographySources[key] !== 'loaded') {
+        const rest = { ...this.homographies.value };
+        delete rest[key];
+        this.homographies.value = rest;
+        delete this.homographySources[key];
+        if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
+          this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+        }
       }
       if (this.activePairKey() === key) {
         this.fitError.value = null;
@@ -509,16 +497,124 @@ export default class CameraCalibrationStore {
     const AtoB = estimateTransform(type, list.map((c) => c.a), list.map((c) => c.b));
     const BtoA = invert3(AtoB);
     this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
+    this.homographySources[key] = 'fit';
     return { AtoB, BtoA };
   }
 
   /**
-   * Load a portable calibration JSON (see {@link CalibrationFile}), replacing
-   * every pair's correspondences, homographies, and transform-type choices.
-   * A pair may carry only one fitted direction; the missing one is derived by
-   * inversion. Throws a descriptive Error on malformed input without touching
-   * current state. Returns the camera names referenced by the file so callers
-   * can warn about ones missing from the loaded dataset.
+   * Install a homography for `key` from an external transform file (legacy
+   * ITK .h5) that carries no point correspondences. `matrix` maps camB pixels
+   * onto camA ('BtoA') by default -- the direction VIAME's
+   * itk_point_set_to_transform produces for a points.txt exported with camA
+   * in the left columns -- and the opposite direction is its inverse.
+   * Replaces any picked correspondences for the pair (the loaded transform is
+   * now the pair's source of truth) and persists until enough new points are
+   * picked to fit a replacement or the pair is explicitly cleared.
+   * Throws if the matrix is singular (non-invertible).
+   */
+  applyLoadedHomography(key: string, matrix: Matrix3, direction: 'AtoB' | 'BtoA' = 'BtoA') {
+    const AtoB = direction === 'AtoB' ? matrix : invert3(matrix);
+    const BtoA = direction === 'BtoA' ? matrix : invert3(matrix);
+    this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
+    this.homographySources[key] = 'loaded';
+    this.correspondences.value = { ...this.correspondences.value, [key]: [] };
+    this.pendingPoint.value = null;
+    if (this.activePairKey() === key) {
+      this.fitError.value = null;
+    }
+  }
+
+  /**
+   * Serialize a pair's correspondences as keypointgui-style points text: one row
+   * per pair, four space-separated columns `leftX leftY rightX rightY`. This is
+   * the format consumed by VIAME's `itk_point_set_to_transform` to build the .h5.
+   */
+  toPointsText(key: string): string {
+    const list = this.correspondences.value[key] || [];
+    return list
+      .map((c) => `${c.a[0]} ${c.a[1]} ${c.b[0]} ${c.b[1]}`)
+      .join('\n');
+  }
+
+  /**
+   * Parse keypointgui-style points text (rows of "leftX leftY rightX rightY",
+   * the format written by {@link toPointsText} and by keypointgui's
+   * `np.savetxt`) into correspondences for `key`. Blank lines are ignored.
+   * Throws if any non-blank line doesn't parse to exactly 4 finite numbers.
+   *
+   * `mode: 'replace'` (default) discards `key`'s existing correspondences
+   * first, matching keypointgui's own Load behavior; `'merge'` appends to
+   * them instead.
+   */
+  loadPointsFromText(key: string, text: string, mode: 'replace' | 'merge' = 'replace') {
+    const rows = text.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+    const parsed = rows.map((line, i) => {
+      const parts = line.split(/\s+/).map(Number);
+      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+        throw new Error(`Line ${i + 1} of points file is not "leftX leftY rightX rightY": "${line}"`);
+      }
+      return parts as [number, number, number, number];
+    });
+    const existing = mode === 'merge' ? (this.correspondences.value[key] || []) : [];
+    const added: Correspondence[] = parsed.map(([ax, ay, bx, by]) => ({
+      // eslint-disable-next-line no-plusplus
+      id: this.nextId++,
+      a: [ax, ay] as Point,
+      b: [bx, by] as Point,
+    }));
+    this.correspondences.value = { ...this.correspondences.value, [key]: [...existing, ...added] };
+    this.syncAlignmentHomography();
+  }
+
+  /**
+   * Serialize the fitted homography for `key` in `direction` as whitespace
+   * -separated rows (matching keypointgui's `np.savetxt` output for
+   * `on_save_left_to_right_homography` / `on_save_right_to_left_homography`).
+   * Returns null if `key` has no fitted homography yet.
+   */
+  toHomographyText(key: string, direction: 'AtoB' | 'BtoA'): string | null {
+    const homog = this.homographies.value[key];
+    if (!homog) {
+      return null;
+    }
+    return homog[direction].map((row) => row.join(' ')).join('\n');
+  }
+
+  /**
+   * Serialize every pair with content (points and/or a homography) as the
+   * portable calibration JSON file (see {@link CalibrationFile}). Pairs whose
+   * only state is a transform-type choice are omitted.
+   */
+  toCalibrationJson(): string {
+    const keys = new Set([
+      ...Object.keys(this.correspondences.value).filter(
+        (key) => this.correspondences.value[key].length > 0,
+      ),
+      ...Object.keys(this.homographies.value),
+    ]);
+    const pairs: CalibrationFilePair[] = [...keys].sort().map((key) => {
+      const [cameraA, cameraB] = key.split('::');
+      return {
+        cameraA,
+        cameraB,
+        transformType: this.transformTypeForPair(key),
+        correspondences: (this.correspondences.value[key] || []).map((c) => ({ a: c.a, b: c.b })),
+        homography: this.homographies.value[key] || null,
+      };
+    });
+    const file: CalibrationFile = { type: CALIBRATION_FILE_TYPE, version: 1, pairs };
+    return JSON.stringify(file, null, 2);
+  }
+
+  /**
+   * Parse and load a calibration JSON file (the format written by
+   * {@link toCalibrationJson}), REPLACING all pairs' correspondences,
+   * homographies, and transform types. The active pair selection and picking
+   * toggle are left alone; the alignment ghost reverts to 'original' since
+   * the transform under it changed wholesale. Throws a descriptive Error on
+   * malformed input without touching current state. Returns the camera names
+   * referenced by the file so callers can warn about ones missing from the
+   * loaded dataset.
    */
   loadCalibrationText(text: string): { cameras: string[]; pairCount: number } {
     let data: unknown;
@@ -528,8 +624,11 @@ export default class CameraCalibrationStore {
       throw new Error('File is not valid JSON');
     }
     const file = data as Partial<CalibrationFile>;
-    if (!Array.isArray(file?.pairs)) {
-      throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
+    if (file?.type !== CALIBRATION_FILE_TYPE) {
+      throw new Error(`Not a DIVE camera calibration file (expected "type": "${CALIBRATION_FILE_TYPE}")`);
+    }
+    if (!Array.isArray(file.pairs)) {
+      throw new Error('Calibration file is missing its "pairs" list');
     }
     const correspondences: CameraCorrespondences = {};
     const homographies: CameraHomographies = {};
@@ -537,13 +636,13 @@ export default class CameraCalibrationStore {
     const cameras = new Set<string>();
     file.pairs.forEach((pair, i) => {
       const context = `Pair ${i + 1}`;
-      if (typeof pair?.left !== 'string' || typeof pair?.right !== 'string'
-        || !pair.left || !pair.right || pair.left === pair.right) {
-        throw new Error(`${context}: "left" and "right" must be two distinct camera names`);
+      if (typeof pair?.cameraA !== 'string' || typeof pair?.cameraB !== 'string'
+        || !pair.cameraA || !pair.cameraB || pair.cameraA === pair.cameraB) {
+        throw new Error(`${context}: cameraA and cameraB must be two distinct camera names`);
       }
-      const key = this.pairKey(pair.left, pair.right);
-      cameras.add(pair.left);
-      cameras.add(pair.right);
+      const key = this.pairKey(pair.cameraA, pair.cameraB);
+      cameras.add(pair.cameraA);
+      cameras.add(pair.cameraB);
       if (pair.transformType !== undefined) {
         if (!TRANSFORM_TYPES.some((t) => t.value === pair.transformType)) {
           throw new Error(
@@ -552,44 +651,39 @@ export default class CameraCalibrationStore {
         }
         transformTypes[key] = pair.transformType;
       }
-      correspondences[key] = (pair.points || []).map((row, j) => {
-        const [ax, ay, bx, by] = CameraCalibrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
+      correspondences[key] = (pair.correspondences || []).map((c, j) => ({
         // eslint-disable-next-line no-plusplus
-        return { id: this.nextId++, a: [ax, ay] as Point, b: [bx, by] as Point };
-      });
-      const leftToRight = (pair.leftToRight === null || pair.leftToRight === undefined)
-        ? null
-        : CameraCalibrationStore.readMatrix(pair.leftToRight, `${context}, leftToRight`);
-      const rightToLeft = (pair.rightToLeft === null || pair.rightToLeft === undefined)
-        ? null
-        : CameraCalibrationStore.readMatrix(pair.rightToLeft, `${context}, rightToLeft`);
-      if (leftToRight || rightToLeft) {
+        id: this.nextId++,
+        a: CameraCalibrationStore.readPoint(c?.a, `${context}, correspondence ${j + 1}, "a"`),
+        b: CameraCalibrationStore.readPoint(c?.b, `${context}, correspondence ${j + 1}, "b"`),
+      }));
+      if (pair.homography !== null && pair.homography !== undefined) {
         homographies[key] = {
-          AtoB: leftToRight ?? invert3(rightToLeft as Matrix3),
-          BtoA: rightToLeft ?? invert3(leftToRight as Matrix3),
+          AtoB: CameraCalibrationStore.readMatrix(pair.homography.AtoB, `${context}, homography AtoB`),
+          BtoA: CameraCalibrationStore.readMatrix(pair.homography.BtoA, `${context}, homography BtoA`),
         };
       }
     });
     this.correspondences.value = correspondences;
     this.homographies.value = homographies;
     this.transformTypes.value = transformTypes;
+    this.markHomographySources();
     this.pendingPoint.value = null;
-    this.selectedCorrespondenceId.value = null;
     this.fitError.value = null;
     this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
     return { cameras: [...cameras], pairCount: file.pairs.length };
   }
 
-  /** Validate an untrusted value as a 4-element finite [leftX, leftY, rightX, rightY] row. */
-  private static readPointsRow(raw: unknown, context: string): [number, number, number, number] {
-    if (!Array.isArray(raw) || raw.length !== 4) {
-      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY]`);
+  /** Validate an untrusted value as a 2-element finite point. */
+  private static readPoint(raw: unknown, context: string): Point {
+    if (!Array.isArray(raw) || raw.length !== 2) {
+      throw new Error(`${context}: expected [x, y]`);
     }
     const nums = raw.map(Number);
     if (nums.some((n) => !Number.isFinite(n))) {
-      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY] with finite numbers`);
+      throw new Error(`${context}: expected [x, y] with finite numbers`);
     }
-    return [nums[0], nums[1], nums[2], nums[3]];
+    return [nums[0], nums[1]];
   }
 
   /** Validate an untrusted value as an invertible row-major 3x3 matrix. */
@@ -610,6 +704,21 @@ export default class CameraCalibrationStore {
     return m;
   }
 
+  /**
+   * Reset homography provenance after bulk-loading state: a homography whose
+   * pair lacks enough points for its transform type can only have come from a
+   * file ('loaded', so refit checks preserve it); one with enough points is
+   * treated as fitted from them.
+   */
+  private markHomographySources() {
+    this.homographySources = {};
+    Object.keys(this.homographies.value).forEach((key) => {
+      const count = (this.correspondences.value[key] || []).length;
+      const required = minPointsForTransform(this.transformTypeForPair(key));
+      this.homographySources[key] = count >= required ? 'fit' : 'loaded';
+    });
+  }
+
   /** Reset state and load saved homographies, correspondences, and transform type choices. */
   hydrate(
     homographies?: CameraHomographies,
@@ -619,11 +728,11 @@ export default class CameraCalibrationStore {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.correspondences.value = correspondences ? { ...correspondences } : {};
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
+    this.markHomographySources();
     this.activePair.value = null;
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
     this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
-    this.selectedCorrespondenceId.value = null;
     this.linkedNav.value = false;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;

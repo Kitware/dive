@@ -22,8 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
-import { extractMetaCameraTransforms, resolveToReferenceTransforms } from 'vue-media-annotator/alignedView';
-import type { Matrix3 } from 'vue-media-annotator/homography';
+import { resolveToReferenceTransforms } from 'vue-media-annotator/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -350,21 +349,18 @@ export default defineComponent({
      * has a usable transform into the reference camera's space, the user may
      * warp displays and link pan/zoom across all cameras during normal
      * review. Reference camera = first camera in display order
-     * (multiCamList[0]). Transforms come from a per-camera
-     * meta.multiCam.cameras[<name>].transform.matrix (preferred; read
-     * defensively -- added by a parallel branch) or from the calibration
-     * tool's fitted pair homographies, composed through the pair graph.
+     * (multiCamList[0]). Transforms come from the calibration store's pair
+     * homographies (picked in-app or loaded from a calibration file via the
+     * panel), composed through the pair graph -- the single calibration the
+     * panel edits and saves is exactly what the Align button applies.
      */
     const alignedView = new AlignedViewStore();
-    // Per-camera matrices read from dataset meta at load time.
-    const metaCameraTransforms: Ref<Record<string, Matrix3>> = ref({});
     const alignedResolution = computed(() => {
       if (multiCamList.value.length < 2) {
         return null;
       }
       const reference = multiCamList.value[0];
       const toReference = resolveToReferenceTransforms(multiCamList.value, reference, {
-        metaTransforms: metaCameraTransforms.value,
         homographies: cameraCalibration.homographies.value,
       });
       return toReference ? { reference, toReference } : null;
@@ -1121,11 +1117,8 @@ export default defineComponent({
         }
         // Rehydrate any saved camera-to-camera calibration homographies, points, and transform types
         cameraCalibration.hydrate(meta.cameraHomographies, meta.cameraCorrespondences, meta.cameraTransformTypes);
-        // Read optional per-camera display transforms from meta (desktop
-        // meta.multiCam; absent on web or older datasets) and reset the
-        // aligned-view toggle for the newly loaded dataset (no persistence
-        // this phase).
-        metaCameraTransforms.value = extractMetaCameraTransforms(meta);
+        // Reset the aligned-view toggle for the newly loaded dataset (no
+        // persistence this phase).
         alignedView.setEnabled(false);
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools

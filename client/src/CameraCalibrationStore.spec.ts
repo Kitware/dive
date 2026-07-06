@@ -649,4 +649,158 @@ describe('CameraCalibrationStore', () => {
       expect(store.recenterRequest.value).toBeNull();
     });
   });
+
+  describe('loaded (file-sourced) homographies', () => {
+    // Pure translation by (+5, -3): trivially invertible.
+    const translate = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
+
+    it('applies an .h5 matrix as B->A with its inverse as A->B and drops picked points', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.addPoint('left', [0, 0]);
+      store.addPoint('right', [1, 1]);
+      store.applyLoadedHomography(key, translate);
+      expect(store.correspondences.value[key]).toHaveLength(0);
+      expect(store.isLoadedHomography(key)).toBe(true);
+      const homog = store.homographies.value[key];
+      expect(homog.BtoA).toEqual(translate);
+      expect(homog.AtoB[0][2]).toBeCloseTo(-5);
+      expect(homog.AtoB[1][2]).toBeCloseTo(3);
+    });
+
+    it('keeps a loaded homography through refit checks with too few points', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.applyLoadedHomography(key, translate);
+      store.maybeFitPair(key);
+      expect(store.homographies.value[key]).toBeDefined();
+      // Alignment can activate directly off the loaded transform.
+      store.setAlignmentMode('AtoB');
+      expect(store.alignment.value.mode).toBe('AtoB');
+    });
+
+    it('replaces a loaded homography once enough points are picked and fitted', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.applyLoadedHomography(key, [[1, 0, 100], [0, 1, 100], [0, 0, 1]]);
+      addFourTranslationPairs(store);
+      store.maybeFitPair(key);
+      expect(store.isLoadedHomography(key)).toBe(false);
+      // Fitted from points: right = left + (5, -3), so AtoB translates by (5, -3).
+      expect(store.homographies.value[key].AtoB[0][2]).toBeCloseTo(5);
+      expect(store.homographies.value[key].AtoB[1][2]).toBeCloseTo(-3);
+    });
+
+    it('clearPair removes a loaded homography', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      store.applyLoadedHomography(key, translate);
+      store.clearPair();
+      expect(store.homographies.value[key]).toBeUndefined();
+      expect(store.isLoadedHomography(key)).toBe(false);
+    });
+
+    it('clearPair also removes a stale fitted homography immediately', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      addFourTranslationPairs(store);
+      store.fitTransform(key);
+      store.clearPair();
+      expect(store.homographies.value[key]).toBeUndefined();
+    });
+
+    it('rejects a singular loaded matrix', () => {
+      const store = new CameraCalibrationStore();
+      const key = store.pairKey('left', 'right');
+      expect(() => store.applyLoadedHomography(key, [[0, 0, 0], [0, 0, 0], [0, 0, 0]]))
+        .toThrow();
+    });
+
+    it('hydrate marks an under-pointed homography as loaded so it survives refit checks', () => {
+      const store = new CameraCalibrationStore();
+      const key = store.pairKey('left', 'right');
+      store.hydrate({ [key]: { AtoB: translate, BtoA: translate } }, {}, {});
+      expect(store.isLoadedHomography(key)).toBe(true);
+      store.maybeFitPair(key);
+      expect(store.homographies.value[key]).toBeDefined();
+    });
+  });
+
+  describe('calibration JSON file round trip', () => {
+    it('serializes and reloads all pairs', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      addFourTranslationPairs(store);
+      store.setTransformType(key, 'translation');
+      store.fitTransform(key);
+      const json = store.toCalibrationJson();
+
+      const restored = new CameraCalibrationStore();
+      restored.setActivePair('left', 'right');
+      const result = restored.loadCalibrationText(json);
+      expect(result.pairCount).toBe(1);
+      expect(result.cameras.sort()).toEqual(['left', 'right']);
+      expect(restored.correspondences.value[key]).toHaveLength(4);
+      expect(restored.transformTypeForPair(key)).toBe('translation');
+      expect(restored.homographies.value[key].AtoB[0][2]).toBeCloseTo(5);
+      // Enough points back the homography, so it is treated as fitted.
+      expect(restored.isLoadedHomography(key)).toBe(false);
+    });
+
+    it('includes pairs that only have a loaded homography (no points)', () => {
+      const store = new CameraCalibrationStore();
+      const key = store.pairKey('uv', 'ir');
+      store.applyLoadedHomography(key, [[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+      const restored = new CameraCalibrationStore();
+      restored.loadCalibrationText(store.toCalibrationJson());
+      expect(restored.homographies.value[key]).toBeDefined();
+      expect(restored.isLoadedHomography(key)).toBe(true);
+    });
+
+    it('reverts alignment to original and keeps the active pair on load', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      store.setAlignmentMode('AtoB');
+      const json = store.toCalibrationJson();
+      store.loadCalibrationText(json);
+      expect(store.alignment.value.mode).toBe('original');
+      expect(store.activePair.value).toEqual({ camA: 'left', camB: 'right' });
+    });
+
+    it('rejects non-JSON, wrong type, malformed pairs, and bad matrices without clobbering state', () => {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      addFourTranslationPairs(store);
+      expect(() => store.loadCalibrationText('not json')).toThrow(/valid JSON/);
+      expect(() => store.loadCalibrationText('{"type": "other"}')).toThrow(/dive-camera-calibration/);
+      expect(() => store.loadCalibrationText(JSON.stringify({
+        type: 'dive-camera-calibration', version: 1, pairs: [{ cameraA: 'a', cameraB: 'a' }],
+      }))).toThrow(/distinct/);
+      expect(() => store.loadCalibrationText(JSON.stringify({
+        type: 'dive-camera-calibration',
+        version: 1,
+        pairs: [{
+          cameraA: 'a',
+          cameraB: 'b',
+          correspondences: [],
+          homography: { AtoB: [[1, 0], [0, 1]], BtoA: [[1, 0], [0, 1]] },
+        }],
+      }))).toThrow(/3x3/);
+      expect(() => store.loadCalibrationText(JSON.stringify({
+        type: 'dive-camera-calibration',
+        version: 1,
+        pairs: [{ cameraA: 'a', cameraB: 'b', transformType: 'bogus' }],
+      }))).toThrow(/transformType/);
+      // Failed loads left the existing calibration alone.
+      expect(store.correspondences.value[key]).toHaveLength(4);
+    });
+  });
 });
