@@ -700,6 +700,31 @@ describe('native.common', () => {
     expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
+  it('fromCalibrationPairs derives a missing matrix direction by inversion', () => {
+    const { homographies } = common.fromCalibrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [],
+      leftToRight: null,
+      rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+    }]);
+    expect(homographies['eo::ir'].BtoA).toEqual([[1, 0, -5], [0, 1, 3], [0, 0, 1]]);
+    expect(homographies['eo::ir'].AtoB[0][2]).toBeCloseTo(5);
+    expect(homographies['eo::ir'].AtoB[1][2]).toBeCloseTo(-3);
+  });
+
+  it('fromCalibrationPairs keeps points but skips the matrix for singular input', () => {
+    const { homographies, correspondences } = common.fromCalibrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [[1, 2, 3, 4]],
+      leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+      rightToLeft: null,
+    }]);
+    expect(homographies['eo::ir']).toBeUndefined();
+    expect(correspondences['eo::ir']).toHaveLength(1);
+  });
+
   it('saveMetadata persists the calibration source stamp and reloads it', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
