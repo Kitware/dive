@@ -25,10 +25,9 @@ describe('CameraCalibrationStore', () => {
     store.setActivePair('left', 'right');
     addFourTranslationPairs(store);
     store.setAlignmentMode('AtoB');
-    store.setPickTarget('ghost');
     expect(store.alignment.value.mode).toBe('AtoB');
     store.setActivePair('left', 'other');
-    expect(store.alignment.value).toMatchObject({ mode: 'original', pickTarget: 'native' });
+    expect(store.alignment.value).toMatchObject({ mode: 'original' });
   });
 
   it('forms one correspondence from a blue->red two-click sequence', () => {
@@ -282,7 +281,7 @@ describe('CameraCalibrationStore', () => {
     expect(store.pendingPoint.value).toBeNull();
     expect(store.correspondences.value).toEqual({});
     expect(store.transformTypes.value).toEqual({});
-    expect(store.alignment.value).toEqual({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+    expect(store.alignment.value).toEqual({ mode: 'original', opacity: 0.5 });
   });
 
   it('hydrates transform types alongside homographies', () => {
@@ -343,14 +342,7 @@ describe('CameraCalibrationStore', () => {
     });
   });
 
-  describe('setAlignmentMode / setPickTarget guards', () => {
-    it('setPickTarget is a no-op while alignment mode is original', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('left', 'right');
-      store.setPickTarget('ghost');
-      expect(store.alignment.value.pickTarget).toBe('native');
-    });
-
+  describe('setAlignmentMode guards', () => {
     it('setAlignmentMode leaves mode original when the pair lacks enough points', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
@@ -360,41 +352,22 @@ describe('CameraCalibrationStore', () => {
   });
 
   describe('pickPoint', () => {
-    it('attributes a ghost-pane click to the source camera via the inverse homography', () => {
+    it('records a native pick like addPoint in the Picking (original) mode', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
-      addFourTranslationPairs(store); // left -> right is +5, -3
-      store.setAlignmentMode('AtoB'); // ghost of left shown in right's pane
-      store.setPickTarget('ghost');
       store.pickPoint('right', [15, 7]);
-      expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [10, 10] });
+      expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
     });
 
-    it('always records a native pick in the non-ghosted (source) pane', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('left', 'right');
-      addFourTranslationPairs(store);
-      store.setAlignmentMode('AtoB'); // right is the ghosted/destination pane
-      store.setPickTarget('ghost');
-      store.pickPoint('left', [3, 4]); // clicking the source pane, not ghosted
-      expect(store.pendingPoint.value).toMatchObject({ camera: 'left', coord: [3, 4] });
-    });
-
-    it('records a native pick in the ghosted pane when pick target is native', () => {
+    it('is a no-op while an overlay warp is active', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       addFourTranslationPairs(store);
       store.setAlignmentMode('AtoB');
-      // pickTarget defaults to 'native'
       store.pickPoint('right', [15, 7]);
-      expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
-    });
-
-    it('behaves exactly like addPoint when alignment mode is original', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('left', 'right');
-      store.pickPoint('right', [15, 7]);
-      expect(store.pendingPoint.value).toMatchObject({ camera: 'right', coord: [15, 7] });
+      // The warp mode blocks new picks; nothing is pending and the pairs are unchanged.
+      expect(store.pendingPoint.value).toBeNull();
+      expect(store.correspondences.value[store.pairKey('left', 'right')]).toHaveLength(4);
     });
   });
 

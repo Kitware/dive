@@ -87,13 +87,9 @@ export type CameraTransformTypes = Record<string, TransformType>;
 /** Which image is warped onto which for the in-app aligned-picking preview. */
 export type AlignmentMode = 'original' | 'AtoB' | 'BtoA';
 
-/** Whether a click in an aligned (ghosted) pane is attributed to that pane's own camera, or the ghosted source camera. */
-export type PickTarget = 'native' | 'ghost';
-
 export interface AlignmentState {
   mode: AlignmentMode;
   opacity: number;
-  pickTarget: PickTarget;
 }
 
 /** Active pair. `camA` is the left camera, `camB` the right (user-chosen order). */
@@ -187,7 +183,7 @@ export default class CameraCalibrationStore {
     this.correspondences = ref({});
     this.homographies = ref({});
     this.transformTypes = ref({});
-    this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+    this.alignment = ref({ mode: 'original', opacity: 0.5 });
     this.linkedNav = ref(true);
     this.selectedCorrespondenceId = ref(null);
     this.cursorCoord = ref(null);
@@ -239,10 +235,9 @@ export default class CameraCalibrationStore {
       this.activePair.value = { camA: left, camB: right };
     }
     this.pendingPoint.value = null;
-    // Switching pairs invalidates any active alignment/ghost picking state: a
-    // stale 'ghost' pick target could otherwise silently misattribute the next
-    // click to the wrong camera once the new pair has its own homography fitted.
-    this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity, pickTarget: 'native' };
+    // Switching pairs invalidates any active overlay warp: drop back to the
+    // unwarped Picking mode so the new pair starts from its own native views.
+    this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity };
     this.selectedCorrespondenceId.value = null;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;
@@ -278,28 +273,14 @@ export default class CameraCalibrationStore {
   }
 
   /**
-   * Record a click at `coord` (native pixel coords of `camera`'s own pane). When
-   * alignment is active, the pick target is 'ghost', and `camera` is the pane
-   * currently showing the ghost overlay (the alignment "destination" pane), the
-   * coordinate is inverse-mapped through the fitted homography and attributed to
-   * the *source* camera being ghosted instead of `camera` -- letting the user
-   * complete a correspondence pair from a single pane. Clicking the source
-   * (non-ghosted) pane, or clicking with the pick target set to 'native', always
-   * records a native point for `camera` itself, same as {@link addPoint}.
+   * Record a click at `coord` (native pixel coords of `camera`'s own pane).
+   * New points are only picked in the unwarped 'original' (Picking) mode: while
+   * an overlay warp is active the panes show a warped preview rather than native
+   * coordinates, so clicks there are ignored.
    */
   pickPoint(camera: string, coord: Point) {
-    const pair = this.activePair.value;
-    const { mode, pickTarget } = this.alignment.value;
-    if (pair && mode !== 'original' && pickTarget === 'ghost') {
-      const srcCam = mode === 'BtoA' ? pair.camB : pair.camA;
-      const dstCam = mode === 'BtoA' ? pair.camA : pair.camB;
-      if (camera === dstCam) {
-        const homog = this.homographies.value[this.pairKey(pair.camA, pair.camB)];
-        if (homog) {
-          this.addPoint(srcCam, applyHomography(invert3(homog[mode]), coord));
-          return;
-        }
-      }
+    if (this.alignment.value.mode !== 'original') {
+      return;
     }
     this.addPoint(camera, coord);
   }
@@ -478,7 +459,7 @@ export default class CameraCalibrationStore {
         this.homographies.value = rest;
         delete this.homographySources[key];
         if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
-          this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+          this.alignment.value = { ...this.alignment.value, mode: 'original' };
         }
       }
       if (this.activePairKey() === key) {
@@ -517,21 +498,12 @@ export default class CameraCalibrationStore {
         return;
       }
     }
-    const pickTarget = mode === 'original' ? 'native' : this.alignment.value.pickTarget;
-    this.alignment.value = { ...this.alignment.value, mode, pickTarget };
+    this.alignment.value = { ...this.alignment.value, mode };
   }
 
   /** Ghost overlay opacity, independent of alignment mode. */
   setAlignmentOpacity(opacity: number) {
     this.alignment.value = { ...this.alignment.value, opacity };
-  }
-
-  /** Choose whether a click in an aligned pane is native or attributed to the ghosted camera. No-op while alignment is 'original'. */
-  setPickTarget(pickTarget: PickTarget) {
-    if (this.alignment.value.mode === 'original') {
-      return;
-    }
-    this.alignment.value = { ...this.alignment.value, pickTarget };
   }
 
   /**
@@ -712,7 +684,7 @@ export default class CameraCalibrationStore {
     this.pendingPoint.value = null;
     this.selectedCorrespondenceId.value = null;
     this.fitError.value = null;
-    this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+    this.alignment.value = { ...this.alignment.value, mode: 'original' };
     return { cameras: [...cameras], pairCount: file.pairs.length };
   }
 
@@ -787,7 +759,7 @@ export default class CameraCalibrationStore {
     this.activePair.value = null;
     this.pendingPoint.value = null;
     this.pickingEnabled.value = false;
-    this.alignment.value = { mode: 'original', opacity: 0.5, pickTarget: 'native' };
+    this.alignment.value = { mode: 'original', opacity: 0.5 };
     this.selectedCorrespondenceId.value = null;
     this.cursorCoord.value = null;
     this.recenterRequest.value = null;

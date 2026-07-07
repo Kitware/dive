@@ -108,7 +108,7 @@ export default defineComponent({
     );
 
     const alignmentModeItems = computed(() => [
-      { text: 'Original', value: 'original', disabled: false },
+      { text: 'Picking', value: 'original', disabled: false },
       { text: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
       { text: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
     ]);
@@ -122,10 +122,6 @@ export default defineComponent({
 
     function setAlignmentMode(mode: 'original' | 'AtoB' | 'BtoA') {
       calibration.setAlignmentMode(mode);
-    }
-
-    function setPickTarget(target: 'native' | 'ghost') {
-      calibration.setPickTarget(target);
     }
 
     /**
@@ -285,7 +281,6 @@ export default defineComponent({
       loadCalibrationWarning,
       setTransformType,
       setAlignmentMode,
-      setPickTarget,
       save,
       exportCalibration,
       onCalibrationFileSelected,
@@ -534,42 +529,19 @@ export default defineComponent({
       </v-btn>
     </v-btn-toggle>
 
-    <div>
-      <span
-        class="text-caption"
-        :class="{ 'grey--text': alignment.mode === 'original' }"
-      >Warp Opacity</span>
-      <v-slider
-        v-model="alignment.opacity"
-        :min="0"
-        :max="1"
-        :step="0.05"
-        :disabled="alignment.mode === 'original'"
-        dense
-        hide-details
-      />
-
-      <div class="mt-2">
-        <span
-          class="text-caption d-block mb-1"
-          :class="{ 'grey--text': alignment.mode === 'original' }"
-        >Picking for</span>
-        <v-btn-toggle
-          :value="alignment.pickTarget"
-          mandatory
-          dense
-          :disabled="alignment.mode === 'original'"
-          @change="setPickTarget"
-        >
-          <v-btn value="native" small>
-            This camera
-          </v-btn>
-          <v-btn value="ghost" small>
-            Ghost overlay
-          </v-btn>
-        </v-btn-toggle>
-      </div>
-    </div>
+    <span
+      class="text-caption"
+      :class="{ 'grey--text': alignment.mode === 'original' }"
+    >Warp Opacity</span>
+    <v-slider
+      v-model="alignment.opacity"
+      :min="0"
+      :max="1"
+      :step="0.05"
+      :disabled="alignment.mode === 'original'"
+      dense
+      hide-details
+    />
 
     <v-divider class="my-3" />
 
