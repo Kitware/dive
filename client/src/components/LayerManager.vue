@@ -134,8 +134,16 @@ export default defineComponent({
      * (native-coordinate inverse mapping) is unaffected either way.
      */
     const getCameraImage = (camera: string) => {
-      const ctrl = aggregateController.value.getController(camera);
-      const viewer = ctrl?.geoViewerRef?.value;
+      let viewer;
+      try {
+        // getController throws for an unknown/cleared camera; the ghost and
+        // aligned-warp rAF loops call this after a dataset reload has cleared
+        // the controllers, so swallow it here rather than let it escape into
+        // the animation-frame callback uncaught.
+        viewer = aggregateController.value.getController(camera)?.geoViewerRef?.value;
+      } catch {
+        return null;
+      }
       if (!viewer || typeof viewer.layers !== 'function') {
         return null;
       }
