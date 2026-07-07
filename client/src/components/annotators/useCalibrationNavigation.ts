@@ -101,10 +101,10 @@ export default function useCalibrationNavigation(
   function setup() {
     teardown();
     const pair = calibration.activePair.value;
-    // The pair link is authoring UI: it is simply active whenever point
-    // picking is (once a fit exists, linkedPoint starts returning matches).
-    // Outside picking, the Align button's link owns navigation.
-    if (!calibration.pickingEnabled.value || !pair) {
+    // The pair link is authoring UI: active while picking and the "Fit
+    // pan/zoom" toggle is on (once a fit exists, linkedPoint starts returning
+    // matches). Outside picking, the Align button's link owns navigation.
+    if (!calibration.pickingEnabled.value || !calibration.linkedNav.value || !pair) {
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,6 +137,7 @@ export default function useCalibrationNavigation(
   watch(
     [
       calibration.pickingEnabled,
+      calibration.linkedNav,
       calibration.activePair,
       calibration.homographies,
       aggregateController.value.resizeTrigger,

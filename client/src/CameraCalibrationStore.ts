@@ -126,6 +126,13 @@ export default class CameraCalibrationStore {
   alignment: Ref<AlignmentState>;
 
   /**
+   * Whether pan/zoom is linked between the active pair's two cameras through
+   * the fitted transform (see {@link useCalibrationNavigation}). Only has an
+   * effect once a transform is fitted; toggled from the panel's "Fit pan/zoom".
+   */
+  linkedNav: Ref<boolean>;
+
+  /**
    * Correspondence currently selected in the picking UI (grabbed marker /
    * clicked table row), highlighted in BOTH cameras' panes and deletable via
    * the panel or the Delete key. Authoring state only -- never persisted.
@@ -181,6 +188,7 @@ export default class CameraCalibrationStore {
     this.homographies = ref({});
     this.transformTypes = ref({});
     this.alignment = ref({ mode: 'original', opacity: 0.5, pickTarget: 'native' });
+    this.linkedNav = ref(true);
     this.selectedCorrespondenceId = ref(null);
     this.cursorCoord = ref(null);
     this.recenterRequest = ref(null);

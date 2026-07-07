@@ -74,6 +74,16 @@ export default defineComponent({
     );
     /** How many more correspondence pairs are needed before the transform can be fit. */
     const remainingPoints = computed(() => Math.max(0, minPoints.value - correspondences.value.length));
+    /**
+     * Fit-robustness color: green with 12+ point pairs, yellow once the active
+     * transform can be fit (its own minimum, e.g. 2 for Similarity), grey below.
+     */
+    const fitQualityColor = computed(() => {
+      if (correspondences.value.length >= 12) {
+        return 'success';
+      }
+      return canFit.value ? 'warning' : 'grey';
+    });
     /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
     const hasTransform = computed(() => canFit.value
       || Boolean(activeKey.value && calibration.homographies.value[activeKey.value]));
@@ -265,6 +275,8 @@ export default defineComponent({
       canClearPair,
       canClearLast,
       canFit,
+      fitQualityColor,
+      linkedNav: calibration.linkedNav,
       dirty: calibration.dirty,
       saving,
       sourceReadout,
@@ -487,6 +499,16 @@ export default defineComponent({
         </template>
       </span>
     </div>
+
+    <v-checkbox
+      v-model="linkedNav"
+      :disabled="!canFit"
+      :color="fitQualityColor"
+      label="Fit pan/zoom"
+      dense
+      hide-details
+      class="mt-1"
+    />
 
     <v-divider class="my-3" />
 
