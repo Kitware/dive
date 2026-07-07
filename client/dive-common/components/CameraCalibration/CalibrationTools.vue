@@ -324,25 +324,6 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
 
-    <v-select
-      v-model="camLeft"
-      :items="cameras"
-      label="Camera A (left)"
-      dense
-      outlined
-      hide-details
-      class="mb-3"
-    />
-    <v-select
-      v-model="camRight"
-      :items="cameras"
-      label="Camera B (right)"
-      dense
-      outlined
-      hide-details
-      class="mb-3"
-    />
-
     <v-switch
       v-model="pickingEnabled"
       label="Pick points"
@@ -357,6 +338,25 @@ export default defineComponent({
       pan/zoom is linked between the pair and right-click recenters both
       cameras on the clicked point.
     </span>
+
+    <v-select
+      v-model="camLeft"
+      :items="cameras"
+      label="Camera A (left)"
+      dense
+      outlined
+      hide-details
+      class="mt-3 mb-3"
+    />
+    <v-select
+      v-model="camRight"
+      :items="cameras"
+      label="Camera B (right)"
+      dense
+      outlined
+      hide-details
+      class="mb-3"
+    />
 
     <div
       v-if="pickingEnabled"
