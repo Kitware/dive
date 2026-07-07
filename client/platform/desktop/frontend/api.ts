@@ -7,7 +7,7 @@ import type {
   DatasetCalibrationResult,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
-  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse,
+  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
 
 import {
@@ -353,12 +353,24 @@ function videoSearchBuildIndex(datasetId: string, method: VideoSearchIndexMethod
   gpuJobQueue.enqueue(args);
 }
 
-async function videoSearchDeleteIndex(datasetId: string): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('video-search-delete-index', datasetId);
+/** Delete the entire shared search index from disk. */
+async function videoSearchDeleteIndex(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-delete-index');
 }
 
-async function videoSearchOpenIndex(datasetId: string): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('video-search-open-index', datasetId);
+async function videoSearchListIndexes(): Promise<VideoSearchIndexInfo[]> {
+  return window.diveDesktop.invoke('video-search-list-indexes');
+}
+
+async function videoSearchOpenIndex(): Promise<{
+  success: boolean; streams: VideoSearchIndexInfo[];
+}> {
+  return window.diveDesktop.invoke('video-search-open-index');
+}
+
+/** Remove one dataset's rows from the shared search index. */
+async function videoSearchRemoveIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-remove-index', datasetId);
 }
 
 async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
@@ -377,7 +389,7 @@ async function getMediaUrl(filePath: string): Promise<string> {
   return `${_baseURL}/media?path=${encodeURIComponent(filePath)}`;
 }
 
-async function videoSearchRefine(positiveIds: number[], negativeIds: number[]): Promise<VideoSearchQueryResponse> {
+async function videoSearchRefine(positiveIds: string[], negativeIds: string[]): Promise<VideoSearchQueryResponse> {
   return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
 }
 
@@ -719,7 +731,9 @@ export {
   videoSearchInstalled,
   videoSearchIndexStatus,
   videoSearchBuildIndex,
+  videoSearchRemoveIndex,
   videoSearchDeleteIndex,
+  videoSearchListIndexes,
   videoSearchOpenIndex,
   videoSearchFormulate,
   videoSearchQuery,

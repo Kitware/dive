@@ -199,6 +199,11 @@ export default function register() {
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
+    // Also drop the dataset's rows from the shared search index (best
+    // effort; the index tolerates stale entries if this fails).
+    videoSearch.removeFromIndex(settings.get(), datasetId).catch((err) => {
+      console.error(`Failed to remove ${datasetId} from the search index:`, err);
+    });
     return ret;
   });
 
@@ -478,28 +483,36 @@ export default function register() {
     const updater = (update: DesktopJobUpdate) => {
       event.sender.send('job-update', update);
     };
-    // A rebuild invalidates whatever the service currently has open.
+    // The build job needs the shared database to itself (and re-ingesting
+    // invalidates whatever the open session has cached in memory).
     const manager = videoSearch.getQueryServiceManager();
-    if (manager.openIndexDir() === videoSearch.getIndexDir(settings.get(), args.datasetId)) {
-      await manager.closeIndex();
-    }
+    await manager.closeIndex();
     return videoSearch.buildIndex(settings.get(), args, updater);
   });
 
-  ipcMain.handle('video-search-delete-index', async (_, datasetId: string) => {
-    await videoSearch.deleteIndex(settings.get(), datasetId);
+  ipcMain.handle('video-search-remove-index', async (_, datasetId: string) => {
+    await videoSearch.removeFromIndex(settings.get(), datasetId);
     return { success: true };
   });
 
-  ipcMain.handle('video-search-open-index', async (_, datasetId: string) => {
+  ipcMain.handle('video-search-delete-index', async () => {
+    await videoSearch.deleteEntireIndex(settings.get());
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-list-indexes', async () => (
+    videoSearch.listIndexedDatasets(settings.get())
+  ));
+
+  ipcMain.handle('video-search-open-index', async () => {
     const currentSettings = settings.get();
-    const status = await videoSearch.getIndexStatus(currentSettings, datasetId);
-    if (!status.built) {
-      throw new Error('No built search index exists for this dataset');
+    const streams = await videoSearch.listIndexedDatasets(currentSettings);
+    if (!streams.length) {
+      throw new Error('The search index is empty; add a dataset to it first');
     }
     const manager = videoSearch.getQueryServiceManager();
-    await manager.openIndex(currentSettings, videoSearch.getIndexDir(currentSettings, datasetId));
-    return { success: true };
+    await manager.openIndexes(currentSettings, [videoSearch.getIndexDir(currentSettings)]);
+    return { success: true, streams };
   });
 
   ipcMain.handle('video-search-formulate', async (_, args: { imagePath: string; boxes?: number[][] }) => {
@@ -520,7 +533,7 @@ export default function register() {
     return manager.processQuery(args.threshold, modelB64);
   });
 
-  ipcMain.handle('video-search-refine', async (_, args: { positiveIds: number[]; negativeIds: number[] }) => {
+  ipcMain.handle('video-search-refine', async (_, args: { positiveIds: string[]; negativeIds: string[] }) => {
     const manager = videoSearch.getQueryServiceManager();
     return manager.refine(args.positiveIds, args.negativeIds);
   });

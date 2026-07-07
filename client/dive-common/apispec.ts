@@ -424,21 +424,35 @@ export interface SegmentationStatusResponse {
 
 export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing';
 
-/** Sidecar metadata describing a built search index. */
-export interface VideoSearchIndexMeta {
-  version: number;
+/**
+ * One indexed media stream (video/sequence identifier) in the shared search
+ * database. All database rows key on this identifier, so a dataset can be
+ * added, updated, or removed from the index independently.
+ */
+export interface VideoSearchStreamEntry {
+  datasetId: string;
   method: VideoSearchIndexMethod;
   // frame rate the media was indexed at (video only; must match dataset fps)
-  fps: number;
-  // dataset ids covered by this index (single entry today; keyed this way so
-  // multi-dataset indexes remain possible later)
-  datasets: string[];
+  fps?: number;
   createdAt: string;
 }
 
+/** Sidecar metadata describing the shared search index. */
+export interface VideoSearchIndexMeta {
+  version: number;
+  // stream identifier (as reported in query results) -> source dataset
+  streams: Record<string, VideoSearchStreamEntry>;
+}
+
 export interface VideoSearchIndexStatus {
-  exists: boolean;
+  /** The shared index exists and is queryable (ITQ files present). */
   built: boolean;
+  /** This dataset has been ingested into the index. */
+  indexed: boolean;
+  /** The stream entry for this dataset, when indexed. */
+  stream?: VideoSearchStreamEntry & { streamName: string };
+  /** Total datasets in the shared index. */
+  datasetCount: number;
   meta?: VideoSearchIndexMeta;
 }
 
@@ -454,6 +468,12 @@ export interface VideoSearchResultTrack {
 
 /** One ranked similarity result returned by the query service. */
 export interface VideoSearchResult {
+  /** Unique reference for adjudication: "<session>:<instance_id>" */
+  ref: string;
+  /** Federated session index this result came from */
+  session: number;
+  /** Index directory this result came from */
+  index_dir: string;
   instance_id: number;
   query_id: string;
   stream_id: string;
@@ -461,6 +481,15 @@ export interface VideoSearchResult {
   start_frame: number | null;
   end_frame: number | null;
   tracks: VideoSearchResultTrack[];
+}
+
+/** One dataset present in the shared search index. */
+export interface VideoSearchIndexInfo {
+  /** Stream identifier query results report for this dataset */
+  streamName: string;
+  datasetId: string;
+  /** Dataset display name */
+  name: string;
 }
 
 export interface VideoSearchQueryResponse {

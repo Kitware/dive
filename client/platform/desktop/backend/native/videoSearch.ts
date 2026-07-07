@@ -1,17 +1,19 @@
 /**
  * Video Search / IQR backend for Desktop
  *
- * Provides per-dataset search index management (build via a process_video.py
- * job, status, delete) and a persistent query service manager
- * (viame.core.query_service) that holds the KWIVER query/IQR pipeline open so
- * refinement iterations are interactive. One index may be open at a time (the
- * embedded PostgreSQL instance binds a fixed port), enforced here by closing
- * the previous index before opening another.
+ * Manages ONE shared search index covering every indexed dataset, plus a
+ * persistent query service manager (viame.core.query_service) that holds the
+ * KWIVER query/IQR pipeline open so refinement iterations are interactive.
  *
- * On-disk layout (per dataset):
- *   <dataPath>/DIVE_Projects/<datasetId>/search_index/
- *     index_meta.json     - written by DIVE on successful build
- *     ingest_list.txt     - media list handed to process_video.py
+ * All database tables key rows on a per-video stream identifier
+ * (VIDEO_NAME), so datasets are added to, updated in, and removed from the
+ * shared database independently; a query searches every indexed dataset in
+ * one IQR session.
+ *
+ * On-disk layout:
+ *   <dataPath>/DIVE_SearchIndex/
+ *     index_meta.json     - stream -> dataset membership, written by DIVE
+ *     <stream>.txt        - media list handed to process_video.py
  *     database/           - embedded PostgreSQL data + ITQ/LSH index files
  */
 
@@ -24,9 +26,9 @@ import { EventEmitter } from 'events';
 
 import {
   Settings, DesktopJob, DesktopJobUpdater,
-  SearchIndexMeta, BuildSearchIndex,
+  SearchIndexMeta, BuildSearchIndex, JsonMeta,
 } from 'platform/desktop/constants';
-import type { VideoSearchIndexStatus } from 'dive-common/apispec';
+import type { VideoSearchIndexStatus, VideoSearchIndexInfo } from 'dive-common/apispec';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from './processManager';
 import * as common from './common';
@@ -36,7 +38,7 @@ import {
 import linux from './linux';
 import win32 from './windows';
 
-const SearchIndexFolderName = 'search_index';
+const GlobalIndexFolderName = 'DIVE_SearchIndex';
 const IndexMetaFileName = 'index_meta.json';
 const QueryPipelineName = 'query_retrieval_and_iqr.pipe';
 const ExportTemplateName = npath.join('templates', 'detector_generic_svm.pipe');
@@ -66,29 +68,89 @@ async function isVideoSearchInstalled(settings: Settings): Promise<boolean> {
   return checks.every((c) => c);
 }
 
-function getIndexDir(settings: Settings, datasetId: string): string {
-  return npath.join(settings.dataPath, 'DIVE_Projects', datasetId, SearchIndexFolderName);
+function getIndexDir(settings: Settings): string {
+  return npath.join(settings.dataPath, GlobalIndexFolderName);
+}
+
+/** Filesystem/SQL-safe stream identifier token. */
+function sanitizeName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 export type SearchIndexStatus = VideoSearchIndexStatus;
 
-async function getIndexStatus(settings: Settings, datasetId: string): Promise<SearchIndexStatus> {
-  const indexDir = getIndexDir(settings, datasetId);
-  const metaPath = npath.join(indexDir, IndexMetaFileName);
+async function readIndexMeta(settings: Settings): Promise<SearchIndexMeta> {
+  const metaPath = npath.join(getIndexDir(settings), IndexMetaFileName);
   if (!(await fs.pathExists(metaPath))) {
-    return { exists: await fs.pathExists(indexDir), built: false };
+    return { version: 1, streams: {} };
   }
-  const meta = (await fs.readJson(metaPath)) as SearchIndexMeta;
-  // Sanity: the ITQ model files must exist for the index to be queryable
-  const itqDir = npath.join(indexDir, 'database', 'ITQ');
-  const built = (await fs.pathExists(itqDir))
+  return (await fs.readJson(metaPath)) as SearchIndexMeta;
+}
+
+async function writeIndexMeta(settings: Settings, meta: SearchIndexMeta): Promise<void> {
+  await fs.writeJson(npath.join(getIndexDir(settings), IndexMetaFileName), meta, { spaces: 2 });
+}
+
+/** The stream identifier a dataset's rows key on in the shared database. */
+function streamNameForDataset(datasetId: string, meta: JsonMeta): string {
+  if (meta.type === 'video') {
+    // Videos are attributed by their filename stem (process_video derives
+    // the ingest stream name from the input file's basename)
+    return npath.parse(meta.originalVideoFile).name;
+  }
+  return sanitizeName(datasetId);
+}
+
+/** Whether the shared index is queryable (ITQ/LSH files present). */
+async function indexIsBuilt(settings: Settings): Promise<boolean> {
+  const itqDir = npath.join(getIndexDir(settings), 'database', 'ITQ');
+  return (await fs.pathExists(itqDir))
     && (await fs.readdir(itqDir)).some((f) => f.startsWith('itq.model'));
-  return { exists: true, built, meta };
+}
+
+async function getIndexStatus(settings: Settings, datasetId: string): Promise<SearchIndexStatus> {
+  const meta = await readIndexMeta(settings);
+  const built = await indexIsBuilt(settings);
+  const streamName = Object.keys(meta.streams)
+    .find((s) => meta.streams[s].datasetId === datasetId);
+  return {
+    built,
+    indexed: built && streamName !== undefined,
+    stream: streamName !== undefined
+      ? { ...meta.streams[streamName], streamName } : undefined,
+    datasetCount: built
+      ? new Set(Object.values(meta.streams).map((s) => s.datasetId)).size : 0,
+    meta,
+  };
+}
+
+/** Every dataset present in the shared search index. */
+async function listIndexedDatasets(settings: Settings): Promise<VideoSearchIndexInfo[]> {
+  const meta = await readIndexMeta(settings);
+  const entries = await Promise.all(
+    Object.entries(meta.streams).map(async ([streamName, stream]) => {
+      let name = stream.datasetId;
+      try {
+        const projectInfo = await common.getValidatedProjectDir(settings, stream.datasetId);
+        const dsMeta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+        name = dsMeta.name || stream.datasetId;
+      } catch {
+        // Dataset may have been deleted; keep the id as the display name.
+      }
+      return { streamName, datasetId: stream.datasetId, name };
+    }),
+  );
+  return entries;
 }
 
 /**
- * Build (or rebuild) the search index for a dataset by running
- * process_video.py --init --build-index as a DIVE job.
+ * Add (or update) one dataset in the shared search index as a DIVE job.
+ *
+ * The job chain: ensure the shared postgres is up (or initialize it on the
+ * first ever build), delete the dataset's previous rows when updating, run
+ * the ingest pipeline via process_video.py, and refresh the ITQ/LSH index
+ * over the full database. The caller must close any open query session
+ * first (the job needs the default postgres port).
  */
 async function buildIndex(
   settings: Settings,
@@ -108,15 +170,23 @@ async function buildIndex(
     throw new Error('Search indexes are not yet supported on multi-camera datasets');
   }
 
-  const indexDir = getIndexDir(settings, datasetId);
-  // Rebuild from scratch: the DB re-init inside process_video handles the
-  // database folder, but a stale meta file must not mark a failed build as
-  // usable.
-  await fs.remove(npath.join(indexDir, IndexMetaFileName));
+  const indexDir = getIndexDir(settings);
   await fs.ensureDir(indexDir);
 
+  const indexMeta = await readIndexMeta(settings);
+  const streamName = streamNameForDataset(datasetId, meta);
+  const existing = indexMeta.streams[streamName];
+  if (existing && existing.datasetId !== datasetId) {
+    throw new Error(
+      `Stream identifier '${streamName}' already belongs to dataset `
+      + `'${existing.datasetId}'; rename the media file to index both.`,
+    );
+  }
+
   // Media list: image sequences list every frame; videos list the one file.
-  const ingestList = npath.join(indexDir, 'ingest_list.txt');
+  // The list file is named after the stream so image-sequence results
+  // attribute back to the dataset directly.
+  const ingestList = npath.join(indexDir, `${sanitizeName(streamName)}.txt`);
   if (meta.type === 'video') {
     const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     await fs.writeFile(ingestList, `${videoAbsPath}\n`);
@@ -129,47 +199,74 @@ async function buildIndex(
 
   const viameConstants = platform.getViameConstants(settings);
   const pythonExe = platform.getViamePythonExe(settings);
-  const processVideo = npath.join(settings.viamePath, 'configs', 'process_video.py');
+  const configsDir = npath.join(settings.viamePath, 'configs');
+  const firstBuild = !(await fs.pathExists(npath.join(indexDir, 'database', 'SQL')));
 
-  const command = [
-    `${viameConstants.setupScriptAbs} &&`,
-    `"${pythonExe}" "${processVideo}"`,
-    '--init --no-reset-prompt',
+  const command: string[] = [viameConstants.setupScriptAbs];
+  if (!firstBuild) {
+    // Adding to an existing database: make sure it is running (the caller
+    // closed the query service, so the default port is free)...
+    command.push(`"${pythonExe}" "${npath.join(configsDir, 'database_tool.py')}" start`);
+    if (existing) {
+      // ...and drop the dataset's previous rows before re-ingest
+      const removeSql = npath.join(indexDir, `${sanitizeName(streamName)}_remove.sql`);
+      await fs.writeFile(removeSql, [
+        'DELETE FROM TRACK_DESCRIPTOR_TRACK WHERE UID IN '
+        + `(SELECT UID FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}');`,
+        'DELETE FROM TRACK_DESCRIPTOR_HISTORY WHERE UID IN '
+        + `(SELECT UID FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}');`,
+        `DELETE FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}';`,
+        `DELETE FROM DESCRIPTOR WHERE VIDEO_NAME = '${streamName}';`,
+        `DELETE FROM OBJECT_TRACK WHERE VIDEO_NAME = '${streamName}';`,
+        '',
+      ].join('\n'));
+      command.push(
+        `psql -h localhost -d postgres -v ON_ERROR_STOP=1 -f "${removeSql}"`,
+      );
+    }
+  }
+
+  const processVideoInvocation = [
+    `"${pythonExe}" "${npath.join(configsDir, 'process_video.py')}"`,
+    firstBuild ? '--init' : '',
+    '--no-reset-prompt',
     `-l "${ingestList}"`,
     `-p "pipelines/${IndexPipelines[method]}"`,
     '-o database',
     '--build-index',
     `-install "${settings.viamePath}"`,
-  ];
+  ].filter((part) => part.length);
   if (meta.type === 'video') {
-    command.push(`-frate ${meta.fps}`);
+    processVideoInvocation.push(`-frate ${meta.fps}`);
   }
 
   // Index around this dataset's existing annotations
   if (method === 'existing') {
-    const detectionsCsv = npath.join(indexDir, 'input_detections.csv');
+    const detectionsCsv = npath.join(indexDir, `${sanitizeName(streamName)}_detections.csv`);
     const csvStream = fs.createWriteStream(detectionsCsv);
     const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
     await serialize(csvStream, inputData, meta);
     csvStream.end();
-    command.push(`-id "${detectionsCsv}"`);
+    processVideoInvocation.push(`-id "${detectionsCsv}"`);
   }
+  command.push(processVideoInvocation.join(' '));
 
+  const fullCommand = command.join(' && ');
   const jobWorkDir = await createCustomWorkingDirectory(settings, 'search_index', datasetId.replace('/', '_'));
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
-  const job = observeChild(spawn(command.join(' '), {
+  const job = observeChild(spawn(fullCommand, {
     shell: viameConstants.shell,
     cwd: indexDir,
   }));
 
   const jobBase: DesktopJob = {
     key: `search_index_${job.pid}_${jobWorkDir}`,
-    command: command.join(' '),
+    command: fullCommand,
     jobType: 'pipeline',
     pid: job.pid,
     args,
-    title: `Build search index (${method})`,
+    title: `${existing ? 'Update' : 'Add'} search index (${method})`,
     workingDir: jobWorkDir,
     datasetIds: [datasetId],
     exitCode: job.exitCode,
@@ -185,15 +282,15 @@ async function buildIndex(
 
   job.on('exit', async (code) => {
     if (code === 0) {
-      const indexMeta: SearchIndexMeta = {
-        version: 1,
-        method,
-        fps: meta.fps,
-        datasets: [datasetId],
-        createdAt: (new Date()).toISOString(),
-      };
       try {
-        await fs.writeJson(npath.join(indexDir, IndexMetaFileName), indexMeta, { spaces: 2 });
+        const latest = await readIndexMeta(settings);
+        latest.streams[streamName] = {
+          datasetId,
+          method,
+          fps: meta.type === 'video' ? meta.fps : undefined,
+          createdAt: (new Date()).toISOString(),
+        };
+        await writeIndexMeta(settings, latest);
       } catch (err) {
         console.error('Failed to write search index metadata', err);
       }
@@ -256,8 +353,8 @@ export class QueryServiceManager extends EventEmitter {
 
   private requestCounter = 0;
 
-  /** Index directory currently opened in the service, if any. */
-  private currentIndexDir: string | null = null;
+  /** Index directories currently opened in the service (primary first). */
+  private currentIndexDirs: string[] = [];
 
   // First open loads the descriptor index + pipeline; queries train SVMs.
   private readonly requestTimeoutMs = 300000;
@@ -266,8 +363,8 @@ export class QueryServiceManager extends EventEmitter {
     return this.process !== null && this.process.exitCode === null;
   }
 
-  openIndexDir(): string | null {
-    return this.isReady() ? this.currentIndexDir : null;
+  openIndexDirs(): string[] {
+    return this.isReady() ? this.currentIndexDirs : [];
   }
 
   private generateRequestId(): string {
@@ -440,18 +537,23 @@ export class QueryServiceManager extends EventEmitter {
 
   // -------------------------------------------------------------- commands
 
-  /** Open an index, closing any previously open one (one postgres at a time). */
-  async openIndex(settings: Settings, indexDir: string): Promise<void> {
+  /**
+   * Open one or more indexes for federated search (primary first), closing
+   * any previously open set if it differs. Each index gets its own embedded
+   * postgres instance on an incremented port inside the service.
+   */
+  async openIndexes(settings: Settings, indexDirs: string[]): Promise<void> {
     await this.ensureStarted(settings);
-    if (this.currentIndexDir === indexDir) {
+    if (indexDirs.length === this.currentIndexDirs.length
+      && indexDirs.every((dir, i) => this.currentIndexDirs[i] === dir)) {
       return;
     }
-    if (this.currentIndexDir) {
+    if (this.currentIndexDirs.length) {
       await this.closeIndex();
     }
-    const response = await this.sendRequest({ command: 'open_index', index_dir: indexDir }, 'Open index');
-    QueryServiceManager.check(response, 'Opening the search index');
-    this.currentIndexDir = indexDir;
+    const response = await this.sendRequest({ command: 'open_index', index_dirs: indexDirs }, 'Open index');
+    QueryServiceManager.check(response, 'Opening the search indexes');
+    this.currentIndexDirs = indexDirs;
   }
 
   async formulateQuery(imagePath: string, boxes?: number[][]): Promise<ServiceResponse> {
@@ -472,7 +574,7 @@ export class QueryServiceManager extends EventEmitter {
     return QueryServiceManager.check(response, 'Query');
   }
 
-  async refine(positiveIds: number[], negativeIds: number[]): Promise<ServiceResponse> {
+  async refine(positiveIds: string[], negativeIds: string[]): Promise<ServiceResponse> {
     const response = await this.sendRequest({
       command: 'refine',
       positive_ids: positiveIds,
@@ -489,9 +591,24 @@ export class QueryServiceManager extends EventEmitter {
     return QueryServiceManager.check(response, 'Model export');
   }
 
+  /**
+   * Delete all database rows for the given stream identifiers in an index.
+   * The service adopts or temporarily starts the index's postgres; if the
+   * index was open, the session set is closed for consistency.
+   */
+  async removeStreams(indexDir: string, streams: string[]): Promise<void> {
+    const response = await this.sendRequest({
+      command: 'remove_streams', index_dir: indexDir, streams,
+    }, 'Stream removal');
+    QueryServiceManager.check(response, 'Stream removal');
+    if (response.closed_session) {
+      this.currentIndexDirs = [];
+    }
+  }
+
   async closeIndex(): Promise<void> {
     if (!this.isReady()) {
-      this.currentIndexDir = null;
+      this.currentIndexDirs = [];
       return;
     }
     try {
@@ -499,7 +616,7 @@ export class QueryServiceManager extends EventEmitter {
     } catch {
       // best effort - shutting the process down also stops postgres
     }
-    this.currentIndexDir = null;
+    this.currentIndexDirs = [];
   }
 
   // ------------------------------------------------------------- lifecycle
@@ -517,7 +634,7 @@ export class QueryServiceManager extends EventEmitter {
     }
 
     this.process = null;
-    this.currentIndexDir = null;
+    this.currentIndexDirs = [];
     this.emit('shutdown');
   }
 
@@ -573,16 +690,30 @@ export async function shutdownQueryService(): Promise<void> {
 }
 
 /**
- * Delete a dataset's search index from disk, closing it first if it is the
- * one currently open in the query service.
+ * Remove one dataset from the shared search index: delete its database rows
+ * (via the query service, which owns postgres lifecycle) and drop it from
+ * the membership metadata. Stale ITQ hash entries are tolerated by the
+ * query engine and cleaned up on the next index build.
  */
-async function deleteIndex(settings: Settings, datasetId: string): Promise<void> {
-  const indexDir = getIndexDir(settings, datasetId);
-  const manager = getQueryServiceManager();
-  if (manager.openIndexDir() === indexDir) {
-    await manager.closeIndex();
+async function removeFromIndex(settings: Settings, datasetId: string): Promise<void> {
+  const meta = await readIndexMeta(settings);
+  const streams = Object.keys(meta.streams)
+    .filter((s) => meta.streams[s].datasetId === datasetId);
+  if (!streams.length) {
+    return;
   }
-  await fs.remove(indexDir);
+  const manager = getQueryServiceManager();
+  await manager.ensureStarted(settings);
+  await manager.removeStreams(getIndexDir(settings), streams);
+  streams.forEach((s) => { delete meta.streams[s]; });
+  await writeIndexMeta(settings, meta);
+}
+
+/** Delete the entire shared search index from disk. */
+async function deleteEntireIndex(settings: Settings): Promise<void> {
+  const manager = getQueryServiceManager();
+  await manager.closeIndex();
+  await fs.remove(getIndexDir(settings));
 }
 
 /**
@@ -596,7 +727,7 @@ async function exportSearchModel(settings: Settings, name: string): Promise<stri
     throw new Error('A model name is required');
   }
   const manager = getQueryServiceManager();
-  if (!manager.isReady() || !manager.openIndexDir()) {
+  if (!manager.isReady() || !manager.openIndexDirs().length) {
     throw new Error('No active query session to export a model from');
   }
   const template = npath.join(settings.viamePath, 'configs', 'pipelines', ExportTemplateName);
@@ -614,8 +745,10 @@ export {
   isVideoSearchInstalled,
   getIndexDir,
   getIndexStatus,
+  listIndexedDatasets,
   buildIndex,
-  deleteIndex,
+  removeFromIndex,
+  deleteEntireIndex,
   exportSearchModel,
   extractVideoFrame,
 };
