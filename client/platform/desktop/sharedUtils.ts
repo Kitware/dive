@@ -70,7 +70,7 @@ interface FrameTimestampPattern {
   toSeconds: (match: RegExpMatchArray) => number | undefined;
 }
 
-/* Roughly year 2000 to year 2100, used to reject implausible epoch guesses */
+/* Roughly year 2000 to year 2100, used to reject implausible epoch candidates */
 function isPlausibleEpochSeconds(seconds: number): boolean {
   return seconds >= 946684800 && seconds <= 4102444800;
 }
@@ -92,15 +92,17 @@ function dateStampToSeconds(match: RegExpMatchArray): number | undefined {
 }
 
 /*
- * PROVISIONAL (SEAL feature 5, Phase I): parses a frame timestamp from a filename
- * using a small ordered list of guessed conventions. No real MML sample filenames
- * exist yet; replace/extend this list once real naming conventions are known.
- * Each entry is tried in order against the extension-stripped filename stem; the
- * first regex that matches AND passes its own plausibility check wins.
+ * Parses a frame timestamp from a filename using a small ordered list of
+ * conventions (SEAL feature 5). The primary convention is KAMERA's, confirmed
+ * against sample data (see the datestamp entry); the epoch-based patterns are
+ * fallbacks for other capture systems. Each entry is tried in order against the
+ * extension-stripped filename stem; the first regex that matches AND passes its
+ * own plausibility check wins.
  */
 const FRAME_TIMESTAMP_PATTERNS: FrameTimestampPattern[] = [
   {
-    // YYYYMMDD[_-]HHMMSS, optionally with a fractional-second suffix
+    // KAMERA convention: YYYYMMDD[_-]HHMMSS with an optional fractional-second
+    // suffix, e.g. kamera_calibration_fl02_C_20240407_130757.206341_ir.tif
     name: 'datestamp',
     regex: /(?<!\d)(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:[.,](\d{1,6}))?(?!\d)/,
     toSeconds: dateStampToSeconds,
@@ -126,9 +128,9 @@ const FRAME_TIMESTAMP_PATTERNS: FrameTimestampPattern[] = [
 ];
 
 /**
- * Best-effort frame capture timestamp, in epoch seconds, parsed from a filename.
- * Returns undefined (never throws) when no known convention matches -- this is
- * the expected common case and callers must treat it as "no timestamp available".
+ * Frame capture timestamp, in epoch seconds, parsed from a filename. Returns
+ * undefined (never throws) when no recognized convention matches; callers must
+ * treat that as "no timestamp available".
  */
 function parseFrameTimestamp(filename: string): number | undefined {
   const stem = filename.replace(/\.[^./\\]+$/, '');

@@ -7,6 +7,14 @@ def test_parses_datestamp():
     assert timestamp_parser.parse_frame_timestamp('left_20230615_143022.png') == 1686839422.0
 
 
+def test_parses_kamera_filename_with_microseconds():
+    # Confirmed KAMERA convention from real sample data (data/test_data): a
+    # YYYYMMDD_HHMMSS.ffffff datestamp with microsecond precision.
+    assert timestamp_parser.parse_frame_timestamp(
+        'kamera_calibration_fl02_C_20240407_130757.206341_ir.tif'
+    ) == pytest.approx(1712495277.206341)
+
+
 def test_parses_datestamp_with_fractional_seconds():
     assert timestamp_parser.parse_frame_timestamp('left_20230615_143022.500.png') == pytest.approx(
         1686839422.5

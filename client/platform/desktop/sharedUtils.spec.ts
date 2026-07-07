@@ -20,6 +20,12 @@ describe('sharedUtils', () => {
       expect(parseFrameTimestamp('left_20230615_143022.png')).toBe(1686839422);
     });
 
+    it('parses a real KAMERA filename with microsecond precision', () => {
+      // Confirmed convention from real sample data (data/test_data).
+      expect(parseFrameTimestamp('kamera_calibration_fl02_C_20240407_130757.206341_ir.tif'))
+        .toBeCloseTo(1712495277.206341, 6);
+    });
+
     it('parses a datestamp with a fractional-second suffix', () => {
       expect(parseFrameTimestamp('left_20230615_143022.500.png')).toBe(1686839422.5);
     });

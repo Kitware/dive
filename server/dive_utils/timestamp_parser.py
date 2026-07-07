@@ -1,11 +1,15 @@
 """
-PROVISIONAL (SEAL feature 5, Phase I): best-effort frame capture timestamp
-parsing from a filename, using a small ordered list of guessed conventions.
+Frame capture timestamp parsing from a filename, using a small ordered list of
+conventions (SEAL feature 5).
 
-No real MML sample filenames exist yet; replace/extend the pattern list once
-real naming conventions are known. Mirrors
-client/platform/desktop/sharedUtils.ts's parseFrameTimestamp -- keep the two
-implementations in sync.
+The primary convention is KAMERA's, confirmed against sample data: a
+YYYYMMDD_HHMMSS.ffffff datestamp embedded in names like
+kamera_calibration_fl02_C_20240407_130757.206341_ir.tif. The remaining
+epoch-based patterns are fallbacks for other capture systems; extend the list
+as additional conventions surface.
+
+Mirrors client/platform/desktop/sharedUtils.ts's parseFrameTimestamp -- keep the
+two implementations in sync.
 """
 
 import re
@@ -13,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, List, Match, NamedTuple, Optional
 
-# Roughly year 2000 to year 2100, used to reject implausible epoch guesses
+# Roughly year 2000 to year 2100, used to reject implausible epoch candidates
 _MIN_PLAUSIBLE_EPOCH_SECONDS = 946684800
 _MAX_PLAUSIBLE_EPOCH_SECONDS = 4102444800
 
@@ -68,7 +72,8 @@ class _FrameTimestampPattern(NamedTuple):
 # that matches AND passes its own plausibility check wins.
 _FRAME_TIMESTAMP_PATTERNS: List[_FrameTimestampPattern] = [
     _FrameTimestampPattern(
-        # YYYYMMDD[_-]HHMMSS, optionally with a fractional-second suffix
+        # KAMERA convention: YYYYMMDD[_-]HHMMSS with an optional fractional-second
+        # suffix, e.g. kamera_calibration_fl02_C_20240407_130757.206341_ir.tif
         name='datestamp',
         regex=re.compile(
             r'(?<!\d)(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:[.,](\d{1,6}))?(?!\d)'
@@ -92,10 +97,9 @@ _FRAME_TIMESTAMP_PATTERNS: List[_FrameTimestampPattern] = [
 
 def parse_frame_timestamp(filename: str) -> Optional[float]:
     """
-    Best-effort frame capture timestamp, in epoch seconds, parsed from a
-    filename. Returns None (never raises) when no known convention matches --
-    this is the expected common case and callers must treat it as
-    "no timestamp available".
+    Frame capture timestamp, in epoch seconds, parsed from a filename. Returns
+    None (never raises) when no recognized convention matches; callers must
+    treat that as "no timestamp available".
     """
     stem = Path(filename).stem
     for pattern in _FRAME_TIMESTAMP_PATTERNS:

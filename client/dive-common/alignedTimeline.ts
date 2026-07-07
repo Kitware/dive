@@ -1,10 +1,11 @@
 import type { FrameImage } from './apispec';
 
 /**
- * PROVISIONAL (SEAL feature 5, Phase II): max time delta, in seconds, between
- * two cameras' frame timestamps for them to be considered "the same instant."
- * No real timestamped multicam sample data exists yet (SEALTK_MIGRATION_PLAN.md
- * Q2) -- trivial to retune once real data is available.
+ * Max time delta, in seconds, between two cameras' frame timestamps for them to
+ * be considered "the same instant" (SEAL feature 5). In KAMERA sample data the
+ * C/L/R cameras share an identical capture timestamp per shot, so this mainly
+ * has to absorb sub-second jitter/rounding; 0.5s leaves margin for less tightly
+ * synchronized full-flight captures. Retune if real cadence differs.
  */
 export const FRAME_ALIGNMENT_TOLERANCE_SECONDS = 0.5;
 
@@ -28,9 +29,9 @@ interface FrameTriple {
  * A dataset qualifies for aligned playback only when there are at least two
  * cameras, every camera has at least one frame, and every frame on every
  * camera has a defined timestamp. A single untimestamped frame anywhere means
- * the whole dataset falls back to today's exact positional alignment -- this
- * is the safe, conservative default until real MML naming conventions (and
- * thus better timestamp coverage) are confirmed.
+ * the whole dataset falls back to today's exact positional alignment -- the
+ * safe, conservative default for datasets whose filenames don't follow a
+ * recognized timestamp convention (see dive_utils/timestamp_parser.py).
  */
 export function canAlign(camerasFrames: Record<string, FrameImage[]>): boolean {
   const cameraNames = Object.keys(camerasFrames);
