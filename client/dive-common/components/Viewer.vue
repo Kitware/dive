@@ -395,14 +395,15 @@ export default defineComponent({
     // unavailable rather than accepting a toggle that has no visible effect.
     const calibrationPickingEnabled = computed(() => cameraCalibration.pickingEnabled.value);
     /**
-     * Camera panes currently displayed. While picking points with an active
-     * pair on a 3+ camera dataset, only the pair's two panes show, so the
-     * two-click flow reads left/right without unrelated panes in between.
+     * Camera panes currently displayed. While the Manual Alignment panel is
+     * open with an active pair on a 3+ camera dataset, only the pair's two
+     * panes show, so the left/right alignment flow reads without unrelated
+     * panes in between (regardless of whether Pick points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {
       const pair = cameraCalibration.activePair.value;
-      if (cameraCalibration.pickingEnabled.value && pair) {
+      if (calibrationActive.value && pair) {
         const pairCameras = multiCamList.value.filter(
           (camera) => camera === pair.camA || camera === pair.camB,
         );
