@@ -37,10 +37,11 @@ export default defineComponent({
       calibration.setActivePair(camLeft.value, camRight.value);
     }, { immediate: true });
 
-    // Picking is scoped to this panel: closing the calibration tab (which
-    // unmounts it) always turns picking off, so the viewer can't be left in
-    // picking mode -- pair-only panes, suspended aligned view -- with no
-    // visible control to get back out.
+    // Picking is scoped to this panel: it is always on while the Manual
+    // Alignment panel is open, and turns off when the panel closes (unmounts),
+    // so the viewer can't be left in picking mode -- pair-only panes, suspended
+    // aligned view -- with no visible control to get back out.
+    calibration.pickingEnabled.value = true;
     onBeforeUnmount(() => {
       calibration.pickingEnabled.value = false;
     });
@@ -324,21 +325,6 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
 
-    <v-switch
-      v-model="pickingEnabled"
-      label="Pick points"
-      dense
-      hide-details
-      class="mt-0 mb-2"
-    />
-    <span class="text-caption grey--text">
-      Click a point in one camera, then the matching point in the other.
-      Click a placed marker to select it (Delete removes its point in both
-      cameras); drag a marker to refine it. Once a transform is fitted,
-      pan/zoom is linked between the pair and right-click recenters both
-      cameras on the clicked point.
-    </span>
-
     <v-select
       v-model="camLeft"
       :items="cameras"
@@ -346,7 +332,7 @@ export default defineComponent({
       dense
       outlined
       hide-details
-      class="mt-3 mb-3"
+      class="mb-3"
     />
     <v-select
       v-model="camRight"
