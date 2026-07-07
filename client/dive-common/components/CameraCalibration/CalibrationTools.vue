@@ -57,9 +57,17 @@ export default defineComponent({
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
     const selectedCorrespondenceId = computed(() => calibration.selectedCorrespondenceId.value);
-    /** Delete the selected correspondence (both cameras' points). Bound to Del/Backspace. */
+    /**
+     * Delete the unlocked point on Del/Backspace: the selected correspondence
+     * (both cameras' points) if one is selected, otherwise the pending point
+     * that is mid-placement.
+     */
     function deleteSelectedCorrespondence() {
-      calibration.removeSelectedCorrespondence();
+      if (calibration.selectedCorrespondenceId.value !== null) {
+        calibration.removeSelectedCorrespondence();
+      } else if (calibration.pendingPoint.value !== null) {
+        calibration.clearLast();
+      }
     }
     const canClearLast = computed(
       () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,

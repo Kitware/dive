@@ -11,7 +11,7 @@ export interface CalibrationPointData {
   pending: boolean;
   /** Marker belongs to the selected correspondence (highlighted in both panes). */
   selected: boolean;
-  /** Owning correspondence id; undefined for the pending (blue) point. */
+  /** Owning correspondence id; undefined for the pending (in-progress) point. */
   correspondenceId?: number;
 }
 
@@ -118,24 +118,16 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     this.featureLayer = pointLayer.createFeature('point');
     // A second point feature on the same layer, created after the ring so it
     // renders on top: a small bright dot marking each marker's exact pixel.
-    // Bright fill + the ring's dark outline color reproduce the original
-    // two-tone marker at the precise target point.
+    // Unlocked points (the pending point being placed, or a selected one) are
+    // yellow; locked (committed) points are blue.
     this.centerFeature = pointLayer.createFeature('point').style({
       fill: true,
-      fillColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'orange';
-        }
-        return data.pending ? 'cyan' : 'yellow';
-      },
+      fillColor: (data: CalibrationPointData) => (
+        (data.selected || data.pending) ? 'yellow' : 'cyan'),
       fillOpacity: 1,
       radius: (data: CalibrationPointData) => (data.selected ? 3.5 : 2.5),
-      strokeColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'white';
-        }
-        return data.pending ? 'blue' : 'red';
-      },
+      strokeColor: (data: CalibrationPointData) => (
+        (data.selected || data.pending) ? 'orange' : 'blue'),
       strokeWidth: 1,
     });
 
@@ -503,16 +495,13 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       // picked stays visible through the marker (a solid disc hides the very
       // target it marks). A bright center dot (see centerFeature) marks the
       // exact pixel; the dark ring + bright dot stay legible on both light and
-      // dark imagery. The selected correspondence gets a larger white ring.
+      // dark imagery. Unlocked points (pending or selected) are yellow; locked
+      // (committed) points are blue. The selected point gets a larger ring.
       fill: false,
       fillOpacity: 0,
       radius: (data: CalibrationPointData) => (data.selected ? 9 : 7),
-      strokeColor: (data: CalibrationPointData) => {
-        if (data.selected) {
-          return 'white';
-        }
-        return data.pending ? 'blue' : 'red';
-      },
+      strokeColor: (data: CalibrationPointData) => (
+        (data.selected || data.pending) ? 'orange' : 'blue'),
       strokeWidth: (data: CalibrationPointData) => (data.selected ? 3 : 2),
     };
   }
