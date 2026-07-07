@@ -507,9 +507,17 @@ export default function register() {
     return manager.formulateQuery(args.imagePath, args.boxes);
   });
 
-  ipcMain.handle('video-search-query', async (_, args: { threshold?: number; iqrModelB64?: string }) => {
+  ipcMain.handle('video-search-query', async (
+    _,
+    args: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string },
+  ) => {
     const manager = videoSearch.getQueryServiceManager();
-    return manager.processQuery(args.threshold, args.iqrModelB64);
+    let modelB64 = args.iqrModelB64;
+    if (!modelB64 && args.iqrModelPath) {
+      // Warm-start from a saved .svm file on disk
+      modelB64 = (await fs.promises.readFile(args.iqrModelPath)).toString('base64');
+    }
+    return manager.processQuery(args.threshold, modelB64);
   });
 
   ipcMain.handle('video-search-refine', async (_, args: { positiveIds: number[]; negativeIds: number[] }) => {
@@ -527,4 +535,9 @@ export default function register() {
     await manager.closeIndex();
     return { success: true };
   });
+
+  ipcMain.handle('video-search-extract-frame', async (
+    _,
+    args: { videoPath: string; frameNum: number; fps: number },
+  ) => videoSearch.extractVideoFrame(args.videoPath, args.frameNum, args.fps));
 }

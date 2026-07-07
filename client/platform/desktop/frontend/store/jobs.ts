@@ -6,6 +6,7 @@ import {
   reactive,
 } from 'vue';
 import {
+  BuildSearchIndex,
   ConversionArgs,
   DesktopJob,
   DesktopJobUpdate,
@@ -159,7 +160,8 @@ function removeJobFromQueue(jobArgs: JobArgs) {
       break;
     case JobType.RunPipeline:
     case JobType.RunTraining:
-      gpuJobQueue.removeJobFromQueue(jobArgs as RunPipeline | RunTraining);
+    case JobType.BuildSearchIndex:
+      gpuJobQueue.removeJobFromQueue(jobArgs as RunPipeline | RunTraining | BuildSearchIndex);
       break;
     default:
       break;

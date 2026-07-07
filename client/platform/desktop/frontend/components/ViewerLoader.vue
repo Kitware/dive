@@ -32,6 +32,10 @@ import {
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
+import VideoSearchContext from './VideoSearchContext.vue';
+import {
+  createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
+} from '../useVideoSearch';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
@@ -47,6 +51,13 @@ function joinPath(base: string, file: string): string {
   const sep = base.includes('\\') ? '\\' : '/';
   return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
 }
+
+// Desktop-only context panel: registered here (not in the shared context
+// store) so the web build does not pick it up.
+context.register({
+  description: 'Video Search',
+  component: VideoSearchContext,
+});
 
 const buttonOptions = {
   outlined: true,
@@ -294,9 +305,30 @@ export default defineComponent({
       originalVideoFile?: string;
     } | null = null;
 
+    /**
+     * Video Search / IQR session (index-backed similarity queries).
+     * Media info resolves lazily once metadata loads; multicam datasets are
+     * not yet supported (media stays null and the panel reports unavailable).
+     */
+    const videoSearchMedia = ref<VideoSearchMediaInfo | null>(null);
+    const videoSearch = createVideoSearch(props.id, () => videoSearchMedia.value);
+    provideVideoSearch(videoSearch);
+
     // Initialize segmentation when component is mounted
-    onMounted(() => {
+    onMounted(async () => {
       initializeSegmentation();
+      try {
+        const meta = await loadMetadata(props.id);
+        if (!meta.multiCamMedia) {
+          videoSearchMedia.value = {
+            type: meta.type,
+            fps: meta.fps,
+            getImagePath: buildImagePathGetter(meta),
+          };
+        }
+      } catch {
+        // Video search stays unavailable if metadata cannot load
+      }
     });
 
     /**

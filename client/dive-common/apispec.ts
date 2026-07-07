@@ -418,6 +418,60 @@ export interface SegmentationStatusResponse {
   ready?: boolean;
 }
 
+/**
+ * Video Search / IQR (rapid model generation) Types
+ */
+
+export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing';
+
+/** Sidecar metadata describing a built search index. */
+export interface VideoSearchIndexMeta {
+  version: number;
+  method: VideoSearchIndexMethod;
+  // frame rate the media was indexed at (video only; must match dataset fps)
+  fps: number;
+  // dataset ids covered by this index (single entry today; keyed this way so
+  // multi-dataset indexes remain possible later)
+  datasets: string[];
+  createdAt: string;
+}
+
+export interface VideoSearchIndexStatus {
+  exists: boolean;
+  built: boolean;
+  meta?: VideoSearchIndexMeta;
+}
+
+export interface VideoSearchTrackState {
+  frame: number;
+  bbox?: [number, number, number, number];
+}
+
+export interface VideoSearchResultTrack {
+  id: number;
+  states: VideoSearchTrackState[];
+}
+
+/** One ranked similarity result returned by the query service. */
+export interface VideoSearchResult {
+  instance_id: number;
+  query_id: string;
+  stream_id: string;
+  relevancy_score: number;
+  start_frame: number | null;
+  end_frame: number | null;
+  tracks: VideoSearchResultTrack[];
+}
+
+export interface VideoSearchQueryResponse {
+  success: boolean;
+  error?: string;
+  descriptor_count?: number;
+  model_available?: boolean;
+  results?: VideoSearchResult[];
+  feedback_requests?: VideoSearchResult[];
+}
+
 export {
   provideApi,
   useApi,

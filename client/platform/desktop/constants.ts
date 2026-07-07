@@ -1,6 +1,7 @@
 import type {
   DatasetMeta, DatasetMetaMutable, DatasetType,
   Pipe, SubType, MediaImportResponse, PipelineParams,
+  VideoSearchIndexMeta, VideoSearchIndexMethod,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
@@ -228,20 +229,11 @@ export interface BuildSearchIndex extends JobArgs {
   // detections: index around generic object proposals
   // tracking: index around tracked proposals
   // existing: index around this dataset's existing annotations
-  method: 'detections' | 'tracking' | 'existing';
+  method: VideoSearchIndexMethod;
 }
 
 /** Sidecar metadata written alongside a built search index. */
-export interface SearchIndexMeta {
-  version: number;
-  method: BuildSearchIndex['method'];
-  // frame rate the media was indexed at (video only; must match dataset fps)
-  fps: number;
-  // dataset ids covered by this index (single entry today; keyed this way so
-  // multi-dataset indexes remain possible later)
-  datasets: string[];
-  createdAt: string;
-}
+export type SearchIndexMeta = VideoSearchIndexMeta;
 
 export type Job = ConversionArgs | RunPipeline | RunTraining
   | ExportTrainedPipeline | BuildSearchIndex;

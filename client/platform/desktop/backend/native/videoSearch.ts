@@ -26,10 +26,13 @@ import {
   Settings, DesktopJob, DesktopJobUpdater,
   SearchIndexMeta, BuildSearchIndex,
 } from 'platform/desktop/constants';
+import type { VideoSearchIndexStatus } from 'dive-common/apispec';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from './processManager';
 import * as common from './common';
-import { jobFileEchoMiddleware, createCustomWorkingDirectory } from './utils';
+import {
+  jobFileEchoMiddleware, createCustomWorkingDirectory, getBinaryPath, spawnResult,
+} from './utils';
 import linux from './linux';
 import win32 from './windows';
 
@@ -67,11 +70,7 @@ function getIndexDir(settings: Settings, datasetId: string): string {
   return npath.join(settings.dataPath, 'DIVE_Projects', datasetId, SearchIndexFolderName);
 }
 
-export interface SearchIndexStatus {
-  exists: boolean;
-  built: boolean;
-  meta?: SearchIndexMeta;
-}
+export type SearchIndexStatus = VideoSearchIndexStatus;
 
 async function getIndexStatus(settings: Settings, datasetId: string): Promise<SearchIndexStatus> {
   const indexDir = getIndexDir(settings, datasetId);
@@ -204,6 +203,25 @@ async function buildIndex(
     });
   });
   return jobBase;
+}
+
+/**
+ * Extract a single video frame as a PNG for use as a query exemplar
+ * (the exemplar descriptor pipeline reads image files, not videos).
+ */
+async function extractVideoFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
+  const outDir = npath.join(OS.tmpdir(), 'dive-video-search');
+  await fs.ensureDir(outDir);
+  const outPath = npath.join(outDir, `frame_${frameNum}.png`);
+  const seconds = frameNum / (fps || 1);
+  const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+  const result = await spawnResult(ffmpegPath, [
+    '-y', '-ss', seconds.toString(), '-i', videoPath, '-frames:v', '1', outPath,
+  ]);
+  if (result.exitCode !== 0 || !(await fs.pathExists(outPath))) {
+    throw new Error(`Unable to extract video frame ${frameNum}: ${result.error}`);
+  }
+  return outPath;
 }
 
 /** Loose shape of a JSON response line from the Python query service. */
@@ -599,4 +617,5 @@ export {
   buildIndex,
   deleteIndex,
   exportSearchModel,
+  extractVideoFrame,
 };
