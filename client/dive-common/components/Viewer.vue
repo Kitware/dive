@@ -22,7 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
-import { resolveToReferenceTransforms } from 'vue-media-annotator/alignedView';
+import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -388,9 +388,19 @@ export default defineComponent({
     const toggleAlignedView = () => {
       alignedView.setEnabled(!alignedView.enabled.value);
     };
-    const alignedViewTooltip = computed(() => (alignedViewEnabled.value
-      ? 'Align View on (editing disabled)'
-      : 'Align View (requires calibration)'));
+    const alignedViewTooltip = computed(() => {
+      if (alignedViewEnabled.value) {
+        return 'Align View on (editing disabled)';
+      }
+      const cams = multiCamList.value;
+      const unresolved = cams.length >= 2
+        ? unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value)
+        : [];
+      if (unresolved.length) {
+        return `Align View — ${unresolved.join(', ')} · needs calibration`;
+      }
+      return 'Align View';
+    });
     // The aligned view is suspended while picking, so the button reads as
     // unavailable rather than accepting a toggle that has no visible effect.
     const calibrationPickingEnabled = computed(() => cameraCalibration.pickingEnabled.value);
