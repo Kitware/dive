@@ -534,23 +534,31 @@ export default defineComponent({
       </v-btn>
     </v-btn-toggle>
 
-    <div v-if="alignment.mode !== 'original'">
-      <span class="text-caption">Warp Opacity</span>
+    <div>
+      <span
+        class="text-caption"
+        :class="{ 'grey--text': alignment.mode === 'original' }"
+      >Warp Opacity</span>
       <v-slider
         v-model="alignment.opacity"
         :min="0"
         :max="1"
         :step="0.05"
+        :disabled="alignment.mode === 'original'"
         dense
         hide-details
       />
 
       <div class="mt-2">
-        <span class="text-caption d-block mb-1">Picking for</span>
+        <span
+          class="text-caption d-block mb-1"
+          :class="{ 'grey--text': alignment.mode === 'original' }"
+        >Picking for</span>
         <v-btn-toggle
           :value="alignment.pickTarget"
           mandatory
           dense
+          :disabled="alignment.mode === 'original'"
           @change="setPickTarget"
         >
           <v-btn value="native" small>
