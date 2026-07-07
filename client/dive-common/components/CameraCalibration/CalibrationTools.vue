@@ -86,6 +86,27 @@ export default defineComponent({
       calibration.pickingEnabled.value = false;
     });
 
+    // Switching datasets while this panel stays mounted re-runs the viewer's
+    // loadDataset -> calibration.hydrate(), which clears picking and the active
+    // pair. This panel establishes those only at mount, so without this it
+    // would be left visibly open but inert (dead markers, stale selectors).
+    // Re-establish them whenever the camera set changes.
+    watch(cameras, (list) => {
+      const valid = !!camLeft.value && list.includes(camLeft.value)
+        && !!camRight.value && list.includes(camRight.value);
+      if (!valid) {
+        // New dataset (or camera set): default the selectors to its first two
+        // cameras; the [camLeft, camRight] watch re-runs setActivePair.
+        camLeft.value = list.length >= 2 ? list[0] : null;
+        camRight.value = list.length >= 2 ? list[1] : null;
+      } else {
+        // Same camera names as before: the selectors don't change, so
+        // re-establish the pair that hydrate() nulled.
+        calibration.setActivePair(camLeft.value, camRight.value);
+      }
+      calibration.pickingEnabled.value = true;
+    });
+
     const activeKey = computed(() => calibration.activePairKey());
     const correspondences = computed(() => {
       const key = activeKey.value;
