@@ -408,11 +408,13 @@ export default defineComponent({
           :key="cam.name"
           small
           label
+          :ripple="false"
           :color="cam.status === 'resolved'
             ? 'success'
             : (cam.status === 'unresolved' ? 'warning' : undefined)"
           :outlined="cam.status !== 'resolved'"
           class="mr-1 mb-1"
+          style="pointer-events: none;"
         >
           <v-icon
             x-small
