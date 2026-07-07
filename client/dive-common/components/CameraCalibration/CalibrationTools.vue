@@ -64,6 +64,8 @@ export default defineComponent({
     const canClearLast = computed(
       () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
     );
+    /** How many more correspondence pairs are needed before the transform can be fit. */
+    const remainingPoints = computed(() => Math.max(0, minPoints.value - correspondences.value.length));
     /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
     const hasTransform = computed(() => canFit.value
       || Boolean(activeKey.value && calibration.homographies.value[activeKey.value]));
@@ -88,9 +90,9 @@ export default defineComponent({
     );
 
     const alignmentModeItems = computed(() => [
-      { text: 'Original (no alignment)', value: 'original' },
-      { text: `Warp ${camLeft.value ?? 'A'} onto ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
-      { text: `Warp ${camRight.value ?? 'B'} onto ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
+      { text: 'Original', value: 'original', disabled: false },
+      { text: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
+      { text: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
     ]);
 
     function setTransformType(type: TransformType) {
@@ -246,12 +248,14 @@ export default defineComponent({
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
+      remainingPoints,
       alignmentModeItems,
       hasTransform,
       hasLoadedTransform,
       refinedFromSource,
       canClearPair,
       canClearLast,
+      canFit,
       saving,
       sourceReadout,
       calibrationFileInput,
@@ -455,35 +459,51 @@ export default defineComponent({
       class="my-2"
       @change="setTransformType"
     />
-    <span class="text-caption grey--text">
-      Needs at least {{ minPoints }} correspondence pair(s) ({{ correspondences.length }} picked).
-    </span>
+    <div class="d-flex align-center text-caption mt-1">
+      <v-icon
+        small
+        :color="canFit ? 'success' : 'grey'"
+        class="mr-1"
+      >
+        {{ canFit ? 'mdi-check-circle' : 'mdi-progress-clock' }}
+      </v-icon>
+      <span :class="canFit ? 'success--text' : 'grey--text'">
+        <template v-if="canFit">
+          Ready to fit ({{ correspondences.length }} / {{ minPoints }} point pairs)
+        </template>
+        <template v-else>
+          {{ remainingPoints }} more point pair{{ remainingPoints === 1 ? '' : 's' }} needed
+          ({{ correspondences.length }} / {{ minPoints }})
+        </template>
+      </span>
+    </div>
 
     <v-divider class="my-3" />
 
-    <h4>Alignment (in-app aligned picking)</h4>
+    <h4>Overlay Warp</h4>
 
-    <v-select
+    <v-btn-toggle
       :value="alignment.mode"
-      :items="alignmentModeItems"
-      item-text="text"
-      item-value="value"
-      label="Alignment mode"
+      mandatory
       dense
-      outlined
-      hide-details
-      class="my-2"
+      class="d-flex my-2"
       @change="setAlignmentMode"
-    />
-    <span
-      v-if="!hasTransform"
-      class="text-caption grey--text"
     >
-      At least {{ minPoints }} correspondence pair(s) are required to align.
-    </span>
+      <v-btn
+        v-for="item in alignmentModeItems"
+        :key="item.value"
+        :value="item.value"
+        :disabled="item.disabled"
+        small
+        class="flex-grow-1"
+        style="text-transform: none;"
+      >
+        {{ item.text }}
+      </v-btn>
+    </v-btn-toggle>
 
     <div v-if="alignment.mode !== 'original'">
-      <span class="text-caption">Ghost opacity</span>
+      <span class="text-caption">Warp Opacity</span>
       <v-slider
         v-model="alignment.opacity"
         :min="0"

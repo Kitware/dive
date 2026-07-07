@@ -79,7 +79,7 @@ export const CALIBRATION_FILE_TYPE = 'dive-camera-calibration';
 /** Picked correspondences keyed by {@link CameraCalibrationStore.pairKey}. */
 export type CameraCorrespondences = Record<string, Correspondence[]>;
 
-/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'homography'. */
+/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'similarity'. */
 export type CameraTransformTypes = Record<string, TransformType>;
 
 /** Which image is warped onto which for the in-app aligned-picking preview. */
@@ -413,9 +413,9 @@ export default class CameraCalibrationStore {
       && this.homographySources[key] === 'fit';
   }
 
-  /** The chosen fit model for `key`, defaulting to 'homography' when unset. */
+  /** The chosen fit model for `key`, defaulting to 'similarity' when unset. */
   transformTypeForPair(key: string): TransformType {
-    return this.transformTypes.value[key] || 'homography';
+    return this.transformTypes.value[key] || 'similarity';
   }
 
   /** Choose the fit model for `key` and immediately (re)fit or clear as needed. */

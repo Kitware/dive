@@ -157,6 +157,7 @@ describe('CameraCalibrationStore', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
+    store.setTransformType(key, 'homography');
     // 4 collinear points satisfy the homography minimum count but are degenerate.
     const pts: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
     pts.forEach((p) => {
@@ -172,6 +173,7 @@ describe('CameraCalibrationStore', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
+    store.setTransformType(key, 'homography');
     const collinear: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
     collinear.forEach((p) => {
       store.addPoint('left', p);
@@ -190,6 +192,7 @@ describe('CameraCalibrationStore', () => {
     const store = new CameraCalibrationStore();
     store.setActivePair('left', 'right');
     const key = store.pairKey('left', 'right');
+    store.setTransformType(key, 'homography');
     const collinear: [number, number][] = [[0, 0], [1, 0], [2, 0], [3, 0]];
     collinear.forEach((p) => {
       store.addPoint('left', p);
@@ -286,7 +289,7 @@ describe('CameraCalibrationStore', () => {
     const store = new CameraCalibrationStore();
     store.hydrate({}, {}, { 'a::b': 'rigid' });
     expect(store.transformTypeForPair('a::b')).toBe('rigid');
-    expect(store.transformTypeForPair('unset::pair')).toBe('homography');
+    expect(store.transformTypeForPair('unset::pair')).toBe('similarity');
   });
 
   it('hydrates correspondences and resumes id allocation', () => {
@@ -307,7 +310,7 @@ describe('CameraCalibrationStore', () => {
   });
 
   describe('transform type selection', () => {
-    it('fits a rigid transform from 2 pairs where the default homography type would throw', () => {
+    it('fits a rigid transform from 2 pairs where a homography would throw', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
@@ -315,6 +318,7 @@ describe('CameraCalibrationStore', () => {
       store.addPoint('right', [5, -3]);
       store.addPoint('left', [10, 0]);
       store.addPoint('right', [15, -3]);
+      store.setTransformType(key, 'homography');
       expect(() => store.fitTransform(key)).toThrow();
       store.setTransformType(key, 'rigid');
       expect(store.homographies.value[key]).toBeDefined();
@@ -545,6 +549,7 @@ describe('CameraCalibrationStore', () => {
       const store = new CameraCalibrationStore();
       store.setActivePair('left', 'right');
       const key = store.pairKey('left', 'right');
+      store.setTransformType(key, 'homography');
       addFourTranslationPairs(store);
       store.setAlignmentMode('AtoB');
       store.clearLast();
