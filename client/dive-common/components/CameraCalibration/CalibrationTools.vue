@@ -10,6 +10,7 @@ import {
 import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'CameraCalibration',
@@ -20,6 +21,7 @@ export default defineComponent({
     const calibration = useCameraCalibration();
     const datasetId = useDatasetId();
     const { saveMetadata } = useApi();
+    const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     const camLeft = ref<string | null>(null);
@@ -105,6 +107,51 @@ export default defineComponent({
       }
     }
 
+    const calibrationFileInput = ref<HTMLInputElement | null>(null);
+    const loadCalibrationError = ref<string | null>(null);
+    const loadCalibrationWarning = ref<string | null>(null);
+
+    const hasAnyCalibration = computed(
+      () => Object.values(calibration.correspondences.value).some((list) => list.length > 0)
+        || Object.keys(calibration.homographies.value).length > 0,
+    );
+
+    /** Load a calibration .json, replacing every pair's state. */
+    async function loadJsonCalibration(file: File) {
+      const text = await file.text();
+      if (hasAnyCalibration.value) {
+        const confirmed = await prompt({
+          title: 'Load calibration',
+          text: 'This will replace the current calibration for ALL camera pairs. Continue?',
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      const { cameras: fileCameras } = calibration.loadCalibrationText(text);
+      const known = new Set(cameras.value);
+      const unknown = fileCameras.filter((name) => !known.has(name));
+      if (unknown.length) {
+        loadCalibrationWarning.value = `Loaded, but these cameras are not in this dataset: ${unknown.join(', ')}`;
+      }
+    }
+
+    /** File input change handler for Load calibration. */
+    function onCalibrationFileSelected(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) {
+        return;
+      }
+      loadCalibrationError.value = null;
+      loadCalibrationWarning.value = null;
+      loadJsonCalibration(file).catch((err) => {
+        loadCalibrationError.value = err instanceof Error ? err.message : String(err);
+      });
+    }
+
     return {
       cameras,
       camLeft,
@@ -116,6 +163,10 @@ export default defineComponent({
       linkedNav: calibration.linkedNav,
       selectedCorrespondenceId,
       deleteSelectedCorrespondence,
+      calibrationFileInput,
+      loadCalibrationError,
+      loadCalibrationWarning,
+      onCalibrationFileSelected,
       cursorReadout,
       correspondences,
       transformType,
@@ -145,6 +196,37 @@ export default defineComponent({
     <span class="text-body-2">
       Pick corresponding points between two cameras to fit an alignment transform.
     </span>
+    <v-divider class="my-3" />
+
+    <input
+      ref="calibrationFileInput"
+      type="file"
+      accept=".json"
+      style="display: none"
+      @change="onCalibrationFileSelected"
+    >
+    <v-btn
+      block
+      outlined
+      small
+      class="mb-2"
+      @click="calibrationFileInput.click()"
+    >
+      Load calibration
+    </v-btn>
+    <span
+      v-if="loadCalibrationError"
+      class="text-caption error--text d-block"
+    >
+      {{ loadCalibrationError }}
+    </span>
+    <span
+      v-if="loadCalibrationWarning"
+      class="text-caption warning--text d-block"
+    >
+      {{ loadCalibrationWarning }}
+    </span>
+
     <v-divider class="my-3" />
 
     <v-switch

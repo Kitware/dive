@@ -2,7 +2,9 @@ import { ref, Ref } from 'vue';
 import {
   invert3, applyHomography, Matrix3, Point,
 } from './homography';
-import { TransformType, minPointsForTransform, estimateTransform } from './transform';
+import {
+  TransformType, TRANSFORM_TYPES, minPointsForTransform, estimateTransform,
+} from './transform';
 
 /**
  * A single picked point pair. `a` is the point in the left camera (camA), `b`
@@ -32,6 +34,32 @@ export type CameraCorrespondences = Record<string, Correspondence[]>;
 
 /** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'homography'. */
 export type CameraTransformTypes = Record<string, TransformType>;
+
+/**
+ * One camera pair inside a portable calibration file. `points` are the picked
+ * correspondences as [leftX, leftY, rightX, rightY] rows; `leftToRight` /
+ * `rightToLeft` are the fitted directions (either may be omitted/null -- the
+ * loader derives the missing one by inversion).
+ */
+export interface CalibrationFilePair {
+  left: string;
+  right: string;
+  points?: number[][];
+  leftToRight?: Matrix3 | null;
+  rightToLeft?: Matrix3 | null;
+  transformType?: TransformType;
+}
+
+/** Portable calibration file: everything needed to restore all pairs. */
+export interface CalibrationFile {
+  /** Written for self-identification; optional on load. */
+  type?: string;
+  version: number;
+  pairs: CalibrationFilePair[];
+}
+
+/** Identifying `type` value of the calibration JSON format. */
+export const CALIBRATION_FILE_TYPE = 'dive-camera-calibration';
 
 /** Which image is warped onto which for the in-app aligned-picking preview. */
 export type AlignmentMode = 'original' | 'AtoB' | 'BtoA';
@@ -482,6 +510,104 @@ export default class CameraCalibrationStore {
     const BtoA = invert3(AtoB);
     this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
     return { AtoB, BtoA };
+  }
+
+  /**
+   * Load a portable calibration JSON (see {@link CalibrationFile}), replacing
+   * every pair's correspondences, homographies, and transform-type choices.
+   * A pair may carry only one fitted direction; the missing one is derived by
+   * inversion. Throws a descriptive Error on malformed input without touching
+   * current state. Returns the camera names referenced by the file so callers
+   * can warn about ones missing from the loaded dataset.
+   */
+  loadCalibrationText(text: string): { cameras: string[]; pairCount: number } {
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('File is not valid JSON');
+    }
+    const file = data as Partial<CalibrationFile>;
+    if (!Array.isArray(file?.pairs)) {
+      throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
+    }
+    const correspondences: CameraCorrespondences = {};
+    const homographies: CameraHomographies = {};
+    const transformTypes: CameraTransformTypes = {};
+    const cameras = new Set<string>();
+    file.pairs.forEach((pair, i) => {
+      const context = `Pair ${i + 1}`;
+      if (typeof pair?.left !== 'string' || typeof pair?.right !== 'string'
+        || !pair.left || !pair.right || pair.left === pair.right) {
+        throw new Error(`${context}: "left" and "right" must be two distinct camera names`);
+      }
+      const key = this.pairKey(pair.left, pair.right);
+      cameras.add(pair.left);
+      cameras.add(pair.right);
+      if (pair.transformType !== undefined) {
+        if (!TRANSFORM_TYPES.some((t) => t.value === pair.transformType)) {
+          throw new Error(
+            `${context}: unknown transformType "${pair.transformType}" (expected one of ${TRANSFORM_TYPES.map((t) => t.value).join(', ')})`,
+          );
+        }
+        transformTypes[key] = pair.transformType;
+      }
+      correspondences[key] = (pair.points || []).map((row, j) => {
+        const [ax, ay, bx, by] = CameraCalibrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
+        // eslint-disable-next-line no-plusplus
+        return { id: this.nextId++, a: [ax, ay] as Point, b: [bx, by] as Point };
+      });
+      const leftToRight = (pair.leftToRight === null || pair.leftToRight === undefined)
+        ? null
+        : CameraCalibrationStore.readMatrix(pair.leftToRight, `${context}, leftToRight`);
+      const rightToLeft = (pair.rightToLeft === null || pair.rightToLeft === undefined)
+        ? null
+        : CameraCalibrationStore.readMatrix(pair.rightToLeft, `${context}, rightToLeft`);
+      if (leftToRight || rightToLeft) {
+        homographies[key] = {
+          AtoB: leftToRight ?? invert3(rightToLeft as Matrix3),
+          BtoA: rightToLeft ?? invert3(leftToRight as Matrix3),
+        };
+      }
+    });
+    this.correspondences.value = correspondences;
+    this.homographies.value = homographies;
+    this.transformTypes.value = transformTypes;
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.fitError.value = null;
+    this.alignment.value = { ...this.alignment.value, mode: 'original', pickTarget: 'native' };
+    return { cameras: [...cameras], pairCount: file.pairs.length };
+  }
+
+  /** Validate an untrusted value as a 4-element finite [leftX, leftY, rightX, rightY] row. */
+  private static readPointsRow(raw: unknown, context: string): [number, number, number, number] {
+    if (!Array.isArray(raw) || raw.length !== 4) {
+      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY]`);
+    }
+    const nums = raw.map(Number);
+    if (nums.some((n) => !Number.isFinite(n))) {
+      throw new Error(`${context}: expected [leftX, leftY, rightX, rightY] with finite numbers`);
+    }
+    return [nums[0], nums[1], nums[2], nums[3]];
+  }
+
+  /** Validate an untrusted value as an invertible row-major 3x3 matrix. */
+  private static readMatrix(raw: unknown, context: string): Matrix3 {
+    if (!Array.isArray(raw) || raw.length !== 3
+      || raw.some((row) => !Array.isArray(row) || row.length !== 3)) {
+      throw new Error(`${context}: expected a 3x3 matrix`);
+    }
+    const m = (raw as unknown[][]).map((row) => row.map(Number));
+    if (m.some((row) => row.some((n) => !Number.isFinite(n)))) {
+      throw new Error(`${context}: matrix entries must be finite numbers`);
+    }
+    try {
+      invert3(m);
+    } catch {
+      throw new Error(`${context}: matrix is singular (not invertible)`);
+    }
+    return m;
   }
 
   /** Reset state and load saved homographies, correspondences, and transform type choices. */
