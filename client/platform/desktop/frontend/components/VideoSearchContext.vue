@@ -31,9 +31,17 @@ export default defineComponent({
     const saveModelName = ref('');
     const saveModelDialog = ref(false);
     /** Small cache of cropped result thumbnails keyed by instance id. */
-    const thumbnails = ref<Record<number, string>>({});
+    const thumbnails = ref<Record<string, string>>({});
 
     const state = computed(() => search?.state ?? null);
+
+    /** Display filter: limit visible results to the current dataset. */
+    const onlyThisDataset = ref(false);
+    const displayedResults = computed(() => {
+      const all = state.value?.results ?? [];
+      if (!onlyThisDataset.value || !search) return all;
+      return all.filter((r) => search.resultDatasetId(r) === search.datasetId);
+    });
 
     const indexBuilding = computed(() => runningJobs.value.some((item) => (
       item.job.exitCode === null
@@ -114,18 +122,18 @@ export default defineComponent({
       await search.queryFromImage(ret.filePaths[0], undefined, modelPath);
     }
 
-    async function deleteIndexConfirm() {
+    async function removeFromIndexConfirm() {
       if (!search) return;
       const confirmed = await prompt({
-        title: 'Delete Search Index',
-        text: ['Delete this dataset\'s search index?',
-          'The index can be rebuilt later, but building takes time.'],
+        title: 'Remove From Search Index',
+        text: ['Remove this dataset from the search index?',
+          'It can be re-added later, but indexing takes time.'],
         confirm: true,
-        positiveButton: 'Delete',
+        positiveButton: 'Remove',
         negativeButton: 'Cancel',
       });
       if (confirmed) {
-        await search.deleteIndex();
+        await search.removeFromIndex();
       }
     }
 
@@ -144,10 +152,18 @@ export default defineComponent({
     }
 
     function seekToResult(result: VideoSearchResult) {
+      // Only results from the currently open dataset can be seeked to.
+      if (search && search.resultDatasetId(result) !== search.datasetId) {
+        return;
+      }
       const target = result.tracks[0]?.states[0]?.frame ?? result.start_frame;
       if (target !== null && target !== undefined) {
         handler.seekFrame(target);
       }
+    }
+
+    function isLocalResult(result: VideoSearchResult): boolean {
+      return search !== null && search.resultDatasetId(result) === search.datasetId;
     }
 
     function resultFrame(result: VideoSearchResult): number | null {
@@ -160,12 +176,14 @@ export default defineComponent({
 
     /** Crop a result chip out of its source frame into a data URL. */
     async function loadThumbnail(result: VideoSearchResult) {
-      if (!search || thumbnails.value[result.instance_id]) return;
+      if (!search || thumbnails.value[result.ref]) return;
       const frameNum = resultFrame(result);
       const bbox = resultBox(result);
       if (frameNum === null) return;
       try {
-        const imagePath = await search.exemplarImageForFrame(frameNum);
+        const resultDataset = search.resultDatasetId(result);
+        if (!resultDataset) return;
+        const imagePath = await search.imageForDatasetFrame(resultDataset, frameNum);
         const url = await getMediaUrl(imagePath);
         const image = new Image();
         image.src = url;
@@ -185,7 +203,7 @@ export default defineComponent({
           ctx.drawImage(image, x1, y1, w, h, 0, 0, canvas.width, canvas.height);
           thumbnails.value = {
             ...thumbnails.value,
-            [result.instance_id]: canvas.toDataURL('image/jpeg', 0.8),
+            [result.ref]: canvas.toDataURL('image/jpeg', 0.8),
           };
         }
       } catch {
@@ -210,10 +228,13 @@ export default defineComponent({
       thumbnails,
       queryFromSelectedTrack,
       queryFromImageFile,
-      deleteIndexConfirm,
+      removeFromIndexConfirm,
       saveModel,
       seekToResult,
       resultFrame,
+      isLocalResult,
+      onlyThisDataset,
+      displayedResults,
     };
   },
 });
@@ -239,10 +260,16 @@ export default defineComponent({
         <v-chip
           x-small
           class="ml-1"
-          :color="state.status && state.status.built ? 'success' : 'grey'"
+          :color="state.status && state.status.indexed ? 'success' : 'grey'"
         >
-          {{ indexBuilding ? 'building...' : (state.status && state.status.built ? 'built' : 'not built') }}
+          {{ indexBuilding ? 'indexing...' : (state.status && state.status.indexed ? 'indexed' : 'not indexed') }}
         </v-chip>
+      </div>
+      <div
+        v-if="state.status && state.status.datasetCount"
+        class="text-caption grey--text mb-1"
+      >
+        {{ state.status.datasetCount }} dataset(s) in the shared search index
       </div>
       <div class="d-flex align-center mb-1">
         <v-select
@@ -265,16 +292,16 @@ export default defineComponent({
           :disabled="indexBuilding || !!state.busy"
           @click="search.buildIndex(buildMethod)"
         >
-          {{ state.status && state.status.built ? 'Rebuild' : 'Build' }}
+          {{ state.status && state.status.indexed ? 'Update' : 'Add to index' }}
         </v-btn>
         <v-btn
           x-small
           color="error"
           class="ml-2"
-          :disabled="!(state.status && state.status.exists) || indexBuilding || !!state.busy"
-          @click="deleteIndexConfirm"
+          :disabled="!(state.status && state.status.indexed) || indexBuilding || !!state.busy"
+          @click="removeFromIndexConfirm"
         >
-          Delete
+          Remove
         </v-btn>
       </div>
       <v-divider class="mb-2" />
@@ -289,7 +316,7 @@ export default defineComponent({
           block
           class="mb-1"
           color="primary"
-          :disabled="!(state.status && state.status.built) || selectedTrackBox === null || !!state.busy"
+          :disabled="!(state.status && state.status.datasetCount) || selectedTrackBox === null || !!state.busy"
           @click="queryFromSelectedTrack"
         >
           Search from selected annotation
@@ -298,7 +325,7 @@ export default defineComponent({
           x-small
           block
           class="mb-1"
-          :disabled="!(state.status && state.status.built) || !!state.busy"
+          :disabled="!(state.status && state.status.datasetCount) || !!state.busy"
           @click="queryFromImageFile(false)"
         >
           Search from image file...
@@ -306,12 +333,21 @@ export default defineComponent({
         <v-btn
           x-small
           block
-          :disabled="!(state.status && state.status.built) || !!state.busy"
+          :disabled="!(state.status && state.status.datasetCount) || !!state.busy"
           @click="queryFromImageFile(true)"
         >
           Search with saved model (.svm)...
         </v-btn>
       </div>
+
+      <v-checkbox
+        v-if="state.status && state.status.datasetCount > 1"
+        v-model="onlyThisDataset"
+        dense
+        hide-details
+        class="mt-0 mb-2"
+        label="Only show results from this dataset"
+      />
 
       <v-progress-linear
         v-if="state.busy"
@@ -332,11 +368,11 @@ export default defineComponent({
       </v-alert>
 
       <!-- Results + refinement -->
-      <template v-if="state.results.length">
+      <template v-if="displayedResults.length">
         <v-divider class="mb-2" />
         <div class="d-flex align-center mb-1">
           <div class="text-subtitle-2">
-            Results ({{ state.results.length }})
+            Results ({{ displayedResults.length }})
             <span v-if="state.iteration" class="text-caption">
               — iteration {{ state.iteration }}
             </span>
@@ -361,15 +397,16 @@ export default defineComponent({
         </div>
         <div class="results-list">
           <v-card
-            v-for="result in state.results"
-            :key="result.instance_id"
+            v-for="result in displayedResults"
+            :key="result.ref"
             outlined
             class="d-flex align-center pa-1 mb-1 result-row"
+            :class="{ 'result-row-remote': !isLocalResult(result) }"
             @click="seekToResult(result)"
           >
             <img
-              v-if="thumbnails[result.instance_id]"
-              :src="thumbnails[result.instance_id]"
+              v-if="thumbnails[result.ref]"
+              :src="thumbnails[result.ref]"
               class="result-thumb mr-2"
             >
             <div
@@ -383,12 +420,18 @@ export default defineComponent({
               <div class="text-caption grey--text">
                 {{ (result.relevancy_score * 100).toFixed(1) }}%
               </div>
+              <div
+                v-if="search.resultDatasetName(result)"
+                class="text-caption blue-grey--text text--lighten-1 result-dataset"
+              >
+                {{ search.resultDatasetName(result) }}
+              </div>
             </div>
             <v-btn
               icon
               x-small
-              :color="state.adjudications[result.instance_id] === 'positive' ? 'success' : 'grey'"
-              @click.stop="search.mark(result.instance_id, 'positive')"
+              :color="state.adjudications[result.ref] === 'positive' ? 'success' : 'grey'"
+              @click.stop="search.mark(result.ref, 'positive')"
             >
               <v-icon small>
                 mdi-thumb-up
@@ -397,8 +440,8 @@ export default defineComponent({
             <v-btn
               icon
               x-small
-              :color="state.adjudications[result.instance_id] === 'negative' ? 'error' : 'grey'"
-              @click.stop="search.mark(result.instance_id, 'negative')"
+              :color="state.adjudications[result.ref] === 'negative' ? 'error' : 'grey'"
+              @click.stop="search.mark(result.ref, 'negative')"
             >
               <v-icon small>
                 mdi-thumb-down
@@ -454,6 +497,15 @@ export default defineComponent({
 }
 .result-row {
   cursor: pointer;
+}
+.result-row-remote {
+  cursor: default;
+}
+.result-dataset {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .result-thumb {
   width: 48px;
