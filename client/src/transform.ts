@@ -17,10 +17,10 @@ export type TransformType = 'translation' | 'rigid' | 'similarity' | 'affine' | 
 /** UI-friendly ordered list of transform types, for dropdowns. */
 export const TRANSFORM_TYPES: { value: TransformType; text: string }[] = [
   { value: 'translation', text: 'Translation' },
-  { value: 'rigid', text: 'Rigid (rotation + translation)' },
-  { value: 'similarity', text: 'Similarity (rotation + uniform scale + translation)' },
+  { value: 'rigid', text: 'Rigid' },
+  { value: 'similarity', text: 'Similarity' },
   { value: 'affine', text: 'Affine' },
-  { value: 'homography', text: 'Homography (full projective)' },
+  { value: 'homography', text: 'Homography' },
 ];
 
 const MIN_POINTS: Record<TransformType, number> = {
