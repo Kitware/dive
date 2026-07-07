@@ -202,70 +202,77 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <div class="d-flex align-center justify-space-between mb-1">
-      <h4 class="mb-0">
-        Correspondences ({{ correspondences.length }})
-      </h4>
-      <div>
-        <tooltip-btn
-          icon="mdi-undo"
-          :disabled="!canClearLast"
-          tooltip-text="Undo the pending point, or the last completed pair"
-          @click="calibration.clearLast()"
-        />
-        <tooltip-btn
-          color="error"
-          icon="mdi-delete-sweep"
-          :disabled="correspondences.length === 0"
-          tooltip-text="Clear all correspondences for this pair"
-          @click="calibration.clearPair()"
-        />
-      </div>
-    </div>
-    <v-simple-table
-      v-if="correspondences.length"
-      dense
-      class="mb-2"
+    <v-expansion-panels
+      flat
+      accordion
     >
-      <template #default>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>A (x, y)</th>
-            <th>B (x, y)</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="(c, i) in correspondences"
-            :key="c.id"
-            :style="c.id === selectedCorrespondenceId
-              ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
-              : undefined"
-            @click="calibration.selectCorrespondence(c.id)"
+      <v-expansion-panel>
+        <v-expansion-panel-header class="px-1">
+          Correspondences ({{ correspondences.length }})
+        </v-expansion-panel-header>
+        <v-expansion-panel-content class="px-0">
+          <div class="d-flex justify-end mb-1">
+            <tooltip-btn
+              icon="mdi-undo"
+              :disabled="!canClearLast"
+              tooltip-text="Undo the pending point, or the last completed pair"
+              @click="calibration.clearLast()"
+            />
+            <tooltip-btn
+              color="error"
+              icon="mdi-delete-sweep"
+              :disabled="correspondences.length === 0"
+              tooltip-text="Clear all correspondences for this pair"
+              @click="calibration.clearPair()"
+            />
+          </div>
+          <v-simple-table
+            v-if="correspondences.length"
+            dense
+            class="mb-2"
           >
-            <td>{{ i + 1 }}</td>
-            <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
-            <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
-            <td>
-              <tooltip-btn
-                color="error"
-                icon="mdi-delete"
-                tooltip-text="Remove this pair"
-                @click="calibration.removeCorrespondence(c.id)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </template>
-    </v-simple-table>
-    <span
-      v-else
-      class="text-caption grey--text"
-    >
-      No correspondences yet. At least {{ minPoints }} required for the selected transform.
-    </span>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>A (x, y)</th>
+                  <th>B (x, y)</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(c, i) in correspondences"
+                  :key="c.id"
+                  :style="c.id === selectedCorrespondenceId
+                    ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
+                    : undefined"
+                  @click="calibration.selectCorrespondence(c.id)"
+                >
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
+                  <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
+                  <td>
+                    <tooltip-btn
+                      color="error"
+                      icon="mdi-delete"
+                      tooltip-text="Remove this pair"
+                      @click="calibration.removeCorrespondence(c.id)"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+          <span
+            v-else
+            class="text-caption grey--text"
+          >
+            No correspondences yet. At least {{ minPoints }} required for the selected transform.
+          </span>
+        </v-expansion-panel-content>
+      </v-expansion-panel>
+    </v-expansion-panels>
     <span
       v-if="fitError"
       class="text-caption error--text d-block"
