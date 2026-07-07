@@ -423,9 +423,7 @@ export default defineComponent({
             {{ cam.status === 'reference' ? 'mdi-star'
               : (cam.status === 'resolved' ? 'mdi-check' : 'mdi-alert-outline') }}
           </v-icon>
-          {{ cam.name }}{{ cam.status === 'reference'
-            ? ' · reference'
-            : (cam.status === 'unresolved' ? ' · needs calibration' : '') }}
+          {{ cam.name }}{{ cam.status === 'reference' ? ' · reference' : '' }}
         </v-chip>
       </div>
     </div>
