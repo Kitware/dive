@@ -397,7 +397,7 @@ export default defineComponent({
         ? unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value)
         : [];
       if (unresolved.length) {
-        return `Align View — ${unresolved.join(', ')} · needs calibration`;
+        return `Align View — ${cams.length - unresolved.length}/${cams.length} cameras calibrated`;
       }
       return 'Align View';
     });

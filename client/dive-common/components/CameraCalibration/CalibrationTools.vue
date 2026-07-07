@@ -55,20 +55,11 @@ export default defineComponent({
       const total = cameras.value.length;
       const unresolvedCount = cameraAlignmentStatuses.value
         .filter((c) => c.status === 'unresolved').length;
-      if (Object.keys(calibration.homographies.value).length === 0) {
-        return { icon: 'mdi-map-marker-off-outline', color: 'grey', text: 'No calibration yet' };
-      }
-      if (unresolvedCount === 0) {
-        return {
-          icon: 'mdi-check-circle',
-          color: 'success',
-          text: `Align ready — all ${total} cameras aligned`,
-        };
-      }
+      const complete = unresolvedCount === 0;
       return {
-        icon: 'mdi-alert',
-        color: 'warning',
-        text: `${total - unresolvedCount} of ${total} cameras aligned`,
+        icon: complete ? 'mdi-check-circle' : 'mdi-alert',
+        color: complete ? 'success' : 'warning',
+        text: `${total - unresolvedCount}/${total} cameras calibrated`,
       };
     });
     const camLeft = ref<string | null>(null);
