@@ -8,6 +8,7 @@ import {
   useDatasetId,
 } from 'vue-media-annotator/provides';
 import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
+import { unresolvedCameras } from 'vue-media-annotator/alignedView';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -24,6 +25,52 @@ export default defineComponent({
     const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
+    /**
+     * Per-camera alignment status for the whole rig, driving the status block:
+     * the first camera (display order) is the reference (identity); every other
+     * camera is 'resolved' when it has a fitted path to the reference, else
+     * 'unresolved' (still needs calibration to satisfy the Align button).
+     */
+    const cameraAlignmentStatuses = computed(() => {
+      const list = cameras.value;
+      const reference = list[0];
+      if (!reference) {
+        return [] as { name: string; status: 'reference' | 'resolved' | 'unresolved' }[];
+      }
+      const unresolved = new Set(
+        unresolvedCameras(list, reference, calibration.homographies.value),
+      );
+      return list.map((name) => {
+        let status: 'reference' | 'resolved' | 'unresolved' = 'resolved';
+        if (name === reference) {
+          status = 'reference';
+        } else if (unresolved.has(name)) {
+          status = 'unresolved';
+        }
+        return { name, status };
+      });
+    });
+    /** One-line rig-alignment summary (icon + color + text) for the status header. */
+    const alignmentSummary = computed(() => {
+      const total = cameras.value.length;
+      const unresolvedCount = cameraAlignmentStatuses.value
+        .filter((c) => c.status === 'unresolved').length;
+      if (Object.keys(calibration.homographies.value).length === 0) {
+        return { icon: 'mdi-map-marker-off-outline', color: 'grey', text: 'No calibration yet' };
+      }
+      if (unresolvedCount === 0) {
+        return {
+          icon: 'mdi-check-circle',
+          color: 'success',
+          text: `Align ready — all ${total} cameras aligned`,
+        };
+      }
+      return {
+        icon: 'mdi-alert',
+        color: 'warning',
+        text: `${total - unresolvedCount} of ${total} cameras aligned`,
+      };
+    });
     const camLeft = ref<string | null>(null);
     const camRight = ref<string | null>(null);
     const saving = ref(false);
@@ -250,6 +297,8 @@ export default defineComponent({
 
     return {
       cameras,
+      cameraAlignmentStatuses,
+      alignmentSummary,
       camLeft,
       camRight,
       calibration,
@@ -344,6 +393,49 @@ export default defineComponent({
       produced. Export the calibration to hand the refinement (and its
       points) back to the producer.
     </span>
+
+    <div
+      v-if="cameras.length >= 2"
+      class="mt-2"
+    >
+      <div
+        class="d-flex align-center text-caption mb-1"
+        :class="`${alignmentSummary.color}--text`"
+      >
+        <v-icon
+          small
+          :color="alignmentSummary.color"
+          class="mr-1"
+        >
+          {{ alignmentSummary.icon }}
+        </v-icon>
+        {{ alignmentSummary.text }}
+      </div>
+      <div class="d-flex flex-wrap">
+        <v-chip
+          v-for="cam in cameraAlignmentStatuses"
+          :key="cam.name"
+          small
+          label
+          :color="cam.status === 'resolved'
+            ? 'success'
+            : (cam.status === 'unresolved' ? 'warning' : undefined)"
+          :outlined="cam.status !== 'resolved'"
+          class="mr-1 mb-1"
+        >
+          <v-icon
+            x-small
+            left
+          >
+            {{ cam.status === 'reference' ? 'mdi-star'
+              : (cam.status === 'resolved' ? 'mdi-check' : 'mdi-alert-outline') }}
+          </v-icon>
+          {{ cam.name }}{{ cam.status === 'reference'
+            ? ' · reference'
+            : (cam.status === 'unresolved' ? ' · needs calibration' : '') }}
+        </v-chip>
+      </div>
+    </div>
     <v-divider class="my-3" />
 
     <v-select
