@@ -394,9 +394,13 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     )
     for name, value in validated.dict(exclude_none=True).items():
         dsFolder['meta'][name] = value
-    # exclude_none drops explicit null; client sends timeFilters: null to disable.
-    if 'timeFilters' in data and data['timeFilters'] is None:
-        dsFolder['meta'].pop('timeFilters', None)
+    # exclude_none drops explicit null, so a field the client nulls to clear it
+    # must be popped by hand. timeFilters: null disables the filter;
+    # cameraCalibrationSource: null drops a stale producer-provenance stamp when
+    # the calibration is cleared or hand-refined.
+    for nullable in ('timeFilters', 'cameraCalibrationSource'):
+        if nullable in data and data[nullable] is None:
+            dsFolder['meta'].pop(nullable, None)
     Folder().save(dsFolder)
     return dsFolder['meta']
 
