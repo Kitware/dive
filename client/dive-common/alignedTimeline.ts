@@ -3,11 +3,11 @@ import type { FrameImage } from './apispec';
 /**
  * Max time delta, in seconds, between two cameras' frame timestamps for them to
  * be considered "the same instant" (SEAL feature 5). In KAMERA sample data the
- * C/L/R cameras share an identical capture timestamp per shot, so this mainly
- * has to absorb sub-second jitter/rounding; 0.5s leaves margin for less tightly
- * synchronized full-flight captures. Retune if real cadence differs.
+ * C/L/R cameras share an identical capture timestamp per shot, so for now this
+ * requires an exact match (0). Widen it only if real captures turn out to have
+ * sub-second jitter that needs absorbing.
  */
-export const FRAME_ALIGNMENT_TOLERANCE_SECONDS = 0.5;
+export const FRAME_ALIGNMENT_TOLERANCE_SECONDS = 0;
 
 /**
  * camera name -> local index into that camera's own FrameImage[], or undefined

@@ -34,10 +34,10 @@ describe('alignedTimeline', () => {
     expect(buildAlignedTimeline(camerasFrames)).toEqual({ aligned: false });
   });
 
-  it('resolves a genuine out-of-tolerance gap on one camera to undefined at that slot', () => {
+  it('resolves a genuinely missing frame on one camera to undefined at that slot', () => {
     const camerasFrames = {
       A: [frame(100), frame(200), frame(300)],
-      B: [frame(100.1), frame(300.2)],
+      B: [frame(100), frame(300)],
     };
     const result = buildAlignedTimeline(camerasFrames);
     expect(result).toEqual({
@@ -132,7 +132,7 @@ describe('alignedTimeline', () => {
     it('flags slots where any camera is missing a frame', () => {
       const camerasFrames = {
         A: [frame(100), frame(200), frame(300)],
-        B: [frame(100.1), frame(300.2)],
+        B: [frame(100), frame(300)],
       };
       const result = buildAlignedTimeline(camerasFrames);
       expect(result.aligned).toBe(true);
@@ -193,7 +193,7 @@ describe('alignedTimeline', () => {
     it('maps each camera\'s local frame back to its global slot', () => {
       const camerasFrames = {
         A: [frame(100), frame(200), frame(300)],
-        B: [frame(100.1), frame(300.2)],
+        B: [frame(100), frame(300)],
       };
       const result = buildAlignedTimeline(camerasFrames);
       expect(result.aligned).toBe(true);
