@@ -109,7 +109,6 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
         id='img-left',
         url='/api/v1/.../left.png',
         filename='left_20230615_143022.png',
-        timestamp=1686839422.0,
     )
     right_image = MediaResource(id='img-right', url='/api/v1/.../right.png', filename='right.png')
 
@@ -130,8 +129,6 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
     assert result.multiCamMedia.cameraOrder == ['left', 'right']
     assert set(result.multiCamMedia.cameras.keys()) == {'left', 'right'}
     assert result.multiCamMedia.cameras['left'].imageData[0].filename == 'left_20230615_143022.png'
-    assert result.multiCamMedia.cameras['left'].imageData[0].timestamp == 1686839422.0
-    assert result.multiCamMedia.cameras['right'].imageData[0].timestamp is None
     assert 'multiCam' not in result.dict()
 
 
@@ -145,22 +142,6 @@ def test_get_media_multi_parent_returns_empty(_verify):
     assert result.imageData == []
     assert result.video is None
     assert result.sourceVideo is None
-
-
-@patch('dive_server.crud_dataset.crud.valid_images')
-@patch('dive_server.crud_dataset.crud.verify_dataset')
-def test_get_media_image_sequence_parses_frame_timestamps(_verify, valid_images_mock):
-    folder = _child_folder('left-id', 'left')
-    user = {'login': 'tester'}
-    valid_images_mock.return_value = [
-        {'_id': 'img-parseable', 'name': 'left_20230615_143022.png'},
-        {'_id': 'img-unparseable', 'name': 'left_00001.png'},
-    ]
-
-    result = crud_dataset.get_media(folder, user)
-
-    assert result.imageData[0].timestamp == 1686839422.0
-    assert result.imageData[1].timestamp is None
 
 
 @patch('dive_server.crud_dataset.get_media')

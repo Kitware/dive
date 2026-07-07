@@ -23,7 +23,6 @@ from dive_utils import (
     constants,
     fromMeta,
     models,
-    timestamp_parser,
     types,
 )
 from dive_utils.serializers import kwcoco
@@ -366,7 +365,6 @@ def get_media(
                 id=str(image["_id"]),
                 url=get_url(dsFolder, image),
                 filename=image['name'],
-                timestamp=timestamp_parser.parse_frame_timestamp(image['name']),
             )
             for image in crud.valid_images(dsFolder, user)
         ]

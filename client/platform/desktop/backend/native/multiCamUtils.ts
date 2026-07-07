@@ -10,7 +10,7 @@ import { JsonMeta, Settings } from 'platform/desktop/constants';
 // eslint-disable-next-line import/no-cycle
 import { loadAnnotationFile, loadJsonMetadata, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
-import { parseFrameTimestamp } from 'platform/desktop/sharedUtils';
+import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 
 /**
  * Figure out the destination location

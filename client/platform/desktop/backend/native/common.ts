@@ -54,8 +54,9 @@ import {
   JobType, LastCalibrationBaseName,
 } from 'platform/desktop/constants';
 import {
-  cleanString, filterByGlob, makeid, parseFrameTimestamp, strNumericCompare,
+  cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
+import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';

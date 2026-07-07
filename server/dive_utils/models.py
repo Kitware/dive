@@ -260,9 +260,6 @@ class MediaResource(BaseModel):
     url: str
     id: str
     filename: str
-    # Best-effort capture timestamp (epoch seconds) parsed from the filename.
-    # See dive_utils.timestamp_parser -- absent when no known convention matches.
-    timestamp: Optional[float] = None
 
 
 class MultiCamCameraMeta(BaseModel):
