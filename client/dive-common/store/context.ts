@@ -48,7 +48,7 @@ const componentMap: Record<string, ComponentMapItem> = {
     component: MultiCamTools,
   },
   [CalibrationTools.name]: {
-    description: 'Camera Calibration',
+    description: 'Manual Alignment',
     component: CalibrationTools,
   },
   [AttributesSideBar.name]: {

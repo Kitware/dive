@@ -14,7 +14,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'CameraCalibration',
-  description: 'Camera Calibration',
+  description: 'Manual Alignment',
   components: { TooltipBtn },
   setup() {
     const cameraStore = useCameraStore();

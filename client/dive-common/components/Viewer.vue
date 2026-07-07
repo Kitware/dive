@@ -256,7 +256,7 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Camera Calibration panel opens, minimize the workspace chrome to
+    // When the Manual Alignment panel opens, minimize the workspace chrome to
     // give the picking view more room: collapse the left type-filter sidebar and
     // the bottom detections graph. This is a soft default -- the normal sidebar
     // and timeline toggles still work while calibrating, so the user can bring
@@ -1172,7 +1172,7 @@ export default defineComponent({
           });
           context.register({
             component: CalibrationToolsVue,
-            description: 'Camera Calibration',
+            description: 'Manual Alignment',
           });
         } else {
           context.unregister({
@@ -1181,7 +1181,7 @@ export default defineComponent({
           });
           context.unregister({
             component: CalibrationToolsVue,
-            description: 'Camera Calibration',
+            description: 'Manual Alignment',
           });
           context.register({
             description: 'Group Manager',
