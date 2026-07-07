@@ -394,6 +394,69 @@ describe('CameraCalibrationStore', () => {
     });
   });
 
+  describe('correspondence selection', () => {
+    function storeWithOnePair() {
+      const store = new CameraCalibrationStore();
+      store.setActivePair('left', 'right');
+      store.addPoint('left', [1, 1]);
+      store.addPoint('right', [2, 2]);
+      const key = store.pairKey('left', 'right');
+      const { id } = store.correspondences.value[key][0];
+      return { store, key, id };
+    }
+
+    it('selects an active-pair correspondence and clears via null or unknown ids', () => {
+      const { store, id } = storeWithOnePair();
+      store.selectCorrespondence(id);
+      expect(store.selectedCorrespondenceId.value).toBe(id);
+      store.selectCorrespondence(id + 99);
+      expect(store.selectedCorrespondenceId.value).toBeNull();
+      store.selectCorrespondence(id);
+      store.selectCorrespondence(null);
+      expect(store.selectedCorrespondenceId.value).toBeNull();
+    });
+
+    it('removeSelectedCorrespondence removes both cameras\' points and clears the selection', () => {
+      const { store, key, id } = storeWithOnePair();
+      store.selectCorrespondence(id);
+      store.removeSelectedCorrespondence();
+      expect(store.correspondences.value[key]).toHaveLength(0);
+      expect(store.selectedCorrespondenceId.value).toBeNull();
+      // No selection: a further call is a no-op.
+      store.removeSelectedCorrespondence();
+      expect(store.correspondences.value[key]).toHaveLength(0);
+    });
+
+    it('clears the selection when the selected pair is removed, undone, or the pair switches', () => {
+      const first = storeWithOnePair();
+      first.store.selectCorrespondence(first.id);
+      first.store.removeCorrespondence(first.id);
+      expect(first.store.selectedCorrespondenceId.value).toBeNull();
+
+      const second = storeWithOnePair();
+      second.store.selectCorrespondence(second.id);
+      second.store.clearLast();
+      expect(second.store.selectedCorrespondenceId.value).toBeNull();
+
+      const third = storeWithOnePair();
+      third.store.selectCorrespondence(third.id);
+      third.store.setActivePair('left', 'other');
+      expect(third.store.selectedCorrespondenceId.value).toBeNull();
+    });
+
+    it('clears the selection on clearPair and hydrate', () => {
+      const { store, id } = storeWithOnePair();
+      store.selectCorrespondence(id);
+      store.clearPair();
+      expect(store.selectedCorrespondenceId.value).toBeNull();
+
+      const hydrated = storeWithOnePair();
+      hydrated.store.selectCorrespondence(hydrated.id);
+      hydrated.store.hydrate();
+      expect(hydrated.store.selectedCorrespondenceId.value).toBeNull();
+    });
+  });
+
   describe('linked navigation', () => {
     it('setLinkedNav toggles the flag', () => {
       const store = new CameraCalibrationStore();

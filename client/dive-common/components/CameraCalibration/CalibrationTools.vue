@@ -45,6 +45,11 @@ export default defineComponent({
     );
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
+    const selectedCorrespondenceId = computed(() => calibration.selectedCorrespondenceId.value);
+    /** Delete the selected correspondence (both cameras' points). Bound to Del/Backspace. */
+    function deleteSelectedCorrespondence() {
+      calibration.removeSelectedCorrespondence();
+    }
     const canClearLast = computed(
       () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
     );
@@ -109,6 +114,8 @@ export default defineComponent({
       alignment: calibration.alignment,
       fitError: calibration.fitError,
       linkedNav: calibration.linkedNav,
+      selectedCorrespondenceId,
+      deleteSelectedCorrespondence,
       cursorReadout,
       correspondences,
       transformType,
@@ -128,7 +135,13 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="mx-4">
+  <div
+    v-mousetrap="[
+      { bind: 'del', handler: deleteSelectedCorrespondence },
+      { bind: 'backspace', handler: deleteSelectedCorrespondence },
+    ]"
+    class="mx-4"
+  >
     <span class="text-body-2">
       Pick corresponding points between two cameras to fit an alignment transform.
     </span>
@@ -143,8 +156,9 @@ export default defineComponent({
     />
     <span class="text-caption grey--text">
       Click a point in one camera, then the matching point in the other.
-      Right-click to recenter both cameras on that point (requires a fitted
-      transform).
+      Click a placed marker to select it (Delete removes its point in both
+      cameras); drag a marker to refine it. Right-click to recenter both
+      cameras on that point (requires a fitted transform).
     </span>
 
     <v-select
@@ -226,6 +240,10 @@ export default defineComponent({
           <tr
             v-for="(c, i) in correspondences"
             :key="c.id"
+            :style="c.id === selectedCorrespondenceId
+              ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
+              : undefined"
+            @click="calibration.selectCorrespondence(c.id)"
           >
             <td>{{ i + 1 }}</td>
             <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>

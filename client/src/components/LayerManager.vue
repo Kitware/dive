@@ -280,6 +280,7 @@ export default defineComponent({
           cameraCalibration.pickingEnabled,
           cameraCalibration.correspondences,
           cameraCalibration.pendingPoint,
+          cameraCalibration.selectedCorrespondenceId,
           cameraCalibration.homographies,
           cameraCalibration.alignment,
           frameNumberRef,

@@ -9,6 +9,8 @@ export interface CalibrationPointData {
   y: number;
   label: string;
   pending: boolean;
+  /** Marker belongs to the selected correspondence (highlighted in both panes). */
+  selected: boolean;
   /** Owning correspondence id; undefined for the pending (blue) point. */
   correspondenceId?: number;
 }
@@ -120,10 +122,20 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     // two-tone marker at the precise target point.
     this.centerFeature = pointLayer.createFeature('point').style({
       fill: true,
-      fillColor: (data: CalibrationPointData) => (data.pending ? 'cyan' : 'yellow'),
+      fillColor: (data: CalibrationPointData) => {
+        if (data.selected) {
+          return 'orange';
+        }
+        return data.pending ? 'cyan' : 'yellow';
+      },
       fillOpacity: 1,
-      radius: 2.5,
-      strokeColor: (data: CalibrationPointData) => (data.pending ? 'blue' : 'red'),
+      radius: (data: CalibrationPointData) => (data.selected ? 3.5 : 2.5),
+      strokeColor: (data: CalibrationPointData) => {
+        if (data.selected) {
+          return 'white';
+        }
+        return data.pending ? 'blue' : 'red';
+      },
       strokeWidth: 1,
     });
 
@@ -179,6 +191,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     if (buttonsDown && !buttonsDown.left) {
       return;
     }
+    // Clicking empty space places a new point; it also clears any marker
+    // selection (a press ON a marker never reaches here -- handleDragStart
+    // captures it).
+    this.calibration.selectCorrespondence(null);
     this.calibration.pickPoint(cam, [e.geo.x, e.geo.y]);
   }
 
@@ -254,6 +270,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     }
     evt.preventDefault();
     evt.stopImmediatePropagation();
+    // Grabbing a marker selects its correspondence (highlighted in both
+    // panes, deletable via the panel or the Delete key); grabbing the
+    // pending point clears the selection.
+    this.calibration.selectCorrespondence(hit.correspondenceId ?? null);
     this.dragTarget = { correspondenceId: hit.correspondenceId, pending: hit.pending };
     if (this.mapNode) {
       this.mapNode.style.cursor = 'grabbing';
@@ -295,6 +315,11 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     if (!this.calibration) {
       return result;
     }
+    // Point markers are authoring UI: they show only while picking is on
+    // (the correspondences themselves stay in the store either way).
+    if (!this.calibration.pickingEnabled.value) {
+      return result;
+    }
     const pair = this.calibration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
@@ -302,10 +327,16 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     }
     const key = this.calibration.pairKey(pair.camA, pair.camB);
     const list = this.calibration.correspondences.value[key] || [];
+    const selectedId = this.calibration.selectedCorrespondenceId.value;
     list.forEach((c, i) => {
       const coord = cam === pair.camA ? c.a : c.b;
       result.push({
-        x: coord[0], y: coord[1], label: `${i + 1}`, pending: false, correspondenceId: c.id,
+        x: coord[0],
+        y: coord[1],
+        label: `${i + 1}`,
+        pending: false,
+        selected: c.id === selectedId,
+        correspondenceId: c.id,
       });
     });
     const pending = this.calibration.pendingPoint.value;
@@ -315,6 +346,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
         y: pending.coord[1],
         label: `${list.length + 1}`,
         pending: true,
+        selected: false,
       });
     }
     return result;
@@ -472,11 +504,17 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       // target it marks). The ring keeps the original dark outline color; a
       // bright center dot (see centerFeature) marks the exact pixel. Together
       // the dark ring + bright dot stay legible on both light and dark imagery.
+      // The selected correspondence gets a larger white ring.
       fill: false,
       fillOpacity: 0,
-      radius: 7,
-      strokeColor: (data: CalibrationPointData) => (data.pending ? 'blue' : 'red'),
-      strokeWidth: 2,
+      radius: (data: CalibrationPointData) => (data.selected ? 9 : 7),
+      strokeColor: (data: CalibrationPointData) => {
+        if (data.selected) {
+          return 'white';
+        }
+        return data.pending ? 'blue' : 'red';
+      },
+      strokeWidth: (data: CalibrationPointData) => (data.selected ? 3 : 2),
     };
   }
 }
