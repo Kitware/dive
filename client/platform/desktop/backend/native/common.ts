@@ -19,7 +19,7 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
-import { TransformType } from 'vue-media-annotator/transform';
+import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/transform';
 import { CALIBRATION_FILE_TYPE } from 'vue-media-annotator/CameraCalibrationStore';
 import { invert3, Matrix3 } from 'vue-media-annotator/homography';
 import {
@@ -741,8 +741,9 @@ function readCalibrationSource(raw: unknown): CalibrationSource | null {
  * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`;
  * `leftToRight`/`rightToLeft` are the fitted
  * 3x3 homographies, when a fit has been performed; `transformType` is the fit
- * model used to compute them (defaults to 'homography' when absent, matching the
- * in-app default so older calibration.json files still load correctly).
+ * model used to compute them (defaults to {@link DEFAULT_TRANSFORM_TYPE} when
+ * absent, matching the in-app default so a pair fitted at the default resolves
+ * to the same model after a save/reload).
  */
 interface CalibrationPair {
   left: string;
@@ -774,7 +775,7 @@ function toCalibrationPairs(
       points: (correspondences[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
       leftToRight: homography ? homography.AtoB : null,
       rightToLeft: homography ? homography.BtoA : null,
-      transformType: transformTypes[key] || 'homography',
+      transformType: transformTypes[key] || DEFAULT_TRANSFORM_TYPE,
     };
   });
 }
@@ -811,7 +812,7 @@ function fromCalibrationPairs(
         id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
       }));
     }
-    transformTypes[key] = pair.transformType || 'homography';
+    transformTypes[key] = pair.transformType || DEFAULT_TRANSFORM_TYPE;
   });
   return { homographies, correspondences, transformTypes };
 }

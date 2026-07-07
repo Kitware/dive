@@ -23,6 +23,16 @@ export const TRANSFORM_TYPES: { value: TransformType; text: string }[] = [
   { value: 'homography', text: 'Homography' },
 ];
 
+/**
+ * The transform type assumed for a pair that has no explicit choice yet. Near-
+ * rigid EO/IR rigs fit stably from few points with a similarity model, so it is
+ * the sensible default the UI shows. MUST be the single source of this default
+ * everywhere a pair's type is resolved (the store, the panel, and both platform
+ * persistence layers), so a pair fitted at the default resolves to the same
+ * model after a save/reload on every platform.
+ */
+export const DEFAULT_TRANSFORM_TYPE: TransformType = 'similarity';
+
 const MIN_POINTS: Record<TransformType, number> = {
   translation: 1,
   rigid: 2,

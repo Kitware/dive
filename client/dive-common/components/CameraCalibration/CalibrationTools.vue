@@ -7,7 +7,9 @@ import {
   useCameraCalibration,
   useDatasetId,
 } from 'vue-media-annotator/provides';
-import { TransformType, TRANSFORM_TYPES, minPointsForTransform } from 'vue-media-annotator/transform';
+import {
+  TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
+} from 'vue-media-annotator/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
@@ -90,7 +92,9 @@ export default defineComponent({
       return key ? (calibration.correspondences.value[key] || []) : [];
     });
     const transformType = computed<TransformType>(
-      () => (activeKey.value ? calibration.transformTypeForPair(activeKey.value) : 'homography'),
+      () => (activeKey.value
+        ? calibration.transformTypeForPair(activeKey.value)
+        : DEFAULT_TRANSFORM_TYPE),
     );
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);

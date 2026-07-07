@@ -5,7 +5,7 @@ import {
   invert3, applyHomography, Matrix3, Point,
 } from './homography';
 import {
-  TransformType, TRANSFORM_TYPES, minPointsForTransform, estimateTransform,
+  TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform, estimateTransform,
 } from './transform';
 
 /**
@@ -427,9 +427,9 @@ export default class CameraCalibrationStore {
       && this.homographySources[key] === 'fit';
   }
 
-  /** The chosen fit model for `key`, defaulting to 'similarity' when unset. */
+  /** The chosen fit model for `key`, defaulting to {@link DEFAULT_TRANSFORM_TYPE} when unset. */
   transformTypeForPair(key: string): TransformType {
-    return this.transformTypes.value[key] || 'similarity';
+    return this.transformTypes.value[key] || DEFAULT_TRANSFORM_TYPE;
   }
 
   /** Choose the fit model for `key` and immediately (re)fit or clear as needed. */

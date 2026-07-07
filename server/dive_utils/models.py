@@ -248,7 +248,7 @@ class MetadataMutable(BaseModel):
     cameraCorrespondences: Optional[Dict[str, List[Dict[str, Any]]]]
     # The fit model used to compute each pair's homography (translation / rigid /
     # similarity / affine / homography), keyed the same way. Missing entries
-    # default to 'homography' client-side.
+    # default to 'similarity' client-side.
     cameraTransformTypes: Optional[Dict[str, str]]
     # Free-form producer provenance for the camera calibration (e.g. an external
     # model step's version / swathe / generation time). Never interpreted by

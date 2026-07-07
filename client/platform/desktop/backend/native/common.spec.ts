@@ -674,7 +674,8 @@ describe('native.common', () => {
         points: [[10, 20, 12, 22], [30, 40, 33, 44]],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
-        transformType: 'homography',
+        // No explicit choice was saved, so persistence fills the default model.
+        transformType: 'similarity',
       },
     ]);
 
@@ -688,7 +689,7 @@ describe('native.common', () => {
     const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
     expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
     expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
-    expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'homography' });
+    expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'similarity' });
   });
 
   it('saveMetadata persists a non-default transformType per pair and reloads it', async () => {
