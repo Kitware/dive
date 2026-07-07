@@ -6,6 +6,7 @@ import os from 'os';
 import path from 'path';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
+import { shutdownQueryService } from './backend/native/videoSearch';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
 
@@ -87,6 +88,9 @@ protocol.registerSchemesAsPrivileged([
 
 async function cleanup() {
   closeServer();
+  // Graceful first: lets the query service stop its embedded postgres
+  // before closeChildren() kills whatever is left.
+  await shutdownQueryService().catch(() => undefined);
   await closeChildren();
   app.quit();
 }

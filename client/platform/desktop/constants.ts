@@ -171,6 +171,7 @@ export enum JobType {
   ExportTrainedPipeline,
   RunPipeline,
   RunTraining,
+  BuildSearchIndex,
 }
 
 export interface JobArgs {
@@ -220,7 +221,30 @@ export interface ConversionArgs extends JobArgs {
   mediaList: [string, string][];
 }
 
-export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
+/** Build a video search / IQR descriptor index over a dataset. */
+export interface BuildSearchIndex extends JobArgs {
+  type: JobType.BuildSearchIndex;
+  datasetId: string;
+  // detections: index around generic object proposals
+  // tracking: index around tracked proposals
+  // existing: index around this dataset's existing annotations
+  method: 'detections' | 'tracking' | 'existing';
+}
+
+/** Sidecar metadata written alongside a built search index. */
+export interface SearchIndexMeta {
+  version: number;
+  method: BuildSearchIndex['method'];
+  // frame rate the media was indexed at (video only; must match dataset fps)
+  fps: number;
+  // dataset ids covered by this index (single entry today; keyed this way so
+  // multi-dataset indexes remain possible later)
+  datasets: string[];
+  createdAt: string;
+}
+
+export type Job = ConversionArgs | RunPipeline | RunTraining
+  | ExportTrainedPipeline | BuildSearchIndex;
 
 export interface DesktopJob {
   // key unique identifier for this job
@@ -232,7 +256,7 @@ export interface DesktopJob {
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs | BuildSearchIndex;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned

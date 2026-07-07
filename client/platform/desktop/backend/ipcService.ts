@@ -14,6 +14,7 @@ import {
   ExportTrainedPipeline,
   ConversionArgs,
   DesktopJob,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { closeChildById } from 'platform/desktop/backend/native/processManager';
@@ -28,6 +29,7 @@ import { listen } from './server';
 import {
   getInteractiveServiceManager,
 } from './native/interactive';
+import * as videoSearch from './native/videoSearch';
 import {
   SegmentationPredictRequest,
   SegmentationStereoSegmentRequest,
@@ -458,5 +460,71 @@ export default function register() {
   ipcMain.handle('stereo-is-enabled', () => {
     const stereoService = getInteractiveServiceManager();
     return { enabled: stereoService.isEnabled() };
+  });
+
+  /**
+   * Video Search / IQR Service
+   */
+
+  ipcMain.handle('video-search-installed', async () => (
+    videoSearch.isVideoSearchInstalled(settings.get())
+  ));
+
+  ipcMain.handle('video-search-index-status', async (_, datasetId: string) => (
+    videoSearch.getIndexStatus(settings.get(), datasetId)
+  ));
+
+  ipcMain.handle('video-search-build-index', async (event, args: BuildSearchIndex) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    // A rebuild invalidates whatever the service currently has open.
+    const manager = videoSearch.getQueryServiceManager();
+    if (manager.openIndexDir() === videoSearch.getIndexDir(settings.get(), args.datasetId)) {
+      await manager.closeIndex();
+    }
+    return videoSearch.buildIndex(settings.get(), args, updater);
+  });
+
+  ipcMain.handle('video-search-delete-index', async (_, datasetId: string) => {
+    await videoSearch.deleteIndex(settings.get(), datasetId);
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-open-index', async (_, datasetId: string) => {
+    const currentSettings = settings.get();
+    const status = await videoSearch.getIndexStatus(currentSettings, datasetId);
+    if (!status.built) {
+      throw new Error('No built search index exists for this dataset');
+    }
+    const manager = videoSearch.getQueryServiceManager();
+    await manager.openIndex(currentSettings, videoSearch.getIndexDir(currentSettings, datasetId));
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-formulate', async (_, args: { imagePath: string; boxes?: number[][] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.formulateQuery(args.imagePath, args.boxes);
+  });
+
+  ipcMain.handle('video-search-query', async (_, args: { threshold?: number; iqrModelB64?: string }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.processQuery(args.threshold, args.iqrModelB64);
+  });
+
+  ipcMain.handle('video-search-refine', async (_, args: { positiveIds: number[]; negativeIds: number[] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.refine(args.positiveIds, args.negativeIds);
+  });
+
+  ipcMain.handle('video-search-export-model', async (_, args: { name: string }) => {
+    const outputDir = await videoSearch.exportSearchModel(settings.get(), args.name);
+    return { success: true, outputDir };
+  });
+
+  ipcMain.handle('video-search-close', async () => {
+    const manager = videoSearch.getQueryServiceManager();
+    await manager.closeIndex();
+    return { success: true };
   });
 }
