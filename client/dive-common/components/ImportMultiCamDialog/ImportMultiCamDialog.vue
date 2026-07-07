@@ -138,6 +138,16 @@ export default defineComponent({
         />
       </div>
 
+      <v-checkbox
+        v-if="importType && dataType === 'image-sequence'"
+        v-model="inferFrameIndexFromFilename"
+        label="Infer frame index from filename"
+        hint="Example: test_seattle_2020_fl09_C_20200830_020814.141365_rgb.jpg"
+        dense
+        persistent-hint
+        class="mt-0"
+      />
+
       <v-row
         no-gutters
         class="align-center"

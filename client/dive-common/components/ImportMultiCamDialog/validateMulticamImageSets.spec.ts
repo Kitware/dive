@@ -26,6 +26,26 @@ describe('validateMulticamImageSets', () => {
     )).toBe('All cameras should have the same length of 1');
   });
 
+  it('allows unequal image counts when inferring frame index from filename', () => {
+    expect(validateMulticamImageSets(
+      'multi',
+      { left: ['a.png'], right: ['a.png', 'b.png'] },
+      0,
+      'image-sequence',
+      true,
+    )).toBeNull();
+  });
+
+  it('still requires non-empty cameras when inferring frame index from filename', () => {
+    expect(validateMulticamImageSets(
+      'multi',
+      { left: [], right: ['a.png'] },
+      0,
+      'image-sequence',
+      true,
+    )).toBe('Requires filtered Images for left ');
+  });
+
   it('rejects overlapping filenames in keyword mode', () => {
     expect(validateMulticamImageSets(
       'keyword',

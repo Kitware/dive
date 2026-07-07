@@ -74,6 +74,10 @@ export function useImportMultiCamDialog(
   const cameraOrder: Ref<string[]> = ref([]);
   const defaultDisplay = ref('left');
   const importAnnotationFilesCheck = ref(false);
+  // When set, cameras may have differing frame counts; frames are aligned downstream
+  // by their filename-encoded timestamps instead of by exact positional index. Enables
+  // importing datasets with dropped frames (e.g. KAMERA). See validateMulticamImageSets.
+  const inferFrameIndexFromFilename = ref(false);
   const { error: importError, request: importRequest } = useRequest();
 
   onMounted(async () => {
@@ -256,6 +260,7 @@ export function useImportMultiCamDialog(
       filteredImages.value,
       Object.keys(globList.value).length,
       props.dataType,
+      inferFrameIndexFromFilename.value,
     );
   });
 
@@ -678,6 +683,7 @@ export function useImportMultiCamDialog(
     canMoveCamera,
     moveCamera,
     importAnnotationFilesCheck,
+    inferFrameIndexFromFilename,
     parentFolderName,
     subfolderLayoutLabel,
     subfolderOriginalNames,

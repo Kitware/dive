@@ -1233,7 +1233,6 @@ def create_multicam(
         camera_order = list(cameras.keys())
 
     loaded_children: Dict[str, types.GirderModel] = {}
-    frame_counts: List[int] = []
     child_fps_by_name: Dict[str, float] = {}
     for name in camera_order:
         cam = cameras[name]
@@ -1257,7 +1256,9 @@ def create_multicam(
             )
         child_fps = fromMeta(child, constants.FPSMarker)
         child_fps_by_name[name] = child_fps
-        frame_counts.append(_child_media_frame_count(child, user, validated.type))
+        # Called for its validation side effect (e.g. a video camera missing its
+        # processed video raises here); differing counts across cameras are allowed.
+        _child_media_frame_count(child, user, validated.type)
         loaded_children[name] = child
 
     use_video_fps = validated.type == constants.VideoType and validated.fps == -1
@@ -1276,12 +1277,9 @@ def create_multicam(
                     code=400,
                 )
 
-    if len(set(frame_counts)) > 1:
-        expected = frame_counts[0]
-        raise RestException(
-            f'All cameras must have the same number of frames (expected {expected})',
-            code=400,
-        )
+    # NOTE: cameras are intentionally allowed to have differing frame counts.
+    # Frame alignment pairs frames across cameras downstream, so a per-camera
+    # frame-count equality check would reject the primary use case for this feature.
 
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
