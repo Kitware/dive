@@ -12,6 +12,7 @@ import type {
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
+  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -28,6 +29,7 @@ import {
   DesktopJob,
   MultiCamBatchScanResult,
   RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
@@ -610,6 +612,64 @@ async function runTextQueryPipeline(
 }
 
 /**
+ * Video Search / IQR API
+ */
+
+async function videoSearchInstalled(): Promise<boolean> {
+  return window.diveDesktop.invoke('video-search-installed');
+}
+
+async function videoSearchIndexStatus(datasetId: string): Promise<VideoSearchIndexStatus> {
+  return window.diveDesktop.invoke('video-search-index-status', datasetId);
+}
+
+/** Queue a search index build; progress arrives via job-update events. */
+function videoSearchBuildIndex(datasetId: string, method: VideoSearchIndexMethod): void {
+  const args: BuildSearchIndex = { type: JobType.BuildSearchIndex, datasetId, method };
+  gpuJobQueue.enqueue(args);
+}
+
+async function videoSearchDeleteIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-delete-index', datasetId);
+}
+
+async function videoSearchOpenIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-open-index', datasetId);
+}
+
+async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes });
+}
+
+async function videoSearchQuery(
+  options: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string } = {},
+): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-query', options);
+}
+
+/** Build a local media-server URL for an arbitrary file (e.g. thumbnails). */
+async function getMediaUrl(filePath: string): Promise<string> {
+  await getClient();
+  return `${_baseURL}/media?path=${encodeURIComponent(filePath)}`;
+}
+
+async function videoSearchRefine(positiveIds: number[], negativeIds: number[]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
+}
+
+async function videoSearchExportModel(name: string): Promise<{ success: boolean; outputDir: string }> {
+  return window.diveDesktop.invoke('video-search-export-model', { name });
+}
+
+async function videoSearchClose(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-close');
+}
+
+async function videoSearchExtractFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
+  return window.diveDesktop.invoke('video-search-extract-frame', { videoPath, frameNum, fps });
+}
+
+/**
  * Interactive Stereo API
  */
 
@@ -1009,6 +1069,19 @@ export {
   refineDetections,
   runTextQueryPipeline,
   /* Auto Register APIs */
+  /* Video Search / IQR */
+  videoSearchInstalled,
+  videoSearchIndexStatus,
+  videoSearchBuildIndex,
+  videoSearchDeleteIndex,
+  videoSearchOpenIndex,
+  videoSearchFormulate,
+  videoSearchQuery,
+  videoSearchRefine,
+  videoSearchExportModel,
+  videoSearchClose,
+  videoSearchExtractFrame,
+  getMediaUrl,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,
