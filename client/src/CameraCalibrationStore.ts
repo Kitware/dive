@@ -1,4 +1,6 @@
-import { ref, Ref } from 'vue';
+import {
+  ref, computed, Ref, ComputedRef,
+} from 'vue';
 import {
   invert3, applyHomography, Matrix3, Point,
 } from './homography';
@@ -158,12 +160,18 @@ export default class CameraCalibrationStore {
    */
   source: Ref<CalibrationSource | null>;
 
+  /** True when the calibration has unsaved changes since the last save or load. */
+  dirty: ComputedRef<boolean>;
+
   private nextId: number;
 
   private nextRecenterId: number;
 
   /** Provenance per homography key; missing entries behave like 'fit'. */
   private homographySources: Record<string, HomographySource>;
+
+  /** Serialized calibration at the last save/load, the baseline for {@link dirty}. */
+  private savedSnapshot: Ref<string>;
 
   constructor() {
     this.activePair = ref(null);
@@ -181,6 +189,23 @@ export default class CameraCalibrationStore {
     this.nextId = 1;
     this.nextRecenterId = 1;
     this.homographySources = {};
+    this.savedSnapshot = ref(this.calibrationSnapshot());
+    this.dirty = computed(() => this.calibrationSnapshot() !== this.savedSnapshot.value);
+  }
+
+  /** Serialize the saved-to-dataset calibration state (points, transforms, provenance). */
+  private calibrationSnapshot(): string {
+    return JSON.stringify({
+      homographies: this.homographies.value,
+      correspondences: this.correspondences.value,
+      transformTypes: this.transformTypes.value,
+      source: this.source.value,
+    });
+  }
+
+  /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
+  markSaved() {
+    this.savedSnapshot.value = this.calibrationSnapshot();
   }
 
   /**
@@ -765,5 +790,7 @@ export default class CameraCalibrationStore {
       list.forEach((c) => { maxId = Math.max(maxId, c.id); });
     });
     this.nextId = maxId + 1;
+    // The freshly loaded state is the saved baseline.
+    this.markSaved();
   }
 }

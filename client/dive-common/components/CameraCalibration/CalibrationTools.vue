@@ -161,6 +161,7 @@ export default defineComponent({
           cameraTransformTypes: calibration.transformTypes.value,
           cameraCalibrationSource: calibration.source.value,
         });
+        calibration.markSaved();
       } finally {
         saving.value = false;
       }
@@ -256,6 +257,7 @@ export default defineComponent({
       canClearPair,
       canClearLast,
       canFit,
+      dirty: calibration.dirty,
       saving,
       sourceReadout,
       calibrationFileInput,
@@ -535,17 +537,15 @@ export default defineComponent({
 
     <v-btn
       block
-      color="success"
+      :color="dirty ? 'success' : undefined"
+      :disabled="!dirty || saving"
       small
       :loading="saving"
       class="mb-2"
       @click="save"
     >
-      Save calibration
+      {{ dirty ? 'Save calibration' : 'Calibration saved' }}
     </v-btn>
-    <span class="text-caption grey--text d-block mb-2">
-      Saves with the dataset; restored automatically when it is reopened.
-    </span>
     <v-btn
       block
       outlined
