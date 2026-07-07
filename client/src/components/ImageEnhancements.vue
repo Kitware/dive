@@ -172,15 +172,15 @@ export default defineComponent({
           <v-slider
             v-model="lowPercentile"
             :min="0"
-            :max="highPercentile - 1"
-            :step="1"
+            :max="1"
+            :step="0.01"
             hide-details
             class="pa-0 ma-0"
             @input="modifyValue()"
           />
         </v-col>
         <v-col cols="2">
-          <span>{{ lowPercentile }}</span>
+          <span>{{ lowPercentile.toFixed(2) }}</span>
         </v-col>
       </v-row>
       <v-row>
@@ -190,16 +190,16 @@ export default defineComponent({
         <v-col>
           <v-slider
             v-model="highPercentile"
-            :min="lowPercentile + 1"
+            :min="99"
             :max="100"
-            :step="1"
+            :step="0.01"
             hide-details
             class="pa-0 ma-0"
             @input="modifyValue()"
           />
         </v-col>
         <v-col cols="2">
-          <span>{{ highPercentile }}</span>
+          <span>{{ highPercentile.toFixed(2) }}</span>
         </v-col>
       </v-row>
     </template>
