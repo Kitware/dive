@@ -673,7 +673,6 @@ export async function getTilePng(
   }
 }
 
-
 function normalizeInterleavedRgbToRgba(
   raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
   outRgba: Uint8Array,
@@ -767,4 +766,3 @@ function blitRgba(
     targetRgba.set(sourceRgba.subarray(srcOffset, srcOffset + rowLength), dstOffset);
   }
 }
-
