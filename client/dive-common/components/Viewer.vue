@@ -253,6 +253,29 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
+    // When the Camera Calibration panel opens, minimize the workspace chrome to
+    // give the picking view more room: collapse the left type-filter sidebar and
+    // the bottom detections graph. This is a soft default -- the normal sidebar
+    // and timeline toggles still work while calibrating, so the user can bring
+    // either back -- and whatever layout they had before is restored on close.
+    const calibrationActive = computed(() => context.state.active === CalibrationToolsVue.name);
+    let preCalibrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
+    let preCalibrationControlsCollapsed = false;
+    watch(calibrationActive, (active) => {
+      if (active) {
+        preCalibrationSidebarMode = sidebarMode.value;
+        preCalibrationControlsCollapsed = controlsCollapsed.value;
+        if (sidebarMode.value === 'left') {
+          sidebarMode.value = 'collapsed';
+        }
+        controlsCollapsed.value = true;
+      } else if (preCalibrationSidebarMode !== null) {
+        sidebarMode.value = preCalibrationSidebarMode;
+        controlsCollapsed.value = preCalibrationControlsCollapsed;
+        preCalibrationSidebarMode = null;
+      }
+    });
+
     watch(sidebarMode, (mode) => {
       if (mode === 'left' || mode === 'bottom') {
         clientSettings.layoutSettings.sidebarPosition = mode;
