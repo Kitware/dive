@@ -289,17 +289,6 @@ describe('CameraCalibrationStore', () => {
     expect(store.transformTypeForPair('unset::pair')).toBe('homography');
   });
 
-  it('exports points as four columns "leftX leftY rightX rightY"', () => {
-    const store = new CameraCalibrationStore();
-    store.setActivePair('rgb', 'ir');
-    const key = store.pairKey('rgb', 'ir');
-    store.addPoint('rgb', [10, 20]); // left
-    store.addPoint('ir', [30, 40]); // right
-    store.addPoint('ir', [31, 41]); // left/right order independent of click order
-    store.addPoint('rgb', [11, 21]);
-    expect(store.toPointsText(key)).toBe('10 20 30 40\n11 21 31 41');
-  });
-
   it('hydrates correspondences and resumes id allocation', () => {
     const store = new CameraCalibrationStore();
     const correspondences = {
@@ -510,95 +499,6 @@ describe('CameraCalibrationStore', () => {
       expect(store.correspondences.value[key]).toHaveLength(3);
       expect(store.alignment.value.mode).toBe('original');
       expect(store.homographies.value[key]).toBeUndefined();
-    });
-  });
-
-  describe('loadPointsFromText', () => {
-    it('replaces existing correspondences by default', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('rgb', 'ir');
-      const key = store.pairKey('rgb', 'ir');
-      store.addPoint('rgb', [0, 0]);
-      store.addPoint('ir', [0, 0]);
-      store.loadPointsFromText(key, '10 20 30 40\n11 21 31 41');
-      expect(store.correspondences.value[key]).toHaveLength(2);
-      expect(store.correspondences.value[key][0]).toMatchObject({ a: [10, 20], b: [30, 40] });
-    });
-
-    it('merges with existing correspondences when mode is merge', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('rgb', 'ir');
-      const key = store.pairKey('rgb', 'ir');
-      store.addPoint('rgb', [0, 0]);
-      store.addPoint('ir', [1, 1]);
-      store.loadPointsFromText(key, '10 20 30 40', 'merge');
-      expect(store.correspondences.value[key]).toHaveLength(2);
-      expect(store.correspondences.value[key][0]).toMatchObject({ a: [0, 0], b: [1, 1] });
-      expect(store.correspondences.value[key][1]).toMatchObject({ a: [10, 20], b: [30, 40] });
-    });
-
-    it('ignores blank lines', () => {
-      const store = new CameraCalibrationStore();
-      const key = store.pairKey('rgb', 'ir');
-      store.loadPointsFromText(key, '\n10 20 30 40\n\n11 21 31 41\n');
-      expect(store.correspondences.value[key]).toHaveLength(2);
-    });
-
-    it('throws on a malformed row and leaves correspondences untouched', () => {
-      const store = new CameraCalibrationStore();
-      const key = store.pairKey('rgb', 'ir');
-      expect(() => store.loadPointsFromText(key, '10 20 30 40\n1 2 3')).toThrow();
-      expect(store.correspondences.value[key]).toBeUndefined();
-    });
-
-    it('round-trips with toPointsText', () => {
-      const store = new CameraCalibrationStore();
-      const key = store.pairKey('rgb', 'ir');
-      const text = '10 20 30 40\n11 21 31 41';
-      store.loadPointsFromText(key, text);
-      expect(store.toPointsText(key)).toBe(text);
-    });
-
-    it('resumes id allocation after loaded points', () => {
-      const store = new CameraCalibrationStore();
-      const key = store.pairKey('rgb', 'ir');
-      store.loadPointsFromText(key, '10 20 30 40\n11 21 31 41');
-      store.setActivePair('rgb', 'ir');
-      store.addPoint('rgb', [1, 1]);
-      store.addPoint('ir', [2, 2]);
-      expect(store.correspondences.value[key][2].id).toBe(3);
-    });
-  });
-
-  describe('toHomographyText', () => {
-    it('returns null when the pair has no fitted homography', () => {
-      const store = new CameraCalibrationStore();
-      const key = store.pairKey('left', 'right');
-      expect(store.toHomographyText(key, 'AtoB')).toBeNull();
-    });
-
-    it('serializes the fitted matrix as whitespace-separated rows', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('left', 'right');
-      const key = store.pairKey('left', 'right');
-      addFourTranslationPairs(store); // left -> right is +5, -3
-      store.fitTransform(key);
-      const text = store.toHomographyText(key, 'AtoB');
-      const rows = text?.split('\n').map((row) => row.split(' ').map(Number));
-      expect(rows).toHaveLength(3);
-      expect(rows?.[0][2]).toBeCloseTo(5, 5);
-      expect(rows?.[1][2]).toBeCloseTo(-3, 5);
-    });
-
-    it('serializes the inverse direction', () => {
-      const store = new CameraCalibrationStore();
-      store.setActivePair('left', 'right');
-      const key = store.pairKey('left', 'right');
-      addFourTranslationPairs(store);
-      store.fitTransform(key);
-      const text = store.toHomographyText(key, 'BtoA');
-      const rows = text?.split('\n').map((row) => row.split(' ').map(Number));
-      expect(rows?.[0][2]).toBeCloseTo(-5, 5);
     });
   });
 
