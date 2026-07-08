@@ -20,6 +20,16 @@ export interface PercentileStretchMetadata {
   type?: string;
   originalImageFiles?: string[];
   originalLargeImageFile?: string;
+  imageData?: readonly { readonly filename?: string }[];
+}
+
+/** Girder large_image histogram entry (first channel). */
+export interface GirderHistogramEntry {
+  hist?: number[];
+  bin_edges?: number[];
+  range?: [number, number];
+  min?: number;
+  max?: number;
 }
 
 const tiffExtensions = ['.tif', '.tiff'];
@@ -29,16 +39,93 @@ export function isTiffImagePath(path: string): boolean {
   return tiffExtensions.some((ext) => lower.endsWith(ext));
 }
 
-/** True when originals are TIFF and the /media/display stretch path can recover range. */
+/** True when originals are TIFF and stretch can recover dynamic range. */
 export function metadataSupportsPercentileStretch(meta: PercentileStretchMetadata): boolean {
-  if (meta.type === 'large-image' && meta.originalLargeImageFile) {
-    return isTiffImagePath(meta.originalLargeImageFile);
+  if (meta.type === 'large-image') {
+    if (meta.originalLargeImageFile && isTiffImagePath(meta.originalLargeImageFile)) {
+      return true;
+    }
+    const { imageData } = meta;
+    if (imageData?.length) {
+      return imageData.some((item) => item.filename && isTiffImagePath(item.filename));
+    }
+    return false;
   }
-  const files = meta.originalImageFiles;
+  const { originalImageFiles: files } = meta;
   if (files?.length) {
     return files.some(isTiffImagePath);
   }
   return false;
+}
+
+/**
+ * Whether percentile stretch UI should be enabled for this dataset on the current platform.
+ * Web large-image uses Girder tile style params; desktop image-sequence uses /media/display.
+ */
+export function resolvePercentileStretchSupported(
+  meta: PercentileStretchMetadata,
+  isDesktopApp: boolean,
+  supportsLargeImageTileStretch: boolean,
+): boolean {
+  if (!metadataSupportsPercentileStretch(meta)) {
+    return false;
+  }
+  if (meta.type === 'large-image') {
+    return supportsLargeImageTileStretch;
+  }
+  return isDesktopApp;
+}
+
+/** Build Girder large_image tile `style` JSON for percentile stretch. */
+export function percentileStretchToTileStyle(
+  stretch: PercentileStretch | null | undefined,
+): string | undefined {
+  if (!stretch) return undefined;
+  const lowFraction = stretch.lowPercentile / 100;
+  const highFraction = (100 - stretch.highPercentile) / 100;
+  const style = {
+    bands: [{
+      min: `min:${lowFraction}`,
+      max: `max:${highFraction}`,
+    }],
+  };
+  return JSON.stringify(style);
+}
+
+/** Map Girder item/{id}/tiles/histogram response to the client histogram shape. */
+export function parseGirderHistogramResponse(
+  response: unknown,
+): GirderHistogramEntry | undefined {
+  if (Array.isArray(response)) {
+    return response[0] as GirderHistogramEntry | undefined;
+  }
+  if (response && typeof response === 'object' && 'histogram' in response) {
+    const { histogram } = response as { histogram?: GirderHistogramEntry[] };
+    return histogram?.[0];
+  }
+  return undefined;
+}
+
+/** Map a single Girder histogram channel to the client histogram shape. */
+export function girderHistogramToPercentileHistogram(
+  entry: GirderHistogramEntry | undefined,
+): PercentileHistogram | null {
+  if (!entry?.hist?.length) return null;
+  const bins = entry.hist.map((count) => Math.round(count));
+  let sourceMin = entry.min ?? entry.range?.[0] ?? 0;
+  let sourceMax = entry.max ?? entry.range?.[1] ?? 255;
+  if (entry.bin_edges && entry.bin_edges.length >= 2) {
+    const [firstEdge, ...remainingEdges] = entry.bin_edges;
+    sourceMin = firstEdge;
+    sourceMax = remainingEdges[remainingEdges.length - 1];
+  }
+  return {
+    bins,
+    lowValue: sourceMin,
+    highValue: sourceMax,
+    sourceMin,
+    sourceMax,
+  };
 }
 
 export function effectiveImageEnhancements(

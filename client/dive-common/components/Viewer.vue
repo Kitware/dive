@@ -68,8 +68,11 @@ import {
   defaultImageEnhancements,
   effectiveImageEnhancements,
   ImageEnhancements,
-  metadataSupportsPercentileStretch,
+  resolvePercentileStretchSupported,
+  parseGirderHistogramResponse,
+  girderHistogramToPercentileHistogram,
   PercentileHistogram,
+  PercentileStretch,
 } from 'vue-media-annotator/use/useImageEnhancements';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
@@ -173,7 +176,7 @@ export default defineComponent({
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
-      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
+      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL, getTileHistogram,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -313,6 +316,7 @@ export default defineComponent({
     } = useImageEnhancements();
 
     const isDesktopApp = typeof window !== 'undefined' && 'diveDesktop' in window;
+    const supportsLargeImageTileStretch = !!getTileHistogram;
     const percentileStretchSupportedByCamera: Ref<Record<string, boolean>> = ref({});
 
     function cameraSupportsPercentileStretch(camera: string): boolean {
@@ -756,11 +760,19 @@ export default defineComponent({
         setPercentileHistogramLoading(false);
         return;
       }
-      // Bins depend only on the source frame; percentile markers are derived client-side.
       const requestToken = histogramRequestToken + 1;
       histogramRequestToken = requestToken;
       setPercentileHistogramLoading(true);
       try {
+        if (datasetType.value === 'large-image' && rawFrame.id && getTileHistogram) {
+          const response = await getTileHistogram(rawFrame.id, { bins: 256 });
+          if (histogramRequestToken !== requestToken) return;
+          setPercentileHistogram(
+            girderHistogramToPercentileHistogram(parseGirderHistogramResponse(response)),
+          );
+          return;
+        }
+        // Bins depend only on the source frame; percentile markers are derived client-side.
         const response = await fetch(toHistogramUrl(rawFrame.url, camera, frame, 1, 99));
         if (!response.ok) {
           throw new Error(`Histogram request failed with status ${response.status}`);
@@ -1139,7 +1151,11 @@ export default defineComponent({
           VueSet(
             percentileStretchSupportedByCamera.value,
             camera,
-            isDesktopApp && metadataSupportsPercentileStretch(subCameraMeta),
+            resolvePercentileStretchSupported(
+              subCameraMeta,
+              isDesktopApp,
+              supportsLargeImageTileStretch,
+            ),
           );
           VueSet(rawImageData.value, camera, cloneDeep(subCameraMeta.imageData) as FrameImage[]);
           applyDisplayUrls(camera);
@@ -1568,6 +1584,14 @@ export default defineComponent({
       );
     }
 
+    function cameraPercentileStretch(camera: string): PercentileStretch | null {
+      const effective = effectiveImageEnhancements(
+        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
+      return effective.percentileStretch ?? null;
+    }
+
     return {
       /* props */
       aggregateController,
@@ -1623,6 +1647,7 @@ export default defineComponent({
       readonlyState,
       cameraEnhOutputs,
       isCameraDefault,
+      cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
       visible,
@@ -1984,6 +2009,7 @@ export default defineComponent({
                   isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
+                  percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
@@ -2081,6 +2107,7 @@ export default defineComponent({
                   isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
+                  percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"

@@ -298,6 +298,12 @@ interface Api {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
+  getTileHistogram?(itemId: string, options?: {
+    bins?: number;
+    frame?: number;
+    width?: number;
+    height?: number;
+  }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
   // Desktop-only calibration persistence functions

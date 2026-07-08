@@ -2,8 +2,13 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch, computed,
 } from 'vue';
+import { debounce } from 'lodash';
 import geo from 'geojs';
-import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import {
+  ImageEnhancementOutputs,
+  PercentileStretch,
+  percentileStretchToTileStyle,
+} from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
 import useAnnotatorImageCursor from './useAnnotatorImageCursor';
@@ -107,6 +112,10 @@ export default defineComponent({
     filterId: {
       type: String as PropType<string>,
       default: 'imageEnhancements',
+    },
+    percentileStretch: {
+      type: Object as PropType<PercentileStretch | null>,
+      default: null,
     },
   },
   setup(props) {
@@ -214,6 +223,72 @@ export default defineComponent({
       nextLayer: '' as any,
       nextLayerFrame: 0,
     };
+    const activePercentileStretch = ref<PercentileStretch | null>(props.percentileStretch);
+
+    function stretchCacheKey(stretch: PercentileStretch | null): string {
+      if (!stretch) return 'none';
+      return `${stretch.lowPercentile}:${stretch.highPercentile}`;
+    }
+
+    function applyTileQueryParams(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      params: Record<string, any>,
+      proj?: string,
+    ) {
+      const updatedParams = { ...params, encoding: 'PNG' };
+      if (proj) {
+        updatedParams.projection = proj;
+      }
+      const style = percentileStretchToTileStyle(activePercentileStretch.value);
+      if (style) {
+        updatedParams.style = style;
+      }
+      return updatedParams;
+    }
+
+    function refreshVisibleTileLayers() {
+      if (
+        !data.ready
+        || !local.currentLayer
+        || typeof local.currentLayer.url !== 'function'
+        || !props.imageData[data.frame]?.id
+      ) {
+        return;
+      }
+      local.currentLayer.url(_getTileURL(props.imageData[data.frame].id, projection));
+      if (
+        local.nextLayer
+        && typeof local.nextLayer.url === 'function'
+        && props.imageData[local.nextLayerFrame]?.id
+      ) {
+        local.nextLayer.url(_getTileURL(props.imageData[local.nextLayerFrame].id, projection));
+      }
+    }
+
+    const debouncedRefreshTileLayers = debounce(refreshVisibleTileLayers, 500, { trailing: true });
+    let previousStretchKey = stretchCacheKey(props.percentileStretch);
+
+    watch(
+      () => props.percentileStretch,
+      (stretch) => {
+        activePercentileStretch.value = stretch;
+        if (!data.ready) {
+          previousStretchKey = stretchCacheKey(stretch);
+          return;
+        }
+        const currentKey = stretchCacheKey(stretch);
+        const isToggle = (currentKey === 'none') !== (previousStretchKey === 'none');
+        previousStretchKey = currentKey;
+        if (isToggle) {
+          debouncedRefreshTileLayers.cancel();
+          refreshVisibleTileLayers();
+        } else {
+          debouncedRefreshTileLayers();
+        }
+      },
+      { deep: true },
+    );
+
     function forceUnload(imgInternal: ImageDataItemInternal) {
       // Removal from list indicates we are no longer attempting to load this image
       local.imgs[imgInternal.frame] = undefined;
@@ -225,10 +300,7 @@ export default defineComponent({
     function _getTileURL(itemId: string, proj?: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const returnFunc = (x: number, y: number, level: number, params: any) => {
-        const updatedParams = { ...params, encoding: 'PNG' };
-        if (proj) {
-          updatedParams.projection = proj;
-        }
+        const updatedParams = applyTileQueryParams(params, proj);
         return props.getTileURL(itemId, x, y, level, updatedParams);
       };
       return returnFunc;
@@ -256,6 +328,7 @@ export default defineComponent({
      * requests for image load.
      */
     onUnmounted(() => {
+      debouncedRefreshTileLayers.cancel();
       Array.from(local.pendingImgs).forEach(forceUnload);
       if (tileLoadErrorResizeObserver && container.value) {
         tileLoadErrorResizeObserver.unobserve(container.value);
