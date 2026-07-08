@@ -176,14 +176,13 @@ export default defineComponent({
 
     /**
      * Aligned view (SEAL-TK features 2 + 3): while active, this camera's
-     * display transform (native -> reference space, null when unwarped) and
-     * a global editing block. Stored geometry stays native (decision D3);
-     * the transform is applied at draw time only.
+     * display transform (native -> reference space, null when unwarped).
+     * Stored geometry stays native (decision D3); the transform is applied
+     * at draw time only.
      */
     const alignedDisplayTransform = computed(
       () => (alignedView ? alignedView.cameraTransform(props.camera) : null),
     );
-    const alignedViewActive = computed(() => !!alignedView?.active.value);
     /** Map a native-space location into display space for view centering. */
     const mapDisplayPoint = (x: number, y: number) => {
       const matrix = alignedDisplayTransform.value;
@@ -417,11 +416,13 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
-      // Editing is disabled while the aligned view is on: the edit layer
-      // draws and stores geometry in native image space, so its handles
-      // would not land on warped imagery (decision D3 phase scope). The
-      // Viewer toolbar shows an "editing disabled" hint while in effect.
-      const editingTrack = alignedViewActive.value ? false : requestedEditingTrack;
+      // Editing is disabled on WARPED cameras while the aligned view is on:
+      // the edit layer draws and stores geometry in native image space, so
+      // its handles would not land on warped imagery (decision D3 phase
+      // scope). The reference camera renders unwarped, so drawing and
+      // editing remain available there; draws landing on it while another
+      // camera is selected are routed by the update:geojson handler below.
+      const editingTrack = alignedDisplayTransform.value ? false : requestedEditingTrack;
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str) => parseInt(str, 10));

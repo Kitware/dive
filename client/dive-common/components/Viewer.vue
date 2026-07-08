@@ -473,7 +473,8 @@ export default defineComponent({
     };
     const alignedViewTooltip = computed(() => {
       if (alignedViewEnabled.value) {
-        return 'Align View on (editing disabled)';
+        const reference = alignedView.reference.value ?? multiCamList.value[0];
+        return `Align View on (editing on ${reference} only)`;
       }
       const cams = multiCamList.value;
       const unresolved = cams.length >= 2
