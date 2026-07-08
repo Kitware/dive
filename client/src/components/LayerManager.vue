@@ -122,6 +122,7 @@ export default defineComponent({
     const annotator = aggregateController.value.getController(props.camera);
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
+    const hasFrameRef = annotator.hasFrame;
 
     /**
      * Resolve another camera's currently displayed frame image (for the ghost
@@ -626,11 +627,34 @@ export default defineComponent({
     }
 
     /**
-     * TODO: for some reason, GeoJS requires us to initialize
-     * by calling the render function twice.  This is a bug.
-     * https://github.com/Kitware/dive/issues/365
+     * Disables every annotation/edit layer without touching stored track
+     * data. Used when this camera has no frame at the current aligned-
+     * timeline slot (hasFrameRef false) -- frameNumberRef still holds the
+     * last real local frame, so leaving the layers as-is would draw stale
+     * boxes over a blank pane.
      */
-    [1, 2].forEach(() => {
+    function disableAllLayers() {
+      rectAnnotationLayer.disable();
+      overlapLayer.disable();
+      polyAnnotationLayer.disable();
+      lineLayer.disable();
+      pointLayer.disable();
+      tailLayer.disable();
+      textLayer.disable();
+      attributeLayer.disable();
+      attributeBoxLayer.disable();
+      editAnnotationLayer.disable();
+      segmentationPointsLayer.clear();
+      hoverOvered.value = [];
+      uiLayer.setToolTipWidget('customToolTip', false);
+    }
+
+    /** Re-runs updateLayers with current ref values, or blanks the layers when this camera has no frame at the current aligned-timeline slot. */
+    function refreshLayers() {
+      if (!hasFrameRef.value) {
+        disableAllLayers();
+        return;
+      }
       updateLayers(
         frameNumberRef.value,
         editingModeRef.value,
@@ -641,6 +665,17 @@ export default defineComponent({
         selectedKeyRef.value,
         props.colorBy,
       );
+    }
+
+    watch(hasFrameRef, () => refreshLayers());
+
+    /**
+     * TODO: for some reason, GeoJS requires us to initialize
+     * by calling the render function twice.  This is a bug.
+     * https://github.com/Kitware/dive/issues/365
+     */
+    [1, 2].forEach(() => {
+      refreshLayers();
     });
 
     /** Layers whose stored-geometry rendering follows the aligned-view warp. */
@@ -701,16 +736,7 @@ export default defineComponent({
         selectedKeyRef,
       ],
       () => {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        refreshLayers();
       },
     );
 
@@ -718,48 +744,35 @@ export default defineComponent({
     watch(
       annotatorPrefs,
       () => {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        refreshLayers();
       },
       { deep: true },
     );
 
     watch(attributes, () => {
       updateAttributes();
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        multiSeletListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-        props.colorBy,
-      );
+      refreshLayers();
     });
 
     /** Watch for resize events to redraw layers after view mode changes */
     watch(
       () => aggregateController.value.resizeTrigger.value,
       () => {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        window.requestAnimationFrame(() => {
+          if (!annotator.geoViewerRef?.value) {
+            return;
+          }
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        });
       },
     );
 
@@ -865,16 +878,7 @@ export default defineComponent({
       // This is especially important when already editing the same track
       // since annotation-right-clicked won't be emitted in that case
       window.setTimeout(() => {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        refreshLayers();
       }, 0);
     });
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
@@ -891,16 +895,7 @@ export default defineComponent({
       // Force layer update to load the newly selected polygon
       // Use nextTick to ensure the selectedKey ref has been updated
       window.setTimeout(() => {
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        refreshLayers();
       }, 0);
     });
     // Handle right-click outside polygons to finalize/cancel creation
@@ -910,16 +905,7 @@ export default defineComponent({
         handler.cancelCreation();
         handler.selectFeatureHandle(-1, '');
         window.setTimeout(() => {
-          updateLayers(
-            frameNumberRef.value,
-            editingModeRef.value,
-            selectedTrackIdRef.value,
-            multiSeletListRef.value,
-            enabledTracksRef.value,
-            visibleModesRef.value,
-            selectedKeyRef.value,
-            props.colorBy,
-          );
+          refreshLayers();
         }, 0);
       }
     });
@@ -990,16 +976,7 @@ export default defineComponent({
         // Suppress the select that rides along with this same finalizing click.
         justFinalizedCreation = true;
         window.setTimeout(() => { justFinalizedCreation = false; }, 0);
-        updateLayers(
-          frameNumberRef.value,
-          editingModeRef.value,
-          selectedTrackIdRef.value,
-          multiSeletListRef.value,
-          enabledTracksRef.value,
-          visibleModesRef.value,
-          selectedKeyRef.value,
-          props.colorBy,
-        );
+        refreshLayers();
       }
     });
     editAnnotationLayer.bus.$on(
@@ -1044,16 +1021,7 @@ export default defineComponent({
         handler.selectFeatureHandle(-1, polygonKey);
         // Force layer update to load the newly selected polygon
         window.setTimeout(() => {
-          updateLayers(
-            frameNumberRef.value,
-            editingModeRef.value,
-            selectedTrackIdRef.value,
-            multiSeletListRef.value,
-            enabledTracksRef.value,
-            visibleModesRef.value,
-            selectedKeyRef.value,
-            props.colorBy,
-          );
+          refreshLayers();
         }, 0);
       }
     });

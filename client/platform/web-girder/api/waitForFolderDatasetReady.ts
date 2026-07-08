@@ -1,7 +1,7 @@
 /* eslint-disable import/prefer-default-export -- single-purpose polling helper */
 import { all } from '@girder/components/src/components/Job/status';
 import girderRest from 'platform/web-girder/plugins/girder';
-import { getFolder } from './girder.service';
+import { getFolder, getItemsInFolder } from './girder.service';
 
 const JobStatus = all();
 const TERMINAL_JOB_STATUSES = [
@@ -9,6 +9,47 @@ const TERMINAL_JOB_STATUSES = [
   JobStatus.ERROR.value,
   JobStatus.CANCELED.value,
 ];
+
+const LARGE_IMAGE_ITEM_PATTERN = /\.(tif|tiff|nitf|ntf|vrt)$/i;
+const VIEWABLE_IMAGE_PATTERN = /\.(png|jpe?g)$/i;
+
+async function countLargeImageItems(folderId: string): Promise<number> {
+  let offset = 0;
+  const limit = 100;
+  let count = 0;
+  /* eslint-disable no-await-in-loop -- paginate folder items until all are checked */
+  while (true) {
+    const { data: items } = await getItemsInFolder(folderId, limit, offset);
+    if (!items.length) {
+      break;
+    }
+    count += items.filter((item) => LARGE_IMAGE_ITEM_PATTERN.test(item.name)).length;
+    if (items.length < limit) {
+      break;
+    }
+    offset += items.length;
+  }
+  return count;
+}
+
+async function countViewableImages(folderId: string): Promise<number> {
+  let offset = 0;
+  const limit = 100;
+  let count = 0;
+  /* eslint-disable no-await-in-loop -- paginate folder items until all are checked */
+  while (true) {
+    const { data: items } = await getItemsInFolder(folderId, limit, offset);
+    if (!items.length) {
+      break;
+    }
+    count += items.filter((item) => VIEWABLE_IMAGE_PATTERN.test(item.name)).length;
+    if (items.length < limit) {
+      break;
+    }
+    offset += items.length;
+  }
+  return count;
+}
 
 /**
  * Wait until a folder has been marked as a DIVE dataset (post-process / transcode finished).
@@ -21,6 +62,10 @@ export async function waitForFolderDatasetReady(
     timeoutMs?: number;
     /** Called with average job completion fraction in [0, 1] when jobs report progress. */
     onProgress?: (fraction: number) => void;
+    /** When true, keep polling until at least one web-safe image exists in the folder. */
+    requireViewableImages?: boolean;
+    /** When true, keep polling until at least one tiled/large-image file exists in the folder. */
+    requireLargeImageItems?: boolean;
   },
   jobIds: string[] = [],
 ): Promise<void> {
@@ -28,10 +73,25 @@ export async function waitForFolderDatasetReady(
   const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;
   const deadline = Date.now() + timeoutMs;
 
+  async function folderReady(): Promise<boolean> {
+    const { data: folder } = await getFolder(folderId);
+    if (!folder.meta?.annotate) {
+      return false;
+    }
+    if (options?.requireViewableImages) {
+      const viewableCount = await countViewableImages(folderId);
+      return viewableCount > 0;
+    }
+    if (options?.requireLargeImageItems) {
+      const largeImageCount = await countLargeImageItems(folderId);
+      return largeImageCount > 0;
+    }
+    return true;
+  }
+
   /* eslint-disable no-await-in-loop -- poll folder and jobs until ready or timeout */
   while (Date.now() < deadline) {
-    const { data: folder } = await getFolder(folderId);
-    if (folder.meta?.annotate) {
+    if (await folderReady()) {
       return;
     }
 
@@ -63,11 +123,10 @@ export async function waitForFolderDatasetReady(
           const detail = failed.map((job) => job.title || 'processing job failed').join('; ');
           throw new Error(detail);
         }
-        const { data: folderAfterJobs } = await getFolder(folderId);
-        if (folderAfterJobs.meta?.annotate) {
+        if (await folderReady()) {
           return;
         }
-        throw new Error('Video processing finished but the camera folder is not ready for import');
+        throw new Error('Image processing finished but the camera folder has no viewable frames');
       }
     }
 
@@ -76,5 +135,5 @@ export async function waitForFolderDatasetReady(
     });
   }
 
-  throw new Error('Timed out waiting for camera video processing');
+  throw new Error('Timed out waiting for camera folder processing');
 }

@@ -97,6 +97,7 @@ export default function useModeManager({
   aggregateController,
   readonlyState,
   recipes,
+  isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
   onStereoSegmentationFinalize,
@@ -107,12 +108,19 @@ export default function useModeManager({
     aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
+    /** When set, interactive stereo only runs on stereoscopic datasets. */
+    isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
   const { prompt } = usePrompt();
+
+  function stereoInteractiveActive(): boolean {
+    return isStereoInteractiveModeEnabled()
+      && (isStereoscopicDataset === undefined || isStereoscopicDataset.value);
+  }
   const annotationModes = reactive({
     visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
@@ -120,6 +128,26 @@ export default function useModeManager({
   const trackSettings = toRef(clientSettings, 'trackSettings');
   const groupSettings = toRef(clientSettings, 'groupSettings');
   const selectedCamera = ref('singleCam');
+
+  /**
+   * The currently selected camera's own local frame number. Under an aligned
+   * timeline (SEAL feature 5), aggregateController.value.frame is the global
+   * slot index, which diverges from any camera's local frame -- but tracks
+   * are stored/keyed by local frame. Every read/write below that keys track
+   * storage for selectedCamera must go through this, not aggregateController
+   * directly. See LayerManager.vue and Viewer.vue's isCreatingNewDetection
+   * for the identical pattern elsewhere.
+   */
+  function selectedCameraFrame(): number {
+    try {
+      return aggregateController.value.getController(selectedCamera.value).frame.value;
+    } catch {
+      // No controller registered for the selected camera (e.g. its annotator
+      // hasn't mounted yet during load/reload); fall back to the aggregate
+      // frame rather than throwing.
+      return aggregateController.value.frame.value;
+    }
+  }
 
   const linkingState = ref(false);
   const linkingTrack: Ref<AnnotationId| null> = ref(null);
@@ -227,11 +255,11 @@ export default function useModeManager({
   const editingDetails = computed(() => {
     _depend();
     if (editingMode.value && selectedTrackId.value !== null) {
-      const { frame } = aggregateController.value;
+      const frame = selectedCameraFrame();
       try {
         const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
         if (track) {
-          const [feature] = track.getFeature(frame.value);
+          const [feature] = track.getFeature(frame);
           if (feature) {
             if (!feature?.bounds?.length) {
               return 'Creating';
@@ -277,17 +305,28 @@ export default function useModeManager({
   }
 
   function seekNearest(track: Track) {
-    // Seek to the nearest point in the track.
-    const { frame } = aggregateController.value;
-    if (frame.value < track.begin) {
-      aggregateController.value.seek(track.begin);
-    } else if (frame.value > track.end) {
-      aggregateController.value.seek(track.end);
+    // Seek to the nearest point in the track. Compares/seeks using
+    // selectedCamera's own local frame (see selectedCameraFrame) rather than
+    // aggregateController.frame directly -- under an aligned timeline (SEAL
+    // feature 5) that's the global slot index, a different number space than
+    // track.begin/end. seekCameraFrame translates back through the timeline
+    // so every camera stays aligned; it's a no-op passthrough when alignment
+    // isn't active.
+    const frame = selectedCameraFrame();
+    if (frame < track.begin) {
+      aggregateController.value.seekCameraFrame(selectedCamera.value, track.begin);
+    } else if (frame > track.end) {
+      aggregateController.value.seekCameraFrame(selectedCamera.value, track.end);
     }
   }
 
+  // frame is selectedCamera's own local frame (e.g. FilterList.vue's
+  // "jump to peak frame" derives it from selectedCamera's own trackStore) --
+  // route through seekCameraFrame so this still lands correctly under an
+  // aligned timeline (SEAL feature 5), where local and global frame numbers
+  // can diverge.
   function seekFrame(frame: number) {
-    aggregateController.value.seek(frame);
+    aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
   }
 
   async function _setLinkingTrack(trackId: TrackId) {
@@ -464,7 +503,7 @@ export default function useModeManager({
     }
     // Handles adding a new track with the NewTrack Settings
     handleEscapeMode();
-    const { frame } = aggregateController.value;
+    const frame = selectedCameraFrame();
     let trackType = trackSettings.value.newTrackSettings.type;
     if (overrideTrackId !== undefined) {
       const track = cameraStore.getAnyPossibleTrack(overrideTrackId);
@@ -479,7 +518,7 @@ export default function useModeManager({
     const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     if (trackStore) {
       const newTrackId = trackStore.add(
-        frame.value,
+        frame,
         trackType,
         selectedTrackId.value || undefined,
         overrideTrackId,
@@ -557,7 +596,7 @@ export default function useModeManager({
         newTrackSettingsAfterLogic(track);
 
         // Stereo: emit box annotation complete
-        if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()) {
+        if (onStereoAnnotationComplete && stereoInteractiveActive()) {
           onStereoAnnotationComplete({
             type: 'box',
             camera: selectedCamera.value,
@@ -731,7 +770,7 @@ export default function useModeManager({
             newTrackSettingsAfterLogic(track);
 
             // Stereo: emit line or polygon annotation complete
-            if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
+            if (onStereoAnnotationComplete && stereoInteractiveActive()
                 && completedTrackId !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
@@ -785,9 +824,8 @@ export default function useModeManager({
       if (track) {
         recipes.forEach((r) => {
           if (r.active.value) {
-            const { frame } = aggregateController.value;
             r.deletePoint(
-              frame.value,
+              selectedCameraFrame(),
               track,
               selectedFeatureHandle.value,
               selectedKey.value,
@@ -805,8 +843,7 @@ export default function useModeManager({
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
-        const { frame } = aggregateController.value;
-        const frameNum = frame.value;
+        const frameNum = selectedCameraFrame();
         recipes.forEach((r) => {
           if (r.active.value) {
             r.delete(frameNum, track, selectedKey.value, annotationModes.editing);
@@ -919,8 +956,7 @@ export default function useModeManager({
       // When in LineString mode, set the selected key so EditAnnotationLayer
       // can find the geometry (lines are stored with a recipe key like 'HeadTails').
       if (editing) {
-        const { frame } = aggregateController.value;
-        const [feature] = track.getFeature(frame.value);
+        const [feature] = track.getFeature(selectedCameraFrame());
         if (feature?.geometry?.features?.length) {
           if (annotationModes.editing === 'LineString') {
             const lineFeature = feature.geometry.features.find(
@@ -1210,7 +1246,6 @@ export default function useModeManager({
       return;
     }
 
-    const { frame } = aggregateController.value;
     const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
     if (!track) {
       return;
@@ -1244,7 +1279,7 @@ export default function useModeManager({
 
       // Update the track's feature with the preview polygon
       // Use frame number from the result if provided, otherwise current frame
-      const targetFrame = result.frameNum ?? frame.value;
+      const targetFrame = result.frameNum ?? selectedCameraFrame();
       const { interpolate } = track.canInterpolate(targetFrame);
 
       // Save original feature state before first prediction modifies the track
@@ -1295,7 +1330,7 @@ export default function useModeManager({
       // without waiting for the user to finalize the detection. Only fired for
       // fresh predictions (controlPoints present), so navigating frames or
       // restoring a pending preview does not re-trigger stereo work.
-      if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
+      if (onStereoAnnotationComplete && stereoInteractiveActive()
           && selectedTrackId.value !== null && result.controlPoints) {
         onStereoAnnotationComplete({
           type: 'segmentation',
@@ -1466,7 +1501,7 @@ export default function useModeManager({
         : []);
     }
 
-    if (onStereoAnnotationReset && isStereoInteractiveModeEnabled()) {
+    if (onStereoAnnotationReset && stereoInteractiveActive()) {
       onStereoAnnotationReset({
         trackId: selectedTrackId.value as number,
         frameNum: data.frameNum,
@@ -1501,8 +1536,7 @@ export default function useModeManager({
     if (polygonRecipe && 'setAddingPolygon' in polygonRecipe) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
       if (track) {
-        const { frame } = aggregateController.value;
-        const newKey = track.getNextPolygonKey(frame.value);
+        const newKey = track.getNextPolygonKey(selectedCameraFrame());
         (polygonRecipe as { setAddingPolygon: (key: string) => void }).setAddingPolygon(newKey);
       }
     }

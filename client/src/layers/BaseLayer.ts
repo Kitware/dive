@@ -141,6 +141,9 @@ export default abstract class BaseLayer<D> {
 
     changeData(frameData: FrameDataTrack[], comparisons: string[] = []) {
       this.formattedData = this.formatData(frameData, comparisons);
+      if (!this.annotator.geoViewerRef?.value || !this.featureLayer) {
+        return;
+      }
       this.redraw();
     }
 

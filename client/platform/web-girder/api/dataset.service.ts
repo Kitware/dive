@@ -4,6 +4,7 @@ import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
+import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
@@ -21,6 +22,12 @@ async function getDataset(datasetId: string) {
   if (compositeId) {
     response.data.id = compositeId;
   }
+  // Parse per-frame capture timestamps client-side (single shared implementation
+  // with desktop; see dive-common/frameTimestamp.ts). The girder server no longer
+  // does this, so multicam per-camera frames arrive without timestamps.
+  Object.values(response.data.multiCamMedia?.cameras ?? {}).forEach(
+    (camera) => attachFrameTimestamps(camera.imageData),
+  );
   return response;
 }
 
@@ -61,7 +68,10 @@ export interface DatasetSourceMedia {
 
 async function getDatasetMedia(datasetId: string) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
-  return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+  const response = await girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+  // Parse per-frame capture timestamps client-side (see getDataset above).
+  attachFrameTimestamps(response.data.imageData ?? []);
+  return response;
 }
 
 function clone({
@@ -175,7 +185,7 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
 
 interface ValidationResponse {
   ok: boolean;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   media: string[];
   annotations: string[];
   message: string;
@@ -189,10 +199,10 @@ export interface CreateMulticamDatasetArgs {
   parentFolderId: string;
   name: string;
   fps: number;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   subType: 'stereo' | 'multicam';
   defaultDisplay: string;
-  cameras: Record<string, { folderId: string }>;
+  cameras: Record<string, { folderId: string; type?: 'video' | 'image-sequence' | 'large-image' }>;
   cameraOrder?: string[];
   calibrationFileId?: string;
 }

@@ -1,6 +1,34 @@
 import type { Ref } from 'vue';
 
 /**
+ * Supplied by Viewer.vue when every camera in a multicam dataset has a
+ * timestamp on every frame (see dive-common/alignedTimeline.ts). Translates
+ * a global aligned-timeline slot into each camera's own local frame index,
+ * or undefined for a camera with no frame at that slot. Absent (null)
+ * whenever alignment isn't possible/applicable -- including always for
+ * single-camera datasets -- in which case playback falls back to today's
+ * exact positional (broadcast-same-index) behavior.
+ */
+export interface AlignedFrameResolver {
+  slotCount: Readonly<Ref<number>>;
+  frameRate: Readonly<Ref<number>>;
+  resolveSlot: (globalFrame: number) => Record<string, number | undefined>;
+  /**
+   * Inverse of resolveSlot (see dive-common/alignedTimeline.ts's
+   * buildInverseAlignedIndex): given a camera and its own local frame,
+   * returns the global aligned-timeline slot it appears in, or undefined if
+   * that local frame isn't part of any slot.
+   */
+  resolveGlobalSlot: (camera: string, localFrame: number) => number | undefined;
+  /**
+   * Global slot indices where at least one camera has no frame (see
+   * dive-common/alignedTimeline.ts's computeGapSlots) -- used to render a
+   * gap indicator on the timeline scrubber.
+   */
+  gapSlots: Readonly<Ref<number[]>>;
+}
+
+/**
  * AggregateMediaController provides an interface for time and a few
  * other properties of all cameras in the annotator window.
  *
@@ -17,6 +45,12 @@ export interface AggregateMediaController {
   cameraSync: Readonly<Ref<boolean>>;
   /** Incremented when the viewer is resized, used to trigger layer redraws */
   resizeTrigger: Readonly<Ref<number>>;
+  /**
+   * Global aligned-timeline slot indices with at least one camera missing a
+   * frame (see AlignedFrameResolver's gapSlots); empty whenever alignment
+   * isn't active.
+   */
+  alignedGapSlots: Readonly<Ref<number[]>>;
 
   pause: () => void;
   play: () => void;
@@ -28,6 +62,15 @@ export interface AggregateMediaController {
   setSpeed: (speed: number) => void;
   getController: (cameraName: string) => MediaController;
   toggleSynchronizeCameras: (sync: boolean) => void;
+  /**
+   * Seeks so that `camera` lands on its own local frame `localFrame` (e.g.
+   * jumping to a track's stored begin/end, which is in local-frame units).
+   * Under an aligned timeline (see AlignedFrameResolver) this translates
+   * through the global slot so every camera stays aligned; otherwise it's
+   * equivalent to seek(localFrame), since local and global frame numbers are
+   * identical under today's positional broadcast.
+   */
+  seekCameraFrame: (camera: string, localFrame: number) => void;
 }
 
 /**
@@ -43,6 +86,18 @@ export interface MediaController extends AggregateMediaController {
   geoViewerRef: Readonly<Ref<any>>;
   /** @deprecated may be removed in a future release */
   syncedFrame: Readonly<Ref<number>>;
+  /**
+   * False when an aligned-timeline slot has no frame for this camera (see
+   * AlignedFrameResolver) -- the pane is blank and LayerManager should not
+   * draw annotations for the stale `frame` value left over from before.
+   */
+  hasFrame: Readonly<Ref<boolean>>;
+  /**
+   * Per-camera seek accepts undefined when this camera has no frame at the
+   * current aligned-timeline slot (see AlignedFrameResolver) -- the camera
+   * should blank its pane rather than draw anything for that slot.
+   */
+  seek: (frame: number | undefined) => void;
 
   centerOn(coords: { x: number; y: number; z: number }): void;
   transition(coords: { x: number; y:number}, duration: number, zoom?: number): void;

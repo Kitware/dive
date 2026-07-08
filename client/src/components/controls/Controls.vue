@@ -7,6 +7,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
 import { DatasetType, useApi } from 'dive-common/apispec';
+import { computeGapGradient } from 'dive-common/alignedTimeline';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
 import {
@@ -91,6 +92,21 @@ export default defineComponent({
       }
       data.frame = value;
     }
+
+    /**
+     * A CSS gradient overlay marking timeline slots where at least one camera
+     * has no frame (SEAL feature 5's aligned timeline, see alignedTimeline.ts).
+     * Uses a gradient rather than one element per gap so this stays cheap
+     * regardless of how many gaps there are. Each band is centered on the
+     * v-slider thumb position for its slot (see computeGapGradient); this is
+     * a lightweight visual approximation drawn under the v-slider, not
+     * pixel-exact with its clickable thumb track.
+     */
+    const alignedGapGradient = computed(() => computeGapGradient(
+      mediaController.alignedGapSlots.value,
+      mediaController.maxFrame.value,
+    ));
+    const alignedGapCount = computed(() => mediaController.alignedGapSlots.value.length);
     function togglePlay(_: HTMLElement, keyEvent: KeyboardEvent) {
       // Prevent scroll from spacebar and other default effects.
       keyEvent.preventDefault();
@@ -248,6 +264,8 @@ export default defineComponent({
       toggleRawSync,
       dragHandler,
       input,
+      alignedGapGradient,
+      alignedGapCount,
       togglePlay,
       toggleEnhancements,
       visible,
@@ -308,6 +326,12 @@ export default defineComponent({
         @start="dragHandler.start"
         @end="dragHandler.end"
         @input="input"
+      />
+      <div
+        v-if="alignedGapCount > 0"
+        class="aligned-gap-indicator"
+        :style="{ background: alignedGapGradient }"
+        :title="`${alignedGapCount} timeline slot(s) with a missing camera frame`"
       />
       <v-row
         no-gutters
@@ -1271,6 +1295,12 @@ export default defineComponent({
 </template>
 
 <style scoped>
+.aligned-gap-indicator {
+  height: 4px;
+  margin: -8px 0 4px;
+  border-radius: 2px;
+}
+
 .bottom-controls-row {
   flex-wrap: nowrap;
 }

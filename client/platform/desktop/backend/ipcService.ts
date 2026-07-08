@@ -23,6 +23,7 @@ import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
+import scanMultiCamBatch from './native/multiCollectImport';
 import settings from './state/settings';
 import { listen } from './server';
 import {
@@ -230,6 +231,11 @@ export default function register() {
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(args);
+    return ret;
+  });
+
+  ipcMain.handle('scan-multicam-batch', async (event, { path: rootPath }: { path: string }) => {
+    const ret = await scanMultiCamBatch(rootPath);
     return ret;
   });
 

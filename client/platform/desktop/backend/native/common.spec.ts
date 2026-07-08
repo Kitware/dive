@@ -309,7 +309,7 @@ beforeEach(() => {
             fps: 5,
             originalBasePath: '/home/user/media/projectid1data',
             originalImageFiles: [
-              'foo.png',
+              'foo_20230615_143022.png',
               'bar.png',
             ],
           } as JsonMeta),
@@ -357,14 +357,17 @@ beforeEach(() => {
           'meta.json': JSON.stringify({
             type: 'multi',
             multiCam: {
+              defaultDisplay: 'left',
               cameras: {
                 left: {
                   type: 'image-sequence',
                   originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
+                  originalImageFiles: ['left_20230615_143022.png', 'left_00002.png'],
                 },
                 right: {
                   type: 'image-sequence',
                   originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
+                  originalImageFiles: ['right_00001.png', 'right_00002.png'],
                 },
               },
             },
@@ -468,7 +471,21 @@ describe('native.common', () => {
     const data = await common.loadMetadata(settings, 'projectid1', urlMapper);
     expect(data.id).toBe('projectid1');
     expect(data.imageData.map(({ filename }) => filename)).toEqual([
-      'foo.png', 'bar.png',
+      'foo_20230615_143022.png', 'bar.png',
+    ]);
+    expect(data.imageData[0].timestamp).toBe(1686839422);
+    expect(data.imageData[1].timestamp).toBeUndefined();
+  });
+
+  it('loadJsonMetadata parses per-camera frame timestamps for multicam datasets', async () => {
+    const data = await common.loadMetadata(settings, 'stereoDataset', urlMapper);
+    expect(data.multiCamMedia).not.toBeNull();
+    const { cameras } = data.multiCamMedia!;
+    expect(cameras.left.imageData.map(({ timestamp }) => timestamp)).toEqual([
+      1686839422, undefined,
+    ]);
+    expect(cameras.right.imageData.map(({ timestamp }) => timestamp)).toEqual([
+      undefined, undefined,
     ]);
   });
 

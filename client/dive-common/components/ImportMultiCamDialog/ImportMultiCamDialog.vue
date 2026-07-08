@@ -128,7 +128,7 @@ export default defineComponent({
         </v-alert>
       </div>
 
-      <div v-if="nextSteps && importType !== 'subfolders'">
+      <div v-if="showFinalizeStep">
         <v-alert
           type="info"
           outlined
@@ -142,6 +142,16 @@ export default defineComponent({
           :show-default-display="camerasReady"
         />
       </div>
+
+      <v-checkbox
+        v-if="importType && dataType === 'image-sequence'"
+        v-model="inferFrameIndexFromFilename"
+        label="Infer frame index from filename"
+        hint="Example: test_seattle_2020_fl09_C_20200830_020814.141365_rgb.jpg"
+        dense
+        persistent-hint
+        class="mt-0"
+      />
 
       <v-row
         no-gutters

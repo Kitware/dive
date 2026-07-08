@@ -4,12 +4,12 @@ import geo, { GeoEvent } from 'geojs';
 import * as d3 from 'd3';
 
 import Vue, {
-  ref, reactive, provide, toRef, Ref, UnwrapRef, computed,
+  ref, shallowRef, reactive, provide, toRef, Ref, UnwrapRef, computed, watch,
 } from 'vue';
 import { map, over } from 'lodash';
 
 import { use } from '../../provides';
-import type { AggregateMediaController, MediaController } from './mediaControllerType';
+import type { AggregateMediaController, AlignedFrameResolver, MediaController } from './mediaControllerType';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
@@ -29,6 +29,8 @@ interface MediaControllerReactiveData {
   speed: number;
   maxFrame: number;
   syncedFrame: number;
+  /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
+  hasFrame: boolean;
   cursor: string;
   imageCursor: string;
   imageCursorEditing: boolean;
@@ -54,12 +56,18 @@ interface CameraInitializerReturn {
   initializeViewer: (width: number, height: number, tileWidth?: number,
     tileHeight?: number, isMap?: boolean, geoSpatial?: boolean) => void;
   mediaController: MediaController;
+  /**
+   * True whenever a global aligned timeline is driving playback (see
+   * AlignedFrameResolver) -- callers should skip starting their own internal
+   * frame-advance loop and rely on the aggregate controller's seek instead.
+   */
+  externallyDriven: Readonly<Ref<boolean>>;
 }
 
 type CameraInitializerFunc = (cameraName: string, {
   seek, play, pause, setVolume, setSpeed,
 }: {
-  seek(frame: number): void;
+  seek(frame: number | undefined): void;
   play(): void;
   pause(): void;
   setVolume(level: number): void;
@@ -85,6 +93,13 @@ export function useMediaController() {
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
   const resizeTrigger: Ref<number> = ref(0);
+  // shallowRef: an AlignedFrameResolver carries nested Refs (slotCount, frameRate)
+  // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
+  const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
+  const alignedCurrentFrame: Ref<number> = ref(0);
+  const externallyDriven = computed(() => alignedFrameResolver.value !== null);
+  const alignedGapSlots = computed(() => alignedFrameResolver.value?.gapSlots.value ?? []);
+  let alignedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
   const emptyControllerFrame = ref(0);
   const emptyControllerMaxFrame = ref(0);
   const emptyControllerPlaying = ref(false);
@@ -112,7 +127,51 @@ export function useMediaController() {
     toggleSynchronizeCameras,
     cameraSync: synchronizeCameras,
     resizeTrigger,
+    alignedGapSlots,
+    seekCameraFrame: aggregateSeekCameraFrame,
   };
+  function stopAlignedPlaybackTimer() {
+    if (alignedPlaybackTimer !== undefined) {
+      clearTimeout(alignedPlaybackTimer);
+      alignedPlaybackTimer = undefined;
+    }
+  }
+
+  /**
+   * Set (or clear, with null) the resolver that translates a global
+   * aligned-timeline slot into each camera's own local frame index. Called
+   * by Viewer.vue whenever its computed aligned timeline changes.
+   */
+  function setAlignedFrameResolver(resolver: AlignedFrameResolver | null) {
+    stopAlignedPlaybackTimer();
+    alignedFrameResolver.value = resolver;
+    if (resolver) {
+      // Immediately perform an aligned seek to slot 0 so that any camera with
+      // no frame at that slot blanks right away, rather than continuing to
+      // show its own local frame 0 until the first user-driven seek.
+      alignedSeek(resolver, 0);
+    } else {
+      alignedCurrentFrame.value = 0;
+    }
+  }
+
+  /**
+   * Re-apply the current aligned slot whenever the camera roster changes
+   * while a resolver is active. Annotators self-seek to their own local
+   * frame 0 during init (see ImageAnnotator's init()), so a camera that
+   * mounts after the resolver was installed would wrongly display its local
+   * frame 0 even when the current slot has no frame for it. flush: 'post'
+   * ensures this runs after the mounting annotator's own init-time seek.
+   * (Watch the length via a getter: under Vue 2.7 a shallow watch on the ref
+   * itself does not fire for in-place array mutation like push/splice.)
+   */
+  watch(() => cameras.value.length, () => {
+    const resolver = alignedFrameResolver.value;
+    if (resolver && cameras.value.length > 0) {
+      alignedSeek(resolver, alignedCurrentFrame.value);
+    }
+  }, { flush: 'post' });
+
   function clear() {
     geoViewers = {};
     containers = {};
@@ -121,6 +180,7 @@ export function useMediaController() {
     subControllers = [];
     state = {};
     cameraControllerSymbols = {};
+    setAlignedFrameResolver(null);
   }
 
   function getController(camera?: string) {
@@ -142,6 +202,7 @@ export function useMediaController() {
    */
   function onResize() {
     let resized = false;
+    const pendingResizes: (() => void)[] = [];
     subControllers.forEach((mc) => {
       const camera = cameraControllerSymbols[mc.cameraName.value].toString();
       const geoViewerRef = geoViewers[camera];
@@ -153,16 +214,22 @@ export function useMediaController() {
       const mapSize = geoViewerRef.value.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         resized = true;
-        window.requestAnimationFrame(() => {
+        pendingResizes.push(() => {
+          if (geoViewerRef.value === undefined) {
+            return;
+          }
           geoViewerRef.value.size(size);
           mc.resetZoom();
         });
       }
     });
-    // Trigger layer redraw after resize
+    // Resize maps first, then redraw annotation layers once GeoJS has settled.
     if (resized) {
       window.requestAnimationFrame(() => {
-        resizeTrigger.value += 1;
+        pendingResizes.forEach((applyResize) => applyResize());
+        window.requestAnimationFrame(() => {
+          resizeTrigger.value += 1;
+        });
       });
     }
   }
@@ -204,7 +271,7 @@ export function useMediaController() {
   function initialize(cameraName: string, {
     seek: _seek, play: _play, pause: _pause, setVolume: _setVolume, setSpeed: _setSpeed,
   }: {
-    seek(frame: number): void;
+    seek(frame: number | undefined): void;
     play(): void;
     pause(): void;
     setVolume(level: number): void;
@@ -248,6 +315,7 @@ export function useMediaController() {
       speed: 1.0,
       maxFrame: 0,
       syncedFrame: 0,
+      hasFrame: true,
       cursor: 'default',
       imageCursor: '',
       imageCursorEditing: false,
@@ -465,6 +533,7 @@ export function useMediaController() {
       maxFrame: toRef(state[camera], 'maxFrame'),
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
+      hasFrame: toRef(state[camera], 'hasFrame'),
       prevFrame,
       nextFrame,
       play: _play,
@@ -495,7 +564,96 @@ export function useMediaController() {
       cursorHandler,
       initializeViewer,
       mediaController,
+      externallyDriven,
     };
+  }
+
+  /** Seeks every camera to its own local frame for the given global aligned-timeline slot. */
+  function alignedSeek(resolver: AlignedFrameResolver, rawFrame: number) {
+    const maxFrame = Math.max(0, resolver.slotCount.value - 1);
+    const clamped = Math.min(Math.max(rawFrame, 0), maxFrame);
+    alignedCurrentFrame.value = clamped;
+    const perCamera = resolver.resolveSlot(clamped);
+    subControllers.forEach((mc) => {
+      mc.seek(perCamera[mc.cameraName.value]);
+    });
+  }
+
+  function aggregateSeek(frame: number) {
+    const resolver = alignedFrameResolver.value;
+    if (resolver) {
+      alignedSeek(resolver, frame);
+    } else {
+      subControllers.forEach((mc) => mc.seek(frame));
+    }
+  }
+
+  /**
+   * Seeks so that `camera` lands on its own local frame `localFrame`. Without
+   * alignment, local and global frame numbers are identical (today's
+   * positional broadcast), so this is just aggregateSeek. Under an aligned
+   * timeline, translates through the global slot via resolveGlobalSlot so
+   * every camera stays aligned; falls back to seeking only `camera` itself
+   * if that local frame isn't part of any slot (shouldn't normally happen).
+   */
+  function aggregateSeekCameraFrame(camera: string, localFrame: number) {
+    const resolver = alignedFrameResolver.value;
+    if (!resolver) {
+      aggregateSeek(localFrame);
+      return;
+    }
+    const slot = resolver.resolveGlobalSlot(camera, localFrame);
+    if (slot !== undefined) {
+      alignedSeek(resolver, slot);
+    } else {
+      getController(camera).seek(localFrame);
+    }
+  }
+
+  function aggregateNextFrame() {
+    const resolver = alignedFrameResolver.value;
+    if (resolver) {
+      alignedSeek(resolver, alignedCurrentFrame.value + 1);
+    } else {
+      subControllers.forEach((mc) => mc.nextFrame());
+    }
+  }
+
+  function aggregatePrevFrame() {
+    const resolver = alignedFrameResolver.value;
+    if (resolver) {
+      alignedSeek(resolver, alignedCurrentFrame.value - 1);
+    } else {
+      subControllers.forEach((mc) => mc.prevFrame());
+    }
+  }
+
+  function aggregatePause() {
+    subControllers.forEach((mc) => mc.pause());
+    stopAlignedPlaybackTimer();
+  }
+
+  function aggregatePlay() {
+    // Each camera still flips its own `playing` UI state; when a resolver is
+    // set, ImageAnnotator/VideoAnnotator skip starting their own internal
+    // frame-advance loop (see externallyDriven) and this centralized tick
+    // drives seeks instead.
+    subControllers.forEach((mc) => mc.play());
+    const resolver = alignedFrameResolver.value;
+    if (!resolver) {
+      return;
+    }
+    stopAlignedPlaybackTimer();
+    const tick = () => {
+      const maxFrame = Math.max(0, resolver.slotCount.value - 1);
+      if (alignedCurrentFrame.value >= maxFrame) {
+        aggregatePause();
+        return;
+      }
+      alignedSeek(resolver, alignedCurrentFrame.value + 1);
+      alignedPlaybackTimer = setTimeout(tick, 1000 / Math.max(1, resolver.frameRate.value));
+    };
+    alignedPlaybackTimer = setTimeout(tick, 1000 / Math.max(1, resolver.frameRate.value));
   }
 
   const aggregateController: Ref<AggregateMediaController> = computed(() => {
@@ -505,19 +663,22 @@ export function useMediaController() {
       return emptyAggregateController;
     }
     const defaultController = getController();
+    const resolver = alignedFrameResolver.value;
     return {
       cameras: computed(() => cameras.value.map((v) => String(v))),
-      maxFrame: defaultController.maxFrame,
-      frame: defaultController.frame,
-      seek: over(map(subControllers, 'seek')),
-      nextFrame: over(map(subControllers, 'nextFrame')),
-      prevFrame: over(map(subControllers, 'prevFrame')),
+      maxFrame: resolver
+        ? computed(() => Math.max(0, resolver.slotCount.value - 1))
+        : defaultController.maxFrame,
+      frame: resolver ? alignedCurrentFrame : defaultController.frame,
+      seek: aggregateSeek,
+      nextFrame: aggregateNextFrame,
+      prevFrame: aggregatePrevFrame,
       volume: defaultController.volume,
       setVolume: over(map(subControllers, 'setVolume')),
       speed: defaultController.speed,
       setSpeed: over(map(subControllers, 'setSpeed')),
-      pause: over(map(subControllers, 'pause')),
-      play: over(map(subControllers, 'play')),
+      pause: aggregatePause,
+      play: aggregatePlay,
       playing: defaultController.playing,
       resetZoom: over(map(subControllers, 'resetZoom')),
       currentTime: defaultController.currentTime,
@@ -525,6 +686,8 @@ export function useMediaController() {
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
       resizeTrigger,
+      alignedGapSlots,
+      seekCameraFrame: aggregateSeekCameraFrame,
     };
   });
 
@@ -540,5 +703,6 @@ export function useMediaController() {
     initialize,
     onResize,
     clear,
+    setAlignedFrameResolver,
   };
 }

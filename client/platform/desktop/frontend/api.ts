@@ -21,6 +21,7 @@ import {
   ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
   DesktopJob,
+  MultiCamBatchScanResult,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue } from './store/jobs';
@@ -228,6 +229,10 @@ function checkDataset(datasetId: string): Promise<boolean> {
 function importMultiCam(args: MultiCamImportArgs):
    Promise<DesktopMediaImportResponse> {
   return window.diveDesktop.invoke('import-multicam-media', { args });
+}
+
+function scanMultiCamBatch(path: string): Promise<MultiCamBatchScanResult> {
+  return window.diveDesktop.invoke('scan-multicam-batch', { path });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -710,6 +715,7 @@ export {
   checkDataset,
   importAnnotationFile,
   importMultiCam,
+  scanMultiCamBatch,
   openLink,
   nvidiaSmi,
   cancelJob,

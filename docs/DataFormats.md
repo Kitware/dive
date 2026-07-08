@@ -180,9 +180,29 @@ interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
-  imageEnhancments?: ImageEnhancements;
+  imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   datasetInfo?: Record<string, unknown>;
+}
+```
+
+`imageEnhancements` stores viewer display settings (brightness, contrast, saturation,
+sharpen, and optional percentile stretch bounds). See
+[Image Enhancements](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
+
+### Media frame metadata
+
+Each frame in an image-sequence or multicam dataset may carry a `timestamp` field (epoch
+seconds) parsed from the filename at load time. When every frame on every camera in a
+multicam dataset has a timestamp, DIVE builds a global aligned timeline for playback. See
+[Aligned playback and timestamps](Multicamera-data.md#aligned-playback-and-timestamps).
+
+```typescript
+interface FrameImage {
+  url: string;
+  filename: string;
+  id?: string; // large-image item id (web tiled TIFF)
+  timestamp?: number; // capture time in epoch seconds, when parseable from filename
 }
 ```
 
