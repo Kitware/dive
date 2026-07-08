@@ -1,4 +1,5 @@
 import type { SubType } from 'dive-common/apispec';
+import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 
 export type MultiCamSubType = 'stereo' | 'multicam';
 
@@ -38,7 +39,7 @@ export function orderedMultiCamCameraNames(multiCamMedia: MultiCamMediaLike | nu
   if (cameraOrder?.length) {
     return cameraOrder.filter((name) => name in cameras);
   }
-  return Object.keys(cameras);
+  return preferEoIrSubfolderOrder(Object.keys(cameras));
 }
 
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {

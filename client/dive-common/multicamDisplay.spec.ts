@@ -36,6 +36,13 @@ describe('multicamDisplay', () => {
     })).toEqual(['left', 'right']);
   });
 
+  it('falls back to EO left and IR right when cameraOrder is missing', () => {
+    expect(orderedMultiCamCameraNames({
+      defaultDisplay: 'EO',
+      cameras: { IR: {}, UV: {}, EO: {} },
+    })).toEqual(['EO', 'UV', 'IR']);
+  });
+
   it('detects multicam dataset meta for training guards', () => {
     expect(isMultiCamDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
     expect(isMultiCamDatasetMeta({ type: 'video', subType: null })).toBe(false);

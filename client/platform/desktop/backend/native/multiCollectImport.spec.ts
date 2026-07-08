@@ -67,14 +67,14 @@ describe('native.multiCollectImport', () => {
     });
     const result = await scanMultiCamBatch('/survey');
     expect(result.problems).toEqual([]);
-    expect(result.cameraNames).toEqual(['EO', 'IR', 'UV']);
+    expect(result.cameraNames).toEqual(['EO', 'UV', 'IR']);
     expect(result.collects.map((c) => c.name)).toEqual(['fl01', 'fl02']);
     result.collects.forEach((collect) => {
       expect(collect.problems).toEqual([]);
       expect(collect.warnings).toEqual([]);
       expect(collect.importArgs).not.toBeNull();
       expect(collect.importArgs?.datasetName).toBe(collect.name);
-      expect(collect.importArgs?.cameraOrder).toEqual(['EO', 'IR', 'UV']);
+      expect(collect.importArgs?.cameraOrder).toEqual(['EO', 'UV', 'IR']);
       expect(collect.importArgs?.type).toBe('image-sequence');
       // EO is preferred as default display when present
       expect(collect.importArgs?.defaultDisplay).toBe('EO');

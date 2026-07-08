@@ -16,6 +16,7 @@ import {
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
   parentFolderLabelFromAbsolutePaths,
+  preferEoIrSubfolderOrder,
   preferEoSubfolderFirst,
   preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
@@ -326,19 +327,27 @@ describe('sortSubfolderCameraNames', () => {
   });
 });
 
-describe('preferEoSubfolderFirst', () => {
-  it('moves EO-named folders before IR and others', () => {
-    expect(preferEoSubfolderFirst(['2021_IR_SHORT', '2021_EO_SHORT'])).toEqual([
+describe('preferEoIrSubfolderOrder', () => {
+  it('moves EO-named folders left and IR-named folders right', () => {
+    expect(preferEoIrSubfolderOrder(['2021_IR_SHORT', '2021_EO_SHORT'])).toEqual([
       '2021_EO_SHORT',
       '2021_IR_SHORT',
     ]);
+    expect(preferEoIrSubfolderOrder(['IR', 'UV', 'EO'])).toEqual(['EO', 'UV', 'IR']);
   });
 
-  it('leaves order unchanged when EO is already first', () => {
-    expect(preferEoSubfolderFirst(['2021_EO_SHORT', '2021_IR_SHORT'])).toEqual([
+  it('leaves order unchanged when EO is already first and IR is already last', () => {
+    expect(preferEoIrSubfolderOrder(['2021_EO_SHORT', '2021_IR_SHORT'])).toEqual([
       '2021_EO_SHORT',
       '2021_IR_SHORT',
     ]);
+    expect(preferEoIrSubfolderOrder(['EO', 'UV', 'IR'])).toEqual(['EO', 'UV', 'IR']);
+  });
+});
+
+describe('preferEoSubfolderFirst', () => {
+  it('delegates to preferEoIrSubfolderOrder', () => {
+    expect(preferEoSubfolderFirst(['IR', 'UV', 'EO'])).toEqual(['EO', 'UV', 'IR']);
   });
 });
 
@@ -405,6 +414,10 @@ describe('orderSubfolderCameraNames', () => {
 
   it('uses preferred order when STAR, CENTER, and PORT are all present', () => {
     expect(orderSubfolderCameraNames(['PORT', 'CENTER', 'STAR'])).toEqual(['STAR', 'CENTER', 'PORT']);
+  });
+
+  it('orders EO left and IR right when those tokens appear in folder names', () => {
+    expect(orderSubfolderCameraNames(['IR', 'UV', 'EO'])).toEqual(['EO', 'UV', 'IR']);
   });
 });
 

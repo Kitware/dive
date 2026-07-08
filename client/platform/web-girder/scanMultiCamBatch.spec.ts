@@ -25,7 +25,7 @@ describe('scanMultiCamBatchFromFiles', () => {
     ];
     const result = scanMultiCamBatchFromFiles('survey', files);
     expect(result.problems).toEqual([]);
-    expect(result.cameraNames).toEqual(['EO', 'IR', 'UV']);
+    expect(result.cameraNames).toEqual(['EO', 'UV', 'IR']);
     expect(result.collects.map((collect) => collect.name)).toEqual(['fl01', 'fl02']);
     result.collects.forEach((collect) => {
       expect(collect.importArgs).not.toBeNull();
