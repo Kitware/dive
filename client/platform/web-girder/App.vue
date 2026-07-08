@@ -28,6 +28,7 @@ import {
   unwrap,
   getTiles,
   getTileURL,
+  getTileHistogram,
   hasCalibrationFile,
   downloadCalibration,
   deleteCalibration,
@@ -81,6 +82,7 @@ export default defineComponent({
       importAnnotationFile,
       getTiles,
       getTileURL,
+      getTileHistogram,
     });
   },
 });

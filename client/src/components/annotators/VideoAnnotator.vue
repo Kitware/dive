@@ -106,6 +106,10 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    filterId: {
+      type: String as PropType<string>,
+      default: 'imageEnhancements',
+    },
   },
   setup(props) {
     const cameraInitializer = injectCameraInitializer();
@@ -212,7 +216,7 @@ export default defineComponent({
           if (newVal) {
             quadFeatureLayer.node().css('filter', '');
           } else {
-            quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+            quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
           }
         }
       },
@@ -259,7 +263,7 @@ export default defineComponent({
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
       if (!props.isDefaultImage) {
-        quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+        quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
       }
       data.ready = true;
       data.volume = video.volume;
@@ -291,7 +295,7 @@ export default defineComponent({
   <div class="video-annotator" :style="{ cursor: data.cursor }">
     <svg width="0" height="0" style="position: absolute; top: -1px; left: -1px">
       <defs>
-        <filter id="imageEhancements">
+        <filter :id="filterId">
           <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"

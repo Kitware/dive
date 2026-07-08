@@ -69,12 +69,13 @@ nav:
         - Attribute Track Filtering: UI-AttributeTrackFiltering.md
       - Group Manager: UI-Group-Manager.md
       - Dataset Info: UI-DatasetInfo.md
+      - Image Enhancements: UI-Image-Enhancements.md
       - Annotation Sets: Annotation-Sets.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
       - Command Line Tools: Command-Line-Tools.md
-      - Large Image Desktop Support: Large-Image-Support.md
+      - Large Image Support: Large-Image-Support.md
       - Multicamera and Stereo Data: Multicamera-data.md
       - Interactive Annotation (Desktop): Interactive-Annotation.md
     - Screenshots: Screenshots.md

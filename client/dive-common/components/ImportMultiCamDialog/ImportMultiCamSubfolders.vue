@@ -59,8 +59,9 @@ export default defineComponent({
       class="mb-3"
     >
       Choose a parent folder with either one subfolder per camera (2 or 3 subfolders)
-      or separate video files in the folder (2 or 3 videos). Names come from the subfolder
-      or video file name (letters and numbers only).
+      or separate video files in the folder (2 or 3 videos). Subfolders without image or
+      video files are ignored. Names come from the subfolder or video file name
+      (letters, numbers, and underscores).
     </v-alert>
     <v-row
       no-gutters

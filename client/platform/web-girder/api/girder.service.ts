@@ -21,9 +21,9 @@ function deleteItem(itemId: string) {
   return girderRest.delete(`item/${itemId}`);
 }
 
-function getItemsInFolder(folderId: string, limit: number) {
+function getItemsInFolder(folderId: string, limit: number, offset = 0) {
   return girderRest.get<GirderModel[]>('item', {
-    params: { folderId, limit },
+    params: { folderId, limit, offset },
   });
 }
 

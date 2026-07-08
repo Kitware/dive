@@ -1,6 +1,19 @@
 # Large Image Support
 
-DIVE supports large image datasets (GeoTIFF/TIFF) through tiled pyramid access.
+DIVE supports large image datasets (GeoTIFF/TIFF) through tiled pyramid access on **Web**
+(Girder [large_image](https://girder.github.io/large_image/)) and **Desktop** (local
+GeoTIFF tile server).
+
+## Dynamic range in the viewer
+
+For **Web** tiled TIFF datasets (`large-image` type), use the
+[Image Enhancements](UI-Image-Enhancements.md) panel to apply **percentile stretch** while
+annotating. DIVE passes stretch parameters to Girder tile requests so 16-bit (and other
+high bit-depth) data can be viewed interactively without baking a fixed min/max into the
+file first.
+
+Pre-scaling to 8-bit COG (below) is still useful when you want a fixed display range at
+import time or when preparing files for tools that do not support dynamic tile styling.
 
 ## Requirement: Internal Overviews
 

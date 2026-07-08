@@ -142,6 +142,7 @@ export function useMediaController() {
    */
   function onResize() {
     let resized = false;
+    const pendingResizes: (() => void)[] = [];
     subControllers.forEach((mc) => {
       const camera = cameraControllerSymbols[mc.cameraName.value].toString();
       const geoViewerRef = geoViewers[camera];
@@ -153,16 +154,22 @@ export function useMediaController() {
       const mapSize = geoViewerRef.value.size();
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         resized = true;
-        window.requestAnimationFrame(() => {
+        pendingResizes.push(() => {
+          if (geoViewerRef.value === undefined) {
+            return;
+          }
           geoViewerRef.value.size(size);
           mc.resetZoom();
         });
       }
     });
-    // Trigger layer redraw after resize
+    // Resize maps first, then redraw annotation layers once GeoJS has settled.
     if (resized) {
       window.requestAnimationFrame(() => {
-        resizeTrigger.value += 1;
+        pendingResizes.forEach((applyResize) => applyResize());
+        window.requestAnimationFrame(() => {
+          resizeTrigger.value += 1;
+        });
       });
     }
   }

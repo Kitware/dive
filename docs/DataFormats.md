@@ -180,11 +180,15 @@ interface DatasetMetaMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
-  imageEnhancments?: ImageEnhancements;
+  imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   datasetInfo?: Record<string, unknown>;
 }
 ```
+
+`imageEnhancements` stores viewer display settings (brightness, contrast, saturation,
+sharpen, and optional percentile stretch bounds). See
+[Image Enhancements](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
 
 ## VIAME CSV
 

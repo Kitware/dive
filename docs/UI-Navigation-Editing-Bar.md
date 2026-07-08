@@ -26,7 +26,7 @@ The editing bar is the second row below navigation.
 
 On the right side of the editing bar, ==:material-chevron-left-box:== (or ==:material-chevron-right-box:== when open) toggles the **context sidebar** — advanced tools and settings panels on the right side of the viewer.
 
-Use the dropdown at the top of that panel to switch tools, including [Dataset Info](UI-DatasetInfo.md), [Revision History](Web-Version.md#revision-history), Group Manager, threshold controls, and (when applicable) [Annotation Sets](Annotation-Sets.md).
+Use the dropdown at the top of that panel to switch tools, including [Dataset Info](UI-DatasetInfo.md), [Revision History](Web-Version.md#revision-history), [Image Enhancements](UI-Image-Enhancements.md), Group Manager, threshold controls, and (when applicable) [Annotation Sets](Annotation-Sets.md).
 
 ### Editing Status Indicator
 
