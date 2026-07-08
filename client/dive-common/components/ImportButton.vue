@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { DatasetType } from 'dive-common/apispec';
-import { defineComponent, PropType } from 'vue';
+import { computed, defineComponent, PropType } from 'vue';
 
 export const DefaultButtonAttrs = {
   block: true,
@@ -44,8 +44,11 @@ export default defineComponent({
       default: '',
     },
   },
-  setup() {
+  setup(props) {
+    const menuWidth = computed(() => (props.batchMultiCamImport ? 240 : 180));
+
     return {
+      menuWidth,
     };
   },
 });
@@ -56,8 +59,8 @@ export default defineComponent({
     <v-menu
       offset-y
       offset-x
-      nudge-left="180"
-      max-width="180"
+      :nudge-left="menuWidth"
+      :max-width="menuWidth"
     >
       <template #activator="{ on }">
         <v-tooltip
