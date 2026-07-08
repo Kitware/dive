@@ -21,6 +21,7 @@ Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
 Multicamera and stereo datasets | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Batch multicam import (collect folders) | ✔️ | ✔️
 Load annotations from [supported formats](DataFormats.md) | ✔️ | ✔️
 Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
@@ -38,7 +39,8 @@ Freeform or multi-select attributes | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Interactive point-click segmentation | ❌ | ✔️
 | &nbsp;&nbsp;&nbsp; Interactive stereo (warp / length recompute) | ❌ | ✔️
 | **Data Review** |
-Image enhancement (thresholding) | ✔️ | ✔️
+Image enhancement (brightness, contrast, saturation, sharpness) | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Percentile stretch for high bit-depth TIFF | ✔️ (large-image) | ✔️ (image-sequence)
 Advanced per-type annotation confidence threshoding | ✔️ | ✔️
 Review save history and load previous states | ✔️ | ❌
 Multiple parallel annotation sets on one dataset | ✔️ | ❌

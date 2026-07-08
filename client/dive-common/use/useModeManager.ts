@@ -97,6 +97,7 @@ export default function useModeManager({
   aggregateController,
   readonlyState,
   recipes,
+  isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
   onStereoSegmentationFinalize,
@@ -107,12 +108,19 @@ export default function useModeManager({
     aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
+    /** When set, interactive stereo only runs on stereoscopic datasets. */
+    isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
   const { prompt } = usePrompt();
+
+  function stereoInteractiveActive(): boolean {
+    return isStereoInteractiveModeEnabled()
+      && (isStereoscopicDataset === undefined || isStereoscopicDataset.value);
+  }
   const annotationModes = reactive({
     visible: ['rectangle', 'Polygon', 'LineString', 'text'] as VisibleAnnotationTypes[],
     editing: 'rectangle' as EditAnnotationTypes,
@@ -588,7 +596,7 @@ export default function useModeManager({
         newTrackSettingsAfterLogic(track);
 
         // Stereo: emit box annotation complete
-        if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()) {
+        if (onStereoAnnotationComplete && stereoInteractiveActive()) {
           onStereoAnnotationComplete({
             type: 'box',
             camera: selectedCamera.value,
@@ -762,7 +770,7 @@ export default function useModeManager({
             newTrackSettingsAfterLogic(track);
 
             // Stereo: emit line or polygon annotation complete
-            if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
+            if (onStereoAnnotationComplete && stereoInteractiveActive()
                 && completedTrackId !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
@@ -1322,7 +1330,7 @@ export default function useModeManager({
       // without waiting for the user to finalize the detection. Only fired for
       // fresh predictions (controlPoints present), so navigating frames or
       // restoring a pending preview does not re-trigger stereo work.
-      if (onStereoAnnotationComplete && isStereoInteractiveModeEnabled()
+      if (onStereoAnnotationComplete && stereoInteractiveActive()
           && selectedTrackId.value !== null && result.controlPoints) {
         onStereoAnnotationComplete({
           type: 'segmentation',
@@ -1493,7 +1501,7 @@ export default function useModeManager({
         : []);
     }
 
-    if (onStereoAnnotationReset && isStereoInteractiveModeEnabled()) {
+    if (onStereoAnnotationReset && stereoInteractiveActive()) {
       onStereoAnnotationReset({
         trackId: selectedTrackId.value as number,
         frameNum: data.frameNum,

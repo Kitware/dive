@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
   defineComponent, ref, toRef, computed, Ref,
-  reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType,
+  reactive, watch, inject, provide, nextTick, onBeforeUnmount, PropType, set as VueSet,
 } from 'vue';
 import type { Vue } from 'vue/types/vue';
 import type Vuetify from 'vuetify/lib';
@@ -66,6 +66,18 @@ import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
 } from 'dive-common/alignedTimeline';
+import {
+  computeOutputs,
+  computeIsDefault,
+  defaultImageEnhancements,
+  effectiveImageEnhancements,
+  ImageEnhancements,
+  resolvePercentileStretchSupported,
+  parseGirderHistogramResponse,
+  girderHistogramToPercentileHistogram,
+  PercentileHistogram,
+  PercentileStretch,
+} from 'vue-media-annotator/use/useImageEnhancements';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
@@ -162,13 +174,15 @@ export default defineComponent({
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
+    const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
+    const cameraTypesByCamera: Ref<Record<string, DatasetType>> = ref({});
     const datasetName = ref('');
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
-      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL,
+      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL, getTileHistogram,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -343,11 +357,28 @@ export default defineComponent({
 
     const {
       imageEnhancements,
-      imageEnhancementOutputs,
-      isDefaultImage,
+      imageEnhancementsByCamera,
+      percentileStretchSupported,
+      percentileHistogram,
+      percentileHistogramLoading,
       setImageEnhancements,
       setSVGFilters,
+      setPercentileStretchSupported,
+      setPercentileHistogram,
+      setPercentileHistogramLoading,
     } = useImageEnhancements();
+
+    const isDesktopApp = typeof window !== 'undefined' && 'diveDesktop' in window;
+    const supportsLargeImageTileStretch = !!getTileHistogram;
+    const percentileStretchSupportedByCamera: Ref<Record<string, boolean>> = ref({});
+
+    function cameraSupportsPercentileStretch(camera: string): boolean {
+      return percentileStretchSupportedByCamera.value[camera] ?? false;
+    }
+
+    function syncPercentileStretchSupported(camera: string) {
+      setPercentileStretchSupported(cameraSupportsPercentileStretch(camera));
+    }
 
     const segmentationRecipe = new SegmentationPointClick();
     const segmentationCursorLoading = computed(
@@ -431,6 +462,7 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },
@@ -622,7 +654,7 @@ export default defineComponent({
       // measurement (length, midpoint, range, RMS) computed for every frame
       // where both cameras now have a line. The desktop loader owns the stereo
       // service, so delegate via an event.
-      if (isStereoInteractiveModeEnabled()) {
+      if (isStereoInteractiveModeEnabled() && subType.value === 'stereo') {
         emit('stereo-track-linked', baseTrack);
       }
     }
@@ -686,14 +718,196 @@ export default defineComponent({
       });
     }
 
-    function saveImageEnhancements() {
-      saveMetadata(datasetId.value, {
-        imageEnhancements: imageEnhancements.value,
-      });
-    }
-    const debouncedSaveImageEnhancements = debounce(saveImageEnhancements, 1000, { trailing: true });
+    const debouncedSaves: Record<string, ReturnType<typeof debounce>> = {};
 
-    watch(imageEnhancements, debouncedSaveImageEnhancements, { deep: true });
+    function getCameraId(camera: string): string {
+      return multiCamList.value.length > 1
+        ? `${baseMulticamDatasetId.value}/${camera}`
+        : datasetId.value;
+    }
+
+    function getDebouncedSave(camera: string) {
+      if (!debouncedSaves[camera]) {
+        debouncedSaves[camera] = debounce(
+          () => saveMetadata(
+            getCameraId(camera),
+            { imageEnhancements: imageEnhancementsByCamera.value[camera] },
+          ),
+          1000,
+          { trailing: true },
+        );
+      }
+      return debouncedSaves[camera];
+    }
+
+    function toDisplayUrl(
+      rawUrl: string,
+      camera: string,
+      frame: number,
+      low: number,
+      high: number,
+    ): string {
+      // The backend resolves the ORIGINAL source image from (dataset id, frame index)
+      // rather than the transcoded path in rawUrl, so it can stretch the original 16-bit
+      // TIFF instead of the 8-bit PNG that import-time transcoding produced.
+      // For desktop the raw URL is absolute (http://127.0.0.1:PORT/api/media?path=...).
+      // Reuse its origin so requests go directly to the Express backend, not through the
+      // Vite proxy which doesn't know the randomly-assigned backend port.
+      let apiBase = '/api';
+      try {
+        const parsed = new URL(rawUrl);
+        apiBase = `${parsed.origin}/api`;
+      } catch { /* rawUrl is relative (web platform) — keep /api */ }
+      const id = encodeURIComponent(getCameraId(camera));
+      return `${apiBase}/media/display?id=${id}&frame=${frame}&low=${low}&high=${high}`;
+    }
+
+    function toHistogramUrl(
+      rawUrl: string,
+      camera: string,
+      frame: number,
+      low: number,
+      high: number,
+    ): string {
+      let apiBase = '/api';
+      try {
+        const parsed = new URL(rawUrl);
+        apiBase = `${parsed.origin}/api`;
+      } catch { /* rawUrl is relative (web platform) — keep /api */ }
+      const id = encodeURIComponent(getCameraId(camera));
+      return `${apiBase}/media/histogram?id=${id}&frame=${frame}&low=${low}&high=${high}`;
+    }
+
+    const previousStretchByCam: Record<string, string> = {};
+
+    function stretchKey(camera: string): string {
+      const enh = imageEnhancementsByCamera.value[camera];
+      const effective = effectiveImageEnhancements(
+        enh ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
+      const s = effective.percentileStretch;
+      return s ? `${s.lowPercentile}:${s.highPercentile}` : 'none';
+    }
+
+    function applyDisplayUrls(camera: string) {
+      const raw = rawImageData.value[camera] ?? [];
+      const enh = imageEnhancementsByCamera.value[camera];
+      const effective = effectiveImageEnhancements(
+        enh ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
+      let frames: FrameImage[];
+      if (effective.percentileStretch) {
+        const { lowPercentile, highPercentile } = effective.percentileStretch;
+        frames = raw.map((item, index) => ({
+          ...item,
+          url: toDisplayUrl(item.url, camera, index, lowPercentile, highPercentile),
+        }));
+      } else {
+        frames = raw;
+      }
+      if (imageData.value[camera] !== frames) {
+        VueSet(imageData.value, camera, frames);
+      }
+      previousStretchByCam[camera] = stretchKey(camera);
+    }
+
+    let histogramRequestToken = 0;
+
+    async function fetchSelectedCameraHistogram() {
+      const camera = selectedCamera.value;
+      const frame = time.frame.value;
+      const rawFrames = rawImageData.value[camera] ?? [];
+      if (!progress.loaded || !cameraSupportsPercentileStretch(camera) || frame < 0 || frame >= rawFrames.length) {
+        histogramRequestToken += 1;
+        setPercentileHistogram(null);
+        setPercentileHistogramLoading(false);
+        return;
+      }
+      const rawFrame = rawFrames[frame];
+      if (!rawFrame?.url) {
+        histogramRequestToken += 1;
+        setPercentileHistogram(null);
+        setPercentileHistogramLoading(false);
+        return;
+      }
+      const requestToken = histogramRequestToken + 1;
+      histogramRequestToken = requestToken;
+      setPercentileHistogramLoading(true);
+      try {
+        const cameraType = cameraTypesByCamera.value[camera] ?? datasetType.value;
+        if (cameraType === 'large-image' && rawFrame.id && getTileHistogram) {
+          const response = await getTileHistogram(rawFrame.id, { bins: 256 });
+          if (histogramRequestToken !== requestToken) return;
+          setPercentileHistogram(
+            girderHistogramToPercentileHistogram(parseGirderHistogramResponse(response)),
+          );
+          return;
+        }
+        // Bins depend only on the source frame; percentile markers are derived client-side.
+        const response = await fetch(toHistogramUrl(rawFrame.url, camera, frame, 1, 99));
+        if (!response.ok) {
+          throw new Error(`Histogram request failed with status ${response.status}`);
+        }
+        const payload = await response.json() as PercentileHistogram;
+        if (histogramRequestToken !== requestToken) return;
+        setPercentileHistogram(payload);
+      } catch {
+        if (histogramRequestToken !== requestToken) return;
+        setPercentileHistogram(null);
+      } finally {
+        if (histogramRequestToken === requestToken) {
+          setPercentileHistogramLoading(false);
+        }
+      }
+    }
+
+    const debouncedApplyUrlsByCam: Record<string, ReturnType<typeof debounce>> = {};
+    const debouncedFetchHistogram = debounce(fetchSelectedCameraHistogram, 200, { trailing: true });
+
+    function getDebouncedApplyDisplayUrls(camera: string) {
+      if (!debouncedApplyUrlsByCam[camera]) {
+        debouncedApplyUrlsByCam[camera] = debounce(applyDisplayUrls, 500, { trailing: true });
+      }
+      return debouncedApplyUrlsByCam[camera];
+    }
+
+    watch(imageEnhancements, () => {
+      const camera = selectedCamera.value;
+      VueSet(imageEnhancementsByCamera.value, camera, imageEnhancements.value);
+      getDebouncedSave(camera)();
+
+      const current = stretchKey(camera);
+      const previous = previousStretchByCam[camera] ?? 'none';
+      if (current !== previous) {
+        const isToggle = (current === 'none') !== (previous === 'none');
+        if (isToggle) {
+          getDebouncedApplyDisplayUrls(camera).cancel();
+          applyDisplayUrls(camera);
+        } else {
+          getDebouncedApplyDisplayUrls(camera)(camera);
+        }
+      }
+    }, { deep: true });
+
+    watch(selectedCamera, (newCam, oldCam) => {
+      debouncedSaves[oldCam]?.flush();
+      debouncedFetchHistogram.cancel();
+      setImageEnhancements(
+        imageEnhancementsByCamera.value[newCam] ?? { ...defaultImageEnhancements },
+      );
+      syncPercentileStretchSupported(newCam);
+      fetchSelectedCameraHistogram().catch(() => {});
+      // cancel the save that watch(imageEnhancements) schedules when setImageEnhancements
+      // replaces the ref — loading a camera's stored state is not a user-initiated change
+      nextTick(() => { debouncedSaves[newCam]?.cancel(); });
+    });
+
+    watch(
+      [() => time.frame.value, percentileStretchSupported],
+      () => { debouncedFetchHistogram(); },
+    );
 
     // Auto-save annotations when enabled, but never while editing a track.
     // Delay is configurable in settings and applied dynamically.
@@ -1013,11 +1227,10 @@ export default defineComponent({
         }
         trackFilters.setConfidenceFilters(meta.confidenceFilters);
         trackFilters.setTimeFilters(meta.timeFilters ?? null);
-        if (meta.imageEnhancements) {
-          setImageEnhancements(meta.imageEnhancements);
-        }
+        /* imageEnhancements are loaded per-camera below */
         datasetName.value = meta.name;
         subType.value = meta.subType || null;
+        datasetType.value = meta.type as DatasetType;
         initTime({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
@@ -1040,12 +1253,25 @@ export default defineComponent({
           }
           // eslint-disable-next-line no-await-in-loop
           const subCameraMeta = await loadMetadata(cameraId);
-          datasetType.value = subCameraMeta.type as DatasetType;
+          VueSet(cameraTypesByCamera.value, camera, subCameraMeta.type as DatasetType);
+          if (multiCamList.value.length <= 1) {
+            datasetType.value = subCameraMeta.type as DatasetType;
+          }
 
-          imageData.value = {
-            ...imageData.value,
-            [camera]: cloneDeep(subCameraMeta.imageData) as FrameImage[],
-          };
+          VueSet(imageEnhancementsByCamera.value, camera, subCameraMeta.imageEnhancements
+            ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
+            : { ...defaultImageEnhancements });
+          VueSet(
+            percentileStretchSupportedByCamera.value,
+            camera,
+            resolvePercentileStretchSupported(
+              subCameraMeta,
+              isDesktopApp,
+              supportsLargeImageTileStretch,
+            ),
+          );
+          VueSet(rawImageData.value, camera, cloneDeep(subCameraMeta.imageData) as FrameImage[]);
+          applyDisplayUrls(camera);
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
           }
@@ -1151,7 +1377,12 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
+        setImageEnhancements(
+          imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
+        );
+        syncPercentileStretchSupported(selectedCamera.value);
         progress.loaded = true;
+        fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
           context.unregister({
@@ -1187,6 +1418,17 @@ export default defineComponent({
     const reloadAnnotations = async () => {
       progress.loaded = false;
       discardChanges();
+      Object.values(debouncedSaves).forEach((fn) => fn.cancel());
+      Object.keys(debouncedSaves).forEach((k) => delete debouncedSaves[k]);
+      Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
+      Object.keys(debouncedApplyUrlsByCam).forEach((k) => delete debouncedApplyUrlsByCam[k]);
+      Object.keys(previousStretchByCam).forEach((k) => delete previousStretchByCam[k]);
+      imageEnhancementsByCamera.value = {};
+      cameraTypesByCamera.value = {};
+      percentileStretchSupportedByCamera.value = {};
+      setPercentileStretchSupported(false);
+      setPercentileHistogram(null);
+      setPercentileHistogramLoading(false);
       cameraStore.clearAll();
       mediaControllerClear();
       await loadData();
@@ -1221,6 +1463,9 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       debouncedAutoSave.cancel();
+      Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
+      debouncedFetchHistogram.cancel();
+      Object.values(debouncedSaves).forEach((fn) => fn.flush());
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
@@ -1281,6 +1526,9 @@ export default defineComponent({
         visibleModes,
         readOnlyMode: readonlyState,
         imageEnhancements,
+        percentileStretchSupported,
+        percentileHistogram,
+        percentileHistogramLoading,
       },
       globalHandler,
       useAttributeFilters,
@@ -1440,6 +1688,40 @@ export default defineComponent({
       }
     }
 
+    function cameraAnnotatorComponent(camera: string): string {
+      const type = cameraTypesByCamera.value[camera] ?? datasetType.value;
+      if (type === 'image-sequence') {
+        return 'image-annotator';
+      }
+      if (type === 'video') {
+        return 'video-annotator';
+      }
+      return 'large-image-annotator';
+    }
+
+    function cameraEnhOutputs(camera: string) {
+      return computeOutputs(
+        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+      );
+    }
+
+    function isCameraDefault(camera: string): boolean {
+      return computeIsDefault(
+        effectiveImageEnhancements(
+          imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+          cameraSupportsPercentileStretch(camera),
+        ),
+      );
+    }
+
+    function cameraPercentileStretch(camera: string): PercentileStretch | null {
+      const effective = effectiveImageEnhancements(
+        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
+      return effective.percentileStretch ?? null;
+    }
+
     return {
       /* props */
       aggregateController,
@@ -1462,6 +1744,7 @@ export default defineComponent({
       clientSettings,
       datasetName,
       datasetType,
+      cameraAnnotatorComponent,
       subType,
       editingTrack,
       editingMode,
@@ -1493,8 +1776,9 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
-      imageEnhancementOutputs,
-      isDefaultImage,
+      cameraEnhOutputs,
+      isCameraDefault,
+      cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
       visible,
@@ -1837,10 +2121,7 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video'
-                    ? 'video-annotator'
-                    : 'large-image-annotator'"
+                :is="cameraAnnotatorComponent(camera)"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
@@ -1852,10 +2133,12 @@ export default defineComponent({
                   frameRate,
                   originalFps,
                   camera,
-                  imageEnhancementOutputs,
-                  isDefaultImage,
+                  imageEnhancementOutputs: cameraEnhOutputs(camera),
+                  isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
+                  percentileStretch: cameraPercentileStretch(camera),
+                  filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
@@ -1867,7 +2150,7 @@ export default defineComponent({
             ref="controlsRef"
             :collapsed.sync="controlsCollapsed"
             v-bind="{
-              lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage,
+              lineChartData, eventChartData, groupChartData, datasetType, isDefaultImage: isCameraDefault(selectedCamera),
             }"
           />
         </div>
@@ -1935,8 +2218,7 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                :is="cameraAnnotatorComponent(camera)"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
@@ -1948,10 +2230,12 @@ export default defineComponent({
                   frameRate,
                   originalFps,
                   camera,
-                  imageEnhancementOutputs,
-                  isDefaultImage,
+                  imageEnhancementOutputs: cameraEnhOutputs(camera),
+                  isDefaultImage: isCameraDefault(camera),
                   getTiles,
                   getTileURL,
+                  percentileStretch: cameraPercentileStretch(camera),
+                  filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
               >
@@ -1968,7 +2252,7 @@ export default defineComponent({
             :event-chart-data="eventChartData"
             :group-chart-data="groupChartData"
             :dataset-type="datasetType"
-            :is-default-image="isDefaultImage"
+            :is-default-image="isCameraDefault(selectedCamera)"
             :client-settings="clientSettings"
             :track-filters="trackFilters"
             :attributes="attributes"

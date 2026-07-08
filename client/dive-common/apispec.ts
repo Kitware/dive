@@ -8,6 +8,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -135,9 +136,11 @@ export interface MultiCamImportFolderArgs {
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
+    /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
+    type?: 'image-sequence' | 'video' | 'large-image';
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
+  type: 'image-sequence' | 'video' | 'large-image';
 }
 
 export interface MultiCamImportKeywordArgs {
@@ -299,6 +302,12 @@ interface Api {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
+  getTileHistogram?(itemId: string, options?: {
+    bins?: number;
+    frame?: number;
+    width?: number;
+    height?: number;
+  }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
   // Desktop-only calibration persistence functions
@@ -529,3 +538,5 @@ export {
   MultiCamMedia,
   MediaImportResponse,
 };
+
+export type { PercentileStretch };

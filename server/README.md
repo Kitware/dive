@@ -151,7 +151,8 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
 * `fps` (number) annotation framerate, not to be confused with video raw framerate
 * `ffprobe_info` (JSON) output of ffprobe for raw input video
 * `confidenceFilters` (JSON) map of filter name to float in [0, 1]
-* `imageEnhancements` (JSON) values for image enhancements (brightness, contrast, saturation, sharpen)
+* `imageEnhancements` (JSON) values for image enhancements (brightness, contrast,
+  saturation, sharpen, optional `percentileStretch` with `lowPercentile` / `highPercentile`)
 * `customTypeStyline` (JSON) map of class name to GeoJS display attributes.
 * `foreign_media_id` (string) For "cloned" datasets, this is an objectId pointer to the source media
 

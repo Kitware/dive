@@ -335,7 +335,7 @@ export default defineComponent({
       <template #middle>
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
-            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
+            v-if="datasetType === 'image-sequence' || datasetType === 'large-image' || datasetType === 'multi'"
             :class="bottomLayout ? 'filename-toolbar' : 'text-middle px-3'"
             display-type="filename"
             :truncate-filename="bottomLayout"

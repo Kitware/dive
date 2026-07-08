@@ -185,7 +185,7 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
 
 interface ValidationResponse {
   ok: boolean;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   media: string[];
   annotations: string[];
   message: string;
@@ -199,10 +199,10 @@ export interface CreateMulticamDatasetArgs {
   parentFolderId: string;
   name: string;
   fps: number;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   subType: 'stereo' | 'multicam';
   defaultDisplay: string;
-  cameras: Record<string, { folderId: string }>;
+  cameras: Record<string, { folderId: string; type?: 'video' | 'image-sequence' | 'large-image' }>;
   cameraOrder?: string[];
   calibrationFileId?: string;
 }

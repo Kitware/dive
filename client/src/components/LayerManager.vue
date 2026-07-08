@@ -543,7 +543,21 @@ export default defineComponent({
     watch(
       () => aggregateController.value.resizeTrigger.value,
       () => {
-        refreshLayers();
+        window.requestAnimationFrame(() => {
+          if (!annotator.geoViewerRef?.value) {
+            return;
+          }
+          updateLayers(
+            frameNumberRef.value,
+            editingModeRef.value,
+            selectedTrackIdRef.value,
+            multiSeletListRef.value,
+            enabledTracksRef.value,
+            visibleModesRef.value,
+            selectedKeyRef.value,
+            props.colorBy,
+          );
+        });
       },
     );
 

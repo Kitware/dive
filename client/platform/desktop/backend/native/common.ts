@@ -1052,8 +1052,42 @@ function isVideoFilePath(filePath: string): boolean {
 }
 
 /**
+ * Return true when a subfolder contains at least one importable image or video file.
+ */
+async function subfolderContainsMedia(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<boolean> {
+  if (!await fs.pathExists(subfolderPath)) {
+    return false;
+  }
+  const stat = await fs.stat(subfolderPath);
+  if (!stat.isDirectory()) {
+    return mediaType === 'video' && isVideoFilePath(subfolderPath);
+  }
+  if (mediaType === 'image-sequence') {
+    const found = await findImagesInFolder(subfolderPath);
+    return found.imagePaths.length > 0;
+  }
+  const entries = await fs.readdir(subfolderPath, { withFileTypes: true });
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (!entry.isFile()) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    const fullPath = npath.join(subfolderPath, entry.name);
+    if (isVideoFilePath(fullPath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Discover cameras under a parent folder: immediate subfolders, or separate video files
  * in the parent when importing video and there are no subfolders.
+ * Subfolders without importable media (e.g. calibration or transform data) are skipped.
  */
 async function listParentFolderCameras(
   parentPath: string,
@@ -1062,13 +1096,22 @@ async function listParentFolderCameras(
   const subfolders = await listImmediateSubfolders(parentPath);
   const separator = parentPath.includes('\\') ? '\\' : '/';
   const normalized = parentPath.replace(/[\\/]+$/, '');
-  if (subfolders.length >= 2) {
-    return subfolders.map((name) => ({
+  const mediaSubfolders: string[] = [];
+  for (let i = 0; i < subfolders.length; i += 1) {
+    const name = subfolders[i];
+    const fullPath = `${normalized}${separator}${name}`;
+    // eslint-disable-next-line no-await-in-loop
+    if (await subfolderContainsMedia(fullPath, mediaType)) {
+      mediaSubfolders.push(name);
+    }
+  }
+  if (mediaSubfolders.length >= 2) {
+    return mediaSubfolders.map((name) => ({
       name,
       sourcePath: `${normalized}${separator}${name}`,
     }));
   }
-  if (mediaType === 'video' && subfolders.length === 0) {
+  if (mediaType === 'video' && mediaSubfolders.length === 0) {
     const children = await fs.readdir(parentPath, { withFileTypes: true });
     const videoPaths: string[] = [];
     children.forEach((entry) => {
@@ -1086,7 +1129,7 @@ async function listParentFolderCameras(
       sourcePath: fullPath,
     }));
   }
-  return subfolders.map((name) => ({
+  return mediaSubfolders.map((name) => ({
     name,
     sourcePath: `${normalized}${separator}${name}`,
   }));
@@ -1550,6 +1593,41 @@ async function getLargeImagePath(settings: Settings, datasetId: string): Promise
     return path;
   } catch (err) {
     console.warn(`[tiles] getLargeImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
+/**
+ * Resolve the absolute path of the ORIGINAL (pre-transcode) image for a frame.
+ *
+ * The percentile-stretch / display path must read the original source image
+ * (e.g. a 16-bit IR TIFF), NOT the 8-bit PNG produced by import-time transcoding
+ * (`transcodedImageFiles`), which has already discarded the dynamic range the
+ * stretch is meant to recover. `imageData` URLs sent to the client point at the
+ * transcoded copies, so the client passes a frame index and we map it back to
+ * the original here. Returns null if the frame is out of range or unavailable.
+ */
+async function getDisplayImagePath(
+  settings: Settings,
+  datasetId: string,
+  frame: number,
+): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    const originals = meta.originalImageFiles ?? [];
+    if (!Number.isInteger(frame) || frame < 0 || frame >= originals.length) {
+      console.warn(
+        `[display] getDisplayImagePath: frame ${frame} out of range for dataset "${datasetId}" (${originals.length} images)`,
+      );
+      return null;
+    }
+    const entry = originals[frame];
+    // originalImageFiles entries are relative to originalBasePath, except for
+    // image-list imports where they are absolute and originalBasePath is ''.
+    return npath.isAbsolute(entry) ? entry : npath.join(meta.originalBasePath, entry);
+  } catch (err) {
+    console.warn(`[display] getDisplayImagePath: error for dataset "${datasetId}":`, err);
     return null;
   }
 }
@@ -2040,6 +2118,7 @@ export {
   getProjectDir,
   getValidatedProjectDir,
   getLargeImagePath,
+  getDisplayImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,

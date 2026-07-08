@@ -1,4 +1,5 @@
 import type { SubType } from 'dive-common/apispec';
+import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 
 export type MultiCamSubType = 'stereo' | 'multicam';
 
@@ -38,7 +39,7 @@ export function orderedMultiCamCameraNames(multiCamMedia: MultiCamMediaLike | nu
   if (cameraOrder?.length) {
     return cameraOrder.filter((name) => name in cameras);
   }
-  return Object.keys(cameras);
+  return preferEoIrSubfolderOrder(Object.keys(cameras));
 }
 
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {
@@ -59,6 +60,11 @@ export type FolderMetaLike = {
 /** True when folder meta describes a stereoscopic or multicam parent dataset. */
 export function isMultiCamDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
   return getMultiCamSubType(meta) !== null;
+}
+
+/** True when folder meta describes a stereoscopic (not plain multicam) parent dataset. */
+export function isStereoscopicDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
+  return getMultiCamSubType(meta) === 'stereo';
 }
 
 /**

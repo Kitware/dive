@@ -18,6 +18,7 @@ import {
   applyParentPathToAssignments,
   commonPathPrefix,
   groupParentFolderByCamera,
+  inferSubfolderImportType,
   isValidCameraName,
   organizeSubfolderCameras,
   parentFolderLabelFromAbsolutePaths,
@@ -60,7 +61,11 @@ export function useImportMultiCamDialog(
     findParentFolderCalibrationFile,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
-  const folderList: Ref<Record<string, { sourcePath: string; trackFile: string }>> = ref({});
+  const folderList: Ref<Record<string, {
+    sourcePath: string;
+    trackFile: string;
+    type?: DatasetType;
+  }>> = ref({});
   const parentFolderName = ref('');
   const subfolderLayoutLabel = ref('');
   const keywordFolder = ref('');
@@ -277,6 +282,19 @@ export function useImportMultiCamDialog(
     return false;
   });
 
+  const showFinalizeStep = computed(() => {
+    if (importType.value === 'subfolders') {
+      return false;
+    }
+    if (importType.value === 'multi') {
+      return camerasReady.value;
+    }
+    if (importType.value === 'keyword') {
+      return nextSteps.value;
+    }
+    return false;
+  });
+
   async function openParentFolder() {
     const ret = await openFromDisk(props.dataType, true);
     if (ret.canceled) {
@@ -300,6 +318,7 @@ export function useImportMultiCamDialog(
         parentPath = ret.root || commonPathPrefix(paths);
         grouped = groupParentFolderByCamera(ret.fileList, {
           allowRootLevelVideos: props.dataType === VideoType,
+          mediaType,
         }, parentPath);
         folderNames = [...grouped.keys()];
       } else {
@@ -379,7 +398,13 @@ export function useImportMultiCamDialog(
             files,
           ),
         );
-        Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
+        Vue.set(folderList.value, cameraName, {
+          sourcePath,
+          trackFile: '',
+          type: props.registerSubfolderCameras && props.dataType !== VideoType
+            ? inferSubfolderImportType(files, { largeImageForTiff: true })
+            : props.dataType,
+        });
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
         const mediaPayload = await props.importMedia(sourcePath);
         Vue.set(pendingImportPayloads.value, cameraName, mediaPayload);
@@ -398,7 +423,7 @@ export function useImportMultiCamDialog(
       return;
     }
     if (!isValidCameraName(newKey)) {
-      throw new Error('Camera name must be letters and numbers only');
+      throw new Error('Camera name must be letters, numbers, and underscores only');
     }
     if (folderList.value[newKey]) {
       throw new Error(`Camera name "${newKey}" already exists`);
@@ -501,6 +526,13 @@ export function useImportMultiCamDialog(
         }
         folderList.value[folder].trackFile = '';
         const { sourcePath } = folderList.value[folder];
+        if (props.registerSubfolderCameras && ret.fileList?.length) {
+          props.registerSubfolderCameras([{
+            cameraName: folder,
+            sourcePath,
+            files: ret.fileList,
+          }]);
+        }
         Vue.set(
           pendingImportPayloads.value,
           folder,
@@ -569,7 +601,12 @@ export function useImportMultiCamDialog(
       const sourceList: MultiCamImportFolderArgs['sourceList'] = {};
       orderedCameraKeys.value.forEach((key) => {
         if (folderList.value[key]) {
-          sourceList[key] = folderList.value[key];
+          const { sourcePath, trackFile, type } = folderList.value[key];
+          sourceList[key] = {
+            sourcePath,
+            trackFile,
+            ...(type ? { type } : {}),
+          };
         }
       });
       const args: MultiCamImportFolderArgs = {
@@ -598,7 +635,7 @@ export function useImportMultiCamDialog(
   ];
 
   function syncSuggestedDatasetNameFromCameraPaths() {
-    if (!listParentFolderCameras || importType.value !== 'multi') {
+    if (importType.value !== 'multi') {
       return;
     }
     const paths = Object.values(folderList.value)
@@ -691,6 +728,7 @@ export function useImportMultiCamDialog(
     datasetNameRules,
     errorMessage,
     nextSteps,
+    showFinalizeStep,
     open,
     openParentFolder,
     prepForImport,

@@ -19,13 +19,86 @@ export interface OrganizeSubfolderCamerasResult {
 }
 
 /** Same rules as manual "Add Camera" in ImportMultiCamDialog/ImportMultiCamAddType. */
-export const CAMERA_NAME_PATTERN = /^[a-zA-Z0-9]+$/;
+export const CAMERA_NAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+
+/** Image extensions accepted for parent-folder subfolder discovery (aligned with desktop import). */
+export const fileImageTypes = [
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'tif',
+  'tiff',
+  'bmp',
+  'sgi',
+  'pgm',
+  'avif',
+];
 
 /** Preferred camera order when subfolders use these names (case-insensitive). */
 export const PREFERRED_SUBFOLDER_ORDER = ['STAR', 'CENTER', 'PORT'] as const;
 
 /** Camera names that should be the default display when present (case-insensitive). */
 export const DEFAULT_DISPLAY_NAME_ALIASES = ['center', 'middle'] as const;
+
+export function isTiffFileName(fileName: string): boolean {
+  const parts = fileName.split('.');
+  if (parts.length < 2) {
+    return false;
+  }
+  const ext = parts.pop()?.toLowerCase() ?? '';
+  return ext === 'tif' || ext === 'tiff';
+}
+
+/** True when the subfolder/camera name denotes an electro-optical (EO) sensor. */
+export function isEoSubfolderName(name: string): boolean {
+  return /(^|_)EO(_|$)/i.test(name);
+}
+
+/** True when the subfolder/camera name denotes an infrared (IR) sensor. */
+export function isIrSubfolderName(name: string): boolean {
+  return /(^|_)IR(_|$)/i.test(name);
+}
+
+/** Move EO-named folders to the front and IR-named folders to the back; preserve middle order. */
+export function preferEoIrSubfolderOrder(names: string[]): string[] {
+  const eo: string[] = [];
+  const middle: string[] = [];
+  const ir: string[] = [];
+  names.forEach((name) => {
+    if (isEoSubfolderName(name)) {
+      eo.push(name);
+    } else if (isIrSubfolderName(name)) {
+      ir.push(name);
+    } else {
+      middle.push(name);
+    }
+  });
+  return [...eo, ...middle, ...ir];
+}
+
+/** @deprecated Use preferEoIrSubfolderOrder */
+export function preferEoSubfolderFirst(names: string[]): string[] {
+  return preferEoIrSubfolderOrder(names);
+}
+
+/**
+ * Infer import type for one camera subfolder. On web, all-TIFF folders become large-image
+ * so 16-bit tiles and percentile stretch work in the viewer.
+ */
+export function inferSubfolderImportType(
+  files: Pick<File, 'name'>[],
+  options?: { largeImageForTiff?: boolean },
+): 'image-sequence' | 'large-image' {
+  const media = filterMediaFiles(files, 'image-sequence');
+  if (!media.length) {
+    return 'image-sequence';
+  }
+  if (options?.largeImageForTiff && media.every((file) => isTiffFileName(file.name))) {
+    return 'large-image';
+  }
+  return 'image-sequence';
+}
 
 /**
  * Pick the default multicam display camera: prefer "center" / "middle", else the middle
@@ -43,6 +116,11 @@ export function pickDefaultMulticamCamera(
   const byAlias = cameraNames.find((name) => centerAliases.has(name.toLowerCase()));
   if (byAlias) {
     return byAlias;
+  }
+
+  const eo = cameraNames.find((name) => isEoSubfolderName(name));
+  if (eo) {
+    return eo;
   }
 
   if (options?.preferLeftForStereo) {
@@ -110,9 +188,9 @@ export function orderSubfolderCameraNames(
     });
   }
   if (options?.preferLeftFirst) {
-    return preferLeftSubfolderFirst(ordered);
+    ordered = preferLeftSubfolderFirst(ordered);
   }
-  return ordered;
+  return preferEoIrSubfolderOrder(ordered);
 }
 
 export function isValidCameraName(name: string): boolean {
@@ -173,7 +251,7 @@ export function organizeSubfolderCameras(
     return {
       ...empty,
       error: (
-        `Subfolder names must be letters and numbers only (no spaces): ${invalid.join(', ')}. `
+        `Subfolder names must be letters, numbers, and underscores only (no spaces): ${invalid.join(', ')}. `
         + 'Rename folders on disk or edit camera names after import.'
       ),
     };
@@ -288,6 +366,44 @@ export function isVideoFileName(fileName: string): boolean {
   return fileVideoTypes.includes(ext);
 }
 
+export function isImageFileName(fileName: string): boolean {
+  const parts = fileName.split('.');
+  if (parts.length < 2) {
+    return false;
+  }
+  const ext = parts.pop()?.toLowerCase() ?? '';
+  return fileImageTypes.includes(ext);
+}
+
+export function isMediaFileName(
+  fileName: string,
+  mediaType: 'image-sequence' | 'video',
+): boolean {
+  return mediaType === 'video' ? isVideoFileName(fileName) : isImageFileName(fileName);
+}
+
+export function filterMediaFiles(
+  fileList: Pick<File, 'name'>[],
+  mediaType: 'image-sequence' | 'video',
+): Pick<File, 'name'>[] {
+  return fileList.filter((file) => isMediaFileName(file.name, mediaType));
+}
+
+/** Drop subfolder groups that do not contain importable image or video files. */
+export function filterSubfolderGroupsWithMedia(
+  groups: Map<string, File[]>,
+  mediaType: 'image-sequence' | 'video',
+): Map<string, File[]> {
+  const filtered = new Map<string, File[]>();
+  groups.forEach((files, folderName) => {
+    const mediaFiles = filterMediaFiles(files, mediaType) as File[];
+    if (mediaFiles.length) {
+      filtered.set(folderName, mediaFiles);
+    }
+  });
+  return filtered;
+}
+
 /** Display label for a video camera in parent-folder import (includes file extension when known). */
 export function subfolderVideoDisplayLabel(
   sourcePath: string,
@@ -339,10 +455,17 @@ export function groupRootLevelVideoFiles(
  */
 export function groupParentFolderByCamera(
   fileList: File[],
-  options?: { allowRootLevelVideos?: boolean },
+  options?: {
+    allowRootLevelVideos?: boolean;
+    mediaType?: 'image-sequence' | 'video';
+  },
   root = '',
 ): Map<string, File[]> {
-  const subfolderGroups = groupFilesByImmediateSubfolder(fileList, root);
+  const mediaType = options?.mediaType ?? 'image-sequence';
+  const subfolderGroups = filterSubfolderGroupsWithMedia(
+    groupFilesByImmediateSubfolder(fileList, root),
+    mediaType,
+  );
   if (subfolderGroups.size >= 2) {
     return subfolderGroups;
   }
