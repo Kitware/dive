@@ -6,6 +6,7 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 |------------|-----|---------|
 | Import stereo (2 cameras + calibration) | ✔️ | ✔️ |
 | Import multicam (2 or 3 cameras) | ✔️ | ✔️ |
+| Batch multicam import (collect folders) | ✔️ | ✔️ |
 | View and annotate across cameras | ✔️ | ✔️ |
 | MultiCamera Tools (link/unlink tracks) | ✔️ | ✔️ |
 | Run stereo / multicam VIAME pipelines | ✔️ | ✔️ |
@@ -30,6 +31,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
 5. Choose one of:
     * ==:material-binoculars: Stereoscopic== — exactly 2 cameras and a calibration `.npz` file.
     * ==:material-camera-burst: MultiCam== — 2 or 3 cameras; no calibration file required.
+    * ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets at once from a folder of **collect** subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
 6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos) and must have the same number of frames (or matching video duration).
 7. Optionally attach a per-camera annotation file during import.
 8. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
@@ -47,12 +49,56 @@ For general web upload concepts (permissions, transcoding, zip import), see [Upl
 
 * ==:material-binoculars: Stereo== — choose 2 videos or 2 image sequences and a calibration file.
 * ==:material-camera-burst: Multi-Cam== — name each camera and pick its source media.
+* ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets from a folder of collect subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
 
 Desktop additionally supports ==:material-view-list-outline: Image List== and glob-based folder filtering for single-camera imports, and glob/keyword layout options for multicam import.
 
 !!! info
 
     Stereoscopic data **requires** a calibration file. Generic multicamera data does **not**.
+
+### Batch multicam import
+
+Use **MultiCam Batch** when you have many synchronized multicam **collects** on disk that share the same camera layout — for example repeated survey passes where each pass is one collect folder with the same camera subfolders (`EO/`, `IR/`, `UV/`, and so on).
+
+**Folder layout:**
+
+```
+survey/                 ← choose this root folder
+  collect_001/          ← one multicam dataset
+    EO/
+      frame001.jpg
+      frame002.jpg
+    IR/
+      frame001.jpg
+      frame002.jpg
+  collect_002/
+    EO/
+    IR/
+```
+
+Each immediate child of the root is a **collect** folder. Inside every collect, the same **2 or 3 camera subfolders** must appear, each holding that camera's image frames for that collect.
+
+**Requirements:**
+
+* **Image sequences only** — not video or stereo.
+* **2 or 3 cameras** shared across all collects (same subfolder names in every collect).
+* **Camera folder names** must use letters, numbers, and underscores only (no spaces).
+* **Frame counts** should match across cameras within a collect; mismatches are flagged as warnings in the review table.
+* Supported image formats match standard DIVE image-sequence import (PNG, JPEG, TIFF, and others).
+
+**Workflow (Web and Desktop):**
+
+1. Open ==Add Image Sequence== and choose ==MultiCam Batch== from the ==:material-chevron-down:== dropdown.
+2. Select the **root folder** whose subfolders are collects.
+3. Review the scan summary: detected cameras, per-collect frame counts, and any blocking issues.
+4. Edit the **dataset name** for each collect you plan to import (defaults to the collect folder name).
+5. Select which valid collects to import, then start the batch. DIVE creates **one multicam parent dataset per collect**.
+6. If one collect fails, the batch **continues** with the remaining selected collects.
+
+On **Web**, the folder picker uploads all files under the chosen root; scanning uses browser paths to group images by collect and camera. On **Desktop**, scanning reads the folder tree locally before import begins.
+
+For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
 
 ## Data/Track Organization
 

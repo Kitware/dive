@@ -60,14 +60,26 @@ export function isIrSubfolderName(name: string): boolean {
   return /(^|_)IR(_|$)/i.test(name);
 }
 
-/** Move an EO-named folder to the front when present (before IR and other cameras). */
+/** Move EO-named folders to the front and IR-named folders to the back; preserve middle order. */
+export function preferEoIrSubfolderOrder(names: string[]): string[] {
+  const eo: string[] = [];
+  const middle: string[] = [];
+  const ir: string[] = [];
+  names.forEach((name) => {
+    if (isEoSubfolderName(name)) {
+      eo.push(name);
+    } else if (isIrSubfolderName(name)) {
+      ir.push(name);
+    } else {
+      middle.push(name);
+    }
+  });
+  return [...eo, ...middle, ...ir];
+}
+
+/** @deprecated Use preferEoIrSubfolderOrder */
 export function preferEoSubfolderFirst(names: string[]): string[] {
-  const eoIndex = names.findIndex((name) => isEoSubfolderName(name));
-  if (eoIndex <= 0) {
-    return names;
-  }
-  const eo = names[eoIndex];
-  return [eo, ...names.filter((_, index) => index !== eoIndex)];
+  return preferEoIrSubfolderOrder(names);
 }
 
 /**
@@ -178,7 +190,7 @@ export function orderSubfolderCameraNames(
   if (options?.preferLeftFirst) {
     ordered = preferLeftSubfolderFirst(ordered);
   }
-  return preferEoSubfolderFirst(ordered);
+  return preferEoIrSubfolderOrder(ordered);
 }
 
 export function isValidCameraName(name: string): boolean {

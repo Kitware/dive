@@ -257,6 +257,12 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   metaFileAbsPath?: string;
 }
 
+export type {
+  MultiCamBatchCamera,
+  MultiCamBatchCollect,
+  MultiCamBatchScanResult,
+} from 'dive-common/multiCamBatchScan';
+
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload
   body: string[];
