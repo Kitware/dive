@@ -21,6 +21,7 @@ Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
 Multicamera and stereo datasets | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Batch multicam import (collect folders) | ✔️ | ✔️
 Load annotations from [supported formats](DataFormats.md) | ✔️ | ✔️
 Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
