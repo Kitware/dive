@@ -15,6 +15,9 @@ file first.
 Pre-scaling to 8-bit COG (below) is still useful when you want a fixed display range at
 import time or when preparing files for tools that do not support dynamic tile styling.
 
+On **Web**, an upload batch that contains only `.tif` / `.tiff` files is classified as a
+`large-image` dataset (not an image sequence). JPEG or PNG uploads remain image sequences.
+
 ## Requirement: Internal Overviews
 
 Large images must include internal overview levels (reduced-resolution pyramid levels) for tile rendering. Files without internal overviews can fail to load in the large-image viewer.

@@ -190,6 +190,22 @@ interface DatasetMetaMutable {
 sharpen, and optional percentile stretch bounds). See
 [Image Enhancements](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
 
+### Media frame metadata
+
+Each frame in an image-sequence or multicam dataset may carry a `timestamp` field (epoch
+seconds) parsed from the filename at load time. When every frame on every camera in a
+multicam dataset has a timestamp, DIVE builds a global aligned timeline for playback. See
+[Aligned playback and timestamps](Multicamera-data.md#aligned-playback-and-timestamps).
+
+```typescript
+interface FrameImage {
+  url: string;
+  filename: string;
+  id?: string; // large-image item id (web tiled TIFF)
+  timestamp?: number; // capture time in epoch seconds, when parseable from filename
+}
+```
+
 ## VIAME CSV
 
 Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sections/detection_file_conversions.html).

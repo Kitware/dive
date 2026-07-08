@@ -7,6 +7,7 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 | Import stereo (2 cameras + calibration) | ✔️ | ✔️ |
 | Import multicam (2 or 3 cameras) | ✔️ | ✔️ |
 | Batch multicam import (collect folders) | ✔️ | ✔️ |
+| Timestamp-aligned multicam playback | ✔️ | ✔️ |
 | View and annotate across cameras | ✔️ | ✔️ |
 | MultiCamera Tools (link/unlink tracks) | ✔️ | ✔️ |
 | Run stereo / multicam VIAME pipelines | ✔️ | ✔️ |
@@ -32,7 +33,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
     * ==:material-binoculars: Stereoscopic== — exactly 2 cameras and a calibration `.npz` file.
     * ==:material-camera-burst: MultiCam== — 2 or 3 cameras; no calibration file required.
     * ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets at once from a folder of **collect** subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
-6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos) and must have the same number of frames (or matching video duration).
+6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos). By default, every camera must have the same number of frames (or matching video duration). For **image-sequence** imports with capture timestamps in filenames, enable **Infer frame index from filename** to allow unequal per-camera counts — see [Infer frame index from filename](#infer-frame-index-from-filename).
 7. Optionally attach a per-camera annotation file during import.
 8. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
 9. When upload finishes, DIVE opens the new multicam dataset in the annotator.
@@ -99,6 +100,49 @@ Each immediate child of the root is a **collect** folder. Inside every collect, 
 On **Web**, the folder picker uploads all files under the chosen root; scanning uses browser paths to group images by collect and camera. On **Desktop**, scanning reads the folder tree locally before import begins.
 
 For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
+
+### Infer frame index from filename
+
+At the bottom of the multicam import dialog (image sequences only), **Infer frame index from filename** relaxes the equal-frame-count requirement when filenames encode capture time. Enable it for datasets where cameras may have different numbers of frames — for example when one camera dropped occasional shots but each surviving frame still carries a parseable timestamp.
+
+When enabled, DIVE skips the import-time check that every camera has the same image count. During playback, frames are aligned by those filename timestamps rather than by positional index (see [Aligned playback and timestamps](#aligned-playback-and-timestamps)).
+
+Example filename (KAMERA-style datestamp):
+
+```
+test_seattle_2020_fl09_C_20200830_020814.141365_rgb.jpg
+```
+
+This option is available on both Web and Desktop for ==MultiCam== imports. It does not apply to video or stereo imports.
+
+### Aligned playback and timestamps
+
+On multicam **image-sequence** datasets, DIVE can synchronize playback across cameras using capture timestamps parsed from each frame's filename. When alignment is active, scrubbing and playback use a single **global timeline** whose slots group frames that share the same capture instant across cameras.
+
+**When alignment activates:**
+
+* The dataset has **two or three** cameras.
+* **Every** frame on **every** camera has a parseable timestamp in its filename.
+
+If any frame on any camera lacks a timestamp, DIVE falls back to **positional alignment** — each camera advances by its own local frame index, as in earlier DIVE versions.
+
+**Supported filename conventions** (first match wins):
+
+| Pattern | Example |
+|---------|---------|
+| Datestamp `YYYYMMDD[_-]HHMMSS` with optional fractional seconds | `kamera_fl02_C_20240407_130757.206341_ir.tif` |
+| Epoch milliseconds (13 digits) | `img_1719843225123.tif` |
+| Epoch seconds (10 digits) | `img_1719843225.tif` |
+
+Timestamps are parsed automatically when media loads; no import setting is required beyond having recognizable filenames (and, if counts differ, enabling **Infer frame index from filename** at import time).
+
+**What you see in the viewer:**
+
+* The timeline **frame counter** reflects the global aligned slot index, not an individual camera's local index.
+* When the current slot has no frame for a camera, that camera's pane **blanks** and its annotation overlay clears until you scrub to a slot where that camera has data.
+* Red bands on the [timeline scrubber](UI-Timeline.md#multicam-gap-indicators) mark slots where at least one camera is missing a frame.
+
+Identical capture timestamps on every camera (common in synchronized rigs) are grouped into the same slot. If one camera has extra frames at the same timestamp, the surplus frames spill into later slots rather than overwriting the first match.
 
 ## Data/Track Organization
 
