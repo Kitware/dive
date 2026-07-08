@@ -27,7 +27,7 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    batchMultiCamImport: { // Desktop-only batch import of collect folders (collect/camera/images)
+    batchMultiCamImport: { // Batch import of collect folders (collect/camera/images)
       type: Boolean,
       default: false,
     },

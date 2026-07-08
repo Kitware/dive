@@ -257,43 +257,11 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   metaFileAbsPath?: string;
 }
 
-/** One camera subfolder discovered inside a collect folder during a batch scan. */
-export interface MultiCamBatchCamera {
-  // camera name (canonical camera-subfolder name)
-  name: string;
-  // absolute path of the camera subfolder for this collect
-  sourcePath: string;
-  // number of supported images found in the subfolder
-  imageCount: number;
-}
-
-/** Scan result for a single collect folder (one multicam dataset candidate). */
-export interface MultiCamBatchCollect {
-  // collect folder name (used as the dataset name)
-  name: string;
-  // absolute path of the collect folder
-  path: string;
-  // cameras found in this collect, in display order
-  cameras: MultiCamBatchCamera[];
-  // blocking issues; when non-empty, importArgs is null
-  problems: string[];
-  // non-blocking issues (e.g. frame count mismatch between cameras)
-  warnings: string[];
-  // ready-to-run beginMultiCamImport arguments, or null when problems exist
-  importArgs: MultiCamImportFolderArgs | null;
-}
-
-/** Result of scanning a root folder of collect folders for batch multicam import. */
-export interface MultiCamBatchScanResult {
-  // absolute path of the scanned root folder
-  rootPath: string;
-  // canonical camera-subfolder names shared across collects, in display order
-  cameraNames: string[];
-  // per-collect scan results, sorted by collect name
-  collects: MultiCamBatchCollect[];
-  // structural issues with the batch as a whole (no collects, bad camera set, ...)
-  problems: string[];
-}
+export type {
+  MultiCamBatchCamera,
+  MultiCamBatchCollect,
+  MultiCamBatchScanResult,
+} from 'dive-common/multiCamBatchScan';
 
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload

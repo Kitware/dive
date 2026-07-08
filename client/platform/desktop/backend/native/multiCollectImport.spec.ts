@@ -76,8 +76,8 @@ describe('native.multiCollectImport', () => {
       expect(collect.importArgs?.datasetName).toBe(collect.name);
       expect(collect.importArgs?.cameraOrder).toEqual(['EO', 'IR', 'UV']);
       expect(collect.importArgs?.type).toBe('image-sequence');
-      // middle camera of the display order (no center/middle alias present)
-      expect(collect.importArgs?.defaultDisplay).toBe('IR');
+      // EO is preferred as default display when present
+      expect(collect.importArgs?.defaultDisplay).toBe('EO');
       expect(collect.importArgs?.sourceList).toEqual({
         EO: { sourcePath: `/survey/${collect.name}/EO`, trackFile: '' },
         IR: { sourcePath: `/survey/${collect.name}/IR`, trackFile: '' },

@@ -16,6 +16,8 @@ import {
 
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import ImportMultiCamBatchDialog from 'dive-common/components/ImportMultiCamBatchDialog.vue';
+import { MultiCamBatchCollect } from 'dive-common/multiCamBatchScan';
 import {
   DatasetType, MediaImportResponse, MultiCamImportArgs, MultiCamImportFolderArgs,
 } from 'dive-common/apispec';
@@ -42,6 +44,8 @@ import {
   stereoCalibrationAllowedExtensionsLabel,
 } from 'platform/web-girder/multicamCalibration';
 import { openFromDisk } from 'platform/web-girder/utils';
+import { filesForCameraSource, scanMultiCamBatchFromFiles } from 'platform/web-girder/scanMultiCamBatch';
+import eventBus from 'platform/web-girder/eventBus';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
@@ -112,7 +116,7 @@ function multicamCameraSlotPercent(
 }
 
 export default defineComponent({
-  components: { ImportButton, ImportMultiCamDialog, UploadGirder },
+  components: { ImportButton, ImportMultiCamDialog, ImportMultiCamBatchDialog, UploadGirder },
   props: {
     location: {
       type: Object,
@@ -125,6 +129,8 @@ export default defineComponent({
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
+    const importMultiCamBatchDialog = ref(false);
+    const batchImportFiles: Ref<File[]> = ref([]);
     const multicamImporting = ref(false);
     const multicamImportProgress = ref<MulticamImportProgress | null>(null);
     const girderUpload: Ref<null | GirderUpload> = ref(null);
@@ -363,24 +369,36 @@ export default defineComponent({
       renameCameraFolderFiles(oldSourcePath, newSourcePath);
     };
 
-    const multiCamImport = async (args: MultiCamImportArgs) => {
-      importMultiCamDialog.value = false;
-      if (!isMultiCamFolderArgs(args)) {
-        preUploadErrorMessage.value = 'Glob-based multicam import is not supported on web yet.';
-        return;
-      }
+    interface MultiCamFolderImportOptions {
+      openViewer?: boolean;
+      closeUpload?: boolean;
+      showProgressOverlay?: boolean;
+      progressLabel?: string;
+    }
+
+    const runMultiCamFolderImport = async (
+      args: MultiCamImportFolderArgs,
+      options: MultiCamFolderImportOptions = {},
+    ): Promise<string> => {
+      const {
+        openViewer = true,
+        closeUpload = true,
+        showProgressOverlay = true,
+        progressLabel = '',
+      } = options;
+      const labelPrefix = progressLabel ? `${progressLabel} — ` : '';
       if (!props.location?._id || props.location._modelType !== 'folder') {
-        preUploadErrorMessage.value = 'Select a folder to upload into before importing multicam data.';
-        return;
+        throw new Error('Select a folder to upload into before importing multicam data.');
       }
       const uploadComponent = girderUpload.value;
       if (!uploadComponent?.uploadCameraDataset) {
-        preUploadErrorMessage.value = 'Upload is not ready. Close and reopen the upload dialog.';
-        return;
+        throw new Error('Upload is not ready. Close and reopen the upload dialog.');
       }
 
-      multicamImporting.value = true;
-      multicamImportProgress.value = { percent: 0, message: 'Preparing import…' };
+      if (showProgressOverlay) {
+        multicamImporting.value = true;
+        multicamImportProgress.value = { percent: 0, message: `${labelPrefix}Preparing import…` };
+      }
       preUploadErrorMessage.value = null;
       let datasetFolderId: string | null = null;
       let multicamLinked = false;
@@ -392,7 +410,7 @@ export default defineComponent({
         const fps = args.type === VideoType
           ? DefaultVideoFPS
           : (clientSettings.annotationFPS || 1);
-        setMulticamImportProgress(MULTICAM_PROGRESS_START, 'Creating dataset folder…');
+        setMulticamImportProgress(MULTICAM_PROGRESS_START, `${labelPrefix}Creating dataset folder…`);
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
           name: datasetName,
@@ -443,7 +461,7 @@ export default defineComponent({
           clearMulticamUploadProgressTimer();
           setMulticamImportProgress(
             multicamCameraSlotPercent(i, totalCameras, MULTICAM_CAMERA_UPLOAD_WEIGHT),
-            `Processing ${cameraName} (${i + 1} of ${totalCameras})`,
+            `${labelPrefix}Processing ${cameraName} (${i + 1} of ${totalCameras})`,
           );
           // eslint-disable-next-line no-await-in-loop -- finalize only after post-process marks folder as a dataset
           await waitForFolderDatasetReady(folder._id, {
@@ -455,7 +473,7 @@ export default defineComponent({
                   totalCameras,
                   MULTICAM_CAMERA_UPLOAD_WEIGHT + fraction * processShare,
                 ),
-                `Processing ${cameraName} (${i + 1} of ${totalCameras})`,
+                `${labelPrefix}Processing ${cameraName} (${i + 1} of ${totalCameras})`,
               );
             },
             requireViewableImages: uploadType === ImageSequenceType,
@@ -464,16 +482,16 @@ export default defineComponent({
           setMulticamImportProgress(
             multicamCameraSlotPercent(i + 1, totalCameras, 0),
             totalCameras > 1 && i + 1 < totalCameras
-              ? `Finished ${cameraName}, starting next camera…`
-              : `Finished ${cameraName}`,
+              ? `${labelPrefix}Finished ${cameraName}, starting next camera…`
+              : `${labelPrefix}Finished ${cameraName}`,
           );
           cameras[cameraName] = { folderId: folder._id, type: uploadType };
         }
 
-        setMulticamImportProgress(92, 'Finalizing multicam dataset…');
+        setMulticamImportProgress(92, `${labelPrefix}Finalizing multicam dataset…`);
         let calibrationFileId: string | undefined;
         if (args.calibrationFile) {
-          setMulticamImportProgress(94, 'Uploading calibration…');
+          setMulticamImportProgress(94, `${labelPrefix}Uploading calibration…`);
           const calFile = getCalibrationFile(args.calibrationFile);
           if (!calFile) {
             throw new Error(
@@ -489,7 +507,7 @@ export default defineComponent({
         }
 
         const subType = stereo.value ? 'stereo' : 'multicam';
-        setMulticamImportProgress(97, 'Linking cameras…');
+        setMulticamImportProgress(97, `${labelPrefix}Linking cameras…`);
         const { data: parentFolder } = await createMulticamDataset({
           parentFolderId: datasetFolder._id,
           name: datasetName,
@@ -503,25 +521,82 @@ export default defineComponent({
         });
         multicamLinked = true;
 
-        setMulticamImportProgress(100, 'Opening viewer…');
-        clearMulticamFileRegistry();
-        await router.push({ name: 'viewer', params: { id: parentFolder._id } });
-        close();
+        if (openViewer) {
+          setMulticamImportProgress(100, `${labelPrefix}Opening viewer…`);
+          clearMulticamFileRegistry();
+          await router.push({ name: 'viewer', params: { id: parentFolder._id } });
+          if (closeUpload) {
+            close();
+          }
+        }
+        return parentFolder._id;
       } catch (err) {
-        preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
         if (datasetFolderId && !multicamLinked) {
           try {
             await deleteResources([{ _id: datasetFolderId, _modelType: 'folder' }]);
           } catch (cleanupErr) {
-            await errorHandler({ err: cleanupErr, name: 'Multicam import cleanup' });
+            if (showProgressOverlay) {
+              await errorHandler({ err: cleanupErr, name: 'Multicam import cleanup' });
+            }
           }
         }
-        await errorHandler({ err, name: 'Multicam import' });
+        if (showProgressOverlay) {
+          preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
+          await errorHandler({ err, name: 'Multicam import' });
+        }
+        throw err;
       } finally {
         clearMulticamUploadProgressTimer();
-        multicamImporting.value = false;
-        multicamImportProgress.value = null;
+        if (showProgressOverlay) {
+          multicamImporting.value = false;
+          multicamImportProgress.value = null;
+        }
       }
+    };
+
+    const multiCamImport = async (args: MultiCamImportArgs) => {
+      importMultiCamDialog.value = false;
+      if (!isMultiCamFolderArgs(args)) {
+        preUploadErrorMessage.value = 'Glob-based multicam import is not supported on web yet.';
+        return;
+      }
+      await runMultiCamFolderImport(args);
+    };
+
+    const chooseAndScanBatch = async () => {
+      const ret = await openFromDisk('image-sequence', true);
+      if (ret.canceled || !ret.fileList?.length) {
+        return null;
+      }
+      batchImportFiles.value = ret.fileList;
+      const root = ret.root ?? ret.filePaths[0]?.split('/').filter(Boolean)[0] ?? '';
+      if (!root) {
+        throw new Error('Could not determine the selected root folder.');
+      }
+      return scanMultiCamBatchFromFiles(root, ret.fileList);
+    };
+
+    const importBatchCollect = async (collect: MultiCamBatchCollect, datasetName: string) => {
+      if (!collect.importArgs) {
+        return;
+      }
+      clearMulticamFileRegistry();
+      collect.cameras.forEach((camera) => {
+        stashCameraFolderFiles(
+          camera.sourcePath,
+          filesForCameraSource(camera.sourcePath, batchImportFiles.value),
+        );
+      });
+      await runMultiCamFolderImport(
+        { ...collect.importArgs, datasetName },
+        {
+          openViewer: false,
+          closeUpload: false,
+          showProgressOverlay: false,
+          progressLabel: collect.name,
+        },
+      );
+      clearMulticamFileRegistry();
     };
     // Filter to show how many files are left to upload
     const filesNotUploaded = (item: PendingUpload) => item.files.filter(
@@ -569,6 +644,13 @@ export default defineComponent({
     function close() {
       emit('close');
     }
+    const closeMultiCamBatchDialog = (importedCount = 0) => {
+      importMultiCamBatchDialog.value = false;
+      batchImportFiles.value = [];
+      if (importedCount > 0) {
+        eventBus.$emit('refresh-data-browser');
+      }
+    };
     function abort() {
       if (pendingUploads.value.length === 0) {
         close();
@@ -607,6 +689,7 @@ export default defineComponent({
       stereo,
       multiCamOpenType,
       importMultiCamDialog,
+      importMultiCamBatchDialog,
       girderUpload,
       multicamImporting,
       multicamImportProgress,
@@ -614,12 +697,15 @@ export default defineComponent({
       clientSettings,
       //methods
       close,
+      closeMultiCamBatchDialog,
       openImport,
       processImport,
       openMultiCamDialog,
       filterFileUpload,
       multiCamImportCheck,
       multiCamImport,
+      chooseAndScanBatch,
+      importBatchCollect,
       registerSubfolderCameras,
       unregisterSubfolderCamera,
       renameSubfolderCamera,
@@ -676,6 +762,19 @@ export default defineComponent({
         :import-media="multiCamImportCheck"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="importMultiCamBatchDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+    >
+      <ImportMultiCamBatchDialog
+        v-if="importMultiCamBatchDialog"
+        :choose-and-scan="chooseAndScanBatch"
+        :import-collect="importBatchCollect"
+        @abort="closeMultiCamBatchDialog"
       />
     </v-dialog>
     <v-card
@@ -853,9 +952,11 @@ export default defineComponent({
                   class="grow my-2"
                   :small="!!pendingUploads.length"
                   :multi-cam-import="true"
+                  :batch-multi-cam-import="true"
                   :button-attrs="buttonAttrs"
                   @open="openImport($event)"
                   @multi-cam="openMultiCamDialog"
+                  @multi-cam-batch="importMultiCamBatchDialog = true"
                 />
               </v-list-item>
               <v-list-item>
