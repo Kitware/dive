@@ -16,7 +16,7 @@ import type {
   TimelineAttribute,
 } from './use/AttributeTypes';
 import type { Time } from './use/useTimeObserver';
-import type { ImageEnhancements } from './use/useImageEnhancements';
+import type { ImageEnhancements, PercentileStretch } from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
@@ -111,6 +111,9 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
+const PercentileStretchSupportedSymbol = Symbol('percentileStretchSupported');
+type PercentileStretchSupportedType = Readonly<Ref<boolean>>;
+
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
 
@@ -203,8 +206,14 @@ export interface Handler {
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({
-    brightness, contrast, saturation, sharpen,
-  }: {brightness?: number; contrast?: number; saturation?: number; sharpen?: number}): void;
+    brightness, contrast, saturation, sharpen, percentileStretch,
+  }: {
+    brightness?: number;
+    contrast?: number;
+    saturation?: number;
+    sharpen?: number;
+    percentileStretch?: PercentileStretch | null;
+  }): void;
   /* unlink Camera Track */
   unlinkCameraTrack(trackId: AnnotationId, camera: string): void;
   /* link Camera Track */
@@ -308,6 +317,7 @@ export interface State {
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
   imageEnhancements: ImageEnhancementsType;
+  percentileStretchSupported: Readonly<Ref<boolean>>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -387,6 +397,7 @@ function dummyState(): State {
       saturation: 1,
       sharpen: 0,
     }),
+    percentileStretchSupported: ref(false),
   };
 }
 
@@ -427,6 +438,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
+  provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
   provide(HandlerSymbol, handler);
   provide(AttributesFilterSymbol, attributesFilters);
 }
@@ -552,6 +564,10 @@ function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
+function usePercentileStretchSupported() {
+  return use<PercentileStretchSupportedType>(PercentileStretchSupportedSymbol);
+}
+
 function useSegmentationPoints() {
   return use<SegmentationPointsType>(SegmentationPointsSymbol);
 }
@@ -593,6 +609,7 @@ export {
   useVisibleModes,
   useReadOnlyMode,
   useImageEnhancements,
+  usePercentileStretchSupported,
   useAttributesFilters,
   useSegmentationPoints,
   useSegmentationCursorLoading,

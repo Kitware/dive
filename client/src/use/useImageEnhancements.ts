@@ -8,6 +8,42 @@ export interface PercentileStretch {
   highPercentile: number;
 }
 
+export interface PercentileStretchMetadata {
+  type?: string;
+  originalImageFiles?: string[];
+  originalLargeImageFile?: string;
+}
+
+const tiffExtensions = ['.tif', '.tiff'];
+
+export function isTiffImagePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return tiffExtensions.some((ext) => lower.endsWith(ext));
+}
+
+/** True when originals are TIFF and the /media/display stretch path can recover range. */
+export function metadataSupportsPercentileStretch(meta: PercentileStretchMetadata): boolean {
+  if (meta.type === 'large-image' && meta.originalLargeImageFile) {
+    return isTiffImagePath(meta.originalLargeImageFile);
+  }
+  const files = meta.originalImageFiles;
+  if (files?.length) {
+    return files.some(isTiffImagePath);
+  }
+  return false;
+}
+
+export function effectiveImageEnhancements(
+  enh: ImageEnhancements,
+  percentileStretchSupported: boolean,
+): ImageEnhancements {
+  if (percentileStretchSupported || enh.percentileStretch == null) {
+    return enh;
+  }
+  const { percentileStretch, ...rest } = enh;
+  return rest;
+}
+
 // Expecting this may be a placeholder for more complicated client side enhancements
 // or more image filters
 export interface ImageEnhancements {
@@ -57,6 +93,7 @@ export function computeIsDefault(enh: ImageEnhancements): boolean {
 export default function useImageEnhancements() {
   const imageEnhancements: Ref<ImageEnhancements> = ref({ ...defaultImageEnhancements });
   const imageEnhancementsByCamera: Ref<Record<string, ImageEnhancements>> = ref({});
+  const percentileStretchSupported: Ref<boolean> = ref(false);
 
   const setSVGFilters = ({
     brightness, contrast, saturation, sharpen, percentileStretch,
@@ -96,12 +133,18 @@ export default function useImageEnhancements() {
     };
   };
 
+  const setPercentileStretchSupported = (supported: boolean) => {
+    percentileStretchSupported.value = supported;
+  };
+
   return {
     imageEnhancements,
     imageEnhancementsByCamera,
     imageEnhancementOutputs,
     isDefaultImage,
+    percentileStretchSupported,
     setSVGFilters,
     setImageEnhancements,
+    setPercentileStretchSupported,
   };
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, ref, watch } from 'vue';
-import { useHandler, useImageEnhancements } from '../provides';
+import { useHandler, useImageEnhancements, usePercentileStretchSupported } from '../provides';
 
 export default defineComponent({
   name: 'ImageEnhancements',
@@ -8,6 +8,7 @@ export default defineComponent({
   setup() {
     const { setSVGFilters } = useHandler();
     const imageEnhancements = useImageEnhancements();
+    const percentileStretchSupported = usePercentileStretchSupported();
     const brightness = ref(imageEnhancements.value.brightness);
     const contrast = ref(imageEnhancements.value.contrast);
     const saturation = ref(imageEnhancements.value.saturation);
@@ -32,7 +33,7 @@ export default defineComponent({
         contrast: contrast.value,
         saturation: saturation.value,
         sharpen: sharpen.value,
-        percentileStretch: stretchEnabled.value
+        percentileStretch: percentileStretchSupported.value && stretchEnabled.value
           ? { lowPercentile: lowPercentile.value, highPercentile: highPercentile.value }
           : null,
       });
@@ -59,6 +60,7 @@ export default defineComponent({
       stretchEnabled,
       lowPercentile,
       highPercentile,
+      percentileStretchSupported,
     };
   },
 });
@@ -146,62 +148,67 @@ export default defineComponent({
         <span>{{ sharpen.toFixed(1) }}</span>
       </v-col>
     </v-row>
-    <v-divider class="my-3" />
-    <v-row
-      align="center"
-      class="ma-0"
-    >
-      <v-col cols="8">
-        <span class="text-caption">Percentile Stretch</span>
-      </v-col>
-      <v-col class="pa-0">
-        <v-switch
-          v-model="stretchEnabled"
-          hide-details
-          class="ma-0 pa-0 mt-1"
-          @change="modifyValue()"
-        />
-      </v-col>
-    </v-row>
-    <template v-if="stretchEnabled">
-      <v-row>
-        <v-col cols="4">
-          <span class="text-caption">Low %</span>
+    <v-divider
+      v-if="percentileStretchSupported"
+      class="my-3"
+    />
+    <template v-if="percentileStretchSupported">
+      <v-row
+        align="center"
+        class="ma-0"
+      >
+        <v-col cols="8">
+          <span class="text-caption">Percentile Stretch</span>
         </v-col>
-        <v-col>
-          <v-slider
-            v-model="lowPercentile"
-            :min="0"
-            :max="1"
-            :step="0.01"
+        <v-col class="pa-0">
+          <v-switch
+            v-model="stretchEnabled"
             hide-details
-            class="pa-0 ma-0"
-            @input="modifyValue()"
+            class="ma-0 pa-0 mt-1"
+            @change="modifyValue()"
           />
         </v-col>
-        <v-col cols="2">
-          <span>{{ lowPercentile.toFixed(2) }}</span>
-        </v-col>
       </v-row>
-      <v-row>
-        <v-col cols="4">
-          <span class="text-caption">High %</span>
-        </v-col>
-        <v-col>
-          <v-slider
-            v-model="highPercentile"
-            :min="99"
-            :max="100"
-            :step="0.01"
-            hide-details
-            class="pa-0 ma-0"
-            @input="modifyValue()"
-          />
-        </v-col>
-        <v-col cols="2">
-          <span>{{ highPercentile.toFixed(2) }}</span>
-        </v-col>
-      </v-row>
+      <template v-if="stretchEnabled">
+        <v-row>
+          <v-col cols="4">
+            <span class="text-caption">Low %</span>
+          </v-col>
+          <v-col>
+            <v-slider
+              v-model="lowPercentile"
+              :min="0"
+              :max="1"
+              :step="0.01"
+              hide-details
+              class="pa-0 ma-0"
+              @input="modifyValue()"
+            />
+          </v-col>
+          <v-col cols="2">
+            <span>{{ lowPercentile.toFixed(2) }}</span>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col cols="4">
+            <span class="text-caption">High %</span>
+          </v-col>
+          <v-col>
+            <v-slider
+              v-model="highPercentile"
+              :min="99"
+              :max="100"
+              :step="0.01"
+              hide-details
+              class="pa-0 ma-0"
+              @input="modifyValue()"
+            />
+          </v-col>
+          <v-col cols="2">
+            <span>{{ highPercentile.toFixed(2) }}</span>
+          </v-col>
+        </v-row>
+      </template>
     </template>
     <v-btn
       block

@@ -66,7 +66,9 @@ import {
   computeOutputs,
   computeIsDefault,
   defaultImageEnhancements,
+  effectiveImageEnhancements,
   ImageEnhancements,
+  metadataSupportsPercentileStretch,
 } from 'vue-media-annotator/use/useImageEnhancements';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
@@ -299,9 +301,22 @@ export default defineComponent({
     const {
       imageEnhancements,
       imageEnhancementsByCamera,
+      percentileStretchSupported,
       setImageEnhancements,
       setSVGFilters,
+      setPercentileStretchSupported,
     } = useImageEnhancements();
+
+    const isDesktopApp = typeof window !== 'undefined' && 'diveDesktop' in window;
+    const percentileStretchSupportedByCamera: Ref<Record<string, boolean>> = ref({});
+
+    function cameraSupportsPercentileStretch(camera: string): boolean {
+      return percentileStretchSupportedByCamera.value[camera] ?? false;
+    }
+
+    function syncPercentileStretchSupported(camera: string) {
+      setPercentileStretchSupported(cameraSupportsPercentileStretch(camera));
+    }
 
     const segmentationRecipe = new SegmentationPointClick();
     const segmentationCursorLoading = computed(
@@ -670,16 +685,24 @@ export default defineComponent({
 
     function stretchKey(camera: string): string {
       const enh = imageEnhancementsByCamera.value[camera];
-      const s = enh?.percentileStretch;
+      const effective = effectiveImageEnhancements(
+        enh ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
+      const s = effective.percentileStretch;
       return s ? `${s.lowPercentile}:${s.highPercentile}` : 'none';
     }
 
     function applyDisplayUrls(camera: string) {
       const raw = rawImageData.value[camera] ?? [];
       const enh = imageEnhancementsByCamera.value[camera];
+      const effective = effectiveImageEnhancements(
+        enh ?? defaultImageEnhancements,
+        cameraSupportsPercentileStretch(camera),
+      );
       let frames: FrameImage[];
-      if (enh?.percentileStretch) {
-        const { lowPercentile, highPercentile } = enh.percentileStretch;
+      if (effective.percentileStretch) {
+        const { lowPercentile, highPercentile } = effective.percentileStretch;
         frames = raw.map((item, index) => ({
           ...item,
           url: toDisplayUrl(item.url, camera, index, lowPercentile, highPercentile),
@@ -725,6 +748,7 @@ export default defineComponent({
       setImageEnhancements(
         imageEnhancementsByCamera.value[newCam] ?? { ...defaultImageEnhancements },
       );
+      syncPercentileStretchSupported(newCam);
       // cancel the save that watch(imageEnhancements) schedules when setImageEnhancements
       // replaces the ref — loading a camera's stored state is not a user-initiated change
       nextTick(() => { debouncedSaves[newCam]?.cancel(); });
@@ -1042,6 +1066,11 @@ export default defineComponent({
           VueSet(imageEnhancementsByCamera.value, camera, subCameraMeta.imageEnhancements
             ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
             : { ...defaultImageEnhancements });
+          VueSet(
+            percentileStretchSupportedByCamera.value,
+            camera,
+            isDesktopApp && metadataSupportsPercentileStretch(subCameraMeta),
+          );
           VueSet(rawImageData.value, camera, cloneDeep(subCameraMeta.imageData) as FrameImage[]);
           applyDisplayUrls(camera);
           if (subCameraMeta.videoUrl) {
@@ -1152,6 +1181,7 @@ export default defineComponent({
         setImageEnhancements(
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
+        syncPercentileStretchSupported(selectedCamera.value);
         progress.loaded = true;
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
@@ -1194,6 +1224,8 @@ export default defineComponent({
       Object.keys(debouncedApplyUrlsByCam).forEach((k) => delete debouncedApplyUrlsByCam[k]);
       Object.keys(previousStretchByCam).forEach((k) => delete previousStretchByCam[k]);
       imageEnhancementsByCamera.value = {};
+      percentileStretchSupportedByCamera.value = {};
+      setPercentileStretchSupported(false);
       cameraStore.clearAll();
       mediaControllerClear();
       await loadData();
@@ -1290,6 +1322,7 @@ export default defineComponent({
         visibleModes,
         readOnlyMode: readonlyState,
         imageEnhancements,
+        percentileStretchSupported,
       },
       globalHandler,
       useAttributeFilters,
@@ -1452,7 +1485,10 @@ export default defineComponent({
 
     function isCameraDefault(camera: string): boolean {
       return computeIsDefault(
-        imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+        effectiveImageEnhancements(
+          imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
+          cameraSupportsPercentileStretch(camera),
+        ),
       );
     }
 
