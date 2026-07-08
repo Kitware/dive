@@ -190,6 +190,7 @@ export default defineComponent({
       annotationFile: File | null,
       mediaList: File[],
       suggestedFps?: number, // suggested FPS for large/images
+      expectedType?: DatasetType,
     ) => {
       const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
       if (!resp.ok) {
@@ -198,6 +199,7 @@ export default defineComponent({
         }
         throw new Error(resp.message);
       }
+      const uploadType = expectedType === LargeImageType ? LargeImageType : resp.type;
       const fps = suggestedFps || clientSettings.annotationFPS || DefaultVideoFPS;
       const defaultFilename = resp.media[0];
       const validFiles = resp.media.concat(resp.annotations);
@@ -220,7 +222,7 @@ export default defineComponent({
         meta,
         annotationFile,
         mediaList,
-        type: resp.type,
+        type: uploadType,
         fps,
         uploading: false,
         skipTranscoding: true,
@@ -305,6 +307,7 @@ export default defineComponent({
                 processed.annotationFile,
                 processed.mediaList,
                 suggestedFps,
+                dstype,
               );
             } else {
               addPendingZipUpload(name, processed.fullList);
@@ -396,7 +399,7 @@ export default defineComponent({
           description: 'Multicamera dataset',
         });
         datasetFolderId = datasetFolder._id;
-        const cameras: Record<string, { folderId: string }> = {};
+        const cameras: Record<string, { folderId: string; type?: string }> = {};
         const cameraOrder = args.cameraOrder?.length
           ? args.cameraOrder
           : Object.keys(args.sourceList);
@@ -416,8 +419,11 @@ export default defineComponent({
           if (!validation.ok) {
             throw new Error(validation.message || `Invalid files for camera "${cameraName}"`);
           }
-          if (validation.type !== args.type) {
-            throw new Error(`Camera "${cameraName}" must use ${args.type} media`);
+          const cameraType = source.type ?? args.type;
+          const uploadType = validation.type;
+          const compatibleTypes = new Set([cameraType, args.type, 'large-image', 'image-sequence']);
+          if (!compatibleTypes.has(uploadType)) {
+            throw new Error(`Camera "${cameraName}" must use ${cameraType} media`);
           }
           const mediaList = files.filter((file) => validation.media.includes(file.name));
           const annotationFile = source.trackFile
@@ -428,7 +434,7 @@ export default defineComponent({
           const { folder, jobIds } = await uploadComponent.uploadCameraDataset({
             name: cameraName,
             fps,
-            type: args.type,
+            type: uploadType,
             mediaList,
             annotationFile: annotationFile ?? null,
             skipTranscoding: true,
@@ -452,6 +458,8 @@ export default defineComponent({
                 `Processing ${cameraName} (${i + 1} of ${totalCameras})`,
               );
             },
+            requireViewableImages: uploadType === ImageSequenceType,
+            requireLargeImageItems: uploadType === LargeImageType,
           }, jobIds);
           setMulticamImportProgress(
             multicamCameraSlotPercent(i + 1, totalCameras, 0),
@@ -459,7 +467,7 @@ export default defineComponent({
               ? `Finished ${cameraName}, starting next camera…`
               : `Finished ${cameraName}`,
           );
-          cameras[cameraName] = { folderId: folder._id };
+          cameras[cameraName] = { folderId: folder._id, type: uploadType };
         }
 
         setMulticamImportProgress(92, 'Finalizing multicam dataset…');

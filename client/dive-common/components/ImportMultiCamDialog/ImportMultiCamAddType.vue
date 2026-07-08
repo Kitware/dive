@@ -15,7 +15,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const newSetName = ref('');
-    const alphaNumeric = /^[a-zA-Z0-9]*$/;
+    const alphaNumeric = /^[a-zA-Z0-9_]*$/;
     const enabled = ref(false);
 
     const addNewSet = () => {
@@ -55,7 +55,7 @@ export default defineComponent({
         v-model="newSetName"
         :rules="[
           v => !!v || 'Name is required',
-          v => alphaNumeric.test(v) || 'Letters and Numbers only',
+          v => alphaNumeric.test(v) || 'Letters, numbers, and underscores only',
           v => !v.includes(' ') || 'No spaces',
           v => !nameList.includes(v) || 'No duplicate Names']"
         label="name"

@@ -123,7 +123,7 @@ export default defineComponent({
         </v-alert>
       </div>
 
-      <div v-if="nextSteps && importType !== 'subfolders'">
+      <div v-if="showFinalizeStep">
         <v-alert
           type="info"
           outlined

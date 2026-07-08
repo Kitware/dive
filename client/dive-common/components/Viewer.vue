@@ -171,6 +171,7 @@ export default defineComponent({
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const datasetType: Ref<DatasetType> = ref('image-sequence');
+    const cameraTypesByCamera: Ref<Record<string, DatasetType>> = ref({});
     const datasetName = ref('');
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
@@ -764,7 +765,8 @@ export default defineComponent({
       histogramRequestToken = requestToken;
       setPercentileHistogramLoading(true);
       try {
-        if (datasetType.value === 'large-image' && rawFrame.id && getTileHistogram) {
+        const cameraType = cameraTypesByCamera.value[camera] ?? datasetType.value;
+        if (cameraType === 'large-image' && rawFrame.id && getTileHistogram) {
           const response = await getTileHistogram(rawFrame.id, { bins: 256 });
           if (histogramRequestToken !== requestToken) return;
           setPercentileHistogram(
@@ -1131,6 +1133,7 @@ export default defineComponent({
         /* imageEnhancements are loaded per-camera below */
         datasetName.value = meta.name;
         subType.value = meta.subType || null;
+        datasetType.value = meta.type as DatasetType;
         initTime({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
@@ -1143,7 +1146,10 @@ export default defineComponent({
           }
           // eslint-disable-next-line no-await-in-loop
           const subCameraMeta = await loadMetadata(cameraId);
-          datasetType.value = subCameraMeta.type as DatasetType;
+          VueSet(cameraTypesByCamera.value, camera, subCameraMeta.type as DatasetType);
+          if (multiCamList.value.length <= 1) {
+            datasetType.value = subCameraMeta.type as DatasetType;
+          }
 
           VueSet(imageEnhancementsByCamera.value, camera, subCameraMeta.imageEnhancements
             ? { ...subCameraMeta.imageEnhancements as ImageEnhancements }
@@ -1311,6 +1317,7 @@ export default defineComponent({
       Object.keys(debouncedApplyUrlsByCam).forEach((k) => delete debouncedApplyUrlsByCam[k]);
       Object.keys(previousStretchByCam).forEach((k) => delete previousStretchByCam[k]);
       imageEnhancementsByCamera.value = {};
+      cameraTypesByCamera.value = {};
       percentileStretchSupportedByCamera.value = {};
       setPercentileStretchSupported(false);
       setPercentileHistogram(null);
@@ -1569,6 +1576,17 @@ export default defineComponent({
       }
     }
 
+    function cameraAnnotatorComponent(camera: string): string {
+      const type = cameraTypesByCamera.value[camera] ?? datasetType.value;
+      if (type === 'image-sequence') {
+        return 'image-annotator';
+      }
+      if (type === 'video') {
+        return 'video-annotator';
+      }
+      return 'large-image-annotator';
+    }
+
     function cameraEnhOutputs(camera: string) {
       return computeOutputs(
         imageEnhancementsByCamera.value[camera] ?? defaultImageEnhancements,
@@ -1614,6 +1632,7 @@ export default defineComponent({
       clientSettings,
       datasetName,
       datasetType,
+      cameraAnnotatorComponent,
       subType,
       editingTrack,
       editingMode,
@@ -1990,10 +2009,7 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video'
-                    ? 'video-annotator'
-                    : 'large-image-annotator'"
+                :is="cameraAnnotatorComponent(camera)"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
@@ -2090,8 +2106,7 @@ export default defineComponent({
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
-                :is="datasetType === 'image-sequence' ? 'image-annotator'
-                  : datasetType === 'video' ? 'video-annotator' : 'large-image-annotator'"
+                :is="cameraAnnotatorComponent(camera)"
                 v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"

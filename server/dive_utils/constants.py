@@ -47,6 +47,7 @@ allValidLargeImageFormats = {*validImageFormats, *validLargeImageFormats}
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
 largeImageRegEx = re.compile(r"(\." + r"|\.".join(validLargeImageFormats) + ')$', re.IGNORECASE)
+tiffSequenceRegex = re.compile(r'\.tiff?$', re.IGNORECASE)
 allLargeImageRegEx = re.compile(
     r"(\." + r"|\.".join(allValidLargeImageFormats) + ')$', re.IGNORECASE
 )

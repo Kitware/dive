@@ -134,9 +134,11 @@ export interface MultiCamImportFolderArgs {
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
+    /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
+    type?: 'image-sequence' | 'video' | 'large-image';
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
+  type: 'image-sequence' | 'video' | 'large-image';
 }
 
 export interface MultiCamImportKeywordArgs {
