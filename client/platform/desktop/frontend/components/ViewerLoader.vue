@@ -11,7 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
-import { isStereoscopicDatasetMeta } from 'dive-common/multicamDisplay';
+import { isStereoscopicDatasetMeta, isMultiCamDatasetMeta } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -652,52 +652,79 @@ export default defineComponent({
     let stereoDatasetFps: number | undefined;
 
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Populate stereoImagePathGetters (per-camera frame -> image path) from a
+     * dataset's already-loaded multicam metadata. This part is not stereo
+     * specific: both the stereo features and Auto Align resolve per-camera
+     * image paths the same way. Callers gate on the dataset kind they support
+     * (stereo requires a stereoscopic dataset; auto-align accepts any multicam)
+     * before calling this. `meta.multiCamMedia` must already be truthy.
      */
+    async function populateMultiCamImagePathGetters(
+      meta: Awaited<ReturnType<typeof loadMetadata>>,
+    ): Promise<boolean> {
+      // Extract calibration file path from multiCam metadata
+      stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+      // Capture the dataset-level fps as a fallback for per-camera frame times.
+      stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
+
+      // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+      if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
+
+      const { cameras } = meta.multiCamMedia;
+      const cameraNames = Object.keys(cameras);
+
+      for (let i = 0; i < cameraNames.length; i += 1) {
+        const cam = cameraNames[i];
+        const cameraId = `${props.id}/${cam}`;
+        // eslint-disable-next-line no-await-in-loop
+        const camMeta = await loadMetadata(cameraId);
+        const {
+          originalBasePath, originalImageFiles, type, originalVideoFile,
+        } = camMeta;
+
+        stereoImagePathGetters.value[cam] = (frameNum: number): string => {
+          if (type === 'video') {
+            return joinPath(originalBasePath, originalVideoFile || '');
+          }
+          if (originalImageFiles && originalImageFiles[frameNum]) {
+            const imagePath = originalImageFiles[frameNum];
+            if (isAbsolutePath(imagePath)) {
+              return imagePath;
+            }
+            return joinPath(originalBasePath, imagePath);
+          }
+          return '';
+        };
+      }
+      return true;
+    }
+
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadMetadata(props.id);
         // Plain multicam and single-camera datasets have no stereo pair: report
         // no stereo so the caller does not load the stereo service.
         if (!meta.multiCamMedia || !isStereoscopicDatasetMeta(meta)) return false;
-
-        // Extract calibration file path from multiCam metadata
-        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
-        // Capture the dataset-level fps as a fallback for per-camera frame times.
-        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
-
-        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
-
-        const { cameras } = meta.multiCamMedia;
-        const cameraNames = Object.keys(cameras);
-
-        for (let i = 0; i < cameraNames.length; i += 1) {
-          const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
-          // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadMetadata(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (isAbsolutePath(imagePath)) {
-                return imagePath;
-              }
-              return joinPath(originalBasePath, imagePath);
-            }
-            return '';
-          };
-        }
-        return true;
+        return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
+        return false;
+      }
+    }
+
+    /**
+     * Multicam metadata loader for Auto Align. Unlike loadStereoMetadata this
+     * accepts ANY multi-camera dataset (stereoscopic or plain 'multicam', e.g.
+     * an EO/IR rig), since deep-feature alignment does not require a calibrated
+     * stereo pair -- only two cameras' images for the current frame.
+     */
+    async function loadMultiCamMetadata(): Promise<boolean> {
+      try {
+        const meta = await loadMetadata(props.id);
+        if (!meta.multiCamMedia || !isMultiCamDatasetMeta(meta)) return false;
+        return await populateMultiCamImagePathGetters(meta);
+      } catch (err) {
+        console.error('[MultiCam] Failed to load multicam metadata:', err);
         return false;
       }
     }
@@ -750,8 +777,9 @@ export default defineComponent({
      */
     async function handleAutoAlign(cameraA: string, cameraB: string, frameNum: number) {
       // Populates stereoImagePathGetters from multicam metadata (no-op when
-      // already loaded); false means this is a single-camera dataset.
-      const isMulticam = await loadStereoMetadata();
+      // already loaded). Accepts any multi-camera dataset (stereoscopic or
+      // plain multicam); false means this is a single-camera dataset.
+      const isMulticam = await loadMultiCamMetadata();
       if (!isMulticam) {
         throw new Error('Auto-align requires a multi-camera dataset');
       }
