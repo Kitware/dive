@@ -32,6 +32,11 @@ export default function useCalibrationNavigation(
       if (alignedView?.active.value) {
         return;
       }
+      // Ignore the pan/zoom events onResize emits while resetting each pane to
+      // its own native bounds, so one pane's reset isn't mapped onto its pair.
+      if (aggregateController.value.resizing.value) {
+        return;
+      }
       const source = viewer(camera);
       const target = viewer(otherCamera);
       if (!source || !target) {

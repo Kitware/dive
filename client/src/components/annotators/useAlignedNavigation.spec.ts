@@ -54,18 +54,21 @@ function makeHarness() {
     ir: { geoViewerRef: ref(ir), resetZoom },
   };
   const cameraSync = ref(false);
+  const resizing = ref(false);
+  const resizeTrigger = ref(0);
   // shallowRef: a plain ref would deep-unwrap the nested cameraSync /
   // resizeTrigger refs, unlike the real aggregate controller object.
   const aggregate = shallowRef({
     cameraSync,
-    resizeTrigger: ref(0),
+    resizeTrigger,
+    resizing,
     getController: (name: string) => controllers[name],
   }) as unknown as Ref<AggregateMediaController>;
   const cameras = ref(['eo', 'ir']);
   const alignedView = new AlignedViewStore();
   useAlignedNavigation(aggregate, alignedView, cameras);
   return {
-    eo, ir, cameraSync, alignedView, resetZoom,
+    eo, ir, cameraSync, resizing, resizeTrigger, alignedView, resetZoom,
   };
 }
 
@@ -134,6 +137,40 @@ describe('useAlignedNavigation', () => {
     await nextTick();
     // Once per pane (eo + ir).
     expect(resetZoom).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores the native-space pan/zoom events onResize emits while resizing', async () => {
+    const {
+      eo, ir, resizing, resizeTrigger, alignedView,
+    } = makeHarness();
+    alignedView.setTransforms('eo', {
+      eo: IDENTITY,
+      ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
+    });
+    alignedView.setEnabled(true);
+    await nextTick();
+
+    // A good aligned view: both panes centered in the shared reference space.
+    eo.center({ x: 500, y: 300 });
+    eo.zoom(2);
+    eo.trigger('geo_pan');
+    expect(ir.center()).toEqual({ x: 500, y: 300 });
+
+    // onResize resets each pane to its OWN native bounds and fires pan events.
+    // ir's reset drops it to its native center; while resizing this must NOT be
+    // broadcast into the reference space (that is what parked panes in a black
+    // corner). eo -- the reference -- must stay put.
+    resizing.value = true;
+    ir.center({ x: 40, y: 60 });
+    ir.trigger('geo_pan');
+    expect(eo.center()).toEqual({ x: 500, y: 300 });
+    resizing.value = false;
+
+    // The resizeTrigger bump that follows re-snaps every pane from the
+    // reference, so ir lands back on the reference-space center.
+    resizeTrigger.value += 1;
+    await nextTick();
+    expect(ir.center()).toEqual({ x: 500, y: 300 });
   });
 
   it('stands down while inactive, suspended, or raw camera sync is on', async () => {

@@ -1593,7 +1593,13 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sidebarMode], async () => {
+    // Opening/closing the context sidebar shrinks or widens the camera panes,
+    // but nothing else notices: the only ResizeObserver watches the controls
+    // bar, which is position:absolute in side layout and so keeps its content
+    // width when the panes resize. Trigger a resize explicitly so the panes'
+    // GeoJS size() stays in sync (an unnoticed shrink leaves content anchored
+    // in a corner).
+    watch([controlsCollapsed, sidebarMode, () => context.state.active], async () => {
       await nextTick();
       handleResize();
     });

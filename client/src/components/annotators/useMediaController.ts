@@ -93,6 +93,10 @@ export function useMediaController() {
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
   const resizeTrigger: Ref<number> = ref(0);
+  // Raised only while onResize applies its programmatic resetZoom, so the
+  // linked-viewer navigation ignores the resulting pan/zoom events (see
+  // AggregateMediaController.resizing).
+  const resizing: Ref<boolean> = ref(false);
   // shallowRef: an AlignedFrameResolver carries nested Refs (slotCount, frameRate)
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
   const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
@@ -127,6 +131,7 @@ export function useMediaController() {
     toggleSynchronizeCameras,
     cameraSync: synchronizeCameras,
     resizeTrigger,
+    resizing,
     alignedGapSlots,
     seekCameraFrame: aggregateSeekCameraFrame,
   };
@@ -226,7 +231,18 @@ export function useMediaController() {
     // Resize maps first, then redraw annotation layers once GeoJS has settled.
     if (resized) {
       window.requestAnimationFrame(() => {
-        pendingResizes.forEach((applyResize) => applyResize());
+        // resetZoom recenters each pane on its OWN native bounds and emits
+        // pan/zoom events synchronously. Suppress the linked-viewer navigation
+        // for the duration so a non-reference pane's native center isn't
+        // broadcast into the shared/reference space (which would strand warped
+        // panes on an empty corner). The resizeTrigger bump below then re-snaps
+        // every pane from a clean reference view.
+        resizing.value = true;
+        try {
+          pendingResizes.forEach((applyResize) => applyResize());
+        } finally {
+          resizing.value = false;
+        }
         window.requestAnimationFrame(() => {
           resizeTrigger.value += 1;
         });
@@ -686,6 +702,7 @@ export function useMediaController() {
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
       resizeTrigger,
+      resizing,
       alignedGapSlots,
       seekCameraFrame: aggregateSeekCameraFrame,
     };

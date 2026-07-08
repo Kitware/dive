@@ -31,6 +31,13 @@ export default function useAlignedNavigation(
       if (!alignedView.active.value) {
         return;
       }
+      // onResize resets each pane to its own native bounds and emits pan/zoom
+      // events; ignore them so a non-reference pane's native center doesn't get
+      // copied into the shared reference space. setup() re-snaps from the
+      // reference once the resize settles (via the resizeTrigger watch).
+      if (aggregateController.value.resizing.value) {
+        return;
+      }
       // Never fight the raw screen-delta sync (unreachable while the aligned
       // view is available, but be defensive about two handlers on one event).
       if (aggregateController.value.cameraSync.value) {
