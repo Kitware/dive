@@ -70,6 +70,11 @@ export default function useCalibrationNavigation(
     if (calibration.pickingEnabled.value && calibration.linkedNav.value && pair) {
       attach(pair.camA, link(pair.camA, pair.camB));
       attach(pair.camB, link(pair.camB, pair.camA));
+      // Snap immediately from camA so toggling "Fit pan/zoom" on (or a refit
+      // under it) lines the pair up right away instead of waiting for the
+      // first pan/zoom event. No-ops harmlessly while no fit exists yet
+      // (linkedPoint returns null).
+      link(pair.camA, pair.camB)();
     }
   }
 
