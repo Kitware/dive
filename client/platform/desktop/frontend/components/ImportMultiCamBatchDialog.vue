@@ -19,7 +19,10 @@ interface CollectStatus {
 
 const headers = [
   {
-    text: 'Collect', align: 'start', sortable: false, value: 'name',
+    text: '', align: 'center', sortable: false, value: 'selected', width: '48',
+  },
+  {
+    text: 'Dataset Name', align: 'start', sortable: false, value: 'name',
   },
   {
     text: 'Cameras', align: 'start', sortable: false, value: 'cameras',
@@ -42,10 +45,33 @@ export default defineComponent({
     const finished = ref(false);
     const errorMessage: Ref<string | null> = ref(null);
     const statuses: Ref<Record<string, CollectStatus>> = ref({});
+    const selectedState: Ref<Record<string, boolean>> = ref({});
+    const datasetNames: Ref<Record<string, string>> = ref({});
 
     const importableCollects = computed(() => (scan.value
       ? scan.value.collects.filter((collect) => collect.importArgs !== null)
       : []));
+
+    const selectedImportableCollects = computed(() => importableCollects.value
+      .filter((collect) => selectedState.value[collect.name]));
+
+    const allImportableSelected = computed(() => {
+      const importable = importableCollects.value;
+      return importable.length > 0
+        && importable.every((collect) => selectedState.value[collect.name]);
+    });
+
+    const someImportableSelected = computed(() => {
+      const importable = importableCollects.value;
+      const selectedCount = importable
+        .filter((collect) => selectedState.value[collect.name]).length;
+      return selectedCount > 0 && selectedCount < importable.length;
+    });
+
+    const canImport = computed(() => selectedImportableCollects.value.length > 0
+      && selectedImportableCollects.value.every(
+        (collect) => (datasetNames.value[collect.name] || '').trim().length > 0,
+      ));
 
     const doneCount = computed(() => Object.values(statuses.value)
       .filter((status) => status.state === 'done').length);
@@ -54,13 +80,33 @@ export default defineComponent({
     const blockedCount = computed(() => (scan.value
       ? scan.value.collects.length - importableCollects.value.length
       : 0));
+    const notImportedCount = computed(() => importableCollects.value
+      .filter((collect) => !selectedState.value[collect.name]).length);
 
-    function resetStatuses() {
-      const next: Record<string, CollectStatus> = {};
+    function resetAfterScan() {
+      const nextStatuses: Record<string, CollectStatus> = {};
+      const nextSelected: Record<string, boolean> = {};
+      const nextDatasetNames: Record<string, string> = {};
       scan.value?.collects.forEach((collect) => {
-        next[collect.name] = { state: collect.importArgs ? 'ready' : 'blocked' };
+        nextStatuses[collect.name] = { state: collect.importArgs ? 'ready' : 'blocked' };
+        nextSelected[collect.name] = collect.importArgs !== null;
+        nextDatasetNames[collect.name] = collect.name;
       });
-      statuses.value = next;
+      statuses.value = nextStatuses;
+      selectedState.value = nextSelected;
+      datasetNames.value = nextDatasetNames;
+    }
+
+    function toggleSelectAll(selected: boolean) {
+      const next = { ...selectedState.value };
+      importableCollects.value.forEach((collect) => {
+        next[collect.name] = selected;
+      });
+      selectedState.value = next;
+    }
+
+    function setSelected(name: string, selected: boolean) {
+      selectedState.value = { ...selectedState.value, [name]: selected };
     }
 
     async function chooseRootFolder() {
@@ -74,7 +120,7 @@ export default defineComponent({
       scanning.value = true;
       try {
         scan.value = await api.scanMultiCamBatch(ret.filePaths[0]);
-        resetStatuses();
+        resetAfterScan();
       } catch (err) {
         errorMessage.value = String(err);
       } finally {
@@ -86,7 +132,14 @@ export default defineComponent({
       if (!collect.importArgs) {
         return;
       }
-      const importPayload = await api.importMultiCam(collect.importArgs);
+      const datasetName = (datasetNames.value[collect.name] || collect.name).trim();
+      if (!datasetName) {
+        throw new Error('Dataset name is required');
+      }
+      const importPayload = await api.importMultiCam({
+        ...collect.importArgs,
+        datasetName,
+      });
       const conversionArgs = await api.finalizeImport(importPayload);
       if (conversionArgs.mediaList.length > 0) {
         await api.convert(conversionArgs);
@@ -96,7 +149,7 @@ export default defineComponent({
     }
 
     async function runImports() {
-      if (importing.value || !importableCollects.value.length) {
+      if (importing.value || !canImport.value) {
         return;
       }
       importing.value = true;
@@ -104,7 +157,7 @@ export default defineComponent({
       // Sequential on purpose: concurrent imports can conflict behind the scenes
       // (matches bulkMediaImport) and per-collect failures must not stop the batch.
       // eslint-disable-next-line no-restricted-syntax
-      for (const collect of importableCollects.value) {
+      for (const collect of selectedImportableCollects.value) {
         statuses.value = { ...statuses.value, [collect.name]: { state: 'importing' } };
         try {
           // eslint-disable-next-line no-await-in-loop
@@ -122,6 +175,12 @@ export default defineComponent({
     }
 
     function statusChip(collect: MultiCamBatchCollect): { text: string; color: string } {
+      if (!collect.importArgs) {
+        return { text: 'Skipped', color: 'warning' };
+      }
+      if (!selectedState.value[collect.name]) {
+        return { text: finished.value ? 'Not imported' : 'Not selected', color: 'grey darken-1' };
+      }
       const status = statuses.value[collect.name];
       switch (status?.state) {
         case 'importing':
@@ -130,8 +189,6 @@ export default defineComponent({
           return { text: 'Imported', color: 'success' };
         case 'failed':
           return { text: 'Failed', color: 'error' };
-        case 'blocked':
-          return { text: 'Skipped', color: 'warning' };
         default:
           return { text: 'Ready', color: 'grey darken-1' };
       }
@@ -145,16 +202,25 @@ export default defineComponent({
       finished,
       errorMessage,
       statuses,
+      selectedState,
+      datasetNames,
       headers,
       // computed
       importableCollects,
+      selectedImportableCollects,
+      allImportableSelected,
+      someImportableSelected,
+      canImport,
       doneCount,
       failedCount,
       blockedCount,
+      notImportedCount,
       // methods
       chooseRootFolder,
       runImports,
       statusChip,
+      toggleSelectAll,
+      setSelected,
     };
   },
 });
@@ -243,6 +309,40 @@ export default defineComponent({
           hide-default-footer
           dense
         >
+          <template #header.selected>
+            <v-simple-checkbox
+              :value="allImportableSelected"
+              :indeterminate="someImportableSelected"
+              :disabled="!importableCollects.length || importing || finished"
+              @input="toggleSelectAll"
+            />
+          </template>
+          <template #item.selected="{ item }">
+            <v-simple-checkbox
+              v-if="item.importArgs"
+              :value="selectedState[item.name]"
+              :disabled="importing || finished"
+              @input="setSelected(item.name, $event)"
+            />
+          </template>
+          <template #item.name="{ item }">
+            <template v-if="item.importArgs">
+              <v-text-field
+                v-model="datasetNames[item.name]"
+                dense
+                hide-details
+                placeholder="Dataset name"
+                :disabled="importing || finished || !selectedState[item.name]"
+              />
+              <div class="grey--text text-caption">
+                Collect folder: {{ item.name }}
+              </div>
+            </template>
+            <span
+              v-else
+              class="grey--text"
+            >{{ item.name }}</span>
+          </template>
           <template #item.cameras="{ item }">
             <span v-if="item.cameras.length">
               <v-chip
@@ -298,12 +398,15 @@ export default defineComponent({
           dense
           class="mt-3"
         >
-          Imported {{ doneCount }} of {{ scan.collects.length }} collects
+          Imported {{ doneCount }} of {{ selectedImportableCollects.length }} selected collects
           <template v-if="failedCount">
             ({{ failedCount }} failed)
           </template>
           <template v-if="blockedCount">
             ({{ blockedCount }} skipped due to validation problems)
+          </template>
+          <template v-if="notImportedCount">
+            ({{ notImportedCount }} not selected)
           </template>
         </v-alert>
       </template>
@@ -323,12 +426,12 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="!importableCollects.length || importing || finished"
+          :disabled="!canImport || importing || finished"
           :loading="importing"
           @click="runImports"
         >
-          Import {{ importableCollects.length }}
-          Collect{{ importableCollects.length === 1 ? '' : 's' }}
+          Import {{ selectedImportableCollects.length }}
+          Collect{{ selectedImportableCollects.length === 1 ? '' : 's' }}
         </v-btn>
       </v-row>
     </v-card-text>
