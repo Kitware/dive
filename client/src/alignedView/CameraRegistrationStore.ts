@@ -638,6 +638,38 @@ export default class CameraRegistrationStore {
   }
 
   /**
+   * Apply an automatically computed alignment for `camA` -> `camB`: replace the
+   * pair's correspondences with the matcher's inlier points ([ax, ay, bx, by]
+   * rows in native pixels), switch the pair to a homography fit, and fit from
+   * those points. The points land in the normal correspondence table so the
+   * user can inspect, delete, or drag-refine them exactly like hand-picked
+   * ones. Provenance (`meta`, e.g. { autoAlign: { model, inlierRatio } }) is
+   * merged into {@link source} so it travels with saves/exports.
+   */
+  applyAutoAlignment(
+    camA: string,
+    camB: string,
+    inliers: [number, number, number, number][],
+    meta?: Record<string, unknown>,
+  ) {
+    const key = this.pairKey(camA, camB);
+    const list: Correspondence[] = inliers.map(([ax, ay, bx, by]) => ({
+      // eslint-disable-next-line no-plusplus
+      id: this.nextId++,
+      a: [ax, ay] as Point,
+      b: [bx, by] as Point,
+    }));
+    this.correspondences.value = { ...this.correspondences.value, [key]: list };
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.transformTypes.value = { ...this.transformTypes.value, [key]: 'homography' };
+    if (meta) {
+      this.source.value = { ...(this.source.value || {}), ...meta };
+    }
+    this.maybeFitPair(key);
+  }
+
+  /**
    * Parse and load a registration JSON file (the per-camera
    * <camera>_to_<reference>_registration.json format written by
    * cameraRegistrationFiles.ts's buildPerCameraRegistrationFiles --

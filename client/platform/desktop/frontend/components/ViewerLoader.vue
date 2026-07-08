@@ -29,6 +29,7 @@ import {
   segmentationSam3Installed,
   loadMetadata, textQuery,
   runTextQueryPipeline,
+  autoAlign, autoAlignAvailable,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
@@ -151,6 +152,7 @@ export default defineComponent({
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
+    const autoAlignReady = ref(false);
 
     async function refreshTextQueryAvailability() {
       try {
@@ -161,8 +163,18 @@ export default defineComponent({
       }
     }
 
+    async function refreshAutoAlignAvailability() {
+      try {
+        const result = await autoAlignAvailable();
+        autoAlignReady.value = result.installed;
+      } catch {
+        autoAlignReady.value = false;
+      }
+    }
+
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
+      refreshAutoAlignAvailability();
     });
 
     watch(
@@ -547,6 +559,7 @@ export default defineComponent({
     onMounted(() => {
       initializeSegmentation();
       refreshTextQueryAvailability();
+      refreshAutoAlignAvailability();
     });
 
     /**
@@ -726,6 +739,33 @@ export default defineComponent({
         console.warn('[Stereo] Failed to set frame:', err);
         return false;
       }
+    }
+
+    /**
+     * Auto-align handler for the Camera Registration panel (passed down through
+     * Viewer's auto-align bridge). Resolves each camera's image path for the
+     * requested frame via the same per-camera getters stereo uses, then asks
+     * the interactive service for a deep-matched homography. The returned
+     * correspondences/homography map camera A native pixels -> camera B.
+     */
+    async function handleAutoAlign(cameraA: string, cameraB: string, frameNum: number) {
+      // Populates stereoImagePathGetters from multicam metadata (no-op when
+      // already loaded); false means this is a single-camera dataset.
+      const isMulticam = await loadStereoMetadata();
+      if (!isMulticam) {
+        throw new Error('Auto-align requires a multi-camera dataset');
+      }
+      const getterA = stereoImagePathGetters.value[cameraA];
+      const getterB = stereoImagePathGetters.value[cameraB];
+      if (!getterA || !getterB) {
+        throw new Error(`Could not resolve media for cameras "${cameraA}" and "${cameraB}"`);
+      }
+      const imagePathA = getterA(frameNum);
+      const imagePathB = getterB(frameNum);
+      if (!imagePathA || !imagePathB) {
+        throw new Error(`No image found for frame ${frameNum} on both cameras`);
+      }
+      return autoAlign({ imagePathA, imagePathB });
     }
 
     // The backend stereo service is needed whenever either stereo feature is on
@@ -1817,6 +1857,8 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQueryAllFrames,
       textQueryAvailable,
+      autoAlignReady,
+      handleAutoAlign,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -1847,6 +1889,7 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      :auto-align-handler="autoAlignReady ? handleAutoAlign : null"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"

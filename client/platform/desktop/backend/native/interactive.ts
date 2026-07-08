@@ -477,6 +477,57 @@ export class InteractiveServiceManager extends EventEmitter {
     }, 'Text query');
   }
 
+  /**
+   * Auto-align: compute a cross-modality homography between two camera
+   * frames (image A -> image B, native pixel coordinates) with the deep
+   * matcher hosted by the alignment backend. The matcher model loads lazily
+   * on the first call and stays resident in the service process.
+   */
+  async autoAlign(request: {
+    imagePathA: string;
+    imagePathB: string;
+    options?: {
+      ransacThreshold?: number;
+      minMatches?: number;
+      minInliers?: number;
+      minInlierRatio?: number;
+      topK?: number;
+      matchThreshold?: number;
+    };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }): Promise<any> {
+    const response = await this.sendRequest({
+      command: 'auto_align',
+      image_path_a: request.imagePathA,
+      image_path_b: request.imagePathB,
+      options: request.options && {
+        ransac_threshold: request.options.ransacThreshold,
+        min_matches: request.options.minMatches,
+        min_inliers: request.options.minInliers,
+        min_inlier_ratio: request.options.minInlierRatio,
+        top_k: request.options.topK,
+        match_threshold: request.options.matchThreshold,
+      },
+    }, 'Auto align');
+    // Map the service's snake_case payload to the AutoAlignResponse shape.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = response as any;
+    return {
+      success: raw.success,
+      code: raw.code,
+      error: raw.error,
+      homography: raw.homography,
+      inliers: raw.inliers,
+      numMatches: raw.num_matches,
+      numInliers: raw.num_inliers,
+      inlierRatio: raw.inlier_ratio,
+      imageSizeA: raw.image_size_a,
+      imageSizeB: raw.image_size_b,
+      model: raw.model,
+      elapsedMs: raw.elapsed_ms,
+    };
+  }
+
   async refineDetections(request: {
     imagePath: string;
     detections: {
