@@ -4,6 +4,7 @@ import {
   getMultiCamTooltip,
   isMultiCamDatasetMeta,
   isMultiCamTrainingTarget,
+  isStereoscopicDatasetMeta,
   orderedMultiCamCameraNames,
 } from './multicamDisplay';
 
@@ -46,6 +47,12 @@ describe('multicamDisplay', () => {
   it('detects multicam dataset meta for training guards', () => {
     expect(isMultiCamDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
     expect(isMultiCamDatasetMeta({ type: 'video', subType: null })).toBe(false);
+  });
+
+  it('detects stereoscopic vs plain multicam datasets', () => {
+    expect(isStereoscopicDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
+    expect(isStereoscopicDatasetMeta({ type: 'multi', subType: 'multicam' })).toBe(false);
+    expect(isStereoscopicDatasetMeta({ type: 'video', subType: 'stereo' })).toBe(false);
   });
 
   it('disables training for multicam parent and child camera selection', () => {

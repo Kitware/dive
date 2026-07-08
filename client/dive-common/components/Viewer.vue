@@ -410,6 +410,7 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },
@@ -583,7 +584,7 @@ export default defineComponent({
       // measurement (length, midpoint, range, RMS) computed for every frame
       // where both cameras now have a line. The desktop loader owns the stereo
       // service, so delegate via an event.
-      if (isStereoInteractiveModeEnabled()) {
+      if (isStereoInteractiveModeEnabled() && subType.value === 'stereo') {
         emit('stereo-track-linked', baseTrack);
       }
     }

@@ -62,6 +62,11 @@ export function isMultiCamDatasetMeta(meta: DatasetMetaLike | null | undefined):
   return getMultiCamSubType(meta) !== null;
 }
 
+/** True when folder meta describes a stereoscopic (not plain multicam) parent dataset. */
+export function isStereoscopicDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
+  return getMultiCamSubType(meta) === 'stereo';
+}
+
 /**
  * Whether training should be disabled for the current data browser selection.
  * Covers the multicam parent, browsing inside it with no selection, and per-camera child folders.
