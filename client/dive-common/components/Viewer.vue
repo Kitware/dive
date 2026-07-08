@@ -580,6 +580,7 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);

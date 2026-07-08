@@ -7,8 +7,13 @@ import {
   RectBounds,
   updateBounds,
   validateRotation,
+  getRotationFromAttributes,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
+import type AlignedViewStore from 'vue-media-annotator/AlignedViewStore';
+import {
+  mapBounds, mapRotatedBounds, mapGeoJSONFeatures,
+} from 'vue-media-annotator/alignedView';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 
@@ -97,6 +102,7 @@ export default function useModeManager({
   aggregateController,
   readonlyState,
   recipes,
+  alignedView,
   isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
@@ -108,6 +114,12 @@ export default function useModeManager({
     aggregateController: Ref<AggregateMediaController>;
     readonlyState: Readonly<Ref<boolean>>;
     recipes: Recipe[];
+    /**
+     * When provided, geometry drawn/edited while the Align View is active is
+     * mirrored onto every other calibrated camera (see
+     * {@link mirrorFeatureToAlignedCameras}).
+     */
+    alignedView?: AlignedViewStore;
     /** When set, interactive stereo only runs on stereoscopic datasets. */
     isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
@@ -553,6 +565,123 @@ export default function useModeManager({
     creating = newCreatingValue;
   }
 
+  /**
+   * Continuous cross-camera mirror: while the Align View is active (the rig
+   * is fully calibrated and the user toggled the aligned display), re-project
+   * the source camera's keyframe at `sourceFrame` onto every other camera
+   * through the calibrated camera-to-camera homographies, creating the
+   * same-id track on cameras where it doesn't exist yet. Stored geometry
+   * stays native per camera (decision D3): each camera receives coordinates
+   * already mapped into its own image space.
+   *
+   * Called after every geometry write/removal below; a no-op when the
+   * aligned view is off, so single-camera and unaligned multicam behavior is
+   * unchanged. The camera that received the edit is always the source, so
+   * later edits on any camera re-sync the others (continuous mirror --
+   * per-camera fine-tuning is intentionally overwritten by the next edit).
+   */
+  function mirrorFeatureToAlignedCameras(trackId: AnnotationId, sourceFrame: number) {
+    if (!alignedView?.active.value) {
+      return;
+    }
+    const sourceCamera = selectedCamera.value;
+    const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
+    if (!sourceTrack) {
+      return;
+    }
+    const sourceFeature = sourceTrack.features[sourceFrame];
+    const hasKeyframe = Boolean(sourceFeature && sourceFeature.keyframe);
+    // Under an aligned timeline, cameras sit on different local frames for
+    // the same instant; the per-camera controller frames give the mapping
+    // for the CURRENT slot. Edits at any other frame (e.g. multi-frame
+    // segmentation) fall back to the same local frame number.
+    const sourceIsCurrentFrame = sourceFrame === selectedCameraFrame();
+    cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+      if (cameraName === sourceCamera) {
+        return;
+      }
+      const matrix = alignedView.cameraToCamera(sourceCamera, cameraName);
+      if (!matrix) {
+        return;
+      }
+      let targetFrame = sourceFrame;
+      if (sourceIsCurrentFrame) {
+        try {
+          const controller = aggregateController.value.getController(cameraName);
+          if (!controller.hasFrame.value) {
+            // This camera has no frame at the current aligned slot.
+            return;
+          }
+          targetFrame = controller.frame.value;
+        } catch {
+          // No controller mounted for the camera; assume matching local frames.
+        }
+      }
+      let targetTrack = trackStore.getPossible(trackId);
+      if (!hasKeyframe) {
+        // The source keyframe was removed: drop the mirrored keyframe too,
+        // and the mirrored track itself when that leaves it empty.
+        if (targetTrack && targetTrack.features[targetFrame]?.keyframe) {
+          targetTrack.deleteFeature(targetFrame);
+          if (targetTrack.begin === targetTrack.end
+            && !targetTrack.getFeature(targetTrack.begin).some((item) => item !== null)) {
+            trackStore.remove(trackId);
+          }
+        }
+        return;
+      }
+      const mappedGeometry = sourceFeature.geometry
+        ? mapGeoJSONFeatures(matrix, sourceFeature.geometry.features)
+        : [];
+      let mappedBounds: RectBounds | undefined;
+      let mappedRotation: number | undefined;
+      const sourceRotation = getRotationFromAttributes(sourceFeature.attributes);
+      if (sourceFeature.bounds) {
+        if (sourceRotation !== undefined) {
+          const mapped = mapRotatedBounds(matrix, sourceFeature.bounds, sourceRotation);
+          mappedBounds = mapped.bounds;
+          mappedRotation = validateRotation(mapped.rotation);
+        } else {
+          mappedBounds = mapBounds(matrix, sourceFeature.bounds);
+        }
+      }
+      if (!targetTrack) {
+        targetTrack = trackStore.add(
+          targetFrame,
+          sourceTrack.confidencePairs[0][0],
+          undefined,
+          trackId,
+        );
+      }
+      // setFeature only upserts geometry by (key, type): drop mirrored
+      // geometry the source no longer has so deletions propagate too.
+      const targetFeature = targetTrack.features[targetFrame];
+      if (targetFeature?.geometry) {
+        const mappedKeys = new Set(mappedGeometry.map(
+          (geo) => `${geo.properties?.key ?? ''}|${geo.geometry.type}`,
+        ));
+        targetFeature.geometry.features = targetFeature.geometry.features.filter(
+          (geo) => mappedKeys.has(`${geo.properties?.key ?? ''}|${geo.geometry.type}`),
+        );
+      }
+      targetTrack.setFeature({
+        frame: targetFrame,
+        flick: sourceFeature.flick,
+        bounds: mappedBounds,
+        keyframe: true,
+        interpolate: sourceFeature.interpolate,
+      }, mappedGeometry);
+      if (mappedRotation !== undefined) {
+        targetTrack.setFeatureAttribute(targetFrame, ROTATION_ATTRIBUTE_NAME, mappedRotation);
+      } else {
+        const written = targetTrack.features[targetFrame];
+        if (written?.attributes && ROTATION_ATTRIBUTE_NAME in written.attributes) {
+          targetTrack.setFeatureAttribute(targetFrame, ROTATION_ATTRIBUTE_NAME, undefined);
+        }
+      }
+    });
+  }
+
   function handleUpdateRectBounds(frameNum: number, flickNum: number, bounds: RectBounds, rotation?: number) {
     if (selectedTrackId.value !== null) {
       const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
@@ -588,6 +717,9 @@ export default function useModeManager({
         if (isEditingExisting && track.attributes?.userCreated !== true) {
           track.setFeatureAttribute(frameNum, 'userModified', true);
         }
+
+        mirrorFeatureToAlignedCameras(track.id, frameNum);
+
         // Capture track ID before newTrackSettingsAfterLogic, which may
         // create a new track in continuous detection mode and change
         // selectedTrackId
@@ -632,6 +764,8 @@ export default function useModeManager({
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
         }, geometry);
+
+        mirrorFeatureToAlignedCameras(track.id, frameNum);
 
         if (runAfterLogic) {
           newTrackSettingsAfterLogic(track);
@@ -759,6 +893,8 @@ export default function useModeManager({
             track.setFeatureAttribute(frameNum, 'userModified', true);
           }
 
+          mirrorFeatureToAlignedCameras(track.id, frameNum);
+
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
@@ -833,6 +969,7 @@ export default function useModeManager({
             );
           }
         });
+        mirrorFeatureToAlignedCameras(track.id, selectedCameraFrame());
       }
     }
     handleSelectFeatureHandle(-1);
@@ -868,6 +1005,8 @@ export default function useModeManager({
             }
           }
         }
+
+        mirrorFeatureToAlignedCameras(track.id, frameNum);
 
         _nudgeEditingCanary();
       }
@@ -1323,6 +1462,8 @@ export default function useModeManager({
         interpolate,
       }, polygonGeometry);
 
+      mirrorFeatureToAlignedCameras(track.id, targetFrame);
+
       _nudgeEditingCanary();
 
       // Interactive stereo: as soon as the left polygon is predicted, generate
@@ -1424,6 +1565,8 @@ export default function useModeManager({
           interpolate,
         }, polygonGeometry);
 
+        mirrorFeatureToAlignedCameras(track.id, frameNum);
+
         // Note: the other-camera (stereo) annotation is generated earlier, on
         // each fresh prediction (handleSegmentationPredictionReady), so there is
         // no need to regenerate it on confirm.
@@ -1500,6 +1643,8 @@ export default function useModeManager({
         ? origFeatures as GeoJSON.Feature<TrackSupportedFeature>[]
         : []);
     }
+
+    mirrorFeatureToAlignedCameras(track.id, data.frameNum);
 
     if (onStereoAnnotationReset && stereoInteractiveActive()) {
       onStereoAnnotationReset({
