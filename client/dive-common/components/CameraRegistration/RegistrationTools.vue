@@ -16,6 +16,7 @@ import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useAutoAlign } from 'dive-common/use/useAutoAlign';
 
 export default defineComponent({
   name: 'CameraRegistration',
@@ -369,6 +370,65 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Auto Align: ask the platform's deep matcher (interactive service) for
+     * correspondences between the selected pair on the current frame, then
+     * inject them as ordinary point pairs and fit a homography. The service
+     * is null / unavailable on platforms without the capability (web), which
+     * hides the button entirely.
+     */
+    const autoAlignService = useAutoAlign();
+    const autoAlignAvailable = computed(() => !!autoAlignService?.available.value);
+    const autoAligning = ref(false);
+    const autoAlignError = ref<string | null>(null);
+    const autoAlignSummary = ref<string | null>(null);
+
+    async function runAutoAlign() {
+      if (!autoAlignService || !camLeft.value || !camRight.value) {
+        return;
+      }
+      if (correspondences.value.length > 0 || hasLoadedTransform.value) {
+        const confirmed = await prompt({
+          title: 'Auto Align',
+          text: `This will replace the existing points/transform for ${camLeft.value} → `
+            + `${camRight.value} with automatically matched points. Continue?`,
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      autoAligning.value = true;
+      autoAlignError.value = null;
+      autoAlignSummary.value = null;
+      try {
+        const result = await autoAlignService.run(camLeft.value, camRight.value);
+        if (!result.success || !result.inliers || result.inliers.length === 0) {
+          autoAlignError.value = result.error
+            || 'Auto-align could not compute an alignment for this frame.';
+          return;
+        }
+        registration.applyAutoAlignment(
+          camLeft.value,
+          camRight.value,
+          result.inliers,
+          {
+            autoAlignModel: result.model,
+            autoAlignInlierRatio: result.inlierRatio,
+          },
+        );
+        const consensus = result.inlierRatio !== undefined
+          ? ` (${Math.round(result.inlierRatio * 100)}% match consensus)` : '';
+        autoAlignSummary.value = `Aligned with ${result.inliers.length} matched `
+          + `points${consensus}. Review the points and overlay warp, refine if `
+          + 'needed, then save.';
+      } catch (err) {
+        autoAlignError.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        autoAligning.value = false;
+      }
+    }
+
     return {
       cameras,
       cameraAlignmentStatuses,
@@ -404,6 +464,11 @@ export default defineComponent({
       setTransformType,
       setAlignmentMode,
       save,
+      autoAlignAvailable,
+      autoAligning,
+      autoAlignError,
+      autoAlignSummary,
+      runAutoAlign,
     };
   },
 });
@@ -520,6 +585,38 @@ export default defineComponent({
     >
       Linked pan/zoom and the overlay warp use the loaded transform. Picking
       points is optional: fitting {{ minPoints }} or more pairs replaces it.
+    </span>
+
+    <v-btn
+      v-if="autoAlignAvailable"
+      block
+      outlined
+      small
+      color="primary"
+      :disabled="!camLeft || !camRight || camLeft === camRight || autoAligning"
+      :loading="autoAligning"
+      class="mt-2"
+      @click="runAutoAlign"
+    >
+      <v-icon
+        small
+        left
+      >
+        mdi-auto-fix
+      </v-icon>
+      Auto Align (current frame)
+    </v-btn>
+    <span
+      v-if="autoAlignError"
+      class="text-caption error--text d-block mt-1"
+    >
+      {{ autoAlignError }}
+    </span>
+    <span
+      v-else-if="autoAlignSummary"
+      class="text-caption success--text d-block mt-1"
+    >
+      {{ autoAlignSummary }}
     </span>
 
     <v-checkbox

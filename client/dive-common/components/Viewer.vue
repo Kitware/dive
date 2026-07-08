@@ -62,6 +62,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import { provideAutoAlign } from 'dive-common/use/useAutoAlign';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -69,7 +70,7 @@ import type {
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
-  useApi, FrameImage, DatasetType, GlobalStyleSettings,
+  useApi, FrameImage, DatasetType, GlobalStyleSettings, AutoAlignResponse,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
@@ -162,6 +163,17 @@ export default defineComponent({
     textQueryAvailable: {
       type: Boolean,
       default: false,
+    },
+    /**
+     * Platform-supplied auto-align runner for the Camera Registration panel:
+     * resolves each camera's image for a frame and computes an alignment via
+     * the interactive service. Desktop-only; when null (web) the panel hides
+     * its Auto Align button.
+     */
+    autoAlignHandler: {
+      type: Function as PropType<
+        ((cameraA: string, cameraB: string, frameNum: number) => Promise<unknown>) | null>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -690,6 +702,20 @@ export default defineComponent({
 
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
+
+    // Auto-align bridge for the Camera Registration panel: injects the current
+    // frame into the platform handler (mirrors onTextQuerySubmit). Provided
+    // unconditionally; `available` tracks the handler prop, which the desktop
+    // platform sets once its availability probe resolves (never on web).
+    provideAutoAlign({
+      available: computed(() => !!props.autoAlignHandler),
+      run: (cameraA: string, cameraB: string) => {
+        if (!props.autoAlignHandler) {
+          return Promise.reject(new Error('Auto-align is not available on this platform'));
+        }
+        return props.autoAlignHandler(cameraA, cameraB, aggregateController.value.frame.value) as Promise<AutoAlignResponse>;
+      },
+    });
 
     // Provides wrappers for actions to integrate with settings
     const {

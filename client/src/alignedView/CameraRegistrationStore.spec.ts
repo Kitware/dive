@@ -734,6 +734,60 @@ describe('CameraRegistrationStore', () => {
     });
   });
 
+  describe('applyAutoAlignment', () => {
+    // A pure translation by (5, -3), as [ax, ay, bx, by] matcher-style rows.
+    const inliers: [number, number, number, number][] = [
+      [0, 0, 5, -3], [10, 0, 15, -3], [10, 10, 15, 7], [0, 10, 5, 7],
+      [5, 5, 10, 2],
+    ];
+
+    it('injects inliers as correspondences and fits a homography', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('rgb', 'ir');
+      const key = store.pairKey('rgb', 'ir');
+      store.applyAutoAlignment('rgb', 'ir', inliers, { autoAlignModel: 'minima_loftr' });
+      expect(store.correspondences.value[key]).toHaveLength(5);
+      expect(store.transformTypes.value[key]).toBe('homography');
+      const { AtoB } = store.homographies.value[key];
+      expect(AtoB[0][2]).toBeCloseTo(5, 5);
+      expect(AtoB[1][2]).toBeCloseTo(-3, 5);
+      expect(store.source.value).toMatchObject({ autoAlignModel: 'minima_loftr' });
+      expect(store.fitError.value).toBeNull();
+      expect(store.dirty.value).toBe(true);
+    });
+
+    it('replaces existing points and clears authoring state', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('rgb', 'ir');
+      const key = store.pairKey('rgb', 'ir');
+      store.addPoint('rgb', [1, 1]);
+      store.addPoint('ir', [2, 2]);
+      store.selectCorrespondence(store.correspondences.value[key][0].id);
+      store.addPoint('rgb', [3, 3]); // pending
+      store.applyAutoAlignment('rgb', 'ir', inliers);
+      expect(store.correspondences.value[key]).toHaveLength(5);
+      expect(store.pendingPoint.value).toBeNull();
+      expect(store.selectedCorrespondenceId.value).toBeNull();
+      // Injected points are ordinary correspondences: editable like picked ones.
+      const first = store.correspondences.value[key][0];
+      store.updateCorrespondencePoint(first.id, 'rgb', [100, 100]);
+      expect(store.correspondences.value[key][0].a).toEqual([100, 100]);
+    });
+
+    it('surfaces a fitError instead of throwing on degenerate inliers', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('rgb', 'ir');
+      const key = store.pairKey('rgb', 'ir');
+      // All points collinear: enough rows for a homography but unsolvable.
+      const degenerate: [number, number, number, number][] = [
+        [0, 0, 0, 0], [1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3],
+      ];
+      store.applyAutoAlignment('rgb', 'ir', degenerate);
+      expect(store.correspondences.value[key]).toHaveLength(4);
+      expect(store.fitError.value).not.toBeNull();
+    });
+  });
+
   describe('registration file round trip', () => {
     it('serializes and reloads all pairs', () => {
       const store = new CameraRegistrationStore();
