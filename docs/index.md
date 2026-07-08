@@ -38,7 +38,8 @@ Freeform or multi-select attributes | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Interactive point-click segmentation | ❌ | ✔️
 | &nbsp;&nbsp;&nbsp; Interactive stereo (warp / length recompute) | ❌ | ✔️
 | **Data Review** |
-Image enhancement (thresholding) | ✔️ | ✔️
+Image enhancement (brightness, contrast, saturation, sharpness) | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Percentile stretch for high bit-depth TIFF | ✔️ (large-image) | ✔️ (image-sequence)
 Advanced per-type annotation confidence threshoding | ✔️ | ✔️
 Review save history and load previous states | ✔️ | ❌
 Multiple parallel annotation sets on one dataset | ✔️ | ❌

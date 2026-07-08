@@ -3,14 +3,20 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyParentPathToAssignments,
+  filterSubfolderGroupsWithMedia,
   groupFilesByImmediateSubfolder,
   groupParentFolderByCamera,
   groupRootLevelVideoFiles,
+  inferSubfolderImportType,
+  isEoSubfolderName,
+  isImageFileName,
+  isMediaFileName,
   isValidCameraName,
   isVideoFileName,
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
   parentFolderLabelFromAbsolutePaths,
+  preferEoSubfolderFirst,
   preferLeftSubfolderFirst,
   pickDefaultMulticamCamera,
   sortSubfolderCameraNames,
@@ -18,12 +24,13 @@ import {
 } from './multicamSubfolderLayout';
 
 describe('isValidCameraName', () => {
-  it('accepts alphanumeric names', () => {
+  it('accepts alphanumeric names and underscores', () => {
     expect(isValidCameraName('cam1')).toBe(true);
     expect(isValidCameraName('LeftCam')).toBe(true);
+    expect(isValidCameraName('2021_EO_SHORT')).toBe(true);
   });
 
-  it('rejects spaces and punctuation', () => {
+  it('rejects spaces and punctuation other than underscore', () => {
     expect(isValidCameraName('Port Cam')).toBe(false);
     expect(isValidCameraName('cam-1')).toBe(false);
   });
@@ -132,7 +139,13 @@ describe('organizeSubfolderCameras', () => {
 
   it('rejects invalid folder names', () => {
     const result = organizeSubfolderCameras(['good', 'bad name']);
-    expect(result.error).toMatch(/letters and numbers only/);
+    expect(result.error).toMatch(/letters, numbers, and underscores only/);
+  });
+
+  it('accepts folder names with underscores', () => {
+    const result = organizeSubfolderCameras(['2021_EO_SHORT', '2021_IR_SHORT']);
+    expect(result.error).toBeNull();
+    expect(result.assignments.map((a) => a.cameraName)).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
   });
 
   it('rejects duplicate folder names', () => {
@@ -186,6 +199,37 @@ describe('groupRootLevelVideoFiles', () => {
   });
 });
 
+describe('isImageFileName', () => {
+  it('recognizes common image extensions', () => {
+    expect(isImageFileName('frame.jpg')).toBe(true);
+    expect(isImageFileName('frame.tif')).toBe(true);
+    expect(isImageFileName('notes.txt')).toBe(false);
+  });
+});
+
+describe('isMediaFileName', () => {
+  it('selects image or video extensions based on media type', () => {
+    expect(isMediaFileName('frame.jpg', 'image-sequence')).toBe(true);
+    expect(isMediaFileName('clip.mp4', 'video')).toBe(true);
+    expect(isMediaFileName('clip.mp4', 'image-sequence')).toBe(false);
+    expect(isMediaFileName('transform.h5', 'image-sequence')).toBe(false);
+  });
+});
+
+describe('filterSubfolderGroupsWithMedia', () => {
+  const mk = (path: string) => ({ webkitRelativePath: path, name: path.split('/').pop() } as File);
+
+  it('drops subfolders that only contain non-media files', () => {
+    const groups = groupFilesByImmediateSubfolder([
+      mk('example_seal_data/2021_EO_SHORT/a.jpg'),
+      mk('example_seal_data/2021_IR_SHORT/a.tif'),
+      mk('example_seal_data/transformations/Kotz.h5'),
+    ], 'example_seal_data');
+    const filtered = filterSubfolderGroupsWithMedia(groups, 'image-sequence');
+    expect([...filtered.keys()].sort()).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
+  });
+});
+
 describe('groupParentFolderByCamera', () => {
   const mk = (path: string) => ({ webkitRelativePath: path, name: path.split('/').pop() } as File);
 
@@ -194,7 +238,7 @@ describe('groupParentFolderByCamera', () => {
       mk('set/left/a.mp4'),
       mk('set/right/b.mp4'),
       mk('set/left_cam.mp4'),
-    ], { allowRootLevelVideos: true }, 'set');
+    ], { allowRootLevelVideos: true, mediaType: 'video' }, 'set');
     expect([...groups.keys()].sort()).toEqual(['left', 'right']);
   });
 
@@ -215,6 +259,18 @@ describe('groupParentFolderByCamera', () => {
       mk('stereo/right.mp4'),
     ], undefined, 'stereo');
     expect(groups.size).toBe(0);
+  });
+
+  it('ignores non-media subfolders when discovering cameras', () => {
+    const groups = groupParentFolderByCamera([
+      mk('example_seal_data/2021_EO_SHORT/a.jpg'),
+      mk('example_seal_data/2021_IR_SHORT/a.tif'),
+      mk('example_seal_data/transformations/Kotz.h5'),
+    ], { mediaType: 'image-sequence' }, 'example_seal_data');
+    expect([...groups.keys()].sort()).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
+    const organized = organizeSubfolderCameras([...groups.keys()]);
+    expect(organized.error).toBeNull();
+    expect(organized.assignments.map((a) => a.cameraName)).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
   });
 });
 
@@ -267,6 +323,60 @@ describe('groupFilesByImmediateSubfolder', () => {
 describe('sortSubfolderCameraNames', () => {
   it('sorts STAR, CENTER, PORT', () => {
     expect(sortSubfolderCameraNames(['PORT', 'CENTER', 'STAR'])).toEqual(['STAR', 'CENTER', 'PORT']);
+  });
+});
+
+describe('preferEoSubfolderFirst', () => {
+  it('moves EO-named folders before IR and others', () => {
+    expect(preferEoSubfolderFirst(['2021_IR_SHORT', '2021_EO_SHORT'])).toEqual([
+      '2021_EO_SHORT',
+      '2021_IR_SHORT',
+    ]);
+  });
+
+  it('leaves order unchanged when EO is already first', () => {
+    expect(preferEoSubfolderFirst(['2021_EO_SHORT', '2021_IR_SHORT'])).toEqual([
+      '2021_EO_SHORT',
+      '2021_IR_SHORT',
+    ]);
+  });
+});
+
+describe('pickDefaultMulticamCamera EO/IR', () => {
+  it('prefers EO as default display when present', () => {
+    expect(pickDefaultMulticamCamera(['2021_IR_SHORT', '2021_EO_SHORT'])).toBe('2021_EO_SHORT');
+  });
+});
+
+describe('inferSubfolderImportType', () => {
+  const mk = (name: string) => ({ name } as File);
+
+  it('uses large-image for all-TIFF subfolders on web', () => {
+    expect(inferSubfolderImportType([
+      mk('a.tif'),
+      mk('b.tiff'),
+    ], { largeImageForTiff: true })).toBe('large-image');
+  });
+
+  it('keeps image-sequence for mixed or JPG folders', () => {
+    expect(inferSubfolderImportType([
+      mk('a.jpg'),
+      mk('b.jpg'),
+    ], { largeImageForTiff: true })).toBe('image-sequence');
+    expect(inferSubfolderImportType([
+      mk('a.tif'),
+      mk('b.jpg'),
+    ], { largeImageForTiff: true })).toBe('image-sequence');
+  });
+});
+
+describe('organizeSubfolderCameras seal example', () => {
+  it('orders EO before IR and picks EO as default', () => {
+    const result = organizeSubfolderCameras(['2021_IR_SHORT', '2021_EO_SHORT']);
+    expect(result.error).toBeNull();
+    expect(result.assignments.map((a) => a.cameraName)).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
+    expect(result.defaultDisplay).toBe('2021_EO_SHORT');
+    expect(isEoSubfolderName(result.defaultDisplay)).toBe(true);
   });
 });
 
