@@ -13,7 +13,7 @@ import { computePercentileBoundsFromBins } from '../use/useImageEnhancements';
 
 export default defineComponent({
   name: 'ImageEnhancements',
-  description: 'Image controls',
+  description: 'Brightness, contrast, and high bit-depth percentile stretch',
   setup() {
     const { setSVGFilters } = useHandler();
     const imageEnhancements = useImageEnhancements();
@@ -135,7 +135,9 @@ export default defineComponent({
 <template>
   <div class="mx-4">
     <span class="text-body-2">
-      Controls for adjusting images.
+      Adjust brightness, contrast, saturation, and sharpness. For high bit-depth TIFF
+      (Web large-image or Desktop TIFF sequences), percentile stretch remaps intensity
+      using the histogram below.
     </span>
     <v-divider class="my-3" />
     <v-row>
