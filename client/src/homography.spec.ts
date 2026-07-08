@@ -125,6 +125,27 @@ describe('subdivideWarpQuads', () => {
     });
   });
 
+  it('expands cells by the overlap (clamped to the image), corners still exact', () => {
+    const n = 4;
+    const overlap = 2;
+    const plain = subdivideWarpQuads(projective, 640, 480, n);
+    const padded = subdivideWarpQuads(projective, 640, 480, n, overlap);
+    expect(padded).toHaveLength(plain.length);
+    padded.forEach((q, i) => {
+      const base = plain[i].crop;
+      expect(q.crop.left).toBe(Math.max(0, base.left - overlap));
+      expect(q.crop.right).toBe(Math.min(640, base.right + overlap));
+      expect(q.crop.top).toBe(Math.max(0, base.top - overlap));
+      expect(q.crop.bottom).toBe(Math.min(480, base.bottom + overlap));
+      // Corners remain the exact projective mapping of the (expanded) crop,
+      // so overlapping regions of adjacent cells render identical content.
+      expect(q.ul).toEqual(applyHomography(projective, [q.crop.left, q.crop.top]));
+      expect(q.lr).toEqual(applyHomography(projective, [q.crop.right, q.crop.bottom]));
+    });
+    // Interior edges overlap: cell 0's right crop passes cell 1's left crop.
+    expect(padded[0].crop.right).toBeGreaterThan(padded[1].crop.left);
+  });
+
   it('tiles the source image exactly, with integer grid lines and no gaps', () => {
     const n = 8;
     const width = 641; // not divisible by n

@@ -132,12 +132,22 @@ export function warpGridSize(h: Matrix3, width: number, height: number, maxN = 8
  * rendering the whole image as a single quad, which an affine canvas renderer
  * collapses to a parallelogram. Grid lines land on integer source pixels;
  * degenerate (zero-area) cells from tiny images are skipped.
+ *
+ * `overlap` expands each cell by that many source pixels (clamped to the
+ * image). The canvas renderer antialiases every quad's border against the
+ * transparent background, so abutting cells meet as two half-transparent
+ * edges and show as dark seam lines along the grid; overlapping cells paint
+ * over each other's seams with pixel-identical content (corners still map
+ * through the same exact homography). Only for opaque drawing -- translucent
+ * quads would double-blend in the overlap, so semi-transparent consumers
+ * must apply opacity at the layer level and draw quads opaque.
  */
 export function subdivideWarpQuads(
   h: Matrix3,
   width: number,
   height: number,
   n: number,
+  overlap = 0,
 ): WarpQuad[] {
   const cells = Math.max(1, Math.floor(n));
   const xs: number[] = [];
@@ -149,10 +159,10 @@ export function subdivideWarpQuads(
   const quads: WarpQuad[] = [];
   for (let row = 0; row < cells; row += 1) {
     for (let col = 0; col < cells; col += 1) {
-      const left = xs[col];
-      const right = xs[col + 1];
-      const top = ys[row];
-      const bottom = ys[row + 1];
+      const left = Math.max(0, xs[col] - overlap);
+      const right = Math.min(width, xs[col + 1] + overlap);
+      const top = Math.max(0, ys[row] - overlap);
+      const bottom = Math.min(height, ys[row + 1] + overlap);
       if (right <= left || bottom <= top) {
         // eslint-disable-next-line no-continue
         continue;

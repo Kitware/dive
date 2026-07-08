@@ -70,6 +70,11 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   quadFeature: any;
 
+  /** The ghost quads' own feature layer: opacity is applied here (layer-level)
+   * so the seam-hiding cell overlap doesn't double-blend (see updateGhost). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  quadLayer: any;
+
   /**
    * Marker currently being drag-refined, or null/undefined. NOTE: these two
    * fields deliberately have no initializers -- BaseLayer's constructor calls
@@ -112,6 +117,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       autoshareRenderer: false,
       renderer: 'canvas',
     });
+    this.quadLayer = quadLayer;
     this.quadFeature = quadLayer.createFeature('quad');
 
     const pointLayer = geoViewer.createLayer('feature', { features: ['point'] });
@@ -397,7 +403,11 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     const h = homog[mode];
     const { width: w, height: hgt } = src;
     const grid = warpGridSize(h, w, hgt);
-    const quads = subdivideWarpQuads(h, w, hgt, grid).map((q) => ({
+    // 2px cell overlap hides the canvas antialiasing seams between abutting
+    // sub-quads (dark grid lines). Overlapped quads must draw opaque -- the
+    // ghost's transparency is applied once at the layer level below, so the
+    // overlap doesn't double-blend into brighter seams.
+    const quads = subdivideWarpQuads(h, w, hgt, grid, 2).map((q) => ({
       ul: { x: q.ul[0], y: q.ul[1] },
       ur: { x: q.ur[0], y: q.ur[1] },
       lr: { x: q.lr[0], y: q.lr[1] },
@@ -411,9 +421,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       [src.kind]: src.source,
     }));
     this.ghostSource = src.source;
+    this.quadLayer.opacity(alignment.opacity);
     this.quadFeature
       .data(quads)
-      .style('opacity', alignment.opacity)
+      .style('opacity', 1)
       .draw();
     if (src.kind === 'image') {
       // Image sequences swap the source pane's <img> asynchronously after the

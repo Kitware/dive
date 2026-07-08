@@ -176,7 +176,9 @@ export default class AlignedImageLayer {
     }
     const { width: w, height: h } = src;
     const grid = warpGridSize(transform, w, h);
-    const quads = subdivideWarpQuads(transform, w, h, grid).map((q) => ({
+    // 2px cell overlap hides the canvas antialiasing seams between abutting
+    // sub-quads (dark grid lines); safe here because quads draw opaque.
+    const quads = subdivideWarpQuads(transform, w, h, grid, 2).map((q) => ({
       ul: { x: q.ul[0], y: q.ul[1] },
       ur: { x: q.ur[0], y: q.ur[1] },
       lr: { x: q.lr[0], y: q.lr[1] },
