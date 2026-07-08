@@ -16,7 +16,11 @@ import type {
   TimelineAttribute,
 } from './use/AttributeTypes';
 import type { Time } from './use/useTimeObserver';
-import type { ImageEnhancements, PercentileStretch } from './use/useImageEnhancements';
+import type {
+  ImageEnhancements,
+  PercentileHistogram,
+  PercentileStretch,
+} from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
@@ -113,6 +117,10 @@ type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
 const PercentileStretchSupportedSymbol = Symbol('percentileStretchSupported');
 type PercentileStretchSupportedType = Readonly<Ref<boolean>>;
+const PercentileHistogramSymbol = Symbol('percentileHistogram');
+type PercentileHistogramType = Readonly<Ref<PercentileHistogram | null>>;
+const PercentileHistogramLoadingSymbol = Symbol('percentileHistogramLoading');
+type PercentileHistogramLoadingType = Readonly<Ref<boolean>>;
 
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
@@ -318,6 +326,8 @@ export interface State {
   readOnlyMode: ReadOnylModeType;
   imageEnhancements: ImageEnhancementsType;
   percentileStretchSupported: Readonly<Ref<boolean>>;
+  percentileHistogram: PercentileHistogramType;
+  percentileHistogramLoading: PercentileHistogramLoadingType;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -398,6 +408,8 @@ function dummyState(): State {
       sharpen: 0,
     }),
     percentileStretchSupported: ref(false),
+    percentileHistogram: ref(null),
+    percentileHistogramLoading: ref(false),
   };
 }
 
@@ -439,6 +451,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
+  provide(PercentileHistogramSymbol, state.percentileHistogram);
+  provide(PercentileHistogramLoadingSymbol, state.percentileHistogramLoading);
   provide(HandlerSymbol, handler);
   provide(AttributesFilterSymbol, attributesFilters);
 }
@@ -568,6 +582,14 @@ function usePercentileStretchSupported() {
   return use<PercentileStretchSupportedType>(PercentileStretchSupportedSymbol);
 }
 
+function usePercentileHistogram() {
+  return use<PercentileHistogramType>(PercentileHistogramSymbol);
+}
+
+function usePercentileHistogramLoading() {
+  return use<PercentileHistogramLoadingType>(PercentileHistogramLoadingSymbol);
+}
+
 function useSegmentationPoints() {
   return use<SegmentationPointsType>(SegmentationPointsSymbol);
 }
@@ -610,6 +632,8 @@ export {
   useReadOnlyMode,
   useImageEnhancements,
   usePercentileStretchSupported,
+  usePercentileHistogram,
+  usePercentileHistogramLoading,
   useAttributesFilters,
   useSegmentationPoints,
   useSegmentationCursorLoading,

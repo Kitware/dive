@@ -69,6 +69,7 @@ import {
   effectiveImageEnhancements,
   ImageEnhancements,
   metadataSupportsPercentileStretch,
+  PercentileHistogram,
 } from 'vue-media-annotator/use/useImageEnhancements';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
@@ -302,9 +303,13 @@ export default defineComponent({
       imageEnhancements,
       imageEnhancementsByCamera,
       percentileStretchSupported,
+      percentileHistogram,
+      percentileHistogramLoading,
       setImageEnhancements,
       setSVGFilters,
       setPercentileStretchSupported,
+      setPercentileHistogram,
+      setPercentileHistogramLoading,
     } = useImageEnhancements();
 
     const isDesktopApp = typeof window !== 'undefined' && 'diveDesktop' in window;
@@ -681,6 +686,22 @@ export default defineComponent({
       return `${apiBase}/media/display?id=${id}&frame=${frame}&low=${low}&high=${high}`;
     }
 
+    function toHistogramUrl(
+      rawUrl: string,
+      camera: string,
+      frame: number,
+      low: number,
+      high: number,
+    ): string {
+      let apiBase = '/api';
+      try {
+        const parsed = new URL(rawUrl);
+        apiBase = `${parsed.origin}/api`;
+      } catch { /* rawUrl is relative (web platform) — keep /api */ }
+      const id = encodeURIComponent(getCameraId(camera));
+      return `${apiBase}/media/histogram?id=${id}&frame=${frame}&low=${low}&high=${high}`;
+    }
+
     const previousStretchByCam: Record<string, string> = {};
 
     function stretchKey(camera: string): string {
@@ -716,7 +737,49 @@ export default defineComponent({
       previousStretchByCam[camera] = stretchKey(camera);
     }
 
+    let histogramRequestToken = 0;
+
+    async function fetchSelectedCameraHistogram() {
+      const camera = selectedCamera.value;
+      const frame = time.frame.value;
+      const rawFrames = rawImageData.value[camera] ?? [];
+      if (!progress.loaded || !cameraSupportsPercentileStretch(camera) || frame < 0 || frame >= rawFrames.length) {
+        histogramRequestToken += 1;
+        setPercentileHistogram(null);
+        setPercentileHistogramLoading(false);
+        return;
+      }
+      const rawFrame = rawFrames[frame];
+      if (!rawFrame?.url) {
+        histogramRequestToken += 1;
+        setPercentileHistogram(null);
+        setPercentileHistogramLoading(false);
+        return;
+      }
+      // Bins depend only on the source frame; percentile markers are derived client-side.
+      const requestToken = histogramRequestToken + 1;
+      histogramRequestToken = requestToken;
+      setPercentileHistogramLoading(true);
+      try {
+        const response = await fetch(toHistogramUrl(rawFrame.url, camera, frame, 1, 99));
+        if (!response.ok) {
+          throw new Error(`Histogram request failed with status ${response.status}`);
+        }
+        const payload = await response.json() as PercentileHistogram;
+        if (histogramRequestToken !== requestToken) return;
+        setPercentileHistogram(payload);
+      } catch {
+        if (histogramRequestToken !== requestToken) return;
+        setPercentileHistogram(null);
+      } finally {
+        if (histogramRequestToken === requestToken) {
+          setPercentileHistogramLoading(false);
+        }
+      }
+    }
+
     const debouncedApplyUrlsByCam: Record<string, ReturnType<typeof debounce>> = {};
+    const debouncedFetchHistogram = debounce(fetchSelectedCameraHistogram, 200, { trailing: true });
 
     function getDebouncedApplyDisplayUrls(camera: string) {
       if (!debouncedApplyUrlsByCam[camera]) {
@@ -745,14 +808,21 @@ export default defineComponent({
 
     watch(selectedCamera, (newCam, oldCam) => {
       debouncedSaves[oldCam]?.flush();
+      debouncedFetchHistogram.cancel();
       setImageEnhancements(
         imageEnhancementsByCamera.value[newCam] ?? { ...defaultImageEnhancements },
       );
       syncPercentileStretchSupported(newCam);
+      fetchSelectedCameraHistogram().catch(() => {});
       // cancel the save that watch(imageEnhancements) schedules when setImageEnhancements
       // replaces the ref — loading a camera's stored state is not a user-initiated change
       nextTick(() => { debouncedSaves[newCam]?.cancel(); });
     });
+
+    watch(
+      [() => time.frame.value, percentileStretchSupported],
+      () => { debouncedFetchHistogram(); },
+    );
 
     // Auto-save annotations when enabled, but never while editing a track.
     // Delay is configurable in settings and applied dynamically.
@@ -1183,6 +1253,7 @@ export default defineComponent({
         );
         syncPercentileStretchSupported(selectedCamera.value);
         progress.loaded = true;
+        fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
         if (cameraStore.camMap.value.size > 1) {
           context.unregister({
@@ -1226,6 +1297,8 @@ export default defineComponent({
       imageEnhancementsByCamera.value = {};
       percentileStretchSupportedByCamera.value = {};
       setPercentileStretchSupported(false);
+      setPercentileHistogram(null);
+      setPercentileHistogramLoading(false);
       cameraStore.clearAll();
       mediaControllerClear();
       await loadData();
@@ -1261,6 +1334,7 @@ export default defineComponent({
     onBeforeUnmount(() => {
       debouncedAutoSave.cancel();
       Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
+      debouncedFetchHistogram.cancel();
       Object.values(debouncedSaves).forEach((fn) => fn.flush());
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
@@ -1323,6 +1397,8 @@ export default defineComponent({
         readOnlyMode: readonlyState,
         imageEnhancements,
         percentileStretchSupported,
+        percentileHistogram,
+        percentileHistogramLoading,
       },
       globalHandler,
       useAttributeFilters,

@@ -3,6 +3,14 @@ import PNG from 'pngjs';
 
 type RasterArray = Uint8Array | Uint16Array | Int16Array | Float32Array | Float64Array;
 
+export interface DisplayHistogram {
+  bins: number[];
+  lowValue: number;
+  highValue: number;
+  sourceMin: number;
+  sourceMax: number;
+}
+
 interface TiffImage {
   getWidth(): number;
   getHeight(): number;
@@ -13,8 +21,10 @@ interface TiffFile {
 }
 
 const MAX_DISPLAY_CACHE_ENTRIES = 64;
+const HISTOGRAM_BIN_COUNT = 256;
 
 const displayPngCache = new Map<string, Buffer>();
+const displayHistogramCache = new Map<string, DisplayHistogram>();
 
 function touchDisplayCacheEntry(key: string, value: Buffer): void {
   displayPngCache.delete(key);
@@ -22,6 +32,15 @@ function touchDisplayCacheEntry(key: string, value: Buffer): void {
   if (displayPngCache.size > MAX_DISPLAY_CACHE_ENTRIES) {
     const oldest = displayPngCache.keys().next().value as string | undefined;
     if (oldest) displayPngCache.delete(oldest);
+  }
+}
+
+function touchHistogramCacheEntry(key: string, value: DisplayHistogram): void {
+  displayHistogramCache.delete(key);
+  displayHistogramCache.set(key, value);
+  if (displayHistogramCache.size > MAX_DISPLAY_CACHE_ENTRIES) {
+    const oldest = displayHistogramCache.keys().next().value as string | undefined;
+    if (oldest) displayHistogramCache.delete(oldest);
   }
 }
 
@@ -141,6 +160,64 @@ function computeFrameBounds(
 }
 
 const inFlightDecodes = new Map<string, Promise<Buffer>>();
+const inFlightHistograms = new Map<string, Promise<DisplayHistogram>>();
+
+function computeSourceBounds(band: RasterArray): { sourceMin: number; sourceMax: number } {
+  if (band instanceof Uint8Array) return { sourceMin: 0, sourceMax: 255 };
+  if (band instanceof Uint16Array) return { sourceMin: 0, sourceMax: 65535 };
+  if (band.length === 0) return { sourceMin: 0, sourceMax: 1 };
+
+  let sourceMin = Number.POSITIVE_INFINITY;
+  let sourceMax = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < band.length; i += 1) {
+    const v = Number(band[i]);
+    if (v < sourceMin) sourceMin = v;
+    if (v > sourceMax) sourceMax = v;
+  }
+  if (!Number.isFinite(sourceMin) || !Number.isFinite(sourceMax)) {
+    return { sourceMin: 0, sourceMax: 1 };
+  }
+  return { sourceMin, sourceMax };
+}
+
+function buildHistogramBins(
+  band: RasterArray,
+  sourceMin: number,
+  sourceMax: number,
+  binCount = HISTOGRAM_BIN_COUNT,
+): number[] {
+  const bins = new Uint32Array(binCount);
+  if (band.length === 0) {
+    return Array.from(bins);
+  }
+
+  if (band instanceof Uint8Array && binCount === 256) {
+    for (let i = 0; i < band.length; i += 1) bins[band[i]] += 1;
+    return Array.from(bins);
+  }
+
+  if (band instanceof Uint16Array && binCount === 256) {
+    for (let i = 0; i < band.length; i += 1) {
+      bins[Math.floor(band[i] / 256)] += 1;
+    }
+    return Array.from(bins);
+  }
+
+  const range = sourceMax - sourceMin;
+  if (range <= 0) {
+    bins[0] = band.length;
+    return Array.from(bins);
+  }
+
+  for (let i = 0; i < band.length; i += 1) {
+    const v = Number(band[i]);
+    const normalized = (v - sourceMin) / range;
+    const idx = Math.max(0, Math.min(binCount - 1, Math.floor(normalized * (binCount - 1))));
+    bins[idx] += 1;
+  }
+
+  return Array.from(bins);
+}
 
 /**
  * Decode a TIFF file, compute per-frame percentile bounds, apply a linear stretch,
@@ -185,4 +262,46 @@ export async function getDisplayPng(
 
   inFlightDecodes.set(key, decodePromise);
   return decodePromise;
+}
+
+export async function getDisplayHistogram(
+  tiffPath: string,
+  lowPercentile: number,
+  highPercentile: number,
+  mtimeMs: number,
+): Promise<DisplayHistogram> {
+  const key = `${tiffPath}::${lowPercentile}::${highPercentile}::${mtimeMs}`;
+  const cached = displayHistogramCache.get(key);
+  if (cached) {
+    touchHistogramCacheEntry(key, cached);
+    return cached;
+  }
+
+  const inflight = inFlightHistograms.get(key);
+  if (inflight) return inflight;
+
+  const histogramPromise = (async () => {
+    const tiff = await openTiff(tiffPath);
+    const image = await tiff.getImage();
+    const rasters = await image.readRasters({
+      samples: [0],
+      interleave: false,
+    }) as RasterArray[];
+    const band = (rasters[0] ?? new Uint8Array(0)) as RasterArray;
+    const { min, max } = computeFrameBounds(band, lowPercentile, highPercentile);
+    const { sourceMin, sourceMax } = computeSourceBounds(band);
+    const bins = buildHistogramBins(band, sourceMin, sourceMax);
+    const payload: DisplayHistogram = {
+      bins,
+      lowValue: min,
+      highValue: max,
+      sourceMin,
+      sourceMax,
+    };
+    touchHistogramCacheEntry(key, payload);
+    return payload;
+  })().finally(() => inFlightHistograms.delete(key));
+
+  inFlightHistograms.set(key, histogramPromise);
+  return histogramPromise;
 }

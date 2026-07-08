@@ -8,6 +8,14 @@ export interface PercentileStretch {
   highPercentile: number;
 }
 
+export interface PercentileHistogram {
+  bins: number[];
+  lowValue: number;
+  highValue: number;
+  sourceMin: number;
+  sourceMax: number;
+}
+
 export interface PercentileStretchMetadata {
   type?: string;
   originalImageFiles?: string[];
@@ -40,7 +48,8 @@ export function effectiveImageEnhancements(
   if (percentileStretchSupported || enh.percentileStretch == null) {
     return enh;
   }
-  const { percentileStretch, ...rest } = enh;
+  const rest = { ...enh };
+  delete rest.percentileStretch;
   return rest;
 }
 
@@ -80,6 +89,48 @@ export function computeOutputs(enh: ImageEnhancements): ImageEnhancementOutputs 
   };
 }
 
+/** Derive percentile cutoff values from a binned histogram (no server round-trip). */
+export function computePercentileBoundsFromBins(
+  bins: number[],
+  lowPercentile: number,
+  highPercentile: number,
+  sourceMin: number,
+  sourceMax: number,
+): { lowValue: number; highValue: number } {
+  const total = bins.reduce((sum, count) => sum + count, 0);
+  if (total === 0) return { lowValue: sourceMin, highValue: sourceMax };
+
+  const lowTarget = Math.floor(total * (lowPercentile / 100));
+  const highTarget = Math.floor(total * (highPercentile / 100));
+  const binCount = bins.length;
+
+  function binToValue(binIndex: number): number {
+    if (sourceMax > 255) return Math.min(sourceMax, binIndex * 256);
+    if (sourceMin === 0 && sourceMax <= 255) return binIndex;
+    const range = sourceMax - sourceMin;
+    return sourceMin + (binCount <= 1 ? 0 : (binIndex / (binCount - 1)) * range);
+  }
+
+  let cumulative = 0;
+  let lowValue = sourceMin;
+  let highValue = sourceMax;
+  let foundLow = false;
+
+  for (let i = 0; i < binCount; i += 1) {
+    cumulative += bins[i];
+    if (!foundLow && cumulative > 0 && cumulative >= lowTarget) {
+      lowValue = binToValue(i);
+      foundLow = true;
+    }
+    if (cumulative >= highTarget) {
+      highValue = binToValue(i);
+      break;
+    }
+  }
+
+  return { lowValue, highValue };
+}
+
 export function computeIsDefault(enh: ImageEnhancements): boolean {
   return (
     enh.brightness === 1
@@ -94,6 +145,8 @@ export default function useImageEnhancements() {
   const imageEnhancements: Ref<ImageEnhancements> = ref({ ...defaultImageEnhancements });
   const imageEnhancementsByCamera: Ref<Record<string, ImageEnhancements>> = ref({});
   const percentileStretchSupported: Ref<boolean> = ref(false);
+  const percentileHistogram: Ref<PercentileHistogram | null> = ref(null);
+  const percentileHistogramLoading: Ref<boolean> = ref(false);
 
   const setSVGFilters = ({
     brightness, contrast, saturation, sharpen, percentileStretch,
@@ -137,14 +190,26 @@ export default function useImageEnhancements() {
     percentileStretchSupported.value = supported;
   };
 
+  const setPercentileHistogram = (hist: PercentileHistogram | null) => {
+    percentileHistogram.value = hist;
+  };
+
+  const setPercentileHistogramLoading = (loading: boolean) => {
+    percentileHistogramLoading.value = loading;
+  };
+
   return {
     imageEnhancements,
     imageEnhancementsByCamera,
     imageEnhancementOutputs,
     isDefaultImage,
     percentileStretchSupported,
+    percentileHistogram,
+    percentileHistogramLoading,
     setSVGFilters,
     setImageEnhancements,
     setPercentileStretchSupported,
+    setPercentileHistogram,
+    setPercentileHistogramLoading,
   };
 }
