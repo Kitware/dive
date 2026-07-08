@@ -69,13 +69,20 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
     assert set(saved_meta[constants.MultiCamMarker]['cameras'].keys()) == {'left', 'right'}
 
 
+@patch('dive_server.crud_dataset.Item')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset.crud.valid_images')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
-def test_create_multicam_rejects_mismatched_frame_counts(_verify, folder_cls, valid_images_mock):
+def test_create_multicam_accepts_mismatched_frame_counts(
+    _verify, folder_cls, valid_images_mock, _aux, item_cls
+):
+    """Cameras with differing frame counts are paired downstream by frame alignment,
+    so create_multicam must not reject them."""
     user = {'login': 'tester'}
-    left = _child_folder('left-id', 'cam-left')
-    right = _child_folder('right-id', 'cam-right')
+    dataset_parent = _dataset_parent()
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
 
     folder_cls.return_value.load.side_effect = lambda fid, **kwargs: {
         'left-id': left,
@@ -89,14 +96,18 @@ def test_create_multicam_rejects_mismatched_frame_counts(_verify, folder_cls, va
         'type': 'image-sequence',
         'subType': 'stereo',
         'defaultDisplay': 'left',
+        'cameraOrder': ['left', 'right'],
         'cameras': {
             'left': {'folderId': 'left-id'},
             'right': {'folderId': 'right-id'},
         },
     }
 
-    with pytest.raises(RestException, match='same number of frames'):
-        crud_dataset.create_multicam(user, _dataset_parent(), data)
+    result = crud_dataset.create_multicam(user, dataset_parent, data)
+
+    assert result == dataset_parent
+    saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
+    assert saved_meta[constants.TypeMarker] == constants.MultiType
 
 
 @patch('dive_server.crud_dataset.Item')

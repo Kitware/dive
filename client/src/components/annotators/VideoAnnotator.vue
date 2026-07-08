@@ -121,6 +121,7 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
+      externallyDriven,
     } = cameraInitializer(props.camera, {
       // allow hoisting for these functions.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -148,7 +149,26 @@ export default defineComponent({
         video.pause();
       }
     });
-    async function seek(frame: number) {
+    async function seek(frame: number | undefined) {
+      if (frame === undefined) {
+        // No frame for this camera at the current aligned-timeline slot: blank
+        // the pane. Leaves data.frame untouched -- it's read elsewhere (e.g.
+        // annotation-overlay lookups) and this phase doesn't touch annotation
+        // storage. In practice unreachable today since a video-backed camera
+        // (empty imageData) always disqualifies the whole dataset from aligned
+        // mode (see alignedTimeline.ts's canAlign) -- kept for symmetry/safety.
+        data.hasFrame = false;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', 'hidden');
+        }
+        return;
+      }
+      if (!data.hasFrame) {
+        data.hasFrame = true;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', '');
+        }
+      }
       /** Only perform seek for whole frame numbers */
       const requestedFrame = Math.round(frame);
       /** Different seek approaches based on known information */
@@ -191,7 +211,12 @@ export default defineComponent({
         await video.play();
         data.playing = true;
         props.updateTime(data);
-        syncWithVideo();
+        // When a global aligned timeline is driving playback, the aggregate
+        // controller's own centralized tick calls seek() directly -- this
+        // camera must not also free-run its own loop.
+        if (!externallyDriven.value) {
+          syncWithVideo();
+        }
       } catch (ex) {
         console.error(ex);
       }
@@ -367,6 +392,12 @@ export default defineComponent({
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     />
+    <div
+      v-if="data.ready && !data.hasFrame"
+      class="no-frame-overlay"
+    >
+      No frame at this instant
+    </div>
     <slot name="control" />
     <slot v-if="data.ready" />
   </div>

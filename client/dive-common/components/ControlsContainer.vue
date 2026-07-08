@@ -19,6 +19,7 @@ import {
   useAttributesFilters,
   useCameraStore,
   useSelectedCamera,
+  useTime,
 } from '../../src/provides';
 
 export default defineComponent({
@@ -126,16 +127,28 @@ export default defineComponent({
       handler.trackSelect(trackId, false, modifiers);
     }
 
+    const aggregateController = injectAggregateController();
     const {
-      maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = injectAggregateController().value;
+      maxFrame, volume, setVolume, setSpeed, speed,
+    } = aggregateController.value;
+    // The timeline charts (line/event charts) are built from trackStores in
+    // the selected camera's own local frame space. Under an aligned timeline
+    // (SEAL feature 5) the aggregate controller's frame/seek operate in
+    // global slot space, which diverges from local frames -- so the playhead
+    // uses time.frame (which tracks the selected camera's local frame) and
+    // chart click-seeks are translated through seekCameraFrame. Both are
+    // passthroughs when alignment isn't active.
+    const { frame: localFrame } = useTime();
+    function seekToFrame(frame: number) {
+      aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
+    }
     return {
       currentView,
       toggleView,
       maxFrame,
       multiCam,
-      frame,
-      seek,
+      frame: localFrame,
+      seek: seekToFrame,
       volume,
       setVolume,
       speed,

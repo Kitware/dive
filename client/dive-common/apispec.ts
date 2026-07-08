@@ -124,6 +124,8 @@ interface FrameImage {
   filename: string;
   /** Required for large-image (tiled) datasets; used as itemId for getTiles/getTileURL */
   id?: string;
+  /** Best-effort capture timestamp (epoch seconds) parsed from the filename, when available */
+  timestamp?: number;
 }
 
 export interface MultiCamImportFolderArgs {

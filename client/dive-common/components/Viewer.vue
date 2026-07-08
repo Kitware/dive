@@ -32,6 +32,7 @@ import {
   FilterList,
 } from 'vue-media-annotator/components';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import type { SetTimeFunc } from 'vue-media-annotator/use/useTimeObserver';
 import { getResponseError, featureHasSegmentationPolygon } from 'vue-media-annotator/utils';
 
 /* DIVE COMMON */
@@ -62,6 +63,9 @@ import type {
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import {
+  buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
+} from 'dive-common/alignedTimeline';
 import {
   computeOutputs,
   computeIsDefault,
@@ -166,6 +170,7 @@ export default defineComponent({
       aggregateController,
       onResize,
       clear: mediaControllerClear,
+      setAlignedFrameResolver,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -189,6 +194,53 @@ export default defineComponent({
       // Total tracks
       total: 0,
     });
+    /**
+     * Global aligned-timeline resolution (SEAL feature 5, Phase II): only
+     * engages when every camera in a multicam dataset has a timestamp on
+     * every frame (see alignedTimeline.ts's canAlign). Otherwise -- including
+     * always for singleCam datasets -- playback falls back to today's exact
+     * positional (broadcast-same-index) behavior via useMediaController.ts.
+     */
+    const alignedTimeline = computed<TimelineResult>(() => {
+      if (!progress.loaded || multiCamList.value.length < 2) {
+        return { aligned: false };
+      }
+      // Only consider cameras that are actually part of this dataset:
+      // imageData could retain keys from before the load (e.g. the initial
+      // 'singleCam' entry), and a single leftover empty camera would make
+      // canAlign() disqualify the whole dataset.
+      const camerasFrames: Record<string, FrameImage[]> = {};
+      multiCamList.value.forEach((camera) => {
+        camerasFrames[camera] = imageData.value[camera] ?? [];
+      });
+      return buildAlignedTimeline(camerasFrames);
+    });
+    // Serialized shape of the currently installed timeline. The computed
+    // re-evaluates whenever any camera's imageData array identity changes --
+    // including pure display-URL swaps (e.g. the percentile-stretch remap)
+    // that don't alter timestamps at all. Installing a new resolver re-seeks
+    // every camera (a visible reload/blank flash), so skip the reinstall
+    // when the slot structure is unchanged.
+    let installedTimelineKey: string | null = null;
+    watch(alignedTimeline, (result) => {
+      const timelineKey = result.aligned ? JSON.stringify(result.slots) : null;
+      if (timelineKey === installedTimelineKey) {
+        return;
+      }
+      installedTimelineKey = timelineKey;
+      if (result.aligned) {
+        const inverseIndex = buildInverseAlignedIndex(result.slots);
+        setAlignedFrameResolver({
+          slotCount: computed(() => result.slots.length),
+          frameRate: time.frameRate,
+          resolveSlot: (f) => result.slots[f] ?? {},
+          resolveGlobalSlot: (camera, localFrame) => inverseIndex[camera]?.get(localFrame),
+          gapSlots: computed(() => computeGapSlots(result.slots)),
+        });
+      } else {
+        setAlignedFrameResolver(null);
+      }
+    }, { immediate: true });
     const controlsRef = ref();
     const controlsHeight = ref(0);
     const controlsCollapsed = ref(false);
@@ -421,6 +473,24 @@ export default defineComponent({
         emit('stereo-segmentation-finalize', params);
       },
     });
+
+    /**
+     * Every camera pane calls updateTime() from its own seek/play/pause, but
+     * useTime()'s frame/flick is a single shared value consumed app-wide as
+     * "the current frame" (track split, keyframe toggling, attribute editing,
+     * etc.). Under an aligned timeline (SEAL feature 5) cameras can sit on
+     * different local frames for the same instant, so only the selected
+     * camera's updates may reach it -- otherwise whichever camera's annotator
+     * happened to seek last would silently win, regardless of which camera
+     * the user is actually looking at/editing.
+     */
+    function selectedCameraUpdateTime(camera: string): SetTimeFunc {
+      return (data) => {
+        if (selectedCamera.value === camera) {
+          updateTime(data);
+        }
+      };
+    }
 
     const {
       attributesList: attributes,
@@ -982,6 +1052,19 @@ export default defineComponent({
         }
       }
       selectedCamera.value = camera;
+      // Immediately resync the shared time observer to the newly selected
+      // camera's own local frame (see selectedCameraUpdateTime) -- otherwise
+      // it would keep reporting the previously selected camera's local frame
+      // until the next seek/play/pause happens to land on this camera.
+      // During load (loadData calls changeCamera before progress.loaded, so
+      // no annotator has mounted yet) there is no controller for the camera:
+      // skip the resync gracefully -- the annotator syncs time on mount.
+      try {
+        const newCameraController = aggregateController.value.getController(camera);
+        updateTime({ frame: newCameraController.frame.value, flick: newCameraController.flick.value });
+      } catch {
+        // No controller registered for this camera (yet); nothing to resync.
+      }
       /**
        * Enters edit mode if no track exists for the camera and forcing edit mode
        * or if a track exists and are alrady in edit mode we don't set it again
@@ -1009,7 +1092,20 @@ export default defineComponent({
       if (!track) {
         return false;
       }
-      return track.getFeature(aggregateController.value.frame.value)[0] == null;
+      // Must use selectedCamera's own local frame, not aggregateController's
+      // frame: under an aligned timeline (SEAL feature 5) the aggregate frame
+      // is the global slot index, which diverges from any camera's local
+      // frame -- and getFeature() is keyed by local frame, same as tracks are
+      // stored. See LayerManager.vue's identically-named helper.
+      let cameraFrame: number;
+      try {
+        cameraFrame = aggregateController.value.getController(selectedCamera.value).frame.value;
+      } catch {
+        // This camera's annotator never mounted (e.g. mid load/reload); fall
+        // back to the aggregate frame rather than throwing.
+        cameraFrame = aggregateController.value.frame.value;
+      }
+      return track.getFeature(cameraFrame)[0] == null;
     };
     // While editing, the creation cursor is live on any camera still missing
     // the selected track's geometry at this frame (see LayerManager's
@@ -1139,6 +1235,16 @@ export default defineComponent({
           frameRate: meta.fps,
           originalFps: meta.originalFps || null,
         });
+        // Rebuild imageData with exactly this dataset's cameras, dropping the
+        // initial 'singleCam' placeholder (on multicam datasets) and any
+        // previous dataset's leftovers. A stale empty entry would make
+        // alignedTimeline's canAlign() disqualify the dataset. Replacing the
+        // whole object (rather than adding keys with bracket assignment,
+        // which is non-reactive for new keys under Vue 2.7) also keeps the
+        // alignedTimeline computed and the template reactive to these keys.
+        imageData.value = Object.fromEntries(
+          multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
+        );
         for (let i = 0; i < multiCamList.value.length; i += 1) {
           const camera = multiCamList.value[i];
           let cameraId = baseMulticamDatasetId.value;
@@ -1452,8 +1558,13 @@ export default defineComponent({
     ));
 
     function seekToFrame(frame: number) {
+      // `frame` arrives in the selected camera's own local frame space (track
+      // begin/end from TrackItem/TrackList/TrackDetailsPanel, keyframe
+      // navigation, BottomPanel...). Under an aligned timeline (SEAL feature
+      // 5) the aggregate seek() expects a global slot index, so translate via
+      // seekCameraFrame -- a passthrough when alignment isn't active.
       try {
-        aggregateController.value.seek(frame);
+        aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
       } catch {
         // Ignore seek requests while controllers are initializing.
       }
@@ -1699,7 +1810,7 @@ export default defineComponent({
       save,
       saveThreshold,
       saveTimeFilter,
-      updateTime,
+      selectedCameraUpdateTime,
       // multicam
       multiCamList,
       defaultCamera,
@@ -2018,7 +2129,7 @@ export default defineComponent({
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
-                  updateTime,
+                  updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
                   camera,
@@ -2115,7 +2226,7 @@ export default defineComponent({
                 v-bind="{
                   imageData: imageData[camera],
                   videoUrl: videoUrl[camera],
-                  updateTime,
+                  updateTime: selectedCameraUpdateTime(camera),
                   frameRate,
                   originalFps,
                   camera,

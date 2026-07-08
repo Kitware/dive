@@ -16,7 +16,15 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, calibration_format, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    calibration_format,
+    constants,
+    fromMeta,
+    models,
+    types,
+)
 from dive_utils.serializers import kwcoco
 
 
@@ -1230,7 +1238,6 @@ def create_multicam(
 
     loaded_children: Dict[str, types.GirderModel] = {}
     camera_types_by_name: Dict[str, str] = {}
-    frame_counts: List[int] = []
     child_fps_by_name: Dict[str, float] = {}
     for name in camera_order:
         cam = cameras[name]
@@ -1264,7 +1271,9 @@ def create_multicam(
             )
         child_fps = fromMeta(child, constants.FPSMarker)
         child_fps_by_name[name] = child_fps
-        frame_counts.append(_child_media_frame_count(child, user, cam_type))
+        # Called for its validation side effect (e.g. a video camera missing its
+        # processed video raises here); differing counts across cameras are allowed.
+        _child_media_frame_count(child, user, validated.type)
         loaded_children[name] = child
         camera_types_by_name[name] = cam_type
 
@@ -1284,15 +1293,9 @@ def create_multicam(
                     code=400,
                 )
 
-    if len(set(frame_counts)) > 1:
-        details = ', '.join(
-            f'{name}={count}' for name, count in zip(camera_order, frame_counts)
-        )
-        expected = frame_counts[0]
-        raise RestException(
-            f'All cameras must have the same number of frames (expected {expected}; {details})',
-            code=400,
-        )
+    # NOTE: cameras are intentionally allowed to have differing frame counts.
+    # Frame alignment pairs frames across cameras downstream, so a per-camera
+    # frame-count equality check would reject the primary use case for this feature.
 
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
