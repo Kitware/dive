@@ -22,6 +22,7 @@ import {
   Matrix3, matMul3, invert3, applyHomography, Point,
 } from './homography';
 import type { CameraHomographies } from './CameraCalibrationStore';
+import type { RectBounds } from './utils';
 
 export const IDENTITY3: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
@@ -205,4 +206,100 @@ export function mapPoint(matrix: Matrix3 | null, point: Point): Point {
     return point;
   }
   return applyHomography(matrix, point);
+}
+
+/** Axis-aligned bounding box of a set of points. */
+function pointsToBounds(points: Point[]): RectBounds {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+/** The four corners of a RectBounds, clockwise from (x1, y1). */
+function boundsCorners(bounds: RectBounds): Point[] {
+  return [
+    [bounds[0], bounds[1]],
+    [bounds[2], bounds[1]],
+    [bounds[2], bounds[3]],
+    [bounds[0], bounds[3]],
+  ];
+}
+
+/**
+ * Map an axis-aligned RectBounds through a homography. A non-affine transform
+ * turns a rectangle into a general quad, so the result is the axis-aligned
+ * bounding box of the four mapped corners.
+ */
+export function mapBounds(matrix: Matrix3, bounds: RectBounds): RectBounds {
+  return pointsToBounds(boundsCorners(bounds).map((c) => applyHomography(matrix, c)));
+}
+
+/**
+ * Map a rotated rectangle (RectBounds + rotation in radians about the bounds
+ * center, the convention of utils.rotateGeoJSONCoordinates) through a
+ * homography, returning a best-fit rotated rectangle in the target space:
+ * the mapped direction of the rect's top edge gives the new rotation, and the
+ * mapped corners un-rotated about their centroid give the new bounds. Exact
+ * for similarity transforms; a least-surprise approximation for the rest.
+ */
+export function mapRotatedBounds(
+  matrix: Matrix3,
+  bounds: RectBounds,
+  rotation: number,
+): { bounds: RectBounds; rotation: number } {
+  const cx = (bounds[0] + bounds[2]) / 2;
+  const cy = (bounds[1] + bounds[3]) / 2;
+  const rotate = (p: Point, angle: number, ox: number, oy: number): Point => {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const dx = p[0] - ox;
+    const dy = p[1] - oy;
+    return [ox + dx * cos - dy * sin, oy + dx * sin + dy * cos];
+  };
+  const mapped = boundsCorners(bounds)
+    .map((c) => applyHomography(matrix, rotate(c, rotation, cx, cy)));
+  // The top edge (corner 0 -> corner 1) points along +x at zero rotation, so
+  // its mapped direction is the combined rotation in the target space.
+  const newRotation = Math.atan2(
+    mapped[1][1] - mapped[0][1],
+    mapped[1][0] - mapped[0][0],
+  );
+  const mcx = mapped.reduce((sum, p) => sum + p[0], 0) / mapped.length;
+  const mcy = mapped.reduce((sum, p) => sum + p[1], 0) / mapped.length;
+  const unrotated = mapped.map((p) => rotate(p, -newRotation, mcx, mcy));
+  return { bounds: pointsToBounds(unrotated), rotation: newRotation };
+}
+
+type MappableGeometry = GeoJSON.Point | GeoJSON.LineString | GeoJSON.Polygon;
+
+/**
+ * Deep-copy GeoJSON features (the shapes tracks store per-frame: Point,
+ * LineString, Polygon) with every coordinate mapped through a homography.
+ * Unsupported geometry types are copied through unmapped.
+ */
+export function mapGeoJSONFeatures<T extends MappableGeometry>(
+  matrix: Matrix3,
+  features: GeoJSON.Feature<T>[],
+): GeoJSON.Feature<T>[] {
+  const mapPosition = (p: GeoJSON.Position): GeoJSON.Position => (
+    applyHomography(matrix, [p[0], p[1]])
+  );
+  return features.map((feature) => {
+    let geometry: MappableGeometry;
+    if (feature.geometry.type === 'Point') {
+      geometry = { type: 'Point', coordinates: mapPosition(feature.geometry.coordinates) };
+    } else if (feature.geometry.type === 'LineString') {
+      geometry = { type: 'LineString', coordinates: feature.geometry.coordinates.map(mapPosition) };
+    } else {
+      geometry = {
+        type: 'Polygon',
+        coordinates: feature.geometry.coordinates.map((ring) => ring.map(mapPosition)),
+      };
+    }
+    return {
+      ...feature,
+      geometry: geometry as T,
+      properties: feature.properties ? { ...feature.properties } : feature.properties,
+    };
+  });
 }
