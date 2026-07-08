@@ -1,6 +1,6 @@
 import type {
   DatasetMeta, DatasetMetaMutable, DatasetType,
-  Pipe, SubType, MediaImportResponse, MultiCamImportFolderArgs, PipelineParams,
+  Pipe, SubType, MediaImportResponse, PipelineParams,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';

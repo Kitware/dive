@@ -38,7 +38,6 @@ function directChildNames(prefix: string, paths: string[]): Set<string> {
 
 function scanCollectFromFiles(collectPath: string, allFiles: File[]): Map<string, CollectSubfolderScan> {
   const normalizedCollectPath = normalizeRootPath(collectPath);
-  const collectPrefix = `${normalizedCollectPath}/`;
   const relPaths = allFiles.map((file) => relativePath(file));
   const subfolderNames = directChildNames(normalizedCollectPath, relPaths);
   const subfolders = new Map<string, CollectSubfolderScan>();

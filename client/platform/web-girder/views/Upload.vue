@@ -116,7 +116,12 @@ function multicamCameraSlotPercent(
 }
 
 export default defineComponent({
-  components: { ImportButton, ImportMultiCamDialog, ImportMultiCamBatchDialog, UploadGirder },
+  components: {
+    ImportButton,
+    ImportMultiCamDialog,
+    ImportMultiCamBatchDialog,
+    UploadGirder,
+  },
   props: {
     location: {
       type: Object,
