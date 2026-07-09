@@ -1024,8 +1024,8 @@ async function _ingestFilePath(
   if (fs.statSync(path).size === 0) {
     return null;
   }
-  // Contract N9: a declared telemetry sidecar is read automatically at read-time and must never
-  // be imported as annotations. Reject before copying to auxiliary.
+  // Frame-metadata sidecars are read from the media folder, so importing one as annotations would
+  // copy it into the wrong storage path.
   if (isFrameMetadataSourceName(path)) {
     throw new Error(`${npath.basename(path)} is a frame-metadata (telemetry) file. Place it in the dataset's media folder; it is read automatically and cannot be imported as annotations.`);
   }

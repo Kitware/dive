@@ -11,18 +11,18 @@ import {
 import isFrameMetadataSourceName from './naming';
 import { buildMediaKeyIndex } from './resolve';
 
-type ContractRecord = Record<string, string>;
-type ContractSource = {
+type FixtureRecord = Record<string, string>;
+type ExpectedSource = {
   header: string[];
-  recordsByFrame: Record<string, ContractRecord>;
+  recordsByFrame: Record<string, FixtureRecord>;
   cameras: Record<string, {
     joinColumn: string;
     payloadColumns: string[];
     frames: string[];
   }>;
 };
-type Contract = {
-  sources: Record<string, ContractSource>;
+type ExpectedFixture = {
+  sources: Record<string, ExpectedSource>;
 };
 
 const syntheticHeader = [
@@ -48,7 +48,7 @@ function sourceText(sourceName: string): string {
   return [syntheticHeader.join(' '), ...rows.map((row) => row.join(' ')), ''].join('\n');
 }
 
-function sourceContract(rows: string[][]): ContractSource {
+function expectedSource(rows: string[][]): ExpectedSource {
   return {
     header: syntheticHeader,
     recordsByFrame: Object.fromEntries(rows.map((row, frame) => [
@@ -56,13 +56,13 @@ function sourceContract(rows: string[][]): ContractSource {
       Object.fromEntries(syntheticHeader.map((field, index) => [field, row[index]])),
     ])),
     cameras: {
-      port: cameraContract('port_image', rows),
-      starboard: cameraContract('starboard_image', rows),
+      port: expectedCamera('port_image', rows),
+      starboard: expectedCamera('starboard_image', rows),
     },
   };
 }
 
-function cameraContract(joinColumn: string, rows: string[][]) {
+function expectedCamera(joinColumn: string, rows: string[][]) {
   return {
     joinColumn,
     payloadColumns: syntheticHeader.filter((column) => column !== joinColumn),
@@ -70,12 +70,12 @@ function cameraContract(joinColumn: string, rows: string[][]) {
   };
 }
 
-function loadContract(): Contract {
+function loadExpectedFixture(): ExpectedFixture {
   return {
     sources: Object.fromEntries(
       Object.entries(syntheticSources).map(([sourceName, rows]) => [
         sourceName,
-        sourceContract(rows),
+        expectedSource(rows),
       ]),
     ),
   };
@@ -86,7 +86,7 @@ function fixtureText(sourceName: string): string {
 }
 
 function mediaKeys(
-  cameraRecords: Record<string, ContractRecord>,
+  cameraRecords: Record<string, FixtureRecord>,
   joinColumn: string,
 ): Map<string, number> {
   return new Map(Object.entries(cameraRecords).map(([frame, record]) => (
@@ -97,8 +97,8 @@ function mediaKeys(
 function recordsByFrame(
   source: ParsedFrameMetadata,
   keys: Map<string, number>,
-): Record<string, ContractRecord> {
-  const records: Record<string, ContractRecord> = {};
+): Record<string, FixtureRecord> {
+  const records: Record<string, FixtureRecord> = {};
   Array.from(keys.entries())
     .sort(([, frameA], [, frameB]) => frameA - frameB)
     .forEach(([key, frame]) => {
@@ -246,10 +246,10 @@ describe('shared frame metadata parser', () => {
     expect(parseFrameMetadataSource('note,value\nhello,world\n', keys)).toBeNull();
   });
 
-  it('matches the shared synthetic AUV fixture contract', () => {
-    const contract = loadContract();
+  it('matches the shared synthetic AUV fixture', () => {
+    const expectedFixture = loadExpectedFixture();
 
-    Object.entries(contract.sources).forEach(([sourceName, expected]) => {
+    Object.entries(expectedFixture.sources).forEach(([sourceName, expected]) => {
       const text = fixtureText(sourceName);
       Object.entries(expected.cameras).forEach(([camera, cameraExpected]) => {
         const expectedRecords = Object.fromEntries(
@@ -272,7 +272,7 @@ describe('shared frame metadata parser', () => {
     });
   });
 
-  it('uses a hash-prefixed header line as the header (Contract P-HDR)', () => {
+  it('uses a hash-prefixed header line as the header', () => {
     const source = parseFrameMetadataSource(
       '# filename,depth,heading\nimg001.png,10,180\n',
       { 'img001.png': 0 },
@@ -300,7 +300,7 @@ describe('shared frame metadata parser', () => {
     });
   });
 
-  it('skips a standalone comment block above the real header (Contract P-HDR)', () => {
+  it('skips a standalone comment block above the real header', () => {
     const source = parseFrameMetadataSource(
       '# vehicle: AUV, dive 42\nfilename,depth\nimg001.png,10\n',
       { 'img001.png': 0 },
@@ -310,7 +310,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
 
-  it('strips a leading UTF-8 BOM from the header cell (Contract P-3)', () => {
+  it('strips a leading UTF-8 BOM from the header cell', () => {
     const source = parseFrameMetadataSource(
       '﻿filename,depth\nimg001.png,10\n',
       { 'img001.png': 0 },
@@ -320,7 +320,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
 
-  it('rejects NUL-poisoned and oversized fields as no source (Contract P-4)', () => {
+  it('rejects NUL-poisoned and oversized fields as no source', () => {
     expect(parseFrameMetadataSource(
       'filename,alt\x00\nimg001.png,42\x00\n',
       { 'img001.png': 0 },
@@ -330,7 +330,7 @@ describe('shared frame metadata parser', () => {
     expect(parseFrameMetadataSource(hugeField, { 'img001.png': 0 })).toBeNull();
   });
 
-  it('normalizes a double-extension media key exactly once (Contract P-5)', () => {
+  it('normalizes a double-extension media key exactly once', () => {
     const source = parseFrameMetadataSource(
       'filename,depth\nIMG_001.jpg.png,10\n',
       { 'IMG_001.jpg.png': 0 },
@@ -343,7 +343,7 @@ describe('shared frame metadata parser', () => {
     });
   });
 
-  it('keeps the non-join column as payload in a two-column source (Contract P-JOIN)', () => {
+  it('keeps the non-join column as payload in a two-column source', () => {
     const source = parseFrameMetadataSource(
       'image,altitude\nimg001.png,10\nimg002.png,12\n',
       { 'img001.png': 0, 'img002.png': 1 },
@@ -379,7 +379,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001.depth).toBe('10');
   });
 
-  it('sniffs the delimiter from the data line, not a prose comment (Contract P-SNIFF)', () => {
+  it('sniffs the delimiter from the data line, not a prose comment', () => {
     // A delimiter-free `#` comment over comma data sniffs the comma from the first
     // non-comment line, so a comment-headed sidecar still joins.
     const source = parseFrameMetadataSource(
@@ -391,7 +391,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
 
-  it('prefers a data-line tab over a comma in the comment prose (Contract P-SNIFF)', () => {
+  it('prefers a data-line tab over a comma in the comment prose', () => {
     const source = parseFrameMetadataSource(
       '# Position (lat, lon) log\nfilename\tdepth\nimg001.png\t10\n',
       { 'img001.png': 0 },
@@ -401,11 +401,11 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
 
-  it('returns null when every non-empty line is a comment (Contract P-SNIFF)', () => {
+  it('returns null when every non-empty line is a comment', () => {
     expect(parseFrameMetadataSource('# one\n# two\n# three\n', { 'img001.png': 0 })).toBeNull();
   });
 
-  it('drops a leading all-empty row before header selection (Contract P-EMPTYROW)', () => {
+  it('drops a leading all-empty row before header selection', () => {
     // The tokenizer keeps `,,,` as an all-empty row; without the filter it becomes the header.
     const source = parseFrameMetadataSource(
       ',,,\nfilename,depth\nimg001.png,100\n',
@@ -416,7 +416,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001).toEqual({ filename: 'img001.png', depth: '100' });
   });
 
-  it('accepts a wide row whose cells are each within the field limit (Contract P-FIELD)', () => {
+  it('accepts a wide row whose cells are each within the field limit', () => {
     // Total row length exceeds 131072 but no single cell does, so it stays telemetry.
     const cell = 'a'.repeat(7000);
     const columns = Array.from({ length: 20 }, (_, index) => `c${index + 1}`);
@@ -430,12 +430,12 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.img001.c20).toBe(cell);
   });
 
-  it('rejects a source with a single cell over the field limit (Contract P-FIELD)', () => {
+  it('rejects a source with a single cell over the field limit', () => {
     const oversized = `filename,notes\nimg001.png,${'x'.repeat(131073)}\n`;
     expect(parseFrameMetadataSource(oversized, { 'img001.png': 0 })).toBeNull();
   });
 
-  it('accepts a prebuilt index identically to raw media keys (Contract KEY-INDEX)', () => {
+  it('accepts a prebuilt index identically to raw media keys', () => {
     const text = 'filename,depth\nimg001.png,10\n';
     const fromKeys = parseFrameMetadataSource(text, { 'img001.png': 0 });
     const fromIndex = parseFrameMetadataSource(text, buildMediaKeyIndex(['img001.png']));
@@ -446,7 +446,7 @@ describe('shared frame metadata parser', () => {
     expect(fromIndex?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
 
-  it('parses a hash header with the threaded join and a prebuilt index (Contract P-JOIN)', () => {
+  it('parses a hash header with the threaded join and a prebuilt index', () => {
     // A `#` header validated inside header selection is parsed with the join it was
     // validated with; the leftmost image column joins and the second is neither joined
     // nor payload.
@@ -724,7 +724,7 @@ function toComparable(records: Record<string, Record<string, string>> | null) {
   });
 }
 
-describe('inline frame-metadata parser contract cases', () => {
+describe('inline frame-metadata parser cases', () => {
   parserCases.forEach((parserCase) => {
     it(`matches ${parserCase.name}`, () => {
       const parsed = parseFrameMetadataSource(parserCase.text, parserCase.mediaKeys);
@@ -736,8 +736,8 @@ describe('inline frame-metadata parser contract cases', () => {
   });
 });
 
-describe('shared frame-metadata naming contract', () => {
-  it('matches the shared source-name predicate truth table (Contract N-NAME)', () => {
+describe('shared frame-metadata naming', () => {
+  it('matches the shared source-name predicate truth table', () => {
     // The truth table is shared with the server harness so the mirrored predicate cannot drift.
     const truthTablePath = sourceNamesTruthTablePath();
     expect(fs.existsSync(truthTablePath)).toBe(true);

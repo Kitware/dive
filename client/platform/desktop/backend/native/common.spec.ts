@@ -328,7 +328,7 @@ beforeEach(() => {
         'notes.txt': 'note,value\nhello,world\n',
       },
       // Duplicate image basename across subfolders: the read path keys last-wins instead of
-      // throwing like the import-path validator (Contract READ-KEYS).
+      // throwing like the import-path validator.
       frameMetadataDupSource: {
         'frame_metadata.csv': [
           'filename,depth',

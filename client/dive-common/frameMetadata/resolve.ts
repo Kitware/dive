@@ -14,11 +14,8 @@ type CameraCandidateTexts = Record<string, Array<[string, string]>>;
 // camera key -> the media-key index for that camera's ordered media list.
 type CameraMediaKeys = Record<string, MediaKeyIndex>;
 
-// Contract READ-KEYS: build the media-key index tolerantly from an ordered media list (the frame
-// number is the array position). Duplicate normalized basenames are last-wins -- never the
-// throwing import-path validator -- so a duplicate can never blank a camera at read time.
-// `normalizeKey` strips any directory prefix and one image extension, so entries may be bare
-// filenames or full paths.
+// The read path must tolerate duplicate basenames because rejecting here would hide all metadata
+// for the camera. Later media entries win for consistency with the ordered media list.
 function buildMediaKeyIndex(mediaNames: string[]): MediaKeyIndex {
   return indexFromEntries(mediaNames.map((name, frame) => [name, frame]));
 }
@@ -69,9 +66,7 @@ function resolveCameras(
 
     const cameraColumns = unionColumns(parsed);
 
-    // First-wins per-frame merge (Contract 1): the earliest candidate to claim a frame keeps it.
-    // Each claimed frame materializes one compact row aligned to the camera's union columns; cells
-    // a frame's winning source did not carry are empty strings.
+    // Higher-precedence sidecars should not be overwritten by fallback locations.
     const records: Record<number, string[]> = {};
     const claimed = new Set<number>();
     parsed.forEach((source) => {

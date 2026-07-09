@@ -1,25 +1,22 @@
 import { basicImageFileExtensions, largeImageFileExtensions } from 'dive-common/constants';
 
-// The single frame-metadata parser, shared by the desktop backend and the web client. It is
-// deliberately node-free (no `crypto`, no `path`, no `csv-parse`) so the exact same code that
-// runs in the Electron backend also bundles and runs in the browser renderer. The parser specs
-// are the regression contract; the Contract-tag comments document the one implementation.
+// Shared by the desktop backend and the web client. Keep this node-free so the same parser runs
+// in Electron and in the browser renderer.
 
 type FrameMetadataRow = Record<string, string>;
 type MediaKeys = Map<string, number> | Record<string, number>;
 
 interface ParsedFrameMetadata {
   sourceName?: string;
-  // Payload column names in header (file) order, including the join column and excluding the
-  // non-join image candidates. The resolver keeps this order so numeric-named headers render in
-  // file order rather than JS object-key order (readtime deferred finding #8).
+  // Payload column names in file order; the resolver relies on this to avoid JS object-key
+  // reordering for numeric-named headers.
   columns: string[];
   // Records keyed by normalized media key; each record is a null-prototype {field: value} map.
   records: Record<string, FrameMetadataRow>;
 }
 
-// Contract KEY-INDEX: media keys normalized exactly once per camera. Built by the resolver
-// (buildMediaKeyIndex) or, for a raw call site, normalized here from a MediaKeys mapping.
+// Parser call sites share this shape so join scoring never mixes raw filenames with normalized
+// media keys.
 interface MediaKeyIndex {
   normalizedKeys: Set<string>;
   frameByKey: Map<string, number>;
@@ -32,9 +29,8 @@ const imageExtensions = new Set<string>([
   ...largeImageFileExtensions,
 ]);
 
-// Contract P-FIELD: Python's csv.field_size_limit() default. Enforced per *field* (see
-// parseDelimited) so a source with any single oversized cell parses to null, while a wide row of
-// mid-size cells is accepted.
+// Match Python's csv.field_size_limit() default so browser and desktop reject pathological cells
+// consistently.
 const FIELD_SIZE_LIMIT = 131072;
 
 // Split a basename into (stem, lowercased extension). Mirrors node path.extname semantics: a
@@ -83,8 +79,6 @@ function isMediaKeyIndex(value: MediaKeyIndex | MediaKeys): value is MediaKeyInd
   return !(value instanceof Map) && (value as MediaKeyIndex).normalizedKeys instanceof Set;
 }
 
-// Contract P-HDR: split off the leading comment block (consecutive rows whose first cell
-// starts with `#`) from the rest of the table.
 function splitCommentBlock(
   rawRows: string[][],
 ): { commentBlock: string[][]; body: string[][] } {
@@ -147,9 +141,8 @@ function buildTable(
   return { header, rows };
 }
 
-// Contract P-JOIN: score each column by how many rows join the media keys; the join
-// candidates clear min(2, rowCount) and the join column is the argmax by score
-// (tie -> leftmost).
+// Sidecars may include multiple image columns; score by media-key matches so each camera can use
+// its own column while ties remain stable in file order.
 function selectJoinColumn(
   header: string[],
   rows: FrameMetadataRow[],
@@ -182,12 +175,8 @@ function selectJoinColumn(
 
 type JoinResult = { joinColumn: string | null; candidates: string[] };
 
-// Contract P-HDR: pick the header, honouring a leading `#` header line only when it
-// lines up with the first data line and yields a working join column.
-//
-// When the `#` header is accepted, the join it was validated with is returned so the caller
-// reuses it instead of re-scoring the same rows (Contract P-JOIN threading); a body-path
-// header returns `null` for the join, so the caller scores it itself.
+// Some exporters prefix the real header with `#`; accept that row only when it lines up with the
+// first data row and joins the media keys.
 function selectHeaderAndRows(
   rawRows: string[][],
   normalizedMediaKeys: Set<string>,
@@ -222,20 +211,15 @@ function parseFrameMetadataSource(
   mediaIndex: MediaKeyIndex | MediaKeys,
   sourceName?: string,
 ): ParsedFrameMetadata | null {
-  // Accept either a prebuilt MediaKeyIndex or a raw media-key mapping (normalized here),
-  // so read and import call sites can share the resolver's index (Contract KEY-INDEX)
-  // without re-normalizing when they already hold one.
+  // Accept a prebuilt index so the read path can reuse the resolver's normalized media keys.
   const index = isMediaKeyIndex(mediaIndex) ? mediaIndex : normalizeMediaKeys(mediaIndex);
   const normalizedMediaKeys = index.normalizedKeys;
 
-  // Contract P-4: NUL bytes mark a binary/corrupt file, not telemetry. Check before
-  // parsing so the answer is identical on both platforms.
+  // NUL bytes mark a binary/corrupt file, not telemetry.
   if (text.indexOf('\0') !== -1) {
     return null;
   }
-  // Contract P-3: strip a leading UTF-8 BOM (U+FEFF) so the header cell is `filename`,
-  // not a BOM-prefixed `filename`. String.trim() already drops it, but strip it
-  // explicitly so the intent is visible.
+  // Strip a leading UTF-8 BOM explicitly so the intent is not hidden inside trim().
   const content = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
 
   const rawRows = readRows(content);
@@ -259,8 +243,7 @@ function parseFrameMetadataSource(
     return null;
   }
 
-  // A second matching image column is a join candidate but not the join column, so it is
-  // neither joined on nor shown as payload (Contract P-JOIN).
+  // Additional matching image columns identify other cameras and should not appear as payload.
   const excluded = new Set(candidates.filter((column) => column !== joinColumn));
   const recordFields = header.filter((column) => !excluded.has(column));
 
@@ -301,8 +284,7 @@ function readRows(text: string): string[][] {
   }
 
   try {
-    // Contract P-EMPTYROW: an all-empty row (`,,,`) is not skipped by the tokenizer, so drop
-    // all-empty rows here (cells are already trimmed) before header selection.
+    // Drop delimiter-only rows before header selection; otherwise `,,,` becomes the header.
     return parseDelimited(text, delimiter).filter((row) => row.some((cell) => cell.length > 0));
   } catch {
     // NUL bytes, oversized fields, etc. are treated as "not a telemetry source" instead of
@@ -311,12 +293,8 @@ function readRows(text: string): string[][] {
   }
 }
 
-// Contract P-TOKENIZE: a small RFC4180-style delimiter tokenizer (no node `csv-parse`). A quote
-// only opens a quoted field when it is the first character of a field, so a bare quote inside an
-// unquoted cell (e.g. depth `5"`) is a literal character rather than a parse error (the lenient
-// behaviour telemetry sidecars rely on). Inside a quoted field, `""` is an escaped quote and a
-// lone `"` closes it. Rows have variable column counts; empty lines become an all-empty row and
-// are dropped by the Contract P-EMPTYROW filter in readRows.
+// Keep tokenization local because this file must bundle in the browser. The parser is lenient
+// with bare quotes because field logs commonly contain units such as `5"`.
 function tokenizeDelimited(text: string, delimiter: ',' | '\t'): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -391,18 +369,14 @@ function parseDelimited(text: string, delimiter: ',' | '\t'): string[][] {
     throw new Error('line contains NUL');
   }
   const rows = tokenizeDelimited(text, delimiter);
-  // Contract P-FIELD: enforce Python's per-*field* csv.field_size_limit default on the untrimmed
-  // cells, so a single oversized cell rejects the source while a wide row of mid-size cells is
-  // accepted. Throw so the guard in readRows treats an oversized cell as non-telemetry.
+  // Enforce the limit per field, matching Python csv behavior, before trimming cells.
   if (rows.some((row) => row.some((cell) => cell.length > FIELD_SIZE_LIMIT))) {
     throw new Error('field larger than the size limit');
   }
   return rows.map((row) => row.map((cell) => cell.trim()));
 }
 
-// Contract P-SNIFF: the delimiter is sniffed from the first non-empty line that does not
-// start with `#` (the real data/header line), falling back to the first non-empty line when
-// every non-empty line is a comment.
+// Ignore leading prose comments while sniffing so commas inside prose do not override TSV data.
 function sniffLine(text: string): string | null {
   const lines = text
     .split(/\r?\n/)

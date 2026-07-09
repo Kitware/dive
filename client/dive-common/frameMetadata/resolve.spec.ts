@@ -11,8 +11,8 @@ describe('buildMediaKeyIndex', () => {
   });
 
   it('is tolerant of duplicate basenames (last-wins, never throws)', () => {
-    // The import-path validator throws on duplicate basenames; the read-time index must not,
-    // so a duplicate can never blank a camera. The later frame wins (Contract READ-KEYS).
+    // The import-path validator throws on duplicate basenames; the read-time index must not
+    // because that would blank the camera's metadata.
     const index = buildMediaKeyIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
 
     expect(index.normalizedKeys).toEqual(new Set(['img001', 'img002']));

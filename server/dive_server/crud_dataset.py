@@ -408,8 +408,8 @@ def get_media(
     )
 
 
-# 'singleCam' is the single-camera key of the frame-metadata sources wire contract; the
-# client mirrors it (SingleCameraFrameMetadataKey).
+# Keep this in sync with the client's SingleCameraFrameMetadataKey so single-camera metadata uses
+# the same key on both sides.
 SINGLE_CAMERA_FRAME_METADATA_KEY = 'singleCam'
 
 
@@ -471,7 +471,7 @@ def load_frame_metadata_sources(
         return _load_multicam_frame_metadata_sources(dsFolder, user)
     if source_type != constants.ImageSequenceType:
         return {'cameras': {}}
-    # Contract 1: local dataset-folder candidates precede the clone media root.
+    # Prefer sidecars stored directly on the dataset before falling back to the clone media root.
     sources = _collect_frame_metadata_sources([dsFolder, crud.getCloneRoot(user, dsFolder)])
     if not sources:
         return {'cameras': {}}
@@ -488,7 +488,7 @@ def _load_multicam_frame_metadata_sources(
     for camera_name, child in _iter_multicam_camera_folders(multi_cam, user):
         if fromMeta(child, constants.TypeMarker) != constants.ImageSequenceType:
             continue
-        # Contract 1: camera-local folder + clone root precede the multicam parent folders.
+        # Prefer camera-local sidecars before falling back to shared multicam parent folders.
         sources = _collect_frame_metadata_sources(
             [child, crud.getCloneRoot(user, child), dsFolder, parent_root]
         )
@@ -1506,8 +1506,7 @@ def validate_files(files: List[str]):
     ]
     media = images + videos + large_images
 
-    # Dataset config JSON follows the same meta/config filename contract as the client's
-    # JsonMetaRegEx; annotation JSON is every other .json.
+    # Keep dataset config filename detection aligned with the client's JsonMetaRegEx.
     dataset_config = [
         f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
     ]
