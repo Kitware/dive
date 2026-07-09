@@ -175,7 +175,7 @@ This information provides the specification for an individual dataset.  It consi
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
 * Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.
-  * Edited from the Dataset Info section of the [Dataset Info panel](UI-DatasetInfo.md).
+  * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
   * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
 
@@ -242,8 +242,7 @@ entry keyed `dataset_info`:
   * A CSV with no `dataset_info` entry leaves existing metadata untouched.
 * This is how dataset context, for example a `gfishsite_id` used to re-link
   annotations to an external database, travels with the exported annotations without
-  renaming files. See the Dataset Info section of the
-  [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
+  renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
 
 ### VIAME CSV polygons and length
 
@@ -332,9 +331,9 @@ These extension keys are declared in the COCO `info` object as:
 
 ### Dataset-level metadata (`datasetInfo`)
 
-The dataset's free-form [Dataset Info](UI-DatasetInfo.md) custom metadata
-(e.g. `gfishsite_id`, cruise, station) is written to the COCO `info` block under
-a single `dive_dataset_info` key and advertised in `info.dive_extensions`:
+The dataset's free-form [Dataset Info](UI-DatasetInfo.md) metadata (e.g. `gfishsite_id`,
+cruise, station) is written to the COCO `info` block under a single `dive_dataset_info` key and
+advertised in `info.dive_extensions`:
 
 * `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
 
