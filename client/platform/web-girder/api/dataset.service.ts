@@ -79,14 +79,18 @@ async function getDatasetMedia(datasetId: string) {
   return response;
 }
 
-/**
- * List the declared frame-metadata sidecar items per camera (server sources endpoint, no
- * parsing). The endpoint resolves multicam cameras itself, so it is always addressed by the
- * parent-root dataset folder id (a camera suffix is stripped) and returns every camera at once.
- */
-async function getFrameMetadataSources(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+interface FrameMetadataSourceItem {
+  itemId: string;
+  name: string;
+}
+
+interface FrameMetadataSourceItemsResponse {
+  cameras: Record<string, FrameMetadataSourceItem[]>;
+}
+
+async function getFrameMetadataSourceItems(datasetId: string): Promise<FrameMetadataSourceItemsResponse> {
   const folderId = parentDatasetId(datasetId);
-  const { data } = await girderRest.get<FrameMetadataSourcesResponse>(
+  const { data } = await girderRest.get<FrameMetadataSourceItemsResponse>(
     `dive_dataset/${folderId}/frame_metadata_sources`,
   );
   return data;
@@ -103,6 +107,27 @@ async function downloadItemText(itemId: string): Promise<string> {
     transformResponse: [(value: string) => value],
   });
   return typeof data === 'string' ? data : String(data);
+}
+
+async function loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  const response = await getFrameMetadataSourceItems(datasetId);
+  const textByItemId = new Map<string, Promise<string>>();
+  const cameraEntries = await Promise.all(
+    Object.entries(response.cameras ?? {}).map(async ([camera, items]) => {
+      const sources = await Promise.all(
+        items.map(async (item) => {
+          let pending = textByItemId.get(item.itemId);
+          if (pending === undefined) {
+            pending = downloadItemText(item.itemId);
+            textByItemId.set(item.itemId, pending);
+          }
+          return { name: item.name, text: await pending };
+        }),
+      );
+      return [camera, sources] as const;
+    }),
+  );
+  return { cameras: Object.fromEntries(cameraEntries) };
 }
 
 function clone({
@@ -423,11 +448,10 @@ export {
   clearCalibrationFolderMetadata,
   createGirderFolder,
   createMulticamDataset,
-  downloadItemText,
   getDataset,
   getDatasetList,
   getDatasetMedia,
-  getFrameMetadataSources,
+  loadFrameMetadata,
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,

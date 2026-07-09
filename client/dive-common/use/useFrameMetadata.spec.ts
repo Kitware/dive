@@ -5,11 +5,11 @@ import {
   beforeEach, describe, expect, it, vi,
 } from 'vitest';
 
-import type { ResolvedFrameMetadata } from '../apispec';
+import type { FrameMetadataSourcesResponse } from '../apispec';
 import { __resetFrameMetadataSessionCache, useFrameMetadata } from './useFrameMetadata';
 
 // Drain Vue's watcher scheduler and the promise/microtask + macrotask queues so a dataset switch,
-// an async download/resolve, and any lazy per-camera pass all settle before we assert.
+// an async source load/resolve, and any lazy per-camera pass all settle before we assert.
 async function settle() {
   for (let i = 0; i < 4; i += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -26,23 +26,29 @@ describe('useFrameMetadata', () => {
     __resetFrameMetadataSessionCache();
   });
 
-  it('discards a stale desktop response after the dataset switches (stale-response token)', async () => {
-    let resolveFirst: (payload: ResolvedFrameMetadata) => void = () => {};
-    const first = new Promise<ResolvedFrameMetadata>((resolve) => { resolveFirst = resolve; });
-    const second: ResolvedFrameMetadata = {
-      cameras: { singleCam: { 10: ['second'] } },
-      sources: { singleCam: ['frame_metadata.csv'] },
-      columns: { singleCam: ['label'] },
+  it('discards a stale response after the dataset switches (stale-response token)', async () => {
+    let resolveFirst: (payload: FrameMetadataSourcesResponse) => void = () => {};
+    const first = new Promise<FrameMetadataSourcesResponse>((resolve) => { resolveFirst = resolve; });
+    const second: FrameMetadataSourcesResponse = {
+      cameras: {
+        singleCam: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,label\nimg001.png,second\n',
+        }],
+      },
     };
     const loadFrameMetadata = vi.fn()
       .mockReturnValueOnce(first)
       .mockResolvedValueOnce(second);
+    const getCameraMediaNames = vi.fn((camera: string) => (
+      camera === 'singleCam' ? ['img001.png'] : undefined
+    ));
 
     const datasetId = ref('dataset-a');
-    const frame = ref(10);
+    const frame = ref(0);
     const selectedCamera = ref('singleCam');
     const metadata = useFrameMetadata({
-      datasetId, frame, selectedCamera, loadFrameMetadata,
+      datasetId, frame, selectedCamera, loadFrameMetadata, getCameraMediaNames,
     });
 
     await settle();
@@ -53,23 +59,25 @@ describe('useFrameMetadata', () => {
     await settle();
     expect(loadFrameMetadata).toHaveBeenCalledTimes(2);
     expect(metadata.loading.value).toBe(false);
-    expect(metadata.currentEntries.value).toEqual([['label', 'second']]);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['label', 'second']]);
 
     // The stale dataset-a response arrives late; its token no longer matches, so it is ignored.
     resolveFirst({
-      cameras: { singleCam: { 10: ['stale'] } },
-      sources: { singleCam: ['frame-metadata.txt'] },
-      columns: { singleCam: ['label'] },
+      cameras: {
+        singleCam: [{
+          name: 'frame-metadata.txt',
+          text: 'filename,label\nimg001.png,stale\n',
+        }],
+      },
     });
     await settle();
-    expect(metadata.currentEntries.value).toEqual([['label', 'second']]);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['label', 'second']]);
     expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.error.value).toBeNull();
   });
 
-  it('negative-caches an empty web sources listing and never refetches until a dataset switch', async () => {
-    const loadFrameMetadataSources = vi.fn(async () => ({ cameras: {} }));
-    const downloadItemText = vi.fn(async () => '');
+  it('negative-caches an empty source listing and never refetches until a dataset switch', async () => {
+    const loadFrameMetadata = vi.fn(async () => ({ cameras: {} }));
     const getCameraMediaNames = vi.fn(() => [] as string[]);
 
     const datasetId = ref('dataset-a');
@@ -79,16 +87,14 @@ describe('useFrameMetadata', () => {
       datasetId,
       frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
+      loadFrameMetadata,
       getCameraMediaNames,
     });
 
     await settle();
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
     expect(metadata.hasMetadataSource.value).toBe(false);
     expect(metadata.currentEntries.value).toEqual([]);
-    expect(downloadItemText).not.toHaveBeenCalled();
 
     // Scrubbing frames and switching cameras on the same dataset must not refetch.
     frame.value = 500;
@@ -97,20 +103,24 @@ describe('useFrameMetadata', () => {
     await settle();
     selectedCamera.value = 'starboard';
     await settle();
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
 
-    // A dataset switch re-runs discovery.
+    // A dataset switch re-runs source loading.
     datasetId.value = 'dataset-b';
     await settle();
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(2);
-    expect(loadFrameMetadataSources).toHaveBeenLastCalledWith('dataset-b');
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(2);
+    expect(loadFrameMetadata).toHaveBeenLastCalledWith('dataset-b');
   });
 
-  it('resolves web sidecars against the media list and exposes the current frame row', async () => {
-    const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
+  it('resolves sidecars against the media list and exposes the current frame row', async () => {
+    const loadFrameMetadata = vi.fn(async () => ({
+      cameras: {
+        singleCam: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,depth\nimg001.png,10\nimg002.png,12\n',
+        }],
+      },
     }));
-    const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\nimg002.png,12\n');
     const getCameraMediaNames = vi.fn((camera: string) => (
       camera === 'singleCam' ? ['img001.png', 'img002.png'] : undefined
     ));
@@ -122,23 +132,21 @@ describe('useFrameMetadata', () => {
       datasetId,
       frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
+      loadFrameMetadata,
       getCameraMediaNames,
     });
 
     await settle();
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
-    expect(downloadItemText).toHaveBeenCalledWith('item-1');
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
     expect(metadata.hasMetadataSource.value).toBe(true);
     expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '10']]);
 
-    // Scrubbing re-materializes the row lazily from held data, with no refetch/redownload.
+    // Scrubbing re-materializes the row lazily from held data, with no refetch.
     frame.value = 1;
     await nextTick();
     expect(metadata.currentEntries.value).toEqual([['filename', 'img002.png'], ['depth', '12']]);
-    expect(downloadItemText).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
 
     // A frame with no matching row shows nothing (empty-state), not blank columns.
     frame.value = 2;
@@ -147,17 +155,18 @@ describe('useFrameMetadata', () => {
   });
 
   it('resolves a multicam camera lazily when its media list loads after selection', async () => {
-    const texts: Record<string, string> = {
-      'port-item': 'filename,depth\nport001.png,10\n',
-      'star-item': 'filename,depth\nstar001.png,20\n',
-    };
-    const loadFrameMetadataSources = vi.fn(async () => ({
+    const loadFrameMetadata = vi.fn(async () => ({
       cameras: {
-        port: [{ itemId: 'port-item', name: 'frame_metadata.csv' }],
-        starboard: [{ itemId: 'star-item', name: 'frame-metadata.txt' }],
+        port: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,depth\nport001.png,10\n',
+        }],
+        starboard: [{
+          name: 'frame-metadata.txt',
+          text: 'filename,depth\nstar001.png,20\n',
+        }],
       },
     }));
-    const downloadItemText = vi.fn(async (itemId: string) => texts[itemId]);
     // starboard's ordered media list is not available until it is selected.
     const media: Record<string, string[] | undefined> = {
       port: ['port001.png'],
@@ -172,61 +181,59 @@ describe('useFrameMetadata', () => {
       datasetId,
       frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
+      loadFrameMetadata,
       getCameraMediaNames,
     });
 
     await settle();
     // port resolved eagerly; starboard deferred because its media list was not yet available.
     expect(metadata.currentEntries.value).toEqual([['filename', 'port001.png'], ['depth', '10']]);
-    expect(downloadItemText).toHaveBeenCalledTimes(1);
 
     // The media list arrives and the user selects starboard: it resolves on selection.
     media.starboard = ['star001.png'];
     selectedCamera.value = 'starboard';
     await settle();
-    expect(downloadItemText).toHaveBeenCalledTimes(2);
     expect(metadata.hasMetadataSource.value).toBe(true);
     expect(metadata.currentSources.value).toEqual(['frame-metadata.txt']);
     expect(metadata.currentEntries.value).toEqual([['filename', 'star001.png'], ['depth', '20']]);
     // No source refetch across the whole interaction.
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
   });
 
-  it('follows the active camera for currentSources and hasMetadataSource (desktop payload)', async () => {
-    const loadFrameMetadata = vi.fn(async (): Promise<ResolvedFrameMetadata> => ({
+  it('follows the active camera for currentSources and hasMetadataSource', async () => {
+    const loadFrameMetadata = vi.fn(async (): Promise<FrameMetadataSourcesResponse> => ({
       cameras: {
-        port: { 10: ['58.10'] },
-        starboard: { 10: ['59.10'] },
-      },
-      sources: {
-        port: ['frame_metadata.csv', 'frame-metadata.txt'],
-        starboard: ['frame_metadata.csv'],
-      },
-      columns: {
-        port: ['latitude'],
-        starboard: ['latitude'],
+        port: [
+          { name: 'frame_metadata.csv', text: 'filename,latitude\nport001.png,58.10\n' },
+          { name: 'frame-metadata.txt', text: 'filename,latitude\nport001.png,99.00\n' },
+        ],
+        starboard: [
+          { name: 'frame_metadata.csv', text: 'filename,latitude\nstar001.png,59.10\n' },
+        ],
       },
     }));
+    const getCameraMediaNames = vi.fn((camera: string) => ({
+      port: ['port001.png'],
+      starboard: ['star001.png'],
+    }[camera]));
 
     const datasetId = ref('dataset-a');
-    const frame = ref(10);
+    const frame = ref(0);
     const selectedCamera = ref('port');
     const metadata = useFrameMetadata({
-      datasetId, frame, selectedCamera, loadFrameMetadata,
+      datasetId, frame, selectedCamera, loadFrameMetadata, getCameraMediaNames,
     });
 
     await settle();
     expect(metadata.currentSources.value).toEqual(['frame_metadata.csv', 'frame-metadata.txt']);
     expect(metadata.hasMetadataSource.value).toBe(true);
-    expect(metadata.currentEntries.value).toEqual([['latitude', '58.10']]);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'port001.png'], ['latitude', '58.10']]);
 
     selectedCamera.value = 'starboard';
     await nextTick();
     expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.hasMetadataSource.value).toBe(true);
-    expect(metadata.currentEntries.value).toEqual([['latitude', '59.10']]);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'star001.png'], ['latitude', '59.10']]);
 
     selectedCamera.value = 'stern';
     await nextTick();
@@ -236,10 +243,14 @@ describe('useFrameMetadata', () => {
   });
 
   it('resolves the single camera once its initially-empty media list populates (reactive retry)', async () => {
-    const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
+    const loadFrameMetadata = vi.fn(async () => ({
+      cameras: {
+        singleCam: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,depth\nimg001.png,10\n',
+        }],
+      },
     }));
-    const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\n');
     // Mirrors Viewer.vue: imageData (and so getCameraMediaNames) starts at `[]`, not `undefined`.
     const media = ref<string[]>([]);
     const getCameraMediaNames = vi.fn((camera: string) => (
@@ -253,31 +264,32 @@ describe('useFrameMetadata', () => {
       datasetId,
       frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
+      loadFrameMetadata,
       getCameraMediaNames,
     });
 
     await settle();
-    // The sidecar item is listed, but an empty media list must defer, not claim-and-drop it.
-    expect(downloadItemText).not.toHaveBeenCalled();
+    // The sidecar source is loaded, but an empty media list must defer, not claim-and-drop it.
     expect(metadata.hasMetadataSource.value).toBe(false);
     expect(metadata.hasSidecarItems.value).toBe(true);
 
     // The media list populates later, with no dataset/camera change; the reactive retry resolves.
     media.value = ['img001.png'];
     await settle();
-    expect(downloadItemText).toHaveBeenCalledWith('item-1');
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
     expect(metadata.hasMetadataSource.value).toBe(true);
     expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '10']]);
   });
 
   it('exposes hasSidecarItems for a present sidecar whose rows match no media filename', async () => {
-    const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
+    const loadFrameMetadata = vi.fn(async () => ({
+      cameras: {
+        singleCam: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,depth\nother001.png,10\n',
+        }],
+      },
     }));
-    // None of this sidecar's rows correspond to an actual media filename in the index.
-    const downloadItemText = vi.fn(async () => 'filename,depth\nother001.png,10\n');
     const getCameraMediaNames = vi.fn((camera: string) => (
       camera === 'singleCam' ? ['img001.png'] : undefined
     ));
@@ -289,8 +301,7 @@ describe('useFrameMetadata', () => {
       datasetId,
       frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
+      loadFrameMetadata,
       getCameraMediaNames,
     });
 
@@ -302,10 +313,14 @@ describe('useFrameMetadata', () => {
   });
 
   it('reuses the module-level session cache across composable instances (panel remount)', async () => {
-    const loadFrameMetadataSources = vi.fn(async () => ({
-      cameras: { singleCam: [{ itemId: 'item-1', name: 'frame_metadata.csv' }] },
+    const loadFrameMetadata = vi.fn(async () => ({
+      cameras: {
+        singleCam: [{
+          name: 'frame_metadata.csv',
+          text: 'filename,depth\nimg001.png,10\n',
+        }],
+      },
     }));
-    const downloadItemText = vi.fn(async () => 'filename,depth\nimg001.png,10\n');
     const getCameraMediaNames = vi.fn((camera: string) => (
       camera === 'singleCam' ? ['img001.png'] : undefined
     ));
@@ -314,23 +329,21 @@ describe('useFrameMetadata', () => {
     const frame = ref(0);
     const selectedCamera = ref('singleCam');
     const options = {
-      datasetId, frame, selectedCamera, loadFrameMetadataSources, downloadItemText, getCameraMediaNames,
+      datasetId, frame, selectedCamera, loadFrameMetadata, getCameraMediaNames,
     };
 
     const first = useFrameMetadata(options);
     await settle();
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
-    expect(downloadItemText).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
     expect(first.hasMetadataSource.value).toBe(true);
 
     // SidebarContext.vue mounts DatasetInfo with v-if: closing/reopening the panel destroys and
     // re-creates this composable. A second instance for the same dataset must hydrate from the
-    // module cache rather than re-listing and re-downloading the sidecar.
+    // module cache rather than reloading the sidecar.
     const second = useFrameMetadata(options);
     await settle();
 
-    expect(loadFrameMetadataSources).toHaveBeenCalledTimes(1);
-    expect(downloadItemText).toHaveBeenCalledTimes(1);
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
     expect(second.hasMetadataSource.value).toBe(true);
     expect(second.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '10']]);
   });

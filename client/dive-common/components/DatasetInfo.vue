@@ -37,8 +37,6 @@ export default defineComponent({
     const {
       loadMetadata,
       saveMetadata,
-      loadFrameMetadataSources,
-      downloadItemText,
       loadFrameMetadata,
     } = useApi();
     // Viewer.vue provides each camera's ordered image filenames; the web read path joins sidecar
@@ -66,26 +64,24 @@ export default defineComponent({
 
     watch(datasetId, fetchMetadata, { immediate: true });
 
-    // One composable, two platforms: the web deps (sources listing + item download + the viewer's
-    // ordered media names) drive the browser-side resolver, while the desktop dep returns the
-    // backend-resolved payload. Whichever the active platform provides via useApi() wins; the other
-    // is undefined. Scrubbing the playhead never refetches (frame drives currentEntries only).
+    // One composable, two platforms: platform APIs load declared sidecar texts, and the viewer's
+    // ordered media names drive the shared TypeScript resolver. Scrubbing the playhead never
+    // refetches (frame drives currentEntries only).
     const frameMetadata = useFrameMetadata({
       datasetId,
       frame: time.frame,
       selectedCamera,
-      loadFrameMetadataSources,
-      downloadItemText,
       getCameraMediaNames,
       loadFrameMetadata,
     });
 
-    // Frame metadata only exists for image-sequence datasets: the server sources endpoint returns
-    // empty cameras for video/large-image/multi, and desktop resolves nothing for them either. A
-    // platform lacking both read paths (neither dep provided by `useApi()`) is equally unsupported.
+    // Frame metadata exists for image-sequence datasets and multicam parents with image-sequence
+    // cameras. A platform lacking the source-text read path is equally unsupported.
     const frameMetadataUnsupported = computed(() => {
-      const noReadPath = loadFrameMetadataSources === undefined && loadFrameMetadata === undefined;
-      const unsupportedType = meta.value !== null && meta.value.type !== 'image-sequence';
+      const noReadPath = loadFrameMetadata === undefined;
+      const unsupportedType = meta.value !== null
+        && meta.value.type !== 'image-sequence'
+        && meta.value.type !== 'multi';
       return noReadPath || unsupportedType;
     });
 

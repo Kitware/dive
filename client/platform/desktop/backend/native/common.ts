@@ -26,13 +26,11 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
-  ResolvedFrameMetadata,
+  FrameMetadataSourcesResponse,
   SingleCameraFrameMetadataKey,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
-import { buildMediaKeyIndex, resolveCameras } from 'dive-common/frameMetadata/resolve';
-import type { CameraCandidateTexts, CameraMediaKeys } from 'dive-common/frameMetadata/resolve';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -468,11 +466,10 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
- * Frame-metadata read path. Declared frame metadata sidecars are discovered on disk,
- * read, and resolved against the dataset's media by the shared TypeScript resolver
- * (dive-common/frameMetadata). The resolver runs here in the backend so raw multi-MB sidecar text
- * never crosses the IPC wire -- only the compact ResolvedFrameMetadata payload is returned. Nothing
- * derived is persisted; the sidecar the user dropped is the only stored form.
+ * Frame-metadata read path. Declared frame metadata sidecars are discovered on disk and read here.
+ * Parsing and resolving against media filenames happens in the renderer via the shared TypeScript
+ * resolver (dive-common/frameMetadata). Nothing derived is persisted; the sidecar the user dropped
+ * is the only stored form.
  */
 interface ImageSequenceFrameMetadataSource {
   originalBasePath: string;
@@ -602,10 +599,10 @@ function commonParentDirectory(paths: string[]): string | null {
 
 async function loadMulticamFrameMetadata(
   projectMetaData: JsonMeta,
-): Promise<ResolvedFrameMetadata> {
+): Promise<FrameMetadataSourcesResponse> {
   const { multiCam } = projectMetaData;
   if (!multiCam) {
-    return { cameras: {}, sources: {}, columns: {} };
+    return { cameras: {} };
   }
 
   const cameraEntries = orderedMultiCamCameraNames({
@@ -623,8 +620,7 @@ async function loadMulticamFrameMetadata(
   // Read each candidate file at most once per request, even when cameras share the parent/root.
   const textMemo = new Map<string, string>();
 
-  const cameraTexts: CameraCandidateTexts = {};
-  const mediaKeysPerCamera: CameraMediaKeys = {};
+  const cameras: FrameMetadataSourcesResponse['cameras'] = {};
 
   // Cameras load independently; resolve their candidate texts in parallel.
   await Promise.all(cameraEntries.map(async ([cameraName, cameraMeta]) => {
@@ -639,18 +635,19 @@ async function loadMulticamFrameMetadata(
     const candidates = resolvedRoot !== null && !cameraDirectories.includes(resolvedRoot)
       ? cameraCandidates.concat(rootCandidates)
       : cameraCandidates;
-    cameraTexts[cameraName] = await readCandidateTexts(candidates, textMemo);
-    mediaKeysPerCamera[cameraName] = buildMediaKeyIndex(cameraMeta.originalImageFiles);
+    const texts = await readCandidateTexts(candidates, textMemo);
+    if (texts.length) {
+      cameras[cameraName] = texts.map(([name, text]) => ({ name, text }));
+    }
   }));
 
-  // The shared resolver runs in the backend so raw sidecar text stays off the IPC wire.
-  return resolveCameras(cameraTexts, mediaKeysPerCamera);
+  return { cameras };
 }
 
 async function loadFrameMetadata(
   settings: Settings,
   datasetId: string,
-): Promise<ResolvedFrameMetadata> {
+): Promise<FrameMetadataSourcesResponse> {
   const parentId = parentDatasetId(datasetId);
   const projectDirData = await getValidatedProjectDir(settings, parentId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
@@ -659,21 +656,22 @@ async function loadFrameMetadata(
     return loadMulticamFrameMetadata(projectMetaData);
   }
   if (projectMetaData.type !== 'image-sequence') {
-    return { cameras: {}, sources: {}, columns: {} };
+    return { cameras: {} };
   }
 
   const candidates = await gatherFrameMetadataCandidates(
     frameMetadataSourceDirectories(projectMetaData),
   );
   const textMemo = new Map<string, string>();
-  const cameraTexts: CameraCandidateTexts = {
-    [SingleCameraFrameMetadataKey]: await readCandidateTexts(candidates, textMemo),
+  const texts = await readCandidateTexts(candidates, textMemo);
+  if (!texts.length) {
+    return { cameras: {} };
+  }
+  return {
+    cameras: {
+      [SingleCameraFrameMetadataKey]: texts.map(([name, text]) => ({ name, text })),
+    },
   };
-  const mediaKeysPerCamera: CameraMediaKeys = {
-    [SingleCameraFrameMetadataKey]: buildMediaKeyIndex(projectMetaData.originalImageFiles),
-  };
-  // The shared resolver runs in the backend so raw sidecar text stays off the IPC wire.
-  return resolveCameras(cameraTexts, mediaKeysPerCamera);
 }
 
 /**

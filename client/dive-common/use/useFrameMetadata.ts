@@ -5,7 +5,7 @@ import type { Ref } from 'vue';
 import { getResponseError } from 'vue-media-annotator/utils';
 
 import type {
-  FrameMetadataSourceItem,
+  FrameMetadataSourceText,
   FrameMetadataSourcesResponse,
   ResolvedFrameMetadata,
 } from 'dive-common/apispec';
@@ -14,21 +14,19 @@ import { buildMediaKeyIndex, resolveCameras } from 'dive-common/frameMetadata/re
 /**
  * Shared frame-metadata read composable, consumed by the Frame Info panel on both platforms.
  *
- * The only platform difference is who runs the shared TypeScript resolver:
- *  - WEB  (`loadFrameMetadataSources` present): the browser lists sidecar items per camera,
- *    downloads their bytes via `downloadItemText`, builds each camera's `MediaKeyIndex` from the
- *    ordered image filenames the viewer holds (`getCameraMediaNames`), and runs `resolveCameras`.
- *  - DESKTOP (`loadFrameMetadata` present): the backend already resolved; the payload is held as-is.
+ * Platform implementations discover and read declared sidecar texts. This composable builds each
+ * camera's `MediaKeyIndex` from the ordered image filenames the viewer holds
+ * (`getCameraMediaNames`) and runs the shared TypeScript resolver for both web and desktop.
  *
  * There is no window, no refetch-on-scrub, and no window race (the readtime windowed-parse
- * machinery is replaced, not ported). A stale-response token discards any download/resolve or
- * desktop payload that lands after the dataset switched. Nothing is refetched once a dataset has
- * been resolved (an empty sources listing is negative-cached for the session).
+ * machinery is replaced, not ported). A stale-response token discards any source-text payload
+ * that lands after the dataset switched. Nothing is refetched once a dataset has been loaded
+ * (an empty sources listing is negative-cached for the session).
  *
  * A module-level, single-entry cache (keyed by dataset id) holds the compact resolved payload
  * across composable instances, so closing and reopening the Frame Info panel (which destroys and
- * re-creates this composable) does not re-download sidecars for a dataset already visited this
- * session. Only the compact payload is cached; raw downloaded text is not (see `resolveWebCamera`).
+ * re-creates this composable) does not reload sidecars for a dataset already resolved this session.
+ * Only the compact payload is cached; raw source text is not.
  */
 export interface UseFrameMetadataOptions {
   /** Current dataset id (parent-root id for multicam). */
@@ -37,19 +35,14 @@ export interface UseFrameMetadataOptions {
   frame: Readonly<Ref<number>>;
   /** Active camera key (`SingleCameraFrameMetadataKey` for single-camera datasets). */
   selectedCamera: Readonly<Ref<string>>;
-  /** Web: list sidecar items per camera (server sources endpoint, no parsing). */
-  loadFrameMetadataSources?: (datasetId: string) => Promise<FrameMetadataSourcesResponse>;
-  /** Web: download one sidecar item's raw text by item id. */
-  downloadItemText?: (itemId: string) => Promise<string>;
   /**
-   * Web: the camera's ordered image filenames (frame = array index). Returns `undefined` while a
+   * The camera's ordered image filenames (frame = array index). Returns `undefined` while a
    * camera's media list is not yet loaded, in which case that camera is resolved lazily the first
    * time it is selected (multicam typically loads every camera's list up front, so this is a
    * fallback, not the common path).
    */
   getCameraMediaNames?: (camera: string) => string[] | undefined;
-  /** Desktop: the backend-resolved per-camera payload. */
-  loadFrameMetadata?: (datasetId: string) => Promise<ResolvedFrameMetadata>;
+  loadFrameMetadata?: (datasetId: string) => Promise<FrameMetadataSourcesResponse>;
 }
 
 /** The compact, session-cacheable slice of a resolved dataset's state (no raw sidecar text). */
@@ -57,9 +50,9 @@ interface FrameMetadataCacheEntry {
   cameras: ResolvedFrameMetadata['cameras'];
   sources: ResolvedFrameMetadata['sources'];
   columns: ResolvedFrameMetadata['columns'];
-  sidecarsByCamera: Record<string, FrameMetadataSourceItem[]>;
+  sourceNamesByCamera: Record<string, string[]>;
   resolvedCameras: Set<string>;
-  sourcesFetched: boolean;
+  sourcesLoaded: boolean;
 }
 
 // Module-level, single-entry session cache: bounded to the most recently resolved dataset so a
@@ -76,13 +69,11 @@ export function useFrameMetadata({
   datasetId,
   frame,
   selectedCamera,
-  loadFrameMetadataSources,
-  downloadItemText,
   getCameraMediaNames,
   loadFrameMetadata,
 }: UseFrameMetadataOptions) {
   // Resolved payload, held compactly for the session (header + row arrays, never per-frame
-  // objects). Web merges one camera at a time; desktop sets it wholesale.
+  // objects). Cameras merge one at a time as their media lists become available.
   const cameras = ref<ResolvedFrameMetadata['cameras']>({});
   const sources = ref<ResolvedFrameMetadata['sources']>({});
   const columns = ref<ResolvedFrameMetadata['columns']>({});
@@ -94,10 +85,12 @@ export function useFrameMetadata({
   let token = 0;
   let loadedDatasetId: string | null = null;
 
-  // Web per-dataset session state. `sidecarsByCamera` is a ref (not a plain local) so the panel can
-  // reactively tell a present-but-unmatched sidecar apart from no sidecar at all (FIX 3).
-  const sidecarsByCamera = ref<Record<string, FrameMetadataSourceItem[]>>({});
-  let sourcesFetched = false;
+  // Per-dataset source state. `sourceNamesByCamera` is a ref (not a plain local) so the panel can
+  // reactively tell a present-but-unmatched sidecar apart from no sidecar at all (FIX 3). Raw source
+  // text stays local to this composable instance and is dropped from the module cache.
+  const sourceNamesByCamera = ref<Record<string, string[]>>({});
+  let sourceTextsByCamera: Record<string, FrameMetadataSourceText[]> = {};
+  let sourcesLoaded = false;
   const resolvedCameras = new Set<string>();
 
   // In-flight work counter: owns `loading` so both the eager (dataset-open) and lazy (per-camera,
@@ -121,8 +114,9 @@ export function useFrameMetadata({
     error.value = null;
     loading.value = false;
     inFlight = 0;
-    sidecarsByCamera.value = {};
-    sourcesFetched = false;
+    sourceNamesByCamera.value = {};
+    sourceTextsByCamera = {};
+    sourcesLoaded = false;
     resolvedCameras.clear();
   }
 
@@ -145,36 +139,43 @@ export function useFrameMetadata({
         cameras: { ...cameras.value },
         sources: { ...sources.value },
         columns: { ...columns.value },
-        sidecarsByCamera: { ...sidecarsByCamera.value },
+        sourceNamesByCamera: { ...sourceNamesByCamera.value },
         resolvedCameras: new Set(resolvedCameras),
-        sourcesFetched,
+        sourcesLoaded,
       },
     };
   }
 
   // Hydrate local state from a cached entry (panel remount for a dataset already resolved this
-  // session). The raw sidecar text is never cached, so a camera that was not yet resolved when the
-  // entry was written still resolves lazily/normally; one that was resolved is not re-downloaded.
+  // session). The raw sidecar text is never cached, so an unresolved camera may reload sources on
+  // demand; one that was resolved can render from the compact cache without reloading.
   function hydrateFromCache(entry: FrameMetadataCacheEntry) {
     cameras.value = { ...entry.cameras };
     sources.value = { ...entry.sources };
     columns.value = { ...entry.columns };
-    sidecarsByCamera.value = { ...entry.sidecarsByCamera };
+    sourceNamesByCamera.value = { ...entry.sourceNamesByCamera };
     resolvedCameras.clear();
     entry.resolvedCameras.forEach((camera) => resolvedCameras.add(camera));
-    sourcesFetched = entry.sourcesFetched;
+    sourcesLoaded = entry.sourcesLoaded;
   }
 
-  async function resolveWebCamera(
+  function activeCameraNeedsSourceText() {
+    return (
+      (sourceNamesByCamera.value[selectedCamera.value]?.length ?? 0) > 0
+      && !resolvedCameras.has(selectedCamera.value)
+      && sourceTextsByCamera[selectedCamera.value] === undefined
+    );
+  }
+
+  function resolveCamera(
     camera: string,
     requestToken: number,
-    passTexts: Map<string, Promise<string>>,
   ) {
-    if (downloadItemText === undefined || resolvedCameras.has(camera)) {
+    if (resolvedCameras.has(camera)) {
       return;
     }
-    const items = sidecarsByCamera.value[camera];
-    if (items === undefined || items.length === 0) {
+    const texts = sourceTextsByCamera[camera];
+    if (texts === undefined || texts.length === 0) {
       return;
     }
     const mediaNames = getCameraMediaNames?.(camera);
@@ -184,25 +185,12 @@ export function useFrameMetadata({
       // retries reactively once the list populates.
       return;
     }
-    // Claim the camera before awaiting so concurrent ensure() passes never double-download.
+    if (requestToken !== token) {
+      return;
+    }
     resolvedCameras.add(camera);
-    beginWork();
     try {
-      const candidates = await Promise.all(
-        items.map(async (item): Promise<[string, string]> => {
-          // Dedupe concurrent downloads within a resolve pass: a sidecar the server lists for
-          // several cameras (a shared parent/dataset-root file) is fetched once, not per camera.
-          let pending = passTexts.get(item.itemId);
-          if (pending === undefined) {
-            pending = downloadItemText(item.itemId);
-            passTexts.set(item.itemId, pending);
-          }
-          return [item.name, await pending];
-        }),
-      );
-      if (requestToken !== token) {
-        return;
-      }
+      const candidates = texts.map((item): [string, string] => [item.name, item.text]);
       const index = buildMediaKeyIndex(mediaNames);
       mergeResolved(resolveCameras({ [camera]: candidates }, { [camera]: index }));
       syncSessionCache();
@@ -211,60 +199,32 @@ export function useFrameMetadata({
       if (requestToken === token) {
         error.value = getResponseError(err);
       }
-    } finally {
-      endWork(requestToken);
     }
   }
 
-  async function runWeb(id: string, requestToken: number) {
-    if (loadFrameMetadataSources === undefined) {
-      return;
-    }
-    beginWork();
-    try {
-      const response = await loadFrameMetadataSources(id);
-      if (requestToken !== token) {
-        return;
-      }
-      sidecarsByCamera.value = response.cameras ?? {};
-      sourcesFetched = true;
-      // Eagerly resolve every camera whose media list is already available; the rest resolve
-      // lazily on first selection. An empty listing simply resolves nothing (negative cache).
-      // One text cache per pass: shared sidecars download once across cameras, and the raw text
-      // (a multi-MB nav log under no-cap) is released when this map goes out of scope — only the
-      // compact resolved payload is retained (W-12 posture).
-      const passTexts = new Map<string, Promise<string>>();
-      await Promise.all(
-        Object.keys(sidecarsByCamera.value).map(
-          (camera) => resolveWebCamera(camera, requestToken, passTexts),
-        ),
-      );
-      if (requestToken === token) {
-        syncSessionCache();
-      }
-    } catch (err) {
-      if (requestToken === token) {
-        error.value = getResponseError(err);
-      }
-    } finally {
-      endWork(requestToken);
-    }
-  }
-
-  async function runDesktop(id: string, requestToken: number) {
+  async function runLoad(id: string, requestToken: number) {
     if (loadFrameMetadata === undefined) {
       return;
     }
     beginWork();
     try {
-      const payload = await loadFrameMetadata(id);
+      const response = await loadFrameMetadata(id);
       if (requestToken !== token) {
         return;
       }
-      cameras.value = payload.cameras ?? {};
-      sources.value = payload.sources ?? {};
-      columns.value = payload.columns ?? {};
-      syncSessionCache();
+      sourceTextsByCamera = response.cameras ?? {};
+      sourceNamesByCamera.value = Object.fromEntries(
+        Object.entries(sourceTextsByCamera).map(([camera, items]) => (
+          [camera, items.map((item) => item.name)]
+        )),
+      );
+      sourcesLoaded = true;
+      // Eagerly resolve every camera whose media list is already available; the rest resolve
+      // lazily on first selection. An empty listing simply resolves nothing (negative cache).
+      Object.keys(sourceTextsByCamera).forEach((camera) => resolveCamera(camera, requestToken));
+      if (requestToken === token) {
+        syncSessionCache();
+      }
     } catch (err) {
       if (requestToken === token) {
         error.value = getResponseError(err);
@@ -295,19 +255,21 @@ export function useFrameMetadata({
       if (cached) {
         // Panel remount for a dataset already resolved this session: hydrate without a refetch.
         hydrateFromCache(cached);
-        if (sourcesFetched) {
-          await resolveWebCamera(selectedCamera.value, requestToken, new Map());
+        if (activeCameraNeedsSourceText() && loadFrameMetadata !== undefined) {
+          await runLoad(id, requestToken);
+        } else if (sourcesLoaded) {
+          resolveCamera(selectedCamera.value, requestToken);
         }
-      } else if (loadFrameMetadataSources !== undefined) {
-        await runWeb(id, requestToken);
       } else if (loadFrameMetadata !== undefined) {
-        await runDesktop(id, requestToken);
+        await runLoad(id, requestToken);
       }
       return;
     }
-    // Same dataset: lazily resolve the active web camera if its media list has since loaded.
-    if (sourcesFetched) {
-      await resolveWebCamera(selectedCamera.value, token, new Map());
+    // Same dataset: lazily resolve the active camera if its media list has since loaded.
+    if (activeCameraNeedsSourceText() && loadFrameMetadata !== undefined) {
+      await runLoad(id, token);
+    } else if (sourcesLoaded) {
+      resolveCamera(selectedCamera.value, token);
     }
   }
 
@@ -331,7 +293,7 @@ export function useFrameMetadata({
     if (
       count > 0
       && (prev ?? 0) === 0
-      && sourcesFetched
+      && sourcesLoaded
       && datasetId.value === loadedDatasetId
       && !resolvedCameras.has(selectedCamera.value)
     ) {
@@ -353,14 +315,14 @@ export function useFrameMetadata({
   const currentSources = computed(() => sources.value[selectedCamera.value] ?? []);
   const hasMetadataSource = computed(() => selectedCamera.value in sources.value);
 
-  // Whether a raw sidecar ITEM exists for the active camera, independent of whether it resolved
+  // Whether a raw sidecar source exists for the active camera, independent of whether it resolved
   // (joined) against the media list. Lets the panel tell "a file is present but matched nothing"
-  // apart from "no file at all" (FIX 3). Desktop has no raw listing, so these are always false/[].
+  // apart from "no file at all" (FIX 3).
   const hasSidecarItems = computed(() => (
-    (sidecarsByCamera.value[selectedCamera.value]?.length ?? 0) > 0
+    (sourceNamesByCamera.value[selectedCamera.value]?.length ?? 0) > 0
   ));
   const sidecarSourceNames = computed(() => (
-    sidecarsByCamera.value[selectedCamera.value]?.map((item) => item.name) ?? []
+    sourceNamesByCamera.value[selectedCamera.value] ?? []
   ));
 
   return {

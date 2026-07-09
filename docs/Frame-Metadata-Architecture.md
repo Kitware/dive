@@ -148,42 +148,34 @@ collapses to the dataset folder and its clone/parent root; the camera key is
 
 ## Read path
 
-### Web: the sources endpoint (no parsing)
+### Platform source loading
 
-The server exposes a listing endpoint that never opens a file's bytes:
+The shared API exposes one frame-metadata load function. Platform implementations
+discover declared sidecars and return their text, without parsing:
 
-```http
-GET /dive_dataset/:id/frame_metadata_sources
-```
-
-```json
-{
-  "cameras": {
-    "singleCam": [
-      { "itemId": "6630…", "name": "frame-metadata.csv" }
-    ]
-  }
+```typescript
+interface FrameMetadataSourcesResponse {
+  cameras: Record<string, { name: string; text: string }[]>;
 }
 ```
 
 Cameras are keyed `singleCam` for single-camera datasets or by the multicam
-camera names. Items are listed in precedence order (camera folder → clone root →
-dataset folder → parent root), name-sorted within a folder and deduped by folder
-id. A non-image-sequence dataset, or one with no sidecar, returns
-`{"cameras": {}}`.
+camera names. Sources are listed in precedence order (camera folder → clone root
+→ dataset folder → parent root), name-sorted within a folder and deduped by
+folder/path. A non-image-sequence single dataset, non-image-sequence multicam
+camera, or dataset with no sidecar returns `{"cameras": {}}`.
 
-The browser reads this listing, downloads each item's text over the existing
-Girder item-download route, builds each camera's `MediaKeyIndex` from the image
-lists the viewer already holds, and runs the shared resolver in the renderer. The
-resolved payload is held in a ref for the session (with a stale-response token so
-a dataset switch mid-download cannot install a late result).
+On web, the Girder implementation uses the existing
+`GET /dive_dataset/:id/frame_metadata_sources` listing internally, then reads the
+matching item text over the item-download route before returning the shared API
+response. On desktop, the Electron backend scans the filesystem and reads the
+matching files before returning the same response over `load-frame-metadata`.
+Neither platform parses the sidecar.
 
-### Desktop
-
-The Electron backend discovers candidate files on disk, reads their text, and
-runs the same resolver in the backend, returning the resolved payload over the
-`load-frame-metadata` IPC. There is no sources endpoint on desktop — discovery is
-a filesystem scan — but the payload shape and the resolver are identical.
+The renderer builds each camera's `MediaKeyIndex` from the image lists the viewer
+already holds and runs the shared resolver. The resolved payload is held in a ref
+for the session (with a stale-response token so a dataset switch mid-load cannot
+install a late result).
 
 ### The resolved contract
 

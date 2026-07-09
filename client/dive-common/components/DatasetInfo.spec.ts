@@ -138,8 +138,7 @@ function apiWithMetadata({
       sets: [],
     }),
     ...(frameMetadataSupported ? {
-      loadFrameMetadataSources: async () => ({ cameras: {} }),
-      downloadItemText: async () => '',
+      loadFrameMetadata: async () => ({ cameras: {} }),
     } : {}),
     saveDetections: async () => undefined,
     saveMetadata,

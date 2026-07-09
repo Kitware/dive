@@ -1529,95 +1529,57 @@ describe('native.common', () => {
   });
 });
 
-describe('frame metadata read path (shared resolver in the backend)', () => {
-  it('resolves a single-camera sidecar to the columns/rows/sources contract', async () => {
+describe('frame metadata read path (source text loading)', () => {
+  it('loads a single-camera sidecar as source text', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadata');
-    expect(data).toEqual({
-      cameras: {
-        singleCam: {
-          0: ['image_0001.jpg', '192.80', '4.0'],
-          1: ['image_0002.jpg', '193.10', '4.1'],
-          2: ['image_0003.jpg', '193.40', '4.2'],
-        },
-      },
-      sources: { singleCam: ['frame-metadata.txt'] },
-      columns: { singleCam: ['filename', 'depth', 'temperature'] },
-    });
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame-metadata.txt']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
+    expect(data.cameras.singleCam[0].text).toContain('depth');
   });
 
-  it('merges two sidecars first-wins and unions their columns in file order', async () => {
-    // frame-metadata.txt (name-sorted first) claims frames 0 and 1; frame_metadata.csv cannot overwrite an
-    // already-claimed frame's row (frame 0 keeps depth 10, not 99; temperature stays empty), but
-    // it introduces the 'temperature' column and claims the unclaimed frame 2.
+  it('loads two sidecars in precedence order', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataPrecedence');
-    expect(data).toEqual({
-      cameras: {
-        singleCam: {
-          0: ['image_0001.jpg', '10', ''],
-          1: ['image_0002.jpg', '20', ''],
-          2: ['image_0003.jpg', '40', '7.0'],
-        },
-      },
-      sources: { singleCam: ['frame-metadata.txt', 'frame_metadata.csv'] },
-      columns: { singleCam: ['filename', 'depth', 'temperature'] },
-    });
+    expect(data.cameras.singleCam.map((source) => source.name))
+      .toEqual(['frame-metadata.txt', 'frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
+    expect(data.cameras.singleCam[1].text).toContain('temperature');
   });
 
   it('omits a camera whose only text file is not a declared sidecar', async () => {
     await expect(common.loadFrameMetadata(settings, 'projectidFrameMetadataNoSource'))
-      .resolves.toEqual({ cameras: {}, sources: {}, columns: {} });
+      .resolves.toEqual({ cameras: {} });
   });
 
-  it('joins a sidecar that names double-extension media by full name', async () => {
-    // The sidecar cell is the exact on-disk name 'photo.jpg.png'; it must join (normalizeKey
-    // strips only one image extension) rather than be dropped by a double-extension strip.
+  it('loads a sidecar that names double-extension media by full name', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDoubleExt');
-    expect(data).toEqual({
-      cameras: { singleCam: { 0: ['photo.jpg.png', '10'] } },
-      sources: { singleCam: ['frame_metadata.csv'] },
-      columns: { singleCam: ['filename', 'depth'] },
-    });
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('photo.jpg.png');
   });
 
-  it('keys duplicate image basenames last-wins instead of throwing', async () => {
-    // The import validator throws on a duplicate basename; the read path keys last-wins so the
-    // whole camera is not blanked. image_0001.jpg resolves to its last occurrence (frame 1).
+  it('loads a sidecar for duplicate image basenames without validating media keys', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDup');
-    expect(data).toEqual({
-      cameras: { singleCam: { 1: ['image_0001.jpg', '10'], 2: ['image_0002.jpg', '20'] } },
-      sources: { singleCam: ['frame_metadata.csv'] },
-      columns: { singleCam: ['filename', 'depth'] },
-    });
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
   });
 
-  it('lists a shared multicam root sidecar once and omits a camera it does not name', async () => {
-    // 'left' media dir equals the multicam root, so the sidecar is gathered once (no duplicate
-    // "+1 more"); 'right' names other images and joins nothing, so it is omitted entirely.
+  it('loads a shared multicam root sidecar once per camera candidate list', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidMulticamRootDedup');
-    expect(data).toEqual({
-      cameras: { left: { 0: ['img_l1.jpg', '100'], 1: ['img_l2.jpg', '200'] } },
-      sources: { left: ['frame_metadata.csv'] },
-      columns: { left: ['filename', 'depth'] },
-    });
+    expect(data.cameras.left.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.right.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.left[0].text).toContain('img_l1.jpg');
   });
 
-  it('binds both cameras from one shared parent-root sidecar', async () => {
-    // The parent root holds a single wide sidecar naming both cameras' images; each camera's media
-    // is in its own subfolder, so the root file resolves independently against each camera.
+  it('loads both cameras from one shared parent-root sidecar', async () => {
     const data = await common.loadFrameMetadata(settings, 'projectidMulticamSharedRoot');
-    expect(data).toEqual({
-      cameras: {
-        left: { 0: ['img_l1.jpg', '100'], 1: ['img_l2.jpg', '110'] },
-        right: { 0: ['img_r1.jpg', '300'], 1: ['img_r2.jpg', '310'] },
-      },
-      sources: { left: ['frame_metadata.csv'], right: ['frame_metadata.csv'] },
-      columns: { left: ['filename', 'depth'], right: ['filename', 'depth'] },
-    });
+    expect(data.cameras.left.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.right.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.left[0].text).toContain('img_l1.jpg');
+    expect(data.cameras.right[0].text).toContain('img_r1.jpg');
   });
 
   it('returns empty maps for a non-image-sequence (video) dataset', async () => {
     await expect(common.loadFrameMetadata(settings, 'projectid1VideoGood'))
-      .resolves.toEqual({ cameras: {}, sources: {}, columns: {} });
+      .resolves.toEqual({ cameras: {} });
   });
 });
 

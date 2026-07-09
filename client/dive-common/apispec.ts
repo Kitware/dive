@@ -152,25 +152,27 @@ interface ResolvedFrameMetadata {
   columns: Record<string, string[]>;
 }
 
-/** One sidecar item as listed by the server sources endpoint (no parsing). */
-interface FrameMetadataSourceItem {
-  itemId: string;
+/** One declared frame-metadata sidecar source loaded by a platform implementation. */
+interface FrameMetadataSourceText {
   name: string;
+  text: string;
 }
 
 /**
- * Response of `GET /dive_dataset/:id/frame_metadata_sources`: which sidecar items exist per
- * camera, in precedence order (camera folder -> clone root -> dataset folder -> parent root),
- * deduped by folder. Cameras are keyed `singleCam` (SingleCameraFrameMetadataKey) or the multicam
- * camera names; non-image-sequence datasets return empty `cameras`.
+ * Declared frame-metadata sidecar text per camera, in precedence order (camera folder -> clone
+ * root -> dataset folder -> parent root), deduped by folder/path. Cameras are keyed `singleCam`
+ * (SingleCameraFrameMetadataKey) or the multicam camera names; non-image-sequence single datasets
+ * and non-image-sequence multicam cameras return empty `cameras`.
  */
 interface FrameMetadataSourcesResponse {
-  cameras: Record<string, FrameMetadataSourceItem[]>;
+  cameras: Record<string, FrameMetadataSourceText[]>;
 }
 
 /**
- * Camera key for single-camera datasets on the frame-metadata contract; must match the key the
- * server sources endpoint and the desktop resolver emit for single-camera media.
+ * Camera key for single-camera datasets on the frame-metadata contract. This lets the shared
+ * frame-metadata payload treat single-camera datasets as a one-camera map, avoiding separate
+ * single-vs-multicam handling. Must match the key platform source loaders emit for single-camera
+ * media.
  */
 export const SingleCameraFrameMetadataKey = 'singleCam';
 
@@ -333,12 +335,7 @@ interface Api {
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
-  /** Web: which sidecar items exist per camera (server sources endpoint, no parsing). */
-  loadFrameMetadataSources?(datasetId: string): Promise<FrameMetadataSourcesResponse>;
-  /** Web: download one sidecar item's raw text by item id, for the shared TypeScript resolver. */
-  downloadItemText?(itemId: string): Promise<string>;
-  /** Desktop: the resolver runs in the backend and returns the resolved per-camera payload. */
-  loadFrameMetadata?(datasetId: string): Promise<ResolvedFrameMetadata>;
+  loadFrameMetadata?(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -610,7 +607,7 @@ export {
   PipelineParamType,
   FrameImage,
   ResolvedFrameMetadata,
-  FrameMetadataSourceItem,
+  FrameMetadataSourceText,
   FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
