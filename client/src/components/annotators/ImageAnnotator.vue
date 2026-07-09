@@ -2,6 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch,
 } from 'vue';
+import { map } from 'lodash';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
@@ -88,6 +89,7 @@ export default defineComponent({
       toRef(data, 'imageCursorEditing'),
     );
     data.maxFrame = props.imageData.length - 1;
+    data.filenames = map(props.imageData, 'filename');
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
       playCache: 1, // seconds required to be fully cached before playback
@@ -389,6 +391,7 @@ export default defineComponent({
     }
     function init() {
       data.maxFrame = props.imageData.length - 1;
+      data.filenames = map(props.imageData, 'filename');
       // When the viewer already exists, an imageData change is a URL swap for
       // the same camera (e.g. the percentile-stretch display remap). Rebuild
       // only the image cache and redraw the current frame in place: calling

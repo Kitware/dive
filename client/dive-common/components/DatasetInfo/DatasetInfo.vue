@@ -1,25 +1,20 @@
 <script lang="ts">
 import {
-  computed, defineComponent, inject, ref, watch,
+  computed, defineComponent, ref, watch,
 } from 'vue';
-import type { InjectionKey } from 'vue';
 import {
   useDatasetId,
   useReadOnlyMode,
   useSelectedCamera,
   useTime,
 } from 'vue-media-annotator/provides';
+import { injectAggregateController } from 'vue-media-annotator/components';
 import { useApi, DatasetMeta, DatasetInfoFields } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useFrameMetadata } from 'dive-common/use';
 import CustomDatasetInfoPanel from 'dive-common/components/DatasetInfo/CustomDatasetInfoPanel.vue';
 import DatasetInfoPanel from 'dive-common/components/DatasetInfo/DatasetInfoPanel.vue';
 import FrameMetadataPanel from 'dive-common/components/DatasetInfo/FrameMetadataPanel.vue';
-
-export type GetCameraMediaNames = (camera: string) => string[] | undefined;
-
-/** Viewer-provided image filenames by camera, where frame number is the array index. */
-export const CameraMediaNamesSymbol: InjectionKey<GetCameraMediaNames> = Symbol('cameraMediaNames');
 
 export default defineComponent({
   name: 'DatasetInfo',
@@ -40,7 +35,14 @@ export default defineComponent({
       saveMetadata,
       loadFrameMetadata,
     } = useApi();
-    const getCameraMediaNames = inject(CameraMediaNamesSymbol, undefined);
+    const mediaController = injectAggregateController();
+    const getCameraMediaNames = (camera: string) => {
+      try {
+        return mediaController.value.getController(camera).filenames.value;
+      } catch {
+        return undefined;
+      }
+    };
     const { prompt } = usePrompt();
     const meta = ref<DatasetMeta | null>(null);
     const customDatasetInfo = ref<DatasetInfoFields>({});

@@ -2,7 +2,7 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import { mount } from '@vue/test-utils';
 import Vue, {
-  CreateElement, defineComponent, nextTick, provide, ref,
+  CreateElement, defineComponent, nextTick, ref,
 } from 'vue';
 
 import {
@@ -22,7 +22,8 @@ import {
   dummyState,
   provideAnnotator,
 } from 'vue-media-annotator/provides';
-import DatasetInfo, { CameraMediaNamesSymbol } from './DatasetInfo.vue';
+import { useMediaController } from 'vue-media-annotator/components';
+import DatasetInfo from './DatasetInfo.vue';
 
 Vue.config.ignoredElements = [/^v-/];
 
@@ -137,7 +138,20 @@ function mountDatasetInfo({
     components: { DatasetInfo },
     setup() {
       provideApi(api);
-      provide(CameraMediaNamesSymbol, (camera: string) => mediaNames[camera]);
+      const { initialize } = useMediaController();
+      Object.entries(mediaNames).forEach(([camera, names]) => {
+        if (names === undefined) {
+          return;
+        }
+        const { state: cameraState } = initialize(camera, {
+          seek: () => undefined,
+          play: () => undefined,
+          pause: () => undefined,
+          setVolume: () => undefined,
+          setSpeed: () => undefined,
+        });
+        cameraState.filenames = names;
+      });
       provideAnnotator(
         state,
         dummyHandler(() => undefined),

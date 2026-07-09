@@ -88,7 +88,6 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
-import { CameraMediaNamesSymbol } from './DatasetInfo/DatasetInfo.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -1716,15 +1715,6 @@ export default defineComponent({
       timelineEnabled,
 
     };
-
-    // Expose each camera's ordered image filenames (frame = index) to descendant panels. The Frame
-    // Info panel (DatasetInfo) feeds these to the shared frame-metadata resolver so the web read
-    // path can join sidecar rows to frames in the browser. useMediaController only exposes the
-    // current-frame filename, so imageData is the only source of the full ordered list per camera.
-    provide(
-      CameraMediaNamesSymbol,
-      (camera: string) => imageData.value[camera]?.map((frameImage) => frameImage.filename),
-    );
 
     provideAnnotator(
       {
