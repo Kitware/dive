@@ -107,7 +107,7 @@ def process_assetstore_import(event, meta: dict):
         dataset_type = VideoType
     elif possibleAnnotationRegex.search(importPath):
         if frame_metadata.is_frame_metadata_source_name(item['name']):
-            # Declared telemetry sidecars are plain files: leave them in place for
+            # Declared frame metadata sidecars are plain files: leave them in place for
             # read-time discovery, no marker and no relocation.
             return
         # Look for parent folder with same name
@@ -166,7 +166,7 @@ def process_dangling_annotation_files(folder, user):
     )
     for item in annotation_items:
         if frame_metadata.is_frame_metadata_source_name(item['name']):
-            # Declared telemetry sidecars are plain files: never marked or relocated.
+            # Declared frame metadata sidecars are plain files: never marked or relocated.
             continue
         # check if the parent folder of the annotation item is of type image or large image
         parent_folder_id = item['folderId']

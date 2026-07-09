@@ -225,7 +225,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records.image_0001.depth).toBe('5"');
   });
 
-  it('accepts VIAME-shaped telemetry without the VIAME header', () => {
+  it('accepts VIAME-shaped frame metadata without the VIAME header', () => {
     const keys = new Map([['image_0001', 0]]);
     const text = [
       'index,image,frame,x,y,depth,altitude,heading,temperature',
@@ -403,7 +403,7 @@ describe('shared frame metadata parser', () => {
   });
 
   it('accepts a wide row whose cells are each within the field limit', () => {
-    // Total row length exceeds 131072 but no single cell does, so it stays telemetry.
+    // Total row length exceeds 131072 but no single cell does, so it stays frame metadata.
     const cell = 'a'.repeat(7000);
     const columns = Array.from({ length: 20 }, (_, index) => `c${index + 1}`);
     const header = ['filename', ...columns].join(',');
@@ -470,7 +470,7 @@ const parserCases: ParserCase[] = [
     },
   },
   {
-    name: 'bom-telemetry',
+    name: 'bom-frame-metadata',
     text: '\ufefffilename,depth\nimg001.png,10\n',
     frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {

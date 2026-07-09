@@ -372,11 +372,11 @@ beforeEach(() => {
       },
       // Import-gate fixtures.
       fmGateMixed: {
-        // Sorts first but is declared telemetry: skipped as a track-file candidate, left on disk.
+        // Sorts first but is declared frame metadata: skipped as a track-file candidate, left on disk.
         'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
         'zzz_annotations.csv': '# comment line\n# metadata,fps: 32,"whatever"\n#comment line',
       },
-      fmGateTelemetryOnly: {
+      fmGateFrameMetadataOnly: {
         'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
       },
       fmGateExplicit: {
@@ -385,7 +385,7 @@ beforeEach(() => {
       // A plain CSV (not declared) whose contents fail to parse as VIAME annotations: the error
       // gains the rename hint. The unterminated quote makes csv-parse reject.
       fmGateViameFail: {
-        'telemetry.csv': 'filename,depth\n"unterminated,10\n',
+        'nav.csv': 'filename,depth\n"unterminated,10\n',
       },
       // No size gate: a declared sidecar over the old 10 MB bound is discovered without being read.
       frameMetadataSized: {
@@ -1638,8 +1638,8 @@ describe('frame metadata discovery', () => {
 
 describe('frame metadata import gates', () => {
   it('picks the annotation CSV and leaves a declared frame metadata sidecar in place', async () => {
-    // 'frame_metadata.csv' sorts first but is declared telemetry: it must be skipped as a track-file
-    // candidate and stay on disk for read-time discovery.
+    // 'frame_metadata.csv' sorts first but is declared frame metadata: it must be skipped as a
+    // track-file candidate and stay on disk for read-time discovery.
     const dir = '/home/user/data/fmGateMixed';
     const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(dir);
     expect(trackFileAbsPath).toBe(npath.join(dir, 'zzz_annotations.csv'));
@@ -1648,24 +1648,24 @@ describe('frame metadata import gates', () => {
 
   it('leaves no track file when only a declared frame metadata sidecar is present', async () => {
     const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(
-      '/home/user/data/fmGateTelemetryOnly',
+      '/home/user/data/fmGateFrameMetadataOnly',
     );
     expect(trackFileAbsPath).toBeFalsy();
   });
 
-  it('rejects an explicit import of a frame metadata telemetry file', async () => {
+  it('rejects an explicit import of a frame metadata file', async () => {
     await expect(common.ingestDataFiles(
       settings,
       'projectid1',
       ['/home/user/data/fmGateExplicit/frame_metadata.csv'],
-    )).rejects.toThrow(/frame-metadata \(telemetry\) file/);
+    )).rejects.toThrow(/frame metadata file/);
   });
 
-  it('adds a rename hint when a plain telemetry-shaped CSV fails VIAME import', async () => {
+  it('adds a rename hint when a plain frame-metadata-shaped CSV fails VIAME import', async () => {
     await expect(common.ingestDataFiles(
       settings,
       'projectid1',
-      ['/home/user/data/fmGateViameFail/telemetry.csv'],
+      ['/home/user/data/fmGateViameFail/nav.csv'],
     )).rejects.toThrow(/rename it to frame-metadata\.csv/);
   });
 });

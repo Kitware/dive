@@ -59,6 +59,6 @@ sidecar is used first.
 
 ## Limits
 
-Frame metadata sidecars are supported for image-sequence datasets. Video
-telemetry, embedded KLV, embedded EXIF, and choosing a sidecar from another
-location are not currently supported.
+Frame metadata sidecars are supported for image-sequence datasets. Frame
+metadata for videos, embedded KLV, embedded EXIF, and choosing a sidecar from
+another location are not currently supported.

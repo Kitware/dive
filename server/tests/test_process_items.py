@@ -177,7 +177,7 @@ def test_undecodable_plain_csv_fails_loudly_with_rename_hint(
     folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
 ):
     # A plain .csv whose bytes are not valid UTF-8 fails the strict annotation decode; the
-    # loud failure carries the rename hint pointing telemetry users at frame-metadata.csv.
+    # loud failure carries the rename hint pointing frame metadata users at frame-metadata.csv.
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
     item = {'_id': 'item-id', 'name': 'annotations.csv', 'meta': {}}
     file = {'_id': 'file-id', 'name': 'annotations.csv', 'exts': ['csv']}

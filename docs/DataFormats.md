@@ -15,7 +15,7 @@ be uploaded or imported alongside your media and will be automatically parsed.
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
 
-Per-frame telemetry sidecars are media files rather than annotation imports. See
+Frame metadata sidecars are media files rather than annotation imports. See
 [Frame Metadata Sidecars](Frame-Metadata.md) for their naming, placement, and
 text-file format.
 

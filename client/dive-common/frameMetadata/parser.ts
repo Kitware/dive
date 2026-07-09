@@ -239,7 +239,7 @@ function readRows(text: string): string[][] {
     // Drop delimiter-only rows before header selection; otherwise `,,,` becomes the header.
     return parseDelimitedRows(text, delimiter).filter((row) => row.some((cell) => cell.length > 0));
   } catch {
-    // NUL bytes, oversized fields, etc. are treated as "not a telemetry source" instead of
+    // NUL bytes, oversized fields, etc. are treated as "not a frame metadata source" instead of
     // surfacing a parse error.
     return [];
   }

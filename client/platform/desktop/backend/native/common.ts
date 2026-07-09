@@ -1027,7 +1027,7 @@ async function _ingestFilePath(
   // Frame-metadata sidecars are read from the media folder, so importing one as annotations would
   // copy it into the wrong storage path.
   if (isFrameMetadataSourceName(path)) {
-    throw new Error(`${npath.basename(path)} is a frame-metadata (telemetry) file. Place it in the dataset's media folder; it is read automatically and cannot be imported as annotations.`);
+    throw new Error(`${npath.basename(path)} is a frame metadata file. Place it in the dataset's media folder; it is read automatically and cannot be imported as annotations.`);
   }
   let warnings: string[] = [];
   // Make a copy of the file in aux
@@ -1065,8 +1065,8 @@ async function _ingestFilePath(
     try {
       data = await viameSerializers.parseFile(path, imageMap);
     } catch (e) {
-      // A plain CSV that fails to parse as annotations is often telemetry: hint at the rename.
-      throw new Error(`${(e as Error).message} If this file is telemetry rather than annotations, rename it to frame-metadata.csv.`);
+      // A plain CSV that fails to parse as annotations is often frame metadata: hint at the rename.
+      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, rename it to frame-metadata.csv.`);
     }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
@@ -1273,7 +1273,7 @@ async function findTrackandMetaFileinFolder(path: string) {
   let { trackFileAbsPath } = results;
   const { metaFileAbsPath } = results;
   if (!trackFileAbsPath) {
-    // Declared telemetry sidecars stay in place for read-time discovery; the first
+    // Declared frame metadata sidecars stay in place for read-time discovery; the first
     // remaining CSV is unconditionally the annotation track file.
     const csvFileCandidates = (await _findCSVTrackFiles(path))
       .filter((candidate) => !isFrameMetadataSourceName(candidate));

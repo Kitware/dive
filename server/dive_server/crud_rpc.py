@@ -538,7 +538,7 @@ def _get_data_by_type(
     """
     if file is None:
         return None, None
-    # Telemetry sidecars are declared by basename: classify without
+    # Frame metadata sidecars are declared by basename: classify without
     # reading, parsing, or joining. Their content is read only at read time, by the
     # client's shared TypeScript parser, never here.
     if frame_metadata.is_frame_metadata_source_name(file['name']):
@@ -685,7 +685,7 @@ def process_items(
         )
     )
 
-    # Side door: two plain (non-telemetry) annotation CSVs reaching the folder together can
+    # Side door: two plain annotation CSVs reaching the folder together can
     # only happen outside the pre-upload validation path (validate_files blocks it). Reject
     # before touching any item so both survive for the user to retry.
     annotation_csv_names = sorted(
@@ -724,7 +724,7 @@ def process_items(
             Item().remove(item)
             if isinstance(e, ValueError):
                 hint = (
-                    ' If this file is telemetry rather than annotations, rename it to '
+                    ' If this file is frame metadata rather than annotations, rename it to '
                     'frame-metadata.csv and re-upload.'
                     if constants.csvRegex.search(file['name'])
                     else ''
@@ -737,7 +737,7 @@ def process_items(
             raise RestException(f'Unknown file type for {file["name"]}')
 
         if results['type'] == crud.FileType.FRAME_METADATA:
-            # Declared telemetry sidecar: keep it in the dataset folder for read-time
+            # Declared frame metadata sidecar: keep it in the dataset folder for read-time
             # discovery. Mark it processed so it is not re-swept, but never import it as
             # annotations, move it, or remove it.
             item['meta'][constants.ProcessedMarker] = True
