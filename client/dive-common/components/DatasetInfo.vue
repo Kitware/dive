@@ -52,6 +52,7 @@ export default defineComponent({
     const editorOpen = ref(false);
     const editorKey = ref('');
     const fieldInput = ref<{ focus(): void } | null>(null);
+    const openInfoPanels = ref([0, 1]);
 
     const fetchMetadata = async () => {
       if (!datasetId.value) {
@@ -228,6 +229,7 @@ export default defineComponent({
 
     return {
       readOnlyMode,
+      openInfoPanels,
       frameMetadataEntries: frameMetadata.currentEntries,
       frameMetadataEmptyState,
       frameMetadataSourceLabel,
@@ -253,94 +255,105 @@ export default defineComponent({
 <template>
   <div>
     <v-container>
-      <section class="frame-metadata-section">
-        <div class="text-subtitle-1 font-weight-medium px-1 pb-1 d-flex align-center">
-          Frame Metadata
-          <v-spacer />
-          <v-tooltip
-            v-if="frameMetadataSourceLabel"
-            bottom
-            max-width="320"
-          >
-            <template #activator="{ on, attrs }">
-              <v-icon
-                small
-                color="grey lighten-1"
-                class="frame-metadata-source-icon"
-                :aria-label="frameMetadataSourceLabel"
-                v-bind="attrs"
-                v-on="on"
+      <v-expansion-panels
+        v-model="openInfoPanels"
+        multiple
+        flat
+        class="dataset-info-panels"
+      >
+        <v-expansion-panel class="frame-metadata-section">
+          <v-expansion-panel-header class="dataset-info-panel-header px-1 py-1 text-subtitle-1 font-weight-medium">
+            <span>Frame Metadata</span>
+            <v-spacer />
+            <v-tooltip
+              v-if="frameMetadataSourceLabel"
+              bottom
+              max-width="320"
+            >
+              <template #activator="{ on, attrs }">
+                <v-icon
+                  small
+                  color="grey lighten-1"
+                  class="frame-metadata-source-icon mr-2"
+                  :aria-label="frameMetadataSourceLabel"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  mdi-information-outline
+                </v-icon>
+              </template>
+              <span>{{ frameMetadataSourceLabel }}</span>
+            </v-tooltip>
+          </v-expansion-panel-header>
+          <v-divider />
+
+          <v-expansion-panel-content class="dataset-info-panel-content">
+            <v-list
+              v-if="frameMetadataEntries.length"
+              dense
+              class="py-0"
+            >
+              <v-list-item
+                v-for="[field, value] in frameMetadataEntries"
+                :key="`frameMetadata_${field}`"
+                class="px-1 frame-metadata-row"
               >
-                mdi-information-outline
-              </v-icon>
-            </template>
-            <span>{{ frameMetadataSourceLabel }}</span>
-          </v-tooltip>
-        </div>
-        <v-divider />
+                <v-list-item-content class="d-block py-1">
+                  <v-list-item-subtitle class="font-weight-medium wrap-text frame-metadata-key">
+                    {{ field }}
+                  </v-list-item-subtitle>
+                  <div
+                    class="wrap-text frame-metadata-value"
+                    v-text="value"
+                  />
+                </v-list-item-content>
+              </v-list-item>
+            </v-list>
+            <div
+              v-else
+              class="pa-2 grey--text"
+            >
+              {{ frameMetadataEmptyState }}
+            </div>
+          </v-expansion-panel-content>
+        </v-expansion-panel>
 
-        <v-list
-          v-if="frameMetadataEntries.length"
-          dense
-          class="py-0"
-        >
-          <v-list-item
-            v-for="[field, value] in frameMetadataEntries"
-            :key="`frameMetadata_${field}`"
-            class="px-1 frame-metadata-row"
-          >
-            <v-list-item-content class="d-block py-1">
-              <v-list-item-subtitle class="font-weight-medium wrap-text frame-metadata-key">
-                {{ field }}
-              </v-list-item-subtitle>
-              <div
-                class="wrap-text frame-metadata-value"
-                v-text="value"
-              />
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-        <div
-          v-else
-          class="pa-2 grey--text"
-        >
-          {{ frameMetadataEmptyState }}
-        </div>
-      </section>
+        <v-expansion-panel class="dataset-info-section mt-3">
+          <v-expansion-panel-header class="dataset-info-panel-header px-1 py-1 text-subtitle-1 font-weight-medium">
+            Dataset Info
+          </v-expansion-panel-header>
+          <v-divider />
 
-      <section class="dataset-info-section">
-        <div class="text-subtitle-1 font-weight-medium px-1 pt-3 pb-1">
-          Dataset Info
-        </div>
-        <v-divider />
-
-        <v-list
-          v-if="infoRows.length"
-          dense
-          class="py-0"
-        >
-          <v-list-item
-            v-for="row in infoRows"
-            :key="`datasetInfo_${row.name}`"
-            class="px-1"
-          >
-            <v-list-item-content class="d-block py-1">
-              <v-list-item-subtitle class="font-weight-medium wrap-text">
-                {{ row.name }}
-              </v-list-item-subtitle>
-              <div class="wrap-text">
-                {{ row.value?.toString() ?? '' }}
-              </div>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-        <div
-          v-else
-          class="pa-2 grey--text"
-        >
-          No dataset metadata available.
-        </div>
-      </section>
+          <v-expansion-panel-content class="dataset-info-panel-content">
+            <v-list
+              v-if="infoRows.length"
+              dense
+              class="py-0"
+            >
+              <v-list-item
+                v-for="row in infoRows"
+                :key="`datasetInfo_${row.name}`"
+                class="px-1"
+              >
+                <v-list-item-content class="d-block py-1">
+                  <v-list-item-subtitle class="font-weight-medium wrap-text">
+                    {{ row.name }}
+                  </v-list-item-subtitle>
+                  <div class="wrap-text">
+                    {{ row.value?.toString() ?? '' }}
+                  </div>
+                </v-list-item-content>
+              </v-list-item>
+            </v-list>
+            <div
+              v-else
+              class="pa-2 grey--text"
+            >
+              No dataset metadata available.
+            </div>
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+      </v-expansion-panels>
 
       <section class="custom-metadata-section">
         <div class="text-subtitle-1 font-weight-medium px-1 pt-3 pb-1">
@@ -465,6 +478,14 @@ export default defineComponent({
 .wrap-text {
   white-space: normal !important;
   overflow-wrap: anywhere;
+}
+
+.dataset-info-panel-header {
+  min-height: 32px;
+}
+
+.dataset-info-panels ::v-deep .v-expansion-panel-content__wrap {
+  padding: 0;
 }
 
 /* Let the read-only value shrink below its content width so text-truncate can
