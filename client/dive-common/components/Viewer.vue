@@ -67,7 +67,7 @@ import type {
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
-  useApi, FrameImage, DatasetType, SingleCameraFrameMetadataKey,
+  useApi, FrameImage, DatasetType,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
@@ -169,7 +169,7 @@ export default defineComponent({
     const baseMulticamDatasetId = ref(null as string | null);
     const datasetId = toRef(props, 'id');
     const multiCamList: Ref<string[]> = ref(['singleCam']);
-    const defaultCamera = ref(SingleCameraFrameMetadataKey);
+    const defaultCamera = ref('singleCam');
     const playbackComponent = ref(undefined as Vue | undefined);
     const readonlyState = computed(() => props.readOnlyMode
     || props.revision !== undefined || !!(props.comparisonSets && props.comparisonSets.length));

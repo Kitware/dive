@@ -16,14 +16,9 @@ import CustomDatasetInfoPanel from 'dive-common/components/DatasetInfo/CustomDat
 import DatasetInfoPanel from 'dive-common/components/DatasetInfo/DatasetInfoPanel.vue';
 import FrameMetadataPanel from 'dive-common/components/DatasetInfo/FrameMetadataPanel.vue';
 
-/** Given a camera key, the viewer's ordered image filenames for it (frame = array index). */
 export type GetCameraMediaNames = (camera: string) => string[] | undefined;
 
-/**
- * Injection key for the viewer-held, per-camera ordered image filenames. Viewer.vue provides it;
- * the Frame Info panel feeds it to the shared frame-metadata resolver so the web read path can
- * join sidecar rows to frames in the browser. Undefined when the panel renders outside a viewer.
- */
+/** Viewer-provided image filenames by camera, where frame number is the array index. */
 export const CameraMediaNamesSymbol: InjectionKey<GetCameraMediaNames> = Symbol('cameraMediaNames');
 
 export default defineComponent({
@@ -45,8 +40,6 @@ export default defineComponent({
       saveMetadata,
       loadFrameMetadata,
     } = useApi();
-    // Viewer.vue provides each camera's ordered image filenames; the web read path joins sidecar
-    // rows to frames against them. Absent (undefined) outside a viewer or on the desktop path.
     const getCameraMediaNames = inject(CameraMediaNamesSymbol, undefined);
     const { prompt } = usePrompt();
     const meta = ref<DatasetMeta | null>(null);
@@ -65,9 +58,6 @@ export default defineComponent({
 
     watch(datasetId, fetchMetadata, { immediate: true });
 
-    // One composable, two platforms: platform APIs load declared sidecar texts, and the viewer's
-    // ordered media names drive the shared TypeScript resolver. Scrubbing the playhead never
-    // refetches (frame drives currentEntries only).
     const frameMetadata = useFrameMetadata({
       datasetId,
       frame: time.frame,
@@ -76,8 +66,6 @@ export default defineComponent({
       loadFrameMetadata,
     });
 
-    // Frame metadata exists for image-sequence datasets and multicam parents with image-sequence
-    // cameras. A platform lacking the source-text read path is equally unsupported.
     const frameMetadataUnsupported = computed(() => {
       const noReadPath = loadFrameMetadata === undefined;
       const unsupportedType = meta.value !== null
@@ -106,8 +94,6 @@ export default defineComponent({
       return 'No frame metadata for the current frame.';
     });
 
-    // Name the sidecar(s) that fed the active camera's frame metadata; a single
-    // dataset can match several telemetry files (precedence order, winner first).
     const frameMetadataSourceLabel = computed(() => {
       const files = frameMetadata.currentSources.value;
       if (!files.length) {
@@ -136,8 +122,6 @@ export default defineComponent({
         rows.push({ name: 'Subtype', value: m.subType });
       }
       if (m.createdAt) {
-        // Render the stored ISO timestamp in the user's locale, matching how
-        // dates are shown elsewhere (e.g. ImportDialog, RevisionHistory).
         const created = new Date(m.createdAt);
         rows.push({
           name: 'Created',
@@ -160,7 +144,6 @@ export default defineComponent({
         const text = status === 403
           ? 'You do not have permission to save dataset info to this dataset.'
           : 'Unable to save dataset info.';
-        // Keep the user's edits on screen and let them retry the save manually.
         const retry = await prompt({
           title: 'Error while Saving Dataset Info',
           text,

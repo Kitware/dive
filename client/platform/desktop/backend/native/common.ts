@@ -27,7 +27,6 @@ import {
   PipeMetadata,
   PipelineParamType,
   FrameMetadataSourcesResponse,
-  SingleCameraFrameMetadataKey,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
@@ -669,7 +668,7 @@ async function loadFrameMetadata(
   }
   return {
     cameras: {
-      [SingleCameraFrameMetadataKey]: texts.map(([name, text]) => ({ name, text })),
+      singleCam: texts.map(([name, text]) => ({ name, text })),
     },
   };
 }

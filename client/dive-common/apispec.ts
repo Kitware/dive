@@ -152,14 +152,6 @@ interface FrameMetadataSourcesResponse {
   cameras: Record<string, FrameMetadataSourceText[]>;
 }
 
-/**
- * Camera key for single-camera datasets on the frame-metadata contract. This lets the shared
- * frame-metadata payload treat single-camera datasets as a one-camera map, avoiding separate
- * single-vs-multicam handling. Must match the key platform source loaders emit for single-camera
- * media.
- */
-export const SingleCameraFrameMetadataKey = 'singleCam';
-
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display

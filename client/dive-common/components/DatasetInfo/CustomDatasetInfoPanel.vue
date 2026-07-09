@@ -53,14 +53,9 @@ export default defineComponent({
       updateEntry(key, newValue.value);
       newKey.value = '';
       newValue.value = '';
-      // Return the cursor to the Field input for rapid successive entry.
       fieldInput.value?.focus();
     };
 
-    // Custom dataset info values are unknown-typed but edited as text, so coerce to
-    // a string for the editor (matching how inline edits are already stored).
-    // Objects only occur for externally-set values; render them as readable JSON
-    // rather than the useless "[object Object]" that toString() would produce.
     const editorValue = computed(() => {
       const value = props.datasetInfo[editorKey.value];
       if (value === undefined || value === null) {
@@ -226,8 +221,6 @@ export default defineComponent({
   min-height: 32px;
 }
 
-/* Let the read-only value shrink below its content width so text-truncate can
-   ellipsize a long value instead of pushing the action buttons off the row. */
 .min-width-0 {
   min-width: 0;
 }

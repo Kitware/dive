@@ -22,7 +22,6 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { SingleCameraFrameMetadataKey } from 'dive-common/apispec';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
@@ -140,7 +139,7 @@ export default function useModeManager({
   });
   const trackSettings = toRef(clientSettings, 'trackSettings');
   const groupSettings = toRef(clientSettings, 'groupSettings');
-  const selectedCamera = ref(SingleCameraFrameMetadataKey);
+  const selectedCamera = ref('singleCam');
 
   /**
    * The currently selected camera's own local frame number. Under an aligned
