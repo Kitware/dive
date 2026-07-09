@@ -272,32 +272,18 @@ describe('shared frame metadata parser', () => {
     });
   });
 
-  it('uses a hash-prefixed header line as the header', () => {
-    const source = parseFrameMetadataSource(
+  it('does not promote a hash-prefixed row to a header', () => {
+    expect(parseFrameMetadataSource(
       '# filename,depth,heading\nimg001.png,10,180\n',
       { 'img001.png': 0 },
-    );
-
-    expect(source).not.toBeNull();
-    expect(source?.records.img001).toEqual({
-      filename: 'img001.png',
-      depth: '10',
-      heading: '180',
-    });
+    )).toBeNull();
   });
 
-  it('drops a standalone hash marker token from a whitespace header', () => {
-    const source = parseFrameMetadataSource(
+  it('requires a real whitespace header row after comments', () => {
+    expect(parseFrameMetadataSource(
       '# filename depth heading\nimg001.png 10 180\n',
       { 'img001.png': 0 },
-    );
-
-    expect(source).not.toBeNull();
-    expect(source?.records.img001).toEqual({
-      filename: 'img001.png',
-      depth: '10',
-      heading: '180',
-    });
+    )).toBeNull();
   });
 
   it('skips a standalone comment block above the real header', () => {
@@ -445,21 +431,6 @@ describe('shared frame metadata parser', () => {
     expect(fromIndex?.records).toEqual(fromKeys?.records);
     expect(fromIndex?.records.img001).toEqual({ filename: 'img001.png', depth: '10' });
   });
-
-  it('parses a hash header with the threaded join and a prebuilt index', () => {
-    // A `#` header validated inside header selection is parsed with the join it was
-    // validated with; the leftmost image column joins and the second is neither joined
-    // nor payload.
-    const source = parseFrameMetadataSource(
-      '# port_image,depth,starboard_image\nimg001.png,10,img002.png\n',
-      buildMediaKeyIndex(['img001.png', 'img002.png']),
-    );
-
-    expect(source).not.toBeNull();
-    expect(Object.keys(source?.records || {})).toEqual(['img001']);
-    expect(Object.keys(source?.records.img001 || {})).toEqual(['port_image', 'depth']);
-    expect(source?.records.img001.depth).toBe('10');
-  });
 });
 
 type ParserCase = {
@@ -550,9 +521,7 @@ const parserCases: ParserCase[] = [
     name: 'hash-header',
     text: '# filename,depth,heading\nimg001.png,10,180\n',
     mediaKeys: defaultParserMediaKeys,
-    records: {
-      img001: { filename: 'img001.png', depth: '10', heading: '180' },
-    },
+    records: null,
   },
   {
     name: 'huge-field',
@@ -572,9 +541,7 @@ const parserCases: ParserCase[] = [
     name: 'nav-whitespace',
     text: '# filename depth heading\nimg001.png 10 180\n',
     mediaKeys: defaultParserMediaKeys,
-    records: {
-      img001: { filename: 'img001.png', depth: '10', heading: '180' },
-    },
+    records: null,
   },
   {
     name: 'no-join',
@@ -655,21 +622,7 @@ const parserCases: ParserCase[] = [
       '',
     ].join('\n'),
     mediaKeys: defaultParserMediaKeys,
-    records: {
-      img001: {
-        '1: Detection or Track-id': '1',
-        '2: Video or Image Identifier': 'img001.png',
-        '3: Unique Frame Identifier': '0',
-        '4-7: Img-bbox(TL_x': '10',
-        TL_y: '20',
-        BR_x: '30',
-        'BR_y)': '40',
-        '8: Detection or Length Confidence': '1.0',
-        '9: Target Length (0 or -1 if invalid)': '-1',
-        '10-11+: Repeated Species': 'fish',
-        'Confidence Pairs or Attributes': '0.9',
-      },
-    },
+    records: null,
   },
   {
     name: 'wide-row',
