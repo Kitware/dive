@@ -1,32 +1,32 @@
 /// <reference types="vitest" />
 
-import { buildMediaKeyIndex, resolveCameras } from './resolve';
+import { buildFrameAlignmentIndex, resolveCameras } from './resolve';
 
-describe('buildMediaKeyIndex', () => {
+describe('buildFrameAlignmentIndex', () => {
   it('normalizes an ordered media list to keys and frame numbers', () => {
-    const index = buildMediaKeyIndex(['img001.png', 'nested/img002.png']);
+    const index = buildFrameAlignmentIndex(['img001.png', 'nested/img002.png']);
 
-    expect(index.normalizedKeys).toEqual(new Set(['img001', 'img002']));
-    expect(index.frameByKey).toEqual(new Map([['img001', 0], ['img002', 1]]));
+    expect(index.alignmentKeys).toEqual(new Set(['img001', 'img002']));
+    expect(index.frameByAlignmentKey).toEqual(new Map([['img001', 0], ['img002', 1]]));
   });
 
   it('is tolerant of duplicate basenames (last-wins, never throws)', () => {
     // The import-path validator throws on duplicate basenames; the read-time index must not
     // because that would blank the camera's metadata.
-    const index = buildMediaKeyIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
+    const index = buildFrameAlignmentIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
 
-    expect(index.normalizedKeys).toEqual(new Set(['img001', 'img002']));
-    expect(index.frameByKey.get('img001')).toBe(1);
-    expect(index.frameByKey.get('img002')).toBe(2);
+    expect(index.alignmentKeys).toEqual(new Set(['img001', 'img002']));
+    expect(index.frameByAlignmentKey.get('img001')).toBe(1);
+    expect(index.frameByAlignmentKey.get('img002')).toBe(2);
   });
 });
 
 describe('resolveCameras', () => {
   it('resolves a single camera single source into the compact payload', () => {
-    const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
     const resolved = resolveCameras(
       { singleCam: [['frame_metadata.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
-      { singleCam: media },
+      { singleCam: alignmentIndex },
     );
 
     expect(resolved.columns.singleCam).toEqual(['filename', 'depth']);
@@ -36,7 +36,7 @@ describe('resolveCameras', () => {
   });
 
   it('first-wins merges frames across sources in precedence order', () => {
-    const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
     const resolved = resolveCameras(
       {
         singleCam: [
@@ -46,7 +46,7 @@ describe('resolveCameras', () => {
           ['frame_metadata.csv', 'filename,depth\nimg001.png,99\nimg002.png,20\n'],
         ],
       },
-      { singleCam: media },
+      { singleCam: alignmentIndex },
     );
 
     expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '10']);
@@ -55,7 +55,7 @@ describe('resolveCameras', () => {
   });
 
   it('unions columns across sources in precedence and file order', () => {
-    const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
     const resolved = resolveCameras(
       {
         singleCam: [
@@ -63,7 +63,7 @@ describe('resolveCameras', () => {
           ['frame_metadata.csv', 'filename,heading\nimg002.png,180\n'],
         ],
       },
-      { singleCam: media },
+      { singleCam: alignmentIndex },
     );
 
     expect(resolved.columns.singleCam).toEqual(['filename', 'depth', 'heading']);
@@ -84,9 +84,9 @@ describe('resolveCameras', () => {
     const resolved = resolveCameras(
       { left: [['frame_metadata.csv', text]], right: [['frame_metadata.csv', text]] },
       {
-        left: buildMediaKeyIndex(['port001.tif', 'port002.tif']),
+        left: buildFrameAlignmentIndex(['port001.tif', 'port002.tif']),
         // Reversed order so the join, not the row order, drives right's frame keys.
-        right: buildMediaKeyIndex(['star002.tif', 'star001.tif']),
+        right: buildFrameAlignmentIndex(['star002.tif', 'star001.tif']),
       },
     );
 
@@ -98,10 +98,10 @@ describe('resolveCameras', () => {
   });
 
   it('tolerates duplicate media basenames when resolving (last-wins frame)', () => {
-    const media = buildMediaKeyIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
+    const alignmentIndex = buildFrameAlignmentIndex(['a/img001.png', 'b/img001.png', 'img002.png']);
     const resolved = resolveCameras(
       { singleCam: [['frame_metadata.csv', 'filename,depth\nimg001.png,10\nimg002.png,12\n']] },
-      { singleCam: media },
+      { singleCam: alignmentIndex },
     );
 
     // img001 resolves to the last (frame 1) of its duplicate basenames.
@@ -112,11 +112,11 @@ describe('resolveCameras', () => {
   it('keeps numeric-named header columns in file order, not JS object-key order', () => {
     // Object keys would iterate numeric-like names as ['1','2','3']; the explicit columns array
     // preserves the file order ['3','1','2'] (readtime deferred finding #8).
-    const media = buildMediaKeyIndex(['img001.png', 'img002.png']);
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
     const text = 'filename,3,1,2\nimg001.png,c,a,b\nimg002.png,cc,aa,bb\n';
     const resolved = resolveCameras(
       { singleCam: [['frame_metadata.csv', text]] },
-      { singleCam: media },
+      { singleCam: alignmentIndex },
     );
 
     expect(resolved.columns.singleCam).toEqual(['filename', '3', '1', '2']);
@@ -127,7 +127,7 @@ describe('resolveCameras', () => {
   it('omits a camera with no matching sidecar', () => {
     const resolved = resolveCameras(
       { singleCam: [['frame_metadata.csv', 'station,depth\nA,10\n']] },
-      { singleCam: buildMediaKeyIndex(['img001.png', 'img002.png']) },
+      { singleCam: buildFrameAlignmentIndex(['img001.png', 'img002.png']) },
     );
 
     expect(resolved.cameras.singleCam).toBeUndefined();

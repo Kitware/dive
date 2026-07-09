@@ -5,11 +5,11 @@ import path from 'path';
 
 import {
   ParsedFrameMetadata,
-  normalizeKey,
+  normalizeAlignmentKey,
   parseFrameMetadataSource,
 } from './parser';
 import isFrameMetadataSourceName from './naming';
-import { buildMediaKeyIndex } from './resolve';
+import { buildFrameAlignmentIndex } from './resolve';
 
 type FixtureRecord = Record<string, string>;
 type ExpectedSource = {
@@ -85,12 +85,12 @@ function fixtureText(sourceName: string): string {
   return sourceText(sourceName);
 }
 
-function mediaKeys(
+function frameAlignmentEntries(
   cameraRecords: Record<string, FixtureRecord>,
   joinColumn: string,
 ): Map<string, number> {
   return new Map(Object.entries(cameraRecords).map(([frame, record]) => (
-    [normalizeKey(record[joinColumn]), Number(frame)]
+    [normalizeAlignmentKey(record[joinColumn]), Number(frame)]
   )));
 }
 
@@ -110,8 +110,8 @@ function recordsByFrame(
 }
 
 describe('shared frame metadata parser', () => {
-  it('normalizes media keys the same way as image name maps', () => {
-    expect(normalizeKey('nested/20191009.154056.00082_rect_color.tif')).toBe(
+  it('normalizes alignment keys the same way as image name maps', () => {
+    expect(normalizeAlignmentKey('nested/20191009.154056.00082_rect_color.tif')).toBe(
       '20191009.154056.00082_rect_color',
     );
   });
@@ -173,7 +173,7 @@ describe('shared frame metadata parser', () => {
   });
 
   it('picks the leftmost join column on a score tie', () => {
-    // Both image columns match one media key each (single-row floor of 1), so both are
+    // Both image columns match one alignment key each (single-row floor of 1), so both are
     // join candidates; the leftmost wins and claims the only record.
     const keys = new Map([
       ['20191009.154056.00082_rect_color', 0],
@@ -256,7 +256,7 @@ describe('shared frame metadata parser', () => {
           cameraExpected.frames.map((frame) => [frame, expected.recordsByFrame[frame]]),
         );
         const { joinColumn } = cameraExpected;
-        const keys = mediaKeys(expectedRecords, joinColumn);
+        const keys = frameAlignmentEntries(expectedRecords, joinColumn);
         const source = parseFrameMetadataSource(text, keys, sourceName);
 
         expect(source).not.toBeNull();
@@ -316,7 +316,7 @@ describe('shared frame metadata parser', () => {
     expect(parseFrameMetadataSource(hugeField, { 'img001.png': 0 })).toBeNull();
   });
 
-  it('normalizes a double-extension media key exactly once', () => {
+  it('normalizes a double-extension alignment key exactly once', () => {
     const source = parseFrameMetadataSource(
       'filename,depth\nIMG_001.jpg.png,10\n',
       { 'IMG_001.jpg.png': 0 },
@@ -355,7 +355,7 @@ describe('shared frame metadata parser', () => {
     expect(source?.records['1']).toEqual({ image: '1.png', altitude: '42', depth: '100' });
   });
 
-  it('keeps the first row for duplicate media keys', () => {
+  it('keeps the first row for duplicate alignment keys', () => {
     const source = parseFrameMetadataSource(
       'filename,depth\nimg001.png,10\nimg001.png,99\n',
       { 'img001.png': 0 },
@@ -421,10 +421,10 @@ describe('shared frame metadata parser', () => {
     expect(parseFrameMetadataSource(oversized, { 'img001.png': 0 })).toBeNull();
   });
 
-  it('accepts a prebuilt index identically to raw media keys', () => {
+  it('accepts a prebuilt index identically to raw alignment keys', () => {
     const text = 'filename,depth\nimg001.png,10\n';
     const fromKeys = parseFrameMetadataSource(text, { 'img001.png': 0 });
-    const fromIndex = parseFrameMetadataSource(text, buildMediaKeyIndex(['img001.png']));
+    const fromIndex = parseFrameMetadataSource(text, buildFrameAlignmentIndex(['img001.png']));
 
     expect(fromKeys).not.toBeNull();
     expect(fromIndex).not.toBeNull();
@@ -436,16 +436,16 @@ describe('shared frame metadata parser', () => {
 type ParserCase = {
   name: string;
   text: string;
-  mediaKeys: Record<string, number>;
+  frameAlignmentEntries: Record<string, number>;
   records: Record<string, Record<string, string>> | null;
   assertParsed?: (parsed: ParsedFrameMetadata | null) => void;
 };
 
-const defaultParserMediaKeys = { 'img001.png': 0, 'img002.png': 1 };
+const defaultParserFrameAlignmentEntries = { 'img001.png': 0, 'img002.png': 1 };
 const wideCell = 'a'.repeat(7000);
 const wideColumns = Array.from({ length: 20 }, (_, index) => `c${index + 1}`);
 
-function numericCollisionMediaKeys(): Record<string, number> {
+function numericCollisionFrameAlignmentEntries(): Record<string, number> {
   const keys: Record<string, number> = {};
   for (let index = 1; index <= 50; index += 1) {
     keys[`${index}.png`] = index - 1;
@@ -457,13 +457,13 @@ const parserCases: ParserCase[] = [
   {
     name: 'all-comments',
     text: '# comment one\n# comment two\n# comment three\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'basic',
     text: 'filename,depth\nimg001.png,10\nimg002.png,12\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
       img002: { filename: 'img002.png', depth: '12' },
@@ -472,7 +472,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'bom-telemetry',
     text: '\ufefffilename,depth\nimg001.png,10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -480,7 +480,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'comment-block',
     text: '# vehicle: AUV, dive 42\nfilename,depth\nimg001.png,10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -488,7 +488,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'comment-comma-over-tsv',
     text: '# Position (lat, lon) log\nfilename\tdepth\nimg001.png\t10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -496,7 +496,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'comment-prose-header',
     text: '# AUV nav log\nfilename,depth\nimg001.png,10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -504,7 +504,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'double-extension',
     text: 'filename,depth\nIMG_001.jpg.png,10\n',
-    mediaKeys: { 'IMG_001.jpg.png': 0 },
+    frameAlignmentEntries: { 'IMG_001.jpg.png': 0 },
     records: {
       'IMG_001.jpg': { filename: 'IMG_001.jpg.png', depth: '10' },
     },
@@ -512,7 +512,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'duplicate-rows',
     text: 'filename,depth\nimg001.png,10\nimg001.png,99\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -520,19 +520,19 @@ const parserCases: ParserCase[] = [
   {
     name: 'hash-header',
     text: '# filename,depth,heading\nimg001.png,10,180\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'huge-field',
     text: `filename,notes\nimg001.png,${'x'.repeat(131073)}\n`,
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'leading-empty-row',
     text: ',,,\nfilename,depth\nimg001.png,100\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '100' },
     },
@@ -540,25 +540,25 @@ const parserCases: ParserCase[] = [
   {
     name: 'nav-whitespace',
     text: '# filename depth heading\nimg001.png 10 180\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'no-join',
     text: 'station,depth\nA,10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'nul-bytes',
     text: 'filename,alt\0\nimg001.png,42\0\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
     name: 'numeric-collision',
     text: 'image,altitude,depth\n1.png,42,100\n2.png,999,200\n',
-    mediaKeys: numericCollisionMediaKeys(),
+    frameAlignmentEntries: numericCollisionFrameAlignmentEntries(),
     records: {
       1: { image: '1.png', altitude: '42', depth: '100' },
       2: { image: '2.png', altitude: '999', depth: '200' },
@@ -567,7 +567,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'pandas-index',
     text: ',filename,depth\n0,img001.png,10\n1,img002.png,12\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
       img002: { filename: 'img002.png', depth: '12' },
@@ -576,7 +576,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'proto',
     text: 'filename,depth\n__proto__.png,10\n',
-    mediaKeys: { '__proto__.png': 0 },
+    frameAlignmentEntries: { '__proto__.png': 0 },
     records: {
       ['__proto__']: { filename: '__proto__.png', depth: '10' },
     },
@@ -588,7 +588,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'tab-comma-units',
     text: 'filename\tPosition (lat, lon)\tDepth (m)\nimg001.png\t42.35, -70.90\t12.4\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: {
         filename: 'img001.png',
@@ -600,7 +600,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'trailing-comma',
     text: 'filename,depth,\nimg001.png,10,\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'img001.png', depth: '10' },
     },
@@ -608,7 +608,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'two-column',
     text: 'image,altitude\nimg001.png,10\nimg002.png,12\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { image: 'img001.png', altitude: '10' },
       img002: { image: 'img002.png', altitude: '12' },
@@ -621,7 +621,7 @@ const parserCases: ParserCase[] = [
       '1,img001.png,0,10,20,30,40,1.0,-1,fish,0.9',
       '',
     ].join('\n'),
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: null,
   },
   {
@@ -630,7 +630,7 @@ const parserCases: ParserCase[] = [
       'img001.png',
       ...wideColumns.map(() => wideCell),
     ].join(',')}\n`,
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: {
         filename: 'img001.png',
@@ -641,7 +641,7 @@ const parserCases: ParserCase[] = [
   {
     name: 'windows-paths',
     text: 'filename,depth\nimages\\img001.png,10\n',
-    mediaKeys: defaultParserMediaKeys,
+    frameAlignmentEntries: defaultParserFrameAlignmentEntries,
     records: {
       img001: { filename: 'images\\img001.png', depth: '10' },
     },
@@ -680,7 +680,7 @@ function toComparable(records: Record<string, Record<string, string>> | null) {
 describe('inline frame-metadata parser cases', () => {
   parserCases.forEach((parserCase) => {
     it(`matches ${parserCase.name}`, () => {
-      const parsed = parseFrameMetadataSource(parserCase.text, parserCase.mediaKeys);
+      const parsed = parseFrameMetadataSource(parserCase.text, parserCase.frameAlignmentEntries);
       const records = parsed === null ? null : parsed.records;
 
       expect(toComparable(records)).toEqual(toComparable(parserCase.records));

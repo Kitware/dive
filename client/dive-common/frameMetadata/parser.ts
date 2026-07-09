@@ -4,7 +4,7 @@ import { basicImageFileExtensions, largeImageFileExtensions } from 'dive-common/
 // in Electron and in the browser renderer.
 
 type FrameMetadataRow = Record<string, string>;
-type MediaKeys = Map<string, number> | Record<string, number>;
+type FrameAlignmentEntries = Map<string, number> | Record<string, number>;
 
 interface ParsedFrameMetadata {
   sourceName?: string;
@@ -14,15 +14,15 @@ interface ParsedFrameMetadata {
   records: Record<string, FrameMetadataRow>;
 }
 
-// Parser call sites share this shape so join scoring never mixes raw filenames with normalized
-// media keys.
-interface MediaKeyIndex {
-  normalizedKeys: Set<string>;
-  frameByKey: Map<string, number>;
+// Parser call sites share this shape so join scoring works from one normalized frame-alignment
+// vocabulary instead of mixing raw filenames with normalized values.
+interface FrameAlignmentIndex {
+  alignmentKeys: Set<string>;
+  frameByAlignmentKey: Map<string, number>;
 }
 
 // Mirror of the server's allValidLargeImageFormats (validImageFormats + validLargeImageFormats):
-// the extensions normalizeKey strips so a filename cell matches its media key.
+// the extensions normalizeAlignmentKey strips so a filename cell matches its alignment key.
 const imageExtensions = new Set<string>([
   ...basicImageFileExtensions,
   ...largeImageFileExtensions,
@@ -34,7 +34,7 @@ const FIELD_SIZE_LIMIT = 131072;
 
 // Split a basename into (stem, lowercased extension). Mirrors node path.extname semantics: a
 // leading dot is not an extension (so '.gitignore' has no extension), matching how the server
-// strips one image extension from a media key.
+// strips one image extension from an alignment key.
 function splitExtension(basename: string): { stem: string; extension: string } {
   const dot = basename.lastIndexOf('.');
   if (dot <= 0) {
@@ -43,33 +43,43 @@ function splitExtension(basename: string): { stem: string; extension: string } {
   return { stem: basename.slice(0, dot), extension: basename.slice(dot + 1).toLowerCase() };
 }
 
-function normalizeKey(value: string): string {
+function normalizeAlignmentKey(value: string): string {
   // Split on both separators so Windows-style path cells (images\IMG.png) normalize the same way
   // they would on a posix build. Strip exactly one image extension so a filename cell matches its
-  // media key.
+  // alignment key.
   const basename = String(value).trim().split(/[\\/]/).pop() ?? '';
   const { stem, extension } = splitExtension(basename);
   return imageExtensions.has(extension) ? stem : basename;
 }
 
-// The shared normalization/collision rule for resolver-built indexes and raw media-key maps.
-export function indexFromEntries(entries: Iterable<[string, number]>): MediaKeyIndex {
-  const normalizedKeys = new Set<string>();
-  const frameByKey = new Map<string, number>();
+// The shared normalization/collision rule for resolver-built indexes and raw alignment maps.
+export function frameAlignmentIndexFromEntries(
+  entries: Iterable<[string, number]>,
+): FrameAlignmentIndex {
+  const alignmentKeys = new Set<string>();
+  const frameByAlignmentKey = new Map<string, number>();
   Array.from(entries).forEach(([name, frame]) => {
-    const key = normalizeKey(name);
-    normalizedKeys.add(key);
-    frameByKey.set(key, frame);
+    const key = normalizeAlignmentKey(name);
+    alignmentKeys.add(key);
+    frameByAlignmentKey.set(key, frame);
   });
-  return { normalizedKeys, frameByKey };
+  return { alignmentKeys, frameByAlignmentKey };
 }
 
-function normalizeMediaKeys(mediaKeys: MediaKeys): MediaKeyIndex {
-  return indexFromEntries(mediaKeys instanceof Map ? mediaKeys : Object.entries(mediaKeys));
+function normalizeFrameAlignmentEntries(
+  frameAlignmentEntries: FrameAlignmentEntries,
+): FrameAlignmentIndex {
+  return frameAlignmentIndexFromEntries(
+    frameAlignmentEntries instanceof Map
+      ? frameAlignmentEntries
+      : Object.entries(frameAlignmentEntries),
+  );
 }
 
-function isMediaKeyIndex(value: MediaKeyIndex | MediaKeys): value is MediaKeyIndex {
-  return !(value instanceof Map) && (value as MediaKeyIndex).normalizedKeys instanceof Set;
+function isFrameAlignmentIndex(
+  value: FrameAlignmentIndex | FrameAlignmentEntries,
+): value is FrameAlignmentIndex {
+  return !(value instanceof Map) && (value as FrameAlignmentIndex).alignmentKeys instanceof Set;
 }
 
 function splitCommentBlock(
@@ -118,18 +128,18 @@ function buildTable(
   return { header, rows };
 }
 
-// Sidecars may include multiple image columns; score by media-key matches so each camera can use
+// Sidecars may include multiple image columns; score by alignment-key matches so each camera can use
 // its own column while ties remain stable in file order.
 function selectJoinColumn(
   header: string[],
   rows: FrameMetadataRow[],
-  normalizedMediaKeys: Set<string>,
+  alignmentKeys: Set<string>,
 ): { joinColumn: string | null; candidates: string[] } {
   const threshold = Math.min(2, rows.length);
   const scores = header.map((column) => ({
     column,
     score: rows.reduce((total, row) => (
-      row[column] && normalizedMediaKeys.has(normalizeKey(row[column])) ? total + 1 : total
+      row[column] && alignmentKeys.has(normalizeAlignmentKey(row[column])) ? total + 1 : total
     ), 0),
   }));
   const candidates = scores.filter(({ score }) => score >= threshold && score > 0);
@@ -160,11 +170,13 @@ function projectRecord(row: FrameMetadataRow, fields: string[]): FrameMetadataRo
 
 function parseFrameMetadataSource(
   text: string,
-  mediaIndex: MediaKeyIndex | MediaKeys,
+  alignmentIndex: FrameAlignmentIndex | FrameAlignmentEntries,
   sourceName?: string,
 ): ParsedFrameMetadata | null {
-  const index = isMediaKeyIndex(mediaIndex) ? mediaIndex : normalizeMediaKeys(mediaIndex);
-  const normalizedMediaKeys = index.normalizedKeys;
+  const index = isFrameAlignmentIndex(alignmentIndex)
+    ? alignmentIndex
+    : normalizeFrameAlignmentEntries(alignmentIndex);
+  const { alignmentKeys } = index;
 
   if (text.includes('\0')) {
     return null;
@@ -184,7 +196,7 @@ function parseFrameMetadataSource(
   const { joinColumn, candidates: joinCandidates } = selectJoinColumn(
     header,
     rows,
-    normalizedMediaKeys,
+    alignmentKeys,
   );
   if (joinColumn === null) {
     return null;
@@ -200,8 +212,8 @@ function parseFrameMetadataSource(
 
   const records = nullPrototypeRecord<FrameMetadataRow>();
   rows.forEach((row) => {
-    const key = normalizeKey(row[joinColumn] || '');
-    if (normalizedMediaKeys.has(key) && !(key in records)) {
+    const key = normalizeAlignmentKey(row[joinColumn] || '');
+    if (alignmentKeys.has(key) && !(key in records)) {
       records[key] = projectRecord(row, recordFields);
     }
   });
@@ -339,9 +351,9 @@ function sniffDelimiter(line: string): ',' | '\t' | null {
 
 export {
   FrameMetadataRow,
-  MediaKeyIndex,
-  MediaKeys,
+  FrameAlignmentIndex,
+  FrameAlignmentEntries,
   ParsedFrameMetadata,
-  normalizeKey,
+  normalizeAlignmentKey,
   parseFrameMetadataSource,
 };

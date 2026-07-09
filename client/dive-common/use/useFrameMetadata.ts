@@ -9,7 +9,7 @@ import type {
   FrameMetadataSourcesResponse,
   ResolvedFrameMetadata,
 } from 'dive-common/apispec';
-import { buildMediaKeyIndex, resolveCameras } from 'dive-common/frameMetadata/resolve';
+import { buildFrameAlignmentIndex, resolveCameras } from 'dive-common/frameMetadata/resolve';
 
 export interface UseFrameMetadataOptions {
   /** Current dataset id (parent-root id for multicam). */
@@ -148,7 +148,7 @@ export function useFrameMetadata({
     resolvedCameras.add(camera);
     try {
       const candidates = texts.map((item): [string, string] => [item.name, item.text]);
-      const index = buildMediaKeyIndex(mediaNames);
+      const index = buildFrameAlignmentIndex(mediaNames);
       mergeResolved(resolveCameras({ [camera]: candidates }, { [camera]: index }));
       syncSessionCache();
     } catch (err) {

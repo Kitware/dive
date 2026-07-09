@@ -1,6 +1,6 @@
 import type { ResolvedFrameMetadata } from 'dive-common/apispec';
-import { indexFromEntries, parseFrameMetadataSource } from './parser';
-import type { MediaKeyIndex, ParsedFrameMetadata } from './parser';
+import { frameAlignmentIndexFromEntries, parseFrameMetadataSource } from './parser';
+import type { FrameAlignmentIndex, ParsedFrameMetadata } from './parser';
 
 // The resolver joins a camera's candidate sidecar texts to its media list and merges them into
 // the compact per-camera payload the Frame Info panel renders. It runs unchanged on both
@@ -11,13 +11,13 @@ import type { MediaKeyIndex, ParsedFrameMetadata } from './parser';
 // camera folder, then clone root, then dataset folder, then parent root).
 type CameraCandidateTexts = Record<string, Array<[string, string]>>;
 
-// camera key -> the media-key index for that camera's ordered media list.
-type CameraMediaKeys = Record<string, MediaKeyIndex>;
+// camera key -> the alignment-key index for that camera's ordered media list.
+type CameraFrameAlignmentIndexes = Record<string, FrameAlignmentIndex>;
 
 // The read path must tolerate duplicate basenames because rejecting here would hide all metadata
 // for the camera. Later media entries win for consistency with the ordered media list.
-function buildMediaKeyIndex(mediaNames: string[]): MediaKeyIndex {
-  return indexFromEntries(mediaNames.map((name, frame) => [name, frame]));
+function buildFrameAlignmentIndex(mediaNames: string[]): FrameAlignmentIndex {
+  return frameAlignmentIndexFromEntries(mediaNames.map((name, frame) => [name, frame]));
 }
 
 // Ordered union of the payload columns across a camera's parsed sources: the first (winning)
@@ -38,25 +38,25 @@ function unionColumns(sources: ParsedFrameMetadata[]): string[] {
   return columns;
 }
 
-// Resolve every camera's candidate sidecars against its media keys into the compact payload:
+// Resolve every camera's candidate sidecars against its alignment keys into the compact payload:
 // per-camera frame -> row (values aligned to the camera's `columns`), the matched `sources`
 // (winner first), and the `columns` order. A camera with no matching source is omitted.
 function resolveCameras(
   cameraTexts: CameraCandidateTexts,
-  mediaKeysPerCamera: CameraMediaKeys,
+  alignmentIndexesByCamera: CameraFrameAlignmentIndexes,
 ): ResolvedFrameMetadata {
   const cameras: ResolvedFrameMetadata['cameras'] = {};
   const sources: ResolvedFrameMetadata['sources'] = {};
   const columns: ResolvedFrameMetadata['columns'] = {};
 
   Object.entries(cameraTexts).forEach(([camera, candidates]) => {
-    const index = mediaKeysPerCamera[camera];
+    const index = alignmentIndexesByCamera[camera];
     if (index === undefined) {
       return;
     }
 
     // Parse each candidate against this camera's shared index, in precedence order. The index is
-    // normalized once and reused, so the join scoring never re-normalizes the media keys.
+    // normalized once and reused, so the join scoring never re-normalizes the alignment keys.
     const parsed = candidates
       .map(([sourceName, text]) => parseFrameMetadataSource(text, index, sourceName))
       .filter((source): source is ParsedFrameMetadata => source !== null);
@@ -70,8 +70,8 @@ function resolveCameras(
     const records: Record<number, string[]> = {};
     const claimed = new Set<number>();
     parsed.forEach((source) => {
-      Object.entries(source.records).forEach(([mediaKey, values]) => {
-        const frame = index.frameByKey.get(mediaKey);
+      Object.entries(source.records).forEach(([alignmentKey, values]) => {
+        const frame = index.frameByAlignmentKey.get(alignmentKey);
         if (frame === undefined || claimed.has(frame)) {
           return;
         }
@@ -91,13 +91,13 @@ function resolveCameras(
 }
 
 export {
-  buildMediaKeyIndex,
+  buildFrameAlignmentIndex,
   resolveCameras,
 };
 
 export type {
   CameraCandidateTexts,
-  CameraMediaKeys,
-  MediaKeyIndex,
+  CameraFrameAlignmentIndexes,
+  FrameAlignmentIndex,
   ResolvedFrameMetadata,
 };
