@@ -18,13 +18,16 @@ import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotati
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
 import AlignedImageLayer from '../layers/AlignedImageLayer';
 import { FrameDataTrack } from '../layers/LayerTypes';
-import { applyHomography } from '../homography';
+import { applyHomography, invert3, Matrix3 } from '../homography';
+import { mapBounds, mapRotatedBounds, mapGeoJSONFeatures } from '../alignedView';
+import type { Feature } from '../track';
 import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
 import {
   geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME, featureHasSegmentationPolygon,
+  getRotationFromAttributes,
 } from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
@@ -183,6 +186,24 @@ export default defineComponent({
     const alignedDisplayTransform = computed(
       () => (alignedView ? alignedView.cameraTransform(props.camera) : null),
     );
+    /**
+     * Inverse of the display transform (reference/display space -> this
+     * camera's native space). The edit layer operates in geojs map
+     * coordinates -- display space -- so draws and edits made while the
+     * aligned view warps this camera must be mapped back through this before
+     * being committed to (native) track storage.
+     */
+    const alignedDisplayInverse = computed<Matrix3 | null>(() => {
+      const matrix = alignedDisplayTransform.value;
+      if (!matrix) {
+        return null;
+      }
+      try {
+        return invert3(matrix);
+      } catch {
+        return null;
+      }
+    });
     /** Map a native-space location into display space for view centering. */
     const mapDisplayPoint = (x: number, y: number) => {
       const matrix = alignedDisplayTransform.value;
@@ -192,6 +213,39 @@ export default defineComponent({
       const [mx, my] = applyHomography(matrix, [x, y]);
       return { x: mx, y: my };
     };
+    /**
+     * Copy a native-space track feature into display space for the edit
+     * layer (identity passthrough when this camera renders unwarped), so
+     * edit handles land on the warped imagery. The stored feature is never
+     * mutated (decision D3: storage stays native).
+     */
+    function featureToDisplay(feature: Feature | null): Feature | null {
+      const matrix = alignedDisplayTransform.value;
+      if (!matrix || !feature) {
+        return feature;
+      }
+      const mapped: Feature = { ...feature };
+      const rotation = getRotationFromAttributes(feature.attributes);
+      if (feature.bounds) {
+        if (rotation !== undefined) {
+          const rotated = mapRotatedBounds(matrix, feature.bounds, rotation);
+          mapped.bounds = rotated.bounds;
+          mapped.attributes = {
+            ...feature.attributes,
+            [ROTATION_ATTRIBUTE_NAME]: rotated.rotation,
+          };
+        } else {
+          mapped.bounds = mapBounds(matrix, feature.bounds);
+        }
+      }
+      if (feature.geometry) {
+        mapped.geometry = {
+          ...feature.geometry,
+          features: mapGeoJSONFeatures(matrix, feature.geometry.features),
+        };
+      }
+      return mapped;
+    }
 
     // Created before the annotation layers below so its geojs layer z-orders
     // beneath boxes/polygons/text (geojs stacks layers by creation order).
@@ -291,7 +345,13 @@ export default defineComponent({
     watch([segmentationPointsRef, frameNumberRef, selectedCamera], ([newPoints, currentFrame, currentCamera]) => {
       if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame
         && props.camera === currentCamera) {
-        segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
+        // Prompt points are stored in native image space; render them where
+        // the warped imagery actually is (identity when unwarped).
+        const displayPoints = newPoints.points.map((p): [number, number] => {
+          const { x, y } = mapDisplayPoint(p[0], p[1]);
+          return [x, y];
+        });
+        segmentationPointsLayer.updatePoints(displayPoints, newPoints.labels);
       } else {
         segmentationPointsLayer.clear();
       }
@@ -408,7 +468,7 @@ export default defineComponent({
 
     function updateLayers(
       frame: number,
-      requestedEditingTrack: false | EditAnnotationTypes,
+      editingTrack: false | EditAnnotationTypes,
       selectedTrackId: AnnotationId | null,
       multiSelectList: readonly AnnotationId[],
       enabledTracks: readonly TrackWithContext[],
@@ -416,13 +476,11 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
-      // Editing is disabled on WARPED cameras while the aligned view is on:
-      // the edit layer draws and stores geometry in native image space, so
-      // its handles would not land on warped imagery (decision D3 phase
-      // scope). The reference camera renders unwarped, so drawing and
-      // editing remain available there; draws landing on it while another
-      // camera is selected are routed by the update:geojson handler below.
-      const editingTrack = alignedDisplayTransform.value ? false : requestedEditingTrack;
+      // Drawing and editing work on every camera while the aligned view is
+      // on: the edit layer operates in display (warped) space -- it is fed
+      // display-space copies of the geometry (featureToDisplay below) and its
+      // draws/edits are mapped back to native through alignedDisplayInverse
+      // in the update:geojson handler before committing to track storage.
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
@@ -605,7 +663,13 @@ export default defineComponent({
           if (editingTrack) {
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
-            editAnnotationLayer.changeData(editingTracks);
+            // The edit layer works in display space: hand it display-space
+            // copies of the feature so its handles land on warped imagery
+            // (identity when this camera renders unwarped).
+            editAnnotationLayer.changeData(editingTracks.map((trackFrame) => ({
+              ...trackFrame,
+              features: featureToDisplay(trackFrame.features),
+            })));
           }
         } else if (editingTrack && props.camera !== selectedCamera.value
           && (isCreatingNewDetection(frame, selectedTrackId)
@@ -961,16 +1025,31 @@ export default defineComponent({
           return;
         }
       }
+      // Under the aligned view this camera renders warped, so the draw/edit
+      // just made lives in display (reference) space: map it back to this
+      // camera's native space before committing to track storage (decision
+      // D3 -- storage stays native). Identity when the camera is unwarped.
+      const inverse = alignedDisplayInverse.value;
       if (type === 'rectangle') {
-        const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
+        let bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
         // Extract rotation from properties if it exists
-        const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
+        let rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
           ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
           : undefined;
+        if (inverse) {
+          if (rotation !== undefined) {
+            const mapped = mapRotatedBounds(inverse, bounds, rotation);
+            bounds = mapped.bounds;
+            rotation = mapped.rotation;
+          } else {
+            bounds = mapBounds(inverse, bounds);
+          }
+        }
         cb();
         handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
       } else {
-        handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
+        const nativeData = inverse ? mapGeoJSONFeatures(inverse, [data])[0] : data;
+        handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, nativeData, key, cb);
       }
       // Jump into edit mode if we completed a new shape
       if (geometryCompleteEvent) {
@@ -995,8 +1074,13 @@ export default defineComponent({
     );
     // Handle clicks outside the edit polygon to allow selecting other polygons
     editAnnotationLayer.bus.$on('click-outside-edit', (geo: { x: number; y: number }) => {
-      // Check which polygon was clicked by iterating through formatted data
-      const point: [number, number] = [geo.x, geo.y];
+      // Check which polygon was clicked by iterating through formatted data.
+      // The click arrives in display space while formattedData is native, so
+      // map it back through the aligned-view inverse (identity when unwarped).
+      const inverse = alignedDisplayInverse.value;
+      const point: [number, number] = inverse
+        ? applyHomography(inverse, [geo.x, geo.y])
+        : [geo.x, geo.y];
       const polygonData = polyAnnotationLayer.formattedData;
 
       // Find the polygon that contains the click point
