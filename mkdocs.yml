@@ -81,10 +81,11 @@ nav:
     - Screenshots: Screenshots.md
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
-  - Data Formats: DataFormats.md
+  - Data Formats:
+    - Overview: DataFormats.md
+    - Frame Metadata Sidecars: Frame-Metadata.md
   - Developer Guide:
     - Codebase architecture: Architecture-For-New-Developers.md
-    - Frame metadata architecture: Frame-Metadata-Architecture.md
   - Administrator Guide:
     - Deployment Options Overview: Deployment-Overview.md
     - Provisioning Google Cloud: Deployment-Provision.md

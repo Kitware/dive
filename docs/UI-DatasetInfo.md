@@ -27,90 +27,24 @@ example a station id, cruise number, or dive number.
 
 ## Frame Metadata
 
-Frame telemetry is not an annotation stream. DIVE reads it from a
-`frame-metadata.csv` or `frame-metadata.txt` sidecar file next to the imagery and
-displays the values for the active frame. The snake_case spellings
-`frame_metadata.csv` and `frame_metadata.txt` are also accepted. The sidecar
-remains the source of truth; DIVE does not import it into an editable store or
-save a derived copy.
+Frame metadata shows read-only telemetry for the active image in an
+image-sequence dataset. The values update as the playhead moves.
 
-### Source file
-
-Name the file `frame-metadata.csv` or `frame-metadata.txt` (case-insensitive).
-`frame_metadata.csv` and `frame_metadata.txt` are also accepted aliases. The naming
-convention is what tells DIVE the file is telemetry rather than an annotation
-CSV. Use a delimited text file with:
-
-* a header row,
-* one or more columns containing image filenames,
-* at least one metadata column beyond the filename column.
-
-The delimiter can be comma, tab, or whitespace. DIVE joins rows to frames by
-matching filename values, not by row order. A row that does not match an image is
-ignored instead of being shifted onto another frame.
-
-Example (`frame-metadata.txt`):
-
-```text
-image_file timestamp latitude longitude water_depth
-img_0001.tif 15:40:56 46.575870 -124.603094 192.80
-img_0002.tif 15:41:04 46.575912 -124.603080 193.10
-```
-
-The filename extension is ignored during matching, so `img_0001.tif` matches the
-image key `img_0001`. Values are displayed as raw strings in the order they
-appear in the source file.
-
-### Placement
-
-For a single-camera image sequence, place `frame-metadata.csv` or
-`frame-metadata.txt` in the dataset folder beside the images.
-
-For a multicamera image sequence, use either placement:
-
-* Place one shared file at the multicam parent folder. Each camera selects the
-  rows or filename column that match its own images.
-* Place one file inside each camera child folder. Each file is read only for that
-  camera.
-
-A shared multicam file can contain one filename column per camera, such as
-`port_image` and `starboard_image`, or one filename column with separate rows for
-each camera. The Dataset Info panel follows the active camera, so switching
-cameras switches the displayed records.
-
-### Display behavior
-
-Open **Dataset Info** from the context sidebar while viewing an image-sequence
-dataset. The Frame Metadata section updates as the playhead moves.
-
-The section shows only the source fields for the active frame, in the column
-order of the source file. It does not repeat the current frame number or
-filename, which are already shown by the playback controls.
-
-A **`Source:`** line names the sidecar file (or files, winner first) that supplied
-the values for the active camera, so you can tell at a glance which telemetry file
-DIVE read and confirm it is the one you dropped.
+The panel shows the source fields in file order and includes a **`Source:`** line
+naming the sidecar file that supplied them. For multicamera datasets, the panel
+follows the active camera.
 
 The section may show an empty state when:
 
-* **the platform or dataset type does not support frame metadata** — for example
-  a video or large-image dataset;
-* **no matching `frame-metadata.csv` or `frame-metadata.txt` source is present** — the empty state
-  points at the naming convention (drop a delimited text file next to the imagery
-  and name it `frame-metadata.csv` or `frame-metadata.txt`), because there is no
-  import-time warning when a sidecar matches no frames;
-* **the current frame has no matching row** — a source is present, but no row's
-  filename value matches this frame.
+* the dataset type does not support frame metadata,
+* no frame metadata sidecar is present,
+* the current frame has no matching row.
 
-Frame telemetry is read-only in v1. There is no edit, save, import, or export
-flow for these values. The desktop app refuses to import a declared frame
-metadata sidecar through the annotation flow; a plain annotation CSV that fails
-to parse suggests renaming it to `frame-metadata.csv` if it is actually
-telemetry. Video telemetry, embedded KLV, embedded EXIF, and manual
-selection of a source file from another location are future work.
+Frame telemetry is read-only. There is no edit, save, import, or export flow for
+these values.
 
-See [Data Formats](DataFormats.md#per-frame-metadata-text-sidecars) for the
-sidecar file contract.
+See [Frame Metadata Sidecars](Frame-Metadata.md) for supported filenames, file
+format, and placement.
 
 ## Where the data is stored
 
