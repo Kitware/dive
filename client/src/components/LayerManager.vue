@@ -12,6 +12,7 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
+import CalibrationKeypointLayer from '../layers/AnnotationLayers/CalibrationKeypointLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
@@ -36,6 +37,7 @@ import {
   useAnnotatorPreferences,
   useGroupStyleManager,
   useCameraStore,
+  useCameraRegistration,
   useAlignedView,
   useSelectedCamera,
   useAttributes,
@@ -45,6 +47,7 @@ import {
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 import useLayerManagerAlignedView from './layerManager/useLayerManagerAlignedView';
+import { getCameraQuadMedia } from './layerManager/quadMediaSource';
 import useLayerRefresh from './layerManager/useLayerRefresh';
 import useSegmentationPointsLayer from './layerManager/useSegmentationPointsLayer';
 import useAnnotationClickHandling from './layerManager/useAnnotationClickHandling';
@@ -80,6 +83,12 @@ export default defineComponent({
       // Viewer may not provide lasso context in tests or minimal embeds.
     }
     const cameraStore = useCameraStore();
+    let cameraCalibration: ReturnType<typeof useCameraRegistration> | undefined;
+    try {
+      cameraCalibration = useCameraRegistration();
+    } catch {
+      // calibration store may not be provided in tests or minimal embeds.
+    }
     let alignedView: ReturnType<typeof useAlignedView> | undefined;
     try {
       alignedView = useAlignedView();
@@ -201,6 +210,59 @@ export default defineComponent({
     // Segmentation points layer for displaying prompt points during point-click segmentation
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
+
+    const calibrationLayer = cameraCalibration
+      ? new CalibrationKeypointLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+        calibration: cameraCalibration,
+        getCameraImage: (cam: string) => getCameraQuadMedia(
+          (c) => aggregateController.value.getController(c),
+          cam,
+        ),
+      })
+      : undefined;
+
+    if (cameraCalibration && calibrationLayer) {
+      const calibration = cameraCalibration;
+      /**
+       * Frame number of the camera whose image is being ghosted into another
+       * pane, or null when no ghost is active. Watched so the ghost re-renders
+       * when the *source* pane scrubs, not just this pane -- this pane's own
+       * frameNumberRef can update before (or without) the source's, and the
+       * source image element itself only swaps after its frame finishes
+       * loading (see CalibrationKeypointLayer.scheduleGhostRefresh).
+       */
+      const ghostSourceFrame = computed(() => {
+        const { mode } = calibration.alignment.value;
+        const pair = calibration.activePair.value;
+        if (mode === 'original' || !pair) {
+          return null;
+        }
+        const srcCam = mode === 'BtoA' ? pair.camB : pair.camA;
+        try {
+          return aggregateController.value.getController(srcCam).frame.value;
+        } catch {
+          return null;
+        }
+      });
+      watch(
+        [
+          cameraCalibration.activePair,
+          cameraCalibration.pickingEnabled,
+          cameraCalibration.correspondences,
+          cameraCalibration.pendingPoint,
+          cameraCalibration.selectedCorrespondenceId,
+          cameraCalibration.homographies,
+          cameraCalibration.alignment,
+          frameNumberRef,
+          ghostSourceFrame,
+        ],
+        () => calibrationLayer.update(),
+        { deep: true },
+      );
+    }
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {

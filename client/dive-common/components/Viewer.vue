@@ -31,6 +31,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  useCalibrationNavigation,
   useAlignedNavigation,
   TrackList,
   FilterList,
@@ -87,6 +88,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import CalibrationToolsVue from './CameraCalibration/CalibrationTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -323,6 +325,29 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
+    // When the Manual Alignment panel opens, minimize the workspace chrome to
+    // give the picking view more room: collapse the left type-filter sidebar and
+    // the bottom detections graph. This is a soft default -- the normal sidebar
+    // and timeline toggles still work while calibrating, so the user can bring
+    // either back -- and whatever layout they had before is restored on close.
+    const calibrationActive = computed(() => context.state.active === CalibrationToolsVue.name);
+    let preCalibrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
+    let preCalibrationControlsCollapsed = false;
+    watch(calibrationActive, (active) => {
+      if (active) {
+        preCalibrationSidebarMode = sidebarMode.value;
+        preCalibrationControlsCollapsed = controlsCollapsed.value;
+        if (sidebarMode.value === 'left') {
+          sidebarMode.value = 'collapsed';
+        }
+        controlsCollapsed.value = true;
+      } else if (preCalibrationSidebarMode !== null) {
+        sidebarMode.value = preCalibrationSidebarMode;
+        controlsCollapsed.value = preCalibrationControlsCollapsed;
+        preCalibrationSidebarMode = null;
+      }
+    });
+
     watch(sidebarMode, (mode) => {
       if (mode === 'left' || mode === 'bottom') {
         clientSettings.layoutSettings.sidebarPosition = mode;
@@ -411,8 +436,10 @@ export default defineComponent({
      * review. Reference camera = the Reference Camera chosen at import
      * (stored as defaultDisplay), falling back to the first camera in
      * display order. Transforms come from the registration store's pair
-     * homographies (loaded from a registration file or the dataset's saved
-     * meta), composed through the pair graph.
+     * homographies (picked in-app via the Manual Alignment panel, or loaded
+     * from a registration file or the dataset's saved meta), composed
+     * through the pair graph -- the single registration the panel edits and
+     * saves is exactly what the Align button applies.
      *
      * Store instances are always created (provideAnnotator runs before
      * loadData resolves), but watches, aligned navigation, and metadata
@@ -448,6 +475,16 @@ export default defineComponent({
         selectedCamera,
         setResetZoomOverride,
       });
+      // The Manual Alignment pair link maps through the homography for
+      // UNWARPED panes, so it needs the aligned view state to stand down
+      // while displays are warped into reference space.
+      useCalibrationNavigation(aggregateController, cameraRegistration, alignedView);
+      // Registration point picking records raw native-space clicks and
+      // renders its own aligned preview; suspend the general warp while it
+      // is active so picks are never taken against a warped display.
+      watch(cameraRegistration.pickingEnabled, (picking) => {
+        alignedView.setSuspended(picking);
+      }, { immediate: true });
       // Publish the reference even while unresolved so UI outside the viewer
       // core (e.g. the import menu's per-pair buttons) can name it.
       watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
@@ -496,6 +533,31 @@ export default defineComponent({
       }
       const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
+    });
+    /**
+     * Camera panes currently displayed. While the Manual Alignment panel is
+     * open with an active pair on a 3+ camera dataset, only the pair's two
+     * panes show, so the left/right alignment flow reads without unrelated
+     * panes in between (regardless of whether Pick points is toggled on).
+     * Panes are hidden (v-show), not unmounted, so their viewers keep state.
+     */
+    const displayedCameras = computed(() => {
+      const pair = cameraRegistration.activePair.value;
+      if (calibrationActive.value && pair) {
+        const pairCameras = multiCamList.value.filter(
+          (camera) => camera === pair.camA || camera === pair.camB,
+        );
+        if (pairCameras.length === 2) {
+          return pairCameras;
+        }
+      }
+      return multiCamList.value;
+    });
+    watch(displayedCameras, async () => {
+      // Hidden/shown siblings change the remaining panes' sizes; resize the
+      // geojs maps once the DOM has settled.
+      await nextTick();
+      handleResize();
     });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
@@ -1523,10 +1585,18 @@ export default defineComponent({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
           });
+          context.register({
+            component: CalibrationToolsVue,
+            description: 'Manual Alignment',
+          });
         } else {
           context.unregister({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
+          });
+          context.unregister({
+            component: CalibrationToolsVue,
+            description: 'Manual Alignment',
           });
           context.register({
             description: 'Group Manager',
@@ -1938,6 +2008,7 @@ export default defineComponent({
       deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
+      displayedCameras,
       seekToFrame,
       resetAggregateZoom,
       /* large image methods */
@@ -2251,10 +2322,16 @@ export default defineComponent({
           class="d-flex flex-column grow"
         >
           <div class="d-flex grow">
+            <!--
+              Hidden panes swap to Vuetify's d-none instead of using v-show:
+              d-flex is `display: flex !important`, which defeats v-show's
+              inline `display: none`. Panes stay mounted either way, so their
+              viewers keep state.
+            -->
             <div
               v-for="camera in multiCamList"
               :key="camera"
-              class="d-flex flex-column grow"
+              :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"

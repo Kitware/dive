@@ -37,9 +37,14 @@ export default defineComponent({
       alignedView.setEnabled(!alignedView.enabled.value);
     };
 
+    // The aligned view is suspended while picking, so the button reads as
+    // unavailable rather than accepting a toggle that has no visible effect.
+    const pickingEnabled = computed(() => cameraRegistration.pickingEnabled.value);
+
     return {
       available,
       enabled,
+      pickingEnabled,
       tooltip,
       toggle,
     };
@@ -57,7 +62,7 @@ export default defineComponent({
           small
           class="mx-1"
           :color="enabled ? 'primary' : 'default'"
-          :disabled="!available"
+          :disabled="!available || pickingEnabled"
           @click="toggle"
         >
           <v-icon>
