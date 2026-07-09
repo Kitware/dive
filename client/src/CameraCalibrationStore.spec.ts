@@ -77,6 +77,20 @@ describe('CameraCalibrationStore', () => {
     });
   });
 
+  describe('sourceIsMixed', () => {
+    it('flags only the mixed composite stamp the file merger produces', () => {
+      const store = new CameraCalibrationStore();
+      expect(store.sourceIsMixed()).toBe(false);
+      store.hydrate(undefined, undefined, undefined, { producer: 'kamera', run: 'fl07' });
+      expect(store.sourceIsMixed()).toBe(false);
+      store.hydrate(undefined, undefined, undefined, {
+        mixed: true,
+        files: { 'calibration_ir.json': { run: 'fl07' }, 'calibration_uv.json': { run: 'fl09' } },
+      });
+      expect(store.sourceIsMixed()).toBe(true);
+    });
+  });
+
   describe('loaded (file-sourced) homographies', () => {
     /** Load a matrix-only (point-less) pair from calibration JSON, marking it 'loaded'. */
     function loadMatrixOnlyPair(store: CameraCalibrationStore, left: string, right: string, rightToLeft: number[][]) {

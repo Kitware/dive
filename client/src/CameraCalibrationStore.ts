@@ -51,10 +51,11 @@ export type CalibrationSource = Record<string, unknown>;
 /**
  * One camera pair in the portable calibration JSON file. This is the same
  * self-describing shape the desktop platform persists as the project's
- * standalone calibration.json (see desktop backend/native/common.ts), so a
- * panel-saved file, the on-disk artifact, and an import-time seed are all
- * interchangeable: correspondences flattened as [leftX, leftY, rightX,
- * rightY] rows, plus both fitted directions (null when unfitted).
+ * standalone per-camera calibration_<camera>.json files (see desktop
+ * backend/native/common.ts), so a panel-saved file, the on-disk artifacts,
+ * and an import-time seed are all interchangeable: correspondences flattened
+ * as [leftX, leftY, rightX, rightY] rows, plus both fitted directions (null
+ * when unfitted).
  */
 export interface CalibrationFilePair {
   left: string;
@@ -143,6 +144,18 @@ export default class CameraCalibrationStore {
   /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
   markSaved() {
     this.savedSnapshot.value = this.calibrationSnapshot();
+  }
+
+  /**
+   * True when the loaded calibration was assembled from per-camera files
+   * whose producer stamps disagree (the loader records that as a
+   * `{ mixed: true, files: {...} }` composite source) -- i.e. the rig may
+   * mix calibration generations and deserves a visible warning rather than
+   * silent composition.
+   */
+  sourceIsMixed(): boolean {
+    return Boolean(this.source.value
+      && (this.source.value as Record<string, unknown>).mixed === true);
   }
 
   /**

@@ -184,6 +184,11 @@ beforeEach(() => {
         'broken.json': '{not json',
         'z-transforms.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
       },
+      perCamera: {
+        'calibration_uv.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+        'calibration_ir.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+        'stray.json': JSON.stringify({ some: 'thing' }),
+      },
       none: {
         'rig.json': JSON.stringify({ some: 'thing' }),
         'notes.txt': 'not json',
@@ -656,7 +661,7 @@ describe('native.common', () => {
     });
   });
 
-  it('saveMetadata writes calibration.json (pairs + points) and reloads it', async () => {
+  it('saveMetadata writes per-camera calibration files (pairs + points) and reloads them', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
@@ -678,12 +683,16 @@ describe('native.common', () => {
 
     await common.saveMetadata(settings, final.id, { cameraHomographies, cameraCorrespondences });
 
-    // Persisted as a standalone calibration.json: pairs labeled left/right, with
-    // points laid out as leftX leftY rightX rightY.
+    // Persisted as a standalone per-camera file (named for the pair's
+    // non-reference camera): pairs labeled left/right, with points laid out
+    // as leftX leftY rightX rightY. No legacy all-pairs calibration.json.
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
-    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    const calibrationPath = npath.join(projectDir, 'calibration_ir.json');
     expect(await fs.pathExists(calibrationPath)).toBe(true);
+    expect(await fs.pathExists(npath.join(projectDir, 'calibration.json'))).toBe(false);
     const calibration = await fs.readJSON(calibrationPath);
+    // Self-identifies so parent-folder discovery recognizes it.
+    expect(calibration.type).toBe('dive-camera-calibration');
     expect(calibration.pairs).toStrictEqual([
       {
         left: 'rgb',
@@ -726,30 +735,43 @@ describe('native.common', () => {
     await common.saveMetadata(settings, final.id, { cameraHomographies, cameraTransformTypes });
 
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
-    const calibration = await fs.readJSON(npath.join(projectDir, 'calibration.json'));
+    const calibration = await fs.readJSON(npath.join(projectDir, 'calibration_ir.json'));
     expect(calibration.pairs[0].transformType).toBe('rigid');
 
     const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
     expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
-  describe('findParentFolderTransformFile', () => {
-    it('prefers a file named calibration.json among marked candidates', async () => {
-      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/exactName');
-      expect(found).toBe(npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'));
+  describe('findParentFolderTransformFiles', () => {
+    it('orders a file named calibration.json before other marked candidates', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/exactName');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'),
+        npath.join('/home/user/transformDiscovery/exactName', 'aaa-stamped.json'),
+      ]);
     });
 
-    it('finds a marked file under any name, skipping unmarked and broken JSON', async () => {
-      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/otherName');
-      expect(found).toBe(npath.join('/home/user/transformDiscovery/otherName', 'z-transforms.json'));
+    it('finds marked files under any name, skipping unmarked and broken JSON', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/otherName');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/otherName', 'z-transforms.json'),
+      ]);
     });
 
-    it('returns null when no self-identified calibration json exists', async () => {
-      expect(await common.findParentFolderTransformFile('/home/user/transformDiscovery/none')).toBeNull();
+    it('finds per-camera calibration_<camera>.json files, alphabetically', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/perCamera');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/perCamera', 'calibration_ir.json'),
+        npath.join('/home/user/transformDiscovery/perCamera', 'calibration_uv.json'),
+      ]);
     });
 
-    it('returns null for a missing directory', async () => {
-      expect(await common.findParentFolderTransformFile('/home/user/doesNotExist')).toBeNull();
+    it('returns empty when no self-identified calibration json exists', async () => {
+      expect(await common.findParentFolderTransformFiles('/home/user/transformDiscovery/none')).toStrictEqual([]);
+    });
+
+    it('returns empty for a missing directory', async () => {
+      expect(await common.findParentFolderTransformFiles('/home/user/doesNotExist')).toStrictEqual([]);
     });
   });
 
@@ -798,7 +820,7 @@ describe('native.common', () => {
     });
 
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
-    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    const calibrationPath = npath.join(projectDir, 'calibration_ir.json');
     expect((await fs.readJSON(calibrationPath)).source).toStrictEqual(source);
     const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
     expect(reloaded.cameraCalibrationSource).toStrictEqual(source);
@@ -815,6 +837,98 @@ describe('native.common', () => {
       cameraCalibrationSource: null,
     });
     expect('source' in (await fs.readJSON(calibrationPath))).toBe(false);
+  });
+
+  it('migrates a legacy all-pairs calibration.json to per-camera files on save', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+
+    // A legacy single-file calibration holding two pairs.
+    await fs.writeJSON(npath.join(projectDir, 'calibration.json'), {
+      version: 1,
+      pairs: [
+        {
+          left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+        {
+          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        },
+      ],
+    });
+
+    // Loads fine from the legacy file.
+    const loaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(loaded.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+
+    // A save re-writes the set as per-camera files and removes the legacy one.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: loaded.cameraHomographies,
+      cameraCorrespondences: loaded.cameraCorrespondences,
+      cameraTransformTypes: loaded.cameraTransformTypes,
+    });
+    expect(await fs.pathExists(npath.join(projectDir, 'calibration.json'))).toBe(false);
+    expect(await fs.pathExists(npath.join(projectDir, 'calibration_ir.json'))).toBe(true);
+    expect(await fs.pathExists(npath.join(projectDir, 'calibration_uv.json'))).toBe(true);
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraHomographies).toStrictEqual(loaded.cameraHomographies);
+  });
+
+  it('merges per-camera calibration files and flags disagreeing source stamps', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+
+    const irPair = {
+      left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+    };
+    const uvPair = {
+      left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+    };
+    await fs.writeJSON(npath.join(projectDir, 'calibration_ir.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
+    });
+    await fs.writeJSON(npath.join(projectDir, 'calibration_uv.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+    });
+
+    // Both pairs merge; the disagreeing stamps become a mixed composite so
+    // the client can warn about a rig assembled from different generations.
+    const mixed = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(mixed.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    expect(mixed.cameraCalibrationSource).toStrictEqual({
+      mixed: true,
+      files: {
+        'calibration_ir.json': { producer: 'kamera', run: 'fl07' },
+        'calibration_uv.json': { producer: 'kamera', run: 'fl09' },
+      },
+    });
+
+    // Agreeing stamps stay a single plain stamp.
+    await fs.writeJSON(npath.join(projectDir, 'calibration_uv.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
+    });
+    const agreeing = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(agreeing.cameraCalibrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
+
+    // A save of the mixed set never stamps the per-camera files with the
+    // composite (that would read as a unanimous rig on the next load).
+    await fs.writeJSON(npath.join(projectDir, 'calibration_uv.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+    });
+    const beforeSave = await common.loadMetadata(settings, final.id, urlMapper);
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: beforeSave.cameraHomographies,
+      cameraCalibrationSource: beforeSave.cameraCalibrationSource,
+    });
+    expect('source' in (await fs.readJSON(npath.join(projectDir, 'calibration_ir.json')))).toBe(false);
   });
 
   it('import with CSV annotations without specifying track file', async () => {
