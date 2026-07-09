@@ -52,7 +52,7 @@ export default defineComponent({
     const editorOpen = ref(false);
     const editorKey = ref('');
     const fieldInput = ref<{ focus(): void } | null>(null);
-    const openInfoPanels = ref([0, 1]);
+    const openInfoPanels = ref([0, 1, 2]);
 
     const fetchMetadata = async () => {
       if (!datasetId.value) {
@@ -353,115 +353,117 @@ export default defineComponent({
             </div>
           </v-expansion-panel-content>
         </v-expansion-panel>
+
+        <v-expansion-panel class="custom-metadata-section mt-3">
+          <v-expansion-panel-header class="dataset-info-panel-header px-1 py-1 text-subtitle-1 font-weight-medium">
+            Custom Metadata
+          </v-expansion-panel-header>
+          <v-divider />
+
+          <v-expansion-panel-content class="dataset-info-panel-content">
+            <div
+              v-if="!customMetaKeys.length && readOnlyMode"
+              class="pa-2 grey--text"
+            >
+              No custom metadata.
+            </div>
+
+            <v-list
+              dense
+              class="py-0"
+            >
+              <v-list-item
+                v-for="key in customMetaKeys"
+                :key="`customMeta_${key}`"
+                class="px-1"
+              >
+                <v-list-item-content class="d-block py-1">
+                  <v-list-item-subtitle class="font-weight-medium wrap-text">
+                    {{ key }}
+                  </v-list-item-subtitle>
+                  <div class="d-flex align-center">
+                    <v-text-field
+                      v-if="!readOnlyMode"
+                      :value="customMeta[key]"
+                      dense
+                      hide-details
+                      single-line
+                      class="pt-0 mt-0"
+                      @change="updateEntry(key, $event)"
+                    />
+                    <span
+                      v-else
+                      class="text-truncate flex-grow-1 min-width-0"
+                    >
+                      {{ customMeta[key] }}
+                    </span>
+                    <v-btn
+                      icon
+                      small
+                      class="ml-1 flex-shrink-0"
+                      :aria-label="`Expand ${key}`"
+                      :title="`Expand ${key}`"
+                      @click="openEditor(key)"
+                    >
+                      <v-icon small>
+                        mdi-arrow-expand
+                      </v-icon>
+                    </v-btn>
+                    <v-btn
+                      v-if="!readOnlyMode"
+                      icon
+                      small
+                      class="flex-shrink-0"
+                      :aria-label="`Delete ${key}`"
+                      :title="`Delete ${key}`"
+                      @click="removeEntry(key)"
+                    >
+                      <v-icon small color="error">
+                        mdi-delete
+                      </v-icon>
+                    </v-btn>
+                  </div>
+                </v-list-item-content>
+              </v-list-item>
+            </v-list>
+
+            <div
+              v-if="!readOnlyMode"
+              class="d-flex align-center px-1 pt-1"
+            >
+              <v-text-field
+                ref="fieldInput"
+                v-model="newKey"
+                label="Field"
+                dense
+                hide-details
+                single-line
+                class="pt-0 mt-0 mr-1"
+                @keyup.enter="addEntry"
+              />
+              <v-text-field
+                v-model="newValue"
+                label="Value"
+                dense
+                hide-details
+                single-line
+                class="pt-0 mt-0 mr-1"
+                @keyup.enter="addEntry"
+              />
+              <v-btn
+                icon
+                small
+                :disabled="!newKey.trim()"
+                aria-label="Add metadata field"
+                title="Add metadata field"
+                @click="addEntry"
+              >
+                <v-icon>mdi-plus</v-icon>
+              </v-btn>
+            </div>
+          </v-expansion-panel-content>
+        </v-expansion-panel>
       </v-expansion-panels>
-
-      <section class="custom-metadata-section">
-        <div class="text-subtitle-1 font-weight-medium px-1 pt-3 pb-1">
-          Custom Metadata
-        </div>
-        <v-divider />
-
-        <div
-          v-if="!customMetaKeys.length && readOnlyMode"
-          class="pa-2 grey--text"
-        >
-          No custom metadata.
-        </div>
-
-        <v-list
-          dense
-          class="py-0"
-        >
-          <v-list-item
-            v-for="key in customMetaKeys"
-            :key="`customMeta_${key}`"
-            class="px-1"
-          >
-            <v-list-item-content class="d-block py-1">
-              <v-list-item-subtitle class="font-weight-medium wrap-text">
-                {{ key }}
-              </v-list-item-subtitle>
-              <div class="d-flex align-center">
-                <v-text-field
-                  v-if="!readOnlyMode"
-                  :value="customMeta[key]"
-                  dense
-                  hide-details
-                  single-line
-                  class="pt-0 mt-0"
-                  @change="updateEntry(key, $event)"
-                />
-                <span
-                  v-else
-                  class="text-truncate flex-grow-1 min-width-0"
-                >
-                  {{ customMeta[key] }}
-                </span>
-                <v-btn
-                  icon
-                  small
-                  class="ml-1 flex-shrink-0"
-                  :aria-label="`Expand ${key}`"
-                  :title="`Expand ${key}`"
-                  @click="openEditor(key)"
-                >
-                  <v-icon small>
-                    mdi-arrow-expand
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="!readOnlyMode"
-                  icon
-                  small
-                  class="flex-shrink-0"
-                  :aria-label="`Delete ${key}`"
-                  :title="`Delete ${key}`"
-                  @click="removeEntry(key)"
-                >
-                  <v-icon small color="error">
-                    mdi-delete
-                  </v-icon>
-                </v-btn>
-              </div>
-            </v-list-item-content>
-          </v-list-item>
-        </v-list>
-
-        <div
-          v-if="!readOnlyMode"
-          class="d-flex align-center px-1 pt-1"
-        >
-          <v-text-field
-            ref="fieldInput"
-            v-model="newKey"
-            label="Field"
-            dense
-            hide-details
-            single-line
-            class="pt-0 mt-0 mr-1"
-            @keyup.enter="addEntry"
-          />
-          <v-text-field
-            v-model="newValue"
-            label="Value"
-            dense
-            hide-details
-            single-line
-            class="pt-0 mt-0 mr-1"
-            @keyup.enter="addEntry"
-          />
-          <v-btn
-            icon
-            small
-            :disabled="!newKey.trim()"
-            aria-label="Add metadata field"
-            title="Add metadata field"
-            @click="addEntry"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </div>
-      </section>
     </v-container>
 
     <DatasetMetaEditorDialog

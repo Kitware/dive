@@ -213,7 +213,7 @@ function mountDatasetInfo({
 }
 
 describe('DatasetInfo', () => {
-  it('renders frame metadata and dataset info as collapsible panels', async () => {
+  it('renders metadata sections as collapsible panels', async () => {
     const { wrapper } = mountDatasetInfo({
       scenario: {
         columns: { port: ['latitude'] },
@@ -227,10 +227,10 @@ describe('DatasetInfo', () => {
 
     expect(wrapper.find('.dataset-info-panels').exists()).toBe(true);
     const headers = wrapper.findAll('.dataset-info-panel-header').wrappers;
-    expect(headers).toHaveLength(2);
+    expect(headers).toHaveLength(3);
     expect(headers[0].text()).toContain('Frame Metadata');
     expect(headers[1].text()).toContain('Dataset Info');
-    expect(wrapper.find('.custom-metadata-section .dataset-info-panel-header').exists()).toBe(false);
+    expect(headers[2].text()).toContain('Custom Metadata');
   });
 
   it('renders frame metadata above dataset info rows in source order', async () => {
