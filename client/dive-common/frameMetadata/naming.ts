@@ -8,6 +8,7 @@ const FRAME_METADATA_SOURCE_NAMES = new Set([
 ]);
 
 export default function isFrameMetadataSourceName(name: string): boolean {
-  const basename = name.split(/[\\/]/).pop() ?? name;
+  const separator = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+  const basename = separator === -1 ? name : name.slice(separator + 1);
   return FRAME_METADATA_SOURCE_NAMES.has(basename.toLowerCase());
 }
