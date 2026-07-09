@@ -46,6 +46,16 @@ export interface AggregateMediaController {
   /** Incremented when the viewer is resized, used to trigger layer redraws */
   resizeTrigger: Readonly<Ref<number>>;
   /**
+   * True only while onResize is applying its programmatic size()/resetZoom()
+   * to the panes. resetZoom emits GeoJS pan/zoom events synchronously; the
+   * linked-viewer navigation (useAlignedNavigation / useCalibrationNavigation)
+   * must ignore those so one pane's native-space reset isn't broadcast to the
+   * others as if it were a shared-space move (which parks warped panes on an
+   * empty corner). The resizeTrigger bump that follows re-snaps every pane from
+   * the reference once the reset has settled.
+   */
+  resizing: Readonly<Ref<boolean>>;
+  /**
    * Global aligned-timeline slot indices with at least one camera missing a
    * frame (see AlignedFrameResolver's gapSlots); empty whenever alignment
    * isn't active.
