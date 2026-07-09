@@ -18,8 +18,11 @@ import {
 import {
   Track, Group,
   CameraStore,
+  CameraCalibrationStore,
+  AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
+import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -28,6 +31,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  useAlignedNavigation,
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
@@ -395,6 +399,55 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const cameraCalibration = new CameraCalibrationStore();
+
+    /**
+     * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
+     * has a usable transform into the reference camera's space, the user may
+     * warp displays and link pan/zoom across all cameras during normal
+     * review. Reference camera = first camera in display order
+     * (multiCamList[0]). Transforms come from the calibration store's pair
+     * homographies (loaded from a calibration file or the dataset's saved
+     * meta), composed through the pair graph.
+     */
+    const alignedView = new AlignedViewStore();
+    const alignedResolution = computed(() => {
+      if (multiCamList.value.length < 2) {
+        return null;
+      }
+      const reference = multiCamList.value[0];
+      const toReference = resolveToReferenceTransforms(
+        multiCamList.value,
+        reference,
+        cameraCalibration.homographies.value,
+      );
+      return toReference ? { reference, toReference } : null;
+    });
+    watch(alignedResolution, (resolution) => {
+      alignedView.setTransforms(
+        resolution?.reference ?? null,
+        resolution?.toReference ?? null,
+      );
+    }, { immediate: true });
+    useAlignedNavigation(aggregateController, alignedView, multiCamList);
+    const alignedViewAvailable = computed(() => alignedView.available.value);
+    const alignedViewEnabled = computed(() => alignedView.enabled.value);
+    const toggleAlignedView = () => {
+      alignedView.setEnabled(!alignedView.enabled.value);
+    };
+    const alignedViewTooltip = computed(() => {
+      if (alignedViewEnabled.value) {
+        return 'Align View on (draw/edit on any camera)';
+      }
+      const cams = multiCamList.value;
+      const unresolved = cams.length >= 2
+        ? unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value)
+        : [];
+      if (unresolved.length) {
+        return `Align View — ${cams.length - unresolved.length}/${cams.length} cameras calibrated`;
+      }
+      return 'Align View';
+    });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -462,6 +515,7 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
@@ -1377,6 +1431,17 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
+        // Rehydrate any saved camera-to-camera calibration homographies, points,
+        // transform types, and producer provenance
+        cameraCalibration.hydrate(
+          meta.cameraHomographies,
+          meta.cameraCorrespondences,
+          meta.cameraTransformTypes,
+          meta.cameraCalibrationSource,
+        );
+        // Reset the aligned-view toggle for the newly loaded dataset (no
+        // persistence this phase).
+        alignedView.setEnabled(false);
         setImageEnhancements(
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
@@ -1457,7 +1522,13 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sidebarMode], async () => {
+    // Opening/closing the context sidebar shrinks or widens the camera panes,
+    // but nothing else notices: the only ResizeObserver watches the controls
+    // bar, which is position:absolute in side layout and so keeps its content
+    // width when the panes resize. Trigger a resize explicitly so the panes'
+    // GeoJS size() stays in sync (an unnoticed shrink leaves content anchored
+    // in a corner).
+    watch([controlsCollapsed, sidebarMode, () => context.state.active], async () => {
       await nextTick();
       handleResize();
     });
@@ -1502,6 +1573,8 @@ export default defineComponent({
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
+        cameraCalibration,
+        alignedView,
         datasetId,
         editingMode,
         groupFilters,
@@ -1800,6 +1873,10 @@ export default defineComponent({
       deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
+      alignedViewAvailable,
+      alignedViewEnabled,
+      alignedViewTooltip,
+      toggleAlignedView,
       seekToFrame,
       resetAggregateZoom,
       /* large image methods */
@@ -1983,6 +2060,37 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+        <!--
+          Aligned view (SEAL-TK features 2 + 3): warp every camera's display
+          into the reference camera's space and link pan/zoom across all
+          panes. Usable when a transform exists for every non-reference
+          camera; shown (disabled) for every multicam dataset so an
+          incomplete calibration reads as "needs calibration" rather than
+          the button silently disappearing.
+        -->
+        <v-tooltip
+          v-if="multiCamList.length > 1"
+          bottom
+        >
+          <template #activator="{ on }">
+            <!-- span wrapper: a disabled v-btn swallows the tooltip's hover events -->
+            <span v-on="on">
+              <v-btn
+                icon
+                small
+                class="mx-1"
+                :color="alignedViewEnabled ? 'primary' : 'default'"
+                :disabled="!alignedViewAvailable"
+                @click="toggleAlignedView"
+              >
+                <v-icon>
+                  {{ alignedViewEnabled ? 'mdi-vector-intersection' : 'mdi-vector-difference' }}
+                </v-icon>
+              </v-btn>
+            </span>
+          </template>
+          <span>{{ alignedViewTooltip }}</span>
+        </v-tooltip>
 
         <slot name="extension-right" />
 

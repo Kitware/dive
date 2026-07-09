@@ -109,7 +109,7 @@ export default class OverlapLayer extends BaseLayer<OverlapJSData> {
     return {
       ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
-      position: (point) => ({ x: point[0], y: point[1] }),
+      position: (point) => this.transformPoint(point),
       strokeColor: (_point, _index, data) => {
         if (data.type) {
           return this.typeStyling.value.color(data.type);
