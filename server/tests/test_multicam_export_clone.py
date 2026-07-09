@@ -48,6 +48,14 @@ def _child_folder(folder_id: str, name: str):
     }
 
 
+def _source_item(name: str):
+    return {'_id': f'{name}-id', 'name': name}
+
+
+def _descriptor(name: str):
+    return {'itemId': f'{name}-id', 'name': name}
+
+
 @patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
@@ -133,6 +141,74 @@ def test_create_multicam_soft_clone_copies_calibration(
         saved_meta[constants.MultiCamMarker][constants.JsonCalibrationItemIdMarker]
         == 'new-cal-json'
     )
+
+
+@patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
+@patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
+@patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset._create_single_camera_soft_clone')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud.Folder')
+def test_multicam_soft_clone_preserves_shared_parent_frame_metadata_source(
+    crud_folder_cls,
+    folder_cls,
+    create_soft_clone_mock,
+    _aux,
+    _clone_ann,
+    _find_cal,
+    _find_json_cal,
+):
+    owner = {'login': 'tester'}
+    source = _multi_parent_folder()
+    parent = {'_id': 'dest-parent'}
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
+    cloned_left = {
+        **copy.deepcopy(left),
+        '_id': 'clone-left-id',
+        constants.ForeignMediaIdMarker: 'left-id',
+    }
+    cloned_right = {
+        **copy.deepcopy(right),
+        '_id': 'clone-right-id',
+        constants.ForeignMediaIdMarker: 'right-id',
+    }
+    cloned_parent = copy.deepcopy(source)
+    cloned_parent['_id'] = 'clone-parent-id'
+
+    folder_model = folder_cls.return_value
+    folder_model.createFolder.return_value = cloned_parent
+    folders_by_id = {
+        'parent-id': source,
+        'left-id': left,
+        'right-id': right,
+        'clone-left-id': cloned_left,
+        'clone-right-id': cloned_right,
+    }
+    folder_model.load.side_effect = lambda folder_id, **kwargs: folders_by_id.get(folder_id)
+    crud_folder_cls.return_value.load.side_effect = lambda folder_id, **kwargs: folders_by_id.get(
+        folder_id
+    )
+    folder_model.childItems.side_effect = lambda folder: {
+        'parent-id': [_source_item('frame-metadata.txt')],
+        'clone-parent-id': [],
+        'left-id': [],
+        'right-id': [],
+        'clone-left-id': [],
+        'clone-right-id': [],
+    }.get(folder['_id'], [])
+    create_soft_clone_mock.side_effect = [cloned_left, cloned_right]
+
+    result = crud_dataset.createSoftClone(owner, source, parent, 'Clone stereo', None)
+    sources = crud_dataset.load_frame_metadata_sources(result, owner)
+
+    assert sources == {
+        'cameras': {
+            'left': [_descriptor('frame-metadata.txt')],
+            'right': [_descriptor('frame-metadata.txt')],
+        },
+    }
 
 
 @patch('dive_server.crud_dataset._yield_single_dataset_export')

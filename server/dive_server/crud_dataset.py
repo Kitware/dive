@@ -125,6 +125,8 @@ def _create_multicam_soft_clone(
         creator=owner,
     )
     cloned_folder['meta'] = copy.deepcopy(source_folder['meta'])
+    media_source_folder = crud.getCloneRoot(owner, source_folder)
+    cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
         cloned_folder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
