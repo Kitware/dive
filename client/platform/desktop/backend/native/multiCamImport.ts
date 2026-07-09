@@ -18,7 +18,7 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { findImagesInFolder, fromCalibrationPairs } from './common';
+import { findImagesInFolder, fromCalibrationPairs, mergeCalibrationSources } from './common';
 
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
@@ -103,7 +103,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   const seedHomographies: CameraHomographies = {};
   const seedCorrespondences: CameraCorrespondences = {};
   const seedTransformTypes: CameraTransformTypes = {};
-  let seedCalibrationSource: CalibrationSource | null = null;
+  const seedSourceStamps: { file: string; source: CalibrationSource | null }[] = [];
   if (isFolderArgs(args)) {
     // Parse the files up front so a bad file fails the import with a clear
     // message instead of storing partial state.
@@ -128,13 +128,15 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         });
         Object.assign(seedCorrespondences, parsed.correspondences);
         Object.assign(seedTransformTypes, parsed.transformTypes);
-        // Producer provenance travels with the seed. With one transform file
-        // per dataset (the expected case) this is that file's stamp; with
-        // several, the last stamped file wins, matching the merge order of the
-        // pairs above.
-        if (data.source && typeof data.source === 'object' && !Array.isArray(data.source)) {
-          seedCalibrationSource = data.source as CalibrationSource;
-        }
+        // Producer provenance travels with the seed; per-file stamps are
+        // merged below (agreement keeps the stamp, disagreement is recorded
+        // as a mixed composite so the client can warn).
+        seedSourceStamps.push({
+          file: item.transformFile.replace(/^.*[\\/]/, ''),
+          source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
+            ? data.source as CalibrationSource
+            : null,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);
@@ -168,6 +170,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     jsonMeta.cameraHomographies = seedHomographies;
     jsonMeta.cameraCorrespondences = seedCorrespondences;
     jsonMeta.cameraTransformTypes = seedTransformTypes;
+    const seedCalibrationSource = mergeCalibrationSources(seedSourceStamps);
     if (seedCalibrationSource) {
       jsonMeta.cameraCalibrationSource = seedCalibrationSource;
     }

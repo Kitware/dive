@@ -203,10 +203,10 @@ export default function register() {
     { path }: { path: string },
   ) => common.findParentFolderCalibrationFile(path));
 
-  ipcMain.handle('find-parent-folder-transform-file', async (
+  ipcMain.handle('find-parent-folder-transform-files', async (
     event,
     { path }: { path: string },
-  ) => common.findParentFolderTransformFile(path));
+  ) => common.findParentFolderTransformFiles(path));
 
   ipcMain.handle('dataset-has-calibration-file', async (
     event,

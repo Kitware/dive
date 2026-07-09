@@ -436,17 +436,23 @@ export default defineComponent({
       alignedView.setEnabled(!alignedView.enabled.value);
     };
     const alignedViewTooltip = computed(() => {
+      // Per-camera calibration files with disagreeing producer stamps mean
+      // the rig may mix calibration generations -- say so instead of
+      // composing silently.
+      const mixedNote = cameraCalibration.sourceIsMixed()
+        ? ' — warning: mixed calibration file generations'
+        : '';
       if (alignedViewEnabled.value) {
-        return 'Align View on (draw/edit on any camera)';
+        return `Align View on (draw/edit on any camera)${mixedNote}`;
       }
       const cams = multiCamList.value;
       const unresolved = cams.length >= 2
         ? unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value)
         : [];
       if (unresolved.length) {
-        return `Align View — ${cams.length - unresolved.length}/${cams.length} cameras calibrated`;
+        return `Align View — ${cams.length - unresolved.length}/${cams.length} cameras calibrated${mixedNote}`;
       }
-      return 'Align View';
+      return `Align View${mixedNote}`;
     });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {

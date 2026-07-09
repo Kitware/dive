@@ -206,8 +206,8 @@ function findParentFolderCalibrationFile(parentPath: string): Promise<string | n
   return window.diveDesktop.invoke('find-parent-folder-calibration-file', { path: parentPath });
 }
 
-function findParentFolderTransformFile(parentPath: string): Promise<string | null> {
-  return window.diveDesktop.invoke('find-parent-folder-transform-file', { path: parentPath });
+function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
+  return window.diveDesktop.invoke('find-parent-folder-transform-files', { path: parentPath });
 }
 
 function hasCalibrationFile(datasetId: string): Promise<boolean> {
@@ -708,7 +708,7 @@ export {
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
   findParentFolderCalibrationFile,
-  findParentFolderTransformFile,
+  findParentFolderTransformFiles,
   hasCalibrationFile,
   bulkImportMedia,
   deleteDataset,

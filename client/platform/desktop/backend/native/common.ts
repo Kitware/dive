@@ -75,9 +75,20 @@ const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
 // Standalone camera-to-camera (modality-to-modality) alignment transforms,
-// stored separately from meta.json in the dataset directory.
+// stored separately from meta.json in the dataset directory. The current
+// convention is one file per non-reference camera (calibration_<camera>.json,
+// each holding that camera's pair(s)); a single legacy calibration.json
+// holding every pair is still read. File NAMES are discovery/provenance only:
+// the pair's left/right names inside the file body are always authoritative,
+// so a misnamed or copied file can never rebind a transform to the wrong
+// camera.
 const CalibrationFileName = 'calibration.json';
+const PerCameraCalibrationFileName = /^calibration_(.+)\.json$/i;
 const CalibrationFileVersion = 1;
+
+function perCameraCalibrationFileName(camera: string): string {
+  return `calibration_${camera}.json`;
+}
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 /**
@@ -375,26 +386,20 @@ async function loadMetadata(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
-  // Load standalone camera calibration (transforms + correspondences), if present.
-  const calibrationFileAbsPath = npath.join(projectDirData.basePath, CalibrationFileName);
+  // Load standalone camera calibration (transforms + correspondences), if
+  // present: the per-camera calibration_<camera>.json files and/or the legacy
+  // all-pairs calibration.json, merged.
   let {
     cameraHomographies, cameraCorrespondences, cameraTransformTypes, cameraCalibrationSource,
   } = projectMetaData;
-  if (await fs.pathExists(calibrationFileAbsPath)) {
-    try {
-      const calibration = await _loadAsJson(calibrationFileAbsPath);
-      if (calibration && Array.isArray(calibration.pairs)) {
-        ({
-          homographies: cameraHomographies,
-          correspondences: cameraCorrespondences,
-          transformTypes: cameraTransformTypes,
-        } = fromCalibrationPairs(calibration.pairs));
-        cameraCalibrationSource = readCalibrationSource(calibration.source);
-      }
-    } catch (err) {
-      // A malformed calibration.json should not block loading the dataset.
-      console.warn(`Unable to read ${calibrationFileAbsPath}: ${err}`);
-    }
+  const loadedCalibration = await loadCalibrationFiles(projectDirData.basePath);
+  if (loadedCalibration.found) {
+    ({
+      homographies: cameraHomographies,
+      correspondences: cameraCorrespondences,
+      transformTypes: cameraTransformTypes,
+      source: cameraCalibrationSource,
+    } = loadedCalibration);
   }
 
   let videoUrl = '';
@@ -821,6 +826,92 @@ function fromCalibrationPairs(
   return { homographies, correspondences, transformTypes };
 }
 
+/**
+ * Merge the per-file producer stamps of a calibration file set. All stamped
+ * files agreeing (deep-equal) yields that stamp; disagreement yields a
+ * composite `{ mixed: true, files: {...} }` so the client can surface a
+ * mixed-generation warning instead of composing silently -- the failure mode
+ * per-camera files invite is a rig assembled from files regenerated at
+ * different times.
+ */
+function mergeCalibrationSources(
+  stamps: { file: string; source: CalibrationSource | null }[],
+): CalibrationSource | null {
+  const stamped = stamps.filter((entry) => entry.source !== null);
+  if (stamped.length === 0) {
+    return null;
+  }
+  const first = JSON.stringify(stamped[0].source);
+  if (stamped.every((entry) => JSON.stringify(entry.source) === first)) {
+    return stamped[0].source;
+  }
+  return {
+    mixed: true,
+    files: Object.fromEntries(stamps.map((entry) => [entry.file, entry.source])),
+  };
+}
+
+/**
+ * Read and merge every calibration file in a dataset directory: the legacy
+ * all-pairs calibration.json (if present) plus each per-camera
+ * calibration_<camera>.json, in that order, sorted by name for determinism.
+ * Pair bodies are authoritative (file names are ignored for binding); a pair
+ * key appearing in more than one file keeps the last occurrence with a
+ * warning. `found` is true when at least one file parsed as a calibration,
+ * so callers can distinguish "no calibration files" from an empty one.
+ */
+async function loadCalibrationFiles(basePath: string): Promise<{
+  found: boolean;
+  homographies: CameraHomographies;
+  correspondences: CameraCorrespondences;
+  transformTypes: CameraTransformTypes;
+  source: CalibrationSource | null;
+}> {
+  const names: string[] = [];
+  if (await fs.pathExists(npath.join(basePath, CalibrationFileName))) {
+    names.push(CalibrationFileName);
+  }
+  try {
+    const entries = await fs.readdir(basePath, { withFileTypes: true });
+    names.push(...entries
+      .filter((entry) => entry.isFile() && PerCameraCalibrationFileName.test(entry.name))
+      .map((entry) => entry.name)
+      .sort((a, b) => a.localeCompare(b)));
+  } catch {
+    // Unreadable directory: treated the same as no calibration files.
+  }
+  let found = false;
+  const mergedPairs = new Map<string, CalibrationPair>();
+  const stamps: { file: string; source: CalibrationSource | null }[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for (const name of names) {
+    const absPath = npath.join(basePath, name);
+    try {
+      // eslint-disable-next-line no-await-in-loop -- files merged in deterministic order
+      const calibration = await _loadAsJson(absPath);
+      if (calibration && Array.isArray(calibration.pairs)) {
+        found = true;
+        (calibration.pairs as CalibrationPair[]).forEach((pair) => {
+          const key = `${pair.left}::${pair.right}`;
+          if (mergedPairs.has(key)) {
+            console.warn(`Calibration pair ${key} appears in multiple files; keeping ${name}`);
+          }
+          mergedPairs.set(key, pair);
+        });
+        stamps.push({ file: name, source: readCalibrationSource(calibration.source) });
+      }
+    } catch (err) {
+      // A malformed calibration file should not block loading the dataset.
+      console.warn(`Unable to read ${absPath}: ${err}`);
+    }
+  }
+  return {
+    found,
+    ...fromCalibrationPairs([...mergedPairs.values()]),
+    source: mergeCalibrationSources(stamps),
+  };
+}
+
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
@@ -850,31 +941,19 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     existing.datasetInfo = args.datasetInfo;
   }
 
-  // Camera calibration (transforms + the points behind them) is persisted as a
-  // standalone calibration.json in the dataset directory rather than embedded in
-  // meta.json, so it is easy to find, hand-edit, and consume as a self-contained
-  // artifact.
+  // Camera calibration (transforms + the points behind them) is persisted as
+  // standalone calibration_<camera>.json files in the dataset directory --
+  // one per non-reference camera, matching the per-camera files users handle
+  // from kamera -- rather than embedded in meta.json, so each camera's
+  // calibration is easy to find, hand-edit, and consume as a self-contained
+  // artifact. Any legacy all-pairs calibration.json is migrated (read above,
+  // removed below) on the first save.
   if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
     || args.cameraCalibrationSource) {
-    const calibrationFileAbsPath = npath.join(projectDirInfo.basePath, CalibrationFileName);
     // Start from whatever is on disk so a partial update doesn't clobber the rest.
-    let homographies: CameraHomographies = {};
-    let correspondences: CameraCorrespondences = {};
-    let transformTypes: CameraTransformTypes = {};
-    let source: CalibrationSource | null = null;
-    if (await fs.pathExists(calibrationFileAbsPath)) {
-      try {
-        const existingCalibration = await _loadAsJson(calibrationFileAbsPath);
-        if (existingCalibration && Array.isArray(existingCalibration.pairs)) {
-          ({ homographies, correspondences, transformTypes } = fromCalibrationPairs(
-            existingCalibration.pairs,
-          ));
-          source = readCalibrationSource(existingCalibration.source);
-        }
-      } catch (err) {
-        console.warn(`Unable to read existing ${calibrationFileAbsPath}: ${err}`);
-      }
-    }
+    const onDisk = await loadCalibrationFiles(projectDirInfo.basePath);
+    let { homographies, correspondences, transformTypes } = onDisk;
+    let { source } = onDisk;
     if (args.cameraHomographies) {
       homographies = args.cameraHomographies;
     }
@@ -888,11 +967,52 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     if (args.cameraCalibrationSource !== undefined) {
       source = args.cameraCalibrationSource;
     }
-    await _saveAsJson(calibrationFileAbsPath, {
-      version: CalibrationFileVersion,
-      ...(source ? { source } : {}),
-      pairs: toCalibrationPairs(homographies, correspondences, transformTypes),
+    // Group pairs by their non-reference camera (reference = first camera in
+    // display order). A pair not touching the reference files under its right
+    // camera; grouping is cosmetic either way since pair bodies are
+    // authoritative on load.
+    const reference = existing.multiCam
+      ? orderedMultiCamCameraNames(existing.multiCam)[0] ?? null
+      : null;
+    const pairsByCamera = new Map<string, CalibrationPair[]>();
+    toCalibrationPairs(homographies, correspondences, transformTypes).forEach((pair) => {
+      let camera = pair.right;
+      if (reference !== null && pair.right === reference && pair.left !== reference) {
+        camera = pair.left;
+      }
+      pairsByCamera.set(camera, [...(pairsByCamera.get(camera) ?? []), pair]);
     });
+    // A mixed composite stamp describes the merged SET, not any single file;
+    // stamping every per-camera file with it would make the next load read a
+    // unanimous (therefore "consistent") rig, hiding the very mismatch it
+    // records. Per-file stamps resume with the next externally produced file.
+    const fileSource = source && (source as Record<string, unknown>).mixed === true
+      ? null
+      : source;
+    const expected = new Set<string>();
+    await Promise.all([...pairsByCamera.entries()].map(([camera, pairs]) => {
+      const name = perCameraCalibrationFileName(camera);
+      expected.add(name);
+      return _saveAsJson(npath.join(projectDirInfo.basePath, name), {
+        type: CALIBRATION_FILE_TYPE,
+        version: CalibrationFileVersion,
+        ...(fileSource ? { source: fileSource } : {}),
+        pairs,
+      });
+    }));
+    // Remove the legacy all-pairs file and any per-camera file whose pairs no
+    // longer exist (e.g. a cleared pair), so the on-disk set always mirrors
+    // the saved calibration exactly.
+    try {
+      const entries = await fs.readdir(projectDirInfo.basePath, { withFileTypes: true });
+      await Promise.all(entries
+        .filter((entry) => entry.isFile()
+          && !expected.has(entry.name)
+          && (entry.name === CalibrationFileName || PerCameraCalibrationFileName.test(entry.name)))
+        .map((entry) => fs.remove(npath.join(projectDirInfo.basePath, entry.name))));
+    } catch (err) {
+      console.warn(`Unable to clean up stale calibration files: ${err}`);
+    }
   }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
@@ -1333,31 +1453,34 @@ async function findParentFolderCalibrationFile(parentPath: string): Promise<stri
 }
 
 /**
- * Find a DIVE camera-calibration .json (alignment transforms, the calibration
- * panel's save format) in the parent folder root, for auto-attaching at
+ * Find every DIVE camera-calibration .json (alignment transforms, the
+ * calibration save format) in the parent folder root, for auto-attaching at
  * multicam import time. Only files that self-identify with
  * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
  * .json or other stray JSON in the collect root is never grabbed by mistake.
- * A file named exactly calibration.json wins over other candidates; ties
- * break alphabetically for determinism.
+ * Ordered for deterministic attachment: a file named exactly calibration.json
+ * first, then per-camera calibration_<camera>.json files, then any other
+ * self-identified candidates, alphabetically within each group.
  */
-async function findParentFolderTransformFile(parentPath: string): Promise<string | null> {
+async function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
   if (!await fs.pathExists(parentPath)) {
-    return null;
+    return [];
   }
   const stat = await fs.stat(parentPath);
   if (!stat.isDirectory()) {
-    return null;
+    return [];
   }
   const children = await fs.readdir(parentPath, { withFileTypes: true });
+  const rank = (name: string) => {
+    if (name.toLowerCase() === CalibrationFileName) return 0;
+    if (PerCameraCalibrationFileName.test(name)) return 1;
+    return 2;
+  };
   const candidates = children
     .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
     .map((entry) => entry.name)
-    .sort((a, b) => {
-      const aExact = a.toLowerCase() === CalibrationFileName ? 0 : 1;
-      const bExact = b.toLowerCase() === CalibrationFileName ? 0 : 1;
-      return aExact - bExact || a.localeCompare(b);
-    });
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  const found: string[] = [];
   // eslint-disable-next-line no-restricted-syntax
   for (const name of candidates) {
     const absPath = npath.join(parentPath, name);
@@ -1365,13 +1488,13 @@ async function findParentFolderTransformFile(parentPath: string): Promise<string
       // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
       const data = await fs.readJson(absPath);
       if (data && data.type === CALIBRATION_FILE_TYPE && Array.isArray(data.pairs)) {
-        return absPath;
+        found.push(absPath);
       }
     } catch {
       // Unreadable/non-JSON candidates are simply not matches.
     }
   }
-  return null;
+  return found;
 }
 
 /**
@@ -2353,8 +2476,9 @@ export {
   listImmediateSubfolders,
   listParentFolderCameras,
   findParentFolderCalibrationFile,
-  findParentFolderTransformFile,
+  findParentFolderTransformFiles,
   fromCalibrationPairs,
+  mergeCalibrationSources,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,

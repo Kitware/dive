@@ -65,7 +65,7 @@ export function useImportMultiCamDialog(
     listParentFolderCameras,
     resolveMulticamCameraSourcePath,
     findParentFolderCalibrationFile,
-    findParentFolderTransformFile,
+    findParentFolderTransformFiles,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
   const folderList: Ref<Record<string, {
@@ -717,26 +717,34 @@ export function useImportMultiCamDialog(
   }
 
   /**
-   * Auto-attach a DIVE camera-calibration .json found in the parent folder
-   * root as the import's transform file (desktop multicam subfolder imports
-   * only). It is attached to the first camera after the reference -- the
-   * file's pairs name their own cameras, so which slot carries it doesn't
-   * matter -- and shows in that camera's (clearable) transform field.
+   * Auto-attach the DIVE camera-calibration .json files found in the parent
+   * folder root as the import's transform files (desktop multicam subfolder
+   * imports only). A per-camera calibration_<camera>.json is attached to its
+   * matching camera slot; anything else (e.g. an all-pairs calibration.json)
+   * goes to the first free camera after the reference -- the file's pairs
+   * name their own cameras, so which slot carries it doesn't matter. Each
+   * shows in that camera's (clearable) transform field.
    */
   async function discoverParentFolderTransform(parentPath: string) {
-    if (!transformImportEnabled.value || !findParentFolderTransformFile) {
+    if (!transformImportEnabled.value || !findParentFolderTransformFiles) {
       return;
     }
-    const discovered = await findParentFolderTransformFile(parentPath);
-    if (!discovered) {
-      return;
-    }
-    const target = orderedCameraKeys.value.find(
-      (key, index) => index > 0 && folderList.value[key] && !folderList.value[key].transformFile,
-    );
-    if (target) {
-      folderList.value[target].transformFile = discovered;
-    }
+    const discovered = await findParentFolderTransformFiles(parentPath);
+    discovered.forEach((filePath) => {
+      const fileName = filePath.replace(/^.*[\\/]/, '');
+      const cameraMatch = /^calibration_(.+)\.json$/i.exec(fileName);
+      let target: string | undefined;
+      if (cameraMatch && folderList.value[cameraMatch[1]]) {
+        target = !folderList.value[cameraMatch[1]].transformFile ? cameraMatch[1] : undefined;
+      } else {
+        target = orderedCameraKeys.value.find(
+          (key, index) => index > 0 && folderList.value[key] && !folderList.value[key].transformFile,
+        );
+      }
+      if (target) {
+        folderList.value[target].transformFile = filePath;
+      }
+    });
   }
 
   async function discoverParentFolderCalibration(
