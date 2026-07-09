@@ -165,6 +165,14 @@ const listFileTypes = [
   'txt',
 ];
 
+/**
+ * Per-camera alignment transform files: DIVE calibration .json (the
+ * calibration panel's save format).
+ */
+const transformFileTypes = [
+  'json',
+];
+
 const zipFileTypes = [
   'zip',
 ];
@@ -212,6 +220,7 @@ export {
   getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
+  transformFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
   calibrationFileMarker,
