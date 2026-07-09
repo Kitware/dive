@@ -309,6 +309,7 @@ export default defineComponent({
         :stereo="stereo"
         :data-type="multiCamOpenType"
         :enable-subfolder-import="true"
+        :enable-transform-import="true"
         :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"

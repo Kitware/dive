@@ -174,6 +174,21 @@ beforeEach(() => {
     },
     '/home/user/testPairs': { ...fileSystemData },
     '/home/user/output': {},
+    '/home/user/transformDiscovery': {
+      exactName: {
+        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+        'calibration.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+      },
+      otherName: {
+        'a-rig-calibration.json': JSON.stringify({ calibrations: {} }),
+        'broken.json': '{not json',
+        'z-transforms.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
+      },
+      none: {
+        'rig.json': JSON.stringify({ some: 'thing' }),
+        'notes.txt': 'not json',
+      },
+    },
     '/home/user/data': {
       annotationImport: {
         'viame.csv': emptyCsvString,
@@ -639,6 +654,167 @@ describe('native.common', () => {
       ...existingDatasetInfo,
       ...importedDatasetInfo,
     });
+  });
+
+  it('saveMetadata writes calibration.json (pairs + points) and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    // Directional key: rgb is left, ir is right.
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraCorrespondences = {
+      'rgb::ir': [
+        { id: 1, a: [10, 20], b: [12, 22] },
+        { id: 2, a: [30, 40], b: [33, 44] },
+      ],
+    };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraCorrespondences });
+
+    // Persisted as a standalone calibration.json: pairs labeled left/right, with
+    // points laid out as leftX leftY rightX rightY.
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    expect(await fs.pathExists(calibrationPath)).toBe(true);
+    const calibration = await fs.readJSON(calibrationPath);
+    expect(calibration.pairs).toStrictEqual([
+      {
+        left: 'rgb',
+        right: 'ir',
+        points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        // No explicit choice was saved, so persistence fills the default model.
+        transformType: 'similarity',
+      },
+    ]);
+
+    // Not embedded in meta.json.
+    const meta = await fs.readJSON(npath.join(projectDir, 'meta.json'));
+    expect(meta.cameraHomographies).toBeUndefined();
+    expect(meta.cameraCorrespondences).toBeUndefined();
+    expect(meta.cameraTransformTypes).toBeUndefined();
+
+    // Rehydrated on load back into the in-app shapes.
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
+    expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
+    expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'similarity' });
+  });
+
+  it('saveMetadata persists a non-default transformType per pair and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraTransformTypes = { 'rgb::ir': 'rigid' as const };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraTransformTypes });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibration = await fs.readJSON(npath.join(projectDir, 'calibration.json'));
+    expect(calibration.pairs[0].transformType).toBe('rigid');
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
+  });
+
+  describe('findParentFolderTransformFile', () => {
+    it('prefers a file named calibration.json among marked candidates', async () => {
+      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/exactName');
+      expect(found).toBe(npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'));
+    });
+
+    it('finds a marked file under any name, skipping unmarked and broken JSON', async () => {
+      const found = await common.findParentFolderTransformFile('/home/user/transformDiscovery/otherName');
+      expect(found).toBe(npath.join('/home/user/transformDiscovery/otherName', 'z-transforms.json'));
+    });
+
+    it('returns null when no self-identified calibration json exists', async () => {
+      expect(await common.findParentFolderTransformFile('/home/user/transformDiscovery/none')).toBeNull();
+    });
+
+    it('returns null for a missing directory', async () => {
+      expect(await common.findParentFolderTransformFile('/home/user/doesNotExist')).toBeNull();
+    });
+  });
+
+  it('fromCalibrationPairs derives a missing matrix direction by inversion', () => {
+    const { homographies } = common.fromCalibrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [],
+      leftToRight: null,
+      rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+    }]);
+    expect(homographies['eo::ir'].BtoA).toEqual([[1, 0, -5], [0, 1, 3], [0, 0, 1]]);
+    expect(homographies['eo::ir'].AtoB[0][2]).toBeCloseTo(5);
+    expect(homographies['eo::ir'].AtoB[1][2]).toBeCloseTo(-3);
+  });
+
+  it('fromCalibrationPairs keeps points but skips the matrix for singular input', () => {
+    const { homographies, correspondences } = common.fromCalibrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [[1, 2, 3, 4]],
+      leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+      rightToLeft: null,
+    }]);
+    expect(homographies['eo::ir']).toBeUndefined();
+    expect(correspondences['eo::ir']).toHaveLength(1);
+  });
+
+  it('saveMetadata persists the calibration source stamp and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
+
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraCalibrationSource: source,
+    });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const calibrationPath = npath.join(projectDir, 'calibration.json');
+    expect((await fs.readJSON(calibrationPath)).source).toStrictEqual(source);
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraCalibrationSource).toStrictEqual(source);
+
+    // A save that doesn't mention the stamp leaves it alone.
+    await common.saveMetadata(settings, final.id, {
+      cameraTransformTypes: { 'rgb::ir': 'rigid' },
+    });
+    expect((await fs.readJSON(calibrationPath)).source).toStrictEqual(source);
+
+    // An explicit null clears it.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraCalibrationSource: null,
+    });
+    expect('source' in (await fs.readJSON(calibrationPath))).toBe(false);
   });
 
   it('import with CSV annotations without specifying track file', async () => {

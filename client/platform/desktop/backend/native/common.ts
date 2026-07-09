@@ -19,6 +19,9 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
+import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/transform';
+import { CALIBRATION_FILE_TYPE } from 'vue-media-annotator/CameraCalibrationStore';
+import { invert3, Matrix3 } from 'vue-media-annotator/homography';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -71,6 +74,10 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
+// Standalone camera-to-camera (modality-to-modality) alignment transforms,
+// stored separately from meta.json in the dataset directory.
+const CalibrationFileName = 'calibration.json';
+const CalibrationFileVersion = 1;
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 /**
@@ -368,6 +375,28 @@ async function loadMetadata(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
+  // Load standalone camera calibration (transforms + correspondences), if present.
+  const calibrationFileAbsPath = npath.join(projectDirData.basePath, CalibrationFileName);
+  let {
+    cameraHomographies, cameraCorrespondences, cameraTransformTypes, cameraCalibrationSource,
+  } = projectMetaData;
+  if (await fs.pathExists(calibrationFileAbsPath)) {
+    try {
+      const calibration = await _loadAsJson(calibrationFileAbsPath);
+      if (calibration && Array.isArray(calibration.pairs)) {
+        ({
+          homographies: cameraHomographies,
+          correspondences: cameraCorrespondences,
+          transformTypes: cameraTransformTypes,
+        } = fromCalibrationPairs(calibration.pairs));
+        cameraCalibrationSource = readCalibrationSource(calibration.source);
+      }
+    } catch (err) {
+      // A malformed calibration.json should not block loading the dataset.
+      console.warn(`Unable to read ${calibrationFileAbsPath}: ${err}`);
+    }
+  }
+
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
@@ -435,6 +464,10 @@ async function loadMetadata(
     imageData,
     multiCamMedia,
     subType,
+    cameraHomographies,
+    cameraCorrespondences,
+    cameraTransformTypes,
+    cameraCalibrationSource,
   };
 }
 
@@ -690,6 +723,104 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
+type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
+type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
+type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
+type CalibrationSource = NonNullable<DatasetMetaMutable['cameraCalibrationSource']>;
+
+/**
+ * Best-effort read of the calibration file's producer provenance stamp: a
+ * plain object, or null for anything else. Preserved verbatim across
+ * load/refine/save round trips; never interpreted by DIVE.
+ */
+function readCalibrationSource(raw: unknown): CalibrationSource | null {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as CalibrationSource;
+  }
+  return null;
+}
+
+/**
+ * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
+ * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`;
+ * `leftToRight`/`rightToLeft` are the fitted
+ * 3x3 homographies, when a fit has been performed; `transformType` is the fit
+ * model used to compute them (defaults to {@link DEFAULT_TRANSFORM_TYPE} when
+ * absent, matching the in-app default so a pair fitted at the default resolves
+ * to the same model after a save/reload).
+ */
+interface CalibrationPair {
+  left: string;
+  right: string;
+  points: number[][];
+  leftToRight: number[][] | null;
+  rightToLeft: number[][] | null;
+  transformType?: TransformType;
+}
+
+/**
+ * Convert the in-app calibration state (keyed by directional "left::right") into
+ * the self-describing list of pairs persisted in calibration.json.
+ */
+function toCalibrationPairs(
+  homographies: CameraHomographies,
+  correspondences: CameraCorrespondences,
+  transformTypes: CameraTransformTypes,
+): CalibrationPair[] {
+  const keys = new Set([
+    ...Object.keys(homographies), ...Object.keys(correspondences), ...Object.keys(transformTypes),
+  ]);
+  return [...keys].map((key) => {
+    const [left, right] = key.split('::');
+    const homography = homographies[key];
+    return {
+      left,
+      right,
+      points: (correspondences[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
+      leftToRight: homography ? homography.AtoB : null,
+      rightToLeft: homography ? homography.BtoA : null,
+      transformType: transformTypes[key] || DEFAULT_TRANSFORM_TYPE,
+    };
+  });
+}
+
+/** Rebuild the in-app homographies/correspondences/transform types from calibration.json pairs. */
+function fromCalibrationPairs(
+  pairs: CalibrationPair[],
+): {
+    homographies: CameraHomographies;
+    correspondences: CameraCorrespondences;
+    transformTypes: CameraTransformTypes;
+  } {
+  const homographies: CameraHomographies = {};
+  const correspondences: CameraCorrespondences = {};
+  const transformTypes: CameraTransformTypes = {};
+  pairs.forEach((pair) => {
+    const key = `${pair.left}::${pair.right}`;
+    // Mirror the panel loader (CameraCalibrationStore.loadCalibrationText):
+    // producer files may carry only one fitted direction, so derive the
+    // missing one by inversion. A singular matrix can't participate in the
+    // warp either way, so such pairs contribute points only.
+    if (pair.leftToRight || pair.rightToLeft) {
+      try {
+        homographies[key] = {
+          AtoB: pair.leftToRight ?? invert3(pair.rightToLeft as Matrix3),
+          BtoA: pair.rightToLeft ?? invert3(pair.leftToRight as Matrix3),
+        };
+      } catch {
+        // Singular / non-invertible: skip the matrix, keep the points.
+      }
+    }
+    if (pair.points && pair.points.length) {
+      correspondences[key] = pair.points.map((p, i) => ({
+        id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
+      }));
+    }
+    transformTypes[key] = pair.transformType || DEFAULT_TRANSFORM_TYPE;
+  });
+  return { homographies, correspondences, transformTypes };
+}
+
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
@@ -717,6 +848,51 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   }
   if (args.datasetInfo) {
     existing.datasetInfo = args.datasetInfo;
+  }
+
+  // Camera calibration (transforms + the points behind them) is persisted as a
+  // standalone calibration.json in the dataset directory rather than embedded in
+  // meta.json, so it is easy to find, hand-edit, and consume as a self-contained
+  // artifact.
+  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
+    || args.cameraCalibrationSource) {
+    const calibrationFileAbsPath = npath.join(projectDirInfo.basePath, CalibrationFileName);
+    // Start from whatever is on disk so a partial update doesn't clobber the rest.
+    let homographies: CameraHomographies = {};
+    let correspondences: CameraCorrespondences = {};
+    let transformTypes: CameraTransformTypes = {};
+    let source: CalibrationSource | null = null;
+    if (await fs.pathExists(calibrationFileAbsPath)) {
+      try {
+        const existingCalibration = await _loadAsJson(calibrationFileAbsPath);
+        if (existingCalibration && Array.isArray(existingCalibration.pairs)) {
+          ({ homographies, correspondences, transformTypes } = fromCalibrationPairs(
+            existingCalibration.pairs,
+          ));
+          source = readCalibrationSource(existingCalibration.source);
+        }
+      } catch (err) {
+        console.warn(`Unable to read existing ${calibrationFileAbsPath}: ${err}`);
+      }
+    }
+    if (args.cameraHomographies) {
+      homographies = args.cameraHomographies;
+    }
+    if (args.cameraCorrespondences) {
+      correspondences = args.cameraCorrespondences;
+    }
+    if (args.cameraTransformTypes) {
+      transformTypes = args.cameraTransformTypes;
+    }
+    // undefined leaves the on-disk stamp alone; null/object replaces it.
+    if (args.cameraCalibrationSource !== undefined) {
+      source = args.cameraCalibrationSource;
+    }
+    await _saveAsJson(calibrationFileAbsPath, {
+      version: CalibrationFileVersion,
+      ...(source ? { source } : {}),
+      pairs: toCalibrationPairs(homographies, correspondences, transformTypes),
+    });
   }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
@@ -1154,6 +1330,48 @@ async function findParentFolderCalibrationFile(parentPath: string): Promise<stri
     return null;
   }
   return npath.join(parentPath, bestName);
+}
+
+/**
+ * Find a DIVE camera-calibration .json (alignment transforms, the calibration
+ * panel's save format) in the parent folder root, for auto-attaching at
+ * multicam import time. Only files that self-identify with
+ * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
+ * .json or other stray JSON in the collect root is never grabbed by mistake.
+ * A file named exactly calibration.json wins over other candidates; ties
+ * break alphabetically for determinism.
+ */
+async function findParentFolderTransformFile(parentPath: string): Promise<string | null> {
+  if (!await fs.pathExists(parentPath)) {
+    return null;
+  }
+  const stat = await fs.stat(parentPath);
+  if (!stat.isDirectory()) {
+    return null;
+  }
+  const children = await fs.readdir(parentPath, { withFileTypes: true });
+  const candidates = children
+    .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((a, b) => {
+      const aExact = a.toLowerCase() === CalibrationFileName ? 0 : 1;
+      const bExact = b.toLowerCase() === CalibrationFileName ? 0 : 1;
+      return aExact - bExact || a.localeCompare(b);
+    });
+  // eslint-disable-next-line no-restricted-syntax
+  for (const name of candidates) {
+    const absPath = npath.join(parentPath, name);
+    try {
+      // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
+      const data = await fs.readJson(absPath);
+      if (data && data.type === CALIBRATION_FILE_TYPE && Array.isArray(data.pairs)) {
+        return absPath;
+      }
+    } catch {
+      // Unreadable/non-JSON candidates are simply not matches.
+    }
+  }
+  return null;
 }
 
 /**
@@ -2135,6 +2353,8 @@ export {
   listImmediateSubfolders,
   listParentFolderCameras,
   findParentFolderCalibrationFile,
+  findParentFolderTransformFile,
+  fromCalibrationPairs,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
   getLastCalibrationPath,
