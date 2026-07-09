@@ -6,9 +6,11 @@ import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
+import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
 import {
   useAnnotationSets, useAnnotationSet, useHandler, useCameraStore, useSelectedCamera,
+  useAlignedView,
 } from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
 
@@ -52,7 +54,14 @@ export default defineComponent({
     const { reloadAnnotations, save } = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const alignedView = useAlignedView();
     const isMulticamDataset = computed(() => cameraStore.camMap.value.size > 1);
+    // Warping detections onto other cameras requires the whole rig to be
+    // calibrated (a native->reference transform for every camera).
+    const canWarpToAllCameras = computed(
+      () => isMulticamDataset.value && alignedView.available.value,
+    );
+    const warpToAllCameras = ref(false);
     const activeCameraName = computed(() => {
       if (!isMulticamDataset.value) {
         return null;
@@ -141,9 +150,24 @@ export default defineComponent({
           }
 
           if (importFile) {
-            processing.value = false;
             await reloadAnnotations();
+            if (
+              warpToAllCameras.value
+              && canWarpToAllCameras.value
+              && activeCameraName.value
+              && alignedView.toReference.value
+            ) {
+              const warped = warpAnnotationsAcrossCameras(
+                cameraStore,
+                alignedView.toReference.value,
+                activeCameraName.value,
+              );
+              if (warped.tracks > 0) {
+                await save();
+              }
+            }
           }
+          processing.value = false;
         }
       } catch (error) {
         const text = [getResponseError(error)];
@@ -225,6 +249,8 @@ export default defineComponent({
       currentSet,
       isMulticamDataset,
       activeCameraName,
+      canWarpToAllCameras,
+      warpToAllCameras,
     };
   },
 });
@@ -295,6 +321,16 @@ export default defineComponent({
               </v-icon>
               {{ activeCameraName }}
             </div>
+            <v-checkbox
+              v-if="canWarpToAllCameras"
+              v-model="warpToAllCameras"
+              label="Import to all cameras"
+              hint="Copy the detections onto every camera,
+                warped with the dataset calibration"
+              persistent-hint
+              dense
+              class="mt-3 mb-0"
+            />
           </v-alert>
         </v-card-text>
         <v-card-text>
