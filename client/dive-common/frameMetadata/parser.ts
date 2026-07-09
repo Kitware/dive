@@ -80,14 +80,12 @@ function isFrameAlignmentIndex(
   return !(value instanceof Map) && (value as FrameAlignmentIndex).alignmentKeys instanceof Set;
 }
 
-function splitCommentBlock(
-  rawRows: string[][],
-): { commentBlock: string[][]; body: string[][] } {
+function dropLeadingCommentRows(rawRows: string[][]): string[][] {
   let index = 0;
   while (index < rawRows.length && rawRows[index].length > 0 && rawRows[index][0].startsWith('#')) {
     index += 1;
   }
-  return { commentBlock: rawRows.slice(0, index), body: rawRows.slice(index) };
+  return rawRows.slice(index);
 }
 
 function nullPrototypeRecord<T>(): Record<string, T> {
@@ -151,7 +149,7 @@ function selectJoinColumn(
 }
 
 function selectHeaderAndRows(rawRows: string[][]): { header: string[]; rows: FrameMetadataRow[] } {
-  const { body } = splitCommentBlock(rawRows);
+  const body = dropLeadingCommentRows(rawRows);
   if (body.length === 0) {
     return { header: [], rows: [] };
   }

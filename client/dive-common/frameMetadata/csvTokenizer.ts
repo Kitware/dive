@@ -7,13 +7,13 @@ const FIELD_SIZE_LIMIT = 131072;
 // Keep tokenization node-free because frame metadata parsing runs in both Electron and the browser
 // renderer. The parser is lenient with bare quotes because field logs commonly contain units such
 // as `5"`.
-function tokenizeDelimited(text: string, delimiter: DelimitedTableDelimiter): string[][] {
+function scanDelimitedRows(text: string, delimiter: DelimitedTableDelimiter): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
-  let inQuotes = false;
+  let inQuotedField = false;
   let atFieldStart = true;
-  let recordHasContent = false;
+  let rowHasContent = false;
   const endField = () => {
     row.push(field);
     field = '';
@@ -23,19 +23,19 @@ function tokenizeDelimited(text: string, delimiter: DelimitedTableDelimiter): st
     endField();
     rows.push(row);
     row = [];
-    recordHasContent = false;
+    rowHasContent = false;
   };
   const { length } = text;
   let i = 0;
   while (i < length) {
     const ch = text[i];
-    if (inQuotes) {
+    if (inQuotedField) {
       if (ch === '"') {
         if (text[i + 1] === '"') {
           field += '"';
           i += 2;
         } else {
-          inQuotes = false;
+          inQuotedField = false;
           i += 1;
         }
       } else {
@@ -43,12 +43,12 @@ function tokenizeDelimited(text: string, delimiter: DelimitedTableDelimiter): st
         i += 1;
       }
     } else if (ch === '"' && atFieldStart) {
-      inQuotes = true;
+      inQuotedField = true;
       atFieldStart = false;
-      recordHasContent = true;
+      rowHasContent = true;
       i += 1;
     } else if (ch === delimiter) {
-      recordHasContent = true;
+      rowHasContent = true;
       endField();
       i += 1;
     } else if (ch === '\n' || ch === '\r') {
@@ -60,11 +60,11 @@ function tokenizeDelimited(text: string, delimiter: DelimitedTableDelimiter): st
     } else {
       field += ch;
       atFieldStart = false;
-      recordHasContent = true;
+      rowHasContent = true;
       i += 1;
     }
   }
-  if (recordHasContent || field.length > 0 || row.length > 0) {
+  if (rowHasContent || field.length > 0 || row.length > 0) {
     endField();
     rows.push(row);
   }
@@ -75,7 +75,7 @@ function parseDelimitedRows(text: string, delimiter: DelimitedTableDelimiter): s
   if (text.includes('\0')) {
     throw new Error('line contains NUL');
   }
-  const rows = tokenizeDelimited(text, delimiter);
+  const rows = scanDelimitedRows(text, delimiter);
   if (rows.some((row) => row.some((cell) => cell.length > FIELD_SIZE_LIMIT))) {
     throw new Error('field larger than the size limit');
   }
