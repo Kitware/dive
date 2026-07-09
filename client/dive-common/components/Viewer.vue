@@ -66,9 +66,7 @@ import type {
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
-import {
-  useApi, FrameImage, DatasetType,
-} from 'dive-common/apispec';
+import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
