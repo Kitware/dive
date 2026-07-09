@@ -163,6 +163,7 @@ def test_images_and_videos_mixed_is_rejected():
     result = validate_files(['image_0001.jpg', 'movie.mp4'])
 
     assert result['ok'] is False
+    assert result['type'] == ''
     assert result['message'] == "Do not upload images and videos in the same batch."
 
 

@@ -92,7 +92,7 @@ export default Vue.extend({
       const { name, createSubFolders, uploadFiles } = pendingUpload;
       // The validated package is the only source of files to upload.
       const files = uploadFiles
-        .map((item) => this.convertFileToInternal(item))
+        .map(this.convertFileToInternal)
         .filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
@@ -142,7 +142,6 @@ export default Vue.extend({
     },
     async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
       let jobIds = [];
-      // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
           folder,
@@ -156,9 +155,7 @@ export default Vue.extend({
           throw err;
         }
       };
-      // Sets the files used by the fileUploader mixin
       this.setFiles(files);
-      // Upload Mixin function to start uploading
       await this.start({
         dest: folder,
         postUpload,
@@ -174,7 +171,7 @@ export default Vue.extend({
     }) {
       // The validated package is the only source of files to upload for the camera.
       const files = uploadFiles
-        .map((item) => this.convertFileToInternal(item))
+        .map(this.convertFileToInternal)
         .filter((item) => item !== null);
       const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
       if (!folder) {

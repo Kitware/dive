@@ -7,8 +7,8 @@ import {
   clearMulticamFileRegistry,
   getCalibrationFile,
   getCameraPackageFiles,
-  getExplicitAnnotationFiles,
   getLastCalibration,
+  mediaFileNamesForImport,
   saveCalibration,
   stashAnnotationFile,
   stashCalibrationFile,
@@ -97,9 +97,13 @@ describe('multicam camera package construction', () => {
     ).toBe(true);
   });
 
-  it('getExplicitAnnotationFiles returns [] without a key or stashed file', () => {
-    expect(getExplicitAnnotationFiles(undefined)).toEqual([]);
-    expect(getExplicitAnnotationFiles('cam1/missing.csv')).toEqual([]);
+  it('reports only media filenames for multicam pre-import validation', () => {
+    const files = [
+      fileWithPath('img001.png', 'cam1/img001.png'),
+      fileWithPath('frame_metadata.csv', 'cam1/frame_metadata.csv'),
+      fileWithPath('tracks.csv', 'cam1/tracks.csv'),
+    ];
+    expect(mediaFileNamesForImport(files, 'image-sequence')).toEqual(['img001.png']);
   });
 
   it('appends the explicit track file to the validation input', () => {
@@ -122,15 +126,12 @@ describe('multicam camera package construction', () => {
   });
 
   it('dedupes an explicit track file that shares a name with a folder file (distinct object)', () => {
-    // Realistic case: the explicit picker yields a DISTINCT File object from the
-    // same-named file already in the folder selection. Dedup must still send one name.
     const explicitTrack = file('tracks.csv');
     stashAnnotationFile('cam1/tracks.csv', explicitTrack);
     const folderTrack = file('tracks.csv');
     const folderFiles = [file('img001.png'), folderTrack];
     const cameraFiles = getCameraPackageFiles(folderFiles, 'cam1/tracks.csv');
     expect(cameraFiles.map((f) => f.name)).toEqual(['img001.png', 'tracks.csv']);
-    // The folder copy wins; the explicit distinct object is not appended.
     expect(cameraFiles).toContain(folderTrack);
     expect(cameraFiles).not.toContain(explicitTrack);
   });

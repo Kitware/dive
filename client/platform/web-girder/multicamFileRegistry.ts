@@ -2,6 +2,12 @@
 
 import { Location } from '@girder/components/src';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  ImageSequenceType,
+  VideoType,
+  basicImageFileExtensions,
+  fileVideoTypes,
+} from 'dive-common/constants';
 import { openFromDisk, GirderUploadManager } from './utils';
 
 const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
@@ -88,8 +94,18 @@ export function flattenUploadFiles(files: File[]): File[] {
   });
 }
 
-export function mediaFileNamesForImport(files: File[]): string[] {
-  return flattenUploadFiles(files).map((file) => file.name);
+function fileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() ?? '';
+}
+
+export function mediaFileNamesForImport(
+  files: File[],
+  mediaType: typeof ImageSequenceType | typeof VideoType = ImageSequenceType,
+): string[] {
+  const allowedExtensions = mediaType === VideoType ? fileVideoTypes : basicImageFileExtensions;
+  return flattenUploadFiles(files)
+    .map((file) => file.name)
+    .filter((name) => allowedExtensions.includes(fileExtension(name)));
 }
 
 export function stashAnnotationFile(key: string, file: File): void {
@@ -98,15 +114,6 @@ export function stashAnnotationFile(key: string, file: File): void {
 
 export function getAnnotationFile(key: string): File | undefined {
   return annotationFilesByKey.get(key);
-}
-
-/**
- * Explicit annotation File objects chosen for a camera, as an array (0 or 1
- * entries), suitable for concatenating into a camera upload package.
- */
-export function getExplicitAnnotationFiles(key?: string): File[] {
-  const file = key ? getAnnotationFile(key) : undefined;
-  return file ? [file] : [];
 }
 
 /**
@@ -122,8 +129,10 @@ export function getExplicitAnnotationFiles(key?: string): File[] {
 export function getCameraPackageFiles(folderFiles: File[], annotationKey?: string): File[] {
   const flattened = flattenUploadFiles(folderFiles);
   const flattenedNames = new Set(flattened.map((file) => file.name));
-  const explicit = getExplicitAnnotationFiles(annotationKey)
-    .filter((file) => !flattenedNames.has(file.name));
+  const annotationFile = annotationKey ? getAnnotationFile(annotationKey) : undefined;
+  const explicit = annotationFile && !flattenedNames.has(annotationFile.name)
+    ? [annotationFile]
+    : [];
   return [...flattened, ...explicit];
 }
 

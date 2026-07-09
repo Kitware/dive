@@ -40,6 +40,7 @@ import {
   getFilesForSourceKey,
   getTransformFile,
   flattenUploadFiles,
+  mediaFileNamesForImport,
   removeCameraFolderFiles,
   renameCameraFolderFiles,
   stashCameraFolderFiles,
@@ -67,8 +68,8 @@ export interface InteralFiles {
     current: number;
     size: number;
   };
-  upload: null; //Mixin function
-  result: null; //Mixin stuff
+  upload: null;
+  result: null;
 }
 
 export interface PendingUpload {
@@ -195,7 +196,7 @@ export default defineComponent({
       pendingUploads.value.push({
         createSubFolders: false,
         name: defaultFilename,
-        files: [], //Will be set in the GirderUpload Component
+        files: [],
         uploadFiles: allFiles,
         roles: emptyRoleMap(),
         ignored: [],
@@ -233,7 +234,7 @@ export default defineComponent({
           uploadFiles.length > 1
             ? defaultFilename.replace(fileSuffixRegex, '')
             : defaultFilename,
-        files: [], //Will be set in the GirderUpload Component
+        files: [],
         uploadFiles,
         roles,
         ignored,
@@ -273,9 +274,10 @@ export default defineComponent({
     };
     const multiCamImportCheck = (sourcePath: string): MediaImportResponse => {
       const files = getFilesForSourceKey(sourcePath) ?? [];
+      const mediaType = multiCamOpenType.value === VideoType ? VideoType : ImageSequenceType;
       return {
         jsonMeta: {
-          originalImageFiles: files.map((file) => file.name),
+          originalImageFiles: mediaFileNamesForImport(files, mediaType),
         },
         globPattern: '',
         mediaConvertList: [],
@@ -383,9 +385,8 @@ export default defineComponent({
           if (!folderFiles.length) {
             throw new Error(`No media files found for camera "${cameraName}"`);
           }
-          // Complete camera package: folder files plus the explicit track file
-          // (deduped by File identity), flattened before validation so the names
-          // the server validates match the names uploaded to Girder.
+          // Flatten before validation so the names the server validates match the
+          // names uploaded to Girder.
           const cameraFiles = getCameraPackageFiles(folderFiles, source.trackFile);
           // eslint-disable-next-line no-await-in-loop -- validate then upload each camera sequentially
           const validation = (await validateUploadGroup(cameraFiles.map((f) => f.name))).data;
@@ -612,11 +613,8 @@ export default defineComponent({
     const filesNotUploaded = (item: PendingUpload) => item.files.filter(
       (file) => file.status !== 'done' && file.status !== 'error',
     ).length;
-    // Processes the pending upload from the GirderUpload system to determine the progress
     const computeUploadProgress = (pendingUpload: PendingUpload) => {
-      // use methods and properties from mixins
       if (girderUpload.value) {
-        //Need to use the girderUpload ref to get these values out of the mixin
         const { formatSize, totalProgress, totalSize } = girderUpload.value;
         if (pendingUpload.files.length === 1 && !pendingUpload.uploading) {
           return formatSize(pendingUpload.files[0].progress.size);
@@ -647,7 +645,6 @@ export default defineComponent({
     const getFilenameInputValue = (pendingUpload: PendingUpload) => (
       pendingUpload.createSubFolders && pendingUpload.type !== 'zip' ? 'default' : pendingUpload.name
     );
-    /** Summary lines describing what the validated package will upload (D2). */
     const roleSummaryLines = (pendingUpload: PendingUpload): string[] => {
       const { roles } = pendingUpload;
       const lines: string[] = [];
@@ -785,7 +782,7 @@ export default defineComponent({
         :unregister-subfolder-camera="unregisterSubfolderCamera"
         :rename-subfolder-camera="renameSubfolderCamera"
         :import-media="multiCamImportCheck"
-        @begin-multicam-import="multiCamImport($event)"
+        @begin-multicam-import="multiCamImport"
         @abort="importMultiCamDialog = false; preUploadErrorMessage = null"
       />
     </v-dialog>

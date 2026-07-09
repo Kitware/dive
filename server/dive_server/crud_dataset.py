@@ -1590,7 +1590,7 @@ def validate_files(files: List[str]):
     return {
         "ok": ok,
         "message": message,
-        "type": mediatype,
+        "type": mediatype if ok else "",
         "roles": roles,
         "upload": upload,
         "ignored": ignored,
