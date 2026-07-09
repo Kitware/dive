@@ -233,6 +233,10 @@ interface MediaImportResponse {
   globPattern: string;
   mediaConvertList: string[];
 }
+
+/** User-editable datasetInfo stored on the dataset's backing metadata object. */
+type DatasetInfoFields = Record<string, unknown>;
+
 /**
  * The parts of metadata a user should be able to modify.
  */
@@ -244,7 +248,7 @@ interface DatasetMetaMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
@@ -596,6 +600,7 @@ export {
   AnnotationSchema,
   Api,
   DatasetMeta,
+  DatasetInfoFields,
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
   DatasetType,

@@ -88,7 +88,7 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
-import { CameraMediaNamesSymbol } from './DatasetInfo.vue';
+import { CameraMediaNamesSymbol } from './DatasetInfo/DatasetInfo.vue';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';

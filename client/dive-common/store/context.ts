@@ -7,7 +7,7 @@ import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideB
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import RegistrationTools from 'dive-common/components/CameraRegistration/RegistrationTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
-import DatasetInfo from 'dive-common/components/DatasetInfo.vue';
+import DatasetInfo from 'dive-common/components/DatasetInfo/DatasetInfo.vue';
 
 interface ContextState {
   last: string;
