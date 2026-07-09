@@ -216,11 +216,14 @@ export default defineComponent({
     uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
     // True when the selected track is a brand-new detection with no geometry yet
-    // on this frame (the user is mid-creation). Used to mirror the creation cursor
-    // onto non-selected cameras so a new detection can be drawn on any camera.
+    // on this camera at this frame (the user is mid-creation). Used to mirror the
+    // creation cursor onto non-selected cameras so a new detection can be drawn
+    // on any camera. Must look up the track on props.camera (same as
+    // cameraAwaitingGeometry): `frame` is this layer's local frame, and under an
+    // aligned timeline that diverges from selectedCamera's local frame.
     function isCreatingNewDetection(frame: number, trackId: AnnotationId | null): boolean {
       if (trackId === null) return false;
-      const t = cameraStore.getPossibleTrack(trackId, selectedCamera.value);
+      const t = cameraStore.getPossibleTrack(trackId, props.camera);
       if (!t) return false;
       return t.getFeature(frame)[0] == null;
     }
