@@ -1,6 +1,6 @@
 # Dataset Info
 
-The **Dataset Info** panel shows read-only frame telemetry, properties of the
+The **Dataset Info** panel shows read-only frame metadata, properties of the
 whole dataset, and custom metadata attached to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
@@ -13,7 +13,7 @@ re-link annotations to their source records.
 
 ![Dataset Info panel](images/General/DatasetInfo.png){ width=220px align=right }
 
-**Frame Metadata** (read-only): per-frame telemetry for the active image, such
+**Frame Metadata** (read-only): per-frame metadata for the active image, such
 as timestamp, latitude, longitude, depth, or altitude. The panel shows only the
 source fields for the active frame, in the order they appear in the source file.
 
@@ -27,7 +27,7 @@ example a station id, cruise number, or dive number.
 
 ## Frame Metadata
 
-Frame metadata shows read-only telemetry for the active image in an
+The Frame Metadata section shows values for the active image in an
 image-sequence dataset. The values update as the playhead moves.
 
 The panel shows the source fields in file order and includes a **`Source:`** line
@@ -40,7 +40,7 @@ The section may show an empty state when:
 * no frame metadata sidecar is present,
 * the current frame has no matching row.
 
-Frame telemetry is read-only. There is no edit, save, import, or export flow for
+Frame metadata is read-only. There is no edit, save, import, or export flow for
 these values.
 
 See [Frame Metadata Sidecars](Frame-Metadata.md) for supported filenames, file

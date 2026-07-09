@@ -19,6 +19,9 @@ theme:
 
 extra_css: [extra.css]
 
+not_in_nav: |
+  Frame-Metadata.md
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -81,9 +84,7 @@ nav:
     - Screenshots: Screenshots.md
     - Support: Support.md
   - Pipelines & Training: Pipeline-Documentation.md
-  - Data Formats:
-    - Overview: DataFormats.md
-    - Frame Metadata Sidecars: Frame-Metadata.md
+  - Data Formats: DataFormats.md
   - Developer Guide:
     - Codebase architecture: Architecture-For-New-Developers.md
   - Administrator Guide:

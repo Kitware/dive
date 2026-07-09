@@ -1,7 +1,7 @@
 # Frame Metadata Sidecars
 
-DIVE can display read-only per-frame telemetry for image-sequence datasets in
-the [Dataset Info panel](UI-DatasetInfo.md#frame-metadata). Common examples are
+DIVE can display read-only frame metadata for image-sequence datasets in the
+[Dataset Info panel](UI-DatasetInfo.md#frame-metadata). Common examples are
 timestamp, latitude, longitude, depth, altitude, or vehicle state.
 
 Frame metadata is not annotation data. DIVE reads it from a sidecar file next to
