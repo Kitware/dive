@@ -35,7 +35,7 @@ The parser and resolver never run on the server. Division of labor:
 
 | Component | Responsibility |
 | --- | --- |
-| **Shared TypeScript** (`dive-common/frameMetadata/`) | The naming predicate, the parser, and the resolver. One implementation; the conformance corpus (`testdata/frame-metadata-conformance`) is its regression suite. |
+| **Shared TypeScript** (`dive-common/frameMetadata/`) | The naming predicate, the parser, and the resolver. One implementation; inline parser specs cover the regression contract. |
 | **Web** | The browser asks the server which sidecar items exist per camera (the sources endpoint, below), downloads their bytes over the existing item-download route, builds each camera's media-key index from the image lists the viewer already holds, and runs the shared resolver **in the renderer**. |
 | **Desktop** | The Electron backend discovers candidate files on disk (name-filtered), reads them, runs the **same** shared resolver in the backend — keeping raw multi-MB text off the IPC wire — and returns the resolved payload over the existing IPC surface. |
 | **Python server** | Never parses telemetry. It classifies by name (imports leave sidecars in place), lets sidecars through upload validation, and serves the sources listing. That is all. |

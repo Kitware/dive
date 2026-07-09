@@ -462,27 +462,258 @@ describe('shared frame metadata parser', () => {
   });
 });
 
-type ConformanceCase = {
+type ParserCase = {
+  name: string;
+  text: string;
   mediaKeys: Record<string, number>;
   records: Record<string, Record<string, string>> | null;
+  assertParsed?: (parsed: ParsedFrameMetadata | null) => void;
 };
 
-// Resolve the shared conformance corpus at the repo root. The spec lives at
+const defaultParserMediaKeys = { 'img001.png': 0, 'img002.png': 1 };
+const wideCell = 'a'.repeat(7000);
+const wideColumns = Array.from({ length: 20 }, (_, index) => `c${index + 1}`);
+
+function numericCollisionMediaKeys(): Record<string, number> {
+  const keys: Record<string, number> = {};
+  for (let index = 1; index <= 50; index += 1) {
+    keys[`${index}.png`] = index - 1;
+  }
+  return keys;
+}
+
+const parserCases: ParserCase[] = [
+  {
+    name: 'all-comments',
+    text: '# comment one\n# comment two\n# comment three\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: null,
+  },
+  {
+    name: 'basic',
+    text: 'filename,depth\nimg001.png,10\nimg002.png,12\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+      img002: { filename: 'img002.png', depth: '12' },
+    },
+  },
+  {
+    name: 'bom-telemetry',
+    text: '\ufefffilename,depth\nimg001.png,10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'comment-block',
+    text: '# vehicle: AUV, dive 42\nfilename,depth\nimg001.png,10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'comment-comma-over-tsv',
+    text: '# Position (lat, lon) log\nfilename\tdepth\nimg001.png\t10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'comment-prose-header',
+    text: '# AUV nav log\nfilename,depth\nimg001.png,10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'double-extension',
+    text: 'filename,depth\nIMG_001.jpg.png,10\n',
+    mediaKeys: { 'IMG_001.jpg.png': 0 },
+    records: {
+      'IMG_001.jpg': { filename: 'IMG_001.jpg.png', depth: '10' },
+    },
+  },
+  {
+    name: 'duplicate-rows',
+    text: 'filename,depth\nimg001.png,10\nimg001.png,99\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'hash-header',
+    text: '# filename,depth,heading\nimg001.png,10,180\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10', heading: '180' },
+    },
+  },
+  {
+    name: 'huge-field',
+    text: `filename,notes\nimg001.png,${'x'.repeat(131073)}\n`,
+    mediaKeys: defaultParserMediaKeys,
+    records: null,
+  },
+  {
+    name: 'leading-empty-row',
+    text: ',,,\nfilename,depth\nimg001.png,100\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '100' },
+    },
+  },
+  {
+    name: 'nav-whitespace',
+    text: '# filename depth heading\nimg001.png 10 180\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10', heading: '180' },
+    },
+  },
+  {
+    name: 'no-join',
+    text: 'station,depth\nA,10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: null,
+  },
+  {
+    name: 'nul-bytes',
+    text: 'filename,alt\0\nimg001.png,42\0\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: null,
+  },
+  {
+    name: 'numeric-collision',
+    text: 'image,altitude,depth\n1.png,42,100\n2.png,999,200\n',
+    mediaKeys: numericCollisionMediaKeys(),
+    records: {
+      1: { image: '1.png', altitude: '42', depth: '100' },
+      2: { image: '2.png', altitude: '999', depth: '200' },
+    },
+  },
+  {
+    name: 'pandas-index',
+    text: ',filename,depth\n0,img001.png,10\n1,img002.png,12\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+      img002: { filename: 'img002.png', depth: '12' },
+    },
+  },
+  {
+    name: 'proto',
+    text: 'filename,depth\n__proto__.png,10\n',
+    mediaKeys: { '__proto__.png': 0 },
+    records: {
+      ['__proto__']: { filename: '__proto__.png', depth: '10' },
+    },
+    assertParsed: (parsed) => {
+      expect(parsed).not.toBeNull();
+      expect(Object.prototype.hasOwnProperty.call(parsed?.records ?? {}, '__proto__')).toBe(true);
+    },
+  },
+  {
+    name: 'tab-comma-units',
+    text: 'filename\tPosition (lat, lon)\tDepth (m)\nimg001.png\t42.35, -70.90\t12.4\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: {
+        filename: 'img001.png',
+        'Position (lat, lon)': '42.35, -70.90',
+        'Depth (m)': '12.4',
+      },
+    },
+  },
+  {
+    name: 'trailing-comma',
+    text: 'filename,depth,\nimg001.png,10,\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'img001.png', depth: '10' },
+    },
+  },
+  {
+    name: 'two-column',
+    text: 'image,altitude\nimg001.png,10\nimg002.png,12\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { image: 'img001.png', altitude: '10' },
+      img002: { image: 'img002.png', altitude: '12' },
+    },
+  },
+  {
+    name: 'viame-annotations',
+    text: [
+      '# 1: Detection or Track-id,2: Video or Image Identifier,3: Unique Frame Identifier,4-7: Img-bbox(TL_x,TL_y,BR_x,BR_y),8: Detection or Length Confidence,9: Target Length (0 or -1 if invalid),10-11+: Repeated Species,Confidence Pairs or Attributes',
+      '1,img001.png,0,10,20,30,40,1.0,-1,fish,0.9',
+      '',
+    ].join('\n'),
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: {
+        '1: Detection or Track-id': '1',
+        '2: Video or Image Identifier': 'img001.png',
+        '3: Unique Frame Identifier': '0',
+        '4-7: Img-bbox(TL_x': '10',
+        TL_y: '20',
+        BR_x: '30',
+        'BR_y)': '40',
+        '8: Detection or Length Confidence': '1.0',
+        '9: Target Length (0 or -1 if invalid)': '-1',
+        '10-11+: Repeated Species': 'fish',
+        'Confidence Pairs or Attributes': '0.9',
+      },
+    },
+  },
+  {
+    name: 'wide-row',
+    text: `${['filename', ...wideColumns].join(',')}\n${[
+      'img001.png',
+      ...wideColumns.map(() => wideCell),
+    ].join(',')}\n`,
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: {
+        filename: 'img001.png',
+        ...Object.fromEntries(wideColumns.map((column) => [column, wideCell])),
+      },
+    },
+  },
+  {
+    name: 'windows-paths',
+    text: 'filename,depth\nimages\\img001.png,10\n',
+    mediaKeys: defaultParserMediaKeys,
+    records: {
+      img001: { filename: 'images\\img001.png', depth: '10' },
+    },
+  },
+];
+
+// Resolve the shared naming truth table at the repo root. The spec lives at
 // client/dive-common/frameMetadata, three levels below the root; when the runner does not
 // provide __dirname, npm test runs with CWD=client/ (one level below root).
-function conformanceDir(): string {
+function sourceNamesTruthTablePath(): string {
   const fromDirname = typeof __dirname === 'string'
-    ? path.resolve(__dirname, '../../../testdata/frame-metadata-conformance')
+    ? path.resolve(
+      __dirname,
+      '../../../testdata/frame-metadata-conformance/source_names.expected.json',
+    )
     : null;
   if (fromDirname && fs.existsSync(fromDirname)) {
     return fromDirname;
   }
-  return path.resolve('../testdata/frame-metadata-conformance');
+  return path.resolve('../testdata/frame-metadata-conformance/source_names.expected.json');
 }
 
 // Compare records structurally through sorted [key, value] pairs so equality is
-// unaffected by prototype (null-prototype parser records vs plain JSON) and so an own
-// "__proto__" key participates in the comparison instead of being read off the chain.
+// unaffected by prototype and so an own "__proto__" key participates in the comparison
+// instead of being read off the chain.
 function toComparable(records: Record<string, Record<string, string>> | null) {
   if (records === null) {
     return null;
@@ -493,47 +724,26 @@ function toComparable(records: Record<string, Record<string, string>> | null) {
   });
 }
 
-const corpusDir = conformanceDir();
-const corpusFiles = fs.existsSync(corpusDir)
-  ? fs.readdirSync(corpusDir).filter((name) => /\.(csv|txt)$/.test(name)).sort()
-  : [];
+describe('inline frame-metadata parser contract cases', () => {
+  parserCases.forEach((parserCase) => {
+    it(`matches ${parserCase.name}`, () => {
+      const parsed = parseFrameMetadataSource(parserCase.text, parserCase.mediaKeys);
+      const records = parsed === null ? null : parsed.records;
 
-describe('shared frame-metadata conformance corpus', () => {
-  it('resolves the shared corpus directory', () => {
-    // Fail loudly if the resolved depth is wrong rather than silently running zero cases.
-    expect(fs.existsSync(corpusDir)).toBe(true);
-    expect(corpusFiles.length).toBeGreaterThan(0);
+      expect(toComparable(records)).toEqual(toComparable(parserCase.records));
+      parserCase.assertParsed?.(parsed);
+    });
   });
+});
 
+describe('shared frame-metadata naming contract', () => {
   it('matches the shared source-name predicate truth table (Contract N-NAME)', () => {
-    // The differently-shaped predicate fixture is excluded from the parse corpus above
-    // and checked here against isFrameMetadataSourceName, mirroring the server harness.
-    const truthTablePath = path.join(corpusDir, 'source_names.expected.json');
+    // The truth table is shared with the server harness so the mirrored predicate cannot drift.
+    const truthTablePath = sourceNamesTruthTablePath();
     expect(fs.existsSync(truthTablePath)).toBe(true);
     const truthTable = JSON.parse(fs.readFileSync(truthTablePath, 'utf-8')) as Record<string, boolean>;
     Object.entries(truthTable).forEach(([name, expected]) => {
       expect(isFrameMetadataSourceName(name)).toBe(expected);
-    });
-  });
-
-  corpusFiles.forEach((dataFile) => {
-    const name = dataFile.replace(/\.(csv|txt)$/, '');
-    it(`matches the oracle for ${name}`, () => {
-      const expectedPath = path.join(corpusDir, `${name}.expected.json`);
-      expect(fs.existsSync(expectedPath)).toBe(true);
-      const expected = JSON.parse(fs.readFileSync(expectedPath, 'utf-8')) as ConformanceCase;
-      const text = fs.readFileSync(path.join(corpusDir, dataFile), 'utf-8');
-
-      const parsed = parseFrameMetadataSource(text, expected.mediaKeys);
-      const records = parsed === null ? null : parsed.records;
-
-      expect(toComparable(records)).toEqual(toComparable(expected.records));
-
-      if (name === 'proto') {
-        // A plain records.__proto__ would read the prototype; require an OWN property.
-        expect(parsed).not.toBeNull();
-        expect(Object.prototype.hasOwnProperty.call(parsed?.records ?? {}, '__proto__')).toBe(true);
-      }
     });
   });
 });

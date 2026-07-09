@@ -1,3 +1,0 @@
-# Position (lat, lon) log
-filename	depth
-img001.png	10

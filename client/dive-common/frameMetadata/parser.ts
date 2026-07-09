@@ -2,9 +2,8 @@ import { basicImageFileExtensions, largeImageFileExtensions } from 'dive-common/
 
 // The single frame-metadata parser, shared by the desktop backend and the web client. It is
 // deliberately node-free (no `crypto`, no `path`, no `csv-parse`) so the exact same code that
-// runs in the Electron backend also bundles and runs in the browser renderer. The conformance
-// corpus (testdata/frame-metadata-conformance) is the referee: every fixture must parse
-// identically here. The Contract-tag comments document the one implementation.
+// runs in the Electron backend also bundles and runs in the browser renderer. The parser specs
+// are the regression contract; the Contract-tag comments document the one implementation.
 
 type FrameMetadataRow = Record<string, string>;
 type MediaKeys = Map<string, number> | Record<string, number>;
@@ -74,8 +73,8 @@ export function indexFromEntries(entries: Iterable<[string, number]>): MediaKeyI
 }
 
 // Normalize a raw media-key mapping (a Map or plain object of name -> frame) to the shared index.
-// Serves the conformance corpus / specs, which hold explicit frame numbers; the production read
-// path builds its index from an ordered media list via buildMediaKeyIndex instead.
+// Serves specs with explicit frame numbers; the production read path builds its index from an
+// ordered media list via buildMediaKeyIndex instead.
 function normalizeMediaKeys(mediaKeys: MediaKeys): MediaKeyIndex {
   return indexFromEntries(mediaKeys instanceof Map ? mediaKeys : Object.entries(mediaKeys));
 }

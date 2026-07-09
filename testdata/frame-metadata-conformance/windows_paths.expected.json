@@ -1,6 +1,0 @@
-{
-  "mediaKeys": { "img001.png": 0, "img002.png": 1 },
-  "records": {
-    "img001": { "filename": "images\\img001.png", "depth": "10" }
-  }
-}
