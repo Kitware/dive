@@ -131,24 +131,13 @@ interface FrameImage {
   timestamp?: number;
 }
 
-/**
- * Frame metadata: declared `frame-metadata.csv` / `frame-metadata.txt` sidecars
- * (with `frame_metadata.csv` / `frame_metadata.txt` also accepted), resolved by the
- * one shared TypeScript resolver (`dive-common/frameMetadata/resolve.ts`) on both
- * platforms. Nothing derived is persisted; the sidecar the user dropped is the only
- * stored form.
- *
- * The resolved payload is compact: each camera holds its payload `columns` order once and each
- * frame is a row of cell values aligned to that order (never a `{field: value}` object, so
- * numeric-named headers stay in file order). The panel materializes a per-frame `{column: value}`
- * record lazily from a single frame's row (W-12 memory posture, no size cap).
- */
+/** Compact resolved frame-metadata payload. Rows are aligned to `columns[camera]`. */
 interface ResolvedFrameMetadata {
-  /** camera key -> (frame number -> row of cell values aligned to `columns[camera]`). */
+  /** camera key -> frame number -> cell values aligned to `columns[camera]`. */
   cameras: Record<string, Record<number, string[]>>;
-  /** camera key -> matched sidecar filenames in precedence order (winner first). */
+  /** camera key -> matched sidecar filenames in precedence order. */
   sources: Record<string, string[]>;
-  /** camera key -> payload column names in file / precedence order. */
+  /** camera key -> payload column names in source/merge order. */
   columns: Record<string, string[]>;
 }
 
@@ -158,12 +147,7 @@ interface FrameMetadataSourceText {
   text: string;
 }
 
-/**
- * Declared frame-metadata sidecar text per camera, in precedence order (camera folder -> clone
- * root -> dataset folder -> parent root), deduped by folder/path. Cameras are keyed `singleCam`
- * (SingleCameraFrameMetadataKey) or the multicam camera names; non-image-sequence single datasets
- * and non-image-sequence multicam cameras return empty `cameras`.
- */
+/** Declared frame-metadata sidecar text per camera, in precedence order. */
 interface FrameMetadataSourcesResponse {
   cameras: Record<string, FrameMetadataSourceText[]>;
 }
