@@ -1,4 +1,6 @@
 import { basicImageFileExtensions, largeImageFileExtensions } from 'dive-common/constants';
+import { parseDelimitedRows } from './csvTokenizer';
+import type { DelimitedTableDelimiter } from './csvTokenizer';
 
 // Shared by the desktop backend and the web client. Keep this node-free so the same parser runs
 // in Electron and in the browser renderer.
@@ -27,10 +29,6 @@ const imageExtensions = new Set<string>([
   ...basicImageFileExtensions,
   ...largeImageFileExtensions,
 ]);
-
-// Match Python's csv.field_size_limit() default so browser and desktop reject pathological cells
-// consistently.
-const FIELD_SIZE_LIMIT = 131072;
 
 // Split a basename into (stem, lowercased extension). Mirrors node path.extname semantics: a
 // leading dot is not an extension (so '.gitignore' has no extension), matching how the server
@@ -241,89 +239,12 @@ function readRows(text: string): string[][] {
 
   try {
     // Drop delimiter-only rows before header selection; otherwise `,,,` becomes the header.
-    return parseDelimited(text, delimiter).filter((row) => row.some((cell) => cell.length > 0));
+    return parseDelimitedRows(text, delimiter).filter((row) => row.some((cell) => cell.length > 0));
   } catch {
     // NUL bytes, oversized fields, etc. are treated as "not a telemetry source" instead of
     // surfacing a parse error.
     return [];
   }
-}
-
-// Keep tokenization local because this file must bundle in the browser. The parser is lenient
-// with bare quotes because field logs commonly contain units such as `5"`.
-function tokenizeDelimited(text: string, delimiter: ',' | '\t'): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let inQuotes = false;
-  let atFieldStart = true;
-  let recordHasContent = false;
-  const endField = () => {
-    row.push(field);
-    field = '';
-    atFieldStart = true;
-  };
-  const endRow = () => {
-    endField();
-    rows.push(row);
-    row = [];
-    recordHasContent = false;
-  };
-  const { length } = text;
-  let i = 0;
-  while (i < length) {
-    const ch = text[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 2;
-        } else {
-          inQuotes = false;
-          i += 1;
-        }
-      } else {
-        field += ch;
-        i += 1;
-      }
-    } else if (ch === '"' && atFieldStart) {
-      inQuotes = true;
-      atFieldStart = false;
-      recordHasContent = true;
-      i += 1;
-    } else if (ch === delimiter) {
-      recordHasContent = true;
-      endField();
-      i += 1;
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') {
-        i += 1;
-      }
-      endRow();
-      i += 1;
-    } else {
-      field += ch;
-      atFieldStart = false;
-      recordHasContent = true;
-      i += 1;
-    }
-  }
-  if (recordHasContent || field.length > 0 || row.length > 0) {
-    endField();
-    rows.push(row);
-  }
-  return rows;
-}
-
-function parseDelimited(text: string, delimiter: ',' | '\t'): string[][] {
-  if (text.includes('\0')) {
-    throw new Error('line contains NUL');
-  }
-  const rows = tokenizeDelimited(text, delimiter);
-  if (rows.some((row) => row.some((cell) => cell.length > FIELD_SIZE_LIMIT))) {
-    throw new Error('field larger than the size limit');
-  }
-  return rows.map((row) => row.map((cell) => cell.trim()));
 }
 
 // Ignore leading prose comments while sniffing so commas inside prose do not override TSV data.
@@ -335,7 +256,7 @@ function sniffLine(text: string): string | null {
   return lines.find((line) => !line.startsWith('#')) ?? lines[0] ?? null;
 }
 
-function sniffDelimiter(line: string): ',' | '\t' | null {
+function sniffDelimiter(line: string): DelimitedTableDelimiter | null {
   // Count-based so a tab-delimited header whose field names contain commas
   // (e.g. a parenthesized unit like "Position (lat, lon)") still sniffs as TSV.
   const commas = line.split(',').length - 1;
