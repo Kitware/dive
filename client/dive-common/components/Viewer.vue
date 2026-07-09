@@ -1127,7 +1127,18 @@ export default defineComponent({
       if (!track) {
         return true;
       }
-      const [feature] = track.getFeature(aggregateController.value.frame.value);
+      // Must use this camera's own local frame, not aggregateController's
+      // frame: under an aligned timeline the aggregate frame is the global
+      // slot index, which diverges from any camera's local frame -- and
+      // getFeature() is keyed by local frame. Same pattern as
+      // isCreatingNewDetection above.
+      let cameraFrame: number;
+      try {
+        cameraFrame = aggregateController.value.getController(camera).frame.value;
+      } catch {
+        cameraFrame = aggregateController.value.frame.value;
+      }
+      const [feature] = track.getFeature(cameraFrame);
       if (feature == null) {
         return true;
       }
