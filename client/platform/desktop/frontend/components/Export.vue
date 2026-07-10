@@ -8,8 +8,10 @@ import {
 } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MultiType } from 'dive-common/constants';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
-  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile, exportMulticamEverything,
+  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
+  exportCameraCalibration, exportMulticamEverything,
 } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
@@ -90,6 +92,55 @@ export default defineComponent({
       () => data.meta?.subType === 'stereo' && !!calibrationExportName.value,
     );
 
+    // Cameras with an exportable alignment calibration: each pair files under
+    // its non-reference camera (reference = first camera in display order),
+    // mirroring how the backend groups pairs into calibration_<camera>.json.
+    const calibrationCameras = computed(() => {
+      const { meta } = data;
+      if (!meta || meta.type !== MultiType || !meta.multiCam) {
+        return [];
+      }
+      const pairKeys = new Set([
+        ...Object.keys(meta.cameraHomographies ?? {}),
+        ...Object.keys(meta.cameraCorrespondences ?? {}),
+        ...Object.keys(meta.cameraTransformTypes ?? {}),
+      ]);
+      const reference = orderedMultiCamCameraNames(meta.multiCam)[0] ?? null;
+      const cameras = new Set<string>();
+      pairKeys.forEach((key) => {
+        const [left, right] = key.split('::');
+        let camera = right;
+        if (reference !== null && right === reference && left !== reference) {
+          camera = left;
+        }
+        cameras.add(camera);
+      });
+      return [...cameras].sort();
+    });
+
+    async function exportCalibration(camera?: string) {
+      const defaultName = camera === undefined
+        ? `${data.meta?.name ?? 'dataset'}_calibration.zip`
+        : `calibration_${camera}.json`;
+      const location = await window.diveDesktop.showSaveDialog({
+        title: 'Export Camera Calibration',
+        defaultPath: defaultName,
+      });
+      if (location.canceled || !location.filePath) return;
+      try {
+        data.err = null;
+        const { exportedPath } = await exportCameraCalibration(
+          parentId.value,
+          location.filePath,
+          camera,
+        );
+        data.outPath = exportedPath;
+      } catch (err) {
+        data.err = err;
+        throw err;
+      }
+    }
+
     async function exportCameraFile() {
       if (!calibrationExportName.value) return;
       const location = await window.diveDesktop.showSaveDialog({
@@ -147,6 +198,8 @@ export default defineComponent({
       data,
       doExport,
       exportCameraFile,
+      exportCalibration,
+      calibrationCameras,
       cameraFileSupported,
       calibrationExportName,
       savePrompt,
@@ -350,6 +403,37 @@ export default defineComponent({
             >
               Camera File
             </v-btn>
+          </v-card-actions>
+        </template>
+        <template v-if="calibrationCameras.length">
+          <v-card-text class="pb-0">
+            Export the camera-alignment calibration:
+            one calibration_&lt;camera&gt;.json per camera.
+          </v-card-text>
+          <v-card-actions>
+            <v-row>
+              <v-col>
+                <v-btn
+                  v-for="camera in calibrationCameras"
+                  :key="camera"
+                  depressed
+                  block
+                  class="my-1"
+                  @click="exportCalibration(camera)"
+                >
+                  Calibration: {{ camera }}
+                </v-btn>
+                <v-btn
+                  v-if="calibrationCameras.length > 1"
+                  depressed
+                  block
+                  class="my-1"
+                  @click="exportCalibration()"
+                >
+                  All calibrations (.zip)
+                </v-btn>
+              </v-col>
+            </v-row>
           </v-card-actions>
         </template>
         <template v-if="isMulticamDataset">

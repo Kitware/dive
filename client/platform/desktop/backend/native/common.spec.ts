@@ -1,5 +1,6 @@
 import mockfs from 'mock-fs';
 import npath from 'path';
+import os from 'os';
 import fs from 'fs-extra';
 import { Console } from 'console';
 
@@ -174,6 +175,8 @@ beforeEach(() => {
     },
     '/home/user/testPairs': { ...fileSystemData },
     '/home/user/output': {},
+    // Zip exports stage their files in a real temp dir before archiving.
+    [os.tmpdir()]: {},
     '/home/user/transformDiscovery': {
       exactName: {
         'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
@@ -685,7 +688,7 @@ describe('native.common', () => {
 
     // Persisted as a standalone per-camera file (named for the pair's
     // non-reference camera): pairs labeled left/right, with points laid out
-    // as leftX leftY rightX rightY. No legacy all-pairs calibration.json.
+    // as leftX leftY rightX rightY. Never a single all-pairs calibration.json.
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
     const calibrationPath = npath.join(projectDir, 'calibration_ir.json');
     expect(await fs.pathExists(calibrationPath)).toBe(true);
@@ -743,11 +746,11 @@ describe('native.common', () => {
   });
 
   describe('findParentFolderTransformFiles', () => {
-    it('orders a file named calibration.json before other marked candidates', async () => {
+    it('gives a file named calibration.json no special priority', async () => {
       const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/exactName');
       expect(found).toStrictEqual([
-        npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'),
         npath.join('/home/user/transformDiscovery/exactName', 'aaa-stamped.json'),
+        npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'),
       ]);
     });
 
@@ -839,45 +842,6 @@ describe('native.common', () => {
     expect('source' in (await fs.readJSON(calibrationPath))).toBe(false);
   });
 
-  it('migrates a legacy all-pairs calibration.json to per-camera files on save', async () => {
-    const payload = await common.beginMediaImport(
-      '/home/user/data/imageLists/success/image_list.txt',
-    );
-    const res = await common.finalizeMediaImport(settings, payload);
-    const final = res.meta;
-    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
-
-    // A legacy single-file calibration holding two pairs.
-    await fs.writeJSON(npath.join(projectDir, 'calibration.json'), {
-      version: 1,
-      pairs: [
-        {
-          left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
-        },
-        {
-          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
-        },
-      ],
-    });
-
-    // Loads fine from the legacy file.
-    const loaded = await common.loadMetadata(settings, final.id, urlMapper);
-    expect(Object.keys(loaded.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
-
-    // A save re-writes the set as per-camera files and removes the legacy one.
-    await common.saveMetadata(settings, final.id, {
-      cameraHomographies: loaded.cameraHomographies,
-      cameraCorrespondences: loaded.cameraCorrespondences,
-      cameraTransformTypes: loaded.cameraTransformTypes,
-    });
-    expect(await fs.pathExists(npath.join(projectDir, 'calibration.json'))).toBe(false);
-    expect(await fs.pathExists(npath.join(projectDir, 'calibration_ir.json'))).toBe(true);
-    expect(await fs.pathExists(npath.join(projectDir, 'calibration_uv.json'))).toBe(true);
-
-    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
-    expect(reloaded.cameraHomographies).toStrictEqual(loaded.cameraHomographies);
-  });
-
   it('merges per-camera calibration files and flags disagreeing source stamps', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
@@ -929,6 +893,102 @@ describe('native.common', () => {
       cameraCalibrationSource: beforeSave.cameraCalibrationSource,
     });
     expect('source' in (await fs.readJSON(npath.join(projectDir, 'calibration_ir.json')))).toBe(false);
+  });
+
+  it('exportCameraCalibration writes a single per-camera file from the saved calibration', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+      'rgb::uv': {
+        AtoB: [[1, 0, 8], [0, 1, 2], [0, 0, 1]],
+        BtoA: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      },
+    };
+    const source = { producer: 'kamera', run: 'fl07' };
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraCalibrationSource: source,
+    });
+
+    const destPath = '/home/user/output/calibration_ir.json';
+    await common.exportCameraCalibration(settings, final.id, destPath, 'ir');
+    const exported = await fs.readJSON(destPath);
+    // Self-identifies so parent-folder discovery recognizes it on re-import,
+    // and carries only its own camera's pair plus the producer stamp.
+    expect(exported.type).toBe('dive-camera-calibration');
+    expect(exported.source).toStrictEqual(source);
+    expect(exported.pairs).toHaveLength(1);
+    expect(exported.pairs[0].left).toBe('rgb');
+    expect(exported.pairs[0].right).toBe('ir');
+    expect(exported.pairs[0].leftToRight).toStrictEqual([[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+
+    // A camera with no calibration refuses.
+    await expect(common.exportCameraCalibration(settings, final.id, '/home/user/output/nope.json', 'zz')).rejects.toThrow('no calibration for camera');
+  });
+
+  it('exportCameraCalibration zips every per-camera file when no camera is given', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+        'rgb::uv': {
+          AtoB: [[1, 0, 8], [0, 1, 2], [0, 0, 1]],
+          BtoA: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        },
+      },
+    });
+
+    const destPath = '/home/user/output/calibrations.zip';
+    await common.exportCameraCalibration(settings, final.id, destPath);
+    expect((await fs.stat(destPath)).size).toBeGreaterThan(0);
+  });
+
+  it('exportCameraCalibration never stamps exported files with a mixed composite', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    // A mixed composite stamp describes the assembled set, not any single
+    // file; stamping an exported file with it would present a unanimous rig.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+      },
+      cameraCalibrationSource: {
+        mixed: true,
+        files: { 'calibration_ir.json': { producer: 'kamera', run: 'fl07' } },
+      },
+    });
+
+    const destPath = '/home/user/output/calibration_ir.json';
+    await common.exportCameraCalibration(settings, final.id, destPath, 'ir');
+    expect('source' in (await fs.readJSON(destPath))).toBe(false);
+  });
+
+  it('exportCameraCalibration refuses when the dataset has no calibration', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    await expect(common.exportCameraCalibration(settings, res.meta.id, '/home/user/output/none.json', 'ir')).rejects.toThrow('no camera calibration to export');
   });
 
   it('import with CSV annotations without specifying track file', async () => {

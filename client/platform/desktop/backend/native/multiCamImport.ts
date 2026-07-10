@@ -99,7 +99,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   // Per-camera transform/calibration files seed the dataset's saved camera
   // calibration -- the same single calibration the in-app panel edits and the
   // aligned view consumes (loadMetadata falls back to these meta fields until
-  // a panel save writes the standalone calibration.json).
+  // a save writes the standalone per-camera files).
   const seedHomographies: CameraHomographies = {};
   const seedCorrespondences: CameraCorrespondences = {};
   const seedTransformTypes: CameraTransformTypes = {};
