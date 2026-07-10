@@ -720,10 +720,10 @@ export function useImportMultiCamDialog(
    * Auto-attach the DIVE camera-calibration .json files found in the parent
    * folder root as the import's transform files (desktop multicam subfolder
    * imports only). A per-camera calibration_<camera>.json is attached to its
-   * matching camera slot; anything else (e.g. an all-pairs calibration.json)
-   * goes to the first free camera after the reference -- the file's pairs
-   * name their own cameras, so which slot carries it doesn't matter. Each
-   * shows in that camera's (clearable) transform field.
+   * matching camera slot; any other self-identified calibration file goes to
+   * the first free camera after the reference -- the file's pairs name their
+   * own cameras, so which slot carries it doesn't matter. Each shows in that
+   * camera's (clearable) transform field.
    */
   async function discoverParentFolderTransform(parentPath: string) {
     if (!transformImportEnabled.value || !findParentFolderTransformFiles) {

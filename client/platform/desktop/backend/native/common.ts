@@ -75,14 +75,13 @@ const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
 // Standalone camera-to-camera (modality-to-modality) alignment transforms,
-// stored separately from meta.json in the dataset directory. The current
-// convention is one file per non-reference camera (calibration_<camera>.json,
-// each holding that camera's pair(s)); a single legacy calibration.json
-// holding every pair is still read. File NAMES are discovery/provenance only:
-// the pair's left/right names inside the file body are always authoritative,
-// so a misnamed or copied file can never rebind a transform to the wrong
-// camera.
-const CalibrationFileName = 'calibration.json';
+// stored separately from meta.json in the dataset directory: one file per
+// non-reference camera (calibration_<camera>.json, matching the per-camera
+// files kamera users handle), each holding that camera's pair(s). There is
+// deliberately no single all-pairs file. File NAMES are discovery/provenance
+// only: the pair's left/right names inside the file body are always
+// authoritative, so a misnamed or copied file can never rebind a transform
+// to the wrong camera.
 const PerCameraCalibrationFileName = /^calibration_(.+)\.json$/i;
 const CalibrationFileVersion = 1;
 
@@ -386,9 +385,9 @@ async function loadMetadata(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
-  // Load standalone camera calibration (transforms + correspondences), if
-  // present: the per-camera calibration_<camera>.json files and/or the legacy
-  // all-pairs calibration.json, merged.
+  // Load standalone camera calibration (transforms + correspondences) from
+  // the per-camera calibration_<camera>.json files, if present; the dataset
+  // meta fields serve as the import-time seed until a save writes the files.
   let {
     cameraHomographies, cameraCorrespondences, cameraTransformTypes, cameraCalibrationSource,
   } = projectMetaData;
@@ -852,13 +851,12 @@ function mergeCalibrationSources(
 }
 
 /**
- * Read and merge every calibration file in a dataset directory: the legacy
- * all-pairs calibration.json (if present) plus each per-camera
- * calibration_<camera>.json, in that order, sorted by name for determinism.
- * Pair bodies are authoritative (file names are ignored for binding); a pair
- * key appearing in more than one file keeps the last occurrence with a
- * warning. `found` is true when at least one file parsed as a calibration,
- * so callers can distinguish "no calibration files" from an empty one.
+ * Read and merge every per-camera calibration_<camera>.json in a dataset
+ * directory, sorted by name for determinism. Pair bodies are authoritative
+ * (file names are ignored for binding); a pair key appearing in more than
+ * one file keeps the last occurrence with a warning. `found` is true when at
+ * least one file parsed as a calibration, so callers can distinguish "no
+ * calibration files" from an empty one.
  */
 async function loadCalibrationFiles(basePath: string): Promise<{
   found: boolean;
@@ -867,16 +865,13 @@ async function loadCalibrationFiles(basePath: string): Promise<{
   transformTypes: CameraTransformTypes;
   source: CalibrationSource | null;
 }> {
-  const names: string[] = [];
-  if (await fs.pathExists(npath.join(basePath, CalibrationFileName))) {
-    names.push(CalibrationFileName);
-  }
+  let names: string[] = [];
   try {
     const entries = await fs.readdir(basePath, { withFileTypes: true });
-    names.push(...entries
+    names = entries
       .filter((entry) => entry.isFile() && PerCameraCalibrationFileName.test(entry.name))
       .map((entry) => entry.name)
-      .sort((a, b) => a.localeCompare(b)));
+      .sort((a, b) => a.localeCompare(b));
   } catch {
     // Unreadable directory: treated the same as no calibration files.
   }
@@ -946,8 +941,7 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   // one per non-reference camera, matching the per-camera files users handle
   // from kamera -- rather than embedded in meta.json, so each camera's
   // calibration is easy to find, hand-edit, and consume as a self-contained
-  // artifact. Any legacy all-pairs calibration.json is migrated (read above,
-  // removed below) on the first save.
+  // artifact. There is deliberately never a single all-pairs file.
   if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
     || args.cameraCalibrationSource) {
     // Start from whatever is on disk so a partial update doesn't clobber the rest.
@@ -967,48 +961,22 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     if (args.cameraCalibrationSource !== undefined) {
       source = args.cameraCalibrationSource;
     }
-    // Group pairs by their non-reference camera (reference = first camera in
-    // display order). A pair not touching the reference files under its right
-    // camera; grouping is cosmetic either way since pair bodies are
-    // authoritative on load.
-    const reference = existing.multiCam
-      ? orderedMultiCamCameraNames(existing.multiCam)[0] ?? null
-      : null;
-    const pairsByCamera = new Map<string, CalibrationPair[]>();
-    toCalibrationPairs(homographies, correspondences, transformTypes).forEach((pair) => {
-      let camera = pair.right;
-      if (reference !== null && pair.right === reference && pair.left !== reference) {
-        camera = pair.left;
-      }
-      pairsByCamera.set(camera, [...(pairsByCamera.get(camera) ?? []), pair]);
-    });
-    // A mixed composite stamp describes the merged SET, not any single file;
-    // stamping every per-camera file with it would make the next load read a
-    // unanimous (therefore "consistent") rig, hiding the very mismatch it
-    // records. Per-file stamps resume with the next externally produced file.
-    const fileSource = source && (source as Record<string, unknown>).mixed === true
-      ? null
-      : source;
-    const expected = new Set<string>();
-    await Promise.all([...pairsByCamera.entries()].map(([camera, pairs]) => {
-      const name = perCameraCalibrationFileName(camera);
-      expected.add(name);
-      return _saveAsJson(npath.join(projectDirInfo.basePath, name), {
-        type: CALIBRATION_FILE_TYPE,
-        version: CalibrationFileVersion,
-        ...(fileSource ? { source: fileSource } : {}),
-        pairs,
-      });
-    }));
-    // Remove the legacy all-pairs file and any per-camera file whose pairs no
-    // longer exist (e.g. a cleared pair), so the on-disk set always mirrors
-    // the saved calibration exactly.
+    const files = buildPerCameraCalibrationFiles(
+      {
+        homographies, correspondences, transformTypes, source,
+      },
+      existing.multiCam,
+    );
+    const expected = new Set(files.map((file) => file.name));
+    await Promise.all(files.map((file) => _saveAsJson(npath.join(projectDirInfo.basePath, file.name), file.body)));
+    // Remove any per-camera file whose pairs no longer exist (e.g. a cleared
+    // pair), so the on-disk set always mirrors the saved calibration exactly.
     try {
       const entries = await fs.readdir(projectDirInfo.basePath, { withFileTypes: true });
       await Promise.all(entries
         .filter((entry) => entry.isFile()
           && !expected.has(entry.name)
-          && (entry.name === CalibrationFileName || PerCameraCalibrationFileName.test(entry.name)))
+          && PerCameraCalibrationFileName.test(entry.name))
         .map((entry) => fs.remove(npath.join(projectDirInfo.basePath, entry.name))));
     } catch (err) {
       console.warn(`Unable to clean up stale calibration files: ${err}`);
@@ -1458,9 +1426,9 @@ async function findParentFolderCalibrationFile(parentPath: string): Promise<stri
  * multicam import time. Only files that self-identify with
  * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
  * .json or other stray JSON in the collect root is never grabbed by mistake.
- * Ordered for deterministic attachment: a file named exactly calibration.json
- * first, then per-camera calibration_<camera>.json files, then any other
- * self-identified candidates, alphabetically within each group.
+ * Ordered for deterministic attachment: per-camera calibration_<camera>.json
+ * files first, then any other self-identified candidates, alphabetically
+ * within each group.
  */
 async function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
   if (!await fs.pathExists(parentPath)) {
@@ -1471,11 +1439,7 @@ async function findParentFolderTransformFiles(parentPath: string): Promise<strin
     return [];
   }
   const children = await fs.readdir(parentPath, { withFileTypes: true });
-  const rank = (name: string) => {
-    if (name.toLowerCase() === CalibrationFileName) return 0;
-    if (PerCameraCalibrationFileName.test(name)) return 1;
-    return 2;
-  };
+  const rank = (name: string) => (PerCameraCalibrationFileName.test(name) ? 0 : 1);
   const candidates = children
     .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
     .map((entry) => entry.name)
@@ -2078,6 +2042,121 @@ async function zipDirectory(sourceDir: string, destZipPath: string): Promise<voi
   });
 }
 
+interface CalibrationValues {
+  homographies: CameraHomographies;
+  correspondences: CameraCorrespondences;
+  transformTypes: CameraTransformTypes;
+  source: CalibrationSource | null;
+}
+
+/**
+ * Group a calibration into its per-camera file bodies: one self-identified
+ * calibration_<camera>.json per non-reference camera (reference = first
+ * camera in display order), the same per-camera format kamera produces and
+ * the multicam import consumes. A pair not touching the reference files
+ * under its right camera; grouping is cosmetic either way since pair bodies
+ * are authoritative on load.
+ */
+function buildPerCameraCalibrationFiles(
+  calibration: CalibrationValues,
+  multiCam: JsonMeta['multiCam'],
+): { name: string; body: object }[] {
+  const reference = multiCam
+    ? orderedMultiCamCameraNames(multiCam)[0] ?? null
+    : null;
+  const pairsByCamera = new Map<string, CalibrationPair[]>();
+  toCalibrationPairs(
+    calibration.homographies,
+    calibration.correspondences,
+    calibration.transformTypes,
+  ).forEach((pair) => {
+    let camera = pair.right;
+    if (reference !== null && pair.right === reference && pair.left !== reference) {
+      camera = pair.left;
+    }
+    pairsByCamera.set(camera, [...(pairsByCamera.get(camera) ?? []), pair]);
+  });
+  // A mixed composite stamp describes the assembled SET, not any single file;
+  // stamping every per-camera file with it would present a unanimous
+  // (therefore "consistent") rig on the next load, hiding the very mismatch
+  // it records. Per-file stamps resume with the next externally produced file.
+  const fileSource = calibration.source
+    && (calibration.source as Record<string, unknown>).mixed === true
+    ? null
+    : calibration.source;
+  return [...pairsByCamera.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([camera, pairs]) => ({
+      name: perCameraCalibrationFileName(camera),
+      body: {
+        type: CALIBRATION_FILE_TYPE,
+        version: CalibrationFileVersion,
+        ...(fileSource ? { source: fileSource } : {}),
+        pairs,
+      },
+    }));
+}
+
+/**
+ * The calibration a dataset currently resolves to, from the same sources
+ * loadMetadata uses: the standalone per-camera files, or the import-time
+ * seed in the dataset meta when no files have been written yet.
+ */
+async function loadEffectiveCalibration(
+  basePath: string,
+  meta: JsonMeta,
+): Promise<CalibrationValues> {
+  const onDisk = await loadCalibrationFiles(basePath);
+  if (onDisk.found) {
+    return onDisk;
+  }
+  return {
+    homographies: meta.cameraHomographies ?? {},
+    correspondences: meta.cameraCorrespondences ?? {},
+    transformTypes: meta.cameraTransformTypes ?? {},
+    source: meta.cameraCalibrationSource ?? null,
+  };
+}
+
+/**
+ * Export a dataset's camera calibration. With a camera name, write that
+ * camera's single calibration_<camera>.json to destPath; without one, write
+ * every per-camera file into a zip at destPath.
+ * @returns the destination path written
+ */
+async function exportCameraCalibration(
+  settings: Settings,
+  datasetId: string,
+  destPath: string,
+  camera?: string,
+): Promise<string> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
+  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const calibration = await loadEffectiveCalibration(projectDirInfo.basePath, meta);
+  const files = buildPerCameraCalibrationFiles(calibration, meta.multiCam);
+  if (!files.length) {
+    throw new Error(`Dataset ${datasetId} has no camera calibration to export.`);
+  }
+  if (camera !== undefined) {
+    const match = files.find((file) => file.name === perCameraCalibrationFileName(camera));
+    if (!match) {
+      throw new Error(`Dataset ${datasetId} has no calibration for camera "${camera}".`);
+    }
+    await _saveAsJson(destPath, match.body);
+    return destPath;
+  }
+  const tempDir = await fs.mkdtemp(npath.join(os.tmpdir(), 'dive-calibration-'));
+  try {
+    await Promise.all(files.map(
+      (file) => _saveAsJson(npath.join(tempDir, file.name), file.body),
+    ));
+    await zipDirectory(tempDir, destPath);
+  } finally {
+    await fs.remove(tempDir);
+  }
+  return destPath;
+}
+
 async function exportMulticamEverything(
   settings: Settings,
   args: ExportMulticamEverythingArgs,
@@ -2121,6 +2200,15 @@ async function exportMulticamEverything(
         ?? npath.basename(calibrationPath);
       await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
     }
+
+    // Regenerate the camera-alignment calibration as its per-camera files so
+    // the zip carries it even when only the import-time seed exists.
+    const alignmentCalibration = await loadEffectiveCalibration(parentDirInfo.basePath, parentMeta);
+    await Promise.all(
+      buildPerCameraCalibrationFiles(alignmentCalibration, parentMeta.multiCam).map(
+        (file) => _saveAsJson(npath.join(datasetDir, file.name), file.body),
+      ),
+    );
 
     for (let i = 0; i < cameraNames.length; i += 1) {
       const cameraName = cameraNames[i];
@@ -2489,6 +2577,7 @@ export {
   getDatasetCalibrationExportPath,
   setDatasetCalibration,
   exportDatasetCalibration,
+  exportCameraCalibration,
   getDatasetCalibration,
   deleteDatasetCalibration,
 };
