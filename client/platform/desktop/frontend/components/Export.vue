@@ -230,7 +230,7 @@ export default defineComponent({
             </div>
           </v-btn>
         </template>
-        <span> Export Annotation Data </span>
+        <span> Export Supplementary Data </span>
       </v-tooltip>
     </template>
     <template>

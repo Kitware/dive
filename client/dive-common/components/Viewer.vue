@@ -429,6 +429,20 @@ export default defineComponent({
         resolution?.toReference ?? null,
       );
     }, { immediate: true });
+    // Publish how much of the rig resolves so UI outside the viewer core
+    // (e.g. the import menu's "Import to all cameras" checkbox) shows the
+    // same "N/M cameras calibrated" status as the Align View toggle.
+    const calibrationProgress = computed(() => {
+      const cams = multiCamList.value;
+      if (cams.length < 2) {
+        return null;
+      }
+      const unresolved = unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value);
+      return { calibrated: cams.length - unresolved.length, total: cams.length };
+    });
+    watch(calibrationProgress, (progress) => {
+      alignedView.setCalibrationProgress(progress);
+    }, { immediate: true });
     useAlignedNavigation(aggregateController, alignedView, multiCamList);
     const alignedViewAvailable = computed(() => alignedView.available.value);
     const alignedViewEnabled = computed(() => alignedView.enabled.value);
@@ -445,12 +459,9 @@ export default defineComponent({
       if (alignedViewEnabled.value) {
         return `Align View on (draw/edit on any camera)${mixedNote}`;
       }
-      const cams = multiCamList.value;
-      const unresolved = cams.length >= 2
-        ? unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value)
-        : [];
-      if (unresolved.length) {
-        return `Align View — ${cams.length - unresolved.length}/${cams.length} cameras calibrated${mixedNote}`;
+      const progress = calibrationProgress.value;
+      if (progress && progress.calibrated < progress.total) {
+        return `Align View — ${progress.calibrated}/${progress.total} cameras calibrated${mixedNote}`;
       }
       return `Align View${mixedNote}`;
     });

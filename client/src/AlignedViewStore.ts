@@ -37,6 +37,16 @@ export default class AlignedViewStore {
    */
   suspended: Ref<boolean>;
 
+  /**
+   * How much of the rig resolves: cameras with a usable transform into the
+   * reference space, out of all loaded cameras. Maintained by the viewer
+   * alongside {@link setTransforms}; null for single-camera datasets. Lets
+   * UI outside the viewer core (e.g. the import menu) show the same
+   * "N/M cameras calibrated" status as the Align View toggle without
+   * re-deriving the pair graph.
+   */
+  calibrationProgress: Ref<{ calibrated: number; total: number } | null>;
+
   /** A usable transform exists for every camera, so the toggle may be shown. */
   available: ComputedRef<boolean>;
 
@@ -48,6 +58,7 @@ export default class AlignedViewStore {
     this.reference = ref(null);
     this.toReference = ref(null);
     this.suspended = ref(false);
+    this.calibrationProgress = ref(null);
     this.available = computed(() => this.reference.value !== null
       && this.toReference.value !== null
       && Object.keys(this.toReference.value).length > 1);
@@ -60,6 +71,10 @@ export default class AlignedViewStore {
   setTransforms(reference: string | null, toReference: Record<string, Matrix3> | null) {
     this.reference.value = reference;
     this.toReference.value = toReference;
+  }
+
+  setCalibrationProgress(progress: { calibrated: number; total: number } | null) {
+    this.calibrationProgress.value = progress;
   }
 
   setEnabled(enabled: boolean) {

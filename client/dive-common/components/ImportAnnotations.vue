@@ -63,6 +63,12 @@ export default defineComponent({
       () => isMulticamDataset.value && alignedView.available.value,
     );
     const warpToAllCameras = ref(false);
+    const warpToAllCamerasHint = computed(() => {
+      const progress = alignedView.calibrationProgress.value;
+      return progress
+        ? `${progress.calibrated}/${progress.total} cameras calibrated`
+        : '';
+    });
     const activeCameraName = computed(() => {
       if (!isMulticamDataset.value) {
         return null;
@@ -303,6 +309,7 @@ export default defineComponent({
       activeCameraName,
       canWarpToAllCameras,
       warpToAllCameras,
+      warpToAllCamerasHint,
     };
   },
 });
@@ -338,7 +345,7 @@ export default defineComponent({
             </div>
           </v-btn>
         </template>
-        <span> Import Annotation Data </span>
+        <span> Import Supplementary Data </span>
       </v-tooltip>
     </template>
     <template>
@@ -373,16 +380,6 @@ export default defineComponent({
               </v-icon>
               {{ activeCameraName }}
             </div>
-            <v-checkbox
-              v-if="canWarpToAllCameras"
-              v-model="warpToAllCameras"
-              label="Import to all cameras"
-              hint="Copy the detections onto every camera,
-                warped with the dataset calibration"
-              persistent-hint
-              dense
-              class="mt-3 mb-0"
-            />
           </v-alert>
         </v-card-text>
         <v-card-text>
@@ -441,6 +438,15 @@ export default defineComponent({
                 label="Overwrite"
                 @change="additive = !$event"
               />
+              <v-checkbox
+                v-if="isMulticamDataset"
+                v-model="warpToAllCameras"
+                :disabled="!canWarpToAllCameras"
+                label="Warp to All"
+                :hint="warpToAllCamerasHint"
+                persistent-hint
+                class="ml-4"
+              />
             </v-row>
             <div v-if="additive">
               <div
@@ -466,9 +472,7 @@ export default defineComponent({
             Import Calibration
           </v-card-title>
           <v-card-text class="pb-0">
-            Merge a DIVE camera-alignment calibration .json (e.g. a per-camera
-            calibration_&lt;camera&gt;.json) into this dataset. Pairs the file
-            names replace the current ones; other cameras' pairs are kept.
+            Merge a per-camera calibration .json into this dataset.
           </v-card-text>
           <v-container>
             <v-col>
