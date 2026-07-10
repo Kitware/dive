@@ -20,7 +20,12 @@ export default class AlignedViewStore {
   /** User toggle: whether the aligned view is requested. */
   enabled: Ref<boolean>;
 
-  /** Reference camera name (first camera in display order), null when unresolved. */
+  /**
+   * Reference camera name that registration maps onto (the import dialog's
+   * Reference Camera choice, falling back to first in display order). Set
+   * whenever the dataset is multicam -- even before the rig resolves -- so
+   * UI can name the reference; null for single-camera datasets.
+   */
   reference: Ref<string | null>;
 
   /**

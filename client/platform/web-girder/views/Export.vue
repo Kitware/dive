@@ -7,7 +7,7 @@ import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
-import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { referenceCameraName } from 'dive-common/multicamDisplay';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
 import {
@@ -267,7 +267,7 @@ export default defineComponent({
         correspondences: ds.cameraCorrespondences ?? {},
         transformTypes: ds.cameraTransformTypes ?? {},
         source: ds.cameraRegistrationSource ?? null,
-      }, orderedMultiCamCameraNames(ds.multiCamMedia)[0] ?? null);
+      }, referenceCameraName(ds.multiCamMedia));
     });
 
     function exportRegistration(camera: string) {

@@ -92,7 +92,8 @@ export default defineComponent({
     );
     // One import button per non-reference camera pair, labeled in the
     // direction of the mapping -- "Import ir → eo" registers ir onto the
-    // reference camera (first in display order), matching the
+    // reference camera (the import dialog's Reference Camera choice,
+    // published by the viewer), matching the
     // <camera>_to_<reference>_registration.json file names -- and colored by
     // whether that camera already has a registration (importing onto an
     // existing one replaces it, after confirmation).
@@ -105,8 +106,8 @@ export default defineComponent({
         ...Object.keys(cameraRegistration.correspondences.value),
       ];
       const cams = [...cameraStore.camMap.value.keys()];
-      const reference = cams[0];
-      return cams.slice(1).map((camera) => ({
+      const reference = alignedView.reference.value ?? cams[0];
+      return cams.filter((camera) => camera !== reference).map((camera) => ({
         camera,
         label: `Import ${camera} → ${reference}`,
         registered: pairKeys.some((key) => key.split('::').includes(camera)),

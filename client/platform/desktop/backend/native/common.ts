@@ -51,7 +51,10 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
-import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import {
+  orderedMultiCamCameraNames,
+  referenceCameraName as multicamReferenceCameraName,
+} from 'dive-common/multicamDisplay';
 import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibrationJson';
 import {
@@ -2019,11 +2022,13 @@ async function zipDirectory(sourceDir: string, destZipPath: string): Promise<voi
   });
 }
 
-/** The reference camera (first in display order) a dataset's pairs group against. */
+/**
+ * The reference camera a dataset's pairs group against: the import dialog's
+ * Reference Camera choice (stored as defaultDisplay), falling back to the
+ * first camera in display order.
+ */
 function referenceCameraName(meta: JsonMeta): string | null {
-  return meta.multiCam
-    ? orderedMultiCamCameraNames(meta.multiCam)[0] ?? null
-    : null;
+  return meta.multiCam ? multicamReferenceCameraName(meta.multiCam) : null;
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   isMultiCamTrainingTarget,
   isStereoscopicDatasetMeta,
   orderedMultiCamCameraNames,
+  referenceCameraName,
 } from './multicamDisplay';
 
 describe('multicamDisplay', () => {
@@ -65,5 +66,25 @@ describe('multicamDisplay', () => {
     expect(isMultiCamTrainingTarget([], parent)).toBe(true);
     expect(isMultiCamTrainingTarget([left], parent)).toBe(true);
     expect(isMultiCamTrainingTarget([{ meta: { type: 'video' }, parentId: 'other' }], parent)).toBe(false);
+  });
+});
+
+describe('referenceCameraName', () => {
+  const cameras = { eo: {}, ir: {}, uv: {} };
+
+  it('uses the chosen Reference Camera (defaultDisplay)', () => {
+    expect(referenceCameraName({ cameras, defaultDisplay: 'uv' })).toBe('uv');
+  });
+
+  it('falls back to the first camera in display order for an unknown choice', () => {
+    expect(referenceCameraName({ cameras, defaultDisplay: 'zz' })).toBe('eo');
+    expect(referenceCameraName({
+      cameras, cameraOrder: ['ir', 'eo', 'uv'], defaultDisplay: 'zz',
+    })).toBe('ir');
+  });
+
+  it('returns null without cameras', () => {
+    expect(referenceCameraName(null)).toBeNull();
+    expect(referenceCameraName({ cameras: {}, defaultDisplay: 'eo' })).toBeNull();
   });
 });

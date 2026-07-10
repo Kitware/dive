@@ -405,17 +405,25 @@ export default defineComponent({
      * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
      * has a usable transform into the reference camera's space, the user may
      * warp displays and link pan/zoom across all cameras during normal
-     * review. Reference camera = first camera in display order
-     * (multiCamList[0]). Transforms come from the registration store's pair
+     * review. Reference camera = the Reference Camera chosen at import
+     * (stored as defaultDisplay), falling back to the first camera in
+     * display order. Transforms come from the registration store's pair
      * homographies (loaded from a registration file or the dataset's saved
      * meta), composed through the pair graph.
      */
     const alignedView = new AlignedViewStore();
-    const alignedResolution = computed(() => {
-      if (multiCamList.value.length < 2) {
+    const referenceCamera = computed(() => {
+      const cams = multiCamList.value;
+      if (cams.length < 2) {
         return null;
       }
-      const reference = multiCamList.value[0];
+      return cams.includes(defaultCamera.value) ? defaultCamera.value : cams[0];
+    });
+    const alignedResolution = computed(() => {
+      const reference = referenceCamera.value;
+      if (reference === null) {
+        return null;
+      }
       const toReference = resolveToReferenceTransforms(
         multiCamList.value,
         reference,
@@ -423,9 +431,11 @@ export default defineComponent({
       );
       return toReference ? { reference, toReference } : null;
     });
-    watch(alignedResolution, (resolution) => {
+    // Publish the reference even while unresolved so UI outside the viewer
+    // core (e.g. the import menu's per-pair buttons) can name it.
+    watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
       alignedView.setTransforms(
-        resolution?.reference ?? null,
+        reference,
         resolution?.toReference ?? null,
       );
     }, { immediate: true });
@@ -434,10 +444,11 @@ export default defineComponent({
     // same "N/M cameras registered" status as the Align View toggle.
     const registrationProgress = computed(() => {
       const cams = multiCamList.value;
-      if (cams.length < 2) {
+      const reference = referenceCamera.value;
+      if (reference === null) {
         return null;
       }
-      const unresolved = unresolvedCameras(cams, cams[0], cameraRegistration.homographies.value);
+      const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
     });
     watch(registrationProgress, (progress) => {

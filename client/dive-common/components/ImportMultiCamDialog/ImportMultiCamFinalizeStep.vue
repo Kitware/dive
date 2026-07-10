@@ -63,13 +63,13 @@ export default defineComponent({
       dense
       class="mb-3"
     >
-      Choose which camera to use as the default display when viewing the dataset.
+      Choose which camera to use as the reference camera for image registration.
     </v-alert>
     <v-radio-group
       v-if="showDefaultDisplay"
       :key="displayKeysKey"
       v-model="defaultDisplay"
-      label="Default Display"
+      label="Reference Camera"
     >
       <v-radio
         v-for="cameraKey in displayKeys"
