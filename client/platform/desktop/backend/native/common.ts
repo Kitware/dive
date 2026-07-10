@@ -22,7 +22,8 @@ import { GroupData } from 'vue-media-annotator/Group';
 import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/transform';
 import { CALIBRATION_FILE_TYPE } from 'vue-media-annotator/CameraCalibrationStore';
 import {
-  buildPerCameraCalibrationFiles, mergeCalibrationValues, CameraCalibrationValues,
+  buildPerCameraCalibrationFiles, calibrationValuesSummary, filterCalibrationValues,
+  mergeCalibrationValues, CameraCalibrationValues,
 } from 'vue-media-annotator/cameraCalibrationFiles';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView';
 import { invert3, Matrix3 } from 'vue-media-annotator/homography';
@@ -2070,15 +2071,17 @@ async function exportCameraCalibration(
 
 /**
  * Import a DIVE calibration .json into an existing dataset, merging its
- * pairs over the current calibration (each pair the file names replaces
- * that pair wholly; other pairs are kept, so per-camera files can be
- * imported one at a time). Persists through saveMetadata, which rewrites
- * the standalone per-camera files.
+ * pairs over the current calibration: with options.camera, only the file's
+ * pairs naming that camera are taken; each imported pair replaces that pair
+ * wholly and other pairs are kept, so per-camera files can be imported one
+ * at a time. Persists through saveMetadata, which rewrites the standalone
+ * per-camera files.
  */
 async function importCameraCalibration(
   settings: Settings,
   datasetId: string,
   filePath: string,
+  options: { camera?: string } = {},
 ): Promise<{ cameras: string[]; pairCount: number }> {
   const parentId = datasetId.split('/')[0];
   const projectDirInfo = await getValidatedProjectDir(settings, parentId);
@@ -2092,21 +2095,29 @@ async function importCameraCalibration(
   if (!data || !Array.isArray(data.pairs)) {
     throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
   }
-  const parsed = fromCalibrationPairs(data.pairs);
-  Object.entries(parsed.homographies).forEach(([key, homography]) => {
+  let incoming: CameraCalibrationValues = {
+    ...fromCalibrationPairs(data.pairs),
+    source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
+      ? data.source as CalibrationSource
+      : null,
+  };
+  if (options.camera !== undefined) {
+    incoming = filterCalibrationValues(incoming, options.camera);
+  }
+  const summary = calibrationValuesSummary(incoming);
+  if (!summary.pairCount) {
+    throw new Error(options.camera !== undefined
+      ? `File has no pairs for camera "${options.camera}"`
+      : 'File has no pairs');
+  }
+  Object.entries(incoming.homographies).forEach(([key, homography]) => {
     if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
       throw new Error(`Pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
     }
   });
-  const existing = await loadEffectiveCalibration(projectDirInfo.basePath, meta);
   const merged = mergeCalibrationValues(
-    existing,
-    {
-      ...parsed,
-      source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
-        ? data.source as CalibrationSource
-        : null,
-    },
+    await loadEffectiveCalibration(projectDirInfo.basePath, meta),
+    incoming,
     npath.basename(filePath),
   );
   await saveMetadata(settings, parentId, {
@@ -2115,12 +2126,7 @@ async function importCameraCalibration(
     cameraTransformTypes: merged.transformTypes,
     cameraCalibrationSource: merged.source,
   });
-  const cameras = new Set<string>();
-  (data.pairs as CalibrationPair[]).forEach((pair) => {
-    cameras.add(pair.left);
-    cameras.add(pair.right);
-  });
-  return { cameras: [...cameras], pairCount: data.pairs.length };
+  return summary;
 }
 
 async function exportMulticamEverything(

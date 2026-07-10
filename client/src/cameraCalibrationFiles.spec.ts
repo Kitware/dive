@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildPerCameraCalibrationFiles,
+  calibrationValuesSummary,
+  filterCalibrationValues,
   mergeCalibrationValues,
   CameraCalibrationValues,
 } from './cameraCalibrationFiles';
@@ -75,6 +77,39 @@ describe('buildPerCameraCalibrationFiles', () => {
     }), 'rgb');
     expect(file.body.pairs[0].points).toStrictEqual([[10, 20, 12, 22]]);
     expect(file.body.pairs[0].leftToRight).toBeNull();
+  });
+});
+
+describe('filterCalibrationValues', () => {
+  const multi = values({
+    homographies: {
+      'rgb::ir': { AtoB: SHIFT, BtoA: UNSHIFT },
+      'rgb::uv': { AtoB: IDENTITY, BtoA: IDENTITY },
+    },
+    transformTypes: { 'rgb::ir': 'rigid', 'rgb::uv': 'affine' },
+    source: { producer: 'kamera' },
+  });
+
+  it('keeps only pairs naming the camera, on either side', () => {
+    const filtered = filterCalibrationValues(multi, 'ir');
+    expect(Object.keys(filtered.homographies)).toStrictEqual(['rgb::ir']);
+    expect(Object.keys(filtered.transformTypes)).toStrictEqual(['rgb::ir']);
+    expect(filtered.source).toStrictEqual({ producer: 'kamera' });
+  });
+
+  it('yields an empty calibration for an unknown camera', () => {
+    expect(calibrationValuesSummary(filterCalibrationValues(multi, 'zz')).pairCount).toBe(0);
+  });
+});
+
+describe('calibrationValuesSummary', () => {
+  it('counts distinct pairs and names their cameras', () => {
+    const summary = calibrationValuesSummary(values({
+      homographies: { 'rgb::ir': { AtoB: SHIFT, BtoA: UNSHIFT } },
+      correspondences: { 'rgb::uv': [{ id: 1, a: [1, 2], b: [3, 4] }] },
+    }));
+    expect(summary.pairCount).toBe(2);
+    expect(summary.cameras.sort()).toStrictEqual(['ir', 'rgb', 'uv']);
   });
 });
 

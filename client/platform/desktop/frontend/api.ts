@@ -673,8 +673,10 @@ function exportCameraCalibration(
 function importCameraCalibration(
   datasetId: string,
   path: string,
+  _file?: File,
+  options?: { camera?: string },
 ): Promise<{ cameras: string[]; pairCount: number }> {
-  return window.diveDesktop.invoke('import-camera-calibration', { id: datasetId, path });
+  return window.diveDesktop.invoke('import-camera-calibration', { id: datasetId, path, options });
 }
 
 function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {

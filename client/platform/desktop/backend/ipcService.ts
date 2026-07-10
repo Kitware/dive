@@ -274,7 +274,11 @@ export default function register() {
     return { exportedPath };
   });
 
-  ipcMain.handle('import-camera-calibration', async (_, { id, path: filePath }: { id: string; path: string }) => common.importCameraCalibration(settings.get(), id, filePath));
+  ipcMain.handle('import-camera-calibration', async (_, { id, path: filePath, options }: {
+    id: string;
+    path: string;
+    options?: { camera?: string };
+  }) => common.importCameraCalibration(settings.get(), id, filePath, options));
 
   ipcMain.handle('get-dataset-calibration', async (_, { datasetId }: { datasetId: string }) => common.getDatasetCalibration(settings.get(), datasetId));
 

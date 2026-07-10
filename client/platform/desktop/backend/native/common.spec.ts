@@ -972,6 +972,51 @@ describe('native.common', () => {
     await expect(common.importCameraCalibration(settings, final.id, '/home/user/output/nopairs.json')).rejects.toThrow('expected a "pairs" list');
   });
 
+  it('importCameraCalibration scoped to a camera takes only that camera\'s pairs', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+      },
+    });
+
+    // A file holding two pairs, imported scoped to uv: only the uv pair lands.
+    await fs.writeJSON('/home/user/output/allpairs.json', {
+      type: 'dive-camera-calibration',
+      version: 1,
+      pairs: [
+        {
+          left: 'rgb', right: 'ir', points: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
+        },
+        {
+          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        },
+      ],
+    });
+    const scoped = await common.importCameraCalibration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'uv' });
+    expect(scoped).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
+    const merged = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(merged.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    // The scoped import left the existing ir pair untouched.
+    expect(merged.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+
+    // Re-importing scoped to ir replaces that pair while keeping uv.
+    await common.importCameraCalibration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'ir' });
+    const replaced = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(replaced.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    expect(replaced.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[2, 0, 0], [0, 2, 0], [0, 0, 1]]);
+
+    // Scoping to a camera the file doesn't name refuses.
+    await expect(common.importCameraCalibration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'zz' })).rejects.toThrow('no pairs for camera "zz"');
+  });
+
   it('exportCameraCalibration never stamps exported files with a mixed composite', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',

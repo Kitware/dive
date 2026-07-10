@@ -90,6 +90,26 @@ export default defineComponent({
     const alignmentCalibrationSupported = computed(
       () => !!api.importCameraCalibration && isMulticamDataset.value,
     );
+    // One import button per non-reference camera pair (reference = first
+    // camera in display order), labeled like "Import eo → ir" and colored by
+    // whether that camera already has a calibration (importing onto an
+    // existing one replaces it, after confirmation).
+    const calibrationImportTargets = computed(() => {
+      if (!alignmentCalibrationSupported.value) {
+        return [];
+      }
+      const pairKeys = [
+        ...Object.keys(cameraCalibration.homographies.value),
+        ...Object.keys(cameraCalibration.correspondences.value),
+      ];
+      const cams = [...cameraStore.camMap.value.keys()];
+      const reference = cams[0];
+      return cams.slice(1).map((camera) => ({
+        camera,
+        label: `Import ${reference} → ${camera}`,
+        calibrated: pairKeys.some((key) => key.split('::').includes(camera)),
+      }));
+    });
     const currentCalibrationName = computed(() => {
       if (!props.calibrationFile) return '';
       return props.calibrationFile.replace(/^.*[\\/]/, '');
@@ -219,8 +239,19 @@ export default defineComponent({
         });
       }
     };
-    const openAlignmentCalibrationUpload = async () => {
+    const openAlignmentCalibrationUpload = async (camera: string) => {
       if (!api.importCameraCalibration) return;
+      const target = calibrationImportTargets.value.find((entry) => entry.camera === camera);
+      if (target?.calibrated) {
+        const confirmed = await prompt({
+          title: 'Replace Calibration?',
+          text: `Camera "${camera}" already has a calibration. Importing will replace it.`,
+          positiveButton: 'Replace',
+          negativeButton: 'Cancel',
+          confirm: true,
+        });
+        if (!confirmed) return;
+      }
       try {
         const ret = await openFromDisk('transform');
         if (ret.canceled || !ret.filePaths.length) return;
@@ -230,6 +261,7 @@ export default defineComponent({
           props.datasetId,
           ret.filePaths[0],
           ret.fileList?.[0],
+          { camera },
         );
         // Rehydrate the store from the freshly persisted meta so the Align
         // View and mirroring pick up the new transforms immediately.
@@ -297,6 +329,7 @@ export default defineComponent({
       lastCalibrationFileName,
       cameraFileSupported,
       alignmentCalibrationSupported,
+      calibrationImportTargets,
       currentCalibrationName,
       processing,
       menuOpen,
@@ -476,14 +509,19 @@ export default defineComponent({
           </v-card-text>
           <v-container>
             <v-col>
-              <v-row>
+              <v-row
+                v-for="target in calibrationImportTargets"
+                :key="target.camera"
+              >
                 <v-btn
                   depressed
                   block
+                  class="mb-2"
+                  :color="target.calibrated ? 'success' : 'warning'"
                   :disabled="!datasetId || processing"
-                  @click="openAlignmentCalibrationUpload"
+                  @click="openAlignmentCalibrationUpload(target.camera)"
                 >
-                  Import Calibration
+                  {{ target.label }}
                 </v-btn>
               </v-row>
             </v-col>

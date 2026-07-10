@@ -338,9 +338,12 @@ interface Api {
   /**
    * Merge a DIVE camera-calibration .json (alignment transforms) into an
    * existing multicam dataset's saved calibration. Web reads the provided
-   * File; desktop reads the path.
+   * File; desktop reads the path. options.camera keeps only the file's
+   * pairs naming that camera, replacing that camera's current pairs while
+   * other cameras' pairs are kept.
    */
-  importCameraCalibration?(datasetId: string, path: string, file?: File):
+  importCameraCalibration?(datasetId: string, path: string, file?: File,
+    options?: { camera?: string }):
     Promise<{ cameras: string[]; pairCount: number }>;
   /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
   exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;

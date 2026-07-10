@@ -26,6 +26,41 @@ export function perCameraCalibrationFileName(camera: string): string {
 }
 
 /**
+ * Restrict a calibration to the pairs naming `camera` (either side). Used by
+ * the per-camera import buttons so a multi-pair file only contributes the
+ * chosen camera's pair(s).
+ */
+export function filterCalibrationValues(
+  values: CameraCalibrationValues,
+  camera: string,
+): CameraCalibrationValues {
+  const keep = (key: string) => key.split('::').includes(camera);
+  const filterRecord = <T>(record: Record<string, T>): Record<string, T> => Object.fromEntries(
+    Object.entries(record).filter(([key]) => keep(key)),
+  );
+  return {
+    homographies: filterRecord(values.homographies),
+    correspondences: filterRecord(values.correspondences),
+    transformTypes: filterRecord(values.transformTypes),
+    source: values.source,
+  };
+}
+
+/** The distinct camera names and pair count a calibration holds. */
+export function calibrationValuesSummary(
+  values: CameraCalibrationValues,
+): { cameras: string[]; pairCount: number } {
+  const keys = new Set([
+    ...Object.keys(values.homographies),
+    ...Object.keys(values.correspondences),
+    ...Object.keys(values.transformTypes),
+  ]);
+  const cameras = new Set<string>();
+  keys.forEach((key) => key.split('::').forEach((name) => cameras.add(name)));
+  return { cameras: [...cameras], pairCount: keys.size };
+}
+
+/**
  * Convert the in-app calibration state (keyed by directional "left::right")
  * into the self-describing list of file pairs.
  */

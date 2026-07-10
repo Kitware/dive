@@ -1,7 +1,9 @@
 import type { GirderModel } from '@girder/components/src';
 
 import CameraCalibrationStore from 'vue-media-annotator/CameraCalibrationStore';
-import { mergeCalibrationValues } from 'vue-media-annotator/cameraCalibrationFiles';
+import {
+  calibrationValuesSummary, filterCalibrationValues, mergeCalibrationValues,
+} from 'vue-media-annotator/cameraCalibrationFiles';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
@@ -190,14 +192,36 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
  * existing multicam dataset's saved calibration. Parsing, validation, and
  * merging all happen client-side; the result persists through the standard
  * dataset meta PATCH (the calibration fields are allowlisted server-side).
+ * options.camera keeps only the file's pairs naming that camera; each
+ * imported pair replaces that pair wholly and other pairs are kept.
  */
-async function importCameraCalibration(datasetId: string, path: string, file?: File) {
+async function importCameraCalibration(
+  datasetId: string,
+  path: string,
+  file?: File,
+  options: { camera?: string } = {},
+) {
   if (!file) {
     throw new Error('No calibration file provided');
   }
   // A throwaway store instance provides the shared parser/validator.
   const store = new CameraCalibrationStore();
-  const { cameras, pairCount } = store.loadCalibrationText(await file.text());
+  store.loadCalibrationText(await file.text());
+  let incoming = {
+    homographies: store.homographies.value,
+    correspondences: store.correspondences.value,
+    transformTypes: store.transformTypes.value,
+    source: store.source.value,
+  };
+  if (options.camera !== undefined) {
+    incoming = filterCalibrationValues(incoming, options.camera);
+  }
+  const summary = calibrationValuesSummary(incoming);
+  if (!summary.pairCount) {
+    throw new Error(options.camera !== undefined
+      ? `File has no pairs for camera "${options.camera}"`
+      : 'File has no pairs');
+  }
   const parentId = parentDatasetId(datasetId);
   const { data: current } = await getDataset(parentId);
   const merged = mergeCalibrationValues(
@@ -207,12 +231,7 @@ async function importCameraCalibration(datasetId: string, path: string, file?: F
       transformTypes: current.cameraTransformTypes ?? {},
       source: current.cameraCalibrationSource ?? null,
     },
-    {
-      homographies: store.homographies.value,
-      correspondences: store.correspondences.value,
-      transformTypes: store.transformTypes.value,
-      source: store.source.value,
-    },
+    incoming,
     file.name,
   );
   await saveMetadata(parentId, {
@@ -221,7 +240,7 @@ async function importCameraCalibration(datasetId: string, path: string, file?: F
     cameraTransformTypes: merged.transformTypes,
     cameraCalibrationSource: merged.source,
   });
-  return { cameras, pairCount };
+  return summary;
 }
 
 interface ValidationResponse {
