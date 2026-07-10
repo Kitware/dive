@@ -310,8 +310,8 @@ interface Api {
   findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
   /**
    * Desktop: every DIVE camera-calibration .json (alignment transforms) in a
-   * parent folder root: calibration.json first, then per-camera
-   * calibration_<camera>.json files, then other self-identified candidates.
+   * parent folder root: per-camera calibration_<camera>.json files first,
+   * then other self-identified candidates.
    */
   findParentFolderTransformFiles?(parentPath: string): Promise<string[]>;
   /** True when the dataset folder has an attached stereoscopic calibration file. */
@@ -335,6 +335,13 @@ interface Api {
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
   /** Desktop: set the stereo camera/calibration file for a single dataset. */
   importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
+  /**
+   * Merge a DIVE camera-calibration .json (alignment transforms) into an
+   * existing multicam dataset's saved calibration. Web reads the provided
+   * File; desktop reads the path.
+   */
+  importCameraCalibration?(datasetId: string, path: string, file?: File):
+    Promise<{ cameras: string[]; pairCount: number }>;
   /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
   exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
   /** Download/export the dataset's current calibration file (platform-specific). */

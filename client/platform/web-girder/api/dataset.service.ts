@@ -1,5 +1,7 @@
 import type { GirderModel } from '@girder/components/src';
 
+import CameraCalibrationStore from 'vue-media-annotator/CameraCalibrationStore';
+import { mergeCalibrationValues } from 'vue-media-annotator/cameraCalibrationFiles';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
@@ -183,6 +185,45 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
 }
 
+/**
+ * Merge a DIVE camera-calibration .json (alignment transforms) into an
+ * existing multicam dataset's saved calibration. Parsing, validation, and
+ * merging all happen client-side; the result persists through the standard
+ * dataset meta PATCH (the calibration fields are allowlisted server-side).
+ */
+async function importCameraCalibration(datasetId: string, path: string, file?: File) {
+  if (!file) {
+    throw new Error('No calibration file provided');
+  }
+  // A throwaway store instance provides the shared parser/validator.
+  const store = new CameraCalibrationStore();
+  const { cameras, pairCount } = store.loadCalibrationText(await file.text());
+  const parentId = parentDatasetId(datasetId);
+  const { data: current } = await getDataset(parentId);
+  const merged = mergeCalibrationValues(
+    {
+      homographies: current.cameraHomographies ?? {},
+      correspondences: current.cameraCorrespondences ?? {},
+      transformTypes: current.cameraTransformTypes ?? {},
+      source: current.cameraCalibrationSource ?? null,
+    },
+    {
+      homographies: store.homographies.value,
+      correspondences: store.correspondences.value,
+      transformTypes: store.transformTypes.value,
+      source: store.source.value,
+    },
+    file.name,
+  );
+  await saveMetadata(parentId, {
+    cameraHomographies: merged.homographies,
+    cameraCorrespondences: merged.correspondences,
+    cameraTransformTypes: merged.transformTypes,
+    cameraCalibrationSource: merged.source,
+  });
+  return { cameras, pairCount };
+}
+
 interface ValidationResponse {
   ok: boolean;
   type: 'video' | 'image-sequence' | 'large-image';
@@ -328,6 +369,7 @@ export {
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,
+  importCameraCalibration,
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,

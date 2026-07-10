@@ -1,6 +1,5 @@
 import mockfs from 'mock-fs';
 import npath from 'path';
-import os from 'os';
 import fs from 'fs-extra';
 import { Console } from 'console';
 
@@ -175,8 +174,6 @@ beforeEach(() => {
     },
     '/home/user/testPairs': { ...fileSystemData },
     '/home/user/output': {},
-    // Zip exports stage their files in a real temp dir before archiving.
-    [os.tmpdir()]: {},
     '/home/user/transformDiscovery': {
       exactName: {
         'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-calibration', version: 1, pairs: [] }),
@@ -933,7 +930,7 @@ describe('native.common', () => {
     await expect(common.exportCameraCalibration(settings, final.id, '/home/user/output/nope.json', 'zz')).rejects.toThrow('no calibration for camera');
   });
 
-  it('exportCameraCalibration zips every per-camera file when no camera is given', async () => {
+  it('importCameraCalibration merges an imported file over the saved calibration', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
@@ -945,16 +942,34 @@ describe('native.common', () => {
           AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
           BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
         },
-        'rgb::uv': {
-          AtoB: [[1, 0, 8], [0, 1, 2], [0, 0, 1]],
-          BtoA: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
-        },
       },
+      cameraCalibrationSource: { producer: 'kamera', run: 'fl07' },
     });
 
-    const destPath = '/home/user/output/calibrations.zip';
-    await common.exportCameraCalibration(settings, final.id, destPath);
-    expect((await fs.stat(destPath)).size).toBeGreaterThan(0);
+    // A per-camera file for a second camera merges in alongside the first.
+    await fs.writeJSON('/home/user/output/calibration_uv.json', {
+      type: 'dive-camera-calibration',
+      version: 1,
+      source: { producer: 'kamera', run: 'fl07' },
+      pairs: [{
+        left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      }],
+    });
+    const result = await common.importCameraCalibration(settings, final.id, '/home/user/output/calibration_uv.json');
+    expect(result).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(reloaded.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    // Agreeing stamps stay a single plain stamp, persisted into the files.
+    expect(reloaded.cameraCalibrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    expect(await fs.pathExists(npath.join(projectDir, 'calibration_uv.json'))).toBe(true);
+
+    // A malformed file refuses without touching the dataset.
+    await fs.writeFile('/home/user/output/broken.json', '{not json');
+    await expect(common.importCameraCalibration(settings, final.id, '/home/user/output/broken.json')).rejects.toThrow('not valid JSON');
+    await fs.writeJSON('/home/user/output/nopairs.json', { calibrations: {} });
+    await expect(common.importCameraCalibration(settings, final.id, '/home/user/output/nopairs.json')).rejects.toThrow('expected a "pairs" list');
   });
 
   it('exportCameraCalibration never stamps exported files with a mixed composite', async () => {

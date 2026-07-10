@@ -9,6 +9,7 @@ import {
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MultiType } from 'dive-common/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { buildPerCameraCalibrationFiles } from 'vue-media-annotator/cameraCalibrationFiles';
 import {
   loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
   exportCameraCalibration, exportMulticamEverything,
@@ -94,37 +95,24 @@ export default defineComponent({
 
     // Cameras with an exportable alignment calibration: each pair files under
     // its non-reference camera (reference = first camera in display order),
-    // mirroring how the backend groups pairs into calibration_<camera>.json.
+    // matching how the backend groups pairs into calibration_<camera>.json.
     const calibrationCameras = computed(() => {
       const { meta } = data;
       if (!meta || meta.type !== MultiType || !meta.multiCam) {
         return [];
       }
-      const pairKeys = new Set([
-        ...Object.keys(meta.cameraHomographies ?? {}),
-        ...Object.keys(meta.cameraCorrespondences ?? {}),
-        ...Object.keys(meta.cameraTransformTypes ?? {}),
-      ]);
-      const reference = orderedMultiCamCameraNames(meta.multiCam)[0] ?? null;
-      const cameras = new Set<string>();
-      pairKeys.forEach((key) => {
-        const [left, right] = key.split('::');
-        let camera = right;
-        if (reference !== null && right === reference && left !== reference) {
-          camera = left;
-        }
-        cameras.add(camera);
-      });
-      return [...cameras].sort();
+      return buildPerCameraCalibrationFiles({
+        homographies: meta.cameraHomographies ?? {},
+        correspondences: meta.cameraCorrespondences ?? {},
+        transformTypes: meta.cameraTransformTypes ?? {},
+        source: meta.cameraCalibrationSource ?? null,
+      }, orderedMultiCamCameraNames(meta.multiCam)[0] ?? null).map((file) => file.camera);
     });
 
-    async function exportCalibration(camera?: string) {
-      const defaultName = camera === undefined
-        ? `${data.meta?.name ?? 'dataset'}_calibration.zip`
-        : `calibration_${camera}.json`;
+    async function exportCalibration(camera: string) {
       const location = await window.diveDesktop.showSaveDialog({
         title: 'Export Camera Calibration',
-        defaultPath: defaultName,
+        defaultPath: `calibration_${camera}.json`,
       });
       if (location.canceled || !location.filePath) return;
       try {
@@ -422,15 +410,6 @@ export default defineComponent({
                   @click="exportCalibration(camera)"
                 >
                   Calibration: {{ camera }}
-                </v-btn>
-                <v-btn
-                  v-if="calibrationCameras.length > 1"
-                  depressed
-                  block
-                  class="my-1"
-                  @click="exportCalibration()"
-                >
-                  All calibrations (.zip)
                 </v-btn>
               </v-col>
             </v-row>

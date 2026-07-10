@@ -6,6 +6,8 @@ import {
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
+import { buildPerCameraCalibrationFiles } from 'vue-media-annotator/cameraCalibrationFiles';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
 import {
@@ -251,6 +253,40 @@ export default defineComponent({
       });
     }
 
+    // Per-camera alignment calibration files, built client-side from the
+    // dataset meta (the calibration persists there on web). Each pair files
+    // under its non-reference camera, matching the desktop's on-disk
+    // calibration_<camera>.json convention.
+    const calibrationFiles = computed(() => {
+      const ds = dataset.value;
+      if (!ds || ds.type !== MultiType) {
+        return [];
+      }
+      return buildPerCameraCalibrationFiles({
+        homographies: ds.cameraHomographies ?? {},
+        correspondences: ds.cameraCorrespondences ?? {},
+        transformTypes: ds.cameraTransformTypes ?? {},
+        source: ds.cameraCalibrationSource ?? null,
+      }, orderedMultiCamCameraNames(ds.multiCamMedia)[0] ?? null);
+    });
+
+    function exportCalibration(camera: string) {
+      const match = calibrationFiles.value.find((file) => file.camera === camera);
+      if (!match) {
+        return;
+      }
+      const blob = new Blob(
+        [JSON.stringify(match.body, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = match.name;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }
+
     return {
       error,
       dataset,
@@ -271,6 +307,8 @@ export default defineComponent({
       isMulticamDataset,
       cameraFileSupported,
       exportCameraFile,
+      calibrationFiles,
+      exportCalibration,
     };
   },
 });
@@ -494,6 +532,29 @@ export default defineComponent({
               >
                 Camera File
               </v-btn>
+            </v-card-actions>
+          </template>
+
+          <template v-if="calibrationFiles.length">
+            <v-card-text class="pb-0">
+              Download the camera-alignment calibration:
+              one calibration_&lt;camera&gt;.json per camera.
+            </v-card-text>
+            <v-card-actions>
+              <v-row>
+                <v-col>
+                  <v-btn
+                    v-for="file in calibrationFiles"
+                    :key="file.camera"
+                    depressed
+                    block
+                    class="my-1"
+                    @click="exportCalibration(file.camera)"
+                  >
+                    Calibration: {{ file.camera }}
+                  </v-btn>
+                </v-col>
+              </v-row>
             </v-card-actions>
           </template>
 
