@@ -6,7 +6,7 @@ import AlignedViewStore from './AlignedViewStore';
 import BaseAnnotation from './BaseAnnotation';
 import BaseAnnotationStore from './BaseAnnotationStore';
 import CameraStore from './CameraStore';
-import CameraCalibrationStore from './CameraCalibrationStore';
+import CameraRegistrationStore from './CameraRegistrationStore';
 import Group from './Group';
 import GroupFilterControls from './GroupFilterControls';
 import GroupStore from './GroupStore';
@@ -31,7 +31,7 @@ export {
   BaseAnnotation,
   BaseAnnotationStore,
   CameraStore,
-  CameraCalibrationStore,
+  CameraRegistrationStore,
   Group,
   GroupFilterControls,
   GroupStore,

@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
-import CameraCalibrationStore from './CameraCalibrationStore';
+import CameraRegistrationStore from './CameraRegistrationStore';
 
-describe('CameraCalibrationStore', () => {
+describe('CameraRegistrationStore', () => {
   // Pure translation by (+5, -3): trivially invertible.
   const translate = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
   // Four correspondence rows consistent with `translate`: right = left + (5, -3).
@@ -13,14 +13,14 @@ describe('CameraCalibrationStore', () => {
   ];
 
   it('produces a directional pairKey that preserves left/right order', () => {
-    const store = new CameraCalibrationStore();
+    const store = new CameraRegistrationStore();
     expect(store.pairKey('rgb', 'ir')).toEqual('rgb::ir');
     expect(store.pairKey('rgb', 'ir')).not.toEqual(store.pairKey('ir', 'rgb'));
   });
 
   it('hydrates homographies and resets prior calibration state', () => {
-    const store = new CameraCalibrationStore();
-    store.loadCalibrationText(JSON.stringify({
+    const store = new CameraRegistrationStore();
+    store.loadRegistrationText(JSON.stringify({
       version: 1,
       pairs: [{
         left: 'left', right: 'right', points: [[1, 1, 6, -2]], transformType: 'translation',
@@ -34,14 +34,14 @@ describe('CameraCalibrationStore', () => {
   });
 
   it('hydrates transform types alongside homographies', () => {
-    const store = new CameraCalibrationStore();
+    const store = new CameraRegistrationStore();
     store.hydrate({}, {}, { 'a::b': 'rigid' });
     expect(store.transformTypeForPair('a::b')).toBe('rigid');
     expect(store.transformTypeForPair('unset::pair')).toBe('similarity');
   });
 
   it('hydrates correspondences and resumes id allocation', () => {
-    const store = new CameraCalibrationStore();
+    const store = new CameraRegistrationStore();
     const correspondences = {
       'rgb::ir': [
         { id: 1, a: [1, 2], b: [3, 4] },
@@ -51,7 +51,7 @@ describe('CameraCalibrationStore', () => {
     store.hydrate({}, correspondences);
     expect(store.correspondences.value).toEqual(correspondences);
     // Points loaded afterwards pick up ids after the highest restored id.
-    store.loadCalibrationText(JSON.stringify({
+    store.loadRegistrationText(JSON.stringify({
       version: 1,
       pairs: [{ left: 'rgb', right: 'ir', points: [[9, 9, 10, 10]] }],
     }));
@@ -60,9 +60,9 @@ describe('CameraCalibrationStore', () => {
 
   describe('dirty / markSaved', () => {
     it('tracks unsaved changes and resets on markSaved and hydrate', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       expect(store.dirty.value).toBe(false);
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'left', right: 'right', points: [], leftToRight: null, rightToLeft: translate,
@@ -79,7 +79,7 @@ describe('CameraCalibrationStore', () => {
 
   describe('sourceIsMixed', () => {
     it('flags only the mixed composite stamp the file merger produces', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       expect(store.sourceIsMixed()).toBe(false);
       store.hydrate(undefined, undefined, undefined, { producer: 'kamera', run: 'fl07' });
       expect(store.sourceIsMixed()).toBe(false);
@@ -93,8 +93,8 @@ describe('CameraCalibrationStore', () => {
 
   describe('loaded (file-sourced) homographies', () => {
     /** Load a matrix-only (point-less) pair from calibration JSON, marking it 'loaded'. */
-    function loadMatrixOnlyPair(store: CameraCalibrationStore, left: string, right: string, rightToLeft: number[][]) {
-      store.loadCalibrationText(JSON.stringify({
+    function loadMatrixOnlyPair(store: CameraRegistrationStore, left: string, right: string, rightToLeft: number[][]) {
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left, right, points: [], leftToRight: null, rightToLeft,
@@ -103,7 +103,7 @@ describe('CameraCalibrationStore', () => {
     }
 
     it('loads a matrix-only pair as B->A with its inverse as A->B and no points', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
       loadMatrixOnlyPair(store, 'left', 'right', translate);
       expect(store.correspondences.value[key]).toHaveLength(0);
@@ -115,13 +115,13 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('rejects a singular loaded matrix', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       expect(() => loadMatrixOnlyPair(store, 'left', 'right', [[0, 0, 0], [0, 0, 0], [0, 0, 0]]))
         .toThrow(/singular/);
     });
 
     it('hydrate marks an under-pointed homography as loaded', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
       store.hydrate({ [key]: { AtoB: translate, BtoA: translate } }, {}, {});
       expect(store.isLoadedHomography(key)).toBe(true);
@@ -130,9 +130,9 @@ describe('CameraCalibrationStore', () => {
 
   describe('calibration JSON file round trip', () => {
     it('serializes and reloads all pairs', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'left',
@@ -143,10 +143,10 @@ describe('CameraCalibrationStore', () => {
           transformType: 'translation',
         }],
       }));
-      const json = store.toCalibrationJson();
+      const json = store.toRegistrationJson();
 
-      const restored = new CameraCalibrationStore();
-      const result = restored.loadCalibrationText(json);
+      const restored = new CameraRegistrationStore();
+      const result = restored.loadRegistrationText(json);
       expect(result.pairCount).toBe(1);
       expect(result.cameras.sort()).toEqual(['left', 'right']);
       expect(restored.correspondences.value[key]).toHaveLength(4);
@@ -159,23 +159,23 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('includes pairs that only have a loaded homography (no points)', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('uv', 'ir');
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'uv', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: null,
         }],
       }));
-      const restored = new CameraCalibrationStore();
-      restored.loadCalibrationText(store.toCalibrationJson());
+      const restored = new CameraRegistrationStore();
+      restored.loadRegistrationText(store.toRegistrationJson());
       expect(restored.homographies.value[key]).toBeDefined();
       expect(restored.isLoadedHomography(key)).toBe(true);
     });
 
     it('loads a desktop-persisted calibration.json (no "type" field, one direction only)', () => {
-      const store = new CameraCalibrationStore();
-      const result = store.loadCalibrationText(JSON.stringify({
+      const store = new CameraRegistrationStore();
+      const result = store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'eo',
@@ -195,9 +195,9 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('preserves the producer source stamp across a load/save round trip', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         source,
         pairs: [{
@@ -205,41 +205,41 @@ describe('CameraCalibrationStore', () => {
         }],
       }));
       expect(store.source.value).toStrictEqual(source);
-      const saved = JSON.parse(store.toCalibrationJson());
+      const saved = JSON.parse(store.toRegistrationJson());
       expect(saved.source).toStrictEqual(source);
     });
 
     it('omits the source key when no stamp was loaded', () => {
-      const store = new CameraCalibrationStore();
-      store.loadCalibrationText(JSON.stringify({
+      const store = new CameraRegistrationStore();
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'left', right: 'right', points: translationPointRows, leftToRight: translate, rightToLeft: null,
         }],
       }));
-      expect('source' in JSON.parse(store.toCalibrationJson())).toBe(false);
+      expect('source' in JSON.parse(store.toRegistrationJson())).toBe(false);
     });
 
     it('clears a previous stamp when loading a file without one', () => {
-      const store = new CameraCalibrationStore();
-      store.loadCalibrationText(JSON.stringify({
+      const store = new CameraRegistrationStore();
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         source: { model: 'old' },
         pairs: [],
       }));
-      store.loadCalibrationText(JSON.stringify({ version: 1, pairs: [] }));
+      store.loadRegistrationText(JSON.stringify({ version: 1, pairs: [] }));
       expect(store.source.value).toBeNull();
     });
 
     it('rejects a non-object source', () => {
-      const store = new CameraCalibrationStore();
-      expect(() => store.loadCalibrationText(JSON.stringify({
+      const store = new CameraRegistrationStore();
+      expect(() => store.loadRegistrationText(JSON.stringify({
         version: 1, source: 'colmap', pairs: [],
       }))).toThrow(/"source" must be an object/);
     });
 
     it('hydrate restores the source stamp', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       store.hydrate({}, {}, {}, { model: 'colmap-x' });
       expect(store.source.value).toStrictEqual({ model: 'colmap-x' });
       store.hydrate({}, {}, {});
@@ -247,10 +247,10 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('flags a point-backed homography as refined when a source stamp is loaded', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
       // Fresh from the producer (matrix-only): loaded, not refined.
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         source: { model: 'colmap-x' },
         pairs: [{
@@ -259,7 +259,7 @@ describe('CameraCalibrationStore', () => {
       }));
       expect(store.isRefinedFromSource(key)).toBe(false);
       // Point-backed under a stamp: the pair has diverged from the producer.
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         source: { model: 'colmap-x' },
         pairs: [{
@@ -270,9 +270,9 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('does not flag point-backed homographies as refined when no source stamp is loaded', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'left', right: 'right', points: translationPointRows, leftToRight: translate, rightToLeft: null, transformType: 'translation',
@@ -282,9 +282,9 @@ describe('CameraCalibrationStore', () => {
     });
 
     it('keeps the refined flag across a save/load round trip', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         source: { model: 'colmap-x' },
         pairs: [{
@@ -293,28 +293,28 @@ describe('CameraCalibrationStore', () => {
       }));
       expect(store.isRefinedFromSource(key)).toBe(true);
 
-      const restored = new CameraCalibrationStore();
-      restored.loadCalibrationText(store.toCalibrationJson());
+      const restored = new CameraRegistrationStore();
+      restored.loadRegistrationText(store.toRegistrationJson());
       // The refined pair saved with its backing points, so it re-marks as
       // fitted (refined) rather than loaded.
       expect(restored.isRefinedFromSource(key)).toBe(true);
     });
 
     it('rejects non-JSON, missing pairs, malformed pairs, and bad matrices without clobbering state', () => {
-      const store = new CameraCalibrationStore();
+      const store = new CameraRegistrationStore();
       const key = store.pairKey('left', 'right');
-      store.loadCalibrationText(JSON.stringify({
+      store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'left', right: 'right', points: translationPointRows, leftToRight: translate, rightToLeft: null,
         }],
       }));
-      expect(() => store.loadCalibrationText('not json')).toThrow(/valid JSON/);
-      expect(() => store.loadCalibrationText('{"type": "other"}')).toThrow(/pairs/);
-      expect(() => store.loadCalibrationText(JSON.stringify({
+      expect(() => store.loadRegistrationText('not json')).toThrow(/valid JSON/);
+      expect(() => store.loadRegistrationText('{"type": "other"}')).toThrow(/pairs/);
+      expect(() => store.loadRegistrationText(JSON.stringify({
         version: 1, pairs: [{ left: 'a', right: 'a' }],
       }))).toThrow(/distinct/);
-      expect(() => store.loadCalibrationText(JSON.stringify({
+      expect(() => store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{
           left: 'a',
@@ -324,11 +324,11 @@ describe('CameraCalibrationStore', () => {
           rightToLeft: null,
         }],
       }))).toThrow(/3x3/);
-      expect(() => store.loadCalibrationText(JSON.stringify({
+      expect(() => store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{ left: 'a', right: 'b', points: [[1, 2, 3]] }],
       }))).toThrow(/points row/);
-      expect(() => store.loadCalibrationText(JSON.stringify({
+      expect(() => store.loadRegistrationText(JSON.stringify({
         version: 1,
         pairs: [{ left: 'a', right: 'b', transformType: 'bogus' }],
       }))).toThrow(/transformType/);

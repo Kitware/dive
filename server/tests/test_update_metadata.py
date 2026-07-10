@@ -29,21 +29,21 @@ def test_update_metadata_clears_time_filters_when_null(_verify, folder_cls):
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
 def test_update_metadata_clears_calibration_source_when_null(_verify, folder_cls):
-    # A cleared / hand-refined calibration sends cameraCalibrationSource: null to
+    # A cleared / hand-refined calibration sends cameraRegistrationSource: null to
     # drop a stale producer stamp; exclude_none would otherwise leave it behind.
     folder = {
         '_id': 'dataset-id',
         'meta': {
             'annotate': True,
             'type': 'image-sequence',
-            'cameraCalibrationSource': {'model': 'colmap-v3', 'swathe': '17'},
+            'cameraRegistrationSource': {'model': 'colmap-v3', 'swathe': '17'},
         },
     }
     folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
 
-    crud_dataset.update_metadata(folder, {'cameraCalibrationSource': None})
+    crud_dataset.update_metadata(folder, {'cameraRegistrationSource': None})
 
-    assert 'cameraCalibrationSource' not in folder['meta']
+    assert 'cameraRegistrationSource' not in folder['meta']
     folder_cls.return_value.save.assert_called_once()
 
 

@@ -19,14 +19,14 @@ export interface WarpAnnotationsResult {
 }
 
 /**
- * Copy every track on `sourceCamera` onto every other calibrated camera,
+ * Copy every track on `sourceCamera` onto every other aligned camera,
  * warping geometry through the camera-to-camera homographies (composed via
  * the reference space, see {@link cameraPairTransform}). Used after a
- * single-camera annotation import into a calibrated multicam dataset so the
+ * single-camera annotation import into an aligned multicam dataset so the
  * detections appear on all cameras.
  *
  * Copies land on the same local frame number: a batch import carries no
- * temporal-alignment information, and calibrated rigs (e.g. EO/IR) capture
+ * temporal-alignment information, and aligned rigs (e.g. EO/IR) capture
  * in lockstep. Tracks keep their id across cameras — the same convention the
  * Align View continuous mirror uses — so a target camera's existing same-id
  * track has its keyframes overwritten at the copied frames. Mutations go
@@ -35,7 +35,7 @@ export interface WarpAnnotationsResult {
  *
  * @param cameraStore the multicam store holding per-camera tracks
  * @param toReference per-camera native->reference matrices
- *   (AlignedViewStore.toReference — present whenever the rig is calibrated,
+ *   (AlignedViewStore.toReference — present whenever the rig is aligned,
  *   independent of the Align View display toggle)
  * @param sourceCamera camera whose tracks are copied out
  */

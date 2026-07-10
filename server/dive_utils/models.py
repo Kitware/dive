@@ -254,7 +254,7 @@ class MetadataMutable(BaseModel):
     # model step's version / swathe / generation time). Never interpreted by
     # DIVE; preserved verbatim so refined calibrations can be traced back to the
     # model version they were made against.
-    cameraCalibrationSource: Optional[Dict[str, Any]]
+    cameraRegistrationSource: Optional[Dict[str, Any]]
     fps: Optional[float]
 
     @staticmethod

@@ -166,8 +166,8 @@ const listFileTypes = [
 ];
 
 /**
- * Per-camera alignment transform files: DIVE calibration .json (the
- * calibration panel's save format).
+ * Per-camera registration transform files: DIVE registration .json (the
+ * registration panel's save format).
  */
 const transformFileTypes = [
   'json',

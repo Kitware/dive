@@ -116,7 +116,7 @@ export default function useModeManager({
     recipes: Recipe[];
     /**
      * When provided, geometry drawn/edited while the Align View is active is
-     * mirrored onto every other calibrated camera (see
+     * mirrored onto every other aligned camera (see
      * {@link mirrorFeatureToAlignedCameras}).
      */
     alignedView?: AlignedViewStore;
@@ -567,9 +567,9 @@ export default function useModeManager({
 
   /**
    * Continuous cross-camera mirror: while the Align View is active (the rig
-   * is fully calibrated and the user toggled the aligned display), re-project
+   * is fully aligned and the user toggled the aligned display), re-project
    * the source camera's keyframe at `sourceFrame` onto every other camera
-   * through the calibrated camera-to-camera homographies, creating the
+   * through the camera-to-camera homographies, creating the
    * same-id track on cameras where it doesn't exist yet. Stored geometry
    * stays native per camera (decision D3): each camera receives coordinates
    * already mapped into its own image space.

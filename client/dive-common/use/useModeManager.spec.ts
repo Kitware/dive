@@ -2,7 +2,7 @@
 /**
  * Functional tests for the Align View cross-camera mirror: drawing/editing a
  * track on one camera while the aligned view is active re-projects the
- * geometry onto every other calibrated camera under the same track id.
+ * geometry onto every other aligned camera under the same track id.
  */
 import { ref } from 'vue';
 import CameraStore from 'vue-media-annotator/CameraStore';
@@ -150,7 +150,7 @@ describe('useModeManager aligned-view track mirroring', () => {
     expect(cameraStore.getTrack(trackId, 'left').features[0]?.bounds).toEqual([10, 20, 30, 40]);
   });
 
-  it('does not mirror while the aligned view is suspended (calibration picking)', () => {
+  it('does not mirror while the aligned view is suspended (registration picking)', () => {
     const { cameraStore, alignedView, modeManager } = makeHarness();
     alignedView.setSuspended(true);
     const trackId = modeManager.handler.trackAdd();

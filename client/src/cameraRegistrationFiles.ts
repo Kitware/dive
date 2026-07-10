@@ -1,28 +1,38 @@
 /**
- * The portable per-camera calibration file format, shared by every producer
- * and consumer of calibration_<camera>.json files: the desktop backend
- * (persistence + export), the web client (export downloads + import
- * uploads), and the multicam import seed. One file per non-reference camera,
- * each self-identified with `type: 'dive-camera-calibration'`; pair bodies
- * name their own cameras, so file names are discovery/provenance only.
+ * The portable per-camera image-registration file format, shared by every
+ * producer and consumer of <camera>_to_<reference>_registration.json files:
+ * the desktop backend (persistence + export), the web client (export
+ * downloads + import uploads), and the multicam import seed. One file per
+ * non-reference camera, named for the mapping it carries (camera registers
+ * onto the reference) and self-identified with
+ * `type: 'dive-camera-registration'`; pair bodies name their own cameras,
+ * so file names are discovery/provenance only.
  */
 import {
-  CalibrationFile, CalibrationFilePair, CalibrationSource,
+  RegistrationFile, RegistrationFilePair, RegistrationSource,
   CameraCorrespondences, CameraHomographies, CameraTransformTypes,
-  CALIBRATION_FILE_TYPE,
-} from './CameraCalibrationStore';
+  REGISTRATION_FILE_TYPE,
+} from './CameraRegistrationStore';
 import { DEFAULT_TRANSFORM_TYPE } from './transform';
 
 /** The complete in-app calibration state for one dataset. */
-export interface CameraCalibrationValues {
+export interface CameraRegistrationValues {
   homographies: CameraHomographies;
   correspondences: CameraCorrespondences;
   transformTypes: CameraTransformTypes;
-  source: CalibrationSource | null;
+  source: RegistrationSource | null;
 }
 
-export function perCameraCalibrationFileName(camera: string): string {
-  return `calibration_${camera}.json`;
+/**
+ * File name for one camera's registration. The destination (the camera it
+ * registers onto -- normally the rig reference) is part of the name so the
+ * file states its own direction: ir_to_eo_registration.json registers ir
+ * onto eo. Omitted when the camera's pairs have no single partner.
+ */
+export function registrationFileName(camera: string, destination: string | null): string {
+  return destination
+    ? `${camera}_to_${destination}_registration.json`
+    : `${camera}_registration.json`;
 }
 
 /**
@@ -30,10 +40,10 @@ export function perCameraCalibrationFileName(camera: string): string {
  * the per-camera import buttons so a multi-pair file only contributes the
  * chosen camera's pair(s).
  */
-export function filterCalibrationValues(
-  values: CameraCalibrationValues,
+export function filterRegistrationValues(
+  values: CameraRegistrationValues,
   camera: string,
-): CameraCalibrationValues {
+): CameraRegistrationValues {
   const keep = (key: string) => key.split('::').includes(camera);
   const filterRecord = <T>(record: Record<string, T>): Record<string, T> => Object.fromEntries(
     Object.entries(record).filter(([key]) => keep(key)),
@@ -47,8 +57,8 @@ export function filterCalibrationValues(
 }
 
 /** The distinct camera names and pair count a calibration holds. */
-export function calibrationValuesSummary(
-  values: CameraCalibrationValues,
+export function registrationValuesSummary(
+  values: CameraRegistrationValues,
 ): { cameras: string[]; pairCount: number } {
   const keys = new Set([
     ...Object.keys(values.homographies),
@@ -64,7 +74,7 @@ export function calibrationValuesSummary(
  * Convert the in-app calibration state (keyed by directional "left::right")
  * into the self-describing list of file pairs.
  */
-function toCalibrationFilePairs(values: CameraCalibrationValues): CalibrationFilePair[] {
+function toRegistrationFilePairs(values: CameraRegistrationValues): RegistrationFilePair[] {
   const keys = new Set([
     ...Object.keys(values.homographies),
     ...Object.keys(values.correspondences),
@@ -86,17 +96,18 @@ function toCalibrationFilePairs(values: CameraCalibrationValues): CalibrationFil
 
 /**
  * Group a calibration into its per-camera file bodies: one self-identified
- * calibration_<camera>.json per non-reference camera (reference = first
- * camera in display order). A pair not touching the reference files under
- * its right camera; grouping is cosmetic either way since pair bodies are
- * authoritative on load.
+ * <camera>_to_<reference>_registration.json per non-reference camera
+ * (reference = first camera in display order). A pair not touching the
+ * reference files under its right camera, named for that pair's other side;
+ * grouping is cosmetic either way since pair bodies are authoritative on
+ * load.
  */
-export function buildPerCameraCalibrationFiles(
-  values: CameraCalibrationValues,
+export function buildPerCameraRegistrationFiles(
+  values: CameraRegistrationValues,
   referenceCamera: string | null,
-): { camera: string; name: string; body: CalibrationFile }[] {
-  const pairsByCamera = new Map<string, CalibrationFilePair[]>();
-  toCalibrationFilePairs(values).forEach((pair) => {
+): { camera: string; destination: string | null; name: string; body: RegistrationFile }[] {
+  const pairsByCamera = new Map<string, RegistrationFilePair[]>();
+  toRegistrationFilePairs(values).forEach((pair) => {
     let camera = pair.right;
     if (referenceCamera !== null && pair.right === referenceCamera
       && pair.left !== referenceCamera) {
@@ -114,16 +125,26 @@ export function buildPerCameraCalibrationFiles(
     : values.source;
   return [...pairsByCamera.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([camera, pairs]) => ({
-      camera,
-      name: perCameraCalibrationFileName(camera),
-      body: {
-        type: CALIBRATION_FILE_TYPE,
-        version: 1,
-        ...(fileSource ? { source: fileSource } : {}),
-        pairs,
-      },
-    }));
+    .map(([camera, pairs]) => {
+      // The camera this file's content warps onto: the single partner named
+      // across its pairs (normally the rig reference). Multiple partners
+      // leave the name destination-free rather than picking one arbitrarily.
+      const partners = new Set(pairs.flatMap(
+        (pair) => [pair.left, pair.right].filter((name) => name !== camera),
+      ));
+      const destination = partners.size === 1 ? [...partners][0] : null;
+      return {
+        camera,
+        destination,
+        name: registrationFileName(camera, destination),
+        body: {
+          type: REGISTRATION_FILE_TYPE,
+          version: 1,
+          ...(fileSource ? { source: fileSource } : {}),
+          pairs,
+        },
+      };
+    });
 }
 
 /**
@@ -136,11 +157,11 @@ export function buildPerCameraCalibrationFiles(
  * `{ mixed: true, files: {...} }` composite so the client can warn about a
  * rig assembled from different calibration generations.
  */
-export function mergeCalibrationValues(
-  existing: CameraCalibrationValues,
-  incoming: CameraCalibrationValues,
+export function mergeRegistrationValues(
+  existing: CameraRegistrationValues,
+  incoming: CameraRegistrationValues,
   incomingLabel: string,
-): CameraCalibrationValues {
+): CameraRegistrationValues {
   const homographies = { ...existing.homographies };
   const correspondences = { ...existing.correspondences };
   const transformTypes = { ...existing.transformTypes };
@@ -163,7 +184,7 @@ export function mergeCalibrationValues(
       transformTypes[key] = incoming.transformTypes[key];
     }
   });
-  let source: CalibrationSource | null;
+  let source: RegistrationSource | null;
   if (incoming.source === null) {
     source = existing.source;
   } else if (existing.source === null

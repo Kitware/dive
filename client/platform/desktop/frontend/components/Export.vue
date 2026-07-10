@@ -9,10 +9,10 @@ import {
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MultiType } from 'dive-common/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
-import { buildPerCameraCalibrationFiles } from 'vue-media-annotator/cameraCalibrationFiles';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
 import {
   loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
-  exportCameraCalibration, exportMulticamEverything,
+  exportCameraRegistration, exportMulticamEverything,
 } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
@@ -93,31 +93,34 @@ export default defineComponent({
       () => data.meta?.subType === 'stereo' && !!calibrationExportName.value,
     );
 
-    // Cameras with an exportable alignment calibration: each pair files under
-    // its non-reference camera (reference = first camera in display order),
-    // matching how the backend groups pairs into calibration_<camera>.json.
-    const calibrationCameras = computed(() => {
+    // Cameras with an exportable registration: each pair files under its
+    // non-reference camera (reference = first camera in display order),
+    // matching how the backend groups pairs into
+    // <camera>_to_<reference>_registration.json.
+    const registrationFiles = computed(() => {
       const { meta } = data;
       if (!meta || meta.type !== MultiType || !meta.multiCam) {
         return [];
       }
-      return buildPerCameraCalibrationFiles({
+      return buildPerCameraRegistrationFiles({
         homographies: meta.cameraHomographies ?? {},
         correspondences: meta.cameraCorrespondences ?? {},
         transformTypes: meta.cameraTransformTypes ?? {},
-        source: meta.cameraCalibrationSource ?? null,
-      }, orderedMultiCamCameraNames(meta.multiCam)[0] ?? null).map((file) => file.camera);
+        source: meta.cameraRegistrationSource ?? null,
+      }, orderedMultiCamCameraNames(meta.multiCam)[0] ?? null);
     });
 
-    async function exportCalibration(camera: string) {
+    async function exportRegistration(camera: string) {
+      const entry = registrationFiles.value.find((file) => file.camera === camera);
+      if (!entry) return;
       const location = await window.diveDesktop.showSaveDialog({
-        title: 'Export Camera Calibration',
-        defaultPath: `calibration_${camera}.json`,
+        title: 'Export Camera Registration',
+        defaultPath: entry.name,
       });
       if (location.canceled || !location.filePath) return;
       try {
         data.err = null;
-        const { exportedPath } = await exportCameraCalibration(
+        const { exportedPath } = await exportCameraRegistration(
           parentId.value,
           location.filePath,
           camera,
@@ -186,8 +189,8 @@ export default defineComponent({
       data,
       doExport,
       exportCameraFile,
-      exportCalibration,
-      calibrationCameras,
+      exportRegistration,
+      registrationFiles,
       cameraFileSupported,
       calibrationExportName,
       savePrompt,
@@ -393,23 +396,22 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
         </template>
-        <template v-if="calibrationCameras.length">
+        <template v-if="registrationFiles.length">
           <v-card-text class="pb-0">
-            Export the camera-alignment calibration:
-            one calibration_&lt;camera&gt;.json per camera.
+            Export the camera registration: one registration file per camera.
           </v-card-text>
           <v-card-actions>
             <v-row>
               <v-col>
                 <v-btn
-                  v-for="camera in calibrationCameras"
-                  :key="camera"
+                  v-for="file in registrationFiles"
+                  :key="file.camera"
                   depressed
                   block
                   class="my-1"
-                  @click="exportCalibration(camera)"
+                  @click="exportRegistration(file.camera)"
                 >
-                  Calibration: {{ camera }}
+                  Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
                 </v-btn>
               </v-col>
             </v-row>

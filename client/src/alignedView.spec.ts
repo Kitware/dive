@@ -13,7 +13,7 @@ import {
   mapGeoJSONFeatures,
 } from './alignedView';
 import { applyHomography, Matrix3, Point } from './homography';
-import type { CameraHomographies } from './CameraCalibrationStore';
+import type { CameraHomographies } from './CameraRegistrationStore';
 import AlignedViewStore from './AlignedViewStore';
 
 /** Simple affine helpers for readable fixtures. */

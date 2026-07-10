@@ -38,7 +38,7 @@ export interface UseImportMultiCamDialogProps {
   dataType: typeof VideoType | typeof ImageSequenceType;
   importMedia: (path: string) => Promise<MediaImportResponse>;
   /**
-   * Offer a per-camera calibration .json transform file picker for cameras
+   * Offer a per-camera registration .json transform file picker for cameras
    * after the first (desktop only; the file is parsed by the desktop backend
    * at import time). Ignored for stereo imports, which use calibration files.
    */
@@ -717,13 +717,14 @@ export function useImportMultiCamDialog(
   }
 
   /**
-   * Auto-attach the DIVE camera-calibration .json files found in the parent
+   * Auto-attach the DIVE camera-registration .json files found in the parent
    * folder root as the import's transform files (desktop multicam subfolder
-   * imports only). A per-camera calibration_<camera>.json is attached to its
-   * matching camera slot; any other self-identified calibration file goes to
-   * the first free camera after the reference -- the file's pairs name their
-   * own cameras, so which slot carries it doesn't matter. Each shows in that
-   * camera's (clearable) transform field.
+   * imports only). A per-camera <camera>_to_<reference>_registration.json
+   * (or <camera>_registration.json) is attached to its matching camera slot;
+   * any other self-identified registration file goes to the first free
+   * camera after the reference -- the file's pairs name their own cameras,
+   * so which slot carries it doesn't matter. Each shows in that camera's
+   * (clearable) transform field.
    */
   async function discoverParentFolderTransform(parentPath: string) {
     if (!transformImportEnabled.value || !findParentFolderTransformFiles) {
@@ -731,11 +732,17 @@ export function useImportMultiCamDialog(
     }
     const discovered = await findParentFolderTransformFiles(parentPath);
     discovered.forEach((filePath) => {
-      const fileName = filePath.replace(/^.*[\\/]/, '');
-      const cameraMatch = /^calibration_(.+)\.json$/i.exec(fileName);
+      const fileName = filePath.replace(/^.*[\\/]/, '').toLowerCase();
+      // Camera names may contain underscores, so match the file against each
+      // known camera slot rather than parsing the name.
+      const matchedCamera = Object.keys(folderList.value).find((camera) => {
+        const prefix = camera.toLowerCase();
+        return fileName === `${prefix}_registration.json`
+          || (fileName.startsWith(`${prefix}_to_`) && fileName.endsWith('_registration.json'));
+      });
       let target: string | undefined;
-      if (cameraMatch && folderList.value[cameraMatch[1]]) {
-        target = !folderList.value[cameraMatch[1]].transformFile ? cameraMatch[1] : undefined;
+      if (matchedCamera) {
+        target = !folderList.value[matchedCamera].transformFile ? matchedCamera : undefined;
       } else {
         target = orderedCameraKeys.value.find(
           (key, index) => index > 0 && folderList.value[key] && !folderList.value[key].transformFile,

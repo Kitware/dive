@@ -28,7 +28,7 @@ export interface PairHomography {
   BtoA: Matrix3;
 }
 
-/** Fitted transforms keyed by {@link CameraCalibrationStore.pairKey}. */
+/** Fitted transforms keyed by {@link CameraRegistrationStore.pairKey}. */
 export type CameraHomographies = Record<string, PairHomography>;
 
 /**
@@ -46,18 +46,18 @@ type HomographySource = 'fit' | 'loaded';
  * preserved verbatim through load/refine/save round trips so an external
  * re-solver can tell which model version a returning file was refined against.
  */
-export type CalibrationSource = Record<string, unknown>;
+export type RegistrationSource = Record<string, unknown>;
 
 /**
- * One camera pair in the portable calibration JSON file. This is the same
+ * One camera pair in the portable registration JSON file. This is the same
  * self-describing shape the desktop platform persists as the project's
- * standalone per-camera calibration_<camera>.json files (see desktop
- * backend/native/common.ts), so a panel-saved file, the on-disk artifacts,
- * and an import-time seed are all interchangeable: correspondences flattened
- * as [leftX, leftY, rightX, rightY] rows, plus both fitted directions (null
- * when unfitted).
+ * standalone per-camera <camera>_to_<reference>_registration.json files
+ * (see desktop backend/native/common.ts), so a panel-saved file, the
+ * on-disk artifacts, and an import-time seed are all interchangeable:
+ * correspondences flattened as [leftX, leftY, rightX, rightY] rows, plus
+ * both fitted directions (null when unfitted).
  */
-export interface CalibrationFilePair {
+export interface RegistrationFilePair {
   left: string;
   right: string;
   points?: number[][];
@@ -67,22 +67,22 @@ export interface CalibrationFilePair {
 }
 
 /** Portable calibration file: everything needed to restore all pairs. */
-export interface CalibrationFile {
+export interface RegistrationFile {
   /** Written by panel saves for self-identification; optional on load. */
   type?: string;
   version: number;
   /** Producer provenance, preserved verbatim across round trips. */
-  source?: CalibrationSource | null;
-  pairs: CalibrationFilePair[];
+  source?: RegistrationSource | null;
+  pairs: RegistrationFilePair[];
 }
 
-/** Identifying `type` value of the calibration JSON format. */
-export const CALIBRATION_FILE_TYPE = 'dive-camera-calibration';
+/** Identifying `type` value of the registration JSON format. */
+export const REGISTRATION_FILE_TYPE = 'dive-camera-registration';
 
-/** Picked correspondences keyed by {@link CameraCalibrationStore.pairKey}. */
+/** Picked correspondences keyed by {@link CameraRegistrationStore.pairKey}. */
 export type CameraCorrespondences = Record<string, Correspondence[]>;
 
-/** Chosen fit model per pair, keyed by {@link CameraCalibrationStore.pairKey}. Missing entries default to 'similarity'. */
+/** Chosen fit model per pair, keyed by {@link CameraRegistrationStore.pairKey}. Missing entries default to 'similarity'. */
 export type CameraTransformTypes = Record<string, TransformType>;
 
 /**
@@ -93,7 +93,7 @@ export type CameraTransformTypes = Record<string, TransformType>;
  * provide/inject system. Handles persistence: hydrating saved state and
  * loading/saving the portable calibration JSON format.
  */
-export default class CameraCalibrationStore {
+export default class CameraRegistrationStore {
   correspondences: Ref<CameraCorrespondences>;
 
   homographies: Ref<CameraHomographies>;
@@ -101,13 +101,13 @@ export default class CameraCalibrationStore {
   transformTypes: Ref<CameraTransformTypes>;
 
   /**
-   * Provenance of the loaded calibration (see {@link CalibrationSource}).
+   * Provenance of the loaded calibration (see {@link RegistrationSource}).
    * Deliberately NOT cleared by in-app edits or refits -- refinements are
    * exactly what should travel back to the producer stamped with the model
    * lineage they were made against. Replaced (or cleared) only when a
    * calibration file is loaded or the store is re-hydrated.
    */
-  source: Ref<CalibrationSource | null>;
+  source: Ref<RegistrationSource | null>;
 
   /** True when the calibration has unsaved changes since the last save or load. */
   dirty: ComputedRef<boolean>;
@@ -127,12 +127,12 @@ export default class CameraCalibrationStore {
     this.source = ref(null);
     this.nextId = 1;
     this.homographySources = {};
-    this.savedSnapshot = ref(this.calibrationSnapshot());
-    this.dirty = computed(() => this.calibrationSnapshot() !== this.savedSnapshot.value);
+    this.savedSnapshot = ref(this.registrationSnapshot());
+    this.dirty = computed(() => this.registrationSnapshot() !== this.savedSnapshot.value);
   }
 
   /** Serialize the saved-to-dataset calibration state (points, transforms, provenance). */
-  private calibrationSnapshot(): string {
+  private registrationSnapshot(): string {
     return JSON.stringify({
       homographies: this.homographies.value,
       correspondences: this.correspondences.value,
@@ -143,7 +143,7 @@ export default class CameraCalibrationStore {
 
   /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
   markSaved() {
-    this.savedSnapshot.value = this.calibrationSnapshot();
+    this.savedSnapshot.value = this.registrationSnapshot();
   }
 
   /**
@@ -198,17 +198,17 @@ export default class CameraCalibrationStore {
 
   /**
    * Serialize every pair with content (points and/or a homography) as the
-   * portable calibration JSON file (see {@link CalibrationFile}). Pairs whose
+   * portable calibration JSON file (see {@link RegistrationFile}). Pairs whose
    * only state is a transform-type choice are omitted.
    */
-  toCalibrationJson(): string {
+  toRegistrationJson(): string {
     const keys = new Set([
       ...Object.keys(this.correspondences.value).filter(
         (key) => this.correspondences.value[key].length > 0,
       ),
       ...Object.keys(this.homographies.value),
     ]);
-    const pairs: CalibrationFilePair[] = [...keys].sort().map((key) => {
+    const pairs: RegistrationFilePair[] = [...keys].sort().map((key) => {
       const [left, right] = key.split('::');
       const homography = this.homographies.value[key] || null;
       return {
@@ -220,8 +220,8 @@ export default class CameraCalibrationStore {
         transformType: this.transformTypeForPair(key),
       };
     });
-    const file: CalibrationFile = {
-      type: CALIBRATION_FILE_TYPE,
+    const file: RegistrationFile = {
+      type: REGISTRATION_FILE_TYPE,
       version: 1,
       ...(this.source.value ? { source: this.source.value } : {}),
       pairs,
@@ -231,24 +231,24 @@ export default class CameraCalibrationStore {
 
   /**
    * Parse and load a calibration JSON file (the format written by
-   * {@link toCalibrationJson}), REPLACING all pairs' correspondences,
+   * {@link toRegistrationJson}), REPLACING all pairs' correspondences,
    * homographies, and transform types. Throws a descriptive Error on
    * malformed input without touching current state. Returns the camera names
    * referenced by the file so callers can warn about ones missing from the
    * loaded dataset.
    */
-  loadCalibrationText(text: string): { cameras: string[]; pairCount: number } {
+  loadRegistrationText(text: string): { cameras: string[]; pairCount: number } {
     let data: unknown;
     try {
       data = JSON.parse(text);
     } catch {
       throw new Error('File is not valid JSON');
     }
-    const file = data as Partial<CalibrationFile>;
+    const file = data as Partial<RegistrationFile>;
     if (!Array.isArray(file?.pairs)) {
-      throw new Error('Not a DIVE camera calibration file (expected a "pairs" list)');
+      throw new Error('Not a DIVE camera registration file (expected a "pairs" list)');
     }
-    const source = CameraCalibrationStore.readSource(file.source);
+    const source = CameraRegistrationStore.readSource(file.source);
     const correspondences: CameraCorrespondences = {};
     const homographies: CameraHomographies = {};
     const transformTypes: CameraTransformTypes = {};
@@ -271,16 +271,16 @@ export default class CameraCalibrationStore {
         transformTypes[key] = pair.transformType;
       }
       correspondences[key] = (pair.points || []).map((row, j) => {
-        const [ax, ay, bx, by] = CameraCalibrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
+        const [ax, ay, bx, by] = CameraRegistrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
         // eslint-disable-next-line no-plusplus
         return { id: this.nextId++, a: [ax, ay] as Point, b: [bx, by] as Point };
       });
       const leftToRight = (pair.leftToRight === null || pair.leftToRight === undefined)
         ? null
-        : CameraCalibrationStore.readMatrix(pair.leftToRight, `${context}, leftToRight`);
+        : CameraRegistrationStore.readMatrix(pair.leftToRight, `${context}, leftToRight`);
       const rightToLeft = (pair.rightToLeft === null || pair.rightToLeft === undefined)
         ? null
-        : CameraCalibrationStore.readMatrix(pair.rightToLeft, `${context}, rightToLeft`);
+        : CameraRegistrationStore.readMatrix(pair.rightToLeft, `${context}, rightToLeft`);
       if (leftToRight || rightToLeft) {
         // If only one direction is present, derive the other by inversion
         // (readMatrix guarantees invertibility).
@@ -299,14 +299,14 @@ export default class CameraCalibrationStore {
   }
 
   /** Validate an untrusted `source` value: a plain object, or absent (-> null). */
-  private static readSource(raw: unknown): CalibrationSource | null {
+  private static readSource(raw: unknown): RegistrationSource | null {
     if (raw === undefined || raw === null) {
       return null;
     }
     if (typeof raw !== 'object' || Array.isArray(raw)) {
       throw new Error('"source" must be an object when present');
     }
-    return raw as CalibrationSource;
+    return raw as RegistrationSource;
   }
 
   /** Validate an untrusted value as a 4-element finite [leftX, leftY, rightX, rightY] row. */
@@ -359,7 +359,7 @@ export default class CameraCalibrationStore {
     homographies?: CameraHomographies,
     correspondences?: CameraCorrespondences,
     transformTypes?: CameraTransformTypes,
-    source?: CalibrationSource | null,
+    source?: RegistrationSource | null,
   ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.correspondences.value = correspondences ? { ...correspondences } : {};

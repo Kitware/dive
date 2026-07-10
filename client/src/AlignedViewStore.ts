@@ -31,7 +31,7 @@ export default class AlignedViewStore {
   toReference: Ref<Record<string, Matrix3> | null>;
 
   /**
-   * Externally suspended (e.g. while calibration point picking is active,
+   * Externally suspended (e.g. while registration point picking is active,
    * which records raw native-space clicks and manages its own aligned
    * preview). Suspension un-warps the display without losing the toggle.
    */
@@ -42,10 +42,10 @@ export default class AlignedViewStore {
    * reference space, out of all loaded cameras. Maintained by the viewer
    * alongside {@link setTransforms}; null for single-camera datasets. Lets
    * UI outside the viewer core (e.g. the import menu) show the same
-   * "N/M cameras calibrated" status as the Align View toggle without
+   * "N/M cameras registered" status as the Align View toggle without
    * re-deriving the pair graph.
    */
-  calibrationProgress: Ref<{ calibrated: number; total: number } | null>;
+  registrationProgress: Ref<{ registered: number; total: number } | null>;
 
   /** A usable transform exists for every camera, so the toggle may be shown. */
   available: ComputedRef<boolean>;
@@ -58,7 +58,7 @@ export default class AlignedViewStore {
     this.reference = ref(null);
     this.toReference = ref(null);
     this.suspended = ref(false);
-    this.calibrationProgress = ref(null);
+    this.registrationProgress = ref(null);
     this.available = computed(() => this.reference.value !== null
       && this.toReference.value !== null
       && Object.keys(this.toReference.value).length > 1);
@@ -73,8 +73,8 @@ export default class AlignedViewStore {
     this.toReference.value = toReference;
   }
 
-  setCalibrationProgress(progress: { calibrated: number; total: number } | null) {
-    this.calibrationProgress.value = progress;
+  setRegistrationProgress(progress: { registered: number; total: number } | null) {
+    this.registrationProgress.value = progress;
   }
 
   setEnabled(enabled: boolean) {

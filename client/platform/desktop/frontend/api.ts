@@ -660,23 +660,23 @@ function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ e
   return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
 }
 
-/** Export one camera's alignment calibration_<camera>.json to destPath. */
-function exportCameraCalibration(
+/** Export one camera's *_registration.json file to destPath. */
+function exportCameraRegistration(
   datasetId: string,
   destPath: string,
   camera: string,
 ): Promise<{ exportedPath: string }> {
-  return window.diveDesktop.invoke('export-camera-calibration', { id: datasetId, destPath, camera });
+  return window.diveDesktop.invoke('export-camera-registration', { id: datasetId, destPath, camera });
 }
 
-/** Merge a DIVE calibration .json into an existing dataset's calibration. */
-function importCameraCalibration(
+/** Merge a DIVE registration .json into the dataset's camera registration. */
+function importCameraRegistration(
   datasetId: string,
   path: string,
   _file?: File,
   options?: { camera?: string },
 ): Promise<{ cameras: string[]; pairCount: number }> {
-  return window.diveDesktop.invoke('import-camera-calibration', { id: datasetId, path, options });
+  return window.diveDesktop.invoke('import-camera-registration', { id: datasetId, path, options });
 }
 
 function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
@@ -742,8 +742,8 @@ export {
   saveCalibration,
   importCalibrationFile,
   exportCalibrationFile,
-  exportCameraCalibration,
-  importCameraCalibration,
+  exportCameraRegistration,
+  importCameraRegistration,
   getDatasetCalibration,
   downloadCalibration,
   deleteCalibration,

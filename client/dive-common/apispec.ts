@@ -9,8 +9,8 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import {
-  CameraHomographies, CameraCorrespondences, CameraTransformTypes, CalibrationSource,
-} from 'vue-media-annotator/CameraCalibrationStore';
+  CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
+} from 'vue-media-annotator/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
@@ -141,8 +141,8 @@ export interface MultiCamImportFolderArgs {
     trackFile: string;
     /**
      * Optional alignment transform file for cameras after the first (desktop
-     * only): a DIVE calibration .json, parsed at import time to seed the
-     * dataset's saved camera calibration.
+     * only): a DIVE registration .json, parsed at import time to seed the
+     * dataset's saved camera registration.
      */
     transformFile?: string;
     /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
@@ -198,11 +198,11 @@ interface DatasetMetaMutable {
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
-  /** Producer provenance of the camera calibration (see CalibrationSource). */
-  cameraCalibrationSource?: CalibrationSource | null;
+  /** Producer provenance of the camera registration (see RegistrationSource). */
+  cameraRegistrationSource?: RegistrationSource | null;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraCalibrationSource'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -310,8 +310,8 @@ interface Api {
   findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
   /**
    * Desktop: every DIVE camera-calibration .json (alignment transforms) in a
-   * parent folder root: per-camera calibration_<camera>.json files first,
-   * then other self-identified candidates.
+   * parent folder root: per-camera *_registration.json files first, then
+   * other self-identified candidates.
    */
   findParentFolderTransformFiles?(parentPath: string): Promise<string[]>;
   /** True when the dataset folder has an attached stereoscopic calibration file. */
@@ -336,13 +336,13 @@ interface Api {
   /** Desktop: set the stereo camera/calibration file for a single dataset. */
   importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
   /**
-   * Merge a DIVE camera-calibration .json (alignment transforms) into an
-   * existing multicam dataset's saved calibration. Web reads the provided
-   * File; desktop reads the path. options.camera keeps only the file's
-   * pairs naming that camera, replacing that camera's current pairs while
-   * other cameras' pairs are kept.
+   * Merge a DIVE registration .json into an existing multicam dataset's
+   * saved camera registration. Web reads the provided File; desktop reads
+   * the path. options.camera keeps only the file's pairs naming that
+   * camera, replacing that camera's current pairs while other cameras'
+   * pairs are kept.
    */
-  importCameraCalibration?(datasetId: string, path: string, file?: File,
+  importCameraRegistration?(datasetId: string, path: string, file?: File,
     options?: { camera?: string }):
     Promise<{ cameras: string[]; pairCount: number }>;
   /** Desktop: copy the dataset's current camera/calibration file out to destPath. */

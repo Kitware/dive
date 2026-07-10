@@ -24,7 +24,7 @@ import type {
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
-import CameraCalibrationStore from './CameraCalibrationStore';
+import CameraRegistrationStore from './CameraRegistrationStore';
 import AlignedViewStore from './AlignedViewStore';
 
 /**
@@ -126,7 +126,7 @@ type PercentileHistogramLoadingType = Readonly<Ref<boolean>>;
 
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
-const CameraCalibrationSymbol = Symbol('cameraCalibration');
+const CameraRegistrationSymbol = Symbol('cameraRegistration');
 const AlignedViewSymbol = Symbol('alignedView');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
@@ -305,7 +305,7 @@ export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   cameraStore: CameraStore;
-  cameraCalibration: CameraCalibrationStore;
+  cameraRegistration: CameraRegistrationStore;
   alignedView: AlignedViewStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
@@ -378,7 +378,7 @@ function dummyState(): State {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
-    cameraCalibration: new CameraCalibrationStore(),
+    cameraRegistration: new CameraRegistrationStore(),
     alignedView: new AlignedViewStore(),
     datasetId: ref(''),
     editingMode: ref(false),
@@ -434,7 +434,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
-  provide(CameraCalibrationSymbol, state.cameraCalibration);
+  provide(CameraRegistrationSymbol, state.cameraRegistration);
   provide(AlignedViewSymbol, state.alignedView);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
@@ -494,8 +494,8 @@ function useAttributesFilters() {
 function useCameraStore() {
   return use<CameraStore>(CameraStoreSymbol);
 }
-function useCameraCalibration() {
-  return use<CameraCalibrationStore>(CameraCalibrationSymbol);
+function useCameraRegistration() {
+  return use<CameraRegistrationStore>(CameraRegistrationSymbol);
 }
 function useAlignedView() {
   return use<AlignedViewStore>(AlignedViewSymbol);
@@ -623,7 +623,7 @@ export {
   useAnnotatorPreferences,
   useAttributes,
   useCameraStore,
-  useCameraCalibration,
+  useCameraRegistration,
   useAlignedView,
   useDatasetId,
   useEditingMode,

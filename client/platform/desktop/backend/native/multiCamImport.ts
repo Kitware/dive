@@ -18,12 +18,12 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { findImagesInFolder, fromCalibrationPairs, mergeCalibrationSources } from './common';
+import { findImagesInFolder, fromRegistrationPairs, mergeRegistrationSources } from './common';
 
 type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
 type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
-type CalibrationSource = NonNullable<DatasetMetaMutable['cameraCalibrationSource']>;
+type RegistrationSource = NonNullable<DatasetMetaMutable['cameraRegistrationSource']>;
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
   if ('sourceList' in s && 'defaultDisplay' in s) {
@@ -96,14 +96,14 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     });
   }
 
-  // Per-camera transform/calibration files seed the dataset's saved camera
-  // calibration -- the same single calibration the in-app panel edits and the
-  // aligned view consumes (loadMetadata falls back to these meta fields until
-  // a save writes the standalone per-camera files).
+  // Per-camera transform/registration files seed the dataset's saved camera
+  // registration -- the same single registration the in-app panel edits and
+  // the aligned view consumes (loadMetadata falls back to these meta fields
+  // until a save writes the standalone per-camera files).
   const seedHomographies: CameraHomographies = {};
   const seedCorrespondences: CameraCorrespondences = {};
   const seedTransformTypes: CameraTransformTypes = {};
-  const seedSourceStamps: { file: string; source: CalibrationSource | null }[] = [];
+  const seedSourceStamps: { file: string; source: RegistrationSource | null }[] = [];
   if (isFolderArgs(args)) {
     // Parse the files up front so a bad file fails the import with a clear
     // message instead of storing partial state.
@@ -112,14 +112,14 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         return;
       }
       try {
-        // A DIVE calibration .json (the panel's save format / the project
-        // calibration.json shape): pairs name their own cameras, so merge
+        // A DIVE registration .json (the panel's save format / the on-disk
+        // per-camera file shape): pairs name their own cameras, so merge
         // them all in.
         const data = await fs.readJson(item.transformFile);
         if (!data || !Array.isArray(data.pairs)) {
-          throw new Error('not a DIVE calibration file (expected a "pairs" list)');
+          throw new Error('not a DIVE registration file (expected a "pairs" list)');
         }
-        const parsed = fromCalibrationPairs(data.pairs);
+        const parsed = fromRegistrationPairs(data.pairs);
         Object.entries(parsed.homographies).forEach(([key, homography]) => {
           if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
             throw new Error(`pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
@@ -134,7 +134,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         seedSourceStamps.push({
           file: item.transformFile.replace(/^.*[\\/]/, ''),
           source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
-            ? data.source as CalibrationSource
+            ? data.source as RegistrationSource
             : null,
         });
       } catch (err) {
@@ -170,9 +170,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     jsonMeta.cameraHomographies = seedHomographies;
     jsonMeta.cameraCorrespondences = seedCorrespondences;
     jsonMeta.cameraTransformTypes = seedTransformTypes;
-    const seedCalibrationSource = mergeCalibrationSources(seedSourceStamps);
-    if (seedCalibrationSource) {
-      jsonMeta.cameraCalibrationSource = seedCalibrationSource;
+    const seedRegistrationSource = mergeRegistrationSources(seedSourceStamps);
+    if (seedRegistrationSource) {
+      jsonMeta.cameraRegistrationSource = seedRegistrationSource;
     }
   }
 

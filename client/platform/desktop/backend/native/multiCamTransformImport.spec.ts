@@ -1,7 +1,7 @@
 /**
- * Wire-through tests for per-camera transform/calibration files in multicam
- * import: they seed the dataset's saved camera calibration
- * (jsonMeta.cameraHomographies et al.) from a DIVE calibration .json.
+ * Wire-through tests for per-camera transform/registration files in multicam
+ * import: they seed the dataset's saved camera registration
+ * (jsonMeta.cameraHomographies et al.) from a DIVE registration .json.
  */
 import os from 'os';
 import npath from 'path';
@@ -19,7 +19,7 @@ vi.mock('./mediaJobs', () => ({
 }));
 
 let tmpDir: string;
-let calibrationJsonPath: string;
+let registrationJsonPath: string;
 let badCalibrationJsonPath: string;
 
 function sourceListWith(transformFile?: string) {
@@ -42,8 +42,8 @@ beforeAll(() => {
       fs.writeFileSync(npath.join(dir, name), '');
     });
   });
-  calibrationJsonPath = npath.join(tmpDir, 'calibration.json');
-  fs.writeJsonSync(calibrationJsonPath, {
+  registrationJsonPath = npath.join(tmpDir, 'calibration.json');
+  fs.writeJsonSync(registrationJsonPath, {
     type: 'dive-camera-calibration',
     version: 1,
     source: { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
@@ -65,12 +65,12 @@ afterAll(() => {
 });
 
 describe('multiCamImport transform wire-through', () => {
-  it('seeds the saved calibration (points and all) from a DIVE calibration .json', async () => {
+  it('seeds the saved registration (points and all) from a DIVE registration .json', async () => {
     const output = await beginMultiCamImport({
       datasetName: 'calibration_json_test',
       defaultDisplay: 'eo',
       cameraOrder: ['eo', 'ir'],
-      sourceList: sourceListWith(calibrationJsonPath),
+      sourceList: sourceListWith(registrationJsonPath),
       type: 'image-sequence',
     });
     expect(output.jsonMeta.cameraHomographies?.['eo::ir'].AtoB).toEqual(
@@ -79,7 +79,7 @@ describe('multiCamImport transform wire-through', () => {
     expect(output.jsonMeta.cameraCorrespondences?.['eo::ir']).toHaveLength(2);
     expect(output.jsonMeta.cameraTransformTypes?.['eo::ir']).toBe('translation');
     // The producer provenance stamp travels with the seed.
-    expect(output.jsonMeta.cameraCalibrationSource).toEqual(
+    expect(output.jsonMeta.cameraRegistrationSource).toEqual(
       { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
     );
   });
@@ -101,7 +101,7 @@ describe('multiCamImport transform wire-through', () => {
       defaultDisplay: 'eo',
       sourceList: sourceListWith(badCalibrationJsonPath),
       type: 'image-sequence',
-    })).rejects.toThrow(/Camera "ir": invalid transform file: not a DIVE calibration file/);
+    })).rejects.toThrow(/Camera "ir": invalid transform file: not a DIVE registration file/);
   });
 
   it('fails the import for a file that is not JSON at all', async () => {

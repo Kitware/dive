@@ -6,7 +6,7 @@ import {
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
-import { buildPerCameraCalibrationFiles } from 'vue-media-annotator/cameraCalibrationFiles';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
@@ -253,25 +253,25 @@ export default defineComponent({
       });
     }
 
-    // Per-camera alignment calibration files, built client-side from the
+    // Per-camera registration files, built client-side from the
     // dataset meta (the calibration persists there on web). Each pair files
     // under its non-reference camera, matching the desktop's on-disk
-    // calibration_<camera>.json convention.
-    const calibrationFiles = computed(() => {
+    // <camera>_to_<reference>_registration.json convention.
+    const registrationFiles = computed(() => {
       const ds = dataset.value;
       if (!ds || ds.type !== MultiType) {
         return [];
       }
-      return buildPerCameraCalibrationFiles({
+      return buildPerCameraRegistrationFiles({
         homographies: ds.cameraHomographies ?? {},
         correspondences: ds.cameraCorrespondences ?? {},
         transformTypes: ds.cameraTransformTypes ?? {},
-        source: ds.cameraCalibrationSource ?? null,
+        source: ds.cameraRegistrationSource ?? null,
       }, orderedMultiCamCameraNames(ds.multiCamMedia)[0] ?? null);
     });
 
-    function exportCalibration(camera: string) {
-      const match = calibrationFiles.value.find((file) => file.camera === camera);
+    function exportRegistration(camera: string) {
+      const match = registrationFiles.value.find((file) => file.camera === camera);
       if (!match) {
         return;
       }
@@ -307,8 +307,8 @@ export default defineComponent({
       isMulticamDataset,
       cameraFileSupported,
       exportCameraFile,
-      calibrationFiles,
-      exportCalibration,
+      registrationFiles,
+      exportRegistration,
     };
   },
 });
@@ -535,23 +535,22 @@ export default defineComponent({
             </v-card-actions>
           </template>
 
-          <template v-if="calibrationFiles.length">
+          <template v-if="registrationFiles.length">
             <v-card-text class="pb-0">
-              Download the camera-alignment calibration:
-              one calibration_&lt;camera&gt;.json per camera.
+              Download the camera registration: one registration file per camera.
             </v-card-text>
             <v-card-actions>
               <v-row>
                 <v-col>
                   <v-btn
-                    v-for="file in calibrationFiles"
+                    v-for="file in registrationFiles"
                     :key="file.camera"
                     depressed
                     block
                     class="my-1"
-                    @click="exportCalibration(file.camera)"
+                    @click="exportRegistration(file.camera)"
                   >
-                    Calibration: {{ file.camera }}
+                    Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
                   </v-btn>
                 </v-col>
               </v-row>

@@ -1,9 +1,9 @@
 <!--
-  Optional per-camera transform/calibration file picker with clear and open
+  Optional per-camera transform/registration file picker with clear and open
   actions. Shown for cameras after the first; the desktop backend parses the
-  file at import time and seeds the dataset's saved camera calibration (the
-  same calibration the in-app panel edits and the Align button applies).
-  Accepts a DIVE calibration .json.
+  file at import time and seeds the dataset's saved camera registration (the
+  same registration the in-app panel edits and the Align button applies).
+  Accepts a DIVE registration .json.
 -->
 <script lang="ts">
 import { defineComponent } from 'vue';
@@ -24,7 +24,7 @@ export default defineComponent({
     <v-text-field
       label="Transform file (.json)"
       :placeholder="`Transform mapping the first camera to ${cameraName}`"
-      hint="Optional: DIVE calibration .json"
+      hint="Optional: DIVE registration .json"
       persistent-hint
       outlined
       dense

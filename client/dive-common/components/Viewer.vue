@@ -18,7 +18,7 @@ import {
 import {
   Track, Group,
   CameraStore,
-  CameraCalibrationStore,
+  CameraRegistrationStore,
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
@@ -399,15 +399,15 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
-    const cameraCalibration = new CameraCalibrationStore();
+    const cameraRegistration = new CameraRegistrationStore();
 
     /**
      * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
      * has a usable transform into the reference camera's space, the user may
      * warp displays and link pan/zoom across all cameras during normal
      * review. Reference camera = first camera in display order
-     * (multiCamList[0]). Transforms come from the calibration store's pair
-     * homographies (loaded from a calibration file or the dataset's saved
+     * (multiCamList[0]). Transforms come from the registration store's pair
+     * homographies (loaded from a registration file or the dataset's saved
      * meta), composed through the pair graph.
      */
     const alignedView = new AlignedViewStore();
@@ -419,7 +419,7 @@ export default defineComponent({
       const toReference = resolveToReferenceTransforms(
         multiCamList.value,
         reference,
-        cameraCalibration.homographies.value,
+        cameraRegistration.homographies.value,
       );
       return toReference ? { reference, toReference } : null;
     });
@@ -431,17 +431,17 @@ export default defineComponent({
     }, { immediate: true });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras calibrated" status as the Align View toggle.
-    const calibrationProgress = computed(() => {
+    // same "N/M cameras registered" status as the Align View toggle.
+    const registrationProgress = computed(() => {
       const cams = multiCamList.value;
       if (cams.length < 2) {
         return null;
       }
-      const unresolved = unresolvedCameras(cams, cams[0], cameraCalibration.homographies.value);
-      return { calibrated: cams.length - unresolved.length, total: cams.length };
+      const unresolved = unresolvedCameras(cams, cams[0], cameraRegistration.homographies.value);
+      return { registered: cams.length - unresolved.length, total: cams.length };
     });
-    watch(calibrationProgress, (progress) => {
-      alignedView.setCalibrationProgress(progress);
+    watch(registrationProgress, (progress) => {
+      alignedView.setRegistrationProgress(progress);
     }, { immediate: true });
     useAlignedNavigation(aggregateController, alignedView, multiCamList);
     const alignedViewAvailable = computed(() => alignedView.available.value);
@@ -450,18 +450,18 @@ export default defineComponent({
       alignedView.setEnabled(!alignedView.enabled.value);
     };
     const alignedViewTooltip = computed(() => {
-      // Per-camera calibration files with disagreeing producer stamps mean
+      // Per-camera registration files with disagreeing producer stamps mean
       // the rig may mix calibration generations -- say so instead of
       // composing silently.
-      const mixedNote = cameraCalibration.sourceIsMixed()
+      const mixedNote = cameraRegistration.sourceIsMixed()
         ? ' — warning: mixed calibration file generations'
         : '';
       if (alignedViewEnabled.value) {
         return `Align View on (draw/edit on any camera)${mixedNote}`;
       }
-      const progress = calibrationProgress.value;
-      if (progress && progress.calibrated < progress.total) {
-        return `Align View — ${progress.calibrated}/${progress.total} cameras calibrated${mixedNote}`;
+      const progress = registrationProgress.value;
+      if (progress && progress.registered < progress.total) {
+        return `Align View — ${progress.registered}/${progress.total} cameras registered${mixedNote}`;
       }
       return `Align View${mixedNote}`;
     });
@@ -1459,13 +1459,13 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
-        // Rehydrate any saved camera-to-camera calibration homographies, points,
+        // Rehydrate any saved camera-to-camera registration homographies, points,
         // transform types, and producer provenance
-        cameraCalibration.hydrate(
+        cameraRegistration.hydrate(
           meta.cameraHomographies,
           meta.cameraCorrespondences,
           meta.cameraTransformTypes,
-          meta.cameraCalibrationSource,
+          meta.cameraRegistrationSource,
         );
         // Reset the aligned-view toggle for the newly loaded dataset (no
         // persistence this phase).
@@ -1601,7 +1601,7 @@ export default defineComponent({
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
-        cameraCalibration,
+        cameraRegistration,
         alignedView,
         datasetId,
         editingMode,
