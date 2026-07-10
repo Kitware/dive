@@ -10,9 +10,10 @@ import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcros
 import { cloneDeep } from 'lodash';
 import {
   useAnnotationSets, useAnnotationSet, useHandler, useCameraStore, useSelectedCamera,
-  useAlignedView,
+  useAlignedView, useCameraCalibration,
 } from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -76,6 +77,12 @@ export default defineComponent({
     // and is only meaningful for stereo datasets.
     const cameraFileSupported = computed(
       () => !!api.importCalibrationFile && props.subType === 'stereo',
+    );
+    // Camera-alignment calibration import (per-camera transform files) is
+    // meaningful for any multicam dataset.
+    const cameraCalibration = useCameraCalibration();
+    const alignmentCalibrationSupported = computed(
+      () => !!api.importCameraCalibration && isMulticamDataset.value,
     );
     const currentCalibrationName = computed(() => {
       if (!props.calibrationFile) return '';
@@ -206,6 +213,49 @@ export default defineComponent({
         });
       }
     };
+    const openAlignmentCalibrationUpload = async () => {
+      if (!api.importCameraCalibration) return;
+      try {
+        const ret = await openFromDisk('transform');
+        if (ret.canceled || !ret.filePaths.length) return;
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importCameraCalibration(
+          props.datasetId,
+          ret.filePaths[0],
+          ret.fileList?.[0],
+        );
+        // Rehydrate the store from the freshly persisted meta so the Align
+        // View and mirroring pick up the new transforms immediately.
+        const meta = await api.loadMetadata(parentDatasetId(props.datasetId));
+        cameraCalibration.hydrate(
+          meta.cameraHomographies,
+          meta.cameraCorrespondences,
+          meta.cameraTransformTypes,
+          meta.cameraCalibrationSource,
+        );
+        processing.value = false;
+        const unknown = result.cameras.filter((name) => !cameraStore.camMap.value.has(name));
+        if (unknown.length) {
+          await prompt({
+            title: 'Calibration Imported',
+            text: [
+              `Imported ${result.pairCount} pair(s), but the file names camera(s) not in this dataset:`,
+              unknown.join(', '),
+              'Pair bodies name their own cameras, so these pairs will not resolve until matching cameras exist.',
+            ],
+            positiveButton: 'OK',
+          });
+        }
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Calibration Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     const applyLastCalibration = async () => {
       if (!api.importCalibrationFile || !lastCalibrationPath.value) return;
       try {
@@ -235,10 +285,12 @@ export default defineComponent({
     return {
       openUpload,
       openCalibrationUpload,
+      openAlignmentCalibrationUpload,
       applyLastCalibration,
       showLastCalibrationSuggestion,
       lastCalibrationFileName,
       cameraFileSupported,
+      alignmentCalibrationSupported,
       currentCalibrationName,
       processing,
       menuOpen,
@@ -408,6 +460,31 @@ export default defineComponent({
             </div>
           </v-col>
         </v-container>
+        <template v-if="alignmentCalibrationSupported">
+          <v-divider />
+          <v-card-title class="pt-3">
+            Import Calibration
+          </v-card-title>
+          <v-card-text class="pb-0">
+            Merge a DIVE camera-alignment calibration .json (e.g. a per-camera
+            calibration_&lt;camera&gt;.json) into this dataset. Pairs the file
+            names replace the current ones; other cameras' pairs are kept.
+          </v-card-text>
+          <v-container>
+            <v-col>
+              <v-row>
+                <v-btn
+                  depressed
+                  block
+                  :disabled="!datasetId || processing"
+                  @click="openAlignmentCalibrationUpload"
+                >
+                  Import Calibration
+                </v-btn>
+              </v-row>
+            </v-col>
+          </v-container>
+        </template>
         <template v-if="cameraFileSupported">
           <v-divider />
           <v-card-title class="pt-3">

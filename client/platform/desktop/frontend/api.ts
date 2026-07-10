@@ -660,16 +660,21 @@ function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ e
   return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
 }
 
-/**
- * Export the camera-alignment calibration: a single calibration_<camera>.json
- * when a camera is given, otherwise every per-camera file zipped to destPath.
- */
+/** Export one camera's alignment calibration_<camera>.json to destPath. */
 function exportCameraCalibration(
   datasetId: string,
   destPath: string,
-  camera?: string,
+  camera: string,
 ): Promise<{ exportedPath: string }> {
   return window.diveDesktop.invoke('export-camera-calibration', { id: datasetId, destPath, camera });
+}
+
+/** Merge a DIVE calibration .json into an existing dataset's calibration. */
+function importCameraCalibration(
+  datasetId: string,
+  path: string,
+): Promise<{ cameras: string[]; pairCount: number }> {
+  return window.diveDesktop.invoke('import-camera-calibration', { id: datasetId, path });
 }
 
 function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
@@ -736,6 +741,7 @@ export {
   importCalibrationFile,
   exportCalibrationFile,
   exportCameraCalibration,
+  importCameraCalibration,
   getDatasetCalibration,
   downloadCalibration,
   deleteCalibration,
