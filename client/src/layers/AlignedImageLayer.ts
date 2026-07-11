@@ -1,6 +1,7 @@
 import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
 import { Matrix3, subdivideWarpQuads, warpGridSize } from '../homography';
+import { findQuadMediaLayer } from '../components/layerManager/quadMediaSource';
 
 export interface CameraImage {
   /** The texture source for the geojs quad feature: an `<img>` for image sequences, a `<video>` for video datasets. */
@@ -118,25 +119,7 @@ export default class AlignedImageLayer {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private findNativeQuadLayer(): any | null {
-    const viewer = this.annotator.geoViewerRef.value;
-    if (!viewer || typeof viewer.layers !== 'function') {
-      return null;
-    }
-    const layerList = viewer.layers();
-    for (let i = 0; i < layerList.length; i += 1) {
-      const layer = layerList[i];
-      if (layer !== this.quadLayer && typeof layer.features === 'function') {
-        const features = layer.features();
-        for (let j = 0; j < features.length; j += 1) {
-          const data = typeof features[j].data === 'function' ? features[j].data() : undefined;
-          const datum = Array.isArray(data) ? data[0] : undefined;
-          if (datum && (datum.image || datum.video)) {
-            return layer;
-          }
-        }
-      }
-    }
-    return null;
+    return findQuadMediaLayer(this.annotator.geoViewerRef.value, this.quadLayer);
   }
 
   private setNativeVisible(visible: boolean) {
