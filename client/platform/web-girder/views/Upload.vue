@@ -40,6 +40,7 @@ import {
   removeCameraFolderFiles,
   renameCameraFolderFiles,
   stashCameraFolderFiles,
+  stashTransformFile,
 } from 'platform/web-girder/multicamFileRegistry';
 import { parseRegistrationSeed } from 'platform/web-girder/multicamRegistrationSeed';
 import {
@@ -382,17 +383,20 @@ export default defineComponent({
       closeUpload?: boolean;
       showProgressOverlay?: boolean;
       progressLabel?: string;
+      /** Prompt registration warnings inline; batch collects surface them per row instead. */
+      promptRegistrationWarnings?: boolean;
     }
 
     const runMultiCamFolderImport = async (
       args: MultiCamImportFolderArgs,
       options: MultiCamFolderImportOptions = {},
-    ): Promise<string> => {
+    ): Promise<{ id: string; registrationWarnings: string[] }> => {
       const {
         openViewer = true,
         closeUpload = true,
         showProgressOverlay = true,
         progressLabel = '',
+        promptRegistrationWarnings = true,
       } = options;
       const labelPrefix = progressLabel ? `${progressLabel} — ` : '';
       if (!props.location?._id || props.location._modelType !== 'folder') {
@@ -555,7 +559,7 @@ export default defineComponent({
               : {}),
           });
         }
-        if (registrationSeed?.warnings.length) {
+        if (promptRegistrationWarnings && registrationSeed?.warnings.length) {
           await prompt({
             title: 'Registration Warnings',
             text: registrationSeed.warnings,
@@ -571,7 +575,10 @@ export default defineComponent({
             close();
           }
         }
-        return parentFolder._id;
+        return {
+          id: parentFolder._id,
+          registrationWarnings: registrationSeed?.warnings ?? [],
+        };
       } catch (err) {
         if (datasetFolderId && !multicamLinked) {
           try {
@@ -620,7 +627,7 @@ export default defineComponent({
 
     const importBatchCollect = async (collect: MultiCamBatchCollect, datasetName: string) => {
       if (!collect.importArgs) {
-        return;
+        return undefined;
       }
       clearMulticamFileRegistry();
       collect.cameras.forEach((camera) => {
@@ -629,16 +636,31 @@ export default defineComponent({
           filesForCameraSource(camera.sourcePath, batchImportFiles.value),
         );
       });
-      await runMultiCamFolderImport(
+      // Re-stash the collect's registration Files by their scan-time paths so
+      // the seeding lookup finds them (the registry is cleared per collect).
+      Object.values(collect.importArgs.sourceList).forEach((source) => {
+        if (!source.transformFile) {
+          return;
+        }
+        const file = batchImportFiles.value.find(
+          (f) => (f.webkitRelativePath || f.name).replace(/\\/g, '/') === source.transformFile,
+        );
+        if (file) {
+          stashTransformFile(source.transformFile, file);
+        }
+      });
+      const { registrationWarnings } = await runMultiCamFolderImport(
         { ...collect.importArgs, datasetName },
         {
           openViewer: false,
           closeUpload: false,
           showProgressOverlay: false,
           progressLabel: collect.name,
+          promptRegistrationWarnings: false,
         },
       );
       clearMulticamFileRegistry();
+      return registrationWarnings;
     };
     // Filter to show how many files are left to upload
     const filesNotUploaded = (item: PendingUpload) => item.files.filter(

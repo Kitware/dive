@@ -26,7 +26,10 @@ import {
   subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
-import { findRegistrationFilesInFileList } from 'dive-common/registrationParentFolder';
+import {
+  assignRegistrationFilesToCameras,
+  findRegistrationFilesInFileList,
+} from 'dive-common/registrationParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import {
@@ -752,26 +755,12 @@ export function useImportMultiCamDialog(
     } else {
       return;
     }
-    discovered.forEach((filePath) => {
-      const fileName = filePath.replace(/^.*[\\/]/, '').toLowerCase();
-      // Camera names may contain underscores, so match the file against each
-      // known camera slot rather than parsing the name.
-      const matchedCamera = Object.keys(folderList.value).find((camera) => {
-        const prefix = camera.toLowerCase();
-        return fileName === `${prefix}_registration.json`
-          || (fileName.startsWith(`${prefix}_to_`) && fileName.endsWith('_registration.json'));
-      });
-      let target: string | undefined;
-      if (matchedCamera) {
-        target = !folderList.value[matchedCamera].transformFile ? matchedCamera : undefined;
-      } else {
-        target = orderedCameraKeys.value.find(
-          (key, index) => index > 0 && folderList.value[key] && !folderList.value[key].transformFile,
-        );
-      }
-      if (target) {
-        folderList.value[target].transformFile = filePath;
-      }
+    const { assignments } = assignRegistrationFilesToCameras(
+      discovered,
+      orderedCameraKeys.value.filter((key) => folderList.value[key]),
+    );
+    assignments.forEach(({ camera, filePath }) => {
+      folderList.value[camera].transformFile = filePath;
     });
   }
 

@@ -1,4 +1,7 @@
-import { findRegistrationFilesInFileList } from './registrationParentFolder';
+import {
+  assignRegistrationFilesToCameras,
+  findRegistrationFilesInFileList,
+} from './registrationParentFolder';
 
 function mk(relativePath: string, content: string): File {
   const name = relativePath.split('/').pop() || relativePath;
@@ -57,6 +60,50 @@ describe('findRegistrationFilesInFileList', () => {
       'ir_to_eo_registration.json',
       'uv_to_eo_registration.json',
       'z-transforms.json',
+    ]);
+  });
+});
+
+describe('assignRegistrationFilesToCameras', () => {
+  it('matches files to their named camera slot, case-insensitively', () => {
+    const { assignments, unassigned } = assignRegistrationFilesToCameras(
+      ['/root/ir_to_eo_registration.json', '/root/uv_registration.json'],
+      ['EO', 'UV', 'IR'],
+    );
+    expect(assignments).toStrictEqual([
+      { camera: 'IR', filePath: '/root/ir_to_eo_registration.json' },
+      { camera: 'UV', filePath: '/root/uv_registration.json' },
+    ]);
+    expect(unassigned).toStrictEqual([]);
+  });
+
+  it('sends an unmatched file to the first free non-reference slot', () => {
+    const { assignments } = assignRegistrationFilesToCameras(
+      ['/root/transforms.json'],
+      ['EO', 'UV', 'IR'],
+    );
+    expect(assignments).toStrictEqual([
+      { camera: 'UV', filePath: '/root/transforms.json' },
+    ]);
+  });
+
+  it('never assigns to the reference camera and reports leftovers', () => {
+    const { assignments, unassigned } = assignRegistrationFilesToCameras(
+      [
+        '/root/eo_registration.json',
+        '/root/ir_registration.json',
+        '/root/extra.json',
+        '/root/more.json',
+      ],
+      ['EO', 'IR'],
+    );
+    expect(assignments).toStrictEqual([
+      { camera: 'IR', filePath: '/root/ir_registration.json' },
+    ]);
+    expect(unassigned).toStrictEqual([
+      '/root/eo_registration.json',
+      '/root/extra.json',
+      '/root/more.json',
     ]);
   });
 });

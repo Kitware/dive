@@ -14,6 +14,48 @@ import { stripPathPrefix } from './stereoParentFolder';
 
 export const RegistrationFileNamePattern = /^.+_registration\.json$/i;
 
+/**
+ * Assign discovered registration files to camera slots, shared by the
+ * import dialog's parent-folder discovery and the batch scan: a file named
+ * <camera>_registration.json or <camera>_to_*_registration.json goes to
+ * that camera's slot, any other registration file goes to the first free
+ * camera after the reference (cameraOrder[0]) -- the file's pairs name
+ * their own cameras, so which slot carries it doesn't matter. Transforms
+ * only apply to cameras after the reference, so a file matching an
+ * already-filled slot or the reference itself is left unassigned.
+ */
+export function assignRegistrationFilesToCameras(
+  filePaths: string[],
+  cameraOrder: string[],
+): { assignments: { camera: string; filePath: string }[]; unassigned: string[] } {
+  const taken = new Set<string>([cameraOrder[0]]);
+  const assignments: { camera: string; filePath: string }[] = [];
+  const unassigned: string[] = [];
+  filePaths.forEach((filePath) => {
+    const fileName = filePath.replace(/^.*[\\/]/, '').toLowerCase();
+    // Camera names may contain underscores, so match the file against each
+    // known camera slot rather than parsing the name.
+    const matched = cameraOrder.find((camera) => {
+      const prefix = camera.toLowerCase();
+      return fileName === `${prefix}_registration.json`
+        || (fileName.startsWith(`${prefix}_to_`) && fileName.endsWith('_registration.json'));
+    });
+    let target: string | undefined;
+    if (matched) {
+      target = !taken.has(matched) ? matched : undefined;
+    } else {
+      target = cameraOrder.find((camera) => !taken.has(camera));
+    }
+    if (target) {
+      taken.add(target);
+      assignments.push({ camera: target, filePath });
+    } else {
+      unassigned.push(filePath);
+    }
+  });
+  return { assignments, unassigned };
+}
+
 export interface RegistrationFileMatch {
   /** Root-relative file name, used as the transformFile key. */
   path: string;

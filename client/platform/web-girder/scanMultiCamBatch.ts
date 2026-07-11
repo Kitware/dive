@@ -7,6 +7,7 @@ import {
   scanMultiCamBatchFromCollects,
 } from 'dive-common/multiCamBatchScan';
 import { filterMediaFiles } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { findRegistrationFilesInFileList } from 'dive-common/registrationParentFolder';
 
 function normalizeRootPath(rootPath: string): string {
   return rootPath.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -73,17 +74,28 @@ function scanCollectFromFiles(collectPath: string, allFiles: File[]): Map<string
   return subfolders;
 }
 
-export function scanMultiCamBatchFromFiles(
+export async function scanMultiCamBatchFromFiles(
   rootPath: string,
   files: File[],
-): ReturnType<typeof scanMultiCamBatchFromCollects> {
+): Promise<ReturnType<typeof scanMultiCamBatchFromCollects>> {
   const normalizedRoot = normalizeRootPath(rootPath);
   const relPaths = files.map((file) => relativePath(file));
   const collectNames = [...directChildNames(normalizedRoot, relPaths)].sort((a, b) => a.localeCompare(b));
-  const rawScans: CollectRawScan[] = collectNames.map((name) => ({
-    name,
-    path: `${normalizedRoot}/${name}`,
-    subfolders: scanCollectFromFiles(`${normalizedRoot}/${name}`, files),
+  const rawScans: CollectRawScan[] = await Promise.all(collectNames.map(async (name) => {
+    const collectPath = `${normalizedRoot}/${name}`;
+    // Per-collect registration files sit next to the camera subfolders;
+    // record them root-relative so the import can find the File again.
+    const registrations = await findRegistrationFilesInFileList(
+      files,
+      collectPath,
+      () => collectPath,
+    );
+    return {
+      name,
+      path: collectPath,
+      subfolders: scanCollectFromFiles(collectPath, files),
+      transformFiles: registrations.map((match) => `${collectPath}/${match.path}`),
+    };
   }));
   return scanMultiCamBatchFromCollects(normalizedRoot, rawScans);
 }
