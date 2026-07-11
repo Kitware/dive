@@ -1,11 +1,18 @@
 <script lang="ts">
-import { defineComponent, PropType } from 'vue';
+import {
+  computed, defineComponent, onBeforeUnmount, PropType, ref, watch,
+} from 'vue';
 import type { Adjudication } from 'platform/desktop/frontend/useVideoSearch';
+
+/** Delay between cycling frames of a track sequence. */
+const CycleIntervalMs = 400;
 
 /**
  * One adjudicable media snippet: a cropped chip with accept/reject buttons
  * in its bottom-right corner. Presentation-only, so it can back both video
- * search results and (later) annotation cluster rows.
+ * search results and (later) annotation cluster rows. When a frame
+ * sequence is provided (track results), the chip cycles through whichever
+ * frames have loaded; unloaded slots are null and skipped.
  */
 export default defineComponent({
   name: 'AdjudicationChip',
@@ -13,6 +20,16 @@ export default defineComponent({
     src: {
       type: String as PropType<string | null>,
       default: null,
+    },
+    /** Sampled track frames to cycle through (null slots still loading). */
+    srcs: {
+      type: Array as PropType<(string | null)[] | null>,
+      default: null,
+    },
+    /** Whether to run the cycling animation (e.g. only while visible). */
+    animate: {
+      type: Boolean,
+      default: false,
     },
     /** The snippet image could not be produced (vs still loading). */
     failed: {
@@ -41,6 +58,49 @@ export default defineComponent({
       default: false,
     },
   },
+  setup(props) {
+    const cycleIndex = ref(0);
+    let cycleTimer: number | null = null;
+
+    const hasSequence = computed(() => Boolean(props.srcs && props.srcs.length > 1));
+
+    /** The frame currently shown: cycling slot if loaded, else primary. */
+    const displaySrc = computed(() => {
+      if (hasSequence.value && props.animate) {
+        return props.srcs?.[cycleIndex.value] ?? props.src;
+      }
+      return props.src;
+    });
+
+    /** Step to the next loaded slot, skipping ones still null. */
+    function advance() {
+      const srcs = props.srcs ?? [];
+      for (let step = 1; step <= srcs.length; step += 1) {
+        const next = (cycleIndex.value + step) % srcs.length;
+        if (srcs[next]) {
+          cycleIndex.value = next;
+          return;
+        }
+      }
+    }
+
+    function syncTimer() {
+      const shouldRun = props.animate && hasSequence.value;
+      if (shouldRun && cycleTimer === null) {
+        cycleTimer = window.setInterval(advance, CycleIntervalMs);
+      } else if (!shouldRun && cycleTimer !== null) {
+        window.clearInterval(cycleTimer);
+        cycleTimer = null;
+        cycleIndex.value = 0;
+      }
+    }
+    watch([() => props.animate, () => props.srcs], syncTimer, { immediate: true });
+    onBeforeUnmount(() => {
+      if (cycleTimer !== null) window.clearInterval(cycleTimer);
+    });
+
+    return { displaySrc, hasSequence };
+  },
 });
 </script>
 
@@ -57,8 +117,8 @@ export default defineComponent({
   >
     <div class="chip-image-wrap">
       <img
-        v-if="src"
-        :src="src"
+        v-if="displaySrc"
+        :src="displaySrc"
         class="chip-image"
       >
       <div
@@ -86,6 +146,14 @@ export default defineComponent({
       >
         {{ (score * 100).toFixed(1) }}%
       </div>
+      <v-icon
+        v-if="hasSequence"
+        small
+        class="chip-sequence-badge"
+        color="grey lighten-1"
+      >
+        mdi-filmstrip
+      </v-icon>
       <div class="chip-actions">
         <v-btn
           icon
@@ -168,6 +236,14 @@ export default defineComponent({
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
+}
+.chip-sequence-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
 }
 .chip-actions {
   position: absolute;
