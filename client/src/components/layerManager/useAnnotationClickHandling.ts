@@ -1,7 +1,8 @@
 import type { Ref } from 'vue';
 import type { AnnotationId } from '../../BaseAnnotation';
 import type { Handler } from '../../provides';
-import type EditAnnotationLayer, { EditAnnotationTypes } from '../../layers/EditAnnotationLayer';
+import type EditAnnotationLayer from '../../layers/EditAnnotationLayer';
+import type { EditAnnotationTypes } from '../../layers/EditAnnotationLayer';
 import type RectangleLayer from '../../layers/AnnotationLayers/RectangleLayer';
 import type PolygonLayer from '../../layers/AnnotationLayers/PolygonLayer';
 import type LineLayer from '../../layers/AnnotationLayers/LineLayer';
