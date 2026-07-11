@@ -61,11 +61,18 @@ export default defineComponent({
       page.value = Math.min(pageCount.value - 1, page.value + 1);
     }
 
-    /** Load chips for the visible page and prefetch the next one. */
+    /**
+     * Load chips for the visible page and prefetch the next one, plus
+     * cycling track sequences for just the visible page (each sequence
+     * frame can cost a backend ffmpeg extraction).
+     */
     function ensureVisibleChips() {
       if (!props.value) return;
       props.chipStore.ensure(
         results.value.slice(page.value * PageSize, (page.value + 2) * PageSize),
+      );
+      props.chipStore.ensureSequences(
+        results.value.slice(page.value * PageSize, (page.value + 1) * PageSize),
       );
     }
     watch([() => props.value, page], ensureVisibleChips);
@@ -229,6 +236,8 @@ export default defineComponent({
           v-for="result in pageResults"
           :key="result.ref"
           :src="chips[result.ref] || null"
+          :srcs="chipStore.sequences.value[result.ref] || null"
+          :animate="value"
           :failed="Boolean(chipStore.failures.value[result.ref])"
           :title="chipTitle(result)"
           :subtitle="search.resultDatasetName(result)"
