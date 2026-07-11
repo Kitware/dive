@@ -45,6 +45,12 @@ interface VideoSearchState {
   adjudications: Record<string, Adjudication | undefined>;
   /** Completed refinement iterations for the active query. */
   iteration: number;
+  /**
+   * Bumped whenever a new query starts. Refs and cached chips are only
+   * comparable within one generation (the service can reuse instance ids
+   * and query ids across queries).
+   */
+  queryGeneration: number;
   modelAvailable: boolean;
 }
 
@@ -56,6 +62,16 @@ function joinPath(base: string, file: string): string {
   if (!base) return file;
   const sep = base.includes('\\') ? '\\' : '/';
   return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
+}
+
+/** Recover the on-disk path behind a media server URL (/api/media?path=...). */
+function mediaUrlToPath(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).searchParams.get('path');
+  } catch {
+    return null;
+  }
 }
 
 export function createVideoSearch(
@@ -72,6 +88,7 @@ export function createVideoSearch(
     results: [],
     adjudications: {},
     iteration: 0,
+    queryGeneration: 0,
     modelAvailable: false,
   });
 
@@ -87,14 +104,20 @@ export function createVideoSearch(
         const meta = await loadMetadata(dsId);
         const {
           originalBasePath, originalImageFiles, type, originalVideoFile, fps,
+          imageData, videoUrl,
         } = meta;
+        // Prefer the files the media server actually serves (the transcoded
+        // copies when they exist): the originals may have moved since import.
+        const servedVideoPath = mediaUrlToPath(videoUrl);
         mediaInfoCache[dsId] = {
           type,
           fps,
           getImagePath: (frameNum: number): string => {
             if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
+              return servedVideoPath ?? joinPath(originalBasePath, originalVideoFile || '');
             }
+            const servedImagePath = mediaUrlToPath(imageData?.[frameNum]?.url);
+            if (servedImagePath) return servedImagePath;
             const imagePath = originalImageFiles?.[frameNum];
             if (!imagePath) return '';
             return isAbsolutePath(imagePath)
@@ -158,6 +181,7 @@ export function createVideoSearch(
     state.results = [];
     state.adjudications = {};
     state.iteration = 0;
+    state.queryGeneration += 1;
     state.modelAvailable = false;
   }
 
@@ -176,6 +200,11 @@ export function createVideoSearch(
   /** The dataset a result belongs to (via its stream identifier). */
   function resultDatasetId(result: VideoSearchResult): string | null {
     return state.streams[result.stream_id]?.datasetId ?? null;
+  }
+
+  /** Whether a result belongs to the currently open dataset. */
+  function resultIsLocal(result: VideoSearchResult): boolean {
+    return resultDatasetId(result) === datasetId;
   }
 
   /** Display name of a result's dataset, or null when it is this dataset. */
@@ -313,6 +342,7 @@ export function createVideoSearch(
     exemplarImageForFrame,
     imageForDatasetFrame,
     resultDatasetId,
+    resultIsLocal,
     resultDatasetName,
     mark,
     refine,

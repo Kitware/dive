@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
+  computed, defineComponent, onMounted, ref, watch,
 } from 'vue';
 import {
   useCameraStore,
@@ -12,12 +12,14 @@ import {
 import type { VideoSearchResult, VideoSearchIndexMethod } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { runningJobs } from 'platform/desktop/frontend/store/jobs';
-import { getMediaUrl } from 'platform/desktop/frontend/api';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
+import { createResultChips, resultFrame } from 'platform/desktop/frontend/useResultChips';
+import VideoSearchResultsGrid from 'platform/desktop/frontend/components/VideoSearchResultsGrid.vue';
 
 export default defineComponent({
   name: 'VideoSearchContext',
   description: 'Video Search',
+  components: { VideoSearchResultsGrid },
   setup() {
     const search = useVideoSearch();
     const handler = useHandler();
@@ -30,8 +32,10 @@ export default defineComponent({
     const buildMethod = ref<VideoSearchIndexMethod>('detections');
     const saveModelName = ref('');
     const saveModelDialog = ref(false);
-    /** Small cache of cropped result thumbnails keyed by instance id. */
-    const thumbnails = ref<Record<string, string>>({});
+    const resultsGridOpen = ref(false);
+    /** Cropped result chips shared with the results grid. */
+    const chipStore = search ? createResultChips(search) : null;
+    const thumbnails = chipStore?.chips;
 
     const state = computed(() => search?.state ?? null);
 
@@ -63,17 +67,14 @@ export default defineComponent({
       }
     });
 
+    // Note there is deliberately no unmount cleanup: the session stays open
+    // because re-opening (postgres + descriptor load) is expensive and the
+    // panel may just be toggled. The session closes with the app or when
+    // another dataset's index opens.
     onMounted(() => {
       if (search) {
         search.refreshStatus();
       }
-    });
-
-    onBeforeUnmount(() => {
-      // Leave the session open: re-opening (postgres + descriptor load) is
-      // expensive and the panel may just be toggled. The session closes with
-      // the app or when another dataset's index opens.
-      thumbnails.value = {};
     });
 
     /** The selected track's bounding box on the current frame, if any. */
@@ -153,68 +154,18 @@ export default defineComponent({
 
     function seekToResult(result: VideoSearchResult) {
       // Only results from the currently open dataset can be seeked to.
-      if (search && search.resultDatasetId(result) !== search.datasetId) {
+      if (!search || !search.resultIsLocal(result)) {
         return;
       }
-      const target = result.tracks[0]?.states[0]?.frame ?? result.start_frame;
-      if (target !== null && target !== undefined) {
+      const target = resultFrame(result);
+      if (target !== null) {
         handler.seekFrame(target);
       }
     }
 
     function isLocalResult(result: VideoSearchResult): boolean {
-      return search !== null && search.resultDatasetId(result) === search.datasetId;
+      return search !== null && search.resultIsLocal(result);
     }
-
-    function resultFrame(result: VideoSearchResult): number | null {
-      return result.tracks[0]?.states[0]?.frame ?? result.start_frame ?? null;
-    }
-
-    function resultBox(result: VideoSearchResult) {
-      return result.tracks[0]?.states[0]?.bbox;
-    }
-
-    /** Crop a result chip out of its source frame into a data URL. */
-    async function loadThumbnail(result: VideoSearchResult) {
-      if (!search || thumbnails.value[result.ref]) return;
-      const frameNum = resultFrame(result);
-      const bbox = resultBox(result);
-      if (frameNum === null) return;
-      try {
-        const resultDataset = search.resultDatasetId(result);
-        if (!resultDataset) return;
-        const imagePath = await search.imageForDatasetFrame(resultDataset, frameNum);
-        const url = await getMediaUrl(imagePath);
-        const image = new Image();
-        image.src = url;
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = reject;
-        });
-        const canvas = document.createElement('canvas');
-        const [x1, y1, x2, y2] = bbox ?? [0, 0, image.naturalWidth, image.naturalHeight];
-        const w = Math.max(1, x2 - x1);
-        const h = Math.max(1, y2 - y1);
-        const scale = Math.min(1, 128 / Math.max(w, h));
-        canvas.width = Math.round(w * scale);
-        canvas.height = Math.round(h * scale);
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(image, x1, y1, w, h, 0, 0, canvas.width, canvas.height);
-          thumbnails.value = {
-            ...thumbnails.value,
-            [result.ref]: canvas.toDataURL('image/jpeg', 0.8),
-          };
-        }
-      } catch {
-        // Thumbnails are best-effort; the row still shows frame + score.
-      }
-    }
-
-    watch(() => state.value?.results, (results) => {
-      thumbnails.value = {};
-      (results || []).slice(0, 50).forEach((r) => loadThumbnail(r));
-    });
 
     return {
       search,
@@ -225,13 +176,15 @@ export default defineComponent({
       selectedTrackBox,
       saveModelName,
       saveModelDialog,
+      resultsGridOpen,
+      chipStore,
       thumbnails,
+      resultFrame,
       queryFromSelectedTrack,
       queryFromImageFile,
       removeFromIndexConfirm,
       saveModel,
       seekToResult,
-      resultFrame,
       isLocalResult,
       onlyThisDataset,
       displayedResults,
@@ -379,6 +332,17 @@ export default defineComponent({
           </div>
           <v-spacer />
           <v-btn
+            icon
+            x-small
+            class="mr-1"
+            title="Review results in a grid"
+            @click="resultsGridOpen = true"
+          >
+            <v-icon small>
+              mdi-view-grid
+            </v-icon>
+          </v-btn>
+          <v-btn
             x-small
             color="primary"
             :disabled="!!state.busy"
@@ -482,6 +446,13 @@ export default defineComponent({
           </v-card-actions>
         </v-card>
       </v-dialog>
+
+      <!-- Full-window adjudication grid over the same session state -->
+      <video-search-results-grid
+        v-if="chipStore"
+        v-model="resultsGridOpen"
+        :chip-store="chipStore"
+      />
     </div>
   </div>
 </template>
