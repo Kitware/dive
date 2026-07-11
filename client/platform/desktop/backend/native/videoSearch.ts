@@ -18,6 +18,7 @@
  */
 
 import OS from 'os';
+import crypto from 'crypto';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
 import readline from 'readline';
@@ -303,22 +304,76 @@ async function buildIndex(
 }
 
 /**
- * Extract a single video frame as a PNG for use as a query exemplar
- * (the exemplar descriptor pipeline reads image files, not videos).
+ * Extract a single video frame as a PNG for use as a query exemplar or a
+ * result thumbnail (the exemplar descriptor pipeline reads image files, not
+ * videos). Extracted frames are cached in tmp, keyed on the source video's
+ * identity (path + size + mtime, so a re-transcoded file invalidates) and
+ * the requested timestamp (frame + fps, since two datasets can reference
+ * the same video at different annotation framerates). Concurrent requests
+ * for the same frame share one extraction.
  */
+const frameExtractions = new Map<string, Promise<string>>();
+const FrameCacheMaxFiles = 200;
+let framePruneRunning = false;
+
+/** Best-effort cap on cached frames: drop the oldest past the limit. */
+async function pruneFrameCache(outDir: string) {
+  if (framePruneRunning) return;
+  framePruneRunning = true;
+  try {
+    const entries = await fs.readdir(outDir);
+    if (entries.length <= FrameCacheMaxFiles) return;
+    const stats = await Promise.all(entries.map(async (name) => {
+      const filePath = npath.join(outDir, name);
+      const stat = await fs.stat(filePath).catch(() => null);
+      return { filePath, mtimeMs: stat?.mtimeMs ?? 0 };
+    }));
+    stats.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    const excess = stats.slice(0, stats.length - FrameCacheMaxFiles);
+    await Promise.all(excess.map(({ filePath }) => fs.remove(filePath).catch(() => undefined)));
+  } finally {
+    framePruneRunning = false;
+  }
+}
+
 async function extractVideoFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
   const outDir = npath.join(OS.tmpdir(), 'dive-video-search');
-  await fs.ensureDir(outDir);
-  const outPath = npath.join(outDir, `frame_${frameNum}.png`);
-  const seconds = frameNum / (fps || 1);
-  const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
-  const result = await spawnResult(ffmpegPath, [
-    '-y', '-ss', seconds.toString(), '-i', videoPath, '-frames:v', '1', outPath,
-  ]);
-  if (result.exitCode !== 0 || !(await fs.pathExists(outPath))) {
-    throw new Error(`Unable to extract video frame ${frameNum}: ${result.error}`);
+  const stat = await fs.stat(videoPath);
+  const videoKey = crypto.createHash('md5')
+    .update(`${videoPath}|${stat.size}|${Math.round(stat.mtimeMs)}|${fps}`)
+    .digest('hex').slice(0, 16);
+  const outPath = npath.join(outDir, `frame_${videoKey}_${frameNum}.png`);
+  const inflight = frameExtractions.get(outPath);
+  if (inflight) {
+    return inflight;
   }
-  return outPath;
+  const extraction = (async () => {
+    await fs.ensureDir(outDir);
+    if (await fs.pathExists(outPath)) {
+      return outPath;
+    }
+    // Extract to a temp name and rename so a failed/interrupted ffmpeg run
+    // can never leave a partial file where the cache check would find it.
+    const tmpPath = npath.join(outDir, `tmp_${process.pid}_${videoKey}_${frameNum}.png`);
+    const seconds = frameNum / (fps || 1);
+    const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+    const result = await spawnResult(ffmpegPath, [
+      '-y', '-ss', seconds.toString(), '-i', videoPath, '-frames:v', '1', tmpPath,
+    ]);
+    if (result.exitCode !== 0 || !(await fs.pathExists(tmpPath))) {
+      await fs.remove(tmpPath).catch(() => undefined);
+      throw new Error(`Unable to extract video frame ${frameNum}: ${result.error}`);
+    }
+    await fs.move(tmpPath, outPath, { overwrite: true });
+    pruneFrameCache(outDir).catch(() => undefined);
+    return outPath;
+  })();
+  frameExtractions.set(outPath, extraction);
+  try {
+    return await extraction;
+  } finally {
+    frameExtractions.delete(outPath);
+  }
 }
 
 /** Loose shape of a JSON response line from the Python query service. */
