@@ -91,6 +91,7 @@ async function zipDirectory(sourceDir: string, destZipPath: string): Promise<voi
   });
 }
 
+// eslint-disable-next-line import/prefer-default-export -- single RPC export helper
 export async function exportMulticamEverything(
   settings: Settings,
   args: ExportMulticamEverythingArgs,

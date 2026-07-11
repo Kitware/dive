@@ -12,7 +12,7 @@ import fs from 'fs-extra';
 import { DatasetCalibrationResult } from 'dive-common/apispec';
 import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibrationJson';
-import { JsonMeta, Settings, LastCalibrationBaseName } from 'platform/desktop/constants';
+import { Settings, LastCalibrationBaseName } from 'platform/desktop/constants';
 
 import { prepareDatasetCalibration } from './calibrationConvert';
 // eslint-disable-next-line import/no-cycle

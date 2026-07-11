@@ -3,7 +3,6 @@ import fs from 'fs-extra';
 import mime from 'mime-types';
 import {
   DatasetType,
-  DatasetMetaMutable,
   MultiCamImportFolderArgs,
   MultiCamImportKeywordArgs,
   MultiCamImportArgs,

@@ -227,7 +227,9 @@ export async function saveRegistrationToDatasetDir(
   referenceCamera: string | null,
 ): Promise<void> {
   const onDisk = await loadRegistrationFiles(basePath);
-  let { homographies, correspondences, transformTypes, source } = onDisk;
+  let {
+    homographies, correspondences, transformTypes, source,
+  } = onDisk;
   if (args.cameraHomographies) {
     homographies = args.cameraHomographies;
   }
