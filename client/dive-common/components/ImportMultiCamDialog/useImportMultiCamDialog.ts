@@ -26,6 +26,7 @@ import {
   subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
+import { findRegistrationFilesInFileList } from 'dive-common/registrationParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import {
@@ -39,8 +40,8 @@ export interface UseImportMultiCamDialogProps {
   importMedia: (path: string) => Promise<MediaImportResponse>;
   /**
    * Offer a per-camera registration .json transform file picker for cameras
-   * after the first (desktop only; the file is parsed by the desktop backend
-   * at import time). Ignored for stereo imports, which use calibration files.
+   * after the first (parsed by the desktop backend or the web upload flow at
+   * import time). Ignored for stereo imports, which use calibration files.
    */
   enableTransformImport?: boolean;
   enableSubfolderImport?: boolean;
@@ -62,6 +63,7 @@ export function useImportMultiCamDialog(
     getLastCalibration,
     saveCalibration,
     stashCalibrationFile,
+    stashTransformFile,
     listParentFolderCameras,
     resolveMulticamCameraSourcePath,
     findParentFolderCalibrationFile,
@@ -429,7 +431,7 @@ export function useImportMultiCamDialog(
         { preferLeftForStereo: props.stereo },
       );
       syncDefaultDisplay();
-      await discoverParentFolderTransform(parentPath);
+      await discoverParentFolderTransform(parentPath, ret.fileList, ret.root || parentPath);
     });
   }
 
@@ -726,11 +728,30 @@ export function useImportMultiCamDialog(
    * so which slot carries it doesn't matter. Each shows in that camera's
    * (clearable) transform field.
    */
-  async function discoverParentFolderTransform(parentPath: string) {
-    if (!transformImportEnabled.value || !findParentFolderTransformFiles) {
+  async function discoverParentFolderTransform(
+    parentPath: string,
+    fileList?: File[],
+    root?: string,
+  ) {
+    if (!transformImportEnabled.value) {
       return;
     }
-    const discovered = await findParentFolderTransformFiles(parentPath);
+    let discovered: string[] = [];
+    if (fileList?.length) {
+      // Web: scan the selected folder's root-level files; keep each File for
+      // upload time (paths are not filesystem paths in the browser).
+      const found = await findRegistrationFilesInFileList(
+        fileList,
+        root || parentPath,
+        commonPathPrefix,
+      );
+      found.forEach((match) => stashTransformFile?.(match.path, match.file));
+      discovered = found.map((match) => match.path);
+    } else if (findParentFolderTransformFiles) {
+      discovered = await findParentFolderTransformFiles(parentPath);
+    } else {
+      return;
+    }
     discovered.forEach((filePath) => {
       const fileName = filePath.replace(/^.*[\\/]/, '').toLowerCase();
       // Camera names may contain underscores, so match the file against each

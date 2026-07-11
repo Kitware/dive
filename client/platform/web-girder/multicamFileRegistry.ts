@@ -9,6 +9,7 @@ const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
 const filesByKey = new Map<string, File[]>();
 const annotationFilesByKey = new Map<string, File>();
 const calibrationFilesByKey = new Map<string, File>();
+const transformFilesByKey = new Map<string, File>();
 
 function commonDirectoryRoot(paths: string[]): string {
   if (!paths.length) {
@@ -118,6 +119,23 @@ export function stashCalibrationFile(key: string, file: File): void {
   calibrationFilesByKey.set(file.name, file);
 }
 
+/** Stash a per-camera registration transform File for multicam import lookup. */
+export function stashTransformFile(key: string, file: File): void {
+  calibrationLookupKeys(key).forEach((lookupKey) => {
+    transformFilesByKey.set(lookupKey, file);
+  });
+  transformFilesByKey.set(file.name, file);
+}
+
+export function getTransformFile(key: string): File | undefined {
+  if (!key) {
+    return undefined;
+  }
+  return calibrationLookupKeys(key)
+    .map((lookupKey) => transformFilesByKey.get(lookupKey))
+    .find((file) => file !== undefined);
+}
+
 export function getCalibrationFile(key: string): File | undefined {
   if (!key) {
     return undefined;
@@ -135,6 +153,7 @@ export function clearMulticamFileRegistry(): void {
   filesByKey.clear();
   annotationFilesByKey.clear();
   calibrationFilesByKey.clear();
+  transformFilesByKey.clear();
 }
 
 export async function openFromDiskWithRegistry(
@@ -147,6 +166,8 @@ export async function openFromDiskWithRegistry(
       stashAnnotationFile(ret.filePaths[0], ret.fileList[0]);
     } else if (datasetType === 'calibration') {
       stashCalibrationFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'transform') {
+      stashTransformFile(ret.filePaths[0], ret.fileList[0]);
     } else {
       stashFileSelection(ret);
     }

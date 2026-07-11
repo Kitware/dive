@@ -25,6 +25,7 @@ import {
   createGirderFolder,
   createMulticamDataset,
   deleteResources,
+  saveMetadata,
   uploadCalibrationItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
@@ -34,11 +35,13 @@ import {
   getAnnotationFile,
   getCalibrationFile,
   getFilesForSourceKey,
+  getTransformFile,
   flattenUploadFiles,
   removeCameraFolderFiles,
   renameCameraFolderFiles,
   stashCameraFolderFiles,
 } from 'platform/web-girder/multicamFileRegistry';
+import { parseRegistrationSeed } from 'platform/web-girder/multicamRegistrationSeed';
 import {
   isAllowedStereoCalibrationFilename,
   stereoCalibrationAllowedExtensionsLabel,
@@ -412,6 +415,18 @@ export default defineComponent({
         if (!datasetName) {
           throw new Error('Dataset name is required');
         }
+        // Parse attached transform/registration files up front so a bad file
+        // fails the import before anything is created (desktop parity).
+        const transformEntries = Object.entries(args.sourceList)
+          .filter(([, source]) => source.transformFile)
+          .map(([cameraName, source]) => ({
+            cameraName,
+            fileName: source.transformFile as string,
+            file: getTransformFile(source.transformFile as string),
+          }));
+        const registrationSeed = transformEntries.length
+          ? await parseRegistrationSeed(transformEntries, Object.keys(args.sourceList))
+          : null;
         const fps = args.type === VideoType
           ? DefaultVideoFPS
           : (clientSettings.annotationFPS || 1);
@@ -525,6 +540,28 @@ export default defineComponent({
           calibrationFileId,
         });
         multicamLinked = true;
+
+        if (registrationSeed?.values) {
+          // Seed the dataset's saved camera registration (the same
+          // registration the in-app panel edits and the Align button
+          // applies); the camera* fields are allowlisted in the meta PATCH.
+          setMulticamImportProgress(98, `${labelPrefix}Saving camera registration…`);
+          await saveMetadata(parentFolder._id, {
+            cameraHomographies: registrationSeed.values.homographies,
+            cameraCorrespondences: registrationSeed.values.correspondences,
+            cameraTransformTypes: registrationSeed.values.transformTypes,
+            ...(registrationSeed.values.source
+              ? { cameraRegistrationSource: registrationSeed.values.source }
+              : {}),
+          });
+        }
+        if (registrationSeed?.warnings.length) {
+          await prompt({
+            title: 'Registration Warnings',
+            text: registrationSeed.warnings,
+            positiveButton: 'OK',
+          });
+        }
 
         if (openViewer) {
           setMulticamImportProgress(100, `${labelPrefix}Opening viewer…`);
@@ -760,6 +797,7 @@ export default defineComponent({
         v-else-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
+        :enable-transform-import="true"
         :enable-subfolder-import="true"
         :register-subfolder-cameras="registerSubfolderCameras"
         :unregister-subfolder-camera="unregisterSubfolderCamera"

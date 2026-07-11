@@ -13,7 +13,7 @@ import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/align
 import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
   buildPerCameraRegistrationFiles, registrationValuesSummary, filterRegistrationValues,
-  mergeRegistrationValues, CameraRegistrationValues,
+  mergeRegistrationValues, mergeRegistrationSources, CameraRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
 import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
@@ -101,30 +101,7 @@ export function fromRegistrationPairs(
   return { homographies, correspondences, transformTypes };
 }
 
-/**
- * Merge the per-file producer stamps of a calibration file set. All stamped
- * files agreeing (deep-equal) yields that stamp; disagreement yields a
- * composite `{ mixed: true, files: {...} }` so the client can surface a
- * mixed-generation warning instead of composing silently -- the failure mode
- * per-camera files invite is a rig assembled from files regenerated at
- * different times.
- */
-export function mergeRegistrationSources(
-  stamps: { file: string; source: RegistrationSource | null }[],
-): RegistrationSource | null {
-  const stamped = stamps.filter((entry) => entry.source !== null);
-  if (stamped.length === 0) {
-    return null;
-  }
-  const first = JSON.stringify(stamped[0].source);
-  if (stamped.every((entry) => JSON.stringify(entry.source) === first)) {
-    return stamped[0].source;
-  }
-  return {
-    mixed: true,
-    files: Object.fromEntries(stamps.map((entry) => [entry.file, entry.source])),
-  };
-}
+export { mergeRegistrationSources };
 
 async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
   await fs.writeFile(absPath, JSON.stringify(data, null, 2));

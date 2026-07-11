@@ -318,6 +318,8 @@ interface Api {
   hasCalibrationFile?(datasetId: string): Promise<boolean>;
   /** Web: stash a calibration File for multicam upload lookup. */
   stashCalibrationFile?(key: string, file: File): void;
+  /** Web: stash a per-camera registration transform File for multicam upload lookup. */
+  stashTransformFile?(key: string, file: File): void;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
