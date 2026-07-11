@@ -1,6 +1,6 @@
 import geo from 'geojs';
 import { onBeforeUnmount, Ref } from 'vue';
-import type { AggregateMediaController } from './mediaControllerType';
+import type { AggregateMediaController } from '../mediaControllerType';
 
 /**
  * Where to move a linked pane: the world-space center to show, and how many

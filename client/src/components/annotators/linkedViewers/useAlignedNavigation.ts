@@ -1,6 +1,6 @@
 import { Ref, watch } from 'vue';
-import type { AggregateMediaController } from './mediaControllerType';
-import type AlignedViewStore from '../../AlignedViewStore';
+import type { AggregateMediaController } from '../mediaControllerType';
+import type AlignedViewStore from '../../../AlignedViewStore';
 import useLinkedViewers from './useLinkedViewers';
 
 /**
