@@ -2,7 +2,7 @@
 import Vue, { Ref } from 'vue';
 
 import { MediaController } from '../components/annotators/mediaControllerType';
-import { applyHomography, Matrix3 } from '../homography';
+import { applyHomography, Matrix3 } from '../alignedView/homography';
 import { StateStyles, TypeStyling } from '../StyleManager';
 import { FrameDataTrack } from './LayerTypes';
 

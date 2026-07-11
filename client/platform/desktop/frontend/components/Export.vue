@@ -9,7 +9,7 @@ import {
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MultiType } from 'dive-common/constants';
 import { referenceCameraName } from 'dive-common/multicamDisplay';
-import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
   loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
   exportCameraRegistration, exportMulticamEverything,

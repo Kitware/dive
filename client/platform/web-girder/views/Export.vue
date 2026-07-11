@@ -6,7 +6,7 @@ import {
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
-import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { referenceCameraName } from 'dive-common/multicamDisplay';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';

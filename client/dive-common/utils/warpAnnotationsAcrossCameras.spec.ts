@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import CameraStore from 'vue-media-annotator/CameraStore';
-import type { Matrix3 } from 'vue-media-annotator/homography';
-import { IDENTITY3 } from 'vue-media-annotator/alignedView';
+import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
+import { IDENTITY3 } from 'vue-media-annotator/alignedView/alignedView';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import warpAnnotationsAcrossCameras from './warpAnnotationsAcrossCameras';
 

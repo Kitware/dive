@@ -6,11 +6,11 @@
  */
 import { ref } from 'vue';
 import CameraStore from 'vue-media-annotator/CameraStore';
-import AlignedViewStore from 'vue-media-annotator/AlignedViewStore';
+import AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
 import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
-import { IDENTITY3 } from 'vue-media-annotator/alignedView';
-import type { Matrix3 } from 'vue-media-annotator/homography';
+import { IDENTITY3 } from 'vue-media-annotator/alignedView/alignedView';
+import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import type { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import useModeManager from './useModeManager';

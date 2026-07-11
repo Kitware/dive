@@ -22,7 +22,7 @@ import {
   Matrix3, matMul3, invert3, applyHomography, Point,
 } from './homography';
 import type { CameraHomographies } from './CameraRegistrationStore';
-import type { RectBounds } from './utils';
+import type { RectBounds } from '../utils';
 
 export const IDENTITY3: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 

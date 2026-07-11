@@ -22,7 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
-import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView';
+import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {

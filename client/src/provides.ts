@@ -24,8 +24,8 @@ import type {
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
-import CameraRegistrationStore from './CameraRegistrationStore';
-import AlignedViewStore from './AlignedViewStore';
+import CameraRegistrationStore from './alignedView/CameraRegistrationStore';
+import AlignedViewStore from './alignedView/AlignedViewStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,

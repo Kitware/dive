@@ -10,7 +10,7 @@ import archiver from 'archiver';
 
 import { MultiType } from 'dive-common/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
-import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/cameraRegistrationFiles';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { ExportMulticamEverythingArgs, Settings } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as dive from 'platform/desktop/backend/serializers/dive';

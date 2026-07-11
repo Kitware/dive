@@ -1,6 +1,6 @@
 import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
-import { Matrix3, subdivideWarpQuads, warpGridSize } from '../homography';
+import { Matrix3, subdivideWarpQuads, warpGridSize } from '../alignedView/homography';
 import { findQuadMediaLayer } from '../components/layerManager/quadMediaSource';
 
 export interface CameraImage {

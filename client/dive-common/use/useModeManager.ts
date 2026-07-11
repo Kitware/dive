@@ -10,10 +10,10 @@ import {
   getRotationFromAttributes,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
-import type AlignedViewStore from 'vue-media-annotator/AlignedViewStore';
+import type AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
 import {
   mapBounds, mapRotatedBounds, mapGeoJSONFeatures,
-} from 'vue-media-annotator/alignedView';
+} from 'vue-media-annotator/alignedView/alignedView';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 

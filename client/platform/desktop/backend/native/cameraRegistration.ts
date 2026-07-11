@@ -9,14 +9,14 @@
 import npath from 'path';
 import fs from 'fs-extra';
 
-import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/transform';
-import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/CameraRegistrationStore';
+import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/alignedView/transform';
+import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
   buildPerCameraRegistrationFiles, registrationValuesSummary, filterRegistrationValues,
   mergeRegistrationValues, CameraRegistrationValues,
-} from 'vue-media-annotator/cameraRegistrationFiles';
-import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { invert3, Matrix3 } from 'vue-media-annotator/homography';
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
+import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import { DatasetMetaMutable } from 'dive-common/apispec';
 import { referenceCameraName as multicamReferenceCameraName } from 'dive-common/multicamDisplay';
 import { JsonMeta, Settings } from 'platform/desktop/constants';

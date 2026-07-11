@@ -1,9 +1,9 @@
 import type { GirderModel } from '@girder/components/src';
 
-import CameraRegistrationStore from 'vue-media-annotator/CameraRegistrationStore';
+import CameraRegistrationStore from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
-} from 'vue-media-annotator/cameraRegistrationFiles';
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';

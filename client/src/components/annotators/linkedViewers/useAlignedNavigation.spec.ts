@@ -3,9 +3,9 @@ import {
   ref, shallowRef, nextTick, Ref,
 } from 'vue';
 import useAlignedNavigation from './useAlignedNavigation';
-import AlignedViewStore from '../../../AlignedViewStore';
+import AlignedViewStore from '../../../alignedView/AlignedViewStore';
 import type { AggregateMediaController } from '../mediaControllerType';
-import type { Matrix3 } from '../../../homography';
+import type { Matrix3 } from '../../../alignedView/homography';
 
 vi.mock('geojs', () => ({ default: { event: { pan: 'geo_pan', zoom: 'geo_zoom' } } }));
 

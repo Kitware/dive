@@ -32,7 +32,7 @@ targetZoom = log₂(target.unitsPerPixel(0) / desiredUnitsPerPixel)
 
 ### Aligned view (`useAlignedNavigation`)
 
-While the aligned view is active, every pane **renders** in a shared reference coordinate space (see `AlignedViewStore` and aligned image layers). Navigation therefore uses the **identity** mapping:
+While the aligned view is active, every pane **renders** in a shared reference coordinate space (see `alignedView/AlignedViewStore` and aligned image layers). Navigation therefore uses the **identity** mapping:
 
 - Same center coordinates on every pane.
 - Same reference-units-per-screen-pixel on every pane.

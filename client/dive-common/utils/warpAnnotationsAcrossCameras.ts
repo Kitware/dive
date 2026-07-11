@@ -1,9 +1,9 @@
 import { cloneDeep } from 'lodash';
 import type { CameraStore, Track } from 'vue-media-annotator/index';
-import type { Matrix3 } from 'vue-media-annotator/homography';
+import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import {
   cameraPairTransform, mapBounds, mapGeoJSONFeatures, mapRotatedBounds,
-} from 'vue-media-annotator/alignedView';
+} from 'vue-media-annotator/alignedView/alignedView';
 import {
   RectBounds,
   ROTATION_ATTRIBUTE_NAME,

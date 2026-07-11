@@ -2,12 +2,12 @@ import {
   computed, watch, ComputedRef, Ref,
 } from 'vue';
 import type { AggregateMediaController, MediaController } from '../annotators/mediaControllerType';
-import type AlignedViewStore from '../../AlignedViewStore';
+import type AlignedViewStore from '../../alignedView/AlignedViewStore';
 import AlignedImageLayer from '../../layers/AlignedImageLayer';
 import type { EditAnnotationTypes } from '../../layers/EditAnnotationLayer';
 import type { Feature } from '../../track';
-import { applyHomography, invert3, Matrix3 } from '../../homography';
-import { mapBounds, mapRotatedBounds, mapGeoJSONFeatures } from '../../alignedView';
+import { applyHomography, invert3, Matrix3 } from '../../alignedView/homography';
+import { mapBounds, mapRotatedBounds, mapGeoJSONFeatures } from '../../alignedView/alignedView';
 import {
   geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME, getRotationFromAttributes,
 } from '../../utils';

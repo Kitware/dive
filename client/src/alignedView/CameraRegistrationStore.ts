@@ -89,7 +89,7 @@ export type CameraTransformTypes = Record<string, TransformType>;
  * Shared, reactive store for camera-calibration data (correspondences,
  * fitted/loaded homographies, transform-type choices, and producer
  * provenance). Lives in vue-media-annotator so both the annotation layers
- * (client/src/layers) and the dive-common side can consume it via the
+ * (client/src/alignedView) and the dive-common side can consume it via the
  * provide/inject system. Handles persistence: hydrating saved state and
  * loading/saving the portable calibration JSON format.
  */

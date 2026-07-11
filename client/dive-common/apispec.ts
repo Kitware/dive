@@ -10,7 +10,7 @@ import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterCo
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import {
   CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
-} from 'vue-media-annotator/CameraRegistrationStore';
+} from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';

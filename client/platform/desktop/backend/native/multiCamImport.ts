@@ -17,7 +17,7 @@ import {
   Camera,
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
-import { readTransformMatrix } from 'vue-media-annotator/alignedView';
+import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
 import { findImagesInFolder } from './common';
 import {
   CameraCorrespondences,
