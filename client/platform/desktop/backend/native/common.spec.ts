@@ -189,6 +189,11 @@ beforeEach(() => {
         'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
         'stray.json': JSON.stringify({ some: 'thing' }),
       },
+      untypedPerCamera: {
+        'uv_to_eo_registration.json': JSON.stringify({ version: 1, pairs: [] }),
+        'no_pairs_registration.json': JSON.stringify({ version: 1 }),
+        'untyped-other-name.json': JSON.stringify({ version: 1, pairs: [] }),
+      },
       none: {
         'rig.json': JSON.stringify({ some: 'thing' }),
         'notes.txt': 'not json',
@@ -762,6 +767,13 @@ describe('native.common', () => {
       expect(found).toStrictEqual([
         npath.join('/home/user/transformDiscovery/perCamera', 'ir_to_eo_registration.json'),
         npath.join('/home/user/transformDiscovery/perCamera', 'uv_to_eo_registration.json'),
+      ]);
+    });
+
+    it('accepts a *_registration.json with pairs but no type; other names still need the type', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/untypedPerCamera');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/untypedPerCamera', 'uv_to_eo_registration.json'),
       ]);
     });
 

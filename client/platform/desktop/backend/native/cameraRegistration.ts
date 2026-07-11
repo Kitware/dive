@@ -266,14 +266,17 @@ export async function saveRegistrationToDatasetDir(
 }
 
 /**
- * Find every DIVE camera-calibration .json (alignment transforms, the
- * calibration save format) in the parent folder root, for auto-attaching at
- * multicam import time. Only files that self-identify with
- * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
- * .json or other stray JSON in the collect root is never grabbed by mistake.
- * Ordered for deterministic attachment: per-camera *_registration.json
- * files first, then any other self-identified candidates, alphabetically
- * within each group.
+ * Find every DIVE camera-registration .json (alignment transforms, the
+ * registration panel's save format) in the parent folder root, for
+ * auto-attaching at multicam import time. A file qualifies when it is named
+ * like a per-camera *_registration.json and carries a "pairs" list (the
+ * conventional name is the producer's declaration of intent, so `type` is
+ * optional there -- matching every other load path), or, under any other
+ * name, when it self-identifies with `type: 'dive-camera-registration'` --
+ * so a camera-rig calibration .json or other stray JSON in the collect root
+ * is never grabbed by mistake. Ordered for deterministic attachment:
+ * per-camera *_registration.json files first, then any other
+ * self-identified candidates, alphabetically within each group.
  */
 export async function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
   if (!await fs.pathExists(parentPath)) {
@@ -296,7 +299,9 @@ export async function findParentFolderTransformFiles(parentPath: string): Promis
     try {
       // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
       const data = await fs.readJson(absPath);
-      if (data && data.type === REGISTRATION_FILE_TYPE && Array.isArray(data.pairs)) {
+      const qualifies = data && Array.isArray(data.pairs)
+        && (RegistrationFileNamePattern.test(name) || data.type === REGISTRATION_FILE_TYPE);
+      if (qualifies) {
         found.push(absPath);
       }
     } catch {
