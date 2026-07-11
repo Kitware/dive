@@ -106,6 +106,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   const seedCorrespondences: CameraCorrespondences = {};
   const seedTransformTypes: CameraTransformTypes = {};
   const seedSourceStamps: { file: string; source: RegistrationSource | null }[] = [];
+  const importWarnings: string[] = [];
   if (isFolderArgs(args)) {
     // Parse the files up front so a bad file fails the import with a clear
     // message instead of storing partial state.
@@ -130,11 +131,27 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         });
         Object.assign(seedCorrespondences, parsed.correspondences);
         Object.assign(seedTransformTypes, parsed.transformTypes);
+        const fileName = item.transformFile.replace(/^.*[\\/]/, '');
+        // Pair bodies are authoritative on load, so a pair naming a camera
+        // this dataset doesn't have imports fine but never resolves in the
+        // Aligned View. Warn rather than fail: the mismatch may be
+        // intentional (a rig file shared across datasets) or fixable later.
+        const namedCameras = new Set(
+          Object.keys(parsed.transformTypes).flatMap((key) => key.split('::')),
+        );
+        const unknown = [...namedCameras].filter((name) => !(name in cameras)).sort();
+        if (unknown.length) {
+          importWarnings.push(
+            `Registration file "${fileName}" names camera(s) not in this dataset: `
+            + `${unknown.join(', ')}. Pairs bind by the camera names in the file, so these `
+            + 'transforms will not take effect unless camera names match.',
+          );
+        }
         // Producer provenance travels with the seed; per-file stamps are
         // merged below (agreement keeps the stamp, disagreement is recorded
         // as a mixed composite so the client can warn).
         seedSourceStamps.push({
-          file: item.transformFile.replace(/^.*[\\/]/, ''),
+          file: fileName,
           source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
             ? data.source as RegistrationSource
             : null,
@@ -288,6 +305,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     forceMediaTranscode: false,
     useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
+    ...(importWarnings.length ? { importWarnings } : {}),
   };
 }
 

@@ -84,6 +84,43 @@ describe('multiCamImport transform wire-through', () => {
     );
   });
 
+  it('reports no warnings when every pair names dataset cameras', async () => {
+    const output = await beginMultiCamImport({
+      datasetName: 'matching_names',
+      defaultDisplay: 'eo',
+      cameraOrder: ['eo', 'ir'],
+      sourceList: sourceListWith(registrationJsonPath),
+      type: 'image-sequence',
+    });
+    expect(output.importWarnings).toBeUndefined();
+  });
+
+  it('warns (but imports) when pairs name cameras the dataset does not have', async () => {
+    const mismatchedPath = npath.join(tmpDir, 'uv_to_rgb_registration.json');
+    fs.writeJsonSync(mismatchedPath, {
+      version: 1,
+      pairs: [{
+        left: 'uv',
+        right: 'rgb',
+        points: [],
+        leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      }],
+    });
+    const output = await beginMultiCamImport({
+      datasetName: 'mismatched_names',
+      defaultDisplay: 'eo',
+      cameraOrder: ['eo', 'ir'],
+      sourceList: sourceListWith(mismatchedPath),
+      type: 'image-sequence',
+    });
+    // The seed still imports: pair bodies are authoritative.
+    expect(output.jsonMeta.cameraHomographies?.['uv::rgb']).toBeDefined();
+    expect(output.importWarnings).toHaveLength(1);
+    expect(output.importWarnings?.[0]).toContain('uv_to_rgb_registration.json');
+    expect(output.importWarnings?.[0]).toContain('rgb, uv');
+  });
+
   it('leaves the calibration unset when no transform file is given', async () => {
     const output = await beginMultiCamImport({
       datasetName: 'no_transform',
