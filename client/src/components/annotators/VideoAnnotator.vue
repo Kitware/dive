@@ -243,6 +243,7 @@ export default defineComponent({
           } else {
             quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
           }
+          data.imageRevision += 1;
         }
       },
       { deep: true },

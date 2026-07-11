@@ -31,6 +31,14 @@ interface MediaControllerReactiveData {
   syncedFrame: number;
   /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
   hasFrame: boolean;
+  /**
+   * Bumped whenever the displayed image presentation changes outside of a
+   * seek: the quad's <img> element is swapped (e.g. the percentile-stretch
+   * URL remap rebuilds the image cache) or the enhancement CSS filter is
+   * toggled. The aligned-view warp renders a snapshot of the displayed
+   * element, so it watches this to re-render in step.
+   */
+  imageRevision: number;
   cursor: string;
   imageCursor: string;
   imageCursorEditing: boolean;
@@ -332,6 +340,7 @@ export function useMediaController() {
       maxFrame: 0,
       syncedFrame: 0,
       hasFrame: true,
+      imageRevision: 0,
       cursor: 'default',
       imageCursor: '',
       imageCursorEditing: false,
@@ -550,6 +559,7 @@ export function useMediaController() {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
+      imageRevision: toRef(state[camera], 'imageRevision'),
       prevFrame,
       nextFrame,
       play: _play,

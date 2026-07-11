@@ -103,6 +103,14 @@ export interface MediaController extends AggregateMediaController {
    */
   hasFrame: Readonly<Ref<boolean>>;
   /**
+   * Bumped whenever the displayed image presentation changes outside of a
+   * seek: the quad's <img> element is swapped (e.g. the percentile-stretch
+   * URL remap rebuilds the image cache) or the enhancement CSS filter is
+   * toggled. The aligned-view warp renders a snapshot of the displayed
+   * element, so it watches this to re-render in step.
+   */
+  imageRevision: Readonly<Ref<number>>;
+  /**
    * Per-camera seek accepts undefined when this camera has no frame at the
    * current aligned-timeline slot (see AlignedFrameResolver) -- the camera
    * should blank its pane rather than draw anything for that slot.

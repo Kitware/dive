@@ -157,6 +157,7 @@ export default defineComponent({
           },
         ])
         .draw();
+      data.imageRevision += 1;
     }
     /**
      * Adds a single frame to the pendingImgs array for loading and assigns it to the main
@@ -358,6 +359,7 @@ export default defineComponent({
           } else {
             local.quadFeature.layer().node().css('filter', `url(#${props.filterId})`);
           }
+          data.imageRevision += 1;
         }
       },
       { deep: true },

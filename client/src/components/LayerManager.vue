@@ -512,6 +512,17 @@ export default defineComponent({
 
     setupDisplayTransformWatches(displayTransformedLayers, refreshLayers, frameNumberRef);
 
+    // ...and follow same-frame presentation changes: an image-enhancement
+    // change swaps the quad's <img> element (percentile-stretch URL remap)
+    // or its CSS filter with no seek and no transform change, which is
+    // invisible to the watchers above once the post-trigger poll has
+    // expired. The annotator bumps imageRevision on those redraws.
+    watch(annotator.imageRevision, () => {
+      if (alignedDisplayTransform.value) {
+        alignedImageLayer.update();
+      }
+    });
+
     /** Shallow watch */
     watch(
       [
