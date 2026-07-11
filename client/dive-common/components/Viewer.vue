@@ -399,7 +399,7 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
-    const cameraRegistration = new CameraRegistrationStore();
+    const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
 
     /**
      * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
@@ -410,7 +410,12 @@ export default defineComponent({
      * display order. Transforms come from the registration store's pair
      * homographies (loaded from a registration file or the dataset's saved
      * meta), composed through the pair graph.
+     *
+     * Store instances are always created (provideAnnotator runs before
+     * loadData resolves), but watches, aligned navigation, and metadata
+     * hydration only run for multicamera datasets.
      */
+    const cameraRegistration = new CameraRegistrationStore();
     const alignedView = new AlignedViewStore();
     const referenceCamera = computed(() => {
       const cams = multiCamList.value;
@@ -419,7 +424,44 @@ export default defineComponent({
       }
       return cams.includes(defaultCamera.value) ? defaultCamera.value : cams[0];
     });
+    let multicamAlignmentInitialized = false;
+
+    function resetMulticamAlignment() {
+      alignedView.setEnabled(false);
+      alignedView.setTransforms(null, null);
+      alignedView.setRegistrationProgress(null);
+      cameraRegistration.hydrate();
+    }
+
+    function initMulticamAlignment() {
+      if (multicamAlignmentInitialized) {
+        return;
+      }
+      multicamAlignmentInitialized = true;
+      useAlignedNavigation(aggregateController, alignedView, multiCamList);
+      // Publish the reference even while unresolved so UI outside the viewer
+      // core (e.g. the import menu's per-pair buttons) can name it.
+      watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
+        if (!isMultiCameraDataset.value) {
+          return;
+        }
+        alignedView.setTransforms(
+          reference,
+          resolution?.toReference ?? null,
+        );
+      }, { immediate: true });
+      watch(registrationProgress, (progressVal) => {
+        if (!isMultiCameraDataset.value) {
+          return;
+        }
+        alignedView.setRegistrationProgress(progressVal);
+      }, { immediate: true });
+    }
+
     const alignedResolution = computed(() => {
+      if (!isMultiCameraDataset.value) {
+        return null;
+      }
       const reference = referenceCamera.value;
       if (reference === null) {
         return null;
@@ -431,18 +473,13 @@ export default defineComponent({
       );
       return toReference ? { reference, toReference } : null;
     });
-    // Publish the reference even while unresolved so UI outside the viewer
-    // core (e.g. the import menu's per-pair buttons) can name it.
-    watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
-      alignedView.setTransforms(
-        reference,
-        resolution?.toReference ?? null,
-      );
-    }, { immediate: true });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
     // same "N/M cameras registered" status as the Align View toggle.
     const registrationProgress = computed(() => {
+      if (!isMultiCameraDataset.value) {
+        return null;
+      }
       const cams = multiCamList.value;
       const reference = referenceCamera.value;
       if (reference === null) {
@@ -451,16 +488,17 @@ export default defineComponent({
       const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
     });
-    watch(registrationProgress, (progress) => {
-      alignedView.setRegistrationProgress(progress);
-    }, { immediate: true });
-    useAlignedNavigation(aggregateController, alignedView, multiCamList);
-    const alignedViewAvailable = computed(() => alignedView.available.value);
+    const alignedViewAvailable = computed(() => (
+      isMultiCameraDataset.value && alignedView.available.value
+    ));
     const alignedViewEnabled = computed(() => alignedView.enabled.value);
     const toggleAlignedView = () => {
       alignedView.setEnabled(!alignedView.enabled.value);
     };
     const alignedViewTooltip = computed(() => {
+      if (!isMultiCameraDataset.value) {
+        return 'Align View';
+      }
       // Per-camera registration files with disagreeing producer stamps mean
       // the rig may mix calibration generations -- say so instead of
       // composing silently.
@@ -1294,9 +1332,8 @@ export default defineComponent({
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
-        const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
-        if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
+        if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           multiCamList.value = orderedMultiCamCameraNames(meta.multiCamMedia);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
@@ -1305,6 +1342,10 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
+          initMulticamAlignment();
+        } else {
+          multiCamList.value = ['singleCam'];
+          resetMulticamAlignment();
         }
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
@@ -1471,16 +1512,18 @@ export default defineComponent({
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
         // Rehydrate any saved camera-to-camera registration homographies, points,
-        // transform types, and producer provenance
-        cameraRegistration.hydrate(
-          meta.cameraHomographies,
-          meta.cameraCorrespondences,
-          meta.cameraTransformTypes,
-          meta.cameraRegistrationSource,
-        );
-        // Reset the aligned-view toggle for the newly loaded dataset (no
-        // persistence this phase).
-        alignedView.setEnabled(false);
+        // transform types, and producer provenance (multicamera only).
+        if (isMultiCameraDataset.value) {
+          cameraRegistration.hydrate(
+            meta.cameraHomographies,
+            meta.cameraCorrespondences,
+            meta.cameraTransformTypes,
+            meta.cameraRegistrationSource,
+          );
+          // Reset the aligned-view toggle for the newly loaded dataset (no
+          // persistence this phase).
+          alignedView.setEnabled(false);
+        }
         setImageEnhancements(
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
