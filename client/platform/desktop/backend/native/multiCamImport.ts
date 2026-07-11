@@ -18,12 +18,15 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { findImagesInFolder, fromRegistrationPairs, mergeRegistrationSources } from './common';
-
-type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
-type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
-type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
-type RegistrationSource = NonNullable<DatasetMetaMutable['cameraRegistrationSource']>;
+import { findImagesInFolder } from './common';
+import {
+  CameraCorrespondences,
+  CameraHomographies,
+  CameraTransformTypes,
+  fromRegistrationPairs,
+  mergeRegistrationSources,
+  RegistrationSource,
+} from './cameraRegistration';
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
   if ('sourceList' in s && 'defaultDisplay' in s) {

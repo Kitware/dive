@@ -3,11 +3,8 @@
  */
 
 import npath from 'path';
-import os from 'os';
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
-import { createWriteStream } from 'fs';
-import archiver from 'archiver';
 import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
@@ -19,14 +16,6 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
-import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/transform';
-import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/CameraRegistrationStore';
-import {
-  buildPerCameraRegistrationFiles, registrationValuesSummary, filterRegistrationValues,
-  mergeRegistrationValues, CameraRegistrationValues,
-} from 'vue-media-annotator/cameraRegistrationFiles';
-import { readTransformMatrix } from 'vue-media-annotator/alignedView';
-import { invert3, Matrix3 } from 'vue-media-annotator/homography';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -37,7 +26,6 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
-  DatasetCalibrationResult,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -52,17 +40,11 @@ import {
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
 import {
-  orderedMultiCamCameraNames,
-  referenceCameraName as multicamReferenceCameraName,
-} from 'dive-common/multicamDisplay';
-import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
-import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibrationJson';
-import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, ExportMulticamEverythingArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
+  ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType, LastCalibrationBaseName,
+  JobType,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -74,7 +56,11 @@ import { upgrade } from './migrations';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+import {
+  loadRegistrationFiles, referenceCameraName, saveRegistrationToDatasetDir,
+} from './cameraRegistration';
 import { prepareDatasetCalibration } from './calibrationConvert';
+import { realCalibrationName } from './datasetCalibration';
 import { splitExt } from './utils';
 
 const AuxFolderName = 'auxiliary';
@@ -82,18 +68,6 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
-// Standalone camera-to-camera (modality-to-modality) registration
-// transforms, stored separately from meta.json in the dataset directory:
-// one file per non-reference camera
-// (<camera>_to_<reference>_registration.json, naming the mapping it
-// carries), each holding that camera's pair(s). There is deliberately no
-// single all-pairs file. File NAMES are discovery/provenance only: the
-// pair's left/right names inside the file body are always authoritative, so
-// a misnamed or copied file can never rebind a transform to the wrong
-// camera. The "_registration" suffix also keeps these files disjoint from
-// the stereo camera-file discovery, which matches names containing
-// "calibration"/"cal" (see stereoParentFolder.ts).
-const RegistrationFileNamePattern = /^.+_registration\.json$/i;
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 /**
@@ -733,160 +707,6 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
-type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
-type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
-type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
-type RegistrationSource = NonNullable<DatasetMetaMutable['cameraRegistrationSource']>;
-
-/**
- * Best-effort read of the calibration file's producer provenance stamp: a
- * plain object, or null for anything else. Preserved verbatim across
- * load/refine/save round trips; never interpreted by DIVE.
- */
-function readRegistrationSource(raw: unknown): RegistrationSource | null {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    return raw as RegistrationSource;
-  }
-  return null;
-}
-
-/**
- * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
- * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`;
- * `leftToRight`/`rightToLeft` are the fitted
- * 3x3 homographies, when a fit has been performed; `transformType` is the fit
- * model used to compute them (defaults to {@link DEFAULT_TRANSFORM_TYPE} when
- * absent, matching the in-app default so a pair fitted at the default resolves
- * to the same model after a save/reload).
- */
-interface RegistrationPair {
-  left: string;
-  right: string;
-  points: number[][];
-  leftToRight: number[][] | null;
-  rightToLeft: number[][] | null;
-  transformType?: TransformType;
-}
-
-/** Rebuild the in-app homographies/correspondences/transform types from calibration.json pairs. */
-function fromRegistrationPairs(
-  pairs: RegistrationPair[],
-): {
-    homographies: CameraHomographies;
-    correspondences: CameraCorrespondences;
-    transformTypes: CameraTransformTypes;
-  } {
-  const homographies: CameraHomographies = {};
-  const correspondences: CameraCorrespondences = {};
-  const transformTypes: CameraTransformTypes = {};
-  pairs.forEach((pair) => {
-    const key = `${pair.left}::${pair.right}`;
-    // Mirror the panel loader (CameraRegistrationStore.loadRegistrationText):
-    // producer files may carry only one fitted direction, so derive the
-    // missing one by inversion. A singular matrix can't participate in the
-    // warp either way, so such pairs contribute points only.
-    if (pair.leftToRight || pair.rightToLeft) {
-      try {
-        homographies[key] = {
-          AtoB: pair.leftToRight ?? invert3(pair.rightToLeft as Matrix3),
-          BtoA: pair.rightToLeft ?? invert3(pair.leftToRight as Matrix3),
-        };
-      } catch {
-        // Singular / non-invertible: skip the matrix, keep the points.
-      }
-    }
-    if (pair.points && pair.points.length) {
-      correspondences[key] = pair.points.map((p, i) => ({
-        id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
-      }));
-    }
-    transformTypes[key] = pair.transformType || DEFAULT_TRANSFORM_TYPE;
-  });
-  return { homographies, correspondences, transformTypes };
-}
-
-/**
- * Merge the per-file producer stamps of a calibration file set. All stamped
- * files agreeing (deep-equal) yields that stamp; disagreement yields a
- * composite `{ mixed: true, files: {...} }` so the client can surface a
- * mixed-generation warning instead of composing silently -- the failure mode
- * per-camera files invite is a rig assembled from files regenerated at
- * different times.
- */
-function mergeRegistrationSources(
-  stamps: { file: string; source: RegistrationSource | null }[],
-): RegistrationSource | null {
-  const stamped = stamps.filter((entry) => entry.source !== null);
-  if (stamped.length === 0) {
-    return null;
-  }
-  const first = JSON.stringify(stamped[0].source);
-  if (stamped.every((entry) => JSON.stringify(entry.source) === first)) {
-    return stamped[0].source;
-  }
-  return {
-    mixed: true,
-    files: Object.fromEntries(stamps.map((entry) => [entry.file, entry.source])),
-  };
-}
-
-/**
- * Read and merge every per-camera *_registration.json in a dataset
- * directory, sorted by name for determinism. Pair bodies are authoritative
- * (file names are ignored for binding); a pair key appearing in more than
- * one file keeps the last occurrence with a warning. `found` is true when at
- * least one file parsed as a calibration, so callers can distinguish "no
- * calibration files" from an empty one.
- */
-async function loadRegistrationFiles(basePath: string): Promise<{
-  found: boolean;
-  homographies: CameraHomographies;
-  correspondences: CameraCorrespondences;
-  transformTypes: CameraTransformTypes;
-  source: RegistrationSource | null;
-}> {
-  let names: string[] = [];
-  try {
-    const entries = await fs.readdir(basePath, { withFileTypes: true });
-    names = entries
-      .filter((entry) => entry.isFile() && RegistrationFileNamePattern.test(entry.name))
-      .map((entry) => entry.name)
-      .sort((a, b) => a.localeCompare(b));
-  } catch {
-    // Unreadable directory: treated the same as no calibration files.
-  }
-  let found = false;
-  const mergedPairs = new Map<string, RegistrationPair>();
-  const stamps: { file: string; source: RegistrationSource | null }[] = [];
-  // eslint-disable-next-line no-restricted-syntax
-  for (const name of names) {
-    const absPath = npath.join(basePath, name);
-    try {
-      // eslint-disable-next-line no-await-in-loop -- files merged in deterministic order
-      const calibration = await _loadAsJson(absPath);
-      if (calibration && Array.isArray(calibration.pairs)) {
-        found = true;
-        (calibration.pairs as RegistrationPair[]).forEach((pair) => {
-          const key = `${pair.left}::${pair.right}`;
-          if (mergedPairs.has(key)) {
-            console.warn(`Calibration pair ${key} appears in multiple files; keeping ${name}`);
-          }
-          mergedPairs.set(key, pair);
-        });
-        stamps.push({ file: name, source: readRegistrationSource(calibration.source) });
-      }
-    } catch (err) {
-      // A malformed calibration file should not block loading the dataset.
-      console.warn(`Unable to read ${absPath}: ${err}`);
-    }
-  }
-  return {
-    found,
-    ...fromRegistrationPairs([...mergedPairs.values()]),
-    source: mergeRegistrationSources(stamps),
-  };
-}
-
 async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
@@ -924,43 +744,11 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   // file.
   if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
     || args.cameraRegistrationSource) {
-    // Start from whatever is on disk so a partial update doesn't clobber the rest.
-    const onDisk = await loadRegistrationFiles(projectDirInfo.basePath);
-    let { homographies, correspondences, transformTypes } = onDisk;
-    let { source } = onDisk;
-    if (args.cameraHomographies) {
-      homographies = args.cameraHomographies;
-    }
-    if (args.cameraCorrespondences) {
-      correspondences = args.cameraCorrespondences;
-    }
-    if (args.cameraTransformTypes) {
-      transformTypes = args.cameraTransformTypes;
-    }
-    // undefined leaves the on-disk stamp alone; null/object replaces it.
-    if (args.cameraRegistrationSource !== undefined) {
-      source = args.cameraRegistrationSource;
-    }
-    const files = buildPerCameraRegistrationFiles(
-      {
-        homographies, correspondences, transformTypes, source,
-      },
+    await saveRegistrationToDatasetDir(
+      projectDirInfo.basePath,
+      args,
       referenceCameraName(existing),
     );
-    const expected = new Set(files.map((file) => file.name));
-    await Promise.all(files.map((file) => _saveAsJson(npath.join(projectDirInfo.basePath, file.name), file.body)));
-    // Remove any per-camera file whose pairs no longer exist (e.g. a cleared
-    // pair), so the on-disk set always mirrors the saved calibration exactly.
-    try {
-      const entries = await fs.readdir(projectDirInfo.basePath, { withFileTypes: true });
-      await Promise.all(entries
-        .filter((entry) => entry.isFile()
-          && !expected.has(entry.name)
-          && RegistrationFileNamePattern.test(entry.name))
-        .map((entry) => fs.remove(npath.join(projectDirInfo.basePath, entry.name))));
-    } catch (err) {
-      console.warn(`Unable to clean up stale calibration files: ${err}`);
-    }
   }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
@@ -1377,68 +1165,6 @@ async function listParentFolderCameras(
     name,
     sourcePath: `${normalized}${separator}${name}`,
   }));
-}
-
-/**
- * Find a stereoscopic calibration file (.json or .npz with cal/calibration in the name)
- * in the parent folder root.
- */
-async function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
-  if (!await fs.pathExists(parentPath)) {
-    return null;
-  }
-  const stat = await fs.stat(parentPath);
-  if (!stat.isDirectory()) {
-    return null;
-  }
-  const children = await fs.readdir(parentPath, { withFileTypes: true });
-  const fileNames = children.filter((entry) => entry.isFile()).map((entry) => entry.name);
-  const bestName = pickStereoCalibrationFileName(fileNames);
-  if (!bestName) {
-    return null;
-  }
-  return npath.join(parentPath, bestName);
-}
-
-/**
- * Find every DIVE camera-calibration .json (alignment transforms, the
- * calibration save format) in the parent folder root, for auto-attaching at
- * multicam import time. Only files that self-identify with
- * `type: 'dive-camera-calibration'` qualify, so a camera-rig calibration
- * .json or other stray JSON in the collect root is never grabbed by mistake.
- * Ordered for deterministic attachment: per-camera *_registration.json
- * files first, then any other self-identified candidates, alphabetically
- * within each group.
- */
-async function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
-  if (!await fs.pathExists(parentPath)) {
-    return [];
-  }
-  const stat = await fs.stat(parentPath);
-  if (!stat.isDirectory()) {
-    return [];
-  }
-  const children = await fs.readdir(parentPath, { withFileTypes: true });
-  const rank = (name: string) => (RegistrationFileNamePattern.test(name) ? 0 : 1);
-  const candidates = children
-    .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
-    .map((entry) => entry.name)
-    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
-  const found: string[] = [];
-  // eslint-disable-next-line no-restricted-syntax
-  for (const name of candidates) {
-    const absPath = npath.join(parentPath, name);
-    try {
-      // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
-      const data = await fs.readJson(absPath);
-      if (data && data.type === REGISTRATION_FILE_TYPE && Array.isArray(data.pairs)) {
-        found.push(absPath);
-      }
-    } catch {
-      // Unreadable/non-JSON candidates are simply not matches.
-    }
-  }
-  return found;
 }
 
 /**
@@ -1960,255 +1686,6 @@ async function openPathInFileManager(targetPath: string): Promise<string> {
   return shell.openPath(resolved);
 }
 
-function buildExportMetaJson(meta: JsonMeta): Record<string, unknown> {
-  const output: Record<string, unknown> = { ...meta };
-  if (meta.type === 'image-sequence') {
-    const files = meta.transcodedImageFiles?.length
-      ? meta.transcodedImageFiles
-      : meta.originalImageFiles?.map((filePath) => npath.basename(filePath)) ?? [];
-    output.imageData = files.map((filename) => ({ filename }));
-  } else if (meta.type === 'video') {
-    const filename = meta.transcodedVideoFile || meta.originalVideoFile;
-    if (filename) {
-      output.video = { filename };
-    }
-  }
-  return output;
-}
-
-async function writeDatasetExportContents(
-  settings: Settings,
-  destDir: string,
-  datasetId: string,
-  excludeBelowThreshold: boolean,
-  typeFilter: Set<string>,
-): Promise<void> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  const serializeOptions = {
-    excludeBelowThreshold,
-    header: true,
-  };
-
-  await fs.ensureDir(destDir);
-  await fs.writeJSON(npath.join(destDir, 'meta.json'), buildExportMetaJson(meta), { spaces: 2 });
-  await dive.serializeFile(
-    npath.join(destDir, 'annotations.dive.json'),
-    data,
-    meta,
-    typeFilter,
-    serializeOptions,
-  );
-  await viameSerializers.serializeFile(
-    npath.join(destDir, 'annotations.viame.csv'),
-    data,
-    meta,
-    typeFilter,
-    serializeOptions,
-  );
-}
-
-async function zipDirectory(sourceDir: string, destZipPath: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const output = createWriteStream(destZipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    output.on('close', () => resolve());
-    output.on('error', reject);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.directory(sourceDir, false);
-    archive.finalize();
-  });
-}
-
-/**
- * The reference camera a dataset's pairs group against: the import dialog's
- * Reference Camera choice (stored as defaultDisplay), falling back to the
- * first camera in display order.
- */
-function referenceCameraName(meta: JsonMeta): string | null {
-  return meta.multiCam ? multicamReferenceCameraName(meta.multiCam) : null;
-}
-
-/**
- * The calibration a dataset currently resolves to, from the same sources
- * loadMetadata uses: the standalone per-camera files, or the import-time
- * seed in the dataset meta when no files have been written yet.
- */
-async function loadEffectiveRegistration(
-  basePath: string,
-  meta: JsonMeta,
-): Promise<CameraRegistrationValues> {
-  const onDisk = await loadRegistrationFiles(basePath);
-  if (onDisk.found) {
-    return onDisk;
-  }
-  return {
-    homographies: meta.cameraHomographies ?? {},
-    correspondences: meta.cameraCorrespondences ?? {},
-    transformTypes: meta.cameraTransformTypes ?? {},
-    source: meta.cameraRegistrationSource ?? null,
-  };
-}
-
-/**
- * Export one camera's registration as its *_registration.json file to destPath.
- * @returns the destination path written
- */
-async function exportCameraRegistration(
-  settings: Settings,
-  datasetId: string,
-  destPath: string,
-  camera: string,
-): Promise<string> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const calibration = await loadEffectiveRegistration(projectDirInfo.basePath, meta);
-  const files = buildPerCameraRegistrationFiles(calibration, referenceCameraName(meta));
-  if (!files.length) {
-    throw new Error(`Dataset ${datasetId} has no camera registration to export.`);
-  }
-  const match = files.find((file) => file.camera === camera);
-  if (!match) {
-    throw new Error(`Dataset ${datasetId} has no registration for camera "${camera}".`);
-  }
-  await _saveAsJson(destPath, match.body);
-  return destPath;
-}
-
-/**
- * Import a DIVE registration .json into an existing dataset, merging its
- * pairs over the current set: with options.camera, only the file's
- * pairs naming that camera are taken; each imported pair replaces that pair
- * wholly and other pairs are kept, so per-camera files can be imported one
- * at a time. Persists through saveMetadata, which rewrites the standalone
- * per-camera files.
- */
-async function importCameraRegistration(
-  settings: Settings,
-  datasetId: string,
-  filePath: string,
-  options: { camera?: string } = {},
-): Promise<{ cameras: string[]; pairCount: number }> {
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  let data;
-  try {
-    data = await fs.readJson(filePath);
-  } catch {
-    throw new Error('File is not valid JSON');
-  }
-  if (!data || !Array.isArray(data.pairs)) {
-    throw new Error('Not a DIVE camera registration file (expected a "pairs" list)');
-  }
-  let incoming: CameraRegistrationValues = {
-    ...fromRegistrationPairs(data.pairs),
-    source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
-      ? data.source as RegistrationSource
-      : null,
-  };
-  if (options.camera !== undefined) {
-    incoming = filterRegistrationValues(incoming, options.camera);
-  }
-  const summary = registrationValuesSummary(incoming);
-  if (!summary.pairCount) {
-    throw new Error(options.camera !== undefined
-      ? `File has no pairs for camera "${options.camera}"`
-      : 'File has no pairs');
-  }
-  Object.entries(incoming.homographies).forEach(([key, homography]) => {
-    if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
-      throw new Error(`Pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
-    }
-  });
-  const merged = mergeRegistrationValues(
-    await loadEffectiveRegistration(projectDirInfo.basePath, meta),
-    incoming,
-    npath.basename(filePath),
-  );
-  await saveMetadata(settings, parentId, {
-    cameraHomographies: merged.homographies,
-    cameraCorrespondences: merged.correspondences,
-    cameraTransformTypes: merged.transformTypes,
-    cameraRegistrationSource: merged.source,
-  });
-  return summary;
-}
-
-async function exportMulticamEverything(
-  settings: Settings,
-  args: ExportMulticamEverythingArgs,
-): Promise<string> {
-  const parentId = args.id.split('/')[0];
-  const parentDirInfo = await getValidatedProjectDir(settings, parentId);
-  const parentMeta = await loadJsonMetadata(parentDirInfo.metaFileAbsPath);
-  if (parentMeta.type !== MultiType || !parentMeta.multiCam) {
-    throw new Error('Everything export is only available for multi-camera datasets.');
-  }
-
-  const cameraNames = orderedMultiCamCameraNames({
-    cameras: parentMeta.multiCam.cameras,
-    defaultDisplay: parentMeta.multiCam.defaultDisplay,
-  });
-  if (!cameraNames.length) {
-    throw new Error('Multi-camera dataset does not list any cameras.');
-  }
-
-  const tempDir = await fs.mkdtemp(npath.join(os.tmpdir(), 'dive-export-'));
-  try {
-    const datasetDir = npath.join(tempDir, parentMeta.name);
-    await fs.ensureDir(datasetDir);
-    await fs.writeJSON(
-      npath.join(datasetDir, 'multiCam.json'),
-      parentMeta.multiCam,
-      { spaces: 2 },
-    );
-    await writeDatasetExportContents(
-      settings,
-      datasetDir,
-      parentId,
-      args.exclude,
-      args.typeFilter,
-    );
-
-    const calibrationPath = await getDatasetCalibrationExportPath(settings, parentId)
-      ?? await findParentFolderCalibrationFile(parentDirInfo.basePath);
-    if (calibrationPath && await fs.pathExists(calibrationPath)) {
-      const calibrationName = parentMeta.multiCam.calibrationOriginalName
-        ?? npath.basename(calibrationPath);
-      await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
-    }
-
-    // Regenerate the camera registration as its per-camera files so the
-    // zip carries it even when only the import-time seed exists.
-    const rigRegistration = await loadEffectiveRegistration(parentDirInfo.basePath, parentMeta);
-    await Promise.all(
-      buildPerCameraRegistrationFiles(rigRegistration, referenceCameraName(parentMeta)).map(
-        (file) => _saveAsJson(npath.join(datasetDir, file.name), file.body),
-      ),
-    );
-
-    for (let i = 0; i < cameraNames.length; i += 1) {
-      const cameraName = cameraNames[i];
-      // eslint-disable-next-line no-await-in-loop
-      await writeDatasetExportContents(
-        settings,
-        npath.join(datasetDir, cameraName),
-        `${parentId}/${cameraName}`,
-        args.exclude,
-        args.typeFilter,
-      );
-    }
-
-    await zipDirectory(tempDir, args.path);
-  } finally {
-    await fs.remove(tempDir);
-  }
-  return args.path;
-}
-
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -2242,272 +1719,6 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
   return args.path;
 }
 
-/**
- * The user's calibration filename, unless it is DIVE's internal
- * `last_calibration.*` backup (which carries no meaningful original name).
- */
-function realCalibrationName(name?: string | null): string | undefined {
-  if (!name) return undefined;
-  const base = npath.basename(name);
-  if (base.toLowerCase().startsWith(`${LastCalibrationBaseName}.`)) return undefined;
-  return base;
-}
-
-/**
- * Get path to the saved "last used" calibration (last_calibration.*) if it
- * exists. The stored file keeps the source's real extension, so we match on the
- * basename rather than a fixed filename.
- * @returns path to last calibration file or null if it doesn't exist
- */
-async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
-  if (!(await fs.pathExists(settings.dataPath))) return null;
-  const entries = await fs.readdir(settings.dataPath);
-  const match = entries.find(
-    (f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName,
-  );
-  return match ? npath.join(settings.dataPath, match) : null;
-}
-
-/**
- * Save a calibration file as the last used calibration, preserving the source
- * file's extension (e.g. last_calibration.npz) so its real format is retained.
- * @param settings app settings
- * @param sourcePath path to the source calibration file
- * @returns path to the saved calibration file
- */
-async function saveLastCalibration(settings: Settings, sourcePath: string): Promise<string> {
-  const ext = npath.extname(sourcePath) || '.json';
-  // Remove any prior backup with a different extension to avoid stale duplicates.
-  if (await fs.pathExists(settings.dataPath)) {
-    const entries = await fs.readdir(settings.dataPath);
-    await Promise.all(entries
-      .filter((f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName)
-      .map((f) => fs.remove(npath.join(settings.dataPath, f))));
-  }
-  const destPath = npath.join(settings.dataPath, `${LastCalibrationBaseName}${ext}`);
-  await fs.copy(sourcePath, destPath, { overwrite: true });
-  return destPath;
-}
-
-/**
- * Apply calibration to all stereo datasets that don't already have calibration set.
- * The source is copied into each dataset and normalized to JSON, and the user's
- * original filename is recorded for display.
- * @param settings app settings
- * @param calibrationPath path to the calibration file to apply
- * @param originalName user's original calibration filename (for display)
- * @returns list of dataset IDs that were updated
- */
-async function applyCalibrationToUncalibratedStereoDatasets(
-  settings: Settings,
-  calibrationPath: string,
-  originalName?: string,
-): Promise<string[]> {
-  const datasets = await autodiscoverData(settings);
-  const updatedIds: string[] = [];
-
-  for (let i = 0; i < datasets.length; i += 1) {
-    const meta = datasets[i];
-    // Check if this is a stereo dataset without calibration
-    if (meta.subType === 'stereo' && meta.multiCam && !meta.multiCam.calibration) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
-        // eslint-disable-next-line no-await-in-loop
-        const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-        if (fullMeta.multiCam) {
-          const calibrationSourcePath = npath.resolve(calibrationPath);
-          const preservedOriginalPath = npath.join(
-            projectDirInfo.basePath,
-            npath.basename(calibrationSourcePath),
-          );
-          // eslint-disable-next-line no-await-in-loop
-          fullMeta.multiCam.calibration = await prepareDatasetCalibration(
-            settings,
-            projectDirInfo.basePath,
-            calibrationSourcePath,
-          );
-          fullMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
-          fullMeta.multiCam.calibrationOriginalName = realCalibrationName(originalName)
-            ?? realCalibrationName(calibrationSourcePath);
-          // eslint-disable-next-line no-await-in-loop
-          await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-          updatedIds.push(meta.id);
-        }
-      } catch (err) {
-        // Skip datasets that fail to update
-        console.error(`Failed to update calibration for dataset ${meta.id}:`, err);
-      }
-    }
-  }
-
-  return updatedIds;
-}
-
-/**
- * True when a dataset has a stereoscopic calibration file on disk.
- */
-async function datasetHasCalibrationFile(settings: Settings, datasetId: string): Promise<boolean> {
-  const parentId = datasetId.split('/')[0];
-  try {
-    const projectDirData = await getValidatedProjectDir(settings, parentId);
-    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-    if (meta.multiCam?.calibration && await fs.pathExists(meta.multiCam.calibration)) {
-      return true;
-    }
-    const discovered = await findParentFolderCalibrationFile(projectDirData.basePath);
-    return discovered !== null;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Get the JSON camera-rig path used for pipelines and calibration display.
- */
-async function getDatasetCalibrationPath(
-  settings: Settings,
-  datasetId: string,
-): Promise<string | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  return fullMeta.multiCam?.calibration ?? null;
-}
-
-/**
- * Resolve the user's original calibration file for export (not the derived JSON).
- */
-async function getDatasetCalibrationExportPath(
-  settings: Settings,
-  datasetId: string,
-): Promise<string | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const { multiCam } = fullMeta;
-  if (!multiCam) {
-    return null;
-  }
-
-  const originalName = multiCam.calibrationOriginalName;
-  if (originalName) {
-    const projectCopy = npath.join(projectDirInfo.basePath, originalName);
-    if (await fs.pathExists(projectCopy)) {
-      return projectCopy;
-    }
-  }
-  if (multiCam.calibrationSourcePath && await fs.pathExists(multiCam.calibrationSourcePath)) {
-    return multiCam.calibrationSourcePath;
-  }
-  const calibrationPath = multiCam.calibration;
-  if (calibrationPath && await fs.pathExists(calibrationPath)) {
-    return calibrationPath;
-  }
-  return null;
-}
-
-/**
- * Set the stereo camera/calibration file for a single dataset. The source file is
- * copied into the dataset's project directory and recorded in multiCam.calibration.
- * @returns absolute path of the calibration file now associated with the dataset
- */
-async function setDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-  sourcePath: string,
-): Promise<string> {
-  // A calibration belongs to the parent multicam dataset; the viewer may pass a
-  // per-camera child id (e.g. "<parent>/left").
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  if (!fullMeta.multiCam) {
-    throw new Error(`Dataset ${parentId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
-  }
-  const preservedOriginalPath = npath.join(
-    projectDirInfo.basePath,
-    npath.basename(sourcePath),
-  );
-  const calibrationPath = await prepareDatasetCalibration(
-    settings,
-    projectDirInfo.basePath,
-    sourcePath,
-  );
-  fullMeta.multiCam.calibration = calibrationPath;
-  fullMeta.multiCam.calibrationSourcePath = npath.resolve(preservedOriginalPath);
-  fullMeta.multiCam.calibrationOriginalName = realCalibrationName(sourcePath);
-  await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-  return calibrationPath;
-}
-
-/**
- * Copy a dataset's current camera/calibration file out to destPath.
- * @returns the destination path written
- */
-async function exportDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-  destPath: string,
-): Promise<string> {
-  const calibrationPath = await getDatasetCalibrationExportPath(settings, datasetId.split('/')[0]);
-  if (!calibrationPath) {
-    throw new Error(`Dataset ${datasetId} has no camera/calibration file to export.`);
-  }
-  if (!(await fs.pathExists(calibrationPath))) {
-    throw new Error(`Calibration file for dataset ${datasetId} no longer exists on disk: ${calibrationPath}`);
-  }
-  await fs.copy(calibrationPath, destPath, { overwrite: true });
-  return destPath;
-}
-
-/**
- * Read the calibration file currently associated with a dataset and return its
- * parsed parameters (when JSON) plus the file name, for display in the viewer.
- */
-async function getDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-): Promise<DatasetCalibrationResult | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const calibrationPath = fullMeta.multiCam?.calibration;
-  if (!calibrationPath || !(await fs.pathExists(calibrationPath))) {
-    return null;
-  }
-  const result: DatasetCalibrationResult = {
-    path: npath.basename(calibrationPath),
-    originalName: realCalibrationName(fullMeta.multiCam?.calibrationOriginalName),
-  };
-  if (npath.extname(calibrationPath).toLowerCase() === '.json') {
-    try {
-      const data = await fs.readJSON(calibrationPath);
-      result.calibration = parseStereoCalibrationJson(data);
-    } catch (err) {
-      console.error(`Failed to parse calibration JSON for dataset ${datasetId}:`, err);
-    }
-  }
-  return result;
-}
-
-/**
- * Remove the calibration file associated with a dataset and clear the reference
- * in its metadata. The original (pre-conversion) file, if any, is left in place.
- */
-async function deleteDatasetCalibration(settings: Settings, datasetId: string): Promise<void> {
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const calibrationPath = fullMeta.multiCam?.calibration;
-  if (calibrationPath && await fs.pathExists(calibrationPath)) {
-    await fs.remove(calibrationPath);
-  }
-  if (fullMeta.multiCam) {
-    fullMeta.multiCam.calibration = undefined;
-    fullMeta.multiCam.calibrationSourcePath = undefined;
-    fullMeta.multiCam.calibrationOriginalName = undefined;
-    await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-  }
-}
-
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -2519,7 +1730,6 @@ export {
   checkDataset,
   exportConfiguration,
   exportDataset,
-  exportMulticamEverything,
   finalizeMediaImport,
   getPipelineList,
   deleteTrainedPipeline,
@@ -2543,12 +1753,20 @@ export {
   findImagesInFolder,
   listImmediateSubfolders,
   listParentFolderCameras,
-  findParentFolderCalibrationFile,
-  findParentFolderTransformFiles,
-  fromRegistrationPairs,
-  mergeRegistrationSources,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
+};
+
+export {
+  fromRegistrationPairs,
+  mergeRegistrationSources,
+  findParentFolderTransformFiles,
+  exportCameraRegistration,
+  importCameraRegistration,
+} from './cameraRegistration';
+
+export {
+  findParentFolderCalibrationFile,
   getLastCalibrationPath,
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
@@ -2557,8 +1775,8 @@ export {
   getDatasetCalibrationExportPath,
   setDatasetCalibration,
   exportDatasetCalibration,
-  exportCameraRegistration,
-  importCameraRegistration,
   getDatasetCalibration,
   deleteDatasetCalibration,
-};
+} from './datasetCalibration';
+
+export { exportMulticamEverything } from './multicamExport';
