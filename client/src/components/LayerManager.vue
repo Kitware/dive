@@ -512,19 +512,6 @@ export default defineComponent({
 
     setupDisplayTransformWatches(displayTransformedLayers, refreshLayers, frameNumberRef);
 
-    // ...and follow the displayed element itself: the annotator bumps
-    // imageRevision whenever it redraws its media quad -- the async <img>
-    // swap after a seek finishes loading, an image-enhancement change
-    // (percentile-stretch URL remap or CSS filter toggle), or the initial
-    // video quad. This is what keeps the warp's snapshot in step with the
-    // actual pixels; the transform/frame watches above only see triggers,
-    // not the late-arriving element.
-    watch(annotator.imageRevision, () => {
-      if (alignedDisplayTransform.value) {
-        alignedImageLayer.update();
-      }
-    });
-
     /** Shallow watch */
     watch(
       [
