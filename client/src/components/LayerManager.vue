@@ -512,11 +512,13 @@ export default defineComponent({
 
     setupDisplayTransformWatches(displayTransformedLayers, refreshLayers, frameNumberRef);
 
-    // ...and follow same-frame presentation changes: an image-enhancement
-    // change swaps the quad's <img> element (percentile-stretch URL remap)
-    // or its CSS filter with no seek and no transform change, which is
-    // invisible to the watchers above once the post-trigger poll has
-    // expired. The annotator bumps imageRevision on those redraws.
+    // ...and follow the displayed element itself: the annotator bumps
+    // imageRevision whenever it redraws its media quad -- the async <img>
+    // swap after a seek finishes loading, an image-enhancement change
+    // (percentile-stretch URL remap or CSS filter toggle), or the initial
+    // video quad. This is what keeps the warp's snapshot in step with the
+    // actual pixels; the transform/frame watches above only see triggers,
+    // not the late-arriving element.
     watch(annotator.imageRevision, () => {
       if (alignedDisplayTransform.value) {
         alignedImageLayer.update();

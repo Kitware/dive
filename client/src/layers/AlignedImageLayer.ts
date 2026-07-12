@@ -12,14 +12,6 @@ export interface CameraImage {
   height: number;
 }
 
-/**
- * How many animation frames to keep re-checking whether this camera's
- * displayed image element has changed after an update trigger (image
- * sequences swap their quad datum asynchronously once the new frame loads;
- * see CalibrationKeypointLayer.scheduleGhostRefresh for the same pattern).
- */
-const REFRESH_MAX_ATTEMPTS = 60;
-
 interface AlignedImageLayerParams {
   annotator: MediaController;
   /** Resolve this camera's currently displayed frame image element. */
@@ -64,16 +56,8 @@ export default class AlignedImageLayer {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private quadFeature: any;
 
-  /** The source element currently rendered as the warp, if any. */
-  private renderedSource: HTMLImageElement | HTMLVideoElement | null = null;
-
   /** Whether we hid the annotator's native image quad layer. */
   private nativeHidden = false;
-
-  /** Pending requestAnimationFrame handle for the staleness re-check loop. */
-  private retryHandle: number | null = null;
-
-  private retryAttempts = 0;
 
   constructor(params: AlignedImageLayerParams) {
     this.annotator = params.annotator;
@@ -140,8 +124,6 @@ export default class AlignedImageLayer {
 
   /** Clear the warp and restore the native image display. */
   clear() {
-    this.cancelRefresh();
-    this.renderedSource = null;
     this.quadFeature.data([]).draw();
     this.setNativeVisible(true);
   }
@@ -155,14 +137,11 @@ export default class AlignedImageLayer {
     }
     const src = this.getImage();
     if (!src || !src.width || !src.height) {
-      // The frame may simply not have finished loading yet (or this
-      // annotator type exposes no image element, e.g. large-image tiles, in
-      // which case polling harmlessly expires and the native display stays).
-      this.cancelRefresh();
-      this.renderedSource = null;
-      this.quadFeature.data([]).draw();
-      this.setNativeVisible(true);
-      this.scheduleRefresh();
+      // The frame may simply not have finished loading yet (the annotator
+      // bumps imageRevision when it lands, which re-runs update()), or this
+      // annotator type exposes no image element (e.g. large-image tiles), in
+      // which case the native display simply stays.
+      this.clear();
       return;
     }
     const { width: w, height: h } = src;
@@ -182,7 +161,6 @@ export default class AlignedImageLayer {
       },
       [src.kind]: src.source,
     }));
-    this.renderedSource = src.source;
     // Mirror the native layer's CSS filter (image enhancements) so toggling
     // the warp doesn't change brightness/contrast rendering.
     const nativeLayer = this.findNativeQuadLayer();
@@ -194,50 +172,5 @@ export default class AlignedImageLayer {
       .style('opacity', 1)
       .draw();
     this.setNativeVisible(false);
-    if (src.kind === 'image') {
-      // Image sequences swap the <img> element asynchronously after the
-      // frame finishes loading, with no event reaching this layer; poll
-      // briefly so the warp catches up (video elements update in place).
-      this.scheduleRefresh();
-    } else {
-      this.cancelRefresh();
-    }
-  }
-
-  private cancelRefresh() {
-    if (this.retryHandle !== null) {
-      cancelAnimationFrame(this.retryHandle);
-      this.retryHandle = null;
-    }
-  }
-
-  /**
-   * Bounded requestAnimationFrame loop re-checking whether the displayed
-   * image element differs from the one the warp was rendered from, and
-   * re-rendering when it does (same pattern as the calibration ghost).
-   */
-  private scheduleRefresh() {
-    this.cancelRefresh();
-    this.retryAttempts = 0;
-    if (typeof requestAnimationFrame !== 'function') {
-      return;
-    }
-    const tick = () => {
-      this.retryHandle = null;
-      if (!this.getTransform()) {
-        return;
-      }
-      const src = this.getImage();
-      if (src && src.source && src.width && src.height && src.source !== this.renderedSource) {
-        // Re-render with the new element; update() restarts this loop.
-        this.update();
-        return;
-      }
-      this.retryAttempts += 1;
-      if (this.retryAttempts < REFRESH_MAX_ATTEMPTS) {
-        this.retryHandle = requestAnimationFrame(tick);
-      }
-    };
-    this.retryHandle = requestAnimationFrame(tick);
   }
 }

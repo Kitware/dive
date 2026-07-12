@@ -32,11 +32,12 @@ interface MediaControllerReactiveData {
   /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
   hasFrame: boolean;
   /**
-   * Bumped whenever the displayed image presentation changes outside of a
-   * seek: the quad's <img> element is swapped (e.g. the percentile-stretch
-   * URL remap rebuilds the image cache) or the enhancement CSS filter is
-   * toggled. The aligned-view warp renders a snapshot of the displayed
-   * element, so it watches this to re-render in step.
+   * Bumped whenever the annotator redraws its media quad: the async <img>
+   * swap after a seek finishes loading, an image-enhancement change (the
+   * percentile-stretch URL remap or the CSS filter toggle), or the initial
+   * video quad. Watchers that render a snapshot of the displayed element
+   * (e.g. the aligned-view warp) rely on this as their
+   * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: number;
   cursor: string;

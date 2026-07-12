@@ -144,9 +144,11 @@ export default function useLayerManagerAlignedView(options: {
       onTransformChange();
     }, { immediate: true });
 
-    // The warped imagery must follow frame changes: the annotator swaps its
-    // <img> element asynchronously after each seek, and AlignedImageLayer
-    // polls briefly after every trigger to catch that swap.
+    // The warped imagery must follow frame changes. The annotator swaps its
+    // <img> element asynchronously after each seek; that swap bumps
+    // imageRevision, whose watch (LayerManager) re-renders the warp from the
+    // new element -- this trigger covers the seek itself (blanking promptly
+    // when a frame has no image, e.g. an aligned-timeline gap).
     watch(frameNumberRef, () => {
       if (alignedDisplayTransform.value) {
         alignedImageLayer.update();
