@@ -24,14 +24,6 @@ interface RegistrationLayerParams {
   getCameraImage?: (camera: string) => CameraImage | null;
 }
 
-/**
- * How many animation frames to keep re-checking whether the ghost source
- * camera's displayed image element has changed after an update trigger (image
- * sequences swap their quad datum asynchronously once the new frame loads).
- * ~60 frames is about one second at typical refresh rates.
- */
-const GHOST_REFRESH_MAX_ATTEMPTS = 60;
-
 /** Display-pixel radius within which a mousedown grabs an existing marker to drag-refine it. */
 const DRAG_HIT_RADIUS_PX = 10;
 
@@ -45,14 +37,6 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
   registration: CameraRegistrationStore;
 
   getCameraImage?: (camera: string) => CameraImage | null;
-
-  /** The source element currently rendered as the ghost overlay, if any. */
-  private ghostSource: HTMLImageElement | HTMLVideoElement | null = null;
-
-  /** Pending requestAnimationFrame handle for the ghost staleness re-check loop. */
-  private ghostRetryHandle: number | null = null;
-
-  private ghostRetryAttempts = 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   textFeature: any;
@@ -363,8 +347,6 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
       return;
     }
     const clear = () => {
-      this.ghostSource = null;
-      this.cancelGhostRefresh();
       this.quadFeature.data([]).draw();
     };
     const alignment = this.registration?.alignment.value;
@@ -388,10 +370,10 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
     }
     const src = this.getCameraImage(srcCam);
     if (!src || !src.width || !src.height) {
-      clear();
       // The source pane's frame may simply not have finished loading yet;
-      // keep re-checking briefly (see scheduleGhostRefresh).
-      this.scheduleGhostRefresh(srcCam);
+      // its annotator bumps imageRevision when it lands, and LayerManager's
+      // ghost-source watch re-runs updateGhost.
+      clear();
       return;
     }
     const h = homog[mode];
@@ -402,57 +384,11 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
     // overlap doesn't double-blend into brighter seams.
     const quads = geojsWarpQuads(h, w, hgt, 2)
       .map((q) => ({ ...q, [src.kind]: src.source }));
-    this.ghostSource = src.source;
     this.quadLayer.opacity(alignment.opacity);
     this.quadFeature
       .data(quads)
       .style('opacity', 1)
       .draw();
-    if (src.kind === 'image') {
-      // Image sequences swap the source pane's <img> asynchronously after the
-      // frame finishes loading, with no event reaching this layer; poll
-      // briefly so the ghost catches up (video elements update in place).
-      this.scheduleGhostRefresh(srcCam);
-    } else {
-      this.cancelGhostRefresh();
-    }
-  }
-
-  /** Cancel any pending ghost staleness re-check. */
-  private cancelGhostRefresh() {
-    if (this.ghostRetryHandle !== null) {
-      cancelAnimationFrame(this.ghostRetryHandle);
-      this.ghostRetryHandle = null;
-    }
-  }
-
-  /**
-   * Bounded requestAnimationFrame loop that re-checks whether `srcCam`'s
-   * displayed image element differs from the one the ghost was rendered from,
-   * and re-renders the ghost when it does. This covers the gap between a frame
-   * change (which triggers {@link update} immediately) and the moment
-   * ImageAnnotator actually swaps the loaded <img> into its quad datum.
-   */
-  private scheduleGhostRefresh(srcCam: string) {
-    this.cancelGhostRefresh();
-    this.ghostRetryAttempts = 0;
-    if (typeof requestAnimationFrame !== 'function') {
-      return;
-    }
-    const tick = () => {
-      this.ghostRetryHandle = null;
-      const src = this.getCameraImage ? this.getCameraImage(srcCam) : null;
-      if (src && src.source && src.width && src.height && src.source !== this.ghostSource) {
-        // Re-render with the new element; updateGhost restarts this loop.
-        this.updateGhost();
-        return;
-      }
-      this.ghostRetryAttempts += 1;
-      if (this.ghostRetryAttempts < GHOST_REFRESH_MAX_ATTEMPTS) {
-        this.ghostRetryHandle = requestAnimationFrame(tick);
-      }
-    };
-    this.ghostRetryHandle = requestAnimationFrame(tick);
   }
 
   /** Recompute points and the ghost overlay from the store and redraw. */
@@ -473,8 +409,6 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
     this.featureLayer.data([]).draw();
     this.centerFeature.data([]).draw();
     this.textFeature.data([]).draw();
-    this.ghostSource = null;
-    this.cancelGhostRefresh();
     if (this.quadFeature) {
       this.quadFeature.data([]).draw();
     }

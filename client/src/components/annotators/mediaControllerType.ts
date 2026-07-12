@@ -107,7 +107,7 @@ export interface MediaController extends AggregateMediaController {
    * swap after a seek finishes loading, an image-enhancement change (the
    * percentile-stretch URL remap or the CSS filter toggle), or the initial
    * video quad. Watchers that render a snapshot of the displayed element
-   * (e.g. the aligned-view warp) rely on this as their
+   * (the aligned-view warp, the registration ghost) rely on this as their
    * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: Readonly<Ref<number>>;
