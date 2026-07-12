@@ -598,41 +598,10 @@ export default class CameraRegistrationStore {
   }
 
   /**
-   * Serialize every pair with content (points and/or a homography) as the
-   * portable calibration JSON file (see {@link RegistrationFile}). Pairs whose
-   * only state is a transform-type choice are omitted.
-   */
-  toRegistrationJson(): string {
-    const keys = new Set([
-      ...Object.keys(this.correspondences.value).filter(
-        (key) => this.correspondences.value[key].length > 0,
-      ),
-      ...Object.keys(this.homographies.value),
-    ]);
-    const pairs: RegistrationFilePair[] = [...keys].sort().map((key) => {
-      const [left, right] = key.split('::');
-      const homography = this.homographies.value[key] || null;
-      return {
-        left,
-        right,
-        points: (this.correspondences.value[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
-        leftToRight: homography ? homography.AtoB : null,
-        rightToLeft: homography ? homography.BtoA : null,
-        transformType: this.transformTypeForPair(key),
-      };
-    });
-    const file: RegistrationFile = {
-      type: REGISTRATION_FILE_TYPE,
-      version: 1,
-      ...(this.source.value ? { source: this.source.value } : {}),
-      pairs,
-    };
-    return JSON.stringify(file, null, 2);
-  }
-
-  /**
-   * Parse and load a registration JSON file (the format written by
-   * {@link toRegistrationJson}), REPLACING all pairs' correspondences,
+   * Parse and load a registration JSON file (the per-camera
+   * <camera>_to_<reference>_registration.json format written by
+   * cameraRegistrationFiles.ts's buildPerCameraRegistrationFiles --
+   * the only registration file format), REPLACING all pairs' correspondences,
    * homographies, and transform types. The active pair selection and picking
    * toggle are left alone; the alignment ghost reverts to 'original' since
    * the transform under it changed wholesale. Throws a descriptive Error on

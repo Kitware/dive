@@ -11,21 +11,18 @@ import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
 } from 'vue-media-annotator/alignedView/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
-import { unknownCameraWarning } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'CameraRegistration',
-  description: 'Manual Alignment',
+  description: 'Camera Registration',
   components: { TooltipBtn },
   setup() {
     const cameraStore = useCameraStore();
     const registration = useCameraRegistration();
     const datasetId = useDatasetId();
     const { saveMetadata } = useApi();
-    const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     /**
@@ -227,8 +224,9 @@ export default defineComponent({
      * Deliberately not gated on the
      * active pair having correspondences: saving must also be able to persist
      * a cleared state (so stale saved registration doesn't survive Clear All /
-     * per-row deletes) and state belonging to non-active pairs. Use
-     * {@link exportRegistration} to get a portable copy for sharing.
+     * per-row deletes) and state belonging to non-active pairs. Portable
+     * copies for sharing come from the Export menu's per-camera registration
+     * downloads, which read this saved state.
      */
     async function save() {
       saving.value = true;
@@ -244,69 +242,6 @@ export default defineComponent({
       } finally {
         saving.value = false;
       }
-    }
-
-    /**
-     * Download the registration as a portable .json -- for handing refinements
-     * (points included) back to an external producer, or reusing on another
-     * dataset. Saving is separate: see {@link save}.
-     */
-    function exportRegistration() {
-      registration.maybeFitActivePair();
-      downloadText(registration.toRegistrationJson(), 'camera-registration.json');
-    }
-
-    /** Trigger a browser download of `text` as `filename`. */
-    function downloadText(text: string, filename: string) {
-      const blob = new Blob([text], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-    }
-
-    const registrationFileInput = ref<HTMLInputElement | null>(null);
-    const loadRegistrationError = ref<string | null>(null);
-    const loadRegistrationWarning = ref<string | null>(null);
-
-    const hasAnyRegistration = computed(
-      () => Object.values(registration.correspondences.value).some((list) => list.length > 0)
-        || Object.keys(registration.homographies.value).length > 0,
-    );
-
-    /** Load a registration .json, replacing every pair's state. */
-    async function loadJsonRegistration(file: File) {
-      const text = await file.text();
-      if (hasAnyRegistration.value) {
-        const confirmed = await prompt({
-          title: 'Load registration',
-          text: 'This will replace the current registration for ALL camera pairs. Continue?',
-          confirm: true,
-        });
-        if (!confirmed) {
-          return;
-        }
-      }
-      const { cameras: fileCameras } = registration.loadRegistrationText(text);
-      loadRegistrationWarning.value = unknownCameraWarning(file.name, fileCameras, cameras.value);
-    }
-
-    function onRegistrationFileSelected(event: Event) {
-      const input = event.target as HTMLInputElement;
-      const file = input.files?.[0];
-      input.value = '';
-      if (!file) {
-        return;
-      }
-      loadRegistrationError.value = null;
-      loadRegistrationWarning.value = null;
-      loadJsonRegistration(file).catch((err) => {
-        loadRegistrationError.value = err instanceof Error ? err.message : String(err);
-      });
     }
 
     return {
@@ -339,14 +274,9 @@ export default defineComponent({
       dirty: registration.dirty,
       saving,
       sourceReadout,
-      registrationFileInput,
-      loadRegistrationError,
-      loadRegistrationWarning,
       setTransformType,
       setAlignmentMode,
       save,
-      exportRegistration,
-      onRegistrationFileSelected,
     };
   },
 });
@@ -365,34 +295,6 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
 
-    <input
-      ref="registrationFileInput"
-      type="file"
-      accept=".json"
-      style="display: none"
-      @change="onRegistrationFileSelected"
-    >
-    <v-btn
-      block
-      outlined
-      small
-      class="mb-2"
-      @click="registrationFileInput.click()"
-    >
-      Load registration
-    </v-btn>
-    <span
-      v-if="loadRegistrationError"
-      class="text-caption error--text d-block"
-    >
-      {{ loadRegistrationError }}
-    </span>
-    <span
-      v-if="loadRegistrationWarning"
-      class="text-caption warning--text d-block"
-    >
-      {{ loadRegistrationWarning }}
-    </span>
     <span
       v-if="sourceReadout"
       class="text-caption grey--text d-block"
@@ -404,8 +306,9 @@ export default defineComponent({
       class="text-caption warning--text d-block"
     >
       This pair has been refined in-app since the source registration was
-      produced. Export the registration to hand the refinement (and its
-      points) back to the producer.
+      produced. Save, then download the camera's registration from the
+      Export menu to hand the refinement (and its points) back to the
+      producer.
     </span>
 
     <div
@@ -661,15 +564,6 @@ export default defineComponent({
       @click="save"
     >
       {{ dirty ? 'Save registration' : 'Registration saved' }}
-    </v-btn>
-    <v-btn
-      block
-      outlined
-      small
-      class="mb-2"
-      @click="exportRegistration"
-    >
-      Export registration (.json)
     </v-btn>
   </div>
 </template>

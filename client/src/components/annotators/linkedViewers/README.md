@@ -10,7 +10,7 @@ This folder holds the shared plumbing and the two links that reuse it with diffe
 | --- | --- |
 | `useLinkedViewers.ts` | Shared GeoJS listener wiring, re-entrancy guard, and zoom-baseline conversion. |
 | `useAlignedNavigation.ts` | Pan/zoom link for the **aligned view** (SEAL-TK feature 3). |
-| `useRegistrationNavigation.ts` | Pan/zoom link for the **active registration pair** while picking points in the Manual Alignment panel. |
+| `useRegistrationNavigation.ts` | Pan/zoom link for the **active registration pair** while picking points in the Camera Registration panel. |
 
 ## How linking works
 

@@ -1,5 +1,22 @@
 /// <reference types="vitest" />
 import CameraRegistrationStore from './CameraRegistrationStore';
+import { buildPerCameraRegistrationFiles } from './cameraRegistrationFiles';
+
+/**
+ * Serialize a store's state through the production per-camera serializer
+ * (buildPerCameraRegistrationFiles) -- the only registration file format --
+ * and return the single resulting file body as JSON text for round trips.
+ */
+function toSingleFileJson(store: CameraRegistrationStore): string {
+  const files = buildPerCameraRegistrationFiles({
+    homographies: store.homographies.value,
+    correspondences: store.correspondences.value,
+    transformTypes: store.transformTypes.value,
+    source: store.source.value,
+  }, null);
+  expect(files).toHaveLength(1);
+  return JSON.stringify(files[0].body);
+}
 
 describe('CameraRegistrationStore', () => {
   it('produces a directional pairKey that preserves left/right order', () => {
@@ -667,7 +684,7 @@ describe('CameraRegistrationStore', () => {
     });
   });
 
-  describe('calibration JSON file round trip', () => {
+  describe('registration file round trip', () => {
     it('serializes and reloads all pairs', () => {
       const store = new CameraRegistrationStore();
       store.setActivePair('left', 'right');
@@ -675,7 +692,7 @@ describe('CameraRegistrationStore', () => {
       addFourTranslationPairs(store);
       store.setTransformType(key, 'translation');
       store.fitTransform(key);
-      const json = store.toRegistrationJson();
+      const json = toSingleFileJson(store);
 
       const restored = new CameraRegistrationStore();
       restored.setActivePair('left', 'right');
@@ -699,7 +716,7 @@ describe('CameraRegistrationStore', () => {
         }],
       }));
       const restored = new CameraRegistrationStore();
-      restored.loadRegistrationText(store.toRegistrationJson());
+      restored.loadRegistrationText(toSingleFileJson(store));
       expect(restored.homographies.value[key]).toBeDefined();
       expect(restored.isLoadedHomography(key)).toBe(true);
     });
@@ -709,7 +726,7 @@ describe('CameraRegistrationStore', () => {
       store.setActivePair('left', 'right');
       addFourTranslationPairs(store);
       store.setAlignmentMode('AtoB');
-      const json = store.toRegistrationJson();
+      const json = toSingleFileJson(store);
       store.loadRegistrationText(json);
       expect(store.alignment.value.mode).toBe('original');
       expect(store.activePair.value).toEqual({ camA: 'left', camB: 'right' });
@@ -752,7 +769,7 @@ describe('CameraRegistrationStore', () => {
       addFourTranslationPairs(store);
       store.maybeFitPair(store.pairKey('left', 'right'));
       expect(store.source.value).toStrictEqual(source);
-      const saved = JSON.parse(store.toRegistrationJson());
+      const saved = JSON.parse(toSingleFileJson(store));
       expect(saved.source).toStrictEqual(source);
     });
 
@@ -760,7 +777,7 @@ describe('CameraRegistrationStore', () => {
       const store = new CameraRegistrationStore();
       store.setActivePair('left', 'right');
       addFourTranslationPairs(store);
-      expect('source' in JSON.parse(store.toRegistrationJson())).toBe(false);
+      expect('source' in JSON.parse(toSingleFileJson(store))).toBe(false);
     });
 
     it('clears a previous stamp when loading a file without one', () => {
@@ -831,7 +848,7 @@ describe('CameraRegistrationStore', () => {
       store.maybeFitPair(key);
 
       const restored = new CameraRegistrationStore();
-      restored.loadRegistrationText(store.toRegistrationJson());
+      restored.loadRegistrationText(toSingleFileJson(store));
       // The refit pair saved with its backing points, so it re-marks as
       // fitted (refined) rather than loaded.
       expect(restored.isRefinedFromSource(key)).toBe(true);

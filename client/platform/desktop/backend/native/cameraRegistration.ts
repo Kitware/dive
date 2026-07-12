@@ -78,7 +78,7 @@ export function fromRegistrationPairs(
   const transformTypes: CameraTransformTypes = {};
   pairs.forEach((pair) => {
     const key = `${pair.left}::${pair.right}`;
-    // Mirror the panel loader (CameraRegistrationStore.loadRegistrationText):
+    // Mirror the shared client parser (CameraRegistrationStore.loadRegistrationText):
     // producer files may carry only one fitted direction, so derive the
     // missing one by inversion. A singular matrix can't participate in the
     // warp either way, so such pairs contribute points only.

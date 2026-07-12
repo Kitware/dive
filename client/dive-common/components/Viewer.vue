@@ -325,7 +325,7 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Manual Alignment panel opens, minimize the workspace chrome to
+    // When the Camera Registration panel opens, minimize the workspace chrome to
     // give the picking view more room: collapse the left type-filter sidebar and
     // the bottom detections graph. This is a soft default -- the normal sidebar
     // and timeline toggles still work while registering, so the user can bring
@@ -436,7 +436,7 @@ export default defineComponent({
      * review. Reference camera = the Reference Camera chosen at import
      * (stored as defaultDisplay), falling back to the first camera in
      * display order. Transforms come from the registration store's pair
-     * homographies (picked in-app via the Manual Alignment panel, or loaded
+     * homographies (picked in-app via the Camera Registration panel, or loaded
      * from a registration file or the dataset's saved meta), composed
      * through the pair graph -- the single registration the panel edits and
      * saves is exactly what the Align button applies.
@@ -475,7 +475,7 @@ export default defineComponent({
         selectedCamera,
         setResetZoomOverride,
       });
-      // The Manual Alignment pair link maps through the homography for
+      // The Camera Registration pair link maps through the homography for
       // UNWARPED panes, so it needs the aligned view state to stand down
       // while displays are warped into reference space.
       useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
@@ -535,7 +535,7 @@ export default defineComponent({
       return { registered: cams.length - unresolved.length, total: cams.length };
     });
     /**
-     * Camera panes currently displayed. While the Manual Alignment panel is
+     * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
      * panes in between (regardless of whether Pick points is toggled on).
@@ -1158,15 +1158,42 @@ export default defineComponent({
     });
 
     // Navigation Guards used by parent component
+    /**
+     * Unsaved work the exit/navigation guards protect: pending annotation
+     * saves, plus Camera Registration panel edits, which track their own
+     * dirty state (they persist through dataset meta, outside the
+     * annotation save path that pendingSaveCount counts).
+     */
+    const hasUnsavedChanges = computed(
+      () => pendingSaveCount.value > 0 || cameraRegistration.dirty.value,
+    );
+    /**
+     * Persist unsaved Camera Registration panel edits -- the same write as
+     * the panel's own Save button -- so the desktop close guard's "Save"
+     * choice covers them too. No-op while the registration is clean.
+     */
+    async function saveRegistration() {
+      if (!cameraRegistration.dirty.value) {
+        return;
+      }
+      cameraRegistration.maybeFitActivePair();
+      await saveMetadata(datasetId.value, {
+        cameraHomographies: cameraRegistration.homographies.value,
+        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraTransformTypes: cameraRegistration.transformTypes.value,
+        cameraRegistrationSource: cameraRegistration.source.value,
+      });
+      cameraRegistration.markSaved();
+    }
     async function warnBrowserExit(event: BeforeUnloadEvent) {
-      if (pendingSaveCount.value === 0) return;
+      if (!hasUnsavedChanges.value) return;
       event.preventDefault();
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
     async function navigateAwayGuard(): Promise<boolean> {
       let result = true;
-      if (pendingSaveCount.value > 0) {
+      if (hasUnsavedChanges.value) {
         result = await prompt({
           title: 'Save Items',
           text: 'There is unsaved data, would you like to continue or cancel and save?',
@@ -1587,7 +1614,7 @@ export default defineComponent({
           });
           context.register({
             component: RegistrationToolsVue,
-            description: 'Manual Alignment',
+            description: 'Camera Registration',
           });
         } else {
           context.unregister({
@@ -1596,7 +1623,7 @@ export default defineComponent({
           });
           context.unregister({
             component: RegistrationToolsVue,
-            description: 'Manual Alignment',
+            description: 'Camera Registration',
           });
           context.register({
             description: 'Group Manager',
@@ -2028,6 +2055,8 @@ export default defineComponent({
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
+      hasUnsavedChanges,
+      saveRegistration,
       reloadAnnotations,
       // Annotation Sets,
       sets,

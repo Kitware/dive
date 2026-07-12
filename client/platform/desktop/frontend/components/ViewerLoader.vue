@@ -1756,13 +1756,17 @@ export default defineComponent({
     // choice (save / discard / cancel) rather than the two-button navigate-away
     // prompt. Resolves true to allow the close, false to keep the app open.
     async function desktopCloseGuard(): Promise<boolean> {
-      const count = viewerRef.value?.pendingSaveCount ?? 0;
-      if (!count) return true;
+      // Pending annotation saves OR unsaved Camera Registration panel edits.
+      const unsaved = viewerRef.value?.hasUnsavedChanges ?? false;
+      if (!unsaved) return true;
       const choice = await window.diveDesktop.invoke('desktop:confirm-close-unsaved');
       if (choice === 'cancel') return false;
       if (choice === 'save') {
         try {
-          await viewerRef.value.save();
+          if (viewerRef.value.pendingSaveCount > 0) {
+            await viewerRef.value.save();
+          }
+          await viewerRef.value.saveRegistration();
         } catch {
           // Save failed; the Viewer surfaces its own error, so keep the app open.
           return false;
