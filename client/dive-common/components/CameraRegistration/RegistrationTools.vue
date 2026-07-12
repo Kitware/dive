@@ -3,6 +3,7 @@ import {
   computed, defineComponent, onBeforeUnmount, ref, watch,
 } from 'vue';
 import {
+  useAlignedView,
   useCameraStore,
   useCameraRegistration,
   useDatasetId,
@@ -11,8 +12,10 @@ import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
 } from 'vue-media-annotator/alignedView/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
   name: 'CameraRegistration',
@@ -22,7 +25,9 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const registration = useCameraRegistration();
     const datasetId = useDatasetId();
+    const alignedView = useAlignedView();
     const { saveMetadata } = useApi();
+    const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     /**
@@ -71,17 +76,41 @@ export default defineComponent({
       [camLeft.value, camRight.value] = cameras.value;
     }
 
+    /**
+     * Author-vs-review posture: picking defaults on for a pair that still
+     * needs points, and off for one whose transform came from a registration
+     * file (review it; the "Pick points" toggle opts back in to refine).
+     * Re-applied whenever the active pair changes identity, so it overrides a
+     * manual toggle on pair switch -- each pair opens in its own posture.
+     */
+    function applyPickingDefault() {
+      registration.pickingEnabled.value = registration.pickingDefaultFor(
+        registration.activePairKey(),
+      );
+    }
+
     watch([camLeft, camRight], () => {
       registration.setActivePair(camLeft.value, camRight.value);
+      applyPickingDefault();
     }, { immediate: true });
 
-    // Picking is scoped to this panel: it is always on while the Manual
-    // Alignment panel is open, and turns off when the panel closes (unmounts),
-    // so the viewer can't be left in picking mode -- pair-only panes, suspended
-    // aligned view -- with no visible control to get back out.
-    registration.pickingEnabled.value = true;
+    // The pair can also be set from outside the panel (the Import menu
+    // re-selects a freshly imported pair); mirror such changes into the
+    // selectors so the panel doesn't keep showing a stale pair.
+    watch(registration.activePair, (pair) => {
+      if (pair && (pair.camA !== camLeft.value || pair.camB !== camRight.value)) {
+        camLeft.value = pair.camA;
+        camRight.value = pair.camB;
+      }
+    });
+
+    // Picking and the active pair are scoped to this panel: established while
+    // it is open, cleared when it closes (unmounts), so the viewer can't be
+    // left in picking mode -- or with linked pan/zoom, a warp ghost, or
+    // pair-only panes -- with no visible control to get back out.
     onBeforeUnmount(() => {
       registration.pickingEnabled.value = false;
+      registration.setActivePair(null, null);
     });
 
     // Switching datasets while this panel stays mounted re-runs the viewer's
@@ -102,7 +131,7 @@ export default defineComponent({
         // re-establish the pair that hydrate() nulled.
         registration.setActivePair(camLeft.value, camRight.value);
       }
-      registration.pickingEnabled.value = true;
+      applyPickingDefault();
     });
 
     const activeKey = computed(() => registration.activePairKey());
@@ -135,16 +164,6 @@ export default defineComponent({
     );
     /** How many more correspondence pairs are needed before the transform can be fit. */
     const remainingPoints = computed(() => Math.max(0, minPoints.value - correspondences.value.length));
-    /**
-     * Fit-robustness color: green with 12+ point pairs, yellow once the active
-     * transform can be fit (its own minimum, e.g. 2 for Similarity), grey below.
-     */
-    const fitQualityColor = computed(() => {
-      if (correspondences.value.length >= 12) {
-        return 'success';
-      }
-      return canFit.value ? 'warning' : 'grey';
-    });
     /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
     const hasTransform = computed(() => canFit.value
       || Boolean(activeKey.value && registration.homographies.value[activeKey.value]));
@@ -153,6 +172,61 @@ export default defineComponent({
       const key = activeKey.value;
       return Boolean(key && registration.homographies.value[key] && registration.isLoadedHomography(key));
     });
+    /**
+     * Fit-robustness color: green with 12+ point pairs, yellow once the active
+     * transform can be fit (its own minimum, e.g. 2 for Similarity), grey
+     * below -- except that a file-loaded transform with no picked points is
+     * trusted as shipped (green).
+     */
+    const fitQualityColor = computed(() => {
+      if (correspondences.value.length >= 12) {
+        return 'success';
+      }
+      if (canFit.value) {
+        return 'warning';
+      }
+      return hasLoadedTransform.value ? 'success' : 'grey';
+    });
+    /**
+     * Three-state transform status for the active pair -- loaded from a file,
+     * fitted from picked points, or absent -- so a matrix-only registration
+     * loaded from a producer (e.g. KAMERA) reads as complete rather than
+     * "points still needed".
+     */
+    const transformStatus = computed(() => {
+      if (hasLoadedTransform.value) {
+        return {
+          icon: 'mdi-file-check',
+          color: 'success',
+          text: 'Transform loaded from a registration file',
+        };
+      }
+      if (canFit.value) {
+        return {
+          icon: 'mdi-check-circle',
+          color: fitQualityColor.value,
+          text: `Transform fit from ${correspondences.value.length} point pairs`,
+        };
+      }
+      return {
+        icon: 'mdi-progress-clock',
+        color: 'grey',
+        text: 'No transform yet: pick points below, or import a registration (Import menu)',
+      };
+    });
+    /**
+     * Toggle linked pan/zoom. Points are fit lazily, so enabling first fits
+     * the active pair when it has enough points but no transform yet
+     * (mirroring setAlignmentMode) -- the link engages immediately instead of
+     * waiting for the next fit-triggering action.
+     */
+    function setLinkedNav(enabled: unknown) {
+      const on = Boolean(enabled);
+      if (on) {
+        registration.maybeFitActivePair();
+      }
+      registration.linkedNav.value = on;
+    }
     /**
      * The active pair was refit in-app while a producer-stamped registration is
      * loaded, so its transform has diverged from what the stamped source
@@ -227,11 +301,62 @@ export default defineComponent({
      * per-row deletes) and state belonging to non-active pairs. Portable
      * copies for sharing come from the Export menu's per-camera registration
      * downloads, which read this saved state.
+     *
+     * Overwriting an existing saved registration (e.g. one imported from a
+     * producer like KAMERA) is confirmed first, naming only the per-camera
+     * file(s) whose content this save actually changes -- pairs the user
+     * didn't touch are rewritten byte-identical, which isn't an overwrite
+     * worth warning about.
      */
     async function save() {
+      // Fit before diffing so the comparison reflects what will be written.
+      registration.maybeFitActivePair();
+      // Group the saved baseline and the current state into per-camera files
+      // exactly the way the persistence layer writes them, against the same
+      // reference camera the backend uses (the dataset's Reference Camera
+      // choice, published by the viewer).
+      const reference = alignedView.reference.value ?? cameras.value[0] ?? null;
+      const savedFiles = buildPerCameraRegistrationFiles(
+        registration.savedRegistrationValues(),
+        reference,
+      );
+      const nextFiles = new Map(buildPerCameraRegistrationFiles(
+        {
+          homographies: registration.homographies.value,
+          correspondences: registration.correspondences.value,
+          transformTypes: registration.transformTypes.value,
+          source: registration.source.value,
+        },
+        reference,
+      ).map((file) => [file.name, file]));
+      // Existing files this save replaces with different content (or removes,
+      // for a cleared pair) -- the actual overwrites.
+      const overwritten = savedFiles
+        .filter((file) => {
+          const next = nextFiles.get(file.name);
+          return !next || JSON.stringify(next.body) !== JSON.stringify(file.body);
+        })
+        .map((file) => file.name);
+      if (overwritten.length) {
+        const text = [
+          `Saving will overwrite ${overwritten.join(', ')}.`,
+        ];
+        if (sourceReadout.value) {
+          text.push(`Existing registration source: ${sourceReadout.value}`);
+        }
+        const confirmed = await prompt({
+          title: 'Overwrite Saved Registration?',
+          text,
+          positiveButton: 'Overwrite',
+          negativeButton: 'Cancel',
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
       saving.value = true;
       try {
-        registration.maybeFitActivePair();
         await saveMetadata(datasetId.value, {
           cameraHomographies: registration.homographies.value,
           cameraCorrespondences: registration.correspondences.value,
@@ -270,6 +395,8 @@ export default defineComponent({
       canClearLast,
       canFit,
       fitQualityColor,
+      transformStatus,
+      setLinkedNav,
       linkedNav: registration.linkedNav,
       dirty: registration.dirty,
       saving,
@@ -291,7 +418,8 @@ export default defineComponent({
     class="mx-4"
   >
     <span class="text-body-2">
-      Pick corresponding points between two cameras to fit an alignment transform.
+      Register cameras by importing a registration file (Import menu) or by
+      picking corresponding points between two cameras.
     </span>
     <v-divider class="my-3" />
 
@@ -374,145 +502,178 @@ export default defineComponent({
       class="mb-3"
     />
 
-    <div
-      v-if="pickingEnabled"
-      class="text-caption mt-2"
-      style="font-family: monospace;"
-    >
-      {{ cursorReadout || 'Move the cursor over a camera to see its coordinates.' }}
+    <div class="d-flex align-center text-caption">
+      <v-icon
+        small
+        :color="transformStatus.color"
+        class="mr-1"
+      >
+        {{ transformStatus.icon }}
+      </v-icon>
+      <span :class="`${transformStatus.color}--text`">
+        {{ transformStatus.text }}
+      </span>
     </div>
+    <span
+      v-if="hasLoadedTransform"
+      class="text-caption grey--text d-block mt-1"
+    >
+      Linked pan/zoom and the overlay warp use the loaded transform. Picking
+      points is optional: fitting {{ minPoints }} or more pairs replaces it.
+    </span>
+
+    <v-checkbox
+      :input-value="linkedNav"
+      :disabled="!hasTransform"
+      :color="fitQualityColor"
+      label="Link pan/zoom"
+      dense
+      hide-details
+      class="mt-1"
+      @change="setLinkedNav"
+    />
 
     <v-divider class="my-3" />
 
-    <v-expansion-panels
-      flat
-      accordion
-    >
-      <v-expansion-panel>
-        <v-expansion-panel-header class="px-1">
-          Correspondences ({{ correspondences.length }})
-        </v-expansion-panel-header>
-        <v-expansion-panel-content class="px-0">
-          <div class="d-flex justify-end mb-1">
-            <tooltip-btn
-              icon="mdi-undo"
-              :disabled="!canClearLast"
-              tooltip-text="Undo the pending point, or the last completed pair"
-              @click="registration.clearLast()"
-            />
-            <tooltip-btn
-              color="error"
-              icon="mdi-delete-sweep"
-              :disabled="!canClearPair"
-              tooltip-text="Clear all correspondences and any loaded transform for this pair"
-              @click="registration.clearPair()"
-            />
-          </div>
-          <v-simple-table
-            v-if="correspondences.length"
-            dense
-            class="mb-2"
-          >
-            <template #default>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>A (x, y)</th>
-                  <th>B (x, y)</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(c, i) in correspondences"
-                  :key="c.id"
-                  :style="c.id === selectedCorrespondenceId
-                    ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
-                    : undefined"
-                  @click="registration.selectCorrespondence(c.id)"
-                >
-                  <td>{{ i + 1 }}</td>
-                  <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
-                  <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
-                  <td>
-                    <tooltip-btn
-                      color="error"
-                      icon="mdi-delete"
-                      tooltip-text="Remove this pair"
-                      @click="registration.removeCorrespondence(c.id)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </template>
-          </v-simple-table>
-          <span
-            v-else-if="hasLoadedTransform"
-            class="text-caption grey--text"
-          >
-            Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
-            points and fitting will replace it.
-          </span>
-          <span
-            v-else
-            class="text-caption grey--text"
-          >
-            No correspondences yet. At least {{ minPoints }} required for the selected transform.
-          </span>
-        </v-expansion-panel-content>
-      </v-expansion-panel>
-    </v-expansion-panels>
-    <!-- Kept outside the collapsed panel so fit failures stay visible. -->
+    <v-switch
+      v-model="pickingEnabled"
+      label="Pick points"
+      dense
+      hide-details
+      class="mt-0"
+    />
+    <span class="text-caption grey--text d-block">
+      Click matching features in each camera to add correspondence pairs.
+    </span>
+
+    <template v-if="pickingEnabled">
+      <div
+        class="text-caption mt-2"
+        style="font-family: monospace;"
+      >
+        {{ cursorReadout || 'Move the cursor over a camera to see its coordinates.' }}
+      </div>
+
+      <v-expansion-panels
+        flat
+        accordion
+      >
+        <v-expansion-panel>
+          <v-expansion-panel-header class="px-1">
+            Correspondences ({{ correspondences.length }})
+          </v-expansion-panel-header>
+          <v-expansion-panel-content class="px-0">
+            <div class="d-flex justify-end mb-1">
+              <tooltip-btn
+                icon="mdi-undo"
+                :disabled="!canClearLast"
+                tooltip-text="Undo the pending point, or the last completed pair"
+                @click="registration.clearLast()"
+              />
+              <tooltip-btn
+                color="error"
+                icon="mdi-delete-sweep"
+                :disabled="!canClearPair"
+                tooltip-text="Clear all correspondences and any loaded transform for this pair"
+                @click="registration.clearPair()"
+              />
+            </div>
+            <v-simple-table
+              v-if="correspondences.length"
+              dense
+              class="mb-2"
+            >
+              <template #default>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>A (x, y)</th>
+                    <th>B (x, y)</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(c, i) in correspondences"
+                    :key="c.id"
+                    :style="c.id === selectedCorrespondenceId
+                      ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
+                      : undefined"
+                    @click="registration.selectCorrespondence(c.id)"
+                  >
+                    <td>{{ i + 1 }}</td>
+                    <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
+                    <td>{{ c.b[0].toFixed(1) }}, {{ c.b[1].toFixed(1) }}</td>
+                    <td>
+                      <tooltip-btn
+                        color="error"
+                        icon="mdi-delete"
+                        tooltip-text="Remove this pair"
+                        @click="registration.removeCorrespondence(c.id)"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </template>
+            </v-simple-table>
+            <span
+              v-else-if="hasLoadedTransform"
+              class="text-caption grey--text"
+            >
+              Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
+              points and fitting will replace it.
+            </span>
+            <span
+              v-else
+              class="text-caption grey--text"
+            >
+              No correspondences yet. At least {{ minPoints }} required for the selected transform.
+            </span>
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+      </v-expansion-panels>
+
+      <h4 class="mt-3">
+        Transform Type
+      </h4>
+      <v-select
+        :value="transformType"
+        :items="transformTypeItems"
+        item-text="text"
+        item-value="value"
+        label="Transform type"
+        dense
+        outlined
+        hide-details
+        class="my-2"
+        @change="setTransformType"
+      />
+      <div class="d-flex align-center text-caption mt-1">
+        <v-icon
+          small
+          :color="canFit ? 'success' : 'grey'"
+          class="mr-1"
+        >
+          {{ canFit ? 'mdi-check-circle' : 'mdi-progress-clock' }}
+        </v-icon>
+        <span :class="canFit ? 'success--text' : 'grey--text'">
+          <template v-if="canFit">
+            Ready to fit ({{ correspondences.length }} / {{ minPoints }} point pairs)
+          </template>
+          <template v-else>
+            {{ remainingPoints }} more point pair{{ remainingPoints === 1 ? '' : 's' }} needed
+            ({{ correspondences.length }} / {{ minPoints }})
+          </template>
+        </span>
+      </div>
+    </template>
+    <!-- Kept outside the picking section so fit failures stay visible. -->
     <span
       v-if="fitError"
       class="text-caption error--text d-block"
     >
       Could not fit transform: {{ fitError }}
     </span>
-
-    <v-divider class="my-3" />
-
-    <h4>Transform Type</h4>
-    <v-select
-      :value="transformType"
-      :items="transformTypeItems"
-      item-text="text"
-      item-value="value"
-      label="Transform type"
-      dense
-      outlined
-      hide-details
-      class="my-2"
-      @change="setTransformType"
-    />
-    <div class="d-flex align-center text-caption mt-1">
-      <v-icon
-        small
-        :color="canFit ? 'success' : 'grey'"
-        class="mr-1"
-      >
-        {{ canFit ? 'mdi-check-circle' : 'mdi-progress-clock' }}
-      </v-icon>
-      <span :class="canFit ? 'success--text' : 'grey--text'">
-        <template v-if="canFit">
-          Ready to fit ({{ correspondences.length }} / {{ minPoints }} point pairs)
-        </template>
-        <template v-else>
-          {{ remainingPoints }} more point pair{{ remainingPoints === 1 ? '' : 's' }} needed
-          ({{ correspondences.length }} / {{ minPoints }})
-        </template>
-      </span>
-    </div>
-
-    <v-checkbox
-      v-model="linkedNav"
-      :disabled="!canFit"
-      :color="fitQualityColor"
-      label="Fit pan/zoom"
-      dense
-      hide-details
-      class="mt-1"
-    />
 
     <v-divider class="my-3" />
 

@@ -59,16 +59,15 @@ function makeHarness() {
     getController: (name: string) => controllers[name],
   }) as unknown as Ref<AggregateMediaController>;
 
-  const pickingEnabled = ref(false);
   const linkedNav = ref(false);
   const homographies = ref<Record<string, unknown>>({});
   const fitted = ref(true);
+  const activePair = ref<{ camA: string; camB: string } | null>({ camA: 'eo', camB: 'ir' });
   // eo -> ir is a pure +100 x-translation (and ir -> eo its inverse), so the
   // linked scale is 1 and centers map by simple offset.
   const registration = {
-    pickingEnabled,
     linkedNav,
-    activePair: ref({ camA: 'eo', camB: 'ir' }),
+    activePair,
     homographies,
     recenterRequest: ref(null),
     linkedPoint(camera: string, coord: Point) {
@@ -84,17 +83,15 @@ function makeHarness() {
 
   useRegistrationNavigation(aggregate, registration);
   return {
-    eo, ir, pickingEnabled, linkedNav, homographies, fitted,
+    eo, ir, linkedNav, activePair, homographies, fitted,
   };
 }
 
 describe('useRegistrationNavigation', () => {
-  it('snaps the pair immediately when "Fit pan/zoom" turns on', async () => {
+  it('snaps the pair immediately when "Link pan/zoom" turns on', async () => {
     const {
-      eo, ir, pickingEnabled, linkedNav,
+      eo, ir, linkedNav,
     } = makeHarness();
-    pickingEnabled.value = true;
-    await nextTick();
     eo.center({ x: 250, y: 150 });
     eo.zoom(1); // units-per-pixel = 0.5
 
@@ -112,9 +109,8 @@ describe('useRegistrationNavigation', () => {
 
   it('re-snaps when the fitted homography changes under the link', async () => {
     const {
-      eo, ir, pickingEnabled, linkedNav, homographies,
+      eo, ir, linkedNav, homographies,
     } = makeHarness();
-    pickingEnabled.value = true;
     linkedNav.value = true;
     await nextTick();
 
@@ -127,14 +123,28 @@ describe('useRegistrationNavigation', () => {
 
   it('does not snap while no fit exists yet', async () => {
     const {
-      ir, pickingEnabled, linkedNav, fitted,
+      ir, linkedNav, fitted,
     } = makeHarness();
     fitted.value = false;
-    pickingEnabled.value = true;
     linkedNav.value = true;
     await nextTick();
 
     expect(ir.center()).toEqual({ x: 0, y: 0 });
     expect(ir.zoom()).toBe(0);
+  });
+
+  it('detaches when the active pair clears (panel closed)', async () => {
+    const {
+      eo, ir, linkedNav, activePair,
+    } = makeHarness();
+    linkedNav.value = true;
+    await nextTick();
+
+    activePair.value = null;
+    await nextTick();
+
+    eo.center({ x: 250, y: 150 });
+    eo.trigger('geo_pan');
+    expect(ir.center()).toEqual({ x: 100, y: 0 });
   });
 });

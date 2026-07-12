@@ -682,6 +682,56 @@ describe('CameraRegistrationStore', () => {
       store.maybeFitPair(key);
       expect(store.homographies.value[key]).toBeDefined();
     });
+
+    it('pickingDefaultFor opens loaded pairs in review posture, others authoring', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('left', 'right');
+      const key = store.pairKey('left', 'right');
+      // No transform at all: authoring.
+      expect(store.pickingDefaultFor(key)).toBe(true);
+      expect(store.pickingDefaultFor(null)).toBe(true);
+      // File-loaded transform: review.
+      loadMatrixOnlyPair(store, 'left', 'right', translate);
+      expect(store.pickingDefaultFor(key)).toBe(false);
+      // Point-backed fit: authoring again.
+      addFourTranslationPairs(store);
+      store.maybeFitPair(key);
+      expect(store.pickingDefaultFor(key)).toBe(true);
+    });
+  });
+
+  describe('hasSavedRegistration', () => {
+    const translate = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
+
+    it('is false for a fresh store and empty hydrate', () => {
+      const store = new CameraRegistrationStore();
+      expect(store.hasSavedRegistration()).toBe(false);
+      store.hydrate({}, {}, {});
+      expect(store.hasSavedRegistration()).toBe(false);
+    });
+
+    it('ignores unsaved in-progress work until markSaved', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      expect(store.hasSavedRegistration()).toBe(false);
+      store.markSaved();
+      expect(store.hasSavedRegistration()).toBe(true);
+    });
+
+    it('is true after hydrating a saved homography', () => {
+      const store = new CameraRegistrationStore();
+      const key = store.pairKey('left', 'right');
+      store.hydrate({ [key]: { AtoB: translate, BtoA: translate } }, {}, {});
+      expect(store.hasSavedRegistration()).toBe(true);
+    });
+
+    it('treats leftover empty correspondence lists as no registration', () => {
+      const store = new CameraRegistrationStore();
+      const key = store.pairKey('left', 'right');
+      store.hydrate({}, { [key]: [] }, {});
+      expect(store.hasSavedRegistration()).toBe(false);
+    });
   });
 
   describe('registration file round trip', () => {

@@ -128,8 +128,9 @@ export default class CameraRegistrationStore {
 
   /**
    * Whether pan/zoom is linked between the active pair's two cameras through
-   * the fitted transform (see {@link useRegistrationNavigation}). Only has an
-   * effect once a transform is fitted; toggled from the panel's "Fit pan/zoom".
+   * the pair's transform (see {@link useRegistrationNavigation}). Only has an
+   * effect once a transform exists (fitted or file-loaded); toggled from the
+   * panel's "Link pan/zoom".
    */
   linkedNav: Ref<boolean>;
 
@@ -215,6 +216,34 @@ export default class CameraRegistrationStore {
   /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
   markSaved() {
     this.savedSnapshot.value = this.registrationSnapshot();
+  }
+
+  /**
+   * The saved-baseline calibration (what the persisted registration -- the
+   * per-camera registration files on desktop, the dataset meta on web --
+   * currently holds). Parsed fresh from the snapshot on each call. Matches
+   * cameraRegistrationFiles.ts's CameraRegistrationValues shape (the type
+   * lives there and importing it here would be circular).
+   */
+  savedRegistrationValues(): {
+    homographies: CameraHomographies;
+    correspondences: CameraCorrespondences;
+    transformTypes: CameraTransformTypes;
+    source: RegistrationSource | null;
+    } {
+    return JSON.parse(this.savedSnapshot.value);
+  }
+
+  /**
+   * True when the saved baseline (last hydrate/save/load) already holds
+   * registration data -- i.e. saving now would overwrite a persisted
+   * registration rather than create a fresh one. Empty correspondence lists
+   * don't count: clearing a pair leaves `[]` behind.
+   */
+  hasSavedRegistration(): boolean {
+    const saved = this.savedRegistrationValues();
+    return Object.keys(saved.homographies).length > 0
+      || Object.values(saved.correspondences).some((list) => list.length > 0);
   }
 
   /**
@@ -427,6 +456,17 @@ export default class CameraRegistrationStore {
    */
   isLoadedHomography(key: string): boolean {
     return this.homographySources[key] === 'loaded';
+  }
+
+  /**
+   * Default picking posture when a pair becomes active: authoring (true)
+   * unless the pair already has a file-loaded transform, in which case it
+   * opens in a review posture (false) so stray clicks don't start placing
+   * points on top of a registration that needs no points. The user can still
+   * opt back in via the panel's "Pick points" toggle to refine.
+   */
+  pickingDefaultFor(key: string | null): boolean {
+    return !(key && this.homographies.value[key] && this.isLoadedHomography(key));
   }
 
   /**

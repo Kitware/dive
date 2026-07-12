@@ -10,10 +10,12 @@ import useLinkedViewers from './useLinkedViewers';
  * Links pan/zoom recentering between the two cameras of the active registration
  * pair: panning or zooming one recenters the other on the same point, mapped
  * through the pair's fitted homography ({@link CameraRegistrationStore.linkedPoint}).
- * The mapping assumes UNWARPED panes showing native coordinates, so this is
- * active only while point picking is (the aligned-view link,
- * {@link useAlignedNavigation}, owns navigation otherwise) and stands down if
- * the aligned view is somehow active. Distinct from the general "sync cameras"
+ * Active whenever the Camera Registration panel has a pair selected (the
+ * panel clears the pair on close) and "Link pan/zoom" is on -- a file-loaded
+ * transform drives it just as well as picked points, so it deliberately does
+ * NOT require picking mode. The mapping assumes UNWARPED panes showing native
+ * coordinates, so it stands down while the aligned view (which owns
+ * navigation then, {@link useAlignedNavigation}) is active. Distinct from the general "sync cameras"
  * toggle (Controls.vue), which assumes identical pixel scale between panes.
  */
 export default function useRegistrationNavigation(
@@ -64,15 +66,16 @@ export default function useRegistrationNavigation(
   function setup() {
     teardown();
     const pair = registration.activePair.value;
-    // Authoring UI: active while picking and "Fit pan/zoom" is on (once a fit
-    // exists, linkedPoint returns matches). attach() no-ops for a not-yet-ready
+    // Active while the panel has a pair and "Link pan/zoom" is on (once a
+    // transform exists -- fitted or file-loaded -- linkedPoint returns
+    // matches). attach() no-ops for a not-yet-ready
     // pane; the resizeTrigger watch re-runs setup once both viewers exist.
-    if (registration.pickingEnabled.value && registration.linkedNav.value && pair) {
+    if (registration.linkedNav.value && pair) {
       attach(pair.camA, link(pair.camA, pair.camB));
       attach(pair.camB, link(pair.camB, pair.camA));
-      // Snap immediately from camA so toggling "Fit pan/zoom" on (or a refit
+      // Snap immediately from camA so toggling "Link pan/zoom" on (or a refit
       // under it) lines the pair up right away instead of waiting for the
-      // first pan/zoom event. No-ops harmlessly while no fit exists yet
+      // first pan/zoom event. No-ops harmlessly while no transform exists yet
       // (linkedPoint returns null).
       link(pair.camA, pair.camB)();
     }
@@ -80,7 +83,6 @@ export default function useRegistrationNavigation(
 
   watch(
     [
-      registration.pickingEnabled,
       registration.linkedNav,
       registration.activePair,
       registration.homographies,
