@@ -6,6 +6,7 @@ import {
   matMul3,
   subdivideWarpQuads,
   warpGridSize,
+  geojsWarpQuads,
   localLinkedScale,
   Point,
   Matrix3,
@@ -254,5 +255,33 @@ describe('localLinkedScale', () => {
 
   it('returns null for a degenerate (collapsing) mapping', () => {
     expect(localLinkedScale(() => [3, 3], [10, 10])).toBeNull();
+  });
+});
+
+describe('geojsWarpQuads', () => {
+  it('maps an affine warp to a single geojs quad with a full-size crop stretch', () => {
+    const translate: Matrix3 = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
+    const [quad, ...rest] = geojsWarpQuads(translate, 640, 480);
+    expect(rest).toHaveLength(0);
+    expect(quad.ul).toEqual({ x: 5, y: -3 });
+    expect(quad.lr).toEqual({ x: 645, y: 477 });
+    // left/top/right/bottom select the cell's source region; x/y are the full
+    // source size so that region stretches across the whole sub-quad.
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 640, bottom: 480, x: 640, y: 480,
+    });
+  });
+
+  it('subdivides a projective warp and maps each corner through the homography', () => {
+    const projective: Matrix3 = [[1.2, 0.1, 5], [0.05, 0.9, -4], [0.0008, -0.0005, 1]];
+    const grid = warpGridSize(projective, 640, 480);
+    const quads = geojsWarpQuads(projective, 640, 480);
+    expect(quads).toHaveLength(grid * grid);
+    quads.forEach((q) => {
+      const [x, y] = applyHomography(projective, [q.crop.left, q.crop.top]);
+      expect(q.ul).toEqual({ x, y });
+      expect(q.crop.x).toBe(640);
+      expect(q.crop.y).toBe(480);
+    });
   });
 });

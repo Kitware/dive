@@ -12,7 +12,7 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
-import CalibrationKeypointLayer from '../layers/AnnotationLayers/CalibrationKeypointLayer';
+import RegistrationKeypointLayer from '../layers/AnnotationLayers/RegistrationKeypointLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
@@ -83,11 +83,11 @@ export default defineComponent({
       // Viewer may not provide lasso context in tests or minimal embeds.
     }
     const cameraStore = useCameraStore();
-    let cameraCalibration: ReturnType<typeof useCameraRegistration> | undefined;
+    let cameraRegistration: ReturnType<typeof useCameraRegistration> | undefined;
     try {
-      cameraCalibration = useCameraRegistration();
+      cameraRegistration = useCameraRegistration();
     } catch {
-      // calibration store may not be provided in tests or minimal embeds.
+      // registration store may not be provided in tests or minimal embeds.
     }
     let alignedView: ReturnType<typeof useAlignedView> | undefined;
     try {
@@ -211,12 +211,12 @@ export default defineComponent({
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
 
-    const calibrationLayer = cameraCalibration
-      ? new CalibrationKeypointLayer({
+    const registrationLayer = cameraRegistration
+      ? new RegistrationKeypointLayer({
         annotator,
         stateStyling: trackStyleManager.stateStyles,
         typeStyling: typeStylingRef,
-        calibration: cameraCalibration,
+        registration: cameraRegistration,
         getCameraImage: (cam: string) => getCameraQuadMedia(
           (c) => aggregateController.value.getController(c),
           cam,
@@ -224,19 +224,19 @@ export default defineComponent({
       })
       : undefined;
 
-    if (cameraCalibration && calibrationLayer) {
-      const calibration = cameraCalibration;
+    if (cameraRegistration && registrationLayer) {
+      const registration = cameraRegistration;
       /**
        * Frame number of the camera whose image is being ghosted into another
        * pane, or null when no ghost is active. Watched so the ghost re-renders
        * when the *source* pane scrubs, not just this pane -- this pane's own
        * frameNumberRef can update before (or without) the source's, and the
        * source image element itself only swaps after its frame finishes
-       * loading (see CalibrationKeypointLayer.scheduleGhostRefresh).
+       * loading (see RegistrationKeypointLayer.scheduleGhostRefresh).
        */
       const ghostSourceFrame = computed(() => {
-        const { mode } = calibration.alignment.value;
-        const pair = calibration.activePair.value;
+        const { mode } = registration.alignment.value;
+        const pair = registration.activePair.value;
         if (mode === 'original' || !pair) {
           return null;
         }
@@ -249,17 +249,17 @@ export default defineComponent({
       });
       watch(
         [
-          cameraCalibration.activePair,
-          cameraCalibration.pickingEnabled,
-          cameraCalibration.correspondences,
-          cameraCalibration.pendingPoint,
-          cameraCalibration.selectedCorrespondenceId,
-          cameraCalibration.homographies,
-          cameraCalibration.alignment,
+          cameraRegistration.activePair,
+          cameraRegistration.pickingEnabled,
+          cameraRegistration.correspondences,
+          cameraRegistration.pendingPoint,
+          cameraRegistration.selectedCorrespondenceId,
+          cameraRegistration.homographies,
+          cameraRegistration.alignment,
           frameNumberRef,
           ghostSourceFrame,
         ],
-        () => calibrationLayer.update(),
+        () => registrationLayer.update(),
         { deep: true },
       );
     }

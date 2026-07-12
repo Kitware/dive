@@ -31,7 +31,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
-  useCalibrationNavigation,
+  useRegistrationNavigation,
   useAlignedNavigation,
   TrackList,
   FilterList,
@@ -88,7 +88,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
-import CalibrationToolsVue from './CameraCalibration/CalibrationTools.vue';
+import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -328,23 +328,23 @@ export default defineComponent({
     // When the Manual Alignment panel opens, minimize the workspace chrome to
     // give the picking view more room: collapse the left type-filter sidebar and
     // the bottom detections graph. This is a soft default -- the normal sidebar
-    // and timeline toggles still work while calibrating, so the user can bring
+    // and timeline toggles still work while registering, so the user can bring
     // either back -- and whatever layout they had before is restored on close.
-    const calibrationActive = computed(() => context.state.active === CalibrationToolsVue.name);
-    let preCalibrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
-    let preCalibrationControlsCollapsed = false;
-    watch(calibrationActive, (active) => {
+    const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
+    let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
+    let preRegistrationControlsCollapsed = false;
+    watch(registrationActive, (active) => {
       if (active) {
-        preCalibrationSidebarMode = sidebarMode.value;
-        preCalibrationControlsCollapsed = controlsCollapsed.value;
+        preRegistrationSidebarMode = sidebarMode.value;
+        preRegistrationControlsCollapsed = controlsCollapsed.value;
         if (sidebarMode.value === 'left') {
           sidebarMode.value = 'collapsed';
         }
         controlsCollapsed.value = true;
-      } else if (preCalibrationSidebarMode !== null) {
-        sidebarMode.value = preCalibrationSidebarMode;
-        controlsCollapsed.value = preCalibrationControlsCollapsed;
-        preCalibrationSidebarMode = null;
+      } else if (preRegistrationSidebarMode !== null) {
+        sidebarMode.value = preRegistrationSidebarMode;
+        controlsCollapsed.value = preRegistrationControlsCollapsed;
+        preRegistrationSidebarMode = null;
       }
     });
 
@@ -478,7 +478,7 @@ export default defineComponent({
       // The Manual Alignment pair link maps through the homography for
       // UNWARPED panes, so it needs the aligned view state to stand down
       // while displays are warped into reference space.
-      useCalibrationNavigation(aggregateController, cameraRegistration, alignedView);
+      useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
       // Registration point picking records raw native-space clicks and
       // renders its own aligned preview; suspend the general warp while it
       // is active so picks are never taken against a warped display.
@@ -543,7 +543,7 @@ export default defineComponent({
      */
     const displayedCameras = computed(() => {
       const pair = cameraRegistration.activePair.value;
-      if (calibrationActive.value && pair) {
+      if (registrationActive.value && pair) {
         const pairCameras = multiCamList.value.filter(
           (camera) => camera === pair.camA || camera === pair.camB,
         );
@@ -1586,7 +1586,7 @@ export default defineComponent({
             description: 'Multi Camera Tools',
           });
           context.register({
-            component: CalibrationToolsVue,
+            component: RegistrationToolsVue,
             description: 'Manual Alignment',
           });
         } else {
@@ -1595,7 +1595,7 @@ export default defineComponent({
             description: 'Multi Camera Tools',
           });
           context.unregister({
-            component: CalibrationToolsVue,
+            component: RegistrationToolsVue,
             description: 'Manual Alignment',
           });
           context.register({

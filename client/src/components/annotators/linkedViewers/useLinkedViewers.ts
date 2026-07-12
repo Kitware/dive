@@ -13,8 +13,8 @@ export interface LinkedView {
 }
 
 /**
- * Shared plumbing for the two multicam pan/zoom links -- the calibration pair
- * link ({@link useCalibrationNavigation}) and the aligned-view link
+ * Shared plumbing for the two multicam pan/zoom links -- the registration pair
+ * link ({@link useRegistrationNavigation}) and the aligned-view link
  * ({@link useAlignedNavigation}). Both attach geojs pan/zoom listeners to a set
  * of panes and, when one moves, drive the others to a matching view; they
  * differ only in how a source pane's view maps onto a target pane. This owns

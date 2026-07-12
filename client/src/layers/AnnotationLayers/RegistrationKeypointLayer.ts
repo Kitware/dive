@@ -2,10 +2,10 @@ import geo, { GeoEvent } from 'geojs';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import CameraRegistrationStore from '../../alignedView/CameraRegistrationStore';
-import { subdivideWarpQuads, warpGridSize } from '../../alignedView/homography';
+import { geojsWarpQuads } from '../../alignedView/homography';
 import type { CameraImage } from '../AlignedImageLayer';
 
-export interface CalibrationPointData {
+export interface RegistrationPointData {
   x: number;
   y: number;
   label: string;
@@ -18,8 +18,8 @@ export interface CalibrationPointData {
 
 export type { CameraImage };
 
-interface CalibrationLayerParams {
-  calibration: CameraRegistrationStore;
+interface RegistrationLayerParams {
+  registration: CameraRegistrationStore;
   /** Resolve another camera's currently displayed frame image (for the overlay). */
   getCameraImage?: (camera: string) => CameraImage | null;
 }
@@ -36,13 +36,13 @@ const GHOST_REFRESH_MAX_ATTEMPTS = 60;
 const DRAG_HIT_RADIUS_PX = 10;
 
 /**
- * Renders this camera's picked calibration points (numbered markers, the pending
+ * Renders this camera's picked registration points (numbered markers, the pending
  * "blue" point highlighted) and, when alignment mode is active, a ghost overlay
  * of the other camera's frame warped through the fitted homography (geojs
  * quadFeature). One instance is created per camera in LayerManager.
  */
-export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPointData> {
-  calibration: CameraRegistrationStore;
+export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPointData> {
+  registration: CameraRegistrationStore;
 
   getCameraImage?: (camera: string) => CameraImage | null;
 
@@ -84,9 +84,9 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
 
   private boundDragEnd = () => this.handleDragEnd();
 
-  constructor(params: BaseLayerParams & CalibrationLayerParams) {
+  constructor(params: BaseLayerParams & RegistrationLayerParams) {
     super(params);
-    this.calibration = params.calibration;
+    this.registration = params.registration;
     this.getCameraImage = params.getCameraImage;
     // Listen on the map, which is what emits geo.event.mouseclick. The event
     // exposes button state and image (gcs) coordinates at the top level.
@@ -122,11 +122,11 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     // yellow; locked (committed) points are blue.
     this.centerFeature = pointLayer.createFeature('point').style({
       fill: true,
-      fillColor: (data: CalibrationPointData) => (
+      fillColor: (data: RegistrationPointData) => (
         (data.selected || data.pending) ? 'yellow' : 'cyan'),
       fillOpacity: 1,
-      radius: (data: CalibrationPointData) => (data.selected ? 3.5 : 2.5),
-      strokeColor: (data: CalibrationPointData) => (
+      radius: (data: RegistrationPointData) => (data.selected ? 3.5 : 2.5),
+      strokeColor: (data: RegistrationPointData) => (
         (data.selected || data.pending) ? 'orange' : 'blue'),
       strokeWidth: 1,
     });
@@ -142,8 +142,8 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     const textLayer = geoViewer.createLayer('feature', { features: ['text'] });
     this.textFeature = textLayer
       .createFeature('text')
-      .text((data: CalibrationPointData) => data.label)
-      .position((data: CalibrationPointData) => ({ x: data.x, y: data.y }))
+      .text((data: RegistrationPointData) => data.label)
+      .position((data: RegistrationPointData) => ({ x: data.x, y: data.y }))
       .style({
         color: 'white',
         fontSize: '14px',
@@ -161,13 +161,13 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
    * {@link CameraRegistrationStore.requestRecenter}) instead of picking.
    */
   handleClick(e: GeoEvent) {
-    if (!this.calibration || !this.calibration.pickingEnabled.value) {
+    if (!this.registration || !this.registration.pickingEnabled.value) {
       return;
     }
     // Map-level mouseclick exposes buttonsDown at the top level; feature-level
     // events nest it under `mouse`.
     const buttonsDown = e.buttonsDown || (e.mouse && e.mouse.buttonsDown);
-    const pair = this.calibration.activePair.value;
+    const pair = this.registration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
       return;
@@ -177,7 +177,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     }
     // e.geo is already in image (gcs) coordinates.
     if (buttonsDown && buttonsDown.right) {
-      this.calibration.requestRecenter(cam, [e.geo.x, e.geo.y]);
+      this.registration.requestRecenter(cam, [e.geo.x, e.geo.y]);
       return;
     }
     if (buttonsDown && !buttonsDown.left) {
@@ -186,8 +186,8 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     // Clicking empty space places a new point; it also clears any marker
     // selection (a press ON a marker never reaches here -- handleDragStart
     // captures it).
-    this.calibration.selectCorrespondence(null);
-    this.calibration.pickPoint(cam, [e.geo.x, e.geo.y]);
+    this.registration.selectCorrespondence(null);
+    this.registration.pickPoint(cam, [e.geo.x, e.geo.y]);
   }
 
   /**
@@ -195,15 +195,15 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
    * picking is active, and shows a grab cursor over draggable markers.
    */
   handleMouseMove(e: GeoEvent) {
-    if (!this.calibration || !this.calibration.pickingEnabled.value || !e.geo) {
+    if (!this.registration || !this.registration.pickingEnabled.value || !e.geo) {
       return;
     }
-    const pair = this.calibration.activePair.value;
+    const pair = this.registration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
       return;
     }
-    this.calibration.setCursorCoord(cam, [e.geo.x, e.geo.y]);
+    this.registration.setCursorCoord(cam, [e.geo.x, e.geo.y]);
     if (this.mapNode && !this.dragTarget && e.map) {
       const hit = this.findMarkerAtDisplay(e.map);
       this.mapNode.style.cursor = hit ? 'grab' : '';
@@ -211,12 +211,12 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   /** Nearest rendered marker within DRAG_HIT_RADIUS_PX of a display-space point, or null. */
-  private findMarkerAtDisplay(display: { x: number; y: number }): CalibrationPointData | null {
+  private findMarkerAtDisplay(display: { x: number; y: number }): RegistrationPointData | null {
     const map = this.annotator.geoViewerRef.value;
     if (!map) {
       return null;
     }
-    let best: CalibrationPointData | null = null;
+    let best: RegistrationPointData | null = null;
     let bestDist = DRAG_HIT_RADIUS_PX;
     this.formattedData.forEach((d) => {
       const disp = map.gcsToDisplay({ x: d.x, y: d.y });
@@ -244,10 +244,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
    * (or synthesize the click that would place a new point on top of it).
    */
   private handleDragStart(evt: MouseEvent) {
-    if (evt.button !== 0 || !this.calibration || !this.calibration.pickingEnabled.value) {
+    if (evt.button !== 0 || !this.registration || !this.registration.pickingEnabled.value) {
       return;
     }
-    const pair = this.calibration.activePair.value;
+    const pair = this.registration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
       return;
@@ -265,7 +265,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     // Grabbing a marker selects its correspondence (highlighted in both
     // panes, deletable via the panel or the Delete key); grabbing the
     // pending point clears the selection.
-    this.calibration.selectCorrespondence(hit.correspondenceId ?? null);
+    this.registration.selectCorrespondence(hit.correspondenceId ?? null);
     this.dragTarget = { correspondenceId: hit.correspondenceId, pending: hit.pending };
     if (this.mapNode) {
       this.mapNode.style.cursor = 'grabbing';
@@ -275,7 +275,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   private handleDragMove(evt: MouseEvent) {
-    if (!this.dragTarget || !this.calibration) {
+    if (!this.dragTarget || !this.registration) {
       return;
     }
     const map = this.annotator.geoViewerRef.value;
@@ -286,9 +286,9 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     const gcs = map.displayToGcs(display);
     const cam = this.annotator.cameraName.value;
     if (this.dragTarget.pending) {
-      this.calibration.movePendingPoint(cam, [gcs.x, gcs.y]);
+      this.registration.movePendingPoint(cam, [gcs.x, gcs.y]);
     } else if (this.dragTarget.correspondenceId !== undefined) {
-      this.calibration.updateCorrespondencePoint(this.dragTarget.correspondenceId, cam, [gcs.x, gcs.y]);
+      this.registration.updateCorrespondencePoint(this.dragTarget.correspondenceId, cam, [gcs.x, gcs.y]);
     }
   }
 
@@ -302,24 +302,24 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-unused-vars
-  formatData(_frameData: FrameDataTrack[]): CalibrationPointData[] {
-    const result: CalibrationPointData[] = [];
-    if (!this.calibration) {
+  formatData(_frameData: FrameDataTrack[]): RegistrationPointData[] {
+    const result: RegistrationPointData[] = [];
+    if (!this.registration) {
       return result;
     }
     // Point markers are authoring UI: they show only while picking is on
     // (the correspondences themselves stay in the store either way).
-    if (!this.calibration.pickingEnabled.value) {
+    if (!this.registration.pickingEnabled.value) {
       return result;
     }
-    const pair = this.calibration.activePair.value;
+    const pair = this.registration.activePair.value;
     const cam = this.annotator.cameraName.value;
     if (!pair || (cam !== pair.camA && cam !== pair.camB)) {
       return result;
     }
-    const key = this.calibration.pairKey(pair.camA, pair.camB);
-    const list = this.calibration.correspondences.value[key] || [];
-    const selectedId = this.calibration.selectedCorrespondenceId.value;
+    const key = this.registration.pairKey(pair.camA, pair.camB);
+    const list = this.registration.correspondences.value[key] || [];
+    const selectedId = this.registration.selectedCorrespondenceId.value;
     list.forEach((c, i) => {
       const coord = cam === pair.camA ? c.a : c.b;
       result.push({
@@ -331,7 +331,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
         correspondenceId: c.id,
       });
     });
-    const pending = this.calibration.pendingPoint.value;
+    const pending = this.registration.pendingPoint.value;
     if (pending && pending.camera === cam) {
       result.push({
         x: pending.coord[0],
@@ -354,7 +354,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
    * affine-only (a single quad is drawn as a parallelogram from three of its
    * corners), a transform with non-negligible perspective terms is rendered as
    * an n x n grid of sub-quads whose corners are each mapped through the exact
-   * homography (see {@link subdivideWarpQuads}); each sub-quad is approximately
+   * homography (see {@link geojsWarpQuads}); each sub-quad is approximately
    * affine, so the rendered warp matches the projective mapping to sub-pixel
    * accuracy and ghost-targeted picks land where the user visually aligned.
    */
@@ -367,14 +367,14 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       this.cancelGhostRefresh();
       this.quadFeature.data([]).draw();
     };
-    const alignment = this.calibration?.alignment.value;
-    const pair = this.calibration?.activePair.value;
+    const alignment = this.registration?.alignment.value;
+    const pair = this.registration?.activePair.value;
     if (!alignment || alignment.mode === 'original' || !pair || !this.getCameraImage) {
       clear();
       return;
     }
-    const key = this.calibration.pairKey(pair.camA, pair.camB);
-    const homog = this.calibration.homographies.value[key];
+    const key = this.registration.pairKey(pair.camA, pair.camB);
+    const homog = this.registration.homographies.value[key];
     if (!homog) {
       clear();
       return;
@@ -396,24 +396,12 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
     }
     const h = homog[mode];
     const { width: w, height: hgt } = src;
-    const grid = warpGridSize(h, w, hgt);
     // 2px cell overlap hides the canvas antialiasing seams between abutting
     // sub-quads (dark grid lines). Overlapped quads must draw opaque -- the
     // ghost's transparency is applied once at the layer level below, so the
     // overlap doesn't double-blend into brighter seams.
-    const quads = subdivideWarpQuads(h, w, hgt, grid, 2).map((q) => ({
-      ul: { x: q.ul[0], y: q.ul[1] },
-      ur: { x: q.ur[0], y: q.ur[1] },
-      lr: { x: q.lr[0], y: q.lr[1] },
-      ll: { x: q.ll[0], y: q.ll[1] },
-      // geojs crop: left/top/right/bottom select the source-pixel region;
-      // x/y (the "size after crop") are set to the full source size so that
-      // region stretches across the whole sub-quad.
-      crop: {
-        ...q.crop, x: w, y: hgt,
-      },
-      [src.kind]: src.source,
-    }));
+    const quads = geojsWarpQuads(h, w, hgt, 2)
+      .map((q) => ({ ...q, [src.kind]: src.source }));
     this.ghostSource = src.source;
     this.quadLayer.opacity(alignment.opacity);
     this.quadFeature
@@ -493,7 +481,7 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
   }
 
   // eslint-disable-next-line class-methods-use-this
-  createStyle(): LayerStyle<CalibrationPointData> {
+  createStyle(): LayerStyle<RegistrationPointData> {
     return {
       ...super.createStyle(),
       // Hollow ring: leave the center transparent so the exact pixel being
@@ -504,10 +492,10 @@ export default class CalibrationKeypointLayer extends BaseLayer<CalibrationPoint
       // (committed) points are blue. The selected point gets a larger ring.
       fill: false,
       fillOpacity: 0,
-      radius: (data: CalibrationPointData) => (data.selected ? 9 : 7),
-      strokeColor: (data: CalibrationPointData) => (
+      radius: (data: RegistrationPointData) => (data.selected ? 9 : 7),
+      strokeColor: (data: RegistrationPointData) => (
         (data.selected || data.pending) ? 'orange' : 'blue'),
-      strokeWidth: (data: CalibrationPointData) => (data.selected ? 3 : 2),
+      strokeWidth: (data: RegistrationPointData) => (data.selected ? 3 : 2),
     };
   }
 }

@@ -2,7 +2,7 @@
 
 Multicam datasets show one GeoJS pane per camera. When the user pans or zooms one pane, linked-viewer navigation keeps the other panes showing the same region of the scene.
 
-This folder holds the shared plumbing and the aligned-view link. A separate calibration-pair link (`useCalibrationNavigation`, not yet in this folder) reuses the same plumbing with a different coordinate mapping.
+This folder holds the shared plumbing and the two links that reuse it with different coordinate mappings: the aligned-view link and the registration-pair link.
 
 ## Modules
 
@@ -10,6 +10,7 @@ This folder holds the shared plumbing and the aligned-view link. A separate cali
 | --- | --- |
 | `useLinkedViewers.ts` | Shared GeoJS listener wiring, re-entrancy guard, and zoom-baseline conversion. |
 | `useAlignedNavigation.ts` | Pan/zoom link for the **aligned view** (SEAL-TK feature 3). |
+| `useRegistrationNavigation.ts` | Pan/zoom link for the **active registration pair** while picking points in the Manual Alignment panel. |
 
 ## How linking works
 
@@ -49,22 +50,23 @@ Do **not** map centers through camera-to-camera homographies here — rendering 
 - raw camera sync is enabled (`cameraSync`, the un-warped screen-delta sync in Controls.vue);
 - `aggregateController.resizing` is true (programmatic `onResize` resets emit pan/zoom in native space — ignore them; `resizeTrigger` re-snaps from the reference once resize settles).
 
-### Calibration pair link (future)
+### Registration pair link (`useRegistrationNavigation`)
 
-`useCalibrationNavigation` (planned) maps through the homography between a calibrated pair and stands down while the aligned view is active. It will call the same `useLinkedViewers` helpers with a different `LinkedView` mapping.
+`useRegistrationNavigation` maps through the active pair's fitted homography (`CameraRegistrationStore.linkedPoint`) so the two panes track each other while picking points — panes render UNWARPED here, so the link must apply the transform itself. It calls the same `useLinkedViewers` helpers with a different `LinkedView` mapping, and stands down while the aligned view is active (which links all panes through the identity instead), while `linkedNav` is toggled off, or while no transform is fitted.
 
 ## Wiring
 
-`Viewer.vue` installs aligned navigation at the multicam root:
+`Viewer.vue` installs both links at the multicam root:
 
 ```typescript
-import { useAlignedNavigation } from 'vue-media-annotator/components';
+import { useAlignedNavigation, useRegistrationNavigation } from 'vue-media-annotator/components';
 
 useAlignedNavigation(aggregateController, alignedView, multiCamList);
+useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
 ```
 
 `AggregateMediaController.resizing` and `resizeTrigger` exist specifically so linked navigation can distinguish user moves from programmatic resize resets — see `mediaControllerType.ts`.
 
 ## Tests
 
-`useAlignedNavigation.spec.ts` exercises identity linking, immediate snap on activation, deactivation reset, resize guards, and stand-down while inactive / suspended / camera-sync on.
+`useAlignedNavigation.spec.ts` exercises identity linking, immediate snap on activation, deactivation reset, resize guards, and stand-down while inactive / suspended / camera-sync on. `useRegistrationNavigation.spec.ts` exercises the immediate snap when the pair link turns on, re-snap when the fitted homography changes, and stand-down while no fit exists.

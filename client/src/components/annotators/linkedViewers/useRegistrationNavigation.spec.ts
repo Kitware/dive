@@ -2,7 +2,7 @@
 import {
   ref, shallowRef, nextTick, Ref,
 } from 'vue';
-import useCalibrationNavigation from './useCalibrationNavigation';
+import useRegistrationNavigation from './useRegistrationNavigation';
 import type CameraRegistrationStore from '../../../alignedView/CameraRegistrationStore';
 import type { AggregateMediaController } from '../mediaControllerType';
 import type { Point } from '../../../alignedView/homography';
@@ -65,7 +65,7 @@ function makeHarness() {
   const fitted = ref(true);
   // eo -> ir is a pure +100 x-translation (and ir -> eo its inverse), so the
   // linked scale is 1 and centers map by simple offset.
-  const calibration = {
+  const registration = {
     pickingEnabled,
     linkedNav,
     activePair: ref({ camA: 'eo', camB: 'ir' }),
@@ -82,13 +82,13 @@ function makeHarness() {
     },
   } as unknown as CameraRegistrationStore;
 
-  useCalibrationNavigation(aggregate, calibration);
+  useRegistrationNavigation(aggregate, registration);
   return {
     eo, ir, pickingEnabled, linkedNav, homographies, fitted,
   };
 }
 
-describe('useCalibrationNavigation', () => {
+describe('useRegistrationNavigation', () => {
   it('snaps the pair immediately when "Fit pan/zoom" turns on', async () => {
     const {
       eo, ir, pickingEnabled, linkedNav,

@@ -14,8 +14,8 @@ import useLinkedViewers from './useLinkedViewers';
  * camera-to-camera transforms here would re-apply a transform the rendering has
  * already applied.) Distinct from the raw "sync cameras" toggle (Controls.vue),
  * which forwards raw screen deltas for UNWARPED panes and is hidden whenever the
- * aligned view is available, and from the calibration pair link
- * ({@link useCalibrationNavigation}), which maps through the homography and
+ * aligned view is available, and from the registration pair link
+ * ({@link useRegistrationNavigation}), which maps through the homography and
  * stands down while the aligned view is active.
  */
 export default function useAlignedNavigation(

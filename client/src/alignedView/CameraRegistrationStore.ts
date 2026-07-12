@@ -128,7 +128,7 @@ export default class CameraRegistrationStore {
 
   /**
    * Whether pan/zoom is linked between the active pair's two cameras through
-   * the fitted transform (see {@link useCalibrationNavigation}). Only has an
+   * the fitted transform (see {@link useRegistrationNavigation}). Only has an
    * effect once a transform is fitted; toggled from the panel's "Fit pan/zoom".
    */
   linkedNav: Ref<boolean>;
@@ -140,7 +140,7 @@ export default class CameraRegistrationStore {
    */
   selectedCorrespondenceId: Ref<number | null>;
 
-  /** Native-pixel coordinate under the cursor, for the calibration panel's live readout. */
+  /** Native-pixel coordinate under the cursor, for the registration panel's live readout. */
   cursorCoord: Ref<{ camera: string; coord: Point } | null>;
 
   /**
@@ -154,7 +154,7 @@ export default class CameraRegistrationStore {
    * Message from the most recent failed fit attempt (e.g. collinear/degenerate
    * points that satisfy the minimum count but can't be solved), or null if the
    * active pair's last fit attempt (if any) succeeded. Surfaced by the
-   * calibration panel instead of letting the estimator's exception escape a
+   * registration panel instead of letting the estimator's exception escape a
    * geojs click handler.
    */
   fitError: Ref<string | null>;
@@ -544,7 +544,7 @@ export default class CameraRegistrationStore {
     return { camera: other, coord: applyHomography(matrix, coord) };
   }
 
-  /** Record the native-pixel coordinate under the cursor for `camera` (calibration panel readout). */
+  /** Record the native-pixel coordinate under the cursor for `camera` (registration panel readout). */
   setCursorCoord(camera: string, coord: Point) {
     this.cursorCoord.value = { camera, coord };
   }
@@ -558,7 +558,7 @@ export default class CameraRegistrationStore {
    * Request that `camera` (native pixel coords `coord`) and, when the pair has
    * a fitted homography, the other camera of the active pair (via
    * {@link linkedPoint}) recenter their views on this location. Consumed by
-   * {@link useCalibrationNavigation}; a no-op if `camera` isn't part of the
+   * {@link useRegistrationNavigation}; a no-op if `camera` isn't part of the
    * active pair. A one-shot "snap to this feature" action, distinct from the
    * continuous pan/zoom link that is active while picking.
    */

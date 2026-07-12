@@ -11,17 +11,18 @@ import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
 } from 'vue-media-annotator/alignedView/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
+import { unknownCameraWarning } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
 export default defineComponent({
-  name: 'CameraCalibration',
+  name: 'CameraRegistration',
   description: 'Manual Alignment',
   components: { TooltipBtn },
   setup() {
     const cameraStore = useCameraStore();
-    const calibration = useCameraRegistration();
+    const registration = useCameraRegistration();
     const datasetId = useDatasetId();
     const { saveMetadata } = useApi();
     const { prompt } = usePrompt();
@@ -31,7 +32,7 @@ export default defineComponent({
      * Per-camera alignment status for the whole rig, driving the status block:
      * the first camera (display order) is the reference (identity); every other
      * camera is 'resolved' when it has a fitted path to the reference, else
-     * 'unresolved' (still needs calibration to satisfy the Align button).
+     * 'unresolved' (still needs registration to satisfy the Align button).
      */
     const cameraAlignmentStatuses = computed(() => {
       const list = cameras.value;
@@ -40,7 +41,7 @@ export default defineComponent({
         return [] as { name: string; status: 'reference' | 'resolved' | 'unresolved' }[];
       }
       const unresolved = new Set(
-        unresolvedCameras(list, reference, calibration.homographies.value),
+        unresolvedCameras(list, reference, registration.homographies.value),
       );
       return list.map((name) => {
         let status: 'reference' | 'resolved' | 'unresolved' = 'resolved';
@@ -61,7 +62,7 @@ export default defineComponent({
       return {
         icon: complete ? 'mdi-check-circle' : 'mdi-alert',
         color: complete ? 'success' : 'warning',
-        text: `${total - unresolvedCount}/${total} cameras calibrated`,
+        text: `${total - unresolvedCount}/${total} cameras registered`,
       };
     });
     const camLeft = ref<string | null>(null);
@@ -74,20 +75,20 @@ export default defineComponent({
     }
 
     watch([camLeft, camRight], () => {
-      calibration.setActivePair(camLeft.value, camRight.value);
+      registration.setActivePair(camLeft.value, camRight.value);
     }, { immediate: true });
 
     // Picking is scoped to this panel: it is always on while the Manual
     // Alignment panel is open, and turns off when the panel closes (unmounts),
     // so the viewer can't be left in picking mode -- pair-only panes, suspended
     // aligned view -- with no visible control to get back out.
-    calibration.pickingEnabled.value = true;
+    registration.pickingEnabled.value = true;
     onBeforeUnmount(() => {
-      calibration.pickingEnabled.value = false;
+      registration.pickingEnabled.value = false;
     });
 
     // Switching datasets while this panel stays mounted re-runs the viewer's
-    // loadDataset -> calibration.hydrate(), which clears picking and the active
+    // loadDataset -> registration.hydrate(), which clears picking and the active
     // pair. This panel establishes those only at mount, so without this it
     // would be left visibly open but inert (dead markers, stale selectors).
     // Re-establish them whenever the camera set changes.
@@ -102,38 +103,38 @@ export default defineComponent({
       } else {
         // Same camera names as before: the selectors don't change, so
         // re-establish the pair that hydrate() nulled.
-        calibration.setActivePair(camLeft.value, camRight.value);
+        registration.setActivePair(camLeft.value, camRight.value);
       }
-      calibration.pickingEnabled.value = true;
+      registration.pickingEnabled.value = true;
     });
 
-    const activeKey = computed(() => calibration.activePairKey());
+    const activeKey = computed(() => registration.activePairKey());
     const correspondences = computed(() => {
       const key = activeKey.value;
-      return key ? (calibration.correspondences.value[key] || []) : [];
+      return key ? (registration.correspondences.value[key] || []) : [];
     });
     const transformType = computed<TransformType>(
       () => (activeKey.value
-        ? calibration.transformTypeForPair(activeKey.value)
+        ? registration.transformTypeForPair(activeKey.value)
         : DEFAULT_TRANSFORM_TYPE),
     );
     const minPoints = computed(() => minPointsForTransform(transformType.value));
     const canFit = computed(() => correspondences.value.length >= minPoints.value);
-    const selectedCorrespondenceId = computed(() => calibration.selectedCorrespondenceId.value);
+    const selectedCorrespondenceId = computed(() => registration.selectedCorrespondenceId.value);
     /**
      * Delete the unlocked point on Del/Backspace: the selected correspondence
      * (both cameras' points) if one is selected, otherwise the pending point
      * that is mid-placement.
      */
     function deleteSelectedCorrespondence() {
-      if (calibration.selectedCorrespondenceId.value !== null) {
-        calibration.removeSelectedCorrespondence();
-      } else if (calibration.pendingPoint.value !== null) {
-        calibration.clearLast();
+      if (registration.selectedCorrespondenceId.value !== null) {
+        registration.removeSelectedCorrespondence();
+      } else if (registration.pendingPoint.value !== null) {
+        registration.clearLast();
       }
     }
     const canClearLast = computed(
-      () => calibration.pendingPoint.value !== null || correspondences.value.length > 0,
+      () => registration.pendingPoint.value !== null || correspondences.value.length > 0,
     );
     /** How many more correspondence pairs are needed before the transform can be fit. */
     const remainingPoints = computed(() => Math.max(0, minPoints.value - correspondences.value.length));
@@ -149,22 +150,22 @@ export default defineComponent({
     });
     /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
     const hasTransform = computed(() => canFit.value
-      || Boolean(activeKey.value && calibration.homographies.value[activeKey.value]));
-    /** The active pair's transform came from a calibration file (no in-app fit backing it). */
+      || Boolean(activeKey.value && registration.homographies.value[activeKey.value]));
+    /** The active pair's transform came from a registration file (no in-app fit backing it). */
     const hasLoadedTransform = computed(() => {
       const key = activeKey.value;
-      return Boolean(key && calibration.homographies.value[key] && calibration.isLoadedHomography(key));
+      return Boolean(key && registration.homographies.value[key] && registration.isLoadedHomography(key));
     });
     /**
-     * The active pair was refit in-app while a producer-stamped calibration is
+     * The active pair was refit in-app while a producer-stamped registration is
      * loaded, so its transform has diverged from what the stamped source
      * shipped -- worth saving and sending back to the producer.
      */
     const refinedFromSource = computed(() => {
       const key = activeKey.value;
       // Touch homographies so provenance changes recompute this (see store docs).
-      return Boolean(key && calibration.homographies.value[key]
-        && calibration.isRefinedFromSource(key));
+      return Boolean(key && registration.homographies.value[key]
+        && registration.isRefinedFromSource(key));
     });
     const canClearPair = computed(
       () => correspondences.value.length > 0 || hasLoadedTransform.value,
@@ -179,21 +180,21 @@ export default defineComponent({
     function setTransformType(type: TransformType) {
       const key = activeKey.value;
       if (key) {
-        calibration.setTransformType(key, type);
+        registration.setTransformType(key, type);
       }
     }
 
     function setAlignmentMode(mode: 'original' | 'AtoB' | 'BtoA') {
-      calibration.setAlignmentMode(mode);
+      registration.setAlignmentMode(mode);
     }
 
     /**
-     * Human-readable summary of the loaded calibration's provenance stamp
+     * Human-readable summary of the loaded registration's provenance stamp
      * (scalar entries only -- nested structures are preserved in the file but
      * not displayed).
      */
     const sourceReadout = computed(() => {
-      const source = calibration.source.value;
+      const source = registration.source.value;
       if (!source) {
         return null;
       }
@@ -205,12 +206,12 @@ export default defineComponent({
 
     /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
     const cursorReadout = computed(() => {
-      const cursor = calibration.cursorCoord.value;
+      const cursor = registration.cursorCoord.value;
       if (!cursor) {
         return null;
       }
       const [x, y] = cursor.coord;
-      const other = calibration.linkedPoint(cursor.camera, cursor.coord);
+      const other = registration.linkedPoint(cursor.camera, cursor.coord);
       const here = `${cursor.camera}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
       if (!other) {
         return here;
@@ -220,39 +221,39 @@ export default defineComponent({
     });
 
     /**
-     * Persist the calibration (all pairs) with the dataset: it is written as
-     * the project's per-camera calibration_<camera>.json files and restored
+     * Persist the registration (all pairs) with the dataset: it is written as
+     * the project's per-camera <camera>_to_<reference>_registration.json files and restored
      * on every dataset load (so the Align button works across sessions).
      * Deliberately not gated on the
      * active pair having correspondences: saving must also be able to persist
-     * a cleared state (so stale saved calibration doesn't survive Clear All /
+     * a cleared state (so stale saved registration doesn't survive Clear All /
      * per-row deletes) and state belonging to non-active pairs. Use
-     * {@link exportCalibration} to get a portable copy for sharing.
+     * {@link exportRegistration} to get a portable copy for sharing.
      */
     async function save() {
       saving.value = true;
       try {
-        calibration.maybeFitActivePair();
+        registration.maybeFitActivePair();
         await saveMetadata(datasetId.value, {
-          cameraHomographies: calibration.homographies.value,
-          cameraCorrespondences: calibration.correspondences.value,
-          cameraTransformTypes: calibration.transformTypes.value,
-          cameraRegistrationSource: calibration.source.value,
+          cameraHomographies: registration.homographies.value,
+          cameraCorrespondences: registration.correspondences.value,
+          cameraTransformTypes: registration.transformTypes.value,
+          cameraRegistrationSource: registration.source.value,
         });
-        calibration.markSaved();
+        registration.markSaved();
       } finally {
         saving.value = false;
       }
     }
 
     /**
-     * Download the calibration as a portable .json -- for handing refinements
+     * Download the registration as a portable .json -- for handing refinements
      * (points included) back to an external producer, or reusing on another
      * dataset. Saving is separate: see {@link save}.
      */
-    function exportCalibration() {
-      calibration.maybeFitActivePair();
-      downloadText(calibration.toRegistrationJson(), 'camera-registration.json');
+    function exportRegistration() {
+      registration.maybeFitActivePair();
+      downloadText(registration.toRegistrationJson(), 'camera-registration.json');
     }
 
     /** Trigger a browser download of `text` as `filename`. */
@@ -268,47 +269,43 @@ export default defineComponent({
       URL.revokeObjectURL(url);
     }
 
-    const calibrationFileInput = ref<HTMLInputElement | null>(null);
-    const loadCalibrationError = ref<string | null>(null);
-    const loadCalibrationWarning = ref<string | null>(null);
+    const registrationFileInput = ref<HTMLInputElement | null>(null);
+    const loadRegistrationError = ref<string | null>(null);
+    const loadRegistrationWarning = ref<string | null>(null);
 
-    const hasAnyCalibration = computed(
-      () => Object.values(calibration.correspondences.value).some((list) => list.length > 0)
-        || Object.keys(calibration.homographies.value).length > 0,
+    const hasAnyRegistration = computed(
+      () => Object.values(registration.correspondences.value).some((list) => list.length > 0)
+        || Object.keys(registration.homographies.value).length > 0,
     );
 
-    /** Load a calibration .json, replacing every pair's state. */
-    async function loadJsonCalibration(file: File) {
+    /** Load a registration .json, replacing every pair's state. */
+    async function loadJsonRegistration(file: File) {
       const text = await file.text();
-      if (hasAnyCalibration.value) {
+      if (hasAnyRegistration.value) {
         const confirmed = await prompt({
-          title: 'Load calibration',
-          text: 'This will replace the current calibration for ALL camera pairs. Continue?',
+          title: 'Load registration',
+          text: 'This will replace the current registration for ALL camera pairs. Continue?',
           confirm: true,
         });
         if (!confirmed) {
           return;
         }
       }
-      const { cameras: fileCameras } = calibration.loadRegistrationText(text);
-      const known = new Set(cameras.value);
-      const unknown = fileCameras.filter((name) => !known.has(name));
-      if (unknown.length) {
-        loadCalibrationWarning.value = `Loaded, but these cameras are not in this dataset: ${unknown.join(', ')}`;
-      }
+      const { cameras: fileCameras } = registration.loadRegistrationText(text);
+      loadRegistrationWarning.value = unknownCameraWarning(file.name, fileCameras, cameras.value);
     }
 
-    function onCalibrationFileSelected(event: Event) {
+    function onRegistrationFileSelected(event: Event) {
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0];
       input.value = '';
       if (!file) {
         return;
       }
-      loadCalibrationError.value = null;
-      loadCalibrationWarning.value = null;
-      loadJsonCalibration(file).catch((err) => {
-        loadCalibrationError.value = err instanceof Error ? err.message : String(err);
+      loadRegistrationError.value = null;
+      loadRegistrationWarning.value = null;
+      loadJsonRegistration(file).catch((err) => {
+        loadRegistrationError.value = err instanceof Error ? err.message : String(err);
       });
     }
 
@@ -318,10 +315,10 @@ export default defineComponent({
       alignmentSummary,
       camLeft,
       camRight,
-      calibration,
-      pickingEnabled: calibration.pickingEnabled,
-      alignment: calibration.alignment,
-      fitError: calibration.fitError,
+      registration,
+      pickingEnabled: registration.pickingEnabled,
+      alignment: registration.alignment,
+      fitError: registration.fitError,
       selectedCorrespondenceId,
       deleteSelectedCorrespondence,
       cursorReadout,
@@ -338,18 +335,18 @@ export default defineComponent({
       canClearLast,
       canFit,
       fitQualityColor,
-      linkedNav: calibration.linkedNav,
-      dirty: calibration.dirty,
+      linkedNav: registration.linkedNav,
+      dirty: registration.dirty,
       saving,
       sourceReadout,
-      calibrationFileInput,
-      loadCalibrationError,
-      loadCalibrationWarning,
+      registrationFileInput,
+      loadRegistrationError,
+      loadRegistrationWarning,
       setTransformType,
       setAlignmentMode,
       save,
-      exportCalibration,
-      onCalibrationFileSelected,
+      exportRegistration,
+      onRegistrationFileSelected,
     };
   },
 });
@@ -369,32 +366,32 @@ export default defineComponent({
     <v-divider class="my-3" />
 
     <input
-      ref="calibrationFileInput"
+      ref="registrationFileInput"
       type="file"
       accept=".json"
       style="display: none"
-      @change="onCalibrationFileSelected"
+      @change="onRegistrationFileSelected"
     >
     <v-btn
       block
       outlined
       small
       class="mb-2"
-      @click="calibrationFileInput.click()"
+      @click="registrationFileInput.click()"
     >
-      Load calibration
+      Load registration
     </v-btn>
     <span
-      v-if="loadCalibrationError"
+      v-if="loadRegistrationError"
       class="text-caption error--text d-block"
     >
-      {{ loadCalibrationError }}
+      {{ loadRegistrationError }}
     </span>
     <span
-      v-if="loadCalibrationWarning"
+      v-if="loadRegistrationWarning"
       class="text-caption warning--text d-block"
     >
-      {{ loadCalibrationWarning }}
+      {{ loadRegistrationWarning }}
     </span>
     <span
       v-if="sourceReadout"
@@ -406,8 +403,8 @@ export default defineComponent({
       v-if="refinedFromSource"
       class="text-caption warning--text d-block"
     >
-      This pair has been refined in-app since the source calibration was
-      produced. Export the calibration to hand the refinement (and its
+      This pair has been refined in-app since the source registration was
+      produced. Export the registration to hand the refinement (and its
       points) back to the producer.
     </span>
 
@@ -498,14 +495,14 @@ export default defineComponent({
               icon="mdi-undo"
               :disabled="!canClearLast"
               tooltip-text="Undo the pending point, or the last completed pair"
-              @click="calibration.clearLast()"
+              @click="registration.clearLast()"
             />
             <tooltip-btn
               color="error"
               icon="mdi-delete-sweep"
               :disabled="!canClearPair"
               tooltip-text="Clear all correspondences and any loaded transform for this pair"
-              @click="calibration.clearPair()"
+              @click="registration.clearPair()"
             />
           </div>
           <v-simple-table
@@ -529,7 +526,7 @@ export default defineComponent({
                   :style="c.id === selectedCorrespondenceId
                     ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
                     : undefined"
-                  @click="calibration.selectCorrespondence(c.id)"
+                  @click="registration.selectCorrespondence(c.id)"
                 >
                   <td>{{ i + 1 }}</td>
                   <td>{{ c.a[0].toFixed(1) }}, {{ c.a[1].toFixed(1) }}</td>
@@ -539,7 +536,7 @@ export default defineComponent({
                       color="error"
                       icon="mdi-delete"
                       tooltip-text="Remove this pair"
-                      @click="calibration.removeCorrespondence(c.id)"
+                      @click="registration.removeCorrespondence(c.id)"
                     />
                   </td>
                 </tr>
@@ -663,16 +660,16 @@ export default defineComponent({
       class="mb-2"
       @click="save"
     >
-      {{ dirty ? 'Save calibration' : 'Calibration saved' }}
+      {{ dirty ? 'Save registration' : 'Registration saved' }}
     </v-btn>
     <v-btn
       block
       outlined
       small
       class="mb-2"
-      @click="exportCalibration"
+      @click="exportRegistration"
     >
-      Export calibration (.json)
+      Export registration (.json)
     </v-btn>
   </div>
 </template>

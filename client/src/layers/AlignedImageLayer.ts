@@ -1,6 +1,6 @@
 import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
-import { Matrix3, subdivideWarpQuads, warpGridSize } from '../alignedView/homography';
+import { Matrix3, geojsWarpQuads } from '../alignedView/homography';
 import { findQuadMediaLayer } from '../components/layerManager/quadMediaSource';
 
 export interface CameraImage {
@@ -32,7 +32,7 @@ interface AlignedImageLayerParams {
  * while the multicam aligned view is on (SEAL-TK feature 2, decision D1: the
  * proven quad-corner warp). The warp is drawn as an n x n grid of geojs
  * canvas quads whose corners are mapped through the exact projective
- * transform ({@link subdivideWarpQuads}), and the annotator's own native
+ * transform ({@link geojsWarpQuads}), and the annotator's own native
  * image quad layer is hidden while the warp is shown -- so annotation layers
  * (whose vertices are mapped through the same matrix at draw time) land
  * exactly on the warped imagery. When no transform applies, everything is
@@ -73,7 +73,7 @@ export default class AlignedImageLayer {
     // Right-click recenter: center this pane on the clicked location, in any
     // view mode. While the aligned view is active, the aligned pan/zoom link
     // then recenters every other pane on the same reference-space point;
-    // during calibration picking, CalibrationKeypointLayer additionally maps
+    // during registration picking, RegistrationKeypointLayer additionally maps
     // the recenter across the active pair.
     this.annotator.geoViewerRef.value.geoOn(
       geo.event.mouseclick,
@@ -145,22 +145,10 @@ export default class AlignedImageLayer {
       return;
     }
     const { width: w, height: h } = src;
-    const grid = warpGridSize(transform, w, h);
     // 2px cell overlap hides the canvas antialiasing seams between abutting
     // sub-quads (dark grid lines); safe here because quads draw opaque.
-    const quads = subdivideWarpQuads(transform, w, h, grid, 2).map((q) => ({
-      ul: { x: q.ul[0], y: q.ul[1] },
-      ur: { x: q.ur[0], y: q.ur[1] },
-      lr: { x: q.lr[0], y: q.lr[1] },
-      ll: { x: q.ll[0], y: q.ll[1] },
-      // geojs crop: left/top/right/bottom select the source-pixel region;
-      // x/y (the "size after crop") are set to the full source size so that
-      // region stretches across the whole sub-quad.
-      crop: {
-        ...q.crop, x: w, y: h,
-      },
-      [src.kind]: src.source,
-    }));
+    const quads = geojsWarpQuads(transform, w, h, 2)
+      .map((q) => ({ ...q, [src.kind]: src.source }));
     // Mirror the native layer's CSS filter (image enhancements) so toggling
     // the warp doesn't change brightness/contrast rendering.
     const nativeLayer = this.findNativeQuadLayer();

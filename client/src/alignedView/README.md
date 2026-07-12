@@ -8,7 +8,7 @@ Stored annotation geometry always remains in each camera's native image space; t
 
 | File | Role |
 | --- | --- |
-| `homography.ts` | Low-level 3×3 matrix primitives: multiply, invert, apply, solve homographies (normalized DLT), linear-system helpers, and GeoJS warp-grid utilities (`subdivideWarpQuads`, `warpGridSize`, `localLinkedScale`). |
+| `homography.ts` | Low-level 3×3 matrix primitives: multiply, invert, apply, solve homographies (normalized DLT), linear-system helpers, and GeoJS warp-grid utilities (`subdivideWarpQuads`, `warpGridSize`, `geojsWarpQuads`, `localLinkedScale`). |
 | `transform.ts` | Higher-level alignment models (translation, rigid, similarity, affine, homography) that all return a `Matrix3`. Defines `TransformType`, UI labels, minimum point counts, and `DEFAULT_TRANSFORM_TYPE` (`similarity`). |
 | `CameraRegistrationStore.ts` | Reactive Vue store for in-app calibration: picked point correspondences, fitted/loaded pair transforms, per-pair transform-type choices, and producer provenance. Loads/saves the portable registration JSON and tracks dirty state. |
 | `cameraRegistrationFiles.ts` | Serialization helpers for the per-camera `<camera>_to_<reference>_registration.json` file format. Converts between the store's keyed state and self-describing file pairs; builds export bundles and filters imports to a single camera. |

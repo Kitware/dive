@@ -7,7 +7,7 @@ import type { Point } from '../../../alignedView/homography';
 import useLinkedViewers from './useLinkedViewers';
 
 /**
- * Links pan/zoom recentering between the two cameras of the active calibration
+ * Links pan/zoom recentering between the two cameras of the active registration
  * pair: panning or zooming one recenters the other on the same point, mapped
  * through the pair's fitted homography ({@link CameraRegistrationStore.linkedPoint}).
  * The mapping assumes UNWARPED panes showing native coordinates, so this is
@@ -16,9 +16,9 @@ import useLinkedViewers from './useLinkedViewers';
  * the aligned view is somehow active. Distinct from the general "sync cameras"
  * toggle (Controls.vue), which assumes identical pixel scale between panes.
  */
-export default function useCalibrationNavigation(
+export default function useRegistrationNavigation(
   aggregateController: Ref<AggregateMediaController>,
-  calibration: CameraRegistrationStore,
+  registration: CameraRegistrationStore,
   alignedView?: AlignedViewStore,
 ) {
   const {
@@ -43,7 +43,7 @@ export default function useCalibrationNavigation(
         return;
       }
       const center = source.center();
-      const linked = calibration.linkedPoint(camera, [center.x, center.y]);
+      const linked = registration.linkedPoint(camera, [center.x, center.y]);
       if (!linked || linked.camera !== otherCamera) {
         return;
       }
@@ -51,7 +51,7 @@ export default function useCalibrationNavigation(
       // here (position-dependent for non-similarity fits, so sampled at center;
       // null when unavailable -- leave the target's zoom alone).
       const scale = localLinkedScale(
-        (p) => calibration.linkedPoint(camera, p)?.coord ?? null,
+        (p) => registration.linkedPoint(camera, p)?.coord ?? null,
         [center.x, center.y],
       );
       applyView(target, {
@@ -63,11 +63,11 @@ export default function useCalibrationNavigation(
 
   function setup() {
     teardown();
-    const pair = calibration.activePair.value;
+    const pair = registration.activePair.value;
     // Authoring UI: active while picking and "Fit pan/zoom" is on (once a fit
     // exists, linkedPoint returns matches). attach() no-ops for a not-yet-ready
     // pane; the resizeTrigger watch re-runs setup once both viewers exist.
-    if (calibration.pickingEnabled.value && calibration.linkedNav.value && pair) {
+    if (registration.pickingEnabled.value && registration.linkedNav.value && pair) {
       attach(pair.camA, link(pair.camA, pair.camB));
       attach(pair.camB, link(pair.camB, pair.camA));
       // Snap immediately from camA so toggling "Fit pan/zoom" on (or a refit
@@ -80,10 +80,10 @@ export default function useCalibrationNavigation(
 
   watch(
     [
-      calibration.pickingEnabled,
-      calibration.linkedNav,
-      calibration.activePair,
-      calibration.homographies,
+      registration.pickingEnabled,
+      registration.linkedNav,
+      registration.activePair,
+      registration.homographies,
       aggregateController.value.resizeTrigger,
     ],
     setup,
@@ -102,7 +102,7 @@ export default function useCalibrationNavigation(
     if (!request || alignedView?.active.value) {
       return;
     }
-    const pair = calibration.activePair.value;
+    const pair = registration.activePair.value;
     if (!pair || (request.camera !== pair.camA && request.camera !== pair.camB)) {
       return;
     }
@@ -110,12 +110,12 @@ export default function useCalibrationNavigation(
     if (source) {
       guarded(() => source.center({ x: request.coord[0], y: request.coord[1] }));
     }
-    const linked = calibration.linkedPoint(request.camera, request.coord);
+    const linked = registration.linkedPoint(request.camera, request.coord);
     const target = linked && viewer(linked.camera);
     if (linked && target) {
       guarded(() => target.center({ x: linked.coord[0], y: linked.coord[1] }));
     }
   }
 
-  watch(() => calibration.recenterRequest.value, handleRecenterRequest);
+  watch(() => registration.recenterRequest.value, handleRecenterRequest);
 }
