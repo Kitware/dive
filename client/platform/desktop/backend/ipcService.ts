@@ -58,9 +58,9 @@ function isSam3Installed(viamePath: string): boolean {
   ));
 }
 
-// Auto-align (Camera Registration panel) needs the MINIMA-LoFTR matcher weights
+// Auto-register (Camera Registration panel) needs the MINIMA-LoFTR matcher weights
 // in the VIAME install; without them the button is hidden.
-function isAutoAlignInstalled(viamePath: string): boolean {
+function isAutoRegisterInstalled(viamePath: string): boolean {
   if (process.env.VIAME_ALIGNMENT_WEIGHTS
       && fs.existsSync(process.env.VIAME_ALIGNMENT_WEIGHTS)) {
     return true;
@@ -434,12 +434,12 @@ export default function register() {
     return { installed: isSam3Installed(currentSettings.viamePath) };
   });
 
-  ipcMain.handle('alignment-available', () => {
+  ipcMain.handle('auto-register-available', () => {
     const currentSettings = settings.get();
-    return { installed: isAutoAlignInstalled(currentSettings.viamePath) };
+    return { installed: isAutoRegisterInstalled(currentSettings.viamePath) };
   });
 
-  ipcMain.handle('alignment-auto-align', async (_, args: {
+  ipcMain.handle('auto-register', async (_, args: {
     imagePathA: string;
     imagePathB: string;
     options?: {
@@ -453,11 +453,11 @@ export default function register() {
   }) => {
     const segService = getInteractiveServiceManager();
 
-    // Auto-align only needs the service process running -- its matcher model
+    // Auto-register only needs the service process running -- its matcher model
     // loads lazily inside the auto_align request (and stays resident).
     await segService.ensureStarted(settings.get());
 
-    const response = await segService.autoAlign(args);
+    const response = await segService.autoRegister(args);
     return response;
   });
 

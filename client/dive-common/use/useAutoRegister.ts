@@ -1,8 +1,8 @@
 import { provide, inject, Ref } from 'vue';
-import type { AutoAlignResponse } from 'dive-common/apispec';
+import type { AutoRegisterResponse } from 'dive-common/apispec';
 
 /**
- * Auto-align service bridge for the Camera Registration panel.
+ * Auto-register service bridge for the Camera Registration panel.
  *
  * The platform layer (desktop ViewerLoader) implements the actual call — it
  * resolves each camera's image path for the current frame and invokes the
@@ -10,22 +10,22 @@ import type { AutoAlignResponse } from 'dive-common/apispec';
  * number); RegistrationTools.vue injects it. On platforms without the
  * capability (web) nothing is provided and the panel hides the button.
  */
-export interface AutoAlignService {
+export interface AutoRegisterService {
   /**
-   * Whether auto-align is usable right now. Reactive: the platform's
+   * Whether auto-register is usable right now. Reactive: the platform's
    * availability probe (matcher weights installed?) resolves after mount.
    */
   available: Readonly<Ref<boolean>>;
   /** Compute an alignment from camera A to camera B on the current frame. */
-  run: (cameraA: string, cameraB: string) => Promise<AutoAlignResponse>;
+  run: (cameraA: string, cameraB: string) => Promise<AutoRegisterResponse>;
 }
 
-const AutoAlignSymbol = Symbol('autoAlign');
+const AutoRegisterSymbol = Symbol('autoRegister');
 
-export function provideAutoAlign(service: AutoAlignService) {
-  provide(AutoAlignSymbol, service);
+export function provideAutoRegister(service: AutoRegisterService) {
+  provide(AutoRegisterSymbol, service);
 }
 
-export function useAutoAlign(): AutoAlignService | null {
-  return inject<AutoAlignService | null>(AutoAlignSymbol, null);
+export function useAutoRegister(): AutoRegisterService | null {
+  return inject<AutoRegisterService | null>(AutoRegisterSymbol, null);
 }

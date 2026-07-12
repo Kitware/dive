@@ -478,12 +478,12 @@ export class InteractiveServiceManager extends EventEmitter {
   }
 
   /**
-   * Auto-align: compute a cross-modality homography between two camera
+   * Auto-register: compute a cross-modality homography between two camera
    * frames (image A -> image B, native pixel coordinates) with the deep
    * matcher hosted by the alignment backend. The matcher model loads lazily
    * on the first call and stays resident in the service process.
    */
-  async autoAlign(request: {
+  async autoRegister(request: {
     imagePathA: string;
     imagePathB: string;
     options?: {
@@ -497,6 +497,8 @@ export class InteractiveServiceManager extends EventEmitter {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }): Promise<any> {
     const response = await this.sendRequest({
+      // The interactive service's wire name (VIAME branch dev/auto-align)
+      // still says "align"; rename here in step with the service side.
       command: 'auto_align',
       image_path_a: request.imagePathA,
       image_path_b: request.imagePathB,
@@ -508,8 +510,8 @@ export class InteractiveServiceManager extends EventEmitter {
         top_k: request.options.topK,
         match_threshold: request.options.matchThreshold,
       },
-    }, 'Auto align');
-    // Map the service's snake_case payload to the AutoAlignResponse shape.
+    }, 'Auto register');
+    // Map the service's snake_case payload to the AutoRegisterResponse shape.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = response as any;
     return {
