@@ -1,18 +1,38 @@
 /**
- * Shared helper for discovering DIVE camera-registration .json files in a
- * multicam parent-folder selection on web, mirroring the desktop backend's
- * findParentFolderTransformFiles: a root-level file qualifies when it is
- * named like a per-camera *_registration.json and carries a "pairs" list
- * (the conventional name is the producer's declaration of intent, so `type`
- * is optional there), or, under any other name, when it self-identifies
- * with `type: 'dive-camera-registration'`. Ordered for deterministic slot
- * attachment: per-camera *_registration.json files first, then other
- * self-identified candidates, alphabetically within each group.
+ * Discovery of DIVE camera-registration .json files in a multicam
+ * parent-folder selection, shared by the web File-list scan here and the
+ * desktop backend's findParentFolderTransformFiles.
  */
 import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import { stripPathPrefix } from './stereoParentFolder';
 
+/** Matches per-camera registration files. */
 export const RegistrationFileNamePattern = /^.+_registration\.json$/i;
+
+/**
+ * Whether a root-level .json qualifies as a registration file: named like a
+ * per-camera *_registration.json and carrying a "pairs" list (the
+ * conventional name is the producer's declaration of intent, so `type` is
+ * optional there -- matching every other load path), or, under any other
+ * name, self-identifying with `type: 'dive-camera-registration'` -- so a
+ * camera-rig calibration .json or other stray JSON in the collect root is
+ * never grabbed by mistake.
+ */
+export function qualifiesAsRegistrationFile(fileName: string, data: unknown): boolean {
+  const record = data as { pairs?: unknown; type?: unknown } | null | undefined;
+  return Boolean(record && Array.isArray(record.pairs)
+    && (RegistrationFileNamePattern.test(fileName) || record.type === REGISTRATION_FILE_TYPE));
+}
+
+/**
+ * Candidate order for deterministic slot attachment: per-camera
+ * *_registration.json files first, then other candidates, alphabetically
+ * within each group.
+ */
+export function compareRegistrationCandidates(a: string, b: string): number {
+  const rank = (name: string) => (RegistrationFileNamePattern.test(name) ? 0 : 1);
+  return rank(a) - rank(b) || a.localeCompare(b);
+}
 
 /**
  * Assign discovered registration files to camera slots, shared by the
@@ -78,18 +98,14 @@ export async function findRegistrationFilesInFileList(
     }
     candidates.push({ path: parts[0], file });
   });
-  const rank = (name: string) => (RegistrationFileNamePattern.test(name) ? 0 : 1);
-  candidates.sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path));
+  candidates.sort((a, b) => compareRegistrationCandidates(a.path, b.path));
   const found: RegistrationFileMatch[] = [];
   // eslint-disable-next-line no-restricted-syntax
   for (const candidate of candidates) {
     try {
       // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
       const data = JSON.parse(await candidate.file.text());
-      const qualifies = data && Array.isArray(data.pairs)
-        && (RegistrationFileNamePattern.test(candidate.path)
-          || data.type === REGISTRATION_FILE_TYPE);
-      if (qualifies) {
+      if (qualifiesAsRegistrationFile(candidate.path, data)) {
         found.push(candidate);
       }
     } catch {

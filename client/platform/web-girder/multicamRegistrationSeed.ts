@@ -10,7 +10,7 @@
  */
 import CameraRegistrationStore, { RegistrationSource } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
-  CameraRegistrationValues, mergeRegistrationSources,
+  CameraRegistrationValues, mergeRegistrationSources, unknownCameraWarning,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 
 export interface RegistrationSeedEntry {
@@ -51,13 +51,9 @@ export async function parseRegistrationSeed(
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);
     }
-    const unknown = loaded.cameras.filter((name) => !datasetCameraNames.includes(name)).sort();
-    if (unknown.length) {
-      warnings.push(
-        `Registration file "${file.name}" names camera(s) not in this dataset: `
-        + `${unknown.join(', ')}. Pairs bind by the camera names in the file, so these `
-        + 'transforms will not take effect unless camera names match.',
-      );
+    const warning = unknownCameraWarning(file.name, loaded.cameras, datasetCameraNames);
+    if (warning) {
+      warnings.push(warning);
     }
     Object.assign(homographies, store.homographies.value);
     Object.assign(correspondences, store.correspondences.value);

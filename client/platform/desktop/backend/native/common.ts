@@ -1759,7 +1759,6 @@ export {
 
 export {
   fromRegistrationPairs,
-  mergeRegistrationSources,
   findParentFolderTransformFiles,
   exportCameraRegistration,
   importCameraRegistration,

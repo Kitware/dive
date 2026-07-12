@@ -10,7 +10,6 @@ import npath from 'path';
 import fs from 'fs-extra';
 
 import { TransformType, DEFAULT_TRANSFORM_TYPE } from 'vue-media-annotator/alignedView/transform';
-import { REGISTRATION_FILE_TYPE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
   buildPerCameraRegistrationFiles, registrationValuesSummary, filterRegistrationValues,
   mergeRegistrationValues, mergeRegistrationSources, CameraRegistrationValues,
@@ -19,15 +18,17 @@ import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView
 import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import { DatasetMetaMutable } from 'dive-common/apispec';
 import { referenceCameraName as multicamReferenceCameraName } from 'dive-common/multicamDisplay';
+import {
+  RegistrationFileNamePattern,
+  compareRegistrationCandidates,
+  qualifiesAsRegistrationFile,
+} from 'dive-common/registrationParentFolder';
 import { JsonMeta, Settings } from 'platform/desktop/constants';
 
 // eslint-disable-next-line import/no-cycle
 import {
   getValidatedProjectDir, loadJsonMetadata, saveMetadata,
 } from './common';
-
-/** Matches per-camera registration files in a dataset directory. */
-export const RegistrationFileNamePattern = /^.+_registration\.json$/i;
 
 export type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
 export type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
@@ -100,8 +101,6 @@ export function fromRegistrationPairs(
   });
   return { homographies, correspondences, transformTypes };
 }
-
-export { mergeRegistrationSources };
 
 async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
   await fs.writeFile(absPath, JSON.stringify(data, null, 2));
@@ -245,15 +244,10 @@ export async function saveRegistrationToDatasetDir(
 /**
  * Find every DIVE camera-registration .json (alignment transforms, the
  * registration panel's save format) in the parent folder root, for
- * auto-attaching at multicam import time. A file qualifies when it is named
- * like a per-camera *_registration.json and carries a "pairs" list (the
- * conventional name is the producer's declaration of intent, so `type` is
- * optional there -- matching every other load path), or, under any other
- * name, when it self-identifies with `type: 'dive-camera-registration'` --
- * so a camera-rig calibration .json or other stray JSON in the collect root
- * is never grabbed by mistake. Ordered for deterministic attachment:
- * per-camera *_registration.json files first, then any other
- * self-identified candidates, alphabetically within each group.
+ * auto-attaching at multicam import time -- the filesystem counterpart of
+ * the web File-list scan (findRegistrationFilesInFileList); both share the
+ * qualification rule and attachment order of
+ * dive-common/registrationParentFolder.
  */
 export async function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
   if (!await fs.pathExists(parentPath)) {
@@ -264,11 +258,10 @@ export async function findParentFolderTransformFiles(parentPath: string): Promis
     return [];
   }
   const children = await fs.readdir(parentPath, { withFileTypes: true });
-  const rank = (name: string) => (RegistrationFileNamePattern.test(name) ? 0 : 1);
   const candidates = children
     .filter((entry) => entry.isFile() && /\.json$/i.test(entry.name))
     .map((entry) => entry.name)
-    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    .sort(compareRegistrationCandidates);
   const found: string[] = [];
   // eslint-disable-next-line no-restricted-syntax
   for (const name of candidates) {
@@ -276,9 +269,7 @@ export async function findParentFolderTransformFiles(parentPath: string): Promis
     try {
       // eslint-disable-next-line no-await-in-loop -- candidates checked in priority order
       const data = await fs.readJson(absPath);
-      const qualifies = data && Array.isArray(data.pairs)
-        && (RegistrationFileNamePattern.test(name) || data.type === REGISTRATION_FILE_TYPE);
-      if (qualifies) {
+      if (qualifiesAsRegistrationFile(name, data)) {
         found.push(absPath);
       }
     } catch {

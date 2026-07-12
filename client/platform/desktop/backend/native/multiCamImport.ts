@@ -17,13 +17,16 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
+import {
+  mergeRegistrationSources, unknownCameraWarning,
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { findImagesInFolder } from './common';
 import {
   CameraCorrespondences,
   CameraHomographies,
   CameraTransformTypes,
   fromRegistrationPairs,
-  mergeRegistrationSources,
+  RegistrationPair,
   RegistrationSource,
 } from './cameraRegistration';
 
@@ -132,20 +135,13 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         Object.assign(seedCorrespondences, parsed.correspondences);
         Object.assign(seedTransformTypes, parsed.transformTypes);
         const fileName = item.transformFile.replace(/^.*[\\/]/, '');
-        // Pair bodies are authoritative on load, so a pair naming a camera
-        // this dataset doesn't have imports fine but never resolves in the
-        // Aligned View. Warn rather than fail: the mismatch may be
-        // intentional (a rig file shared across datasets) or fixable later.
-        const namedCameras = new Set(
-          Object.keys(parsed.transformTypes).flatMap((key) => key.split('::')),
+        const warning = unknownCameraWarning(
+          fileName,
+          (data.pairs as RegistrationPair[]).flatMap((pair) => [pair.left, pair.right]),
+          Object.keys(cameras),
         );
-        const unknown = [...namedCameras].filter((name) => !(name in cameras)).sort();
-        if (unknown.length) {
-          importWarnings.push(
-            `Registration file "${fileName}" names camera(s) not in this dataset: `
-            + `${unknown.join(', ')}. Pairs bind by the camera names in the file, so these `
-            + 'transforms will not take effect unless camera names match.',
-          );
+        if (warning) {
+          importWarnings.push(warning);
         }
         // Producer provenance travels with the seed; per-file stamps are
         // merged below (agreement keeps the stamp, disagreement is recorded

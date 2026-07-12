@@ -173,6 +173,30 @@ export function mergeRegistrationSources(
 }
 
 /**
+ * Warning for a registration file naming cameras a dataset doesn't have,
+ * shared by the desktop and web import seeding paths. Pair bodies are
+ * authoritative on load, so such pairs import fine but never resolve in the
+ * Aligned View. A warning rather than a failure: the mismatch may be
+ * intentional (a rig file shared across datasets) or fixable later. Null
+ * when every named camera is known.
+ */
+export function unknownCameraWarning(
+  fileName: string,
+  namedCameras: string[],
+  datasetCameras: string[],
+): string | null {
+  const unknown = [...new Set(namedCameras)]
+    .filter((name) => !datasetCameras.includes(name))
+    .sort();
+  if (!unknown.length) {
+    return null;
+  }
+  return `Registration file "${fileName}" names camera(s) not in this dataset: `
+    + `${unknown.join(', ')}. Pairs bind by the camera names in the file, so these `
+    + 'transforms will not take effect unless camera names match.';
+}
+
+/**
  * Merge a newly imported calibration into a dataset's existing one. Every
  * pair the import names replaces that pair wholly (points, transforms, and
  * model choice together -- a pair is one artifact); pairs it doesn't name
