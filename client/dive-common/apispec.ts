@@ -634,7 +634,7 @@ export interface TextQueryResponse {
   fallback?: boolean;
 }
 
-export interface AutoAlignRequest {
+export interface AutoRegisterRequest {
   /** Path to camera A's image for the chosen frame */
   imagePathA: string;
   /** Path to camera B's image for the chosen frame */
@@ -655,7 +655,7 @@ export interface AutoAlignRequest {
   };
 }
 
-export interface AutoAlignResponse {
+export interface AutoRegisterResponse {
   /** Whether alignment succeeded (quality gate passed) */
   success: boolean;
   /** Machine-readable failure code:

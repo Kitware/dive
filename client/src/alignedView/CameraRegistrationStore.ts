@@ -643,10 +643,10 @@ export default class CameraRegistrationStore {
    * rows in native pixels), switch the pair to a homography fit, and fit from
    * those points. The points land in the normal correspondence table so the
    * user can inspect, delete, or drag-refine them exactly like hand-picked
-   * ones. Provenance (`meta`, e.g. { autoAlign: { model, inlierRatio } }) is
+   * ones. Provenance (`meta`, e.g. { autoRegister: { model, inlierRatio } }) is
    * merged into {@link source} so it travels with saves/exports.
    */
-  applyAutoAlignment(
+  applyAutoRegistration(
     camA: string,
     camB: string,
     inliers: [number, number, number, number][],
