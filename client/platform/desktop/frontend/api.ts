@@ -9,7 +9,7 @@ import type {
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
-  AutoAlignRequest, AutoAlignResponse,
+  AutoRegisterRequest, AutoRegisterResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -425,17 +425,17 @@ async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> 
 }
 
 /**
- * Auto Align API (Camera Registration panel)
+ * Auto Register API (Camera Registration panel)
  * Computes a cross-modality homography between two camera frames using the
  * deep matcher hosted by the interactive service.
  */
 
-async function autoAlignAvailable(): Promise<{ installed: boolean }> {
-  return window.diveDesktop.invoke('alignment-available');
+async function autoRegisterAvailable(): Promise<{ installed: boolean }> {
+  return window.diveDesktop.invoke('auto-register-available');
 }
 
-async function autoAlign(request: AutoAlignRequest): Promise<AutoAlignResponse> {
-  return window.diveDesktop.invoke('alignment-auto-align', request);
+async function autoRegister(request: AutoRegisterRequest): Promise<AutoRegisterResponse> {
+  return window.diveDesktop.invoke('auto-register', request);
 }
 
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
@@ -851,9 +851,9 @@ export {
   textQuery,
   refineDetections,
   runTextQueryPipeline,
-  /* Auto Align APIs */
-  autoAlignAvailable,
-  autoAlign,
+  /* Auto Register APIs */
+  autoRegisterAvailable,
+  autoRegister,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

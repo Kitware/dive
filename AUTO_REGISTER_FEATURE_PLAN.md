@@ -1,6 +1,6 @@
-# Auto Align (deep-feature alignment) — implementation plan
+# Auto Register (deep-feature alignment) — implementation plan
 
-Adds an **"Auto Align" button to the Manual Alignment tab** (branch `dev/keypoint-gui`)
+Adds an **"Auto Register" button to the Camera Registration tab** (branch `dev/keypoint-gui`)
 that computes a homography between two cameras of a multicam rig (e.g. EO ↔ IR) using a
 deep dense feature matcher, and injects the result into the existing calibration
 workflow for review, refinement, and save.
@@ -38,8 +38,8 @@ already:
 - already has a two-image request shape (`stereo setFrame` takes
   `left_image_path` + `right_image_path`).
 
-Auto-align is a new command on this service, not a pipeline. GPU impact on a shared
-server: one auto-align at a time per user process (the service is single-threaded
+Auto-register is a new command on this service, not a pipeline. GPU impact on a shared
+server: one auto-register at a time per user process (the service is single-threaded
 request/response), ~5 GB VRAM while the model is resident, sub-second–seconds per pair.
 
 ## Model choice (Phase 0 decides)
@@ -59,7 +59,7 @@ pluggable backend selected by config, so the default can change without touching
 ## Architecture
 
 ```
-CalibrationTools.vue ── "Auto Align" button (camLeft, camRight, current frame)
+RegistrationTools.vue ── "Auto Register" button (camLeft, camRight, current frame)
        │  emit / injected handler
 ViewerLoader.vue ── resolve paths: stereoImagePathGetters[camLeft/Right](frame), frameTime
        │  window.ipcRenderer.invoke('interactive-auto-align', req)
@@ -71,7 +71,7 @@ viame.core.interactive_service ── auto_align handler:
        → {homography: 3x3, inliers: [[ax,ay,bx,by]…] (top ~24, spatially spread),
           inlier_ratio, model, elapsed_ms}
        │
-CameraCalibrationStore ── inject inliers as correspondences → fitTransform
+CameraRegistrationStore ── inject inliers as correspondences → fitTransform
        → user inspects table + ghost overlay, refines, hits Save (existing path)
 ```
 
@@ -161,8 +161,8 @@ In `viame.core.interactive_service` (same module the text-query/stereo commands 
 - `client/platform/desktop/backend/native/interactive.ts`: `autoAlign(request)` method
   modeled on `setFrame`/`textQuery`; availability probe (is the matcher package
   importable) modeled on `segmentationSam3Installed`.
-- `client/platform/desktop/backend/ipcService.ts`: `interactive-auto-align` (+
-  `interactive-auto-align-available`) handlers.
+- `client/platform/desktop/backend/ipcService.ts`: `interactive-auto-register` (+
+  `interactive-auto-register-available`) handlers.
 - `client/platform/desktop/frontend/api.ts`: `autoAlign()` + probe.
 - `client/platform/desktop/frontend/components/ViewerLoader.vue`: handler resolving both
   camera image paths via `stereoImagePathGetters.value[cam]` (per-camera getters already
@@ -171,11 +171,11 @@ In `viame.core.interactive_service` (same module the text-query/stereo commands 
 
 ### Phase 3 — Store + UI
 
-- `client/src/CameraCalibrationStore.ts`: `applyAutoAlignment(camA, camB, inliers,
+- `client/src/CameraRegistrationStore.ts`: `applyAutoAlignment(camA, camB, inliers,
   meta)` — replaces (with confirm) the pair's correspondences, sets transform type to
   `homography`, calls the existing fit path, records source metadata.
-- `client/dive-common/components/CameraCalibration/CalibrationTools.vue`:
-  - "Auto Align" button next to the Transform Type block; enabled when a valid distinct
+- `client/dive-common/components/CameraCalibration/RegistrationTools.vue`:
+  - "Auto Register" button next to the Transform Type block; enabled when a valid distinct
     pair is selected **and** the desktop probe says available (web renders nothing —
     same gating as `textQueryEnabled`).
   - Spinner during the request (`save()`/`saving` pattern), errors surfaced like
