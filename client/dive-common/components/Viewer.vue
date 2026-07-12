@@ -175,6 +175,7 @@ export default defineComponent({
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
+      setResetZoomOverride,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -438,7 +439,13 @@ export default defineComponent({
         return;
       }
       multicamAlignmentInitialized = true;
-      useAlignedNavigation(aggregateController, alignedView, multiCamList);
+      // The selected camera drives the aligned-aware "reset pan and zoom":
+      // centering fits ITS content in reference space and mirrors that view
+      // to every pane through the link.
+      useAlignedNavigation(aggregateController, alignedView, multiCamList, {
+        selectedCamera,
+        setResetZoomOverride,
+      });
       // Publish the reference even while unresolved so UI outside the viewer
       // core (e.g. the import menu's per-pair buttons) can name it.
       watch([alignedResolution, referenceCamera], ([resolution, reference]) => {

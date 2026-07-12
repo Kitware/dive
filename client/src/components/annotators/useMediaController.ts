@@ -263,6 +263,29 @@ export function useMediaController() {
     synchronizeCameras.value = val;
   }
 
+  /**
+   * Optional replacement for the aggregate "reset pan and zoom" behavior,
+   * installed by the aligned-view navigation link (useAlignedNavigation).
+   * While the aligned view is active every pane renders in the shared
+   * reference space, so resetting each pane to its own native bounds parks
+   * the view on an empty corner instead of the imagery. The override returns
+   * true when it handled the reset, false to fall back to the per-pane
+   * native reset. Lives in this closure (not on the aggregate object) so
+   * consumers that cached an earlier aggregate instance still route through
+   * it.
+   */
+  let resetZoomOverride: (() => boolean) | null = null;
+  function setResetZoomOverride(override: (() => boolean) | null) {
+    resetZoomOverride = override;
+  }
+
+  function aggregateResetZoom() {
+    if (resetZoomOverride && resetZoomOverride()) {
+      return;
+    }
+    subControllers.forEach((mc) => mc.resetZoom());
+  }
+
   bus.$on('pan', (camEvent: {camera: string; event: GeoEvent}) => {
     const activeMap = geoViewers[camEvent.camera]?.value;
     if (activeMap !== undefined && synchronizeCameras.value) {
@@ -561,6 +584,7 @@ export function useMediaController() {
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
       imageRevision: toRef(state[camera], 'imageRevision'),
+      originalBounds: toRef(state[camera], 'originalBounds'),
       prevFrame,
       nextFrame,
       play: _play,
@@ -707,7 +731,7 @@ export function useMediaController() {
       pause: aggregatePause,
       play: aggregatePlay,
       playing: defaultController.playing,
-      resetZoom: over(map(subControllers, 'resetZoom')),
+      resetZoom: aggregateResetZoom,
       currentTime: defaultController.currentTime,
       getController,
       toggleSynchronizeCameras,
@@ -732,5 +756,6 @@ export function useMediaController() {
     onResize,
     clear,
     setAlignedFrameResolver,
+    setResetZoomOverride,
   };
 }

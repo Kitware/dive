@@ -1,6 +1,7 @@
-import { Ref, watch } from 'vue';
+import { onBeforeUnmount, Ref, watch } from 'vue';
 import type { AggregateMediaController } from '../mediaControllerType';
 import type AlignedViewStore from '../../../alignedView/AlignedViewStore';
+import { applyHomography, Point } from '../../../alignedView/homography';
 import useLinkedViewers from './useLinkedViewers';
 
 /**
@@ -21,6 +22,12 @@ export default function useAlignedNavigation(
   aggregateController: Ref<AggregateMediaController>,
   alignedView: AlignedViewStore,
   cameras: Ref<string[]>,
+  options?: {
+    /** The camera pane the user is working in (Viewer.vue's selection). */
+    selectedCamera?: Ref<string>;
+    /** useMediaController's hook for replacing the aggregate "reset pan and zoom". */
+    setResetZoomOverride?: (override: (() => boolean) | null) => void;
+  },
 ) {
   const {
     viewer, teardown, attach, guarded, applyView,
@@ -62,6 +69,73 @@ export default function useAlignedNavigation(
         }
       });
     });
+  }
+
+  /**
+   * Aligned-aware "reset pan and zoom" (the center-view button / `r`): fit
+   * the SELECTED camera's content -- its native bounds mapped into the shared
+   * reference space -- in its own pane, then mirror that view to every other
+   * pane through the identity link. The default aggregate reset instead fits
+   * each pane to its own native bounds, which under the aligned view parks
+   * every pane near the reference-space origin rather than on the imagery
+   * (whichever pane's reset lands last wins the link). Returns false to fall
+   * back to the native per-pane reset whenever the aligned view is inactive
+   * or this camera's pane isn't usable yet.
+   */
+  function alignedResetZoom(): boolean {
+    if (!alignedView.active.value) {
+      return false;
+    }
+    const selected = options?.selectedCamera?.value;
+    const camera = selected && cameras.value.includes(selected)
+      ? selected
+      : (alignedView.reference.value ?? cameras.value[0]);
+    if (!camera) {
+      return false;
+    }
+    const source = viewer(camera);
+    if (!source) {
+      return false;
+    }
+    let native: { left: number; top: number; right: number; bottom: number };
+    try {
+      native = aggregateController.value.getController(camera).originalBounds.value;
+    } catch {
+      // Controllers may be cleared mid-reset during a dataset reload.
+      return false;
+    }
+    // The camera's content rectangle in reference space: its native corners
+    // through the native->reference homography (null for the unwarped
+    // reference camera, whose native bounds already ARE reference bounds).
+    const matrix = alignedView.cameraTransform(camera);
+    let bounds = native;
+    if (matrix) {
+      const corners: Point[] = [
+        [native.left, native.top],
+        [native.right, native.top],
+        [native.right, native.bottom],
+        [native.left, native.bottom],
+      ].map((corner) => applyHomography(matrix, corner));
+      bounds = {
+        left: Math.min(...corners.map((c) => c[0])),
+        top: Math.min(...corners.map((c) => c[1])),
+        right: Math.max(...corners.map((c) => c[0])),
+        bottom: Math.max(...corners.map((c) => c[1])),
+      };
+    }
+    const zoomAndCenter = source.zoomAndCenterFromBounds(bounds, 0);
+    source.zoom(zoomAndCenter.zoom);
+    source.center(zoomAndCenter.center);
+    // The zoom/center calls above already fire this pane's pan/zoom link, but
+    // mirror explicitly too so the reset lands even if the listeners haven't
+    // (re)attached yet.
+    link(camera)();
+    return true;
+  }
+
+  if (options?.setResetZoomOverride) {
+    options.setResetZoomOverride(alignedResetZoom);
+    onBeforeUnmount(() => options.setResetZoomOverride?.(null));
   }
 
   function setup() {

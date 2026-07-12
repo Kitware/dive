@@ -11,11 +11,27 @@ vi.mock('geojs', () => ({ default: { event: { pan: 'geo_pan', zoom: 'geo_zoom' }
 
 const IDENTITY: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
+/** Nominal viewport width for fakeViewer's zoomAndCenterFromBounds. */
+const VIEWPORT_PX = 100;
+
 /** Minimal stand-in for a geojs viewer: center/zoom state + geoOn events. */
 function fakeViewer(baseUnitsPerPixel: number) {
   const state = { center: { x: 0, y: 0 }, zoom: 0 };
   const handlers: Record<string, Array<() => void>> = {};
   return {
+    zoomAndCenterFromBounds(bounds: {
+      left: number; top: number; right: number; bottom: number;
+    }) {
+      // Like geojs: the zoom that fits the bounds' width across the viewport.
+      const unitsPerPixel = (bounds.right - bounds.left) / VIEWPORT_PX;
+      return {
+        zoom: Math.log2(baseUnitsPerPixel / unitsPerPixel),
+        center: {
+          x: (bounds.left + bounds.right) / 2,
+          y: (bounds.top + bounds.bottom) / 2,
+        },
+      };
+    },
     geoOn(evt: string, handler: () => void) {
       handlers[evt] = handlers[evt] || [];
       handlers[evt].push(handler);
@@ -49,9 +65,25 @@ function makeHarness() {
   const eo = fakeViewer(1);
   const ir = fakeViewer(8);
   const resetZoom = vi.fn();
-  const controllers: Record<string, { geoViewerRef: Ref<unknown>; resetZoom: () => void }> = {
-    eo: { geoViewerRef: ref(eo), resetZoom },
-    ir: { geoViewerRef: ref(ir), resetZoom },
+  const controllers: Record<string, {
+    geoViewerRef: Ref<unknown>;
+    resetZoom: () => void;
+    originalBounds: Ref<{ left: number; top: number; right: number; bottom: number }>;
+  }> = {
+    eo: {
+      geoViewerRef: ref(eo),
+      resetZoom,
+      originalBounds: ref({
+        left: 0, top: 0, right: 400, bottom: 300,
+      }),
+    },
+    ir: {
+      geoViewerRef: ref(ir),
+      resetZoom,
+      originalBounds: ref({
+        left: 0, top: 0, right: 200, bottom: 150,
+      }),
+    },
   };
   const cameraSync = ref(false);
   const resizing = ref(false);
@@ -66,9 +98,22 @@ function makeHarness() {
   }) as unknown as Ref<AggregateMediaController>;
   const cameras = ref(['eo', 'ir']);
   const alignedView = new AlignedViewStore();
-  useAlignedNavigation(aggregate, alignedView, cameras);
+  const selectedCamera = ref('eo');
+  let resetZoomOverride: (() => boolean) | null = null;
+  useAlignedNavigation(aggregate, alignedView, cameras, {
+    selectedCamera,
+    setResetZoomOverride: (override) => { resetZoomOverride = override; },
+  });
   return {
-    eo, ir, cameraSync, resizing, resizeTrigger, alignedView, resetZoom,
+    eo,
+    ir,
+    cameraSync,
+    resizing,
+    resizeTrigger,
+    alignedView,
+    resetZoom,
+    selectedCamera,
+    resetAggregateZoom: () => (resetZoomOverride ? resetZoomOverride() : false),
   };
 }
 
@@ -171,6 +216,57 @@ describe('useAlignedNavigation', () => {
     resizeTrigger.value += 1;
     await nextTick();
     expect(ir.center()).toEqual({ x: 500, y: 300 });
+  });
+
+  it('falls back to the native per-pane reset while the aligned view is inactive', () => {
+    const { resetAggregateZoom } = makeHarness();
+    expect(resetAggregateZoom()).toBe(false);
+  });
+
+  it('center view fits the selected reference camera and mirrors it everywhere', async () => {
+    const {
+      eo, ir, alignedView, resetAggregateZoom,
+    } = makeHarness();
+    alignedView.setTransforms('eo', {
+      eo: IDENTITY,
+      ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
+    });
+    alignedView.setEnabled(true);
+    await nextTick();
+
+    // Wander off, then hit center view with the reference camera selected.
+    eo.center({ x: 900, y: 900 });
+    eo.trigger('geo_pan');
+    expect(resetAggregateZoom()).toBe(true);
+
+    // eo (reference, unwarped): fit its native 400x300 bounds.
+    expect(eo.center()).toEqual({ x: 200, y: 150 });
+    expect(eo.zoom()).toBeCloseTo(Math.log2(1 / (400 / VIEWPORT_PX)), 6);
+    // ir mirrors the same reference-space view through its own zoom-0 baseline.
+    expect(ir.center()).toEqual({ x: 200, y: 150 });
+    expect(ir.zoom()).toBeCloseTo(Math.log2(8 / (400 / VIEWPORT_PX)), 6);
+  });
+
+  it('center view fits a WARPED selected camera via its reference-space bounds', async () => {
+    const {
+      eo, ir, alignedView, selectedCamera, resetAggregateZoom,
+    } = makeHarness();
+    // ir's 200x150 native content lands at x:[100,300], y:[0,150] in eo space.
+    alignedView.setTransforms('eo', {
+      eo: IDENTITY,
+      ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
+    });
+    alignedView.setEnabled(true);
+    await nextTick();
+
+    selectedCamera.value = 'ir';
+    expect(resetAggregateZoom()).toBe(true);
+
+    // Both panes centered on ir's warped content, NOT its native bounds.
+    expect(ir.center()).toEqual({ x: 200, y: 75 });
+    expect(ir.zoom()).toBeCloseTo(Math.log2(8 / (200 / VIEWPORT_PX)), 6);
+    expect(eo.center()).toEqual({ x: 200, y: 75 });
+    expect(eo.zoom()).toBeCloseTo(Math.log2(1 / (200 / VIEWPORT_PX)), 6);
   });
 
   it('stands down while inactive, suspended, or raw camera sync is on', async () => {

@@ -112,6 +112,16 @@ export interface MediaController extends AggregateMediaController {
    */
   imageRevision: Readonly<Ref<number>>;
   /**
+   * This pane's native content bounds ({left: 0, top: 0, right: width,
+   * bottom: height}, as last applied by resetMapDimensions) -- the rectangle
+   * the plain resetZoom fits. The aligned-view reset maps these corners
+   * through the camera's native->reference homography to fit the warped
+   * content instead (see useAlignedNavigation).
+   */
+  originalBounds: Readonly<Ref<{
+    left: number; top: number; right: number; bottom: number;
+  }>>;
+  /**
    * Per-camera seek accepts undefined when this camera has no frame at the
    * current aligned-timeline slot (see AlignedFrameResolver) -- the camera
    * should blank its pane rather than draw anything for that slot.
