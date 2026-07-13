@@ -88,6 +88,7 @@ import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
+import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
 
@@ -113,6 +114,7 @@ export default defineComponent({
     UserSettingsDialog,
     EditorMenu,
     MultiCamToolbar,
+    AlignedViewToggle,
     PrimaryAttributeTrackFilter,
     TrackList,
     FilterList,
@@ -494,32 +496,6 @@ export default defineComponent({
       }
       const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
-    });
-    const alignedViewAvailable = computed(() => (
-      isMultiCameraDataset.value && alignedView.available.value
-    ));
-    const alignedViewEnabled = computed(() => alignedView.enabled.value);
-    const toggleAlignedView = () => {
-      alignedView.setEnabled(!alignedView.enabled.value);
-    };
-    const alignedViewTooltip = computed(() => {
-      if (!isMultiCameraDataset.value) {
-        return 'Align View';
-      }
-      // Per-camera registration files with disagreeing producer stamps mean
-      // the rig may mix calibration generations -- say so instead of
-      // composing silently.
-      const mixedNote = cameraRegistration.sourceIsMixed()
-        ? ' — warning: mixed calibration file generations'
-        : '';
-      if (alignedViewEnabled.value) {
-        return `Align View on (draw/edit on any camera)${mixedNote}`;
-      }
-      const progress = registrationProgress.value;
-      if (progress && progress.registered < progress.total) {
-        return `Align View — ${progress.registered}/${progress.total} cameras registered${mixedNote}`;
-      }
-      return `Align View${mixedNote}`;
     });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
@@ -1962,10 +1938,6 @@ export default defineComponent({
       deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
-      alignedViewAvailable,
-      alignedViewEnabled,
-      alignedViewTooltip,
-      toggleAlignedView,
       seekToFrame,
       resetAggregateZoom,
       /* large image methods */
@@ -2149,37 +2121,7 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
-        <!--
-          Aligned view (SEAL-TK features 2 + 3): warp every camera's display
-          into the reference camera's space and link pan/zoom across all
-          panes. Usable when a transform exists for every non-reference
-          camera; shown (disabled) for every multicam dataset so an
-          incomplete calibration reads as "needs calibration" rather than
-          the button silently disappearing.
-        -->
-        <v-tooltip
-          v-if="multiCamList.length > 1"
-          bottom
-        >
-          <template #activator="{ on }">
-            <!-- span wrapper: a disabled v-btn swallows the tooltip's hover events -->
-            <span v-on="on">
-              <v-btn
-                icon
-                small
-                class="mx-1"
-                :color="alignedViewEnabled ? 'primary' : 'default'"
-                :disabled="!alignedViewAvailable"
-                @click="toggleAlignedView"
-              >
-                <v-icon>
-                  {{ alignedViewEnabled ? 'mdi-vector-intersection' : 'mdi-vector-difference' }}
-                </v-icon>
-              </v-btn>
-            </span>
-          </template>
-          <span>{{ alignedViewTooltip }}</span>
-        </v-tooltip>
+        <aligned-view-toggle v-if="multiCamList.length > 1" />
 
         <slot name="extension-right" />
 
