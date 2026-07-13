@@ -4,7 +4,7 @@
  * Kept pure so Viewer and unit tests share one source of truth for the
  * progressive-registration and mixed-calibration messaging.
  */
-export function alignedViewTooltipText(options: {
+export default function alignedViewTooltipText(options: {
   isMultiCamera: boolean;
   enabled: boolean;
   sourceIsMixed: boolean;

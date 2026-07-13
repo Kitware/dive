@@ -1,4 +1,4 @@
-import { alignedViewTooltipText } from './alignedViewTooltip';
+import alignedViewTooltipText from './alignedViewTooltip';
 
 describe('alignedViewTooltipText', () => {
   it('returns the base label for single-camera datasets', () => {

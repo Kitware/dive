@@ -4,7 +4,7 @@ import {
   useAlignedView,
   useCameraRegistration,
 } from 'vue-media-annotator/provides';
-import { alignedViewTooltipText } from './alignedViewTooltip';
+import alignedViewTooltipText from './alignedViewTooltip';
 
 /**
  * Multicam toolbar control for SEAL-TK features 2 + 3: warp every camera's
