@@ -20,7 +20,7 @@ export default defineComponent({
 
     async function importCollect(collect: MultiCamBatchCollect, datasetName: string) {
       if (!collect.importArgs) {
-        return;
+        return undefined;
       }
       const importPayload = await api.importMultiCam({
         ...collect.importArgs,
@@ -32,6 +32,8 @@ export default defineComponent({
       }
       const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
       setRecents(recentsMeta);
+      // Batch imports skip the confirmation dialog that normally shows these.
+      return importPayload.importWarnings;
     }
 
     return {

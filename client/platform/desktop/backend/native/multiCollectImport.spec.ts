@@ -240,6 +240,44 @@ describe('native.multiCollectImport', () => {
     await expect(scanMultiCamBatch('/missing')).rejects.toThrow('Directory not found');
   });
 
+  it('attaches per-collect registration files that seed the import', async () => {
+    const registrationJson = JSON.stringify({
+      version: 1,
+      pairs: [{
+        left: 'EO',
+        right: 'IR',
+        points: [],
+        leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        transformType: 'translation',
+      }],
+    });
+    mockfs({
+      '/survey': {
+        fl01: {
+          EO: frames(2),
+          IR: frames(2),
+          'ir_to_eo_registration.json': registrationJson,
+        },
+        fl02: { EO: frames(2), IR: frames(2) },
+      },
+    });
+    const result = await scanMultiCamBatch('/survey');
+    const [fl01, fl02] = result.collects;
+    expect(fl01.transformFiles).toEqual(['ir_to_eo_registration.json']);
+    expect(fl01.importArgs?.sourceList.IR.transformFile)
+      .toBe('/survey/fl01/ir_to_eo_registration.json');
+    expect(fl02.transformFiles).toEqual([]);
+    if (!fl01.importArgs) {
+      throw new Error('expected fl01 importArgs');
+    }
+    const imported = await beginMultiCamImport(fl01.importArgs);
+    expect(imported.jsonMeta.cameraHomographies?.['EO::IR'].AtoB).toEqual(
+      [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+    );
+    expect(imported.importWarnings).toBeUndefined();
+  });
+
   it('produces args accepted by beginMultiCamImport', async () => {
     mockfs({
       '/survey': {

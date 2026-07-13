@@ -13,7 +13,7 @@ import type {
 import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes,
-  largeImageDesktopTypes,
+  largeImageDesktopTypes, transformFileTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -47,7 +47,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -70,6 +70,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'transform') {
+    filters = [
+      { name: 'Transform / calibration', extensions: transformFileTypes },
       allFiles,
     ];
   }
@@ -198,6 +204,10 @@ function resolveMulticamCameraSourcePath(
 
 function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
   return window.diveDesktop.invoke('find-parent-folder-calibration-file', { path: parentPath });
+}
+
+function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
+  return window.diveDesktop.invoke('find-parent-folder-transform-files', { path: parentPath });
 }
 
 function hasCalibrationFile(datasetId: string): Promise<boolean> {
@@ -650,6 +660,25 @@ function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ e
   return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
 }
 
+/** Export one camera's *_registration.json file to destPath. */
+function exportCameraRegistration(
+  datasetId: string,
+  destPath: string,
+  camera: string,
+): Promise<{ exportedPath: string }> {
+  return window.diveDesktop.invoke('export-camera-registration', { id: datasetId, destPath, camera });
+}
+
+/** Merge a DIVE registration .json into the dataset's camera registration. */
+function importCameraRegistration(
+  datasetId: string,
+  path: string,
+  _file?: File,
+  options?: { camera?: string },
+): Promise<{ cameras: string[]; pairCount: number }> {
+  return window.diveDesktop.invoke('import-camera-registration', { id: datasetId, path, options });
+}
+
 function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
   return window.diveDesktop.invoke('get-dataset-calibration', { datasetId });
 }
@@ -698,6 +727,7 @@ export {
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
   findParentFolderCalibrationFile,
+  findParentFolderTransformFiles,
   hasCalibrationFile,
   bulkImportMedia,
   deleteDataset,
@@ -712,6 +742,8 @@ export {
   saveCalibration,
   importCalibrationFile,
   exportCalibrationFile,
+  exportCameraRegistration,
+  importCameraRegistration,
   getDatasetCalibration,
   downloadCalibration,
   deleteCalibration,

@@ -14,6 +14,7 @@ import {
 
 interface CollectStatus {
   state: 'ready' | 'blocked' | 'importing' | 'done' | 'failed';
+  /** Failure detail, or non-fatal warnings for a completed import. */
   message?: string;
 }
 
@@ -44,7 +45,10 @@ export default defineComponent({
       required: true,
     },
     importCollect: {
-      type: Function as PropType<(collect: MultiCamBatchCollect, datasetName: string) => Promise<void>>,
+      type: Function as PropType<(
+        collect: MultiCamBatchCollect,
+        datasetName: string,
+      ) => Promise<string[] | undefined>>,
       required: true,
     },
     chooseFolderLabel: {
@@ -155,8 +159,14 @@ export default defineComponent({
         const datasetName = (datasetNames.value[collect.name] || collect.name).trim();
         try {
           // eslint-disable-next-line no-await-in-loop
-          await props.importCollect(collect, datasetName);
-          statuses.value = { ...statuses.value, [collect.name]: { state: 'done' } };
+          const warnings = await props.importCollect(collect, datasetName);
+          statuses.value = {
+            ...statuses.value,
+            [collect.name]: {
+              state: 'done',
+              ...(warnings?.length ? { message: warnings.join(' ') } : {}),
+            },
+          };
         } catch (err) {
           statuses.value = {
             ...statuses.value,
@@ -229,7 +239,9 @@ export default defineComponent({
       <p class="grey--text text--lighten-1">
         Select a top-level folder whose subfolders are collects; each collect must
         contain the same camera subfolders (for example EO, IR, UV) holding that
-        camera's images. One multicam dataset is created per collect.
+        camera's images. One multicam dataset is created per collect. DIVE
+        registration .json files found next to a collect's camera folders are
+        attached automatically and seed that dataset's camera registration.
       </p>
       <v-row
         no-gutters
@@ -348,6 +360,12 @@ export default defineComponent({
               v-else
               class="grey--text"
             >none</span>
+            <div
+              v-if="item.transformFiles.length"
+              class="grey--text text-caption"
+            >
+              Registration: {{ item.transformFiles.join(', ') }}
+            </div>
           </template>
           <template #item.issues="{ item }">
             <div
@@ -366,7 +384,8 @@ export default defineComponent({
             </div>
             <div
               v-if="statuses[item.name] && statuses[item.name].message"
-              class="error--text text-caption"
+              class="text-caption"
+              :class="statuses[item.name].state === 'done' ? 'warning--text' : 'error--text'"
             >
               {{ statuses[item.name].message }}
             </div>

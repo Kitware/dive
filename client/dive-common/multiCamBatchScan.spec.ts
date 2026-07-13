@@ -103,6 +103,54 @@ describe('multiCamBatchScan', () => {
     expect(fl03.importArgs).toBeNull();
   });
 
+  it('attaches discovered registration files to camera slots on importArgs', () => {
+    const result = scanMultiCamBatchFromCollects('/survey', [
+      {
+        ...collectScan('fl01', {
+          EO: collectSubfolder('fl01', 'EO', 3),
+          IR: collectSubfolder('fl01', 'IR', 3),
+          UV: collectSubfolder('fl01', 'UV', 3),
+        }),
+        transformFiles: [
+          '/survey/fl01/ir_to_eo_registration.json',
+          '/survey/fl01/uv_to_eo_registration.json',
+        ],
+      },
+    ]);
+    const [fl01] = result.collects;
+    expect(fl01.warnings).toEqual([]);
+    expect(fl01.transformFiles).toEqual([
+      'ir_to_eo_registration.json',
+      'uv_to_eo_registration.json',
+    ]);
+    expect(fl01.importArgs?.sourceList.IR.transformFile)
+      .toBe('/survey/fl01/ir_to_eo_registration.json');
+    expect(fl01.importArgs?.sourceList.UV.transformFile)
+      .toBe('/survey/fl01/uv_to_eo_registration.json');
+    expect(fl01.importArgs?.sourceList.EO.transformFile).toBeUndefined();
+  });
+
+  it('warns about registration files that no free camera slot can carry', () => {
+    const result = scanMultiCamBatchFromCollects('/survey', [
+      {
+        ...collectScan('fl01', {
+          EO: collectSubfolder('fl01', 'EO', 3),
+          IR: collectSubfolder('fl01', 'IR', 3),
+        }),
+        transformFiles: [
+          '/survey/fl01/ir_to_eo_registration.json',
+          '/survey/fl01/extra_transforms.json',
+        ],
+      },
+    ]);
+    const [fl01] = result.collects;
+    expect(fl01.transformFiles).toEqual(['ir_to_eo_registration.json']);
+    expect(fl01.warnings).toEqual([
+      'Registration file(s) not attached (no free camera slot): extra_transforms.json',
+    ]);
+    expect(fl01.importArgs).not.toBeNull();
+  });
+
   it('warns (without blocking) on frame count mismatch between cameras', () => {
     const result = scanMultiCamBatchFromCollects('/survey', [
       collectScan('fl01', {

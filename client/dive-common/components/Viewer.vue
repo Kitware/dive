@@ -18,8 +18,11 @@ import {
 import {
   Track, Group,
   CameraStore,
+  CameraRegistrationStore,
+  AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
+import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
 import {
@@ -28,6 +31,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  useAlignedNavigation,
   TrackList,
   FilterList,
 } from 'vue-media-annotator/components';
@@ -84,6 +88,7 @@ import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
+import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
 
@@ -109,6 +114,7 @@ export default defineComponent({
     UserSettingsDialog,
     EditorMenu,
     MultiCamToolbar,
+    AlignedViewToggle,
     PrimaryAttributeTrackFilter,
     TrackList,
     FilterList,
@@ -171,6 +177,7 @@ export default defineComponent({
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
+      setResetZoomOverride,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -395,6 +402,101 @@ export default defineComponent({
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
+
+    /**
+     * Aligned view (SEAL-TK features 2 + 3): when every non-reference camera
+     * has a usable transform into the reference camera's space, the user may
+     * warp displays and link pan/zoom across all cameras during normal
+     * review. Reference camera = the Reference Camera chosen at import
+     * (stored as defaultDisplay), falling back to the first camera in
+     * display order. Transforms come from the registration store's pair
+     * homographies (loaded from a registration file or the dataset's saved
+     * meta), composed through the pair graph.
+     *
+     * Store instances are always created (provideAnnotator runs before
+     * loadData resolves), but watches, aligned navigation, and metadata
+     * hydration only run for multicamera datasets.
+     */
+    const cameraRegistration = new CameraRegistrationStore();
+    const alignedView = new AlignedViewStore();
+    const referenceCamera = computed(() => {
+      const cams = multiCamList.value;
+      if (cams.length < 2) {
+        return null;
+      }
+      return cams.includes(defaultCamera.value) ? defaultCamera.value : cams[0];
+    });
+    let multicamAlignmentInitialized = false;
+
+    function resetMulticamAlignment() {
+      alignedView.setEnabled(false);
+      alignedView.setTransforms(null, null);
+      alignedView.setRegistrationProgress(null);
+      cameraRegistration.hydrate();
+    }
+
+    function initMulticamAlignment() {
+      if (multicamAlignmentInitialized) {
+        return;
+      }
+      multicamAlignmentInitialized = true;
+      // The selected camera drives the aligned-aware "reset pan and zoom":
+      // centering fits ITS content in reference space and mirrors that view
+      // to every pane through the link.
+      useAlignedNavigation(aggregateController, alignedView, multiCamList, {
+        selectedCamera,
+        setResetZoomOverride,
+      });
+      // Publish the reference even while unresolved so UI outside the viewer
+      // core (e.g. the import menu's per-pair buttons) can name it.
+      watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
+        if (!isMultiCameraDataset.value) {
+          return;
+        }
+        alignedView.setTransforms(
+          reference,
+          resolution?.toReference ?? null,
+        );
+      }, { immediate: true });
+      watch(registrationProgress, (progressVal) => {
+        if (!isMultiCameraDataset.value) {
+          return;
+        }
+        alignedView.setRegistrationProgress(progressVal);
+      }, { immediate: true });
+    }
+
+    const alignedResolution = computed(() => {
+      if (!isMultiCameraDataset.value) {
+        return null;
+      }
+      const reference = referenceCamera.value;
+      if (reference === null) {
+        return null;
+      }
+      const toReference = resolveToReferenceTransforms(
+        multiCamList.value,
+        reference,
+        cameraRegistration.homographies.value,
+      );
+      return toReference ? { reference, toReference } : null;
+    });
+    // Publish how much of the rig resolves so UI outside the viewer core
+    // (e.g. the import menu's "Import to all cameras" checkbox) shows the
+    // same "N/M cameras registered" status as the Align View toggle.
+    const registrationProgress = computed(() => {
+      if (!isMultiCameraDataset.value) {
+        return null;
+      }
+      const cams = multiCamList.value;
+      const reference = referenceCamera.value;
+      if (reference === null) {
+        return null;
+      }
+      const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
+      return { registered: cams.length - unresolved.length, total: cams.length };
+    });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
@@ -462,6 +564,7 @@ export default defineComponent({
       cameraStore,
       aggregateController,
       readonlyState,
+      alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
@@ -1212,9 +1315,8 @@ export default defineComponent({
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
-        const defaultCameraMeta = meta.multiCamMedia?.cameras[meta.multiCamMedia.defaultDisplay];
         baseMulticamDatasetId.value = datasetId.value;
-        if (defaultCameraMeta !== undefined && meta.multiCamMedia) {
+        if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           multiCamList.value = orderedMultiCamCameraNames(meta.multiCamMedia);
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
@@ -1223,6 +1325,10 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
+          initMulticamAlignment();
+        } else {
+          multiCamList.value = ['singleCam'];
+          resetMulticamAlignment();
         }
         /* Otherwise, complete loading of the dataset */
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
@@ -1388,6 +1494,19 @@ export default defineComponent({
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));
         }
+        // Rehydrate any saved camera-to-camera registration homographies, points,
+        // transform types, and producer provenance (multicamera only).
+        if (isMultiCameraDataset.value) {
+          cameraRegistration.hydrate(
+            meta.cameraHomographies,
+            meta.cameraCorrespondences,
+            meta.cameraTransformTypes,
+            meta.cameraRegistrationSource,
+          );
+          // Reset the aligned-view toggle for the newly loaded dataset (no
+          // persistence this phase).
+          alignedView.setEnabled(false);
+        }
         setImageEnhancements(
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
@@ -1468,7 +1587,13 @@ export default defineComponent({
       if (previous) observer.unobserve(previous.$el);
       if (controlsRef.value) observer.observe(controlsRef.value.$el);
     });
-    watch([controlsCollapsed, sidebarMode], async () => {
+    // Opening/closing the context sidebar shrinks or widens the camera panes,
+    // but nothing else notices: the only ResizeObserver watches the controls
+    // bar, which is position:absolute in side layout and so keeps its content
+    // width when the panes resize. Trigger a resize explicitly so the panes'
+    // GeoJS size() stays in sync (an unnoticed shrink leaves content anchored
+    // in a corner).
+    watch([controlsCollapsed, sidebarMode, () => context.state.active], async () => {
       await nextTick();
       handleResize();
     });
@@ -1513,6 +1638,8 @@ export default defineComponent({
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
         attributes,
         cameraStore,
+        cameraRegistration,
+        alignedView,
         datasetId,
         editingMode,
         groupFilters,
@@ -1994,6 +2121,7 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
+        <aligned-view-toggle v-if="multiCamList.length > 1" />
 
         <slot name="extension-right" />
 

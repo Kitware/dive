@@ -42,6 +42,21 @@ export function orderedMultiCamCameraNames(multiCamMedia: MultiCamMediaLike | nu
   return preferEoIrSubfolderOrder(Object.keys(cameras));
 }
 
+/**
+ * The reference camera that image registration maps onto: the Reference
+ * Camera chosen in the import dialog (stored as the dataset's
+ * defaultDisplay), falling back to the first camera in display order when
+ * that choice is missing or names an unknown camera.
+ */
+export function referenceCameraName(multiCamMedia: MultiCamMediaLike | null | undefined): string | null {
+  const ordered = orderedMultiCamCameraNames(multiCamMedia);
+  if (!ordered.length) {
+    return null;
+  }
+  const defaultDisplay = multiCamMedia?.defaultDisplay;
+  return defaultDisplay && ordered.includes(defaultDisplay) ? defaultDisplay : ordered[0];
+}
+
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {
   return subType === 'stereo' || subType === 'multicam';
 }

@@ -20,9 +20,6 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import {
-  geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME, featureHasSegmentationPolygon,
-} from '../utils';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -39,6 +36,7 @@ import {
   useAnnotatorPreferences,
   useGroupStyleManager,
   useCameraStore,
+  useAlignedView,
   useSelectedCamera,
   useAttributes,
   useComparisonSets,
@@ -46,6 +44,11 @@ import {
   useSegmentationPoints,
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
+import useLayerManagerAlignedView from './layerManager/useLayerManagerAlignedView';
+import useLayerRefresh from './layerManager/useLayerRefresh';
+import useSegmentationPointsLayer from './layerManager/useSegmentationPointsLayer';
+import useAnnotationClickHandling from './layerManager/useAnnotationClickHandling';
+import { cameraAwaitingGeometry, isCreatingNewDetection } from './layerManager/multicamCreation';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -77,6 +80,12 @@ export default defineComponent({
       // Viewer may not provide lasso context in tests or minimal embeds.
     }
     const cameraStore = useCameraStore();
+    let alignedView: ReturnType<typeof useAlignedView> | undefined;
+    try {
+      alignedView = useAlignedView();
+    } catch {
+      // aligned view store may not be provided in tests or minimal embeds.
+    }
     const selectedCamera = useSelectedCamera();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
@@ -106,6 +115,20 @@ export default defineComponent({
     const frameNumberRef = annotator.frame;
     const flickNumberRef = annotator.flick;
     const hasFrameRef = annotator.hasFrame;
+
+    const {
+      alignedDisplayTransform,
+      mapDisplayPoint,
+      featureToDisplay,
+      setupDisplayTransformWatches,
+      ...alignedViewHelpers
+    } = useLayerManagerAlignedView({
+      camera: props.camera,
+      annotator,
+      aggregateController,
+      alignedView,
+      editingModeRef,
+    });
 
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
@@ -179,20 +202,6 @@ export default defineComponent({
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
 
-    // Watch for segmentation points updates - only show points for the current
-    // frame, and only on the selected camera. The prompt points belong to the
-    // image being segmented; without the camera check every camera rendered
-    // them at the same pixel coordinates, which looked like an (unwarped)
-    // point being created on the other camera.
-    watch([segmentationPointsRef, frameNumberRef, selectedCamera], ([newPoints, currentFrame, currentCamera]) => {
-      if (newPoints.points.length > 0 && newPoints.frameNum === currentFrame
-        && props.camera === currentCamera) {
-        segmentationPointsLayer.updatePoints(newPoints.points, newPoints.labels);
-      } else {
-        segmentationPointsLayer.clear();
-      }
-    }, { deep: true });
-
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {
         if (a.render && b.render) {
@@ -215,45 +224,14 @@ export default defineComponent({
     };
     uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
 
-    // True when the selected track is a brand-new detection with no geometry yet
-    // on this camera at this frame (the user is mid-creation). Used to mirror the
-    // creation cursor onto non-selected cameras so a new detection can be drawn
-    // on any camera. Must look up the track on props.camera (same as
-    // cameraAwaitingGeometry): `frame` is this layer's local frame, and under an
-    // aligned timeline that diverges from selectedCamera's local frame.
-    function isCreatingNewDetection(frame: number, trackId: AnnotationId | null): boolean {
-      if (trackId === null) return false;
-      const t = cameraStore.getPossibleTrack(trackId, props.camera);
-      if (!t) return false;
-      return t.getFeature(frame)[0] == null;
-    }
-
-    // True when, while editing, the selected track has no geometry on THIS
-    // camera at this frame (the track may not exist on this camera at all).
-    // For Point mode (point-click segmentation) and Polygon mode, "no geometry"
-    // means no polygon at the selected key here yet, so a detection that only
-    // has a box still accepts a draw.
-    // Complements isCreatingNewDetection: after the detection is drawn on one
-    // camera, the creation cursor stays live on the cameras still missing it,
-    // so it can be drawn on each in turn (same track id) without selecting the
-    // camera first.
-    function cameraAwaitingGeometry(
-      frame: number,
-      trackId: AnnotationId | null,
-      editingTrack: false | EditAnnotationTypes,
-      selectedKey: string,
-    ): boolean {
-      if (trackId === null || !editingTrack) return false;
-      if (!cameraStore.getAnyPossibleTrack(trackId)) return false;
-      const t = cameraStore.getPossibleTrack(trackId, props.camera);
-      if (!t) return true;
-      const [feature] = t.getFeature(frame);
-      if (feature == null) return true;
-      if (editingTrack === 'Point' || editingTrack === 'Polygon') {
-        return !featureHasSegmentationPolygon(feature, selectedKey);
-      }
-      return false;
-    }
+    useSegmentationPointsLayer({
+      camera: props.camera,
+      segmentationPointsRef,
+      frameNumberRef,
+      selectedCamera,
+      segmentationPointsLayer,
+      mapDisplayPoint,
+    });
 
     function updateLayers(
       frame: number,
@@ -265,6 +243,11 @@ export default defineComponent({
       selectedKey: string,
       colorBy: string,
     ) {
+      // Drawing and editing work on every camera while the aligned view is
+      // on: the edit layer operates in display (warped) space -- it is fed
+      // display-space copies of the geometry (featureToDisplay below) and its
+      // draws/edits are mapped back to native through alignedDisplayInverse
+      // in the update:geojson handler before committing to track storage.
       const currentFrameIds: AnnotationId[] | undefined = trackStore?.intervalTree
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
@@ -323,9 +306,13 @@ export default defineComponent({
               }
               if (clientSettings.annotatorPreferences.lockedCamera.enabled) {
                 if (trackFrame.features?.bounds) {
+                  // Under the aligned view the display is warped, so center
+                  // on the displayed (warped) location, not the native one.
                   const coords = {
-                    x: (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
-                    y: (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
+                    ...mapDisplayPoint(
+                      (trackFrame.features.bounds[0] + trackFrame.features.bounds[2]) / 2.0,
+                      (trackFrame.features.bounds[1] + trackFrame.features.bounds[3]) / 2.0,
+                    ),
                     z: 0,
                   };
                   const [x0, y0, x1, y1] = trackFrame.features.bounds;
@@ -344,10 +331,14 @@ export default defineComponent({
                     const halfWidth = (width * multiplyBoundsVal) / 2.0;
                     const halfHeight = (height * multiplyBoundsVal) / 2.0;
 
-                    const left = centerX - halfWidth;
-                    const right = centerX + halfWidth;
-                    const top = centerY - halfHeight;
-                    const bottom = centerY + halfHeight;
+                    // Map the zoom-target corners into display space too
+                    // (identity when the aligned view is off).
+                    const ulMapped = mapDisplayPoint(centerX - halfWidth, centerY - halfHeight);
+                    const lrMapped = mapDisplayPoint(centerX + halfWidth, centerY + halfHeight);
+                    const left = Math.min(ulMapped.x, lrMapped.x);
+                    const right = Math.max(ulMapped.x, lrMapped.x);
+                    const top = Math.min(ulMapped.y, lrMapped.y);
+                    const bottom = Math.max(ulMapped.y, lrMapped.y);
 
                     const zoomAndCenter = annotator.geoViewerRef.value.zoomAndCenterFromBounds({
                       left, top, right, bottom,
@@ -387,7 +378,11 @@ export default defineComponent({
       } else {
         lineLayer.disable();
       }
-      if (visibleModes.includes('TrackTail')) {
+      // Track tails read multi-frame geometry straight from the trackStore
+      // (not FrameDataTrack) and are not routed through the display
+      // transform, so they are hidden for warped cameras while the aligned
+      // view is on rather than rendered in the wrong (native) space.
+      if (visibleModes.includes('TrackTail') && !alignedDisplayTransform.value) {
         tailLayer.updateSettings(
           frame,
           annotatorPrefs.value.trackTails.before,
@@ -435,11 +430,29 @@ export default defineComponent({
           if (editingTrack) {
             editAnnotationLayer.setType(editingTrack);
             editAnnotationLayer.setKey(selectedKey);
-            editAnnotationLayer.changeData(editingTracks);
+            // The edit layer works in display space: hand it display-space
+            // copies of the feature so its handles land on warped imagery
+            // (identity when this camera renders unwarped).
+            editAnnotationLayer.changeData(editingTracks.map((trackFrame) => ({
+              ...trackFrame,
+              features: featureToDisplay(trackFrame.features),
+            })));
           }
         } else if (editingTrack && props.camera !== selectedCamera.value
-          && (isCreatingNewDetection(frame, selectedTrackId)
-            || cameraAwaitingGeometry(frame, selectedTrackId, editingTrack, selectedKey))) {
+          && (isCreatingNewDetection(
+            cameraStore,
+            props.camera,
+            frame,
+            selectedTrackId,
+          )
+            || cameraAwaitingGeometry(
+              cameraStore,
+              props.camera,
+              frame,
+              selectedTrackId,
+              editingTrack,
+              selectedKey,
+            ))) {
           // Seamless multicam creation: keep the creation cursor live on every
           // camera (not just the selected one) so a brand-new detection can be
           // drawn on whichever camera the user starts on -- and, once drawn on
@@ -457,57 +470,47 @@ export default defineComponent({
       }
     }
 
-    /**
-     * Disables every annotation/edit layer without touching stored track
-     * data. Used when this camera has no frame at the current aligned-
-     * timeline slot (hasFrameRef false) -- frameNumberRef still holds the
-     * last real local frame, so leaving the layers as-is would draw stale
-     * boxes over a blank pane.
-     */
-    function disableAllLayers() {
-      rectAnnotationLayer.disable();
-      overlapLayer.disable();
-      polyAnnotationLayer.disable();
-      lineLayer.disable();
-      pointLayer.disable();
-      tailLayer.disable();
-      textLayer.disable();
-      attributeLayer.disable();
-      attributeBoxLayer.disable();
-      editAnnotationLayer.disable();
-      segmentationPointsLayer.clear();
-      hoverOvered.value = [];
-      uiLayer.setToolTipWidget('customToolTip', false);
-    }
-
-    /** Re-runs updateLayers with current ref values, or blanks the layers when this camera has no frame at the current aligned-timeline slot. */
-    function refreshLayers() {
-      if (!hasFrameRef.value) {
-        disableAllLayers();
-        return;
-      }
-      updateLayers(
-        frameNumberRef.value,
-        editingModeRef.value,
-        selectedTrackIdRef.value,
-        multiSeletListRef.value,
-        enabledTracksRef.value,
-        visibleModesRef.value,
-        selectedKeyRef.value,
-        props.colorBy,
-      );
-    }
-
-    watch(hasFrameRef, () => refreshLayers());
-
-    /**
-     * TODO: for some reason, GeoJS requires us to initialize
-     * by calling the render function twice.  This is a bug.
-     * https://github.com/Kitware/dive/issues/365
-     */
-    [1, 2].forEach(() => {
-      refreshLayers();
+    const { refreshLayers } = useLayerRefresh({
+      hasFrameRef,
+      frameNumberRef,
+      editingModeRef,
+      selectedTrackIdRef,
+      multiSelectListRef: multiSeletListRef,
+      enabledTracksRef,
+      visibleModesRef,
+      selectedKeyRef,
+      colorBy: toRef(props, 'colorBy'),
+      layers: {
+        rectAnnotationLayer,
+        overlapLayer,
+        polyAnnotationLayer,
+        lineLayer,
+        pointLayer,
+        tailLayer,
+        textLayer,
+        attributeLayer,
+        attributeBoxLayer,
+        editAnnotationLayer,
+        segmentationPointsLayer,
+        uiLayer,
+      },
+      hoverOvered,
+      updateLayers,
     });
+
+    /** Layers whose stored-geometry rendering follows the aligned-view warp. */
+    const displayTransformedLayers = [
+      rectAnnotationLayer,
+      overlapLayer,
+      polyAnnotationLayer,
+      lineLayer,
+      pointLayer,
+      textLayer,
+      attributeBoxLayer,
+      attributeLayer,
+    ];
+
+    setupDisplayTransformWatches(displayTransformedLayers, refreshLayers, frameNumberRef);
 
     /** Shallow watch */
     watch(
@@ -564,255 +567,26 @@ export default defineComponent({
       },
     );
 
-    // Set briefly when a draw finalizes so the same click — e.g. the 2nd line
-    // vertex / rectangle corner landing on an overlapping existing detection —
-    // doesn't also select that detection. Cleared on the next macrotask, so only
-    // the click that completed the draw is suppressed.
-    let justFinalizedCreation = false;
+    const { wireHandlers } = useAnnotationClickHandling({
+      camera: props.camera,
+      handler,
+      selectedCamera,
+      selectedTrackIdRef,
+      selectedKeyRef,
+      frameNumberRef,
+      flickNumberRef,
+      editingModeRef,
+      cameraStore,
+      trackStore,
+      alignedView: alignedViewHelpers,
+      editAnnotationLayer,
+      rectAnnotationLayer,
+      polyAnnotationLayer,
+      lineLayer,
+      refreshLayers,
+    });
+    wireHandlers();
 
-    // Guards against a single physical click being handled more than once when
-    // it lands on overlapping features on different layers. A skinny box hugging
-    // its head/tail line is the common case: the click hits both the rectangle
-    // polygon and the line, so both layers emit annotation-(right-)clicked in
-    // the same tick. Because trackEdit toggles edit mode, the second emit would
-    // immediately undo the first (right-click enters edit, then leaves it,
-    // ending up merely selected). Cleared on the next macrotask, so distinct
-    // user clicks (separate ticks) are unaffected.
-    let clickHandledThisTick = false;
-
-    const Clicked = (trackId: number, editing: boolean, modifiers?: {ctrl: boolean}) => {
-      // The click that just finalized a new detection should not also select an
-      // existing detection underneath the final vertex.
-      if (justFinalizedCreation) {
-        return;
-      }
-      if (clickHandledThisTick) {
-        return;
-      }
-      clickHandledThisTick = true;
-      window.setTimeout(() => { clickHandledThisTick = false; }, 0);
-      // Clicking a detection in a camera that isn't selected yet: switch to that
-      // camera AND act on the detection in the same click — left-click selects,
-      // right-click edits — instead of requiring a separate click to switch first.
-      if (selectedCamera.value !== props.camera) {
-        // Mid new-detection creation, a left-click on this camera is the start of
-        // a draw (handled by the creation layer + update routing) — don't let it
-        // select an existing detection under the first corner. Right-click still
-        // switches to editing the clicked detection.
-        if (editAnnotationLayer.getMode() === 'creation' && !editing) {
-          return;
-        }
-        if (trackId !== null) {
-          handler.selectCamera(props.camera, false);
-          // selectCamera switches synchronously in the normal path; bail if a mode
-          // (e.g. linking) blocked the switch so we don't act on the wrong camera.
-          if (selectedCamera.value === props.camera) {
-            handler.trackSelect(trackId, false, modifiers);
-            if (editing) {
-              handler.trackEdit(trackId);
-            }
-          }
-        }
-        return;
-      }
-      //So we only want to pass the click whjen not in creation mode or editing mode for features
-      if (editAnnotationLayer.getMode() !== 'creation') {
-        editAnnotationLayer.disable();
-        // When entering editing mode (right-click), use trackEdit so the
-        // geometry type is auto-detected (e.g. LineString vs rectangle).
-        if (editing && trackId !== null) {
-          handler.trackEdit(trackId);
-        } else {
-          handler.trackSelect(trackId, editing, modifiers);
-        }
-      } else if (editing && trackId !== null) {
-        // Right-click on another detection while in creation mode:
-        // cancel creation and switch to editing the clicked detection
-        editAnnotationLayer.disable();
-        handler.trackEdit(trackId);
-      }
-    };
-
-    //Sync of internal geoJS state with the application
-    editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
-      if (deselect) {
-        handler.trackSelect(null, false);
-      } else {
-        handler.trackSelect(selectedTrackIdRef.value, editing);
-      }
-    });
-    // Handle right-click to confirm/lock annotation in Point mode (segmentation)
-    editAnnotationLayer.bus.$on('confirm-annotation', () => {
-      handler.confirmRecipe();
-    });
-    // Register callback so pressing 'n' (new detection) finalizes in-progress shapes
-    handler.registerFinalizeCreation(() => {
-      editAnnotationLayer.finalizeInProgress();
-    });
-    rectAnnotationLayer.bus.$on('annotation-clicked', Clicked);
-    rectAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
-    rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
-    polyAnnotationLayer.bus.$on('annotation-clicked', Clicked);
-    polyAnnotationLayer.bus.$on('annotation-right-clicked', Clicked);
-    // Handle right-click polygon selection for multi-polygon support
-    polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
-      // If in creation mode, cancel it first so we can select the polygon
-      if (editAnnotationLayer.getMode() === 'creation') {
-        handler.cancelCreation();
-      }
-      // Set the polygon key for the right-clicked polygon
-      handler.selectFeatureHandle(-1, polygonKey);
-      // Force layer update to load the selected polygon
-      // This is especially important when already editing the same track
-      // since annotation-right-clicked won't be emitted in that case
-      window.setTimeout(() => {
-        refreshLayers();
-      }, 0);
-    });
-    polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', Clicked);
-    lineLayer.bus.$on('annotation-clicked', Clicked);
-    lineLayer.bus.$on('annotation-right-clicked', Clicked);
-    // Handle polygon selection for multi-polygon support
-    polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
-      // If in creation mode, don't interrupt - let the edit layer handle clicks for placing points
-      // This is important for hole drawing where left-clicks place hole vertices
-      if (editAnnotationLayer.getMode() === 'creation') {
-        return;
-      }
-      handler.selectFeatureHandle(-1, polygonKey);
-      // Force layer update to load the newly selected polygon
-      // Use nextTick to ensure the selectedKey ref has been updated
-      window.setTimeout(() => {
-        refreshLayers();
-      }, 0);
-    });
-    // Handle right-click outside polygons to finalize/cancel creation
-    polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
-      if (editAnnotationLayer.getMode() === 'creation') {
-        // Cancel creation and go back to editing the default polygon
-        handler.cancelCreation();
-        handler.selectFeatureHandle(-1, '');
-        window.setTimeout(() => {
-          refreshLayers();
-        }, 0);
-      }
-    });
-    editAnnotationLayer.bus.$on('update:geojson', (
-      mode: 'in-progress' | 'editing',
-      geometryCompleteEvent: boolean,
-      data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
-      type: string,
-      key = '',
-      cb: () => void = () => (undefined),
-    ) => {
-      // Seamless multicam creation: a draw that lands on a camera that isn't the
-      // selected one must commit on THIS camera.
-      if (props.camera !== selectedCamera.value
-        && (cameraAwaitingGeometry(frameNumberRef.value, selectedTrackIdRef.value, editingModeRef.value, selectedKeyRef.value)
-          || isCreatingNewDetection(frameNumberRef.value, selectedTrackIdRef.value))) {
-        // Draw landed on a camera that is not selected. Create the same-id
-        // track here when needed, then switch so the update below commits on
-        // this camera under the current track id. Check cameraAwaitingGeometry
-        // before isCreatingNewDetection: once an empty track exists on this
-        // camera the latter is also true, but trackAdd() would deselect and
-        // start a new id. For Point mode, selectCamera finalizes the source
-        // camera's pending mask and clears recipe prompt points.
-        const trackId = selectedTrackIdRef.value as number;
-        if (!cameraStore.getPossibleTrack(trackId, props.camera)) {
-          const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
-          const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-          trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
-        }
-        // preserveSelection: the source camera's track may have no geometry yet
-        // (the draw is happening here), so selectCamera must not abort it and
-        // null selectedTrackId — the in-progress draw commits under this id.
-        handler.selectCamera(props.camera, false, true);
-        if (editingModeRef.value === 'Point' && selectedCamera.value !== props.camera) {
-          // The switch was blocked (e.g. linking mode): a segmentation point
-          // clicked on this camera must never be added to the selected
-          // camera's prompt points, so drop the click.
-          return;
-        }
-      } else if (props.camera !== selectedCamera.value
-        && editingModeRef.value && selectedTrackIdRef.value !== null
-        && cameraStore.getPossibleTrack(selectedTrackIdRef.value, props.camera)) {
-        // Editing the selected track's existing geometry on this camera
-        // (edit handles are live on every camera showing the track): switch
-        // so the edit commits to THIS camera's track. Normally the mousedown
-        // that grabbed the handle already switched via Viewer.changeCamera;
-        // this is the fallback when the update lands first.
-        handler.selectCamera(props.camera, false);
-        if (selectedCamera.value !== props.camera) {
-          // Switch blocked: never commit this camera's edit to the selected
-          // camera's track.
-          return;
-        }
-      }
-      if (type === 'rectangle') {
-        const bounds = geojsonToBound(data as GeoJSON.Feature<GeoJSON.Polygon>);
-        // Extract rotation from properties if it exists
-        const rotation = data.properties && isRotationValue(data.properties?.[ROTATION_ATTRIBUTE_NAME])
-          ? data.properties[ROTATION_ATTRIBUTE_NAME] as number
-          : undefined;
-        cb();
-        handler.updateRectBounds(frameNumberRef.value, flickNumberRef.value, bounds, rotation);
-      } else {
-        handler.updateGeoJSON(mode, frameNumberRef.value, flickNumberRef.value, data, key, cb);
-      }
-      // Jump into edit mode if we completed a new shape
-      if (geometryCompleteEvent) {
-        // Suppress the select that rides along with this same finalizing click.
-        justFinalizedCreation = true;
-        window.setTimeout(() => { justFinalizedCreation = false; }, 0);
-        refreshLayers();
-      }
-    });
-    editAnnotationLayer.bus.$on(
-      'update:selectedIndex',
-      (index: number, _type: EditAnnotationTypes, key?: string) => {
-        // When deselecting (index -1), don't change the key - it may have been
-        // set by polygon-right-clicked/polygon-clicked for multi-polygon selection
-        if (index >= 0 && key !== undefined) {
-          handler.selectFeatureHandle(index, key);
-        } else {
-          // Just update the handle index, preserve the current key
-          handler.selectFeatureHandle(index, selectedKeyRef.value);
-        }
-      },
-    );
-    // Handle clicks outside the edit polygon to allow selecting other polygons
-    editAnnotationLayer.bus.$on('click-outside-edit', (geo: { x: number; y: number }) => {
-      // Check which polygon was clicked by iterating through formatted data
-      const point: [number, number] = [geo.x, geo.y];
-      const polygonData = polyAnnotationLayer.formattedData;
-
-      // Find the polygon that contains the click point
-      const clickedPolygon = polygonData.find((data) => {
-        const coords = data.polygon.coordinates[0] as [number, number][];
-        // Ray casting algorithm
-        let inside = false;
-        for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
-          const xi = coords[i][0];
-          const yi = coords[i][1];
-          const xj = coords[j][0];
-          const yj = coords[j][1];
-          const intersect = ((yi > point[1]) !== (yj > point[1]))
-            && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
-          if (intersect) inside = !inside;
-        }
-        return inside;
-      });
-
-      if (clickedPolygon) {
-        const polygonKey = clickedPolygon.polygonKey || '';
-        // Select the clicked polygon
-        handler.selectFeatureHandle(-1, polygonKey);
-        // Force layer update to load the newly selected polygon
-        window.setTimeout(() => {
-          refreshLayers();
-        }, 0);
-      }
-    });
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];

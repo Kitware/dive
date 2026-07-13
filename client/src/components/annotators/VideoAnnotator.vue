@@ -243,6 +243,7 @@ export default defineComponent({
           } else {
             quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
           }
+          data.imageRevision += 1;
         }
       },
       { deep: true },
@@ -284,6 +285,9 @@ export default defineComponent({
           },
         ])
         .draw();
+      // The <video> element renders in place from here on, so this is the
+      // one swap imageRevision watchers ever see for a video pane.
+      data.imageRevision += 1;
       // Force the first frame to load on slow networks.
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);

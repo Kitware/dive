@@ -203,6 +203,11 @@ export default function register() {
     { path }: { path: string },
   ) => common.findParentFolderCalibrationFile(path));
 
+  ipcMain.handle('find-parent-folder-transform-files', async (
+    event,
+    { path }: { path: string },
+  ) => common.findParentFolderTransformFiles(path));
+
   ipcMain.handle('dataset-has-calibration-file', async (
     event,
     { datasetId }: { datasetId: string },
@@ -263,6 +268,17 @@ export default function register() {
     const exportedPath = await common.exportDatasetCalibration(settings.get(), id, destPath);
     return { exportedPath };
   });
+
+  ipcMain.handle('export-camera-registration', async (_, { id, destPath, camera }: { id: string; destPath: string; camera: string }) => {
+    const exportedPath = await common.exportCameraRegistration(settings.get(), id, destPath, camera);
+    return { exportedPath };
+  });
+
+  ipcMain.handle('import-camera-registration', async (_, { id, path: filePath, options }: {
+    id: string;
+    path: string;
+    options?: { camera?: string };
+  }) => common.importCameraRegistration(settings.get(), id, filePath, options));
 
   ipcMain.handle('get-dataset-calibration', async (_, { datasetId }: { datasetId: string }) => common.getDatasetCalibration(settings.get(), datasetId));
 

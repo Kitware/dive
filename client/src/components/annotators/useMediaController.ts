@@ -31,6 +31,15 @@ interface MediaControllerReactiveData {
   syncedFrame: number;
   /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
   hasFrame: boolean;
+  /**
+   * Bumped whenever the annotator redraws its media quad: the async <img>
+   * swap after a seek finishes loading, an image-enhancement change (the
+   * percentile-stretch URL remap or the CSS filter toggle), or the initial
+   * video quad. Watchers that render a snapshot of the displayed element
+   * (e.g. the aligned-view warp) rely on this as their
+   * only signal that the element changed -- every draw path must bump it.
+   */
+  imageRevision: number;
   cursor: string;
   imageCursor: string;
   imageCursorEditing: boolean;
@@ -93,6 +102,10 @@ export function useMediaController() {
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
   const resizeTrigger: Ref<number> = ref(0);
+  // Raised only while onResize applies its programmatic resetZoom, so the
+  // linked-viewer navigation ignores the resulting pan/zoom events (see
+  // AggregateMediaController.resizing).
+  const resizing: Ref<boolean> = ref(false);
   // shallowRef: an AlignedFrameResolver carries nested Refs (slotCount, frameRate)
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
   const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
@@ -127,6 +140,7 @@ export function useMediaController() {
     toggleSynchronizeCameras,
     cameraSync: synchronizeCameras,
     resizeTrigger,
+    resizing,
     alignedGapSlots,
     seekCameraFrame: aggregateSeekCameraFrame,
   };
@@ -226,7 +240,18 @@ export function useMediaController() {
     // Resize maps first, then redraw annotation layers once GeoJS has settled.
     if (resized) {
       window.requestAnimationFrame(() => {
-        pendingResizes.forEach((applyResize) => applyResize());
+        // resetZoom recenters each pane on its OWN native bounds and emits
+        // pan/zoom events synchronously. Suppress the linked-viewer navigation
+        // for the duration so a non-reference pane's native center isn't
+        // broadcast into the shared/reference space (which would strand warped
+        // panes on an empty corner). The resizeTrigger bump below then re-snaps
+        // every pane from a clean reference view.
+        resizing.value = true;
+        try {
+          pendingResizes.forEach((applyResize) => applyResize());
+        } finally {
+          resizing.value = false;
+        }
         window.requestAnimationFrame(() => {
           resizeTrigger.value += 1;
         });
@@ -236,6 +261,29 @@ export function useMediaController() {
 
   function toggleSynchronizeCameras(val: boolean) {
     synchronizeCameras.value = val;
+  }
+
+  /**
+   * Optional replacement for the aggregate "reset pan and zoom" behavior,
+   * installed by the aligned-view navigation link (useAlignedNavigation).
+   * While the aligned view is active every pane renders in the shared
+   * reference space, so resetting each pane to its own native bounds parks
+   * the view on an empty corner instead of the imagery. The override returns
+   * true when it handled the reset, false to fall back to the per-pane
+   * native reset. Lives in this closure (not on the aggregate object) so
+   * consumers that cached an earlier aggregate instance still route through
+   * it.
+   */
+  let resetZoomOverride: (() => boolean) | null = null;
+  function setResetZoomOverride(override: (() => boolean) | null) {
+    resetZoomOverride = override;
+  }
+
+  function aggregateResetZoom() {
+    if (resetZoomOverride && resetZoomOverride()) {
+      return;
+    }
+    subControllers.forEach((mc) => mc.resetZoom());
   }
 
   bus.$on('pan', (camEvent: {camera: string; event: GeoEvent}) => {
@@ -316,6 +364,7 @@ export function useMediaController() {
       maxFrame: 0,
       syncedFrame: 0,
       hasFrame: true,
+      imageRevision: 0,
       cursor: 'default',
       imageCursor: '',
       imageCursorEditing: false,
@@ -534,6 +583,8 @@ export function useMediaController() {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
+      imageRevision: toRef(state[camera], 'imageRevision'),
+      originalBounds: toRef(state[camera], 'originalBounds'),
       prevFrame,
       nextFrame,
       play: _play,
@@ -680,12 +731,13 @@ export function useMediaController() {
       pause: aggregatePause,
       play: aggregatePlay,
       playing: defaultController.playing,
-      resetZoom: over(map(subControllers, 'resetZoom')),
+      resetZoom: aggregateResetZoom,
       currentTime: defaultController.currentTime,
       getController,
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
       resizeTrigger,
+      resizing,
       alignedGapSlots,
       seekCameraFrame: aggregateSeekCameraFrame,
     };
@@ -704,5 +756,6 @@ export function useMediaController() {
     onResize,
     clear,
     setAlignedFrameResolver,
+    setResetZoomOverride,
   };
 }

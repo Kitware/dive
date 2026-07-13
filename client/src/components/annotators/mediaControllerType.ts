@@ -46,6 +46,16 @@ export interface AggregateMediaController {
   /** Incremented when the viewer is resized, used to trigger layer redraws */
   resizeTrigger: Readonly<Ref<number>>;
   /**
+   * True only while onResize is applying its programmatic size()/resetZoom()
+   * to the panes. resetZoom emits GeoJS pan/zoom events synchronously; the
+   * linked-viewer navigation (useAlignedNavigation / useCalibrationNavigation)
+   * must ignore those so one pane's native-space reset isn't broadcast to the
+   * others as if it were a shared-space move (which parks warped panes on an
+   * empty corner). The resizeTrigger bump that follows re-snaps every pane from
+   * the reference once the reset has settled.
+   */
+  resizing: Readonly<Ref<boolean>>;
+  /**
    * Global aligned-timeline slot indices with at least one camera missing a
    * frame (see AlignedFrameResolver's gapSlots); empty whenever alignment
    * isn't active.
@@ -92,6 +102,25 @@ export interface MediaController extends AggregateMediaController {
    * draw annotations for the stale `frame` value left over from before.
    */
   hasFrame: Readonly<Ref<boolean>>;
+  /**
+   * Bumped whenever the annotator redraws its media quad: the async <img>
+   * swap after a seek finishes loading, an image-enhancement change (the
+   * percentile-stretch URL remap or the CSS filter toggle), or the initial
+   * video quad. Watchers that render a snapshot of the displayed element
+   * (e.g. the aligned-view warp) rely on this as their
+   * only signal that the element changed -- every draw path must bump it.
+   */
+  imageRevision: Readonly<Ref<number>>;
+  /**
+   * This pane's native content bounds ({left: 0, top: 0, right: width,
+   * bottom: height}, as last applied by resetMapDimensions) -- the rectangle
+   * the plain resetZoom fits. The aligned-view reset maps these corners
+   * through the camera's native->reference homography to fit the warped
+   * content instead (see useAlignedNavigation).
+   */
+  originalBounds: Readonly<Ref<{
+    left: number; top: number; right: number; bottom: number;
+  }>>;
   /**
    * Per-camera seek accepts undefined when this camera has no frame at the
    * current aligned-timeline slot (see AlignedFrameResolver) -- the camera

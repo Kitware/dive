@@ -39,7 +39,7 @@ export function pickStereoCalibrationFileName(fileNames: string[]): string | nul
   })[0];
 }
 
-function stripPathPrefix(path: string, prefix: string): string {
+export function stripPathPrefix(path: string, prefix: string): string {
   if (!prefix) {
     return path;
   }

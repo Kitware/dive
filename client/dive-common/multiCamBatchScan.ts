@@ -11,6 +11,7 @@ import {
   orderSubfolderCameraNames,
   pickDefaultMulticamCamera,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { assignRegistrationFilesToCameras } from 'dive-common/registrationParentFolder';
 
 /** Camera-count limits shared with the single multicam subfolder import. */
 export const MinBatchCameras = 2;
@@ -28,6 +29,8 @@ export interface MultiCamBatchCollect {
   name: string;
   path: string;
   cameras: MultiCamBatchCamera[];
+  /** File names of the collect's registration files attached to importArgs. */
+  transformFiles: string[];
   problems: string[];
   warnings: string[];
   importArgs: MultiCamImportFolderArgs | null;
@@ -52,6 +55,12 @@ export interface CollectRawScan {
   name: string;
   path: string;
   subfolders: Map<string, CollectSubfolderScan>;
+  /**
+   * Qualified DIVE registration .json files found in the collect folder root
+   * (platform-discovered, in attachment priority order); assigned to camera
+   * slots on the collect's importArgs.
+   */
+  transformFiles?: string[];
 }
 
 function canonicalCameraNames(collects: CollectRawScan[]): string[] {
@@ -124,11 +133,29 @@ function buildCollectResult(
   }
 
   let importArgs: MultiCamImportFolderArgs | null = null;
+  const transformFiles: string[] = [];
   if (!problems.length) {
     const sourceList: MultiCamImportFolderArgs['sourceList'] = {};
     cameras.forEach((camera) => {
       sourceList[camera.name] = { sourcePath: camera.sourcePath, trackFile: '' };
     });
+    if (collect.transformFiles?.length) {
+      const { assignments, unassigned } = assignRegistrationFilesToCameras(
+        collect.transformFiles,
+        cameraNames,
+      );
+      assignments.forEach(({ camera, filePath }) => {
+        sourceList[camera].transformFile = filePath;
+        transformFiles.push(filePath.replace(/^.*[\\/]/, ''));
+      });
+      if (unassigned.length) {
+        warnings.push(
+          `Registration file(s) not attached (no free camera slot): ${unassigned
+            .map((filePath) => filePath.replace(/^.*[\\/]/, ''))
+            .join(', ')}`,
+        );
+      }
+    }
     importArgs = {
       datasetName: collect.name,
       defaultDisplay: pickDefaultMulticamCamera(cameraNames),
@@ -142,6 +169,7 @@ function buildCollectResult(
     name: collect.name,
     path: collect.path,
     cameras,
+    transformFiles,
     problems,
     warnings,
     importArgs,

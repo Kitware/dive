@@ -19,3 +19,11 @@ export default defineComponent({
   },
 });
 ```
+
+## Linked viewer navigation
+
+Multicam pan/zoom linking lives in `./linkedViewers/`. See that folder's [README](./linkedViewers/README.md) for how `useLinkedViewers` and `useAlignedNavigation` work, and how they relate to the aligned view and raw camera sync.
+
+```typescript
+import { useAlignedNavigation } from 'vue-media-annotator/components';
+```

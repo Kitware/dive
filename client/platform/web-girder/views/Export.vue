@@ -6,6 +6,8 @@ import {
 import {
   usePendingSaveCount, useHandler, useTrackFilters, useRevisionId,
 } from 'vue-media-annotator/provides';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import { referenceCameraName } from 'dive-common/multicamDisplay';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { useRequest } from 'dive-common/use';
 import {
@@ -251,6 +253,40 @@ export default defineComponent({
       });
     }
 
+    // Per-camera registration files, built client-side from the
+    // dataset meta (the calibration persists there on web). Each pair files
+    // under its non-reference camera, matching the desktop's on-disk
+    // <camera>_to_<reference>_registration.json convention.
+    const registrationFiles = computed(() => {
+      const ds = dataset.value;
+      if (!ds || ds.type !== MultiType) {
+        return [];
+      }
+      return buildPerCameraRegistrationFiles({
+        homographies: ds.cameraHomographies ?? {},
+        correspondences: ds.cameraCorrespondences ?? {},
+        transformTypes: ds.cameraTransformTypes ?? {},
+        source: ds.cameraRegistrationSource ?? null,
+      }, referenceCameraName(ds.multiCamMedia));
+    });
+
+    function exportRegistration(camera: string) {
+      const match = registrationFiles.value.find((file) => file.camera === camera);
+      if (!match) {
+        return;
+      }
+      const blob = new Blob(
+        [JSON.stringify(match.body, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = match.name;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    }
+
     return {
       error,
       dataset,
@@ -271,6 +307,8 @@ export default defineComponent({
       isMulticamDataset,
       cameraFileSupported,
       exportCameraFile,
+      registrationFiles,
+      exportRegistration,
     };
   },
 });
@@ -494,6 +532,28 @@ export default defineComponent({
               >
                 Camera File
               </v-btn>
+            </v-card-actions>
+          </template>
+
+          <template v-if="registrationFiles.length">
+            <v-card-text class="pb-0">
+              Download the camera registration: one registration file per camera.
+            </v-card-text>
+            <v-card-actions>
+              <v-row>
+                <v-col>
+                  <v-btn
+                    v-for="file in registrationFiles"
+                    :key="file.camera"
+                    depressed
+                    block
+                    class="my-1"
+                    @click="exportRegistration(file.camera)"
+                  >
+                    Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
+                  </v-btn>
+                </v-col>
+              </v-row>
             </v-card-actions>
           </template>
 

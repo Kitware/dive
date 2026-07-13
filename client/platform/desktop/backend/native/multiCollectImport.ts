@@ -8,7 +8,11 @@ import {
   CollectSubfolderScan,
   scanMultiCamBatchFromCollects,
 } from 'dive-common/multiCamBatchScan';
-import { findImagesInFolder, listImmediateSubfolders } from './common';
+import {
+  findImagesInFolder,
+  findParentFolderTransformFiles,
+  listImmediateSubfolders,
+} from './common';
 
 async function scanCollectFolder(collectPath: string): Promise<Map<string, CollectSubfolderScan>> {
   const subfolderNames = await listImmediateSubfolders(collectPath);
@@ -43,6 +47,9 @@ async function scanMultiCamBatch(rootPath: string) {
       path: collectPath,
       // eslint-disable-next-line no-await-in-loop
       subfolders: await scanCollectFolder(collectPath),
+      // Per-collect registration files sit next to the camera subfolders.
+      // eslint-disable-next-line no-await-in-loop
+      transformFiles: await findParentFolderTransformFiles(collectPath),
     });
   }
 

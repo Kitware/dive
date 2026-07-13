@@ -118,7 +118,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     return {
       ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
-      position: (point) => ({ x: point[0], y: point[1] }),
+      position: (point) => this.transformPoint(point),
       strokeColor: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.color;
