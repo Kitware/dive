@@ -118,6 +118,17 @@ def check_canceled(task: Task, context: dict, force=True):
     return False
 
 
+def describe_exit(code: int) -> str:
+    """Describe a Popen return code, naming the signal for a kill."""
+    if code < 0:
+        try:
+            name = signal.Signals(-code).name
+        except ValueError:
+            name = 'unknown signal'
+        return f'was terminated by {name} ({-code})'
+    return f'exited with nonzero status code {code}'
+
+
 def stream_subprocess(
     task: Task,
     context: dict,
@@ -186,12 +197,14 @@ def stream_subprocess(
             manager.updateStatus(JobStatus.CANCELED)
             raise CanceledError('Job was canceled')
 
-        if code > 0:
+        # Popen reports death by signal as a negative return code, so anything other
+        # than 0 is a failure.  Treating only code > 0 as failure let a SIGKILLed
+        # pipeline (-9, typically the OOM killer) report success, and callers then
+        # ingested whatever partial or empty output file it left behind.
+        if code != 0:
             stderr_file.seek(0)
             stderr = stderr_file.read().decode('utf-8', errors='replace')
-            raise RuntimeError(
-                'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
-            )
+            raise RuntimeError(f'Pipeline {describe_exit(code)}: {stderr}')
         else:
             end_time = datetime.now()
             manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
