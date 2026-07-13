@@ -53,6 +53,32 @@ After `electron-vite build`, **`electron-builder --config electron-builder.json`
 * **`build:electron`** — `electron-vite build` then `electron-builder --config electron-builder.json`.
 * **`build:electron:dir`** — same as `build:electron` but produces an unpacked directory instead of an installer (faster iteration for testing).
 
+## Launching from the command line
+
+DIVE Desktop can be started directly on a dataset, skipping the import wizard:
+
+```bash
+dive-desktop --import <media> [--annotations <file>] [--name <name>]
+```
+
+* **`--import`, `-i`** — the media to open. Anything the import wizard accepts: an image-sequence directory, an image-list text file (one image path per line), or a video.
+* **`--annotations`, `-a`** — optional VIAME CSV or DIVE JSON to load onto the dataset.
+* **`--name`, `-n`** — optional display name; defaults to the media basename.
+
+Relative paths are resolved against the working directory. For example, to review a detector's output over an image list:
+
+```bash
+dive-desktop --import input_list.txt --annotations detections.csv --name "Sea Lions"
+```
+
+The dataset is imported through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`), so it is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes.
+
+If an instance is already running, the single-instance lock forwards the arguments to it and the dataset opens in the existing window.
+
+Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed.
+
+Note this is distinct from `divecli` (`backend/cli.ts`), a separate headless entrypoint for format conversion and running pipelines, which does not open the GUI.
+
 ## Interactive service (segmentation + stereo)
 
 Desktop-only interactive annotation runs through a single persistent Python subprocess managed by `backend/native/interactive.ts`. It hosts:

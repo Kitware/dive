@@ -8,6 +8,7 @@ import path from 'path';
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
+import { CliOpenArgs, parseCliArgs, runCliImport } from './backend/cliImport';
 
 function ensureValidWorkingDirectory() {
   try {
@@ -34,6 +35,45 @@ app.commandLine.appendSwitch('ignore-gpu-blacklist');
 let win: BrowserWindow | null;
 let allowClose = false;
 let closeGuardActive = false;
+
+// Dataset requested on the command line, held until the renderer is mounted and
+// asks for it. See backend/cliImport.ts.
+let pendingCliOpen: CliOpenArgs | null = parseCliArgs(process.argv);
+
+/**
+ * Import the CLI-requested dataset and navigate the renderer to it. Navigation
+ * is driven by an event rather than the return value because media that needs
+ * transcoding only becomes viewable once its conversion job finishes.
+ */
+async function openFromCli(cliArgs: CliOpenArgs) {
+  try {
+    await runCliImport(
+      cliArgs,
+      (update) => sendToRenderer('job-update', update),
+      (datasetId) => sendToRenderer('desktop:open-dataset', datasetId),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    dialog.showErrorBox(
+      'DIVE Desktop',
+      `Failed to open ${cliArgs.importPath} from the command line:\n\n${message}`,
+    );
+  }
+}
+
+// The renderer calls this once it is mounted and listening, so that a dataset
+// ready before the window finishes loading is not missed.
+ipcMain.handle('desktop:cli-open-pending', () => {
+  const cliArgs = pendingCliOpen;
+  pendingCliOpen = null;
+  if (!cliArgs) {
+    return null;
+  }
+  // Deliberately not awaited: the renderer should not block on the import, and
+  // it learns the dataset id from the desktop:open-dataset event instead.
+  openFromCli(cliArgs);
+  return cliArgs.importPath;
+});
 
 ipcMain.on('desktop:close-guard-active', (event, active: boolean) => {
   if (win && event.sender === win.webContents) {
@@ -70,13 +110,23 @@ ipcMain.handle('desktop:confirm-close-unsaved', async (): Promise<'save' | 'disc
 // This application uses localStorage with persistent sessions.
 // In order to use this mechanism, only one application instance
 // can exist at a time.  Acquire a lock or quit and focus the running window.
-const gotTheLock = app.requestSingleInstanceLock();
+//
+// Hand the parsed launch arguments to the running instance as additionalData.
+// The argv Electron forwards to second-instance is Chromium's, which hoists
+// switches ahead of positionals and so detaches `--import <path>` from its
+// value; process.argv here is the raw one, so parse before handing it over.
+const gotTheLock = app.requestSingleInstanceLock(pendingCliOpen ?? undefined);
 if (!gotTheLock) {
-  dialog.showErrorBox(
-    'DIVE Desktop',
-    'Another instance is already running.\n\n'
-      + 'If you do not see a window, close any existing DIVE Desktop or Electron dev session, then try again.',
-  );
+  // A second launch carrying --import is not a mistake: the running instance
+  // picks the dataset up via the second-instance event below and opens it, so
+  // quit quietly rather than reporting a failure the user did not have.
+  if (!pendingCliOpen) {
+    dialog.showErrorBox(
+      'DIVE Desktop',
+      'Another instance is already running.\n\n'
+        + 'If you do not see a window, close any existing DIVE Desktop or Electron dev session, then try again.',
+    );
+  }
   app.quit();
 }
 
@@ -216,18 +266,32 @@ app.on('before-quit', () => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => createWindow()).catch((err) => {
-  dialog.showErrorBox(
-    'DIVE Desktop',
-    `The application failed to start:\n\n${err instanceof Error ? err.message : String(err)}`,
-  );
-  app.exit(1);
-});
+//
+// Only the instance holding the single-instance lock opens a window. Without
+// this guard a losing instance races its own app.quit(), builds a window while
+// the app is tearing down, and reports a spurious startup failure.
+if (gotTheLock) {
+  app.whenReady().then(() => createWindow()).catch((err) => {
+    dialog.showErrorBox(
+      'DIVE Desktop',
+      `The application failed to start:\n\n${err instanceof Error ? err.message : String(err)}`,
+    );
+    app.exit(1);
+  });
+}
 
-app.on('second-instance', () => {
+app.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();
+    // A second launch carrying --import opens that dataset in this window,
+    // rather than being dropped on the floor by the single-instance lock. The
+    // args were parsed by that instance and passed through the lock request,
+    // since the forwarded argv no longer pairs flags with their values.
+    const cliArgs = additionalData as CliOpenArgs | undefined;
+    if (cliArgs?.importPath) {
+      openFromCli(cliArgs);
+    }
   }
 });
 
