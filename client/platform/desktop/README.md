@@ -71,9 +71,32 @@ Relative paths are resolved against the working directory. For example, to revie
 dive-desktop --import input_list.txt --annotations detections.csv --name "Sea Lions"
 ```
 
-The dataset is imported through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`), so it is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes.
+### Multi-camera and stereo
+
+Name each camera with a repeated `--camera` instead of using `--import`:
+
+```bash
+dive-desktop --camera left=/data/left --camera right=/data/right \
+             --annotations left=/data/left.csv --annotations right=/data/right.csv \
+             --calibration /data/calibration_matrices.npz
+```
+
+* **`--camera`, `-c`** — `<name>=<media>`, repeated once per camera (two or more). Each media path is the same set of things `--import` accepts. Only the first `=` separates, so Windows paths survive. Flag order is the display order.
+* **`--annotations`, `-a`** — becomes `<camera>=<file>` in multi-camera mode. Give it once per camera that has annotations; cameras may be omitted.
+* **`--calibration`** — stereo calibration file (`.npz` or `.json`). Multi-camera only.
+* **`--default-display`** — camera shown on open. Defaults to `left` when present, else the first camera.
+
+**Stereo is not a separate flag.** As elsewhere in DIVE, a dataset whose cameras are named exactly `left` and `right` is typed `stereo`; any other set of names is `multicam`. So the example above produces a stereo dataset, and adding a `--calibration` is what makes stereo measurement work.
+
+Every camera must be the same kind of media — all videos or all image sequences — since one dataset type covers them all. `--import` and `--camera` are mutually exclusive.
+
+### Notes
+
+Single-camera datasets go through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`); multi-camera ones go through `beginMultiCamImport` → `finalizeMediaImport`, which ingests the per-camera track files and copies/normalizes the calibration. Either way the result is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes.
 
 If an instance is already running, the single-instance lock forwards the arguments to it and the dataset opens in the existing window.
+
+Glob/keyword multi-camera import (`MultiCamImportKeywordArgs`, one folder matched by per-camera glob) is not exposed on the command line; use one `--camera` per source instead.
 
 Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed.
 

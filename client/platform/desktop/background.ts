@@ -38,7 +38,15 @@ let closeGuardActive = false;
 
 // Dataset requested on the command line, held until the renderer is mounted and
 // asks for it. See backend/cliImport.ts.
-let pendingCliOpen: CliOpenArgs | null = parseCliArgs(process.argv);
+let pendingCliOpen: CliOpenArgs | null = null;
+// Misuse of the launch flags is reported once the app is ready; throwing here,
+// at module scope, would take the process down without telling the user why.
+let cliArgsError: string | null = null;
+try {
+  pendingCliOpen = parseCliArgs(process.argv);
+} catch (err) {
+  cliArgsError = err instanceof Error ? err.message : String(err);
+}
 
 /**
  * Import the CLI-requested dataset and navigate the renderer to it. Navigation
@@ -46,6 +54,9 @@ let pendingCliOpen: CliOpenArgs | null = parseCliArgs(process.argv);
  * transcoding only becomes viewable once its conversion job finishes.
  */
 async function openFromCli(cliArgs: CliOpenArgs) {
+  // Multi-camera launches have no single import path; name what was asked for.
+  const target = cliArgs.importPath
+    ?? Object.entries(cliArgs.cameras ?? {}).map(([c, p]) => `${c}=${p}`).join(', ');
   try {
     await runCliImport(
       cliArgs,
@@ -54,9 +65,12 @@ async function openFromCli(cliArgs: CliOpenArgs) {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Log as well as prompt: a modal dialog is invisible to anyone driving the
+    // app from a script or reading a log after the fact.
+    console.error(`Failed to open ${target} from the command line: ${message}`);
     dialog.showErrorBox(
       'DIVE Desktop',
-      `Failed to open ${cliArgs.importPath} from the command line:\n\n${message}`,
+      `Failed to open ${target} from the command line:\n\n${message}`,
     );
   }
 }
@@ -117,10 +131,12 @@ ipcMain.handle('desktop:confirm-close-unsaved', async (): Promise<'save' | 'disc
 // value; process.argv here is the raw one, so parse before handing it over.
 const gotTheLock = app.requestSingleInstanceLock(pendingCliOpen ?? undefined);
 if (!gotTheLock) {
-  // A second launch carrying --import is not a mistake: the running instance
-  // picks the dataset up via the second-instance event below and opens it, so
-  // quit quietly rather than reporting a failure the user did not have.
-  if (!pendingCliOpen) {
+  // A second launch carrying a dataset is not a mistake: the running instance
+  // picks it up via the second-instance event below and opens it, so quit
+  // quietly rather than reporting a failure the user did not have.
+  if (cliArgsError) {
+    dialog.showErrorBox('DIVE Desktop', cliArgsError);
+  } else if (!pendingCliOpen) {
     dialog.showErrorBox(
       'DIVE Desktop',
       'Another instance is already running.\n\n'
@@ -271,7 +287,16 @@ app.on('before-quit', () => {
 // this guard a losing instance races its own app.quit(), builds a window while
 // the app is tearing down, and reports a spurious startup failure.
 if (gotTheLock) {
-  app.whenReady().then(() => createWindow()).catch((err) => {
+  app.whenReady().then(() => {
+    // Launch flags were malformed. Say so and stop, rather than opening an app
+    // window that silently ignores what was asked for.
+    if (cliArgsError) {
+      dialog.showErrorBox('DIVE Desktop', cliArgsError);
+      app.exit(1);
+      return Promise.resolve();
+    }
+    return createWindow();
+  }).catch((err) => {
     dialog.showErrorBox(
       'DIVE Desktop',
       `The application failed to start:\n\n${err instanceof Error ? err.message : String(err)}`,
@@ -284,12 +309,12 @@ app.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => 
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();
-    // A second launch carrying --import opens that dataset in this window,
-    // rather than being dropped on the floor by the single-instance lock. The
-    // args were parsed by that instance and passed through the lock request,
-    // since the forwarded argv no longer pairs flags with their values.
+    // A second launch carrying a dataset opens it in this window, rather than
+    // being dropped on the floor by the single-instance lock. The args were
+    // parsed by that instance and passed through the lock request, since the
+    // forwarded argv no longer pairs flags with their values.
     const cliArgs = additionalData as CliOpenArgs | undefined;
-    if (cliArgs?.importPath) {
+    if (cliArgs?.importPath || cliArgs?.cameras) {
       openFromCli(cliArgs);
     }
   }
