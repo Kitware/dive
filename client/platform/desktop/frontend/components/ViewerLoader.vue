@@ -82,6 +82,16 @@ export default defineComponent({
     }
   },
 
+  // Switching straight from one dataset to another keeps this component mounted
+  // and only changes the :id param, so beforeRouteLeave does not fire. Guard it
+  // too: the id watcher in Viewer reloads by discarding, which would throw away
+  // unsaved edits without asking.
+  async beforeRouteUpdate(to, from, next) {
+    if (await this.viewerRef.navigateAwayGuard()) {
+      next();
+    }
+  },
+
   props: {
     id: { // always the base ID
       type: String,
