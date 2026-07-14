@@ -79,6 +79,8 @@ export default defineComponent({
   async beforeRouteLeave(to, from, next) {
     if (await this.viewerRef.navigateAwayGuard()) {
       next();
+    } else {
+      next(false);
     }
   },
 
@@ -89,6 +91,8 @@ export default defineComponent({
   async beforeRouteUpdate(to, from, next) {
     if (await this.viewerRef.navigateAwayGuard()) {
       next();
+    } else {
+      next(false);
     }
   },
 
