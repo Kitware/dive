@@ -60,6 +60,63 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 
 The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configuration file.  Neither is required.
 
+### Launching from the command line
+
+DIVE Desktop can open a dataset directly from the command line, skipping the import wizard. This is useful for reviewing detector output, scripting open-and-review workflows, or jumping straight into annotation.
+
+Pass the flags to the DIVE Desktop executable (for example `DIVE-Desktop.exe` on Windows, or `./DIVE-Desktop-<version>.AppImage` on Linux). Relative paths are resolved against the current working directory.
+
+#### Single-camera datasets
+
+``` bash
+DIVE-Desktop --import <media> [--annotations <file>] [--name <name>]
+```
+
+| Flag | Short | Description |
+| ---- | ----- | ----------- |
+| `--import` | `-i` | Media to open: an image-sequence directory, an image-list `.txt` file (one image path per line), or a video. Same inputs as the import wizard. |
+| `--annotations` | `-a` | Optional annotation file to load (VIAME CSV or DIVE JSON). |
+| `--name` | `-n` | Optional display name; defaults to the media basename. |
+
+Example — review a detector CSV over an image list:
+
+``` bash
+DIVE-Desktop --import input_list.txt --annotations detections.csv --name "Sea Lions"
+```
+
+#### Multi-camera and stereo datasets
+
+Name each camera with a repeated `--camera` instead of `--import`:
+
+``` bash
+DIVE-Desktop --camera left=/data/left --camera right=/data/right \
+             --annotations left=/data/left.csv --annotations right=/data/right.csv \
+             --calibration /data/calibration_matrices.npz
+```
+
+| Flag | Short | Description |
+| ---- | ----- | ----------- |
+| `--camera` | `-c` | `<name>=<media>`, repeated once per camera (at least two). Media paths accept the same kinds as `--import`. Only the first `=` separates name from path, so Windows paths like `left=C:\data\left` work. Flag order is the display order. |
+| `--annotations` | `-a` | In multi-camera mode, `<camera>=<file>`. Give once per camera that has annotations; cameras without annotations may be omitted. |
+| `--calibration` | | Optional stereo calibration (`.npz` or `.json`). Multi-camera only. |
+| `--default-display` | | Camera shown on open. Defaults to `left` when that camera exists, otherwise the first `--camera`. |
+| `--name` | `-n` | Optional display name. |
+
+!!! note
+
+    There is no separate stereo flag. As elsewhere in DIVE, cameras named exactly `left` and `right` create a **stereo** dataset; any other set of names creates a **multicam** dataset. Pass `--calibration` when you need stereo measurement. See [Multicamera and Stereo Data](Multicamera-data.md).
+
+Every camera must use the same kind of media (all videos or all image sequences). `--import` and `--camera` are mutually exclusive.
+
+#### Behavior notes
+
+* The result is a normal Desktop dataset: it appears in the library / recents list and can be reopened later, the same as if imported through the UI.
+* Media that requires [transcoding](#video-transcoding) is converted first; the viewer opens when conversion finishes.
+* If DIVE Desktop is already running, a second launch with these flags opens the dataset in the existing window instead of starting another instance.
+* Glob / keyword multi-camera folder layouts from the UI are not available on the command line; pass one `--camera` per source instead.
+
+This is separate from the [server `dive` command-line tools](Command-Line-Tools.md) used for format conversion.
+
 ### Video Transcoding
 
 DIVE Desktop is an [Electron](https://www.electronjs.org/) application built on web technologies.  Certain video codecs require automatic transcoding to be usable.  Video will be transcoded unless _all_ the following conditions are met.

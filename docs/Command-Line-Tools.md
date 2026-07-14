@@ -2,7 +2,7 @@
 
 !!! note
 
-    This page is **not related** to the VIAME install command line (e.g. `viame`, `kwiver`)
+    This page is **not related** to the VIAME install command line (e.g. `viame`, `kwiver`), and it is also distinct from [launching DIVE Desktop on a dataset](Dive-Desktop.md#launching-from-the-command-line) with `--import` / `--camera`.
 
 Some of the DIVE data conversion features are exposed through `dive`.  
 
