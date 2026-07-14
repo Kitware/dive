@@ -377,11 +377,11 @@ async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> 
  */
 
 async function autoRegisterAvailable(): Promise<{ installed: boolean }> {
-  return window.diveDesktop.invoke('auto-register-available');
+  return window.diveDesktop.invoke('register-images-available');
 }
 
 async function autoRegister(request: AutoRegisterRequest): Promise<AutoRegisterResponse> {
-  return window.diveDesktop.invoke('auto-register', request);
+  return window.diveDesktop.invoke('register-images', request);
 }
 
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {

@@ -434,12 +434,12 @@ export default function register() {
     return { installed: isSam3Installed(currentSettings.viamePath) };
   });
 
-  ipcMain.handle('auto-register-available', () => {
+  ipcMain.handle('register-images-available', () => {
     const currentSettings = settings.get();
     return { installed: isAutoRegisterInstalled(currentSettings.viamePath) };
   });
 
-  ipcMain.handle('auto-register', async (_, args: {
+  ipcMain.handle('register-images', async (_, args: {
     imagePathA: string;
     imagePathB: string;
     options?: {
