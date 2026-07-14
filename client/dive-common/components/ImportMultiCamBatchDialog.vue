@@ -109,7 +109,7 @@ export default defineComponent({
       scan.value?.collects.forEach((collect) => {
         nextStatuses[collect.name] = { state: collect.importArgs ? 'ready' : 'blocked' };
         nextSelected[collect.name] = collect.importArgs !== null;
-        nextDatasetNames[collect.name] = collect.name;
+        nextDatasetNames[collect.name] = collect.importArgs?.datasetName || collect.name;
       });
       statuses.value = nextStatuses;
       selectedState.value = nextSelected;
@@ -242,6 +242,9 @@ export default defineComponent({
         camera's images. One multicam dataset is created per collect. DIVE
         registration .json files found next to a collect's camera folders are
         attached automatically and seed that dataset's camera registration.
+        KAMERA flight folders are detected automatically: a flat view folder
+        (left_view, center_view, right_view) with *_rgb / *_ir / *_uv images
+        becomes one dataset with a camera per modality.
       </p>
       <v-row
         no-gutters

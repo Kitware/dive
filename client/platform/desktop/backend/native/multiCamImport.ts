@@ -247,9 +247,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             multiCamTrackFiles[cameraName] = item.trackFile;
             trackFileCount += 1;
           }
-          const found = await findImagesInFolder(item.sourcePath);
+          const found = await findImagesInFolder(item.sourcePath, item.glob);
           if (found.imagePaths.length === 0) {
-            throw new Error(`no images found in ${item.sourcePath}`);
+            throw new Error(`no images found in ${item.sourcePath}${item.glob ? ` matching ${item.glob}` : ''}`);
           }
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           if (found.source === 'directory') {

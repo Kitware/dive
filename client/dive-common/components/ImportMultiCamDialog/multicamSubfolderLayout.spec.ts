@@ -16,6 +16,7 @@ import {
   organizeSubfolderCameras,
   orderSubfolderCameraNames,
   parentFolderLabelFromAbsolutePaths,
+  rootLevelImageFiles,
   preferEoIrSubfolderOrder,
   preferEoSubfolderFirst,
   preferLeftSubfolderFirst,
@@ -197,6 +198,23 @@ describe('groupRootLevelVideoFiles', () => {
     expect([...groups.keys()].sort()).toEqual(['left', 'right']);
     expect(groups.get('left')?.length).toBe(1);
     expect(groups.get('right')?.length).toBe(1);
+  });
+});
+
+describe('rootLevelImageFiles', () => {
+  const mk = (path: string) => ({ webkitRelativePath: path, name: path.split('/').pop() } as File);
+
+  it('keeps images directly under the parent folder and skips subfolders and non-images', () => {
+    const files = rootLevelImageFiles([
+      mk('left_view/kamera_fl09_20240612_204107.625730_rgb.jpg'),
+      mk('left_view/kamera_fl09_20240612_204107.625730_ir.tif'),
+      mk('left_view/metadata.json'),
+      mk('left_view/thumbs/preview.jpg'),
+    ], 'left_view');
+    expect(files.map((file) => file.name)).toEqual([
+      'kamera_fl09_20240612_204107.625730_rgb.jpg',
+      'kamera_fl09_20240612_204107.625730_ir.tif',
+    ]);
   });
 });
 

@@ -42,6 +42,7 @@ export default defineComponent({
       subfolderOriginalNames: props.ctx.subfolderOriginalNames,
       pendingImportPayloads: props.ctx.pendingImportPayloads,
       folderList: props.ctx.folderList,
+      filteredImages: props.ctx.filteredImages,
       camerasReady: props.ctx.camerasReady,
       deleteSet: props.ctx.deleteSet,
       onRenameCamera: props.ctx.onRenameCamera,
@@ -67,7 +68,9 @@ export default defineComponent({
       Choose a parent folder with either one subfolder per camera (2 or 3 subfolders)
       or separate video files in the folder (2 or 3 videos). Subfolders without image or
       video files are ignored. Names come from the subfolder or video file name
-      (letters, numbers, and underscores).
+      (letters, numbers, and underscores). A flat KAMERA view folder
+      (left_view, center_view, right_view) is detected automatically and split
+      into one camera per modality (*_rgb / *_ir / *_uv).
     </v-alert>
     <v-row
       no-gutters
@@ -135,11 +138,11 @@ export default defineComponent({
       />
       <v-chip
         v-if="dataType === ImageSequenceType && pendingImportPayloads[key]"
-        :color="pendingImportPayloads[key].jsonMeta.originalImageFiles.length ? 'success' : 'error'"
+        :color="(filteredImages[key] || []).length ? 'success' : 'error'"
         outlined
         class="mt-2"
       >
-        {{ pendingImportPayloads[key].jsonMeta.originalImageFiles.length }} files
+        {{ (filteredImages[key] || []).length }} files
       </v-chip>
       <ImportMultiCamChooseTransform
         v-if="folderList[key] && folderList[key].sourcePath && showTransformFileField(key)"

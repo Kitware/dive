@@ -21,12 +21,18 @@ function collectSubfolder(
 function collectScan(
   name: string,
   subfolders: Record<string, CollectSubfolderScan>,
+  rootImageNames?: string[],
 ): CollectRawScan {
   return {
     name,
     path: `/survey/${name}`,
     subfolders: new Map(Object.entries(subfolders).map(([key, value]) => [key.toLowerCase(), value])),
+    ...(rootImageNames ? { rootImageNames } : {}),
   };
+}
+
+function kameraName(view: string, second: string, modality: string, ext = 'jpg'): string {
+  return `kamera_fl09_${view}_20240612_2041${second}.625730_${modality}.${ext}`;
 }
 
 describe('multiCamBatchScan', () => {
@@ -182,6 +188,94 @@ describe('multiCamBatchScan', () => {
     result.collects.forEach((collect) => {
       expect(collect.importArgs).toBeNull();
     });
+  });
+
+  it('infers KAMERA modality cameras for flat view-folder collects', () => {
+    const result = scanMultiCamBatchFromCollects('/survey/fl09', [
+      collectScan('center_view', {}, [
+        kameraName('C', '07', 'rgb'),
+        kameraName('C', '08', 'rgb'),
+        kameraName('C', '07', 'ir', 'tif'),
+        kameraName('C', '07', 'uv'),
+      ]),
+      collectScan('left_view', {}, [
+        kameraName('L', '07', 'rgb'),
+        kameraName('L', '07', 'ir', 'tif'),
+      ]),
+    ]);
+    expect(result.problems).toEqual([]);
+    expect(result.cameraNames).toEqual(['rgb', 'ir', 'uv']);
+
+    const [center, left] = result.collects;
+    expect(center.problems).toEqual([]);
+    expect(center.warnings).toEqual([]);
+    expect(center.cameras.map((c) => [c.name, c.imageCount, c.glob])).toEqual([
+      ['rgb', 2, '*_rgb.*'],
+      ['ir', 1, '*_ir.*'],
+      ['uv', 1, '*_uv.*'],
+    ]);
+    expect(center.importArgs).toEqual({
+      datasetName: 'fl09_center_view',
+      defaultDisplay: 'rgb',
+      cameraOrder: ['rgb', 'ir', 'uv'],
+      sourceList: {
+        rgb: { sourcePath: '/survey/center_view', trackFile: '', glob: '*_rgb.*' },
+        ir: { sourcePath: '/survey/center_view', trackFile: '', glob: '*_ir.*' },
+        uv: { sourcePath: '/survey/center_view', trackFile: '', glob: '*_uv.*' },
+      },
+      type: 'image-sequence',
+    });
+    expect(left.importArgs?.datasetName).toBe('fl09_left_view');
+    expect(left.importArgs?.cameraOrder).toEqual(['rgb', 'ir']);
+  });
+
+  it('imports a single-modality KAMERA collect with a warning', () => {
+    const result = scanMultiCamBatchFromCollects('/survey/fl09', [
+      collectScan('right_view', {}, [
+        kameraName('R', '07', 'rgb'),
+        kameraName('R', '08', 'rgb'),
+      ]),
+    ]);
+    expect(result.problems).toEqual([]);
+    const [right] = result.collects;
+    expect(right.warnings).toEqual([
+      'Only one KAMERA modality (rgb) found; the dataset will have a single camera',
+    ]);
+    expect(right.importArgs?.cameraOrder).toEqual(['rgb']);
+    expect(right.importArgs?.defaultDisplay).toBe('rgb');
+  });
+
+  it('does not treat non-KAMERA flat images or subfolder collects as KAMERA', () => {
+    const result = scanMultiCamBatchFromCollects('/survey', [
+      // subfolder collect with stray KAMERA-looking files at its root stays subfolder-based
+      collectScan('fl01', {
+        EO: collectSubfolder('fl01', 'EO', 2),
+        IR: collectSubfolder('fl01', 'IR', 2),
+      }, [kameraName('C', '07', 'rgb')]),
+      // flat collect whose images lack modality suffixes gets the usual problems
+      collectScan('fl02', {}, ['frame_000001.jpg', 'frame_000002.jpg']),
+    ]);
+    const [fl01, fl02] = result.collects;
+    expect(fl01.cameras.map((c) => c.name)).toEqual(['EO', 'IR']);
+    expect(fl01.importArgs?.sourceList.EO.glob).toBeUndefined();
+    expect(fl02.importArgs).toBeNull();
+    expect(fl02.problems.length).toBeGreaterThan(0);
+  });
+
+  it('keeps KAMERA collects importable when subfolder collects fail shared validation', () => {
+    const result = scanMultiCamBatchFromCollects('/survey/fl09', [
+      collectScan('fl01', { EO: collectSubfolder('fl01', 'EO', 2) }),
+      collectScan('center_view', {}, [
+        kameraName('C', '07', 'rgb'),
+        kameraName('C', '07', 'ir', 'tif'),
+      ]),
+    ]);
+    expect(result.problems).toEqual([
+      'Expected 2 or 3 camera folders shared across collects, found 1 (EO)',
+    ]);
+    const [fl01, center] = result.collects;
+    expect(fl01.importArgs).toBeNull();
+    expect(center.importArgs).not.toBeNull();
   });
 
   it('rejects camera folder names that are not alphanumeric', () => {

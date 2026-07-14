@@ -62,4 +62,32 @@ describe('scanMultiCamBatchFromFiles', () => {
     expect(result.collects[1].transformFiles).toEqual([]);
     expect(result.collects[1].importArgs?.sourceList.IR.transformFile).toBeUndefined();
   });
+
+  it('infers KAMERA modality cameras for flat view-folder collects', async () => {
+    const kameraFile = (view: string, second: string, modality: string, ext = 'jpg') => makeFile(
+      `fl09/${view}/kamera_fl09_20240612_2041${second}.625730_${modality}.${ext}`,
+    );
+    const files = [
+      kameraFile('center_view', '07', 'rgb'),
+      kameraFile('center_view', '08', 'rgb'),
+      kameraFile('center_view', '07', 'ir', 'tif'),
+      kameraFile('left_view', '07', 'rgb'),
+      kameraFile('left_view', '07', 'ir', 'tif'),
+      makeFile('fl09/center_view/metadata.json'),
+    ];
+    const result = await scanMultiCamBatchFromFiles('fl09', files);
+    expect(result.problems).toEqual([]);
+    expect(result.cameraNames).toEqual(['rgb', 'ir']);
+    const [center, left] = result.collects;
+    expect(center.name).toBe('center_view');
+    expect(center.importArgs?.datasetName).toBe('fl09_center_view');
+    expect(center.importArgs?.defaultDisplay).toBe('rgb');
+    expect(center.importArgs?.sourceList.rgb).toEqual({
+      sourcePath: 'fl09/center_view',
+      trackFile: '',
+      glob: '*_rgb.*',
+    });
+    expect(center.cameras.map((c) => [c.name, c.imageCount])).toEqual([['rgb', 2], ['ir', 1]]);
+    expect(left.importArgs?.datasetName).toBe('fl09_left_view');
+  });
 });

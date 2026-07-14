@@ -101,6 +101,26 @@ On **Web**, the folder picker uploads all files under the chosen root; scanning 
 
 For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
 
+### KAMERA flight data
+
+DIVE recognizes the [KAMERA](https://github.com/Kitware/kamera) on-disk format automatically in both multicam import modes. KAMERA writes each swathe (view) to a single **flat** folder — `left_view/`, `center_view/`, `right_view/` — holding the images for up to three modalities side by side, distinguished by a filename suffix, plus sidecar metadata files:
+
+```
+fl09/                    ← choose this root folder for MultiCam Batch
+  center_view/           ← or choose one view folder for parent-folder import
+    kamera_..._20240612_204107.625730_rgb.jpg
+    kamera_..._20240612_204107.625730_ir.tif
+    kamera_..._20240612_204107.625730_uv.jpg
+    metadata.json
+  left_view/
+  right_view/
+```
+
+A folder is treated as a KAMERA view folder when it has no camera subfolders and every image carries a modality suffix (`_rgb`, `_ir`, `_uv`) plus a filename timestamp. DIVE then creates **one dataset per view folder** with **one camera per modality present** (`rgb`, `ir`, `uv`), selecting each camera's images by suffix. Sidecar files such as `metadata.json` are ignored.
+
+* In **MultiCam Batch**, select the flight folder (e.g. `fl09/`); each view folder becomes a collect. Dataset names default to `<flight>_<view>` (e.g. `fl09_center_view`). A view folder with only one modality imports as a single-camera dataset with a warning.
+* In the single **MultiCam** parent-folder mode, select one view folder directly. **Infer frame index from filename** is enabled automatically, since KAMERA modalities legitimately drop frames independently and are aligned by capture timestamp.
+
 ### Infer frame index from filename
 
 At the bottom of the multicam import dialog (image sequences only), **Infer frame index from filename** relaxes the equal-frame-count requirement when filenames encode capture time. Enable it for datasets where cameras may have different numbers of frames — for example when one camera dropped occasional shots but each surviving frame still carries a parseable timestamp.

@@ -74,6 +74,21 @@ function scanCollectFromFiles(collectPath: string, allFiles: File[]): Map<string
   return subfolders;
 }
 
+/** Image file names directly in the collect folder (flat KAMERA view folders). */
+function collectRootImageNames(collectPath: string, allFiles: File[]): string[] {
+  const prefix = `${normalizeRootPath(collectPath)}/`;
+  const directFiles = allFiles.filter((file) => {
+    const rel = relativePath(file);
+    if (!rel.startsWith(prefix)) {
+      return false;
+    }
+    const rest = rel.slice(prefix.length);
+    return rest.length > 0 && !rest.includes('/');
+  });
+  return (filterMediaFiles(directFiles, 'image-sequence') as File[])
+    .map((file) => file.name);
+}
+
 export async function scanMultiCamBatchFromFiles(
   rootPath: string,
   files: File[],
@@ -95,6 +110,7 @@ export async function scanMultiCamBatchFromFiles(
       path: collectPath,
       subfolders: scanCollectFromFiles(collectPath, files),
       transformFiles: registrations.map((match) => `${collectPath}/${match.path}`),
+      rootImageNames: collectRootImageNames(collectPath, files),
     };
   }));
   return scanMultiCamBatchFromCollects(normalizedRoot, rawScans);
