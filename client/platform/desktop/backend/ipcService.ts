@@ -454,7 +454,7 @@ export default function register() {
     const segService = getInteractiveServiceManager();
 
     // Auto-register only needs the service process running -- its matcher model
-    // loads lazily inside the auto_align request (and stays resident).
+    // loads lazily inside the register_images request (and stays resident).
     await segService.ensureStarted(settings.get());
 
     const response = await segService.autoRegister(args);
