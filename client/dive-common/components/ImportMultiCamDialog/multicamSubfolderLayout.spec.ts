@@ -206,14 +206,14 @@ describe('rootLevelImageFiles', () => {
 
   it('keeps images directly under the parent folder and skips subfolders and non-images', () => {
     const files = rootLevelImageFiles([
-      mk('left_view/kamera_fl09_20240612_204107.625730_rgb.jpg'),
-      mk('left_view/kamera_fl09_20240612_204107.625730_ir.tif'),
+      mk('left_view/fl09_20240612_204107.625730_rgb.jpg'),
+      mk('left_view/fl09_20240612_204107.625730_ir.tif'),
       mk('left_view/metadata.json'),
       mk('left_view/thumbs/preview.jpg'),
     ], 'left_view');
     expect(files.map((file) => file.name)).toEqual([
-      'kamera_fl09_20240612_204107.625730_rgb.jpg',
-      'kamera_fl09_20240612_204107.625730_ir.tif',
+      'fl09_20240612_204107.625730_rgb.jpg',
+      'fl09_20240612_204107.625730_ir.tif',
     ]);
   });
 });

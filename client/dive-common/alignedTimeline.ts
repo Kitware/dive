@@ -2,7 +2,7 @@ import type { FrameImage } from './apispec';
 
 /**
  * Max time delta, in seconds, between two cameras' frame timestamps for them to
- * be considered "the same instant" (SEAL feature 5). In KAMERA sample data the
+ * be considered "the same instant" (SEAL feature 5). In sample flight data the
  * C/L/R cameras share an identical capture timestamp per shot, so for now this
  * requires an exact match (0). Widen it only if real captures turn out to have
  * sub-second jitter that needs absorbing.

@@ -53,12 +53,12 @@ const frames = (count: number, prefix = 'frame') => {
   return files;
 };
 
-const kameraFrames = (view: string, modalities: string[], count: number) => {
+const viewFolderFrames = (view: string, modalities: string[], count: number) => {
   const files: Record<string, string> = { 'metadata.json': '{}' };
   modalities.forEach((modality) => {
     const ext = modality === 'ir' ? 'tif' : 'jpg';
     for (let i = 0; i < count; i += 1) {
-      files[`kamera_fl09_${view}_20240612_20410${i}.625730_${modality}.${ext}`] = '';
+      files[`fl09_${view}_20240612_20410${i}.625730_${modality}.${ext}`] = '';
     }
   });
   return files;
@@ -289,11 +289,11 @@ describe('native.multiCollectImport', () => {
     expect(imported.importWarnings).toBeUndefined();
   });
 
-  it('infers KAMERA modality cameras for flat view-folder collects', async () => {
+  it('infers modality cameras for flat view-folder collects', async () => {
     mockfs({
       '/data/fl09': {
-        center_view: kameraFrames('C', ['rgb', 'ir', 'uv'], 2),
-        left_view: kameraFrames('L', ['rgb', 'ir'], 2),
+        center_view: viewFolderFrames('C', ['rgb', 'ir', 'uv'], 2),
+        left_view: viewFolderFrames('L', ['rgb', 'ir'], 2),
       },
     });
     const result = await scanMultiCamBatch('/data/fl09');
@@ -313,10 +313,10 @@ describe('native.multiCollectImport', () => {
     expect(left.importArgs?.cameraOrder).toEqual(['rgb', 'ir']);
   });
 
-  it('imports KAMERA collects with per-modality image filtering', async () => {
+  it('imports view-folder collects with per-modality image filtering', async () => {
     mockfs({
       '/data/fl09': {
-        center_view: kameraFrames('C', ['rgb', 'ir'], 2),
+        center_view: viewFolderFrames('C', ['rgb', 'ir'], 2),
       },
     });
     const result = await scanMultiCamBatch('/data/fl09');

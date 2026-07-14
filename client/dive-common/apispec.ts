@@ -149,7 +149,7 @@ export interface MultiCamImportFolderArgs {
     type?: 'image-sequence' | 'video' | 'large-image';
     /**
      * Filename glob selecting this camera's images when cameras share one
-     * folder (e.g. KAMERA view folders split by *_rgb.* / *_ir.* / *_uv.*).
+     * folder (e.g. flat view folders split by *_rgb.* / *_ir.* / *_uv.*).
      */
     glob?: string;
   }>; // path/track file per camera

@@ -74,7 +74,7 @@ function scanCollectFromFiles(collectPath: string, allFiles: File[]): Map<string
   return subfolders;
 }
 
-/** Image file names directly in the collect folder (flat KAMERA view folders). */
+/** Image file names directly in the collect folder (flat multi-modality view folders). */
 function collectRootImageNames(collectPath: string, allFiles: File[]): string[] {
   const prefix = `${normalizeRootPath(collectPath)}/`;
   const directFiles = allFiles.filter((file) => {

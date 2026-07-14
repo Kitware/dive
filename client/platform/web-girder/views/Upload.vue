@@ -455,7 +455,7 @@ export default defineComponent({
           const [cameraName, source] = cameraEntries[i];
           let files = flattenUploadFiles(getFilesForSourceKey(source.sourcePath) ?? []);
           if (source.glob) {
-            // Cameras sharing one folder (e.g. KAMERA modalities) upload only their glob's files
+            // Cameras sharing one folder (per-modality suffixes) upload only their glob's files
             files = files.filter((file) => filterByGlob(source.glob as string, [file.name]).length === 1);
           }
           if (!files?.length) {

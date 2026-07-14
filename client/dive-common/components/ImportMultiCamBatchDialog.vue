@@ -237,14 +237,12 @@ export default defineComponent({
     </v-card-title>
     <v-card-text>
       <p class="grey--text text--lighten-1">
-        Select a top-level folder whose subfolders are collects; each collect must
-        contain the same camera subfolders (for example EO, IR, UV) holding that
-        camera's images. One multicam dataset is created per collect. DIVE
-        registration .json files found next to a collect's camera folders are
-        attached automatically and seed that dataset's camera registration.
-        KAMERA flight folders are detected automatically: a flat view folder
-        (left_view, center_view, right_view) with *_rgb / *_ir / *_uv images
-        becomes one dataset with a camera per modality.
+        Select a top-level folder whose subfolders are collects, each holding
+        the same camera subfolders (for example EO, IR, UV). One multicam
+        dataset is created per collect. Registration .json files next to the
+        camera folders are attached automatically. Flat collects of
+        *_rgb / *_ir / *_uv images become one dataset with a camera per
+        modality.
       </p>
       <v-row
         no-gutters

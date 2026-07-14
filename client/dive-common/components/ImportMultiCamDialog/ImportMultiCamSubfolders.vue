@@ -65,12 +65,10 @@ export default defineComponent({
       dense
       class="mb-3"
     >
-      Choose a parent folder with either one subfolder per camera (2 or 3 subfolders)
-      or separate video files in the folder (2 or 3 videos). Subfolders without image or
-      video files are ignored. Names come from the subfolder or video file name
-      (letters, numbers, and underscores). A flat KAMERA view folder
-      (left_view, center_view, right_view) is detected automatically and split
-      into one camera per modality (*_rgb / *_ir / *_uv).
+      Choose a parent folder with one subfolder per camera (2 or 3), or 2 or 3
+      video files. Camera names come from the subfolder or file names. A flat
+      folder of *_rgb / *_ir / *_uv images is split into one camera per
+      modality automatically.
     </v-alert>
     <v-row
       no-gutters

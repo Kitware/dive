@@ -27,11 +27,11 @@ import {
   subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import {
-  detectKameraModalities,
-  groupKameraModalities,
-  kameraDatasetName,
-  kameraModalityGlob,
-} from 'dive-common/kameraFormat';
+  detectFolderModalities,
+  groupByModality,
+  modalityGlob,
+  viewFolderDatasetName,
+} from 'dive-common/viewFolderFormat';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
 import {
   assignRegistrationFilesToCameras,
@@ -85,7 +85,7 @@ export function useImportMultiCamDialog(
     trackFile: string;
     transformFile: string;
     type?: DatasetType;
-    /** Filename glob when cameras share one folder (KAMERA modalities). */
+    /** Filename glob when cameras share one folder (per-modality suffixes). */
     glob?: string;
   }>> = ref({});
   const parentFolderName = ref('');
@@ -103,7 +103,7 @@ export function useImportMultiCamDialog(
   const importAnnotationFilesCheck = ref(false);
   // When set, cameras may have differing frame counts; frames are aligned downstream
   // by their filename-encoded timestamps instead of by exact positional index. Enables
-  // importing datasets with dropped frames (e.g. KAMERA). See validateMulticamImageSets.
+  // importing datasets with dropped frames. See validateMulticamImageSets.
   const inferFrameIndexFromFilename = ref(false);
   const { error: importError, request: importRequest } = useRequest();
 
@@ -325,13 +325,13 @@ export function useImportMultiCamDialog(
   });
 
   /**
-   * KAMERA fallback for parent-folder import: the chosen folder has no camera
-   * subfolders but is a flat KAMERA view folder (left_view/center_view/right_view
-   * holding *_rgb / *_ir / *_uv images). Splits it into one camera per modality
-   * sharing the folder via per-camera filename globs. Returns false when the
-   * folder does not follow the KAMERA convention.
+   * Flat view-folder fallback for parent-folder import: the chosen folder has
+   * no camera subfolders but holds *_rgb / *_ir / *_uv images directly (e.g.
+   * a center_view/ or CENT/ swathe folder). Splits it into one camera per
+   * modality sharing the folder via per-camera filename globs. Returns false
+   * when the folder does not follow the modality-suffix convention.
    */
-  async function openKameraParentFolder(
+  async function openFlatViewFolder(
     parentPath: string,
     fileList?: File[],
     root?: string,
@@ -351,16 +351,16 @@ export function useImportMultiCamDialog(
       }
       imageNames = sharedPayload.jsonMeta.originalImageFiles || [];
     }
-    const modalities = detectKameraModalities(imageNames);
+    const modalities = detectFolderModalities(imageNames);
     if (!modalities.length) {
       return false;
     }
 
     const parentLabel = parentPath.split(/[/\\]/).pop() || parentPath || 'parent folder';
     parentFolderName.value = parentLabel;
-    subfolderLayoutLabel.value = `${modalities.join(', ')} (KAMERA view folder)`;
+    subfolderLayoutLabel.value = `${modalities.join(', ')} (flat view folder)`;
     if (!datasetName.value.trim()) {
-      datasetName.value = kameraDatasetName(parentPath);
+      datasetName.value = viewFolderDatasetName(parentPath);
     }
 
     // Cameras share the folder, so stash the full selection once; globs filter later
@@ -376,11 +376,11 @@ export function useImportMultiCamDialog(
     pendingImportPayloads.value = {};
     subfolderOriginalNames.value = {};
     cameraOrder.value = [...modalities];
-    const grouped = groupKameraModalities(imageNames);
+    const grouped = groupByModality(imageNames);
 
     for (let i = 0; i < modalities.length; i += 1) {
       const modality = modalities[i];
-      const glob = kameraModalityGlob(modality);
+      const glob = modalityGlob(modality);
       const modalityNames = grouped.get(modality) ?? [];
       Vue.set(subfolderOriginalNames.value, modality, `${parentLabel} (${glob})`);
       Vue.set(folderList.value, modality, {
@@ -401,7 +401,7 @@ export function useImportMultiCamDialog(
       Vue.set(pendingImportPayloads.value, modality, mediaPayload);
     }
     [defaultDisplay.value] = modalities;
-    // KAMERA drops frames per modality; align by filename timestamps downstream
+    // Modalities may drop frames independently; align by filename timestamps downstream
     inferFrameIndexFromFilename.value = true;
     // Registration .json files in the view folder attach to modality cameras
     await discoverParentFolderTransform(parentPath, fileList, root || parentPath);
@@ -442,8 +442,8 @@ export function useImportMultiCamDialog(
       }
 
       if (!folderNames.length && !props.stereo && props.dataType === ImageSequenceType) {
-        const kameraHandled = await openKameraParentFolder(parentPath, ret.fileList, ret.root);
-        if (kameraHandled) {
+        const flatViewHandled = await openFlatViewFolder(parentPath, ret.fileList, ret.root);
+        if (flatViewHandled) {
           return;
         }
       }
@@ -607,7 +607,7 @@ export function useImportMultiCamDialog(
       ? subfolderSourceDisplayLabel(resolvedPath, cameraKey, files)
       : ((displayRoot || sourcePath).split(/[/\\]/).pop() || cameraKey);
     Vue.set(subfolderOriginalNames.value, cameraKey, displayName);
-    // Rebuild the entry: choosing a real folder drops any KAMERA modality glob
+    // Rebuild the entry: choosing a real folder drops any modality glob
     Vue.set(folderList.value, cameraKey, {
       sourcePath: resolvedPath,
       trackFile: '',

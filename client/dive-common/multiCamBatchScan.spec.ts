@@ -31,8 +31,8 @@ function collectScan(
   };
 }
 
-function kameraName(view: string, second: string, modality: string, ext = 'jpg'): string {
-  return `kamera_fl09_${view}_20240612_2041${second}.625730_${modality}.${ext}`;
+function viewFrameName(view: string, second: string, modality: string, ext = 'jpg'): string {
+  return `fl09_${view}_20240612_2041${second}.625730_${modality}.${ext}`;
 }
 
 describe('multiCamBatchScan', () => {
@@ -190,17 +190,17 @@ describe('multiCamBatchScan', () => {
     });
   });
 
-  it('infers KAMERA modality cameras for flat view-folder collects', () => {
+  it('infers modality cameras for flat view-folder collects', () => {
     const result = scanMultiCamBatchFromCollects('/survey/fl09', [
       collectScan('center_view', {}, [
-        kameraName('C', '07', 'rgb'),
-        kameraName('C', '08', 'rgb'),
-        kameraName('C', '07', 'ir', 'tif'),
-        kameraName('C', '07', 'uv'),
+        viewFrameName('C', '07', 'rgb'),
+        viewFrameName('C', '08', 'rgb'),
+        viewFrameName('C', '07', 'ir', 'tif'),
+        viewFrameName('C', '07', 'uv'),
       ]),
       collectScan('left_view', {}, [
-        kameraName('L', '07', 'rgb'),
-        kameraName('L', '07', 'ir', 'tif'),
+        viewFrameName('L', '07', 'rgb'),
+        viewFrameName('L', '07', 'ir', 'tif'),
       ]),
     ]);
     expect(result.problems).toEqual([]);
@@ -229,29 +229,29 @@ describe('multiCamBatchScan', () => {
     expect(left.importArgs?.cameraOrder).toEqual(['rgb', 'ir']);
   });
 
-  it('imports a single-modality KAMERA collect with a warning', () => {
+  it('imports a single-modality view-folder collect with a warning', () => {
     const result = scanMultiCamBatchFromCollects('/survey/fl09', [
       collectScan('right_view', {}, [
-        kameraName('R', '07', 'rgb'),
-        kameraName('R', '08', 'rgb'),
+        viewFrameName('R', '07', 'rgb'),
+        viewFrameName('R', '08', 'rgb'),
       ]),
     ]);
     expect(result.problems).toEqual([]);
     const [right] = result.collects;
     expect(right.warnings).toEqual([
-      'Only one KAMERA modality (rgb) found; the dataset will have a single camera',
+      'Only one modality (rgb) found; the dataset will have a single camera',
     ]);
     expect(right.importArgs?.cameraOrder).toEqual(['rgb']);
     expect(right.importArgs?.defaultDisplay).toBe('rgb');
   });
 
-  it('does not treat non-KAMERA flat images or subfolder collects as KAMERA', () => {
+  it('does not treat non-conforming flat images or subfolder collects as view folders', () => {
     const result = scanMultiCamBatchFromCollects('/survey', [
-      // subfolder collect with stray KAMERA-looking files at its root stays subfolder-based
+      // subfolder collect with stray modality-suffixed files at its root stays subfolder-based
       collectScan('fl01', {
         EO: collectSubfolder('fl01', 'EO', 2),
         IR: collectSubfolder('fl01', 'IR', 2),
-      }, [kameraName('C', '07', 'rgb')]),
+      }, [viewFrameName('C', '07', 'rgb')]),
       // flat collect whose images lack modality suffixes gets the usual problems
       collectScan('fl02', {}, ['frame_000001.jpg', 'frame_000002.jpg']),
     ]);
@@ -262,12 +262,12 @@ describe('multiCamBatchScan', () => {
     expect(fl02.problems.length).toBeGreaterThan(0);
   });
 
-  it('keeps KAMERA collects importable when subfolder collects fail shared validation', () => {
+  it('keeps view-folder collects importable when subfolder collects fail shared validation', () => {
     const result = scanMultiCamBatchFromCollects('/survey/fl09', [
       collectScan('fl01', { EO: collectSubfolder('fl01', 'EO', 2) }),
       collectScan('center_view', {}, [
-        kameraName('C', '07', 'rgb'),
-        kameraName('C', '07', 'ir', 'tif'),
+        viewFrameName('C', '07', 'rgb'),
+        viewFrameName('C', '07', 'ir', 'tif'),
       ]),
     ]);
     expect(result.problems).toEqual([

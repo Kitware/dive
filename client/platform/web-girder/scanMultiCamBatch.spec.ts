@@ -63,16 +63,16 @@ describe('scanMultiCamBatchFromFiles', () => {
     expect(result.collects[1].importArgs?.sourceList.IR.transformFile).toBeUndefined();
   });
 
-  it('infers KAMERA modality cameras for flat view-folder collects', async () => {
-    const kameraFile = (view: string, second: string, modality: string, ext = 'jpg') => makeFile(
-      `fl09/${view}/kamera_fl09_20240612_2041${second}.625730_${modality}.${ext}`,
+  it('infers modality cameras for flat view-folder collects', async () => {
+    const viewFile = (view: string, second: string, modality: string, ext = 'jpg') => makeFile(
+      `fl09/${view}/fl09_20240612_2041${second}.625730_${modality}.${ext}`,
     );
     const files = [
-      kameraFile('center_view', '07', 'rgb'),
-      kameraFile('center_view', '08', 'rgb'),
-      kameraFile('center_view', '07', 'ir', 'tif'),
-      kameraFile('left_view', '07', 'rgb'),
-      kameraFile('left_view', '07', 'ir', 'tif'),
+      viewFile('center_view', '07', 'rgb'),
+      viewFile('center_view', '08', 'rgb'),
+      viewFile('center_view', '07', 'ir', 'tif'),
+      viewFile('left_view', '07', 'rgb'),
+      viewFile('left_view', '07', 'ir', 'tif'),
       makeFile('fl09/center_view/metadata.json'),
     ];
     const result = await scanMultiCamBatchFromFiles('fl09', files);
