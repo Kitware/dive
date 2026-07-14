@@ -36,14 +36,23 @@ let win: BrowserWindow | null;
 let allowClose = false;
 let closeGuardActive = false;
 
-// Dataset requested on the command line, held until the renderer is mounted and
-// asks for it. See backend/cliImport.ts.
-let pendingCliOpen: CliOpenArgs | null = null;
+// CLI opens queued until the renderer is mounted, listening for
+// desktop:open-dataset, and has pulled via desktop:cli-open-pending. Cold-start
+// imports and second-instance forwards share this queue so neither is dropped
+// while the window is still loading (or missing, e.g. macOS with no windows).
+const pendingCliOpens: CliOpenArgs[] = [];
+let cliRendererReady = false;
+let creatingWindow = false;
+let cliOpenChain: Promise<void> = Promise.resolve();
 // Misuse of the launch flags is reported once the app is ready; throwing here,
 // at module scope, would take the process down without telling the user why.
 let cliArgsError: string | null = null;
+let initialCliOpen: CliOpenArgs | null = null;
 try {
-  pendingCliOpen = parseCliArgs(process.argv);
+  initialCliOpen = parseCliArgs(process.argv);
+  if (initialCliOpen) {
+    pendingCliOpens.push(initialCliOpen);
+  }
 } catch (err) {
   cliArgsError = err instanceof Error ? err.message : String(err);
 }
@@ -75,20 +84,32 @@ async function openFromCli(cliArgs: CliOpenArgs) {
   }
 }
 
-// The renderer calls this once it is mounted and listening, so that a dataset
-// ready before the window finishes loading is not missed.
-ipcMain.handle('desktop:cli-open-pending', () => {
-  const cliArgs = pendingCliOpen;
-  pendingCliOpen = null;
-  if (!cliArgs) {
-    return null;
+/** Drain queued CLI opens once the renderer has registered its listener. */
+function flushCliOpens() {
+  if (!cliRendererReady) {
+    return;
   }
-  // Deliberately not awaited: the renderer should not block on the import, and
-  // it learns the dataset id from the desktop:open-dataset event instead.
-  openFromCli(cliArgs);
-  return cliArgs.importPath;
-});
+  while (pendingCliOpens.length > 0) {
+    const cliArgs = pendingCliOpens.shift() as CliOpenArgs;
+    // Chain imports so overlapping second-instance launches do not race.
+    cliOpenChain = cliOpenChain.then(() => openFromCli(cliArgs));
+  }
+}
 
+function enqueueCliOpen(cliArgs: CliOpenArgs) {
+  pendingCliOpens.push(cliArgs);
+  flushCliOpens();
+}
+
+// The renderer calls this once it is mounted and listening, so that a dataset
+// ready before the window finishes loading is not missed. Later second-instance
+// opens also flush through here once this has run at least once for the window.
+ipcMain.handle('desktop:cli-open-pending', () => {
+  cliRendererReady = true;
+  const first = pendingCliOpens[0];
+  flushCliOpens();
+  return first?.importPath ?? null;
+});
 ipcMain.on('desktop:close-guard-active', (event, active: boolean) => {
   if (win && event.sender === win.webContents) {
     closeGuardActive = active;
@@ -129,14 +150,14 @@ ipcMain.handle('desktop:confirm-close-unsaved', async (): Promise<'save' | 'disc
 // The argv Electron forwards to second-instance is Chromium's, which hoists
 // switches ahead of positionals and so detaches `--import <path>` from its
 // value; process.argv here is the raw one, so parse before handing it over.
-const gotTheLock = app.requestSingleInstanceLock(pendingCliOpen ?? undefined);
+const gotTheLock = app.requestSingleInstanceLock(initialCliOpen ?? undefined);
 if (!gotTheLock) {
   // A second launch carrying a dataset is not a mistake: the running instance
   // picks it up via the second-instance event below and opens it, so quit
   // quietly rather than reporting a failure the user did not have.
   if (cliArgsError) {
     dialog.showErrorBox('DIVE Desktop', cliArgsError);
-  } else if (!pendingCliOpen) {
+  } else if (!initialCliOpen) {
     dialog.showErrorBox(
       'DIVE Desktop',
       'Another instance is already running.\n\n'
@@ -178,79 +199,89 @@ async function loadDevUrlWithRetry(window: BrowserWindow, url: string) {
 }
 
 async function createWindow() {
-  const size = screen.getPrimaryDisplay().workAreaSize;
-  const partitionSession = session.fromPartition('persist:dive');
-  // Create the browser window.
-  win = new BrowserWindow({
-    width: Math.min(size.width, 1420),
-    height: Math.min(size.height - 200, 960),
-    autoHideMenuBar: true,
-    title: 'VIAME DIVE Desktop',
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-      plugins: true,
-      // Fix session such that every instance of the applicaton loads
-      // the same session i.e.localStorage
-      session: partitionSession,
-    },
-  });
-
-  listen((server) => {
-    let address = server.address();
-    let port = 0;
-    if (typeof address === 'object' && address !== null) {
-      port = address.port || 0;
-      address = address.address || '';
-    }
-    console.error(`Server listening on ${address}:${port}`);
-  });
-  ipcListen();
-
-  const devServerUrl = process.env.ELECTRON_RENDERER_URL || process.env.VITE_DEV_SERVER_URL;
-  if (devServerUrl) {
-    const desktopDevUrl = devServerUrl.includes('desktop.html')
-      ? devServerUrl
-      : new URL('desktop.html', devServerUrl.endsWith('/') ? devServerUrl : `${devServerUrl}/`).toString();
-    try {
-      await loadDevUrlWithRetry(win, desktopDevUrl);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to load ${desktopDevUrl}: ${msg}`);
-    }
-    if (!process.env.IS_TEST) win.webContents.openDevTools();
-  } else {
-    const desktopEntryCandidates = app.isPackaged
-      ? [path.join(app.getAppPath(), 'dist_desktop', 'desktop.html')]
-      : [
-        path.resolve(__dirname, '..', '..', 'dist_desktop', 'desktop.html'),
-        path.resolve(app.getAppPath(), 'dist_desktop', 'desktop.html'),
-        path.resolve(process.cwd(), 'dist_desktop', 'desktop.html'),
-      ];
-    const desktopEntry = desktopEntryCandidates.find((candidate) => fs.existsSync(candidate))
-      || desktopEntryCandidates[0];
-    try {
-      await win.loadFile(desktopEntry);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Failed to load ${desktopEntry}: ${msg}`);
-    }
+  if (win || creatingWindow) {
+    return;
   }
+  creatingWindow = true;
+  try {
+    const size = screen.getPrimaryDisplay().workAreaSize;
+    const partitionSession = session.fromPartition('persist:dive');
+    // Create the browser window.
+    win = new BrowserWindow({
+      width: Math.min(size.width, 1420),
+      height: Math.min(size.height - 200, 960),
+      autoHideMenuBar: true,
+      title: 'VIAME DIVE Desktop',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+        plugins: true,
+        // Fix session such that every instance of the applicaton loads
+        // the same session i.e.localStorage
+        session: partitionSession,
+      },
+    });
 
-  allowClose = false;
-  closeGuardActive = false;
-  win.on('close', (e) => {
-    if (allowClose || !closeGuardActive) return;
-    e.preventDefault();
-    win?.webContents.send('desktop:close-requested');
-  });
+    listen((server) => {
+      let address = server.address();
+      let port = 0;
+      if (typeof address === 'object' && address !== null) {
+        port = address.port || 0;
+        address = address.address || '';
+      }
+      console.error(`Server listening on ${address}:${port}`);
+    });
+    ipcListen();
 
-  win.on('closed', () => {
+    const devServerUrl = process.env.ELECTRON_RENDERER_URL || process.env.VITE_DEV_SERVER_URL;
+    if (devServerUrl) {
+      const desktopDevUrl = devServerUrl.includes('desktop.html')
+        ? devServerUrl
+        : new URL('desktop.html', devServerUrl.endsWith('/') ? devServerUrl : `${devServerUrl}/`).toString();
+      try {
+        await loadDevUrlWithRetry(win, desktopDevUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to load ${desktopDevUrl}: ${msg}`);
+      }
+      if (!process.env.IS_TEST) win.webContents.openDevTools();
+    } else {
+      const desktopEntryCandidates = app.isPackaged
+        ? [path.join(app.getAppPath(), 'dist_desktop', 'desktop.html')]
+        : [
+          path.resolve(__dirname, '..', '..', 'dist_desktop', 'desktop.html'),
+          path.resolve(app.getAppPath(), 'dist_desktop', 'desktop.html'),
+          path.resolve(process.cwd(), 'dist_desktop', 'desktop.html'),
+        ];
+      const desktopEntry = desktopEntryCandidates.find((candidate) => fs.existsSync(candidate))
+        || desktopEntryCandidates[0];
+      try {
+        await win.loadFile(desktopEntry);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to load ${desktopEntry}: ${msg}`);
+      }
+    }
+
     allowClose = false;
     closeGuardActive = false;
-    win = null;
-  });
+    win.on('close', (e) => {
+      if (allowClose || !closeGuardActive) return;
+      e.preventDefault();
+      win?.webContents.send('desktop:close-requested');
+    });
+
+    win.on('closed', () => {
+      allowClose = false;
+      closeGuardActive = false;
+      // The next window must re-pull pending CLI opens after its listener is up.
+      cliRendererReady = false;
+      win = null;
+    });
+  } finally {
+    creatingWindow = false;
+  }
 }
 
 // Quit when all windows are closed.
@@ -306,17 +337,28 @@ if (gotTheLock) {
 }
 
 app.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
+  // A second launch carrying a dataset opens it in this window, rather than
+  // being dropped on the floor by the single-instance lock. The args were
+  // parsed by that instance and passed through the lock request, since the
+  // forwarded argv no longer pairs flags with their values.
+  //
+  // Queue until the renderer has called cli-open-pending (listener registered).
+  // If there is no window yet (startup race, or macOS with all windows closed),
+  // create one so the queued open can be pulled.
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();
-    // A second launch carrying a dataset opens it in this window, rather than
-    // being dropped on the floor by the single-instance lock. The args were
-    // parsed by that instance and passed through the lock request, since the
-    // forwarded argv no longer pairs flags with their values.
-    const cliArgs = additionalData as CliOpenArgs | undefined;
-    if (cliArgs?.importPath || cliArgs?.cameras) {
-      openFromCli(cliArgs);
-    }
+  } else if (gotTheLock && app.isReady()) {
+    createWindow().catch((err) => {
+      dialog.showErrorBox(
+        'DIVE Desktop',
+        err instanceof Error ? err.message : String(err),
+      );
+    });
+  }
+  const cliArgs = additionalData as CliOpenArgs | undefined;
+  if (cliArgs?.importPath || cliArgs?.cameras) {
+    enqueueCliOpen(cliArgs);
   }
 });
 
