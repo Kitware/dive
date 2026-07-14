@@ -34,12 +34,12 @@ import {
   DesktopJobUpdate,
   DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
-
-export type { CliTranscodingNotice };
 import { convertMedia } from './native/mediaJobs';
 import beginMultiCamImport from './native/multiCamImport';
 import * as common from './native/common';
 import settings from './state/settings';
+
+export type { CliTranscodingNotice };
 
 export interface CliOpenArgs {
   /** Media to import: image directory, image-list text file, or video. */

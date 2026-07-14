@@ -66,6 +66,7 @@ try {
  */
 function notifyCliTranscoding(notice: CliTranscodingNotice) {
   // Terminal / logs: a modal alone is invisible to anyone scripting the open.
+  // eslint-disable-next-line no-console
   console.info(
     `CLI open of "${notice.name}" requires transcoding `
     + `(${notice.mediaCount} item(s)). Viewer opens when conversion finishes.`,
