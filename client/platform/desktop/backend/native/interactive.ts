@@ -497,9 +497,9 @@ export class InteractiveServiceManager extends EventEmitter {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }): Promise<any> {
     const response = await this.sendRequest({
-      // The interactive service's wire name (VIAME branch dev/auto-align)
-      // still says "align"; rename here in step with the service side.
-      command: 'auto_align',
+      // Wire name is verb-object style, unlike the autoRegister() method
+      // above, which matches the UI naming.
+      command: 'register_images',
       image_path_a: request.imagePathA,
       image_path_b: request.imagePathB,
       options: request.options && {
