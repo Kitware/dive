@@ -28,8 +28,14 @@ import mime from 'mime-types';
 import { MultiCamImportFolderArgs } from 'dive-common/apispec';
 import { otherVideoTypes, websafeVideoTypes } from 'dive-common/constants';
 import {
-  ConversionArgs, DesktopJob, DesktopJobUpdate, DesktopMediaImportResponse,
+  CliTranscodingNotice,
+  ConversionArgs,
+  DesktopJob,
+  DesktopJobUpdate,
+  DesktopMediaImportResponse,
 } from 'platform/desktop/constants';
+
+export type { CliTranscodingNotice };
 import { convertMedia } from './native/mediaJobs';
 import beginMultiCamImport from './native/multiCamImport';
 import * as common from './native/common';
@@ -218,11 +224,14 @@ function buildMultiCamArgs(args: CliOpenArgs): MultiCamImportFolderArgs {
  * Media that needs transcoding cannot be viewed until its conversion job
  * finishes, so the id is reported through onReady instead of being returned
  * immediately. onReady fires once the dataset is actually viewable.
+ * onTranscoding fires as soon as conversion is known to be required so the UI
+ * or console can tell the user why the viewer has not opened yet.
  */
 export async function runCliImport(
   args: CliOpenArgs,
   updater: (update: DesktopJobUpdate) => void,
   onReady: (datasetId: string) => void,
+  onTranscoding?: (notice: CliTranscodingNotice) => void,
 ): Promise<string> {
   const currentSettings = settings.get();
 
@@ -247,8 +256,16 @@ export async function runCliImport(
     return datasetId;
   }
 
-  // Transcoding required. Queue the conversion and open the dataset once it
-  // lands, mirroring what the import wizard does with the same ConversionArgs.
+  // Transcoding required. Tell the caller before queuing so cold-start and
+  // second-instance opens can surface the wait (console + in-app notice).
+  onTranscoding?.({
+    datasetId,
+    name: conversionArgs.meta.name,
+    mediaCount: conversionArgs.mediaList.length,
+  });
+
+  // Queue the conversion and open the dataset once it lands, mirroring what
+  // the import wizard does with the same ConversionArgs.
   const job: DesktopJob = await convertMedia(
     currentSettings,
     conversionArgs,

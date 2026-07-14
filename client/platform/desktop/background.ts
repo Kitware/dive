@@ -8,7 +8,9 @@ import path from 'path';
 import { closeAll as closeChildren } from './backend/native/processManager';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
-import { CliOpenArgs, parseCliArgs, runCliImport } from './backend/cliImport';
+import {
+  CliOpenArgs, CliTranscodingNotice, parseCliArgs, runCliImport,
+} from './backend/cliImport';
 
 function ensureValidWorkingDirectory() {
   try {
@@ -62,6 +64,17 @@ try {
  * is driven by an event rather than the return value because media that needs
  * transcoding only becomes viewable once its conversion job finishes.
  */
+function notifyCliTranscoding(notice: CliTranscodingNotice) {
+  // Terminal / logs: a modal alone is invisible to anyone scripting the open.
+  console.info(
+    `CLI open of "${notice.name}" requires transcoding `
+    + `(${notice.mediaCount} item(s)). Viewer opens when conversion finishes.`,
+  );
+  // Renderer: show on the home screen or over an already-open dataset viewer.
+  sendToRenderer('desktop:cli-transcoding', notice);
+}
+
+/** Run one queued CLI import; onTranscoding / onReady drive user-visible wait vs navigate. */
 async function openFromCli(cliArgs: CliOpenArgs) {
   // Multi-camera launches have no single import path; name what was asked for.
   const target = cliArgs.importPath
@@ -71,6 +84,7 @@ async function openFromCli(cliArgs: CliOpenArgs) {
       cliArgs,
       (update) => sendToRenderer('job-update', update),
       (datasetId) => sendToRenderer('desktop:open-dataset', datasetId),
+      notifyCliTranscoding,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -111,7 +111,7 @@ Every camera must use the same kind of media (all videos or all image sequences)
 #### Behavior notes
 
 * The result is a normal Desktop dataset: it appears in the library / recents list and can be reopened later, the same as if imported through the UI.
-* Media that requires [transcoding](#video-transcoding) is converted first; the viewer opens when conversion finishes.
+* Media that requires [transcoding](#video-transcoding) is converted first; the viewer opens when conversion finishes. When that happens, DIVE shows a notice (and logs to the console) so a cold start or an open while another dataset is already in the viewer is not mistaken for a hang.
 * If DIVE Desktop is already running, a second launch with these flags opens the dataset in the existing window instead of starting another instance.
 * Glob / keyword multi-camera folder layouts from the UI are not available on the command line; pass one `--camera` per source instead.
 

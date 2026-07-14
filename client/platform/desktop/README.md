@@ -92,13 +92,13 @@ Every camera must be the same kind of media — all videos or all image sequence
 
 ### Notes
 
-Single-camera datasets go through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`); multi-camera ones go through `beginMultiCamImport` → `finalizeMediaImport`, which ingests the per-camera track files and copies/normalizes the calibration. Either way the result is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes.
+Single-camera datasets go through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`); multi-camera ones go through `beginMultiCamImport` → `finalizeMediaImport`, which ingests the per-camera track files and copies/normalizes the calibration. Either way the result is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes. In that case the main process logs a message and the renderer gets `desktop:cli-transcoding` so a dialog appears whether the app just started or another dataset is already open; recents also show the converting status immediately.
 
 If an instance is already running, the single-instance lock forwards the arguments to it and the dataset opens in the existing window.
 
 Glob/keyword multi-camera import (`MultiCamImportKeywordArgs`, one folder matched by per-camera glob) is not exposed on the command line; use one `--camera` per source instead.
 
-Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed.
+Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed. Transcoding waits use `desktop:cli-transcoding` before that navigation.
 
 Note this is distinct from `divecli` (`backend/cli.ts`), a separate headless entrypoint for format conversion and running pipelines, which does not open the GUI.
 

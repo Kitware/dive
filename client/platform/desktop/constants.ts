@@ -220,6 +220,13 @@ export interface ConversionArgs extends JobArgs {
   mediaList: [string, string][];
 }
 
+/** IPC payload when a CLI open must wait on media conversion. */
+export interface CliTranscodingNotice {
+  datasetId: string;
+  name: string;
+  mediaCount: number;
+}
+
 export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
 
 export interface DesktopJob {
