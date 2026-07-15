@@ -16,7 +16,14 @@ const VIEWPORT_PX = 100;
 
 /** Minimal stand-in for a geojs viewer: center/zoom state + geoOn events. */
 function fakeViewer(baseUnitsPerPixel: number) {
-  const state = { center: { x: 0, y: 0 }, zoom: 0 };
+  const state = {
+    center: { x: 0, y: 0 },
+    zoom: 0,
+    // Match GeoJS pixelCoordinateParams defaults (large-image keeps these on).
+    clampBoundsX: true,
+    clampBoundsY: true,
+    clampZoom: true,
+  };
   const handlers: Record<string, Array<() => void>> = {};
   return {
     zoomAndCenterFromBounds(bounds: {
@@ -31,6 +38,9 @@ function fakeViewer(baseUnitsPerPixel: number) {
           y: (bounds.top + bounds.bottom) / 2,
         },
       };
+    },
+    size() {
+      return { width: VIEWPORT_PX, height: VIEWPORT_PX * 0.75 };
     },
     geoOn(evt: string, handler: () => void) {
       handlers[evt] = handlers[evt] || [];
@@ -54,6 +64,24 @@ function fakeViewer(baseUnitsPerPixel: number) {
     unitsPerPixel(z: number) {
       return baseUnitsPerPixel / 2 ** z;
     },
+    clampBoundsX(v?: boolean) {
+      if (v !== undefined) {
+        state.clampBoundsX = v;
+      }
+      return state.clampBoundsX;
+    },
+    clampBoundsY(v?: boolean) {
+      if (v !== undefined) {
+        state.clampBoundsY = v;
+      }
+      return state.clampBoundsY;
+    },
+    clampZoom(v?: boolean) {
+      if (v !== undefined) {
+        state.clampZoom = v;
+      }
+      return state.clampZoom;
+    },
     trigger(evt: string) {
       (handlers[evt] || []).forEach((h) => h());
     },
@@ -68,11 +96,13 @@ function makeHarness() {
   const controllers: Record<string, {
     geoViewerRef: Ref<unknown>;
     resetZoom: () => void;
+    imageRevision: Ref<number>;
     originalBounds: Ref<{ left: number; top: number; right: number; bottom: number }>;
   }> = {
     eo: {
       geoViewerRef: ref(eo),
       resetZoom,
+      imageRevision: ref(0),
       originalBounds: ref({
         left: 0, top: 0, right: 400, bottom: 300,
       }),
@@ -80,6 +110,7 @@ function makeHarness() {
     ir: {
       geoViewerRef: ref(ir),
       resetZoom,
+      imageRevision: ref(0),
       originalBounds: ref({
         left: 0, top: 0, right: 200, bottom: 150,
       }),
@@ -118,10 +149,13 @@ function makeHarness() {
 }
 
 describe('useAlignedNavigation', () => {
-  it('snaps panes to the reference view immediately on activation', async () => {
+  it('snaps panes to the reference frame fit on activation', async () => {
     const { eo, ir, alignedView } = makeHarness();
+    // Leave Align-off with an arbitrary viewport; turning Align on should
+    // fit the reference camera's native bounds and mirror that to every pane
+    // (large-image keeps a native tile fit while Align is off).
     eo.center({ x: 250, y: 150 });
-    eo.zoom(1); // units-per-pixel = 0.5
+    eo.zoom(1);
     alignedView.setTransforms('eo', {
       eo: IDENTITY,
       ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
@@ -129,9 +163,29 @@ describe('useAlignedNavigation', () => {
     alignedView.setEnabled(true);
     await nextTick();
 
-    // No pan/zoom event fired: activation itself aligned the panes.
-    expect(ir.center()).toEqual({ x: 250, y: 150 });
-    expect(ir.zoom()).toBeCloseTo(Math.log2(8 / 0.5), 6);
+    expect(eo.center()).toEqual({ x: 200, y: 150 });
+    expect(eo.zoom()).toBeCloseTo(Math.log2(1 / (400 / VIEWPORT_PX)), 6);
+    expect(ir.center()).toEqual({ x: 200, y: 150 });
+    expect(ir.zoom()).toBeCloseTo(Math.log2(8 / (400 / VIEWPORT_PX)), 6);
+  });
+
+  it('clears GeoJS pan/zoom clamp on activation so large-image can show the reference FOV', async () => {
+    const { eo, ir, alignedView } = makeHarness();
+    expect(ir.clampZoom()).toBe(true);
+    expect(ir.clampBoundsX()).toBe(true);
+    alignedView.setTransforms('eo', {
+      eo: IDENTITY,
+      ir: [[1, 0, 100], [0, 1, 0], [0, 0, 1]],
+    });
+    alignedView.setEnabled(true);
+    await nextTick();
+
+    expect(eo.clampZoom()).toBe(false);
+    expect(eo.clampBoundsX()).toBe(false);
+    expect(eo.clampBoundsY()).toBe(false);
+    expect(ir.clampZoom()).toBe(false);
+    expect(ir.clampBoundsX()).toBe(false);
+    expect(ir.clampBoundsY()).toBe(false);
   });
 
   it('links panes by IDENTITY center in the shared reference space', async () => {
@@ -280,12 +334,13 @@ describe('useAlignedNavigation', () => {
     cameraSync.value = true;
     eo.center({ x: 9, y: 9 });
     eo.trigger('geo_pan');
-    expect(ir.center()).toEqual({ x: 0, y: 0 });
+    // Activation fit the reference frame; cameraSync must not pull ir elsewhere.
+    expect(ir.center()).toEqual({ x: 200, y: 150 });
     cameraSync.value = false;
 
     alignedView.setSuspended(true);
     await nextTick();
     eo.trigger('geo_pan');
-    expect(ir.center()).toEqual({ x: 0, y: 0 });
+    expect(ir.center()).toEqual({ x: 200, y: 150 });
   });
 });

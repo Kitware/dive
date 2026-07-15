@@ -1,5 +1,5 @@
 import geo from 'geojs';
-import { onBeforeUnmount, Ref } from 'vue';
+import { getCurrentInstance, onBeforeUnmount, Ref } from 'vue';
 import type { AggregateMediaController } from '../mediaControllerType';
 
 /**
@@ -87,7 +87,11 @@ export default function useLinkedViewers(
     target.center(view.center);
   }
 
-  onBeforeUnmount(teardown);
+  // Only register when invoked from a component setup() (Viewer). Unit tests
+  // call these composables imperatively and have no instance to attach to.
+  if (getCurrentInstance()) {
+    onBeforeUnmount(teardown);
+  }
   return {
     viewer, teardown, attach, guarded, applyView,
   };

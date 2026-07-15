@@ -40,7 +40,7 @@ While the aligned view is active, every pane **renders** in a shared reference c
 
 Do **not** map centers through camera-to-camera homographies here — rendering has already applied those transforms.
 
-**Activation:** listeners attach when the aligned view turns on (or transforms / camera list / resize trigger change). The reference pane's current view is applied immediately so panes line up without waiting for a user pan.
+**Activation:** listeners attach when the aligned view turns on (or transforms / camera list / resize trigger change). Turning Align on unlocks GeoJS pan/zoom clamp on every pane (large-image maps keep clamp on by default), fits the reference camera's native frame, and copies that reference-space viewport onto every other pane. Resize / transform updates only re-link from the reference's current view.
 
 **Deactivation:** each pane is reset to its native full-image view (`resetZoom`) so imagery is on-screen again after content reverts to native coordinates.
 

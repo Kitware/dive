@@ -417,7 +417,7 @@ export function useMediaController() {
       geoViewerRef.value.center(zoomAndCenter.center);
     }
 
-    function resetMapDimensions(width: number, height: number, isMap = false, margin = 0.3) {
+    function resetMapDimensions(width: number, height: number, _isMap = false, margin = 0.3) {
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];
       const data = state[camera];
@@ -442,16 +442,27 @@ export function useMediaController() {
         // 32x zoom max
         max: 32,
       });
-      if (!isMap) {
-        if (Object.keys(geoViewers).length === 1) {
-          geoViewerRef.value.clampBoundsX(true);
-          geoViewerRef.value.clampBoundsY(true);
-          geoViewerRef.value.clampZoom(true);
-        } else {
-          geoViewerRef.value.clampBoundsX(false);
-          geoViewerRef.value.clampBoundsY(false);
-          geoViewerRef.value.clampZoom(false);
-        }
+      // Multicam (including LargeImageAnnotator, which passes isMap=true) must
+      // turn clamp off so Align View can show a shared reference FOV that may
+      // exceed any one camera's native maxBounds. pixelCoordinateParams leaves
+      // clampZoom/clampBounds on by default; the old `if (!isMap)` guard skipped
+      // this for tiled panes and Align snaps were silently rejected.
+      // When a second camera registers, also unlock siblings that may still
+      // hold single-pane clamp from their earlier init.
+      // `_isMap` retained for MediaController API compatibility.
+      if (Object.keys(geoViewers).length === 1) {
+        geoViewerRef.value.clampBoundsX(true);
+        geoViewerRef.value.clampBoundsY(true);
+        geoViewerRef.value.clampZoom(true);
+      } else {
+        Object.values(geoViewers).forEach((viewerRef) => {
+          const map = viewerRef.value;
+          if (map && typeof map.clampZoom === 'function') {
+            map.clampBoundsX(false);
+            map.clampBoundsY(false);
+            map.clampZoom(false);
+          }
+        });
       }
       resetZoom();
     }
