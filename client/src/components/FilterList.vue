@@ -17,6 +17,7 @@ import BaseFilterControls from '../BaseFilterControls';
 import Track from '../track';
 import Group from '../Group';
 import StyleManager from '../StyleManager';
+import { getSuppressedTrackIds } from '../use/suppression';
 
 interface VirtualTypeItem {
   type: string;
@@ -150,7 +151,15 @@ export default defineComponent({
       const trackIdsForFrame = trackStore?.intervalTree
         .search([frame.value, frame.value])
         .map((str) => parseInt(str, 10));
+      // Detections suppressed by a region on this frame are dropped so the
+      // per-frame type counts read off the interface exclude them.
+      const suppressedIds = trackStore
+        ? getSuppressedTrackIds(trackStore, frame.value, clientSettings.typeSettings.suppressionType)
+        : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
+        if (suppressedIds.has(track.annotation.id)) {
+          return false;
+        }
         const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
         return !!keyframe?.keyframe;
       });

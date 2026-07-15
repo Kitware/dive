@@ -18,8 +18,10 @@ import {
   useTrackStyleManager,
   useMultiSelectList,
   useCameraStore,
+  useSelectedCamera,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
+import { getSuppressedTrackIds } from '../../use/suppression';
 import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
 import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
@@ -81,6 +83,7 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef, isPlaying } = useTime();
@@ -109,7 +112,15 @@ export default defineComponent({
     const finalFilteredTracks = computed(() => {
       let tracks = filteredTracksRef.value;
       if (filterDetectionsByFrame.value && !isPlaying.value) {
+        const suppressCamStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+        const suppType = clientSettings.typeSettings.suppressionType;
+        const suppressedIds = suppressCamStore
+          ? getSuppressedTrackIds(suppressCamStore, frameRef.value, suppType)
+          : new Set<number>();
         tracks = tracks.filter((track) => {
+          if (suppressedIds.has(track.annotation.id)) {
+            return false;
+          }
           const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
           if (possibleTrack) {
             const [feature] = possibleTrack.getFeature(frameRef.value);

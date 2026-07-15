@@ -25,6 +25,7 @@ export default defineComponent({
       preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
       filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
       maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
+      suppressionType: 'Detections lying 50% or more under an annotation of this type are hidden and excluded from counts. Leave empty to disable.',
     });
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
@@ -276,6 +277,39 @@ export default defineComponent({
                   </v-icon>
                 </template>
                 <span>{{ help.maxCountButton }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-select
+                v-model="clientSettings.typeSettings.suppressionType"
+                :items="allTypes"
+                label="Suppression Region Type"
+                class="my-0 ml-1 pt-0"
+                dense
+                clearable
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.suppressionType }}</span>
               </v-tooltip>
             </v-col>
           </v-row>
