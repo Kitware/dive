@@ -3,8 +3,8 @@
  * and mutually exclusive filenames in keyword/glob mode. Video imports skip image checks.
  *
  * When `inferFrameIndexFromFilename` is set, the equal-frame-count check is skipped:
- * datasets with dropped frames (e.g. KAMERA, which encodes a capture timestamp in each
- * filename) legitimately have differing per-camera counts and are aligned downstream by
+ * datasets with dropped frames (where each filename encodes a capture timestamp)
+ * legitimately have differing per-camera counts and are aligned downstream by
  * their filename timestamps rather than by exact positional index.
  */
 export type MulticamImportType = 'multi' | 'keyword' | 'subfolders' | '';

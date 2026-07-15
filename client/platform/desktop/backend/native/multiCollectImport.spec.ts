@@ -53,6 +53,17 @@ const frames = (count: number, prefix = 'frame') => {
   return files;
 };
 
+const viewFolderFrames = (view: string, modalities: string[], count: number) => {
+  const files: Record<string, string> = { 'metadata.json': '{}' };
+  modalities.forEach((modality) => {
+    const ext = modality === 'ir' ? 'tif' : 'jpg';
+    for (let i = 0; i < count; i += 1) {
+      files[`fl09_${view}_20240612_20410${i}.625730_${modality}.${ext}`] = '';
+    }
+  });
+  return files;
+};
+
 afterEach(() => {
   mockfs.restore();
 });
@@ -276,6 +287,55 @@ describe('native.multiCollectImport', () => {
       [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
     );
     expect(imported.importWarnings).toBeUndefined();
+  });
+
+  it('infers modality cameras for flat view-folder collects', async () => {
+    mockfs({
+      '/data/fl09': {
+        center_view: viewFolderFrames('C', ['rgb', 'ir', 'uv'], 2),
+        left_view: viewFolderFrames('L', ['rgb', 'ir'], 2),
+      },
+    });
+    const result = await scanMultiCamBatch('/data/fl09');
+    expect(result.problems).toEqual([]);
+    expect(result.cameraNames).toEqual(['rgb', 'ir', 'uv']);
+    const [center, left] = result.collects;
+    expect(center.problems).toEqual([]);
+    expect(center.importArgs?.datasetName).toBe('fl09_center_view');
+    expect(center.importArgs?.defaultDisplay).toBe('rgb');
+    expect(center.importArgs?.cameraOrder).toEqual(['rgb', 'ir', 'uv']);
+    expect(center.importArgs?.sourceList.rgb).toEqual({
+      sourcePath: '/data/fl09/center_view',
+      trackFile: '',
+      glob: '*_rgb.*',
+    });
+    expect(left.importArgs?.datasetName).toBe('fl09_left_view');
+    expect(left.importArgs?.cameraOrder).toEqual(['rgb', 'ir']);
+  });
+
+  it('imports view-folder collects with per-modality image filtering', async () => {
+    mockfs({
+      '/data/fl09': {
+        center_view: viewFolderFrames('C', ['rgb', 'ir'], 2),
+      },
+    });
+    const result = await scanMultiCamBatch('/data/fl09');
+    const { importArgs } = result.collects[0];
+    expect(importArgs).not.toBeNull();
+    if (!importArgs) {
+      return;
+    }
+    const imported = await beginMultiCamImport(importArgs);
+    expect(imported.jsonMeta.name).toBe('fl09_center_view');
+    expect(imported.jsonMeta.subType).toBe('multicam');
+    expect(Object.keys(imported.jsonMeta.multiCam?.cameras ?? {})).toEqual(['rgb', 'ir']);
+    const rgb = imported.jsonMeta.multiCam?.cameras.rgb;
+    const ir = imported.jsonMeta.multiCam?.cameras.ir;
+    expect(rgb?.originalBasePath).toBe('/data/fl09/center_view');
+    expect(rgb?.originalImageFiles).toHaveLength(2);
+    expect(rgb?.originalImageFiles.every((name) => name.endsWith('_rgb.jpg'))).toBe(true);
+    expect(ir?.originalImageFiles).toHaveLength(2);
+    expect(ir?.originalImageFiles.every((name) => name.endsWith('_ir.tif'))).toBe(true);
   });
 
   it('produces args accepted by beginMultiCamImport', async () => {

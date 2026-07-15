@@ -47,6 +47,7 @@ import {
   isAllowedStereoCalibrationFilename,
   stereoCalibrationAllowedExtensionsLabel,
 } from 'platform/web-girder/multicamCalibration';
+import { filterByGlob } from 'platform/desktop/sharedUtils';
 import { openFromDisk } from 'platform/web-girder/utils';
 import { filesForCameraSource, scanMultiCamBatchFromFiles } from 'platform/web-girder/scanMultiCamBatch';
 import eventBus from 'platform/web-girder/eventBus';
@@ -452,7 +453,11 @@ export default defineComponent({
 
         for (let i = 0; i < cameraEntries.length; i += 1) {
           const [cameraName, source] = cameraEntries[i];
-          const files = flattenUploadFiles(getFilesForSourceKey(source.sourcePath) ?? []);
+          let files = flattenUploadFiles(getFilesForSourceKey(source.sourcePath) ?? []);
+          if (source.glob) {
+            // Cameras sharing one folder (per-modality suffixes) upload only their glob's files
+            files = files.filter((file) => filterByGlob(source.glob as string, [file.name]).length === 1);
+          }
           if (!files?.length) {
             throw new Error(`No media files found for camera "${cameraName}"`);
           }

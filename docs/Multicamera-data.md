@@ -101,13 +101,33 @@ On **Web**, the folder picker uploads all files under the chosen root; scanning 
 
 For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
 
+### Flat multi-modality view folders
+
+Both multicam import modes automatically recognize **flat view folders**: a single folder holding the images for up to three modalities side by side, distinguished by a filename suffix (`_rgb`, `_ir`, `_uv`), plus optional sidecar metadata files. Aerial survey systems commonly write each view (swathe) this way, using folder names like `left_view/`, `center_view/`, `right_view/` or `PORT/`, `CENT/`, `STBD/`:
+
+```
+fl09/                    ← choose this root folder for MultiCam Batch
+  center_view/           ← or choose one view folder for parent-folder import
+    fl09_..._20240612_204107.625730_rgb.jpg
+    fl09_..._20240612_204107.625730_ir.tif
+    fl09_..._20240612_204107.625730_uv.jpg
+    metadata.json
+  left_view/
+  right_view/
+```
+
+A folder is treated as a flat view folder when it has no camera subfolders and every image carries a modality suffix (`_rgb`, `_ir`, `_uv`) plus a filename timestamp. DIVE then creates **one dataset per view folder** with **one camera per modality present** (`rgb`, `ir`, `uv`), selecting each camera's images by suffix. Sidecar files such as `metadata.json` are ignored.
+
+* In **MultiCam Batch**, select the folder containing the view folders (e.g. `fl09/`); each view folder becomes a collect. Dataset names default to `<parent>_<view>` (e.g. `fl09_center_view`). A view folder with only one modality imports as a single-camera dataset with a warning.
+* In the single **MultiCam** parent-folder mode, select one view folder directly. When the folder has a recognized view name (`center_view`, `CENT`, `PORT`, …), the dataset name is prefixed with the parent folder. **Infer frame index from filename** is enabled automatically, since modalities may legitimately drop frames independently and are aligned by capture timestamp.
+
 ### Infer frame index from filename
 
 At the bottom of the multicam import dialog (image sequences only), **Infer frame index from filename** relaxes the equal-frame-count requirement when filenames encode capture time. Enable it for datasets where cameras may have different numbers of frames — for example when one camera dropped occasional shots but each surviving frame still carries a parseable timestamp.
 
 When enabled, DIVE skips the import-time check that every camera has the same image count. During playback, frames are aligned by those filename timestamps rather than by positional index (see [Aligned playback and timestamps](#aligned-playback-and-timestamps)).
 
-Example filename (KAMERA-style datestamp):
+Example filename (datestamp convention):
 
 ```
 test_seattle_2020_fl09_C_20200830_020814.141365_rgb.jpg
@@ -130,7 +150,7 @@ If any frame on any camera lacks a timestamp, DIVE falls back to **positional al
 
 | Pattern | Example |
 |---------|---------|
-| Datestamp `YYYYMMDD[_-]HHMMSS` with optional fractional seconds | `kamera_fl02_C_20240407_130757.206341_ir.tif` |
+| Datestamp `YYYYMMDD[_-]HHMMSS` with optional fractional seconds | `fl02_C_20240407_130757.206341_ir.tif` |
 | Epoch milliseconds (13 digits) | `img_1719843225123.tif` |
 | Epoch seconds (10 digits) | `img_1719843225.tif` |
 

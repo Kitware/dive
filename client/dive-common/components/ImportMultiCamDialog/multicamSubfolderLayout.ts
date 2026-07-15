@@ -449,6 +449,20 @@ export function groupRootLevelVideoFiles(
   return groups;
 }
 
+/** Image files sitting directly in the selected parent folder (not in subfolders). */
+export function rootLevelImageFiles(
+  fileList: File[],
+  root = '',
+): File[] {
+  const paths = fileList.map((file) => file.webkitRelativePath || file.name);
+  const effectiveRoot = root || commonPathPrefix(paths);
+  return fileList.filter((file, index) => {
+    const path = stripPathPrefix(paths[index], effectiveRoot);
+    const parts = path.split('/').filter(Boolean);
+    return parts.length === 1 && isImageFileName(parts[0]);
+  });
+}
+
 /**
  * Group a parent-folder selection by camera: prefer immediate subfolders; for video imports,
  * fall back to separate video files in the parent folder when there are not enough subfolders.

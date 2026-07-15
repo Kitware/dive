@@ -4,6 +4,11 @@
  * Scans a root folder whose immediate children are "collect" folders; each collect
  * folder is expected to hold the same set of camera subfolders (e.g. EO/, IR/, UV/),
  * each containing that camera's image frames.
+ *
+ * Flat multi-modality view folders (images for 1-3 modalities in one folder,
+ * split by *_rgb / *_ir / *_uv filename suffixes) are also recognized as
+ * collects: each modality becomes a camera selected by a filename glob (see
+ * viewFolderFormat.ts).
  */
 import { MultiCamImportFolderArgs } from 'dive-common/apispec';
 import {
@@ -12,6 +17,13 @@ import {
   pickDefaultMulticamCamera,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { assignRegistrationFilesToCameras } from 'dive-common/registrationParentFolder';
+import {
+  detectFolderModalities,
+  groupByModality,
+  Modalities,
+  Modality,
+  modalityGlob,
+} from 'dive-common/viewFolderFormat';
 
 /** Camera-count limits shared with the single multicam subfolder import. */
 export const MinBatchCameras = 2;
@@ -22,6 +34,8 @@ export interface MultiCamBatchCamera {
   name: string;
   sourcePath: string;
   imageCount: number;
+  /** Filename glob when cameras share the collect folder (per-modality suffixes). */
+  glob?: string;
 }
 
 /** Scan result for a single collect folder (one multicam dataset candidate). */
@@ -61,6 +75,88 @@ export interface CollectRawScan {
    * slots on the collect's importArgs.
    */
   transformFiles?: string[];
+  /** Image file names directly in the collect folder (flat multi-modality view folders). */
+  rootImageNames?: string[];
+}
+
+/**
+ * Modalities of a flat view-folder collect: no image-bearing camera
+ * subfolders, and the collect folder's own images all carry a modality suffix
+ * and a filename timestamp.
+ */
+function collectViewFolderModalities(collect: CollectRawScan): Modality[] {
+  const hasImageSubfolder = [...collect.subfolders.values()]
+    .some((subfolder) => subfolder.imageCount > 0);
+  if (hasImageSubfolder) {
+    return [];
+  }
+  return detectFolderModalities(collect.rootImageNames ?? []);
+}
+
+function buildViewFolderCollectResult(
+  collect: CollectRawScan,
+  modalities: Modality[],
+  rootLabel: string,
+): MultiCamBatchCollect {
+  const grouped = groupByModality(collect.rootImageNames ?? []);
+  const cameras: MultiCamBatchCamera[] = modalities.map((modality) => ({
+    name: modality,
+    sourcePath: collect.path,
+    imageCount: grouped.get(modality)?.length ?? 0,
+    glob: modalityGlob(modality),
+  }));
+
+  const warnings: string[] = [];
+  if (modalities.length === 1) {
+    warnings.push(
+      `Only one modality (${modalities[0]}) found; the dataset will have a single camera`,
+    );
+  }
+
+  const sourceList: MultiCamImportFolderArgs['sourceList'] = {};
+  cameras.forEach((camera) => {
+    sourceList[camera.name] = {
+      sourcePath: camera.sourcePath,
+      trackFile: '',
+      glob: camera.glob,
+    };
+  });
+
+  const transformFiles: string[] = [];
+  if (collect.transformFiles?.length) {
+    const { assignments, unassigned } = assignRegistrationFilesToCameras(
+      collect.transformFiles,
+      modalities,
+    );
+    assignments.forEach(({ camera, filePath }) => {
+      sourceList[camera].transformFile = filePath;
+      transformFiles.push(filePath.replace(/^.*[\\/]/, ''));
+    });
+    if (unassigned.length) {
+      warnings.push(
+        `Registration file(s) not attached (no free camera slot): ${unassigned
+          .map((filePath) => filePath.replace(/^.*[\\/]/, ''))
+          .join(', ')}`,
+      );
+    }
+  }
+
+  return {
+    name: collect.name,
+    path: collect.path,
+    cameras,
+    transformFiles,
+    problems: [],
+    warnings,
+    importArgs: {
+      // A bare view name (left_view) is ambiguous across collections; prefix the root folder
+      datasetName: rootLabel ? `${rootLabel}_${collect.name}` : collect.name,
+      defaultDisplay: modalities[0],
+      cameraOrder: [...modalities],
+      sourceList,
+      type: 'image-sequence',
+    },
+  };
 }
 
 function canonicalCameraNames(collects: CollectRawScan[]): string[] {
@@ -188,14 +284,42 @@ export function scanMultiCamBatchFromCollects(
     problems.push(`No collect folders found in ${rootPath}`);
   }
 
-  const cameraNames = canonicalCameraNames(rawScans);
-  if (rawScans.length) {
-    problems.push(...validateCameraSet(cameraNames));
+  // Flat view-folder collects are self-describing (cameras = modalities
+  // present); the shared camera-set rules below apply only to subfolder-based
+  // collects.
+  const viewModalitiesByCollect = new Map<string, Modality[]>();
+  rawScans.forEach((collect) => {
+    const modalities = collectViewFolderModalities(collect);
+    if (modalities.length) {
+      viewModalitiesByCollect.set(collect.name, modalities);
+    }
+  });
+  const subfolderScans = rawScans.filter(
+    (collect) => !viewModalitiesByCollect.has(collect.name),
+  );
+
+  const canonicalNames = canonicalCameraNames(subfolderScans);
+  if (subfolderScans.length) {
+    problems.push(...validateCameraSet(canonicalNames));
   }
 
+  const modalityUnion = Modalities.filter(
+    (modality) => [...viewModalitiesByCollect.values()]
+      .some((modalities) => modalities.includes(modality)),
+  );
+  const cameraNames = [
+    ...canonicalNames,
+    ...modalityUnion.filter((modality) => !canonicalNames.includes(modality)),
+  ];
+
+  const rootLabel = rootPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '';
   const cameraSetValid = !problems.length;
   const collects = rawScans.map((collect) => {
-    const result = buildCollectResult(collect, cameraNames);
+    const modalities = viewModalitiesByCollect.get(collect.name);
+    if (modalities) {
+      return buildViewFolderCollectResult(collect, modalities, rootLabel);
+    }
+    const result = buildCollectResult(collect, canonicalNames);
     if (!cameraSetValid) {
       return { ...result, importArgs: null };
     }

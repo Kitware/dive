@@ -37,16 +37,17 @@ function dateStampToSeconds(match: RegExpMatchArray): number | undefined {
 
 /*
  * Parses a frame timestamp from a filename using a small ordered list of
- * conventions. The primary convention is KAMERA's, confirmed against sample
- * data (see the datestamp entry); the epoch-based patterns are fallbacks for
- * other capture systems. Each entry is tried in order against the
+ * conventions. The primary convention is the datestamp form common in aerial
+ * survey filenames, confirmed against sample data (see the datestamp entry);
+ * the epoch-based patterns are fallbacks for other capture systems. Each
+ * entry is tried in order against the
  * extension-stripped filename stem; the first regex that matches AND passes its
  * own plausibility check wins.
  */
 const FRAME_TIMESTAMP_PATTERNS: FrameTimestampPattern[] = [
   {
-    // KAMERA convention: YYYYMMDD[_-]HHMMSS with an optional fractional-second
-    // suffix, e.g. kamera_calibration_fl02_C_20240407_130757.206341_ir.tif
+    // Datestamp convention: YYYYMMDD[_-]HHMMSS with an optional fractional-second
+    // suffix, e.g. fl02_C_20240407_130757.206341_ir.tif
     name: 'datestamp',
     regex: /(?<!\d)(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:[.,](\d{1,6}))?(?!\d)/,
     toSeconds: dateStampToSeconds,

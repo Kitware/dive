@@ -30,6 +30,7 @@ Used by the same platform pages (`Recent.vue`, `Upload.vue`), opened from the ==
 | `ImportMultiCamBatchDialog.vue` | Scan review UI, editable dataset names, per-collect selection, sequential import |
 | `multiCamBatchScan.ts` | Shared scan/validation (`scanMultiCamBatchFromCollects`, `MultiCamBatchCollect`) |
 | `multicamSubfolderLayout.ts` | Camera naming rules and preferred order (shared with subfolder import) |
+| `dive-common/viewFolderFormat.ts` | Flat view-folder detection: folders holding per-modality images (`*_rgb` / `*_ir` / `*_uv`) split into cameras via filename globs |
 | `platform/desktop/backend/native/multiCollectImport.ts` | Desktop filesystem scan (`scan-multicam-batch` IPC) |
 | `platform/web-girder/scanMultiCamBatch.ts` | Web scan from `File[]` + `webkitRelativePath` |
 

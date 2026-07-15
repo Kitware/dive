@@ -50,6 +50,9 @@ async function scanMultiCamBatch(rootPath: string) {
       // Per-collect registration files sit next to the camera subfolders.
       // eslint-disable-next-line no-await-in-loop
       transformFiles: await findParentFolderTransformFiles(collectPath),
+      // Images directly in the collect folder (flat multi-modality view folders)
+      // eslint-disable-next-line no-await-in-loop
+      rootImageNames: (await findImagesInFolder(collectPath)).imageNames,
     });
   }
 
