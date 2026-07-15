@@ -193,6 +193,16 @@ export function useMediaController() {
   }, { flush: 'post' });
 
   function clear() {
+    Object.values(geoViewers).forEach((viewerRef) => {
+      const map = viewerRef?.value;
+      if (map && typeof map.exit === 'function') {
+        try {
+          map.exit();
+        } catch {
+          // Map may already be torn down with its DOM node.
+        }
+      }
+    });
     geoViewers = {};
     containers = {};
     imageCursors = {};
@@ -482,6 +492,18 @@ export function useMediaController() {
       if (tileWidth === undefined) {
         // eslint-disable-next-line no-param-reassign
         tileWidth = width;
+      }
+      // Tear down any previous map for this camera before allocating a new
+      // one. LargeImageAnnotator (and imageData watches) can re-init; without
+      // this, orphaned geoJS maps accumulate WebGL contexts until the browser
+      // starts dropping the oldest ones and annotation redraws blow up.
+      const previous = geoViewers[camera].value;
+      if (previous && typeof previous.exit === 'function') {
+        try {
+          previous.exit();
+        } catch {
+          // Map may already be partially torn down during a dataset reload.
+        }
       }
       let params = geo.util.pixelCoordinateParams(containers[camera].value, width, height, tileWidth, tileHeight);
       if (isMap && geoSpatial) {

@@ -195,12 +195,22 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
   }
 
   disable() {
-    this.featureLayer
-      .data([])
-      .draw();
-    this.arrowFeatureLayer
-      .data([])
-      .draw();
+    if (!this.featureLayer) {
+      return;
+    }
+    try {
+      this.featureLayer
+        .data([])
+        .draw();
+      if (this.arrowFeatureLayer) {
+        this.arrowFeatureLayer
+          .data([])
+          .draw();
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Annotation layer disable skipped after map/renderer teardown', err);
+    }
   }
 
   createStyle(): LayerStyle<RectGeoJSData> {
