@@ -138,6 +138,17 @@ class PipelineJob(TypedDict):
     metadata_file_key: NotRequired[Optional[str]]
 
 
+class MulticamRegistrationJob(TypedDict):
+    """Camera registration handed to a 2-cam/3-cam pipeline's warp processes.
+
+    Pairs use the dive-camera-registration file layout: left/right camera
+    names, correspondence points, and leftToRight/rightToLeft 3x3 matrices.
+    """
+
+    reference: str
+    pairs: List[dict]
+
+
 class MulticamPipelineJob(PipelineJob, total=False):
     """Pipeline job fields set when running stereo/multicam pipelines on a multi dataset."""
 
@@ -145,6 +156,7 @@ class MulticamPipelineJob(PipelineJob, total=False):
     multicam_default_display: str
     calibration_item_id: Optional[str]
     multicam_requires_input: bool
+    multicam_registration: Optional[MulticamRegistrationJob]
 
 
 class TrainingJob(TypedDict):
