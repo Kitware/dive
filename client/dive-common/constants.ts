@@ -165,6 +165,14 @@ const listFileTypes = [
   'txt',
 ];
 
+/**
+ * Per-camera registration transform files: DIVE registration .json (the
+ * registration panel's save format).
+ */
+const transformFileTypes = [
+  'json',
+];
+
 const zipFileTypes = [
   'zip',
 ];
@@ -212,6 +220,7 @@ export {
   getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
+  transformFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
   calibrationFileMarker,

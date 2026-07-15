@@ -11,6 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
+import { isStereoscopicDatasetMeta } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -106,6 +107,7 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
+    const isStereoscopicDataset = computed(() => subTypeList.value[0] === 'stereo');
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
     const selectedCamera = ref('');
@@ -642,9 +644,9 @@ export default defineComponent({
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadMetadata(props.id);
-        // Single-camera datasets have no stereo pair: report no stereo so the
-        // caller does not load the stereo service.
-        if (!meta.multiCamMedia) return false;
+        // Plain multicam and single-camera datasets have no stereo pair: report
+        // no stereo so the caller does not load the stereo service.
+        if (!meta.multiCamMedia || !isStereoscopicDatasetMeta(meta)) return false;
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
@@ -729,8 +731,10 @@ export default defineComponent({
     // The backend stereo service is needed whenever either stereo feature is on
     // (length-on-modify or cross-camera auto-compute). Track the combined state
     // so toggling one feature while the other is already on does not restart it.
-    const stereoServiceWanted = () => clientSettings.stereoSettings.updateLengthsOnModify
-      || clientSettings.stereoSettings.autoComputeOtherCamera;
+    const stereoServiceWanted = () => isStereoscopicDataset.value && (
+      clientSettings.stereoSettings.updateLengthsOnModify
+      || clientSettings.stereoSettings.autoComputeOtherCamera
+    );
 
     function disableStereoFeatureToggles() {
       clientSettings.stereoSettings.updateLengthsOnModify = false;
@@ -826,6 +830,16 @@ export default defineComponent({
     // in single-camera datasets.
     let stereoDatasetUnavailable = false;
 
+    function resetStereoStateForDatasetChange() {
+      stereoDatasetUnavailable = false;
+      stereoImagePathGetters.value = {};
+      stereoCameraFps.value = {};
+      lastStereoFrame = -1;
+      stereoCalibrationFile = undefined;
+      stereoDatasetFps = undefined;
+      closeStereoLoadingDialog();
+    }
+
     function requestStereoServiceState(enabled: boolean, userInitiated: boolean): Promise<void> {
       const p = applyStereoServiceState(enabled, userInitiated).finally(() => {
         if (stereoStatePromise === p) stereoStatePromise = null;
@@ -833,6 +847,24 @@ export default defineComponent({
       stereoStatePromise = p;
       return p;
     }
+
+    watch(() => props.id, () => {
+      resetStereoStateForDatasetChange();
+      if (stereoEnabled.value) {
+        requestStereoServiceState(false, false);
+      }
+    });
+
+    watch(isStereoscopicDataset, (isStereo) => {
+      if (!isStereo) {
+        stereoDatasetUnavailable = true;
+        if (stereoEnabled.value) {
+          requestStereoServiceState(false, false);
+        }
+      } else {
+        stereoDatasetUnavailable = false;
+      }
+    });
 
     // Wait out any in-flight enable/disable; returns whether the service is up.
     async function stereoServiceReady(): Promise<boolean> {
@@ -1738,13 +1770,17 @@ export default defineComponent({
     // choice (save / discard / cancel) rather than the two-button navigate-away
     // prompt. Resolves true to allow the close, false to keep the app open.
     async function desktopCloseGuard(): Promise<boolean> {
-      const count = viewerRef.value?.pendingSaveCount ?? 0;
-      if (!count) return true;
+      // Pending annotation saves OR unsaved Camera Registration panel edits.
+      const unsaved = viewerRef.value?.hasUnsavedChanges ?? false;
+      if (!unsaved) return true;
       const choice = await window.diveDesktop.invoke('desktop:confirm-close-unsaved');
       if (choice === 'cancel') return false;
       if (choice === 'save') {
         try {
-          await viewerRef.value.save();
+          if (viewerRef.value.pendingSaveCount > 0) {
+            await viewerRef.value.save();
+          }
+          await viewerRef.value.saveRegistration();
         } catch {
           // Save failed; the Viewer surfaces its own error, so keep the app open.
           return false;

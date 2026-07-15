@@ -1,6 +1,11 @@
 /**
  * Pure validation for multicam image lists: non-empty filters, equal frame counts,
  * and mutually exclusive filenames in keyword/glob mode. Video imports skip image checks.
+ *
+ * When `inferFrameIndexFromFilename` is set, the equal-frame-count check is skipped:
+ * datasets with dropped frames (where each filename encodes a capture timestamp)
+ * legitimately have differing per-camera counts and are aligned downstream by
+ * their filename timestamps rather than by exact positional index.
  */
 export type MulticamImportType = 'multi' | 'keyword' | 'subfolders' | '';
 
@@ -9,6 +14,7 @@ export function validateMulticamImageSets(
   filteredImages: Record<string, string[]>,
   globListKeyCount: number,
   dataType: string,
+  inferFrameIndexFromFilename = false,
 ): string | null {
   if (importType === 'keyword' && globListKeyCount === 0) {
     return 'Add at least 1 filter pattern';
@@ -30,7 +36,7 @@ export function validateMulticamImageSets(
     if (length === -1) {
       length = images.length;
     }
-    if (length !== images.length) {
+    if (!inferFrameIndexFromFilename && length !== images.length) {
       return `All cameras should have the same length of ${length}`;
     }
     if (importType === 'keyword'

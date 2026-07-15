@@ -3,11 +3,8 @@
  */
 
 import npath from 'path';
-import os from 'os';
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
-import { createWriteStream } from 'fs';
-import archiver from 'archiver';
 import { shell } from 'electron';
 import mime from 'mime-types';
 import moment from 'moment';
@@ -29,7 +26,6 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
-  DatasetCalibrationResult,
 } from 'dive-common/apispec';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
@@ -43,26 +39,28 @@ import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
   MultiType, JsonMetaRegEx, largeImageDesktopTypes,
 } from 'dive-common/constants';
-import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
-import { pickStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
-import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibrationJson';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
-  ExportConfigurationArgs, ExportMulticamEverythingArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
+  ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType, LastCalibrationBaseName,
+  JobType,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
+import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 // TODO:  Check to Refactor this
 // eslint-disable-next-line import/no-cycle
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+import {
+  loadRegistrationFiles, referenceCameraName, saveRegistrationToDatasetDir,
+} from './cameraRegistration';
 import { prepareDatasetCalibration } from './calibrationConvert';
+import { realCalibrationName } from './datasetCalibration';
 import { splitExt } from './utils';
 
 const AuxFolderName = 'auxiliary';
@@ -367,6 +365,22 @@ async function loadMetadata(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
 
+  // Load the standalone camera registration (transforms + correspondences)
+  // from the per-camera *_registration.json files, if present; the dataset
+  // meta fields serve as the import-time seed until a save writes the files.
+  let {
+    cameraHomographies, cameraCorrespondences, cameraTransformTypes, cameraRegistrationSource,
+  } = projectMetaData;
+  const loadedCalibration = await loadRegistrationFiles(projectDirData.basePath);
+  if (loadedCalibration.found) {
+    ({
+      homographies: cameraHomographies,
+      correspondences: cameraCorrespondences,
+      transformTypes: cameraTransformTypes,
+      source: cameraRegistrationSource,
+    } = loadedCalibration);
+  }
+
   let videoUrl = '';
   let imageData = [] as FrameImage[];
   let multiCamMedia: MultiCamMedia | null = null;
@@ -404,13 +418,16 @@ async function loadMetadata(
       imageData = projectMetaData.transcodedImageFiles.map((filename: string) => ({
         url: makeMediaUrl(npath.join(projectDirData.basePath, filename)),
         filename,
+        timestamp: parseFrameTimestamp(filename),
       }));
     } else {
       imageData = projectMetaData.originalImageFiles.map((pathOrFilename: string) => {
         const absPath = npath.join(projectMetaData.originalBasePath, pathOrFilename);
+        const filename = npath.basename(absPath);
         return {
           url: makeMediaUrl(absPath),
-          filename: npath.basename(absPath),
+          filename,
+          timestamp: parseFrameTimestamp(filename),
         };
       });
     }
@@ -431,6 +448,10 @@ async function loadMetadata(
     imageData,
     multiCamMedia,
     subType,
+    cameraHomographies,
+    cameraCorrespondences,
+    cameraTransformTypes,
+    cameraRegistrationSource,
   };
 }
 
@@ -713,6 +734,21 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   }
   if (args.datasetInfo) {
     existing.datasetInfo = args.datasetInfo;
+  }
+
+  // The camera registration (transforms + the points behind them) is
+  // persisted as standalone <camera>_to_<reference>_registration.json files
+  // in the dataset directory rather than embedded in meta.json, so each
+  // camera's registration is easy to find, hand-edit, and consume as a
+  // self-contained artifact. There is deliberately never a single all-pairs
+  // file.
+  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
+    || args.cameraRegistrationSource) {
+    await saveRegistrationToDatasetDir(
+      projectDirInfo.basePath,
+      args,
+      referenceCameraName(existing),
+    );
   }
 
   await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
@@ -1048,8 +1084,42 @@ function isVideoFilePath(filePath: string): boolean {
 }
 
 /**
+ * Return true when a subfolder contains at least one importable image or video file.
+ */
+async function subfolderContainsMedia(
+  subfolderPath: string,
+  mediaType: 'image-sequence' | 'video',
+): Promise<boolean> {
+  if (!await fs.pathExists(subfolderPath)) {
+    return false;
+  }
+  const stat = await fs.stat(subfolderPath);
+  if (!stat.isDirectory()) {
+    return mediaType === 'video' && isVideoFilePath(subfolderPath);
+  }
+  if (mediaType === 'image-sequence') {
+    const found = await findImagesInFolder(subfolderPath);
+    return found.imagePaths.length > 0;
+  }
+  const entries = await fs.readdir(subfolderPath, { withFileTypes: true });
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (!entry.isFile()) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+    const fullPath = npath.join(subfolderPath, entry.name);
+    if (isVideoFilePath(fullPath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Discover cameras under a parent folder: immediate subfolders, or separate video files
  * in the parent when importing video and there are no subfolders.
+ * Subfolders without importable media (e.g. calibration or transform data) are skipped.
  */
 async function listParentFolderCameras(
   parentPath: string,
@@ -1058,13 +1128,22 @@ async function listParentFolderCameras(
   const subfolders = await listImmediateSubfolders(parentPath);
   const separator = parentPath.includes('\\') ? '\\' : '/';
   const normalized = parentPath.replace(/[\\/]+$/, '');
-  if (subfolders.length >= 2) {
-    return subfolders.map((name) => ({
+  const mediaSubfolders: string[] = [];
+  for (let i = 0; i < subfolders.length; i += 1) {
+    const name = subfolders[i];
+    const fullPath = `${normalized}${separator}${name}`;
+    // eslint-disable-next-line no-await-in-loop
+    if (await subfolderContainsMedia(fullPath, mediaType)) {
+      mediaSubfolders.push(name);
+    }
+  }
+  if (mediaSubfolders.length >= 2) {
+    return mediaSubfolders.map((name) => ({
       name,
       sourcePath: `${normalized}${separator}${name}`,
     }));
   }
-  if (mediaType === 'video' && subfolders.length === 0) {
+  if (mediaType === 'video' && mediaSubfolders.length === 0) {
     const children = await fs.readdir(parentPath, { withFileTypes: true });
     const videoPaths: string[] = [];
     children.forEach((entry) => {
@@ -1082,31 +1161,10 @@ async function listParentFolderCameras(
       sourcePath: fullPath,
     }));
   }
-  return subfolders.map((name) => ({
+  return mediaSubfolders.map((name) => ({
     name,
     sourcePath: `${normalized}${separator}${name}`,
   }));
-}
-
-/**
- * Find a stereoscopic calibration file (.json or .npz with cal/calibration in the name)
- * in the parent folder root.
- */
-async function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
-  if (!await fs.pathExists(parentPath)) {
-    return null;
-  }
-  const stat = await fs.stat(parentPath);
-  if (!stat.isDirectory()) {
-    return null;
-  }
-  const children = await fs.readdir(parentPath, { withFileTypes: true });
-  const fileNames = children.filter((entry) => entry.isFile()).map((entry) => entry.name);
-  const bestName = pickStereoCalibrationFileName(fileNames);
-  if (!bestName) {
-    return null;
-  }
-  return npath.join(parentPath, bestName);
 }
 
 /**
@@ -1550,6 +1608,41 @@ async function getLargeImagePath(settings: Settings, datasetId: string): Promise
   }
 }
 
+/**
+ * Resolve the absolute path of the ORIGINAL (pre-transcode) image for a frame.
+ *
+ * The percentile-stretch / display path must read the original source image
+ * (e.g. a 16-bit IR TIFF), NOT the 8-bit PNG produced by import-time transcoding
+ * (`transcodedImageFiles`), which has already discarded the dynamic range the
+ * stretch is meant to recover. `imageData` URLs sent to the client point at the
+ * transcoded copies, so the client passes a frame index and we map it back to
+ * the original here. Returns null if the frame is out of range or unavailable.
+ */
+async function getDisplayImagePath(
+  settings: Settings,
+  datasetId: string,
+  frame: number,
+): Promise<string | null> {
+  try {
+    const projectDirData = await getValidatedProjectDir(settings, datasetId);
+    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    const originals = meta.originalImageFiles ?? [];
+    if (!Number.isInteger(frame) || frame < 0 || frame >= originals.length) {
+      console.warn(
+        `[display] getDisplayImagePath: frame ${frame} out of range for dataset "${datasetId}" (${originals.length} images)`,
+      );
+      return null;
+    }
+    const entry = originals[frame];
+    // originalImageFiles entries are relative to originalBasePath, except for
+    // image-list imports where they are absolute and originalBasePath is ''.
+    return npath.isAbsolute(entry) ? entry : npath.join(meta.originalBasePath, entry);
+  } catch (err) {
+    console.warn(`[display] getDisplayImagePath: error for dataset "${datasetId}":`, err);
+    return null;
+  }
+}
+
 async function openLink(url: string) {
   shell.openExternal(url);
 }
@@ -1593,131 +1686,6 @@ async function openPathInFileManager(targetPath: string): Promise<string> {
   return shell.openPath(resolved);
 }
 
-function buildExportMetaJson(meta: JsonMeta): Record<string, unknown> {
-  const output: Record<string, unknown> = { ...meta };
-  if (meta.type === 'image-sequence') {
-    const files = meta.transcodedImageFiles?.length
-      ? meta.transcodedImageFiles
-      : meta.originalImageFiles?.map((filePath) => npath.basename(filePath)) ?? [];
-    output.imageData = files.map((filename) => ({ filename }));
-  } else if (meta.type === 'video') {
-    const filename = meta.transcodedVideoFile || meta.originalVideoFile;
-    if (filename) {
-      output.video = { filename };
-    }
-  }
-  return output;
-}
-
-async function writeDatasetExportContents(
-  settings: Settings,
-  destDir: string,
-  datasetId: string,
-  excludeBelowThreshold: boolean,
-  typeFilter: Set<string>,
-): Promise<void> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  const serializeOptions = {
-    excludeBelowThreshold,
-    header: true,
-  };
-
-  await fs.ensureDir(destDir);
-  await fs.writeJSON(npath.join(destDir, 'meta.json'), buildExportMetaJson(meta), { spaces: 2 });
-  await dive.serializeFile(
-    npath.join(destDir, 'annotations.dive.json'),
-    data,
-    meta,
-    typeFilter,
-    serializeOptions,
-  );
-  await viameSerializers.serializeFile(
-    npath.join(destDir, 'annotations.viame.csv'),
-    data,
-    meta,
-    typeFilter,
-    serializeOptions,
-  );
-}
-
-async function zipDirectory(sourceDir: string, destZipPath: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const output = createWriteStream(destZipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    output.on('close', () => resolve());
-    output.on('error', reject);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.directory(sourceDir, false);
-    archive.finalize();
-  });
-}
-
-async function exportMulticamEverything(
-  settings: Settings,
-  args: ExportMulticamEverythingArgs,
-): Promise<string> {
-  const parentId = args.id.split('/')[0];
-  const parentDirInfo = await getValidatedProjectDir(settings, parentId);
-  const parentMeta = await loadJsonMetadata(parentDirInfo.metaFileAbsPath);
-  if (parentMeta.type !== MultiType || !parentMeta.multiCam) {
-    throw new Error('Everything export is only available for multi-camera datasets.');
-  }
-
-  const cameraNames = orderedMultiCamCameraNames({
-    cameras: parentMeta.multiCam.cameras,
-    defaultDisplay: parentMeta.multiCam.defaultDisplay,
-  });
-  if (!cameraNames.length) {
-    throw new Error('Multi-camera dataset does not list any cameras.');
-  }
-
-  const tempDir = await fs.mkdtemp(npath.join(os.tmpdir(), 'dive-export-'));
-  try {
-    const datasetDir = npath.join(tempDir, parentMeta.name);
-    await fs.ensureDir(datasetDir);
-    await fs.writeJSON(
-      npath.join(datasetDir, 'multiCam.json'),
-      parentMeta.multiCam,
-      { spaces: 2 },
-    );
-    await writeDatasetExportContents(
-      settings,
-      datasetDir,
-      parentId,
-      args.exclude,
-      args.typeFilter,
-    );
-
-    const calibrationPath = await getDatasetCalibrationExportPath(settings, parentId)
-      ?? await findParentFolderCalibrationFile(parentDirInfo.basePath);
-    if (calibrationPath && await fs.pathExists(calibrationPath)) {
-      const calibrationName = parentMeta.multiCam.calibrationOriginalName
-        ?? npath.basename(calibrationPath);
-      await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
-    }
-
-    for (let i = 0; i < cameraNames.length; i += 1) {
-      const cameraName = cameraNames[i];
-      // eslint-disable-next-line no-await-in-loop
-      await writeDatasetExportContents(
-        settings,
-        npath.join(datasetDir, cameraName),
-        `${parentId}/${cameraName}`,
-        args.exclude,
-        args.typeFilter,
-      );
-    }
-
-    await zipDirectory(tempDir, args.path);
-  } finally {
-    await fs.remove(tempDir);
-  }
-  return args.path;
-}
-
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
@@ -1751,272 +1719,6 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
   return args.path;
 }
 
-/**
- * The user's calibration filename, unless it is DIVE's internal
- * `last_calibration.*` backup (which carries no meaningful original name).
- */
-function realCalibrationName(name?: string | null): string | undefined {
-  if (!name) return undefined;
-  const base = npath.basename(name);
-  if (base.toLowerCase().startsWith(`${LastCalibrationBaseName}.`)) return undefined;
-  return base;
-}
-
-/**
- * Get path to the saved "last used" calibration (last_calibration.*) if it
- * exists. The stored file keeps the source's real extension, so we match on the
- * basename rather than a fixed filename.
- * @returns path to last calibration file or null if it doesn't exist
- */
-async function getLastCalibrationPath(settings: Settings): Promise<string | null> {
-  if (!(await fs.pathExists(settings.dataPath))) return null;
-  const entries = await fs.readdir(settings.dataPath);
-  const match = entries.find(
-    (f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName,
-  );
-  return match ? npath.join(settings.dataPath, match) : null;
-}
-
-/**
- * Save a calibration file as the last used calibration, preserving the source
- * file's extension (e.g. last_calibration.npz) so its real format is retained.
- * @param settings app settings
- * @param sourcePath path to the source calibration file
- * @returns path to the saved calibration file
- */
-async function saveLastCalibration(settings: Settings, sourcePath: string): Promise<string> {
-  const ext = npath.extname(sourcePath) || '.json';
-  // Remove any prior backup with a different extension to avoid stale duplicates.
-  if (await fs.pathExists(settings.dataPath)) {
-    const entries = await fs.readdir(settings.dataPath);
-    await Promise.all(entries
-      .filter((f) => npath.basename(f, npath.extname(f)) === LastCalibrationBaseName)
-      .map((f) => fs.remove(npath.join(settings.dataPath, f))));
-  }
-  const destPath = npath.join(settings.dataPath, `${LastCalibrationBaseName}${ext}`);
-  await fs.copy(sourcePath, destPath, { overwrite: true });
-  return destPath;
-}
-
-/**
- * Apply calibration to all stereo datasets that don't already have calibration set.
- * The source is copied into each dataset and normalized to JSON, and the user's
- * original filename is recorded for display.
- * @param settings app settings
- * @param calibrationPath path to the calibration file to apply
- * @param originalName user's original calibration filename (for display)
- * @returns list of dataset IDs that were updated
- */
-async function applyCalibrationToUncalibratedStereoDatasets(
-  settings: Settings,
-  calibrationPath: string,
-  originalName?: string,
-): Promise<string[]> {
-  const datasets = await autodiscoverData(settings);
-  const updatedIds: string[] = [];
-
-  for (let i = 0; i < datasets.length; i += 1) {
-    const meta = datasets[i];
-    // Check if this is a stereo dataset without calibration
-    if (meta.subType === 'stereo' && meta.multiCam && !meta.multiCam.calibration) {
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
-        // eslint-disable-next-line no-await-in-loop
-        const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-        if (fullMeta.multiCam) {
-          const calibrationSourcePath = npath.resolve(calibrationPath);
-          const preservedOriginalPath = npath.join(
-            projectDirInfo.basePath,
-            npath.basename(calibrationSourcePath),
-          );
-          // eslint-disable-next-line no-await-in-loop
-          fullMeta.multiCam.calibration = await prepareDatasetCalibration(
-            settings,
-            projectDirInfo.basePath,
-            calibrationSourcePath,
-          );
-          fullMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
-          fullMeta.multiCam.calibrationOriginalName = realCalibrationName(originalName)
-            ?? realCalibrationName(calibrationSourcePath);
-          // eslint-disable-next-line no-await-in-loop
-          await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-          updatedIds.push(meta.id);
-        }
-      } catch (err) {
-        // Skip datasets that fail to update
-        console.error(`Failed to update calibration for dataset ${meta.id}:`, err);
-      }
-    }
-  }
-
-  return updatedIds;
-}
-
-/**
- * True when a dataset has a stereoscopic calibration file on disk.
- */
-async function datasetHasCalibrationFile(settings: Settings, datasetId: string): Promise<boolean> {
-  const parentId = datasetId.split('/')[0];
-  try {
-    const projectDirData = await getValidatedProjectDir(settings, parentId);
-    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-    if (meta.multiCam?.calibration && await fs.pathExists(meta.multiCam.calibration)) {
-      return true;
-    }
-    const discovered = await findParentFolderCalibrationFile(projectDirData.basePath);
-    return discovered !== null;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Get the JSON camera-rig path used for pipelines and calibration display.
- */
-async function getDatasetCalibrationPath(
-  settings: Settings,
-  datasetId: string,
-): Promise<string | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  return fullMeta.multiCam?.calibration ?? null;
-}
-
-/**
- * Resolve the user's original calibration file for export (not the derived JSON).
- */
-async function getDatasetCalibrationExportPath(
-  settings: Settings,
-  datasetId: string,
-): Promise<string | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const { multiCam } = fullMeta;
-  if (!multiCam) {
-    return null;
-  }
-
-  const originalName = multiCam.calibrationOriginalName;
-  if (originalName) {
-    const projectCopy = npath.join(projectDirInfo.basePath, originalName);
-    if (await fs.pathExists(projectCopy)) {
-      return projectCopy;
-    }
-  }
-  if (multiCam.calibrationSourcePath && await fs.pathExists(multiCam.calibrationSourcePath)) {
-    return multiCam.calibrationSourcePath;
-  }
-  const calibrationPath = multiCam.calibration;
-  if (calibrationPath && await fs.pathExists(calibrationPath)) {
-    return calibrationPath;
-  }
-  return null;
-}
-
-/**
- * Set the stereo camera/calibration file for a single dataset. The source file is
- * copied into the dataset's project directory and recorded in multiCam.calibration.
- * @returns absolute path of the calibration file now associated with the dataset
- */
-async function setDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-  sourcePath: string,
-): Promise<string> {
-  // A calibration belongs to the parent multicam dataset; the viewer may pass a
-  // per-camera child id (e.g. "<parent>/left").
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  if (!fullMeta.multiCam) {
-    throw new Error(`Dataset ${parentId} is not a multi-camera/stereo dataset; cannot set a calibration file.`);
-  }
-  const preservedOriginalPath = npath.join(
-    projectDirInfo.basePath,
-    npath.basename(sourcePath),
-  );
-  const calibrationPath = await prepareDatasetCalibration(
-    settings,
-    projectDirInfo.basePath,
-    sourcePath,
-  );
-  fullMeta.multiCam.calibration = calibrationPath;
-  fullMeta.multiCam.calibrationSourcePath = npath.resolve(preservedOriginalPath);
-  fullMeta.multiCam.calibrationOriginalName = realCalibrationName(sourcePath);
-  await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-  return calibrationPath;
-}
-
-/**
- * Copy a dataset's current camera/calibration file out to destPath.
- * @returns the destination path written
- */
-async function exportDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-  destPath: string,
-): Promise<string> {
-  const calibrationPath = await getDatasetCalibrationExportPath(settings, datasetId.split('/')[0]);
-  if (!calibrationPath) {
-    throw new Error(`Dataset ${datasetId} has no camera/calibration file to export.`);
-  }
-  if (!(await fs.pathExists(calibrationPath))) {
-    throw new Error(`Calibration file for dataset ${datasetId} no longer exists on disk: ${calibrationPath}`);
-  }
-  await fs.copy(calibrationPath, destPath, { overwrite: true });
-  return destPath;
-}
-
-/**
- * Read the calibration file currently associated with a dataset and return its
- * parsed parameters (when JSON) plus the file name, for display in the viewer.
- */
-async function getDatasetCalibration(
-  settings: Settings,
-  datasetId: string,
-): Promise<DatasetCalibrationResult | null> {
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const calibrationPath = fullMeta.multiCam?.calibration;
-  if (!calibrationPath || !(await fs.pathExists(calibrationPath))) {
-    return null;
-  }
-  const result: DatasetCalibrationResult = {
-    path: npath.basename(calibrationPath),
-    originalName: realCalibrationName(fullMeta.multiCam?.calibrationOriginalName),
-  };
-  if (npath.extname(calibrationPath).toLowerCase() === '.json') {
-    try {
-      const data = await fs.readJSON(calibrationPath);
-      result.calibration = parseStereoCalibrationJson(data);
-    } catch (err) {
-      console.error(`Failed to parse calibration JSON for dataset ${datasetId}:`, err);
-    }
-  }
-  return result;
-}
-
-/**
- * Remove the calibration file associated with a dataset and clear the reference
- * in its metadata. The original (pre-conversion) file, if any, is left in place.
- */
-async function deleteDatasetCalibration(settings: Settings, datasetId: string): Promise<void> {
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const calibrationPath = fullMeta.multiCam?.calibration;
-  if (calibrationPath && await fs.pathExists(calibrationPath)) {
-    await fs.remove(calibrationPath);
-  }
-  if (fullMeta.multiCam) {
-    fullMeta.multiCam.calibration = undefined;
-    fullMeta.multiCam.calibrationSourcePath = undefined;
-    fullMeta.multiCam.calibrationOriginalName = undefined;
-    await _saveAsJson(projectDirInfo.metaFileAbsPath, fullMeta);
-  }
-}
-
 export {
   ProjectsFolderName,
   JobsFolderName,
@@ -2028,7 +1730,6 @@ export {
   checkDataset,
   exportConfiguration,
   exportDataset,
-  exportMulticamEverything,
   finalizeMediaImport,
   getPipelineList,
   deleteTrainedPipeline,
@@ -2036,6 +1737,7 @@ export {
   getProjectDir,
   getValidatedProjectDir,
   getLargeImagePath,
+  getDisplayImagePath,
   loadMetadata,
   loadJsonMetadata,
   loadAnnotationFile,
@@ -2051,9 +1753,19 @@ export {
   findImagesInFolder,
   listImmediateSubfolders,
   listParentFolderCameras,
-  findParentFolderCalibrationFile,
   resolveMulticamCameraSourcePath,
   findTrackandMetaFileinFolder,
+};
+
+export {
+  fromRegistrationPairs,
+  findParentFolderTransformFiles,
+  exportCameraRegistration,
+  importCameraRegistration,
+} from './cameraRegistration';
+
+export {
+  findParentFolderCalibrationFile,
   getLastCalibrationPath,
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
@@ -2064,4 +1776,6 @@ export {
   exportDatasetCalibration,
   getDatasetCalibration,
   deleteDatasetCalibration,
-};
+} from './datasetCalibration';
+
+export { exportMulticamEverything } from './multicamExport';

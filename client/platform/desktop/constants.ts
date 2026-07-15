@@ -262,7 +262,16 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
   metaFileAbsPath?: string;
+  // Non-fatal problems found while preparing the import (e.g. a registration
+  // file naming cameras this dataset doesn't have), shown in the import dialog.
+  importWarnings?: string[];
 }
+
+export type {
+  MultiCamBatchCamera,
+  MultiCamBatchCollect,
+  MultiCamBatchScanResult,
+} from 'dive-common/multiCamBatchScan';
 
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload

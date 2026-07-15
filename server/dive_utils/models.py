@@ -228,6 +228,20 @@ class AttributeTrackFilter(BaseModel):
     primaryDisplay: Optional[bool]
 
 
+class CameraCorrespondence(BaseModel):
+    id: int
+    a: Tuple[float, float]
+    b: Tuple[float, float]
+
+
+class PairHomography(BaseModel):
+    AtoB: List[List[float]]
+    BtoA: List[List[float]]
+
+
+CameraTransformType = Literal['translation', 'rigid', 'similarity', 'affine', 'homography']
+
+
 class MetadataMutable(BaseModel):
     version = (
         constants.JsonMetaCurrentVersion
@@ -240,6 +254,21 @@ class MetadataMutable(BaseModel):
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
     datasetInfo: Optional[types.DatasetInfo]
+    # Per-camera-pair alignment homographies, keyed by directional "left::right".
+    # Each value holds the 3x3 AtoB / BtoA matrices.
+    cameraHomographies: Optional[Dict[str, PairHomography]]
+    # The picked point correspondences behind those homographies, keyed the same
+    # way. Each entry is a list of {id, a: [x, y], b: [x, y]} pairs.
+    cameraCorrespondences: Optional[Dict[str, List[CameraCorrespondence]]]
+    # The fit model used to compute each pair's homography (translation / rigid /
+    # similarity / affine / homography), keyed the same way. Missing entries
+    # default to 'similarity' client-side.
+    cameraTransformTypes: Optional[Dict[str, CameraTransformType]]
+    # Free-form producer provenance for the camera calibration (e.g. an external
+    # model step's version / swathe / generation time). Never interpreted by
+    # DIVE; preserved verbatim so refined calibrations can be traced back to the
+    # model version they were made against.
+    cameraRegistrationSource: Optional[Dict[str, Any]]
     fps: Optional[float]
 
     @staticmethod

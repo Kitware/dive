@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'net';
 import http from 'http';
+import npath from 'path';
 
 import cors from 'cors';
 import mime from 'mime-types';
@@ -13,6 +14,7 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 import settings from './state/settings';
 import * as common from './native/common';
 import * as geotiffTiles from './tiles/geotiffTiles';
+import * as displayProcessing from './media/displayProcessing';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -179,6 +181,118 @@ apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
     next(err);
   }
   return null;
+});
+
+const tiffExtensions = ['.tif', '.tiff'];
+
+/**
+ * Serve a per-frame percentile stretch of an image, returned as a grayscale PNG.
+ *
+ * The stretch must run against the ORIGINAL source image (e.g. a 16-bit IR TIFF),
+ * not the 8-bit PNG produced by import-time transcoding — that copy has already
+ * lost the dynamic range the stretch recovers. The client therefore identifies the
+ * frame by (dataset id, frame index) and the original is resolved server-side.
+ *
+ * Non-TIFF originals (e.g. 8-bit EO JPEGs) have no extra range to recover, so they
+ * are streamed through as-is rather than failing — toggling stretch is a visual
+ * no-op for them instead of producing a black image.
+ */
+apirouter.get('/media/display', async (req, res, next) => {
+  const {
+    id: reqId, frame: reqFrame, low: reqLow, high: reqHigh,
+  } = req.query;
+  if (!reqId || Array.isArray(reqId) || reqFrame === undefined || Array.isArray(reqFrame)
+      || !reqLow || !reqHigh || Array.isArray(reqLow) || Array.isArray(reqHigh)) {
+    return next({ status: 400, statusMessage: 'id, frame, low, and high query params are required' });
+  }
+  const datasetId = reqId.toString();
+  const frame = parseInt(reqFrame.toString(), 10);
+  const low = parseFloat(reqLow.toString());
+  const high = parseFloat(reqHigh.toString());
+  if (Number.isNaN(frame)) {
+    return next({ status: 400, statusMessage: 'frame must be an integer' });
+  }
+  if (Number.isNaN(low) || Number.isNaN(high)) {
+    return next({ status: 400, statusMessage: 'low and high must be numbers' });
+  }
+  if (low >= high) {
+    return next({ status: 400, statusMessage: 'low must be less than high' });
+  }
+  try {
+    const filePath = await common.getDisplayImagePath(settings.get(), datasetId, frame);
+    if (!filePath) {
+      return next({ status: 404, statusMessage: `No source image for dataset ${datasetId} frame ${frame}` });
+    }
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
+    }
+    // Only TIFFs carry recoverable dynamic range; pass everything else through unchanged.
+    if (!tiffExtensions.includes(npath.extname(filePath).toLowerCase())) {
+      const mimetype = mime.lookup(filePath);
+      if (mimetype) res.setHeader('Content-Type', mimetype);
+      pump(fs.createReadStream(filePath), res);
+      return null;
+    }
+    const pngBuf = await displayProcessing.getDisplayPng(filePath, low, high, stat.mtimeMs);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuf);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return next({ status: 404, statusMessage: 'Source image file not found' });
+    }
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+/**
+ * Return a compact histogram (256 bins) for the ORIGINAL source image frame.
+ * Bounds are computed with the same percentile parameters as /media/display.
+ */
+apirouter.get('/media/histogram', async (req, res, next) => {
+  const {
+    id: reqId, frame: reqFrame, low: reqLow, high: reqHigh,
+  } = req.query;
+  if (!reqId || Array.isArray(reqId) || reqFrame === undefined || Array.isArray(reqFrame)
+      || !reqLow || !reqHigh || Array.isArray(reqLow) || Array.isArray(reqHigh)) {
+    return next({ status: 400, statusMessage: 'id, frame, low, and high query params are required' });
+  }
+  const datasetId = reqId.toString();
+  const frame = parseInt(reqFrame.toString(), 10);
+  const low = parseFloat(reqLow.toString());
+  const high = parseFloat(reqHigh.toString());
+  if (Number.isNaN(frame)) {
+    return next({ status: 400, statusMessage: 'frame must be an integer' });
+  }
+  if (Number.isNaN(low) || Number.isNaN(high)) {
+    return next({ status: 400, statusMessage: 'low and high must be numbers' });
+  }
+  if (low >= high) {
+    return next({ status: 400, statusMessage: 'low must be less than high' });
+  }
+  try {
+    const filePath = await common.getDisplayImagePath(settings.get(), datasetId, frame);
+    if (!filePath) {
+      return next({ status: 404, statusMessage: `No source image for dataset ${datasetId} frame ${frame}` });
+    }
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
+    }
+    if (!tiffExtensions.includes(npath.extname(filePath).toLowerCase())) {
+      return next({ status: 400, statusMessage: 'Histogram only supported for TIFF source images' });
+    }
+    const histogram = await displayProcessing.getDisplayHistogram(filePath, low, high, stat.mtimeMs);
+    return res.json(histogram);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return next({ status: 404, statusMessage: 'Source image file not found' });
+    }
+    (err as { status?: number }).status = 500;
+    return next(err);
+  }
 });
 
 /* STREAM media */

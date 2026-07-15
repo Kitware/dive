@@ -240,7 +240,7 @@ export default class AttributeLayer extends BaseLayer<AttributeTextData> {
     this.featureLayer = layer
       .createFeature('text')
       .text((data: AttributeTextData) => data.text)
-      .position((data: AttributeTextData) => ({ x: data.x, y: data.y }));
+      .position((data: AttributeTextData) => this.transformXY(data));
     super.initialize();
   }
 

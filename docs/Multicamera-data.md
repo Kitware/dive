@@ -6,6 +6,8 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 |------------|-----|---------|
 | Import stereo (2 cameras + calibration) | ✔️ | ✔️ |
 | Import multicam (2 or 3 cameras) | ✔️ | ✔️ |
+| Batch multicam import (collect folders) | ✔️ | ✔️ |
+| Timestamp-aligned multicam playback | ✔️ | ✔️ |
 | View and annotate across cameras | ✔️ | ✔️ |
 | MultiCamera Tools (link/unlink tracks) | ✔️ | ✔️ |
 | Run stereo / multicam VIAME pipelines | ✔️ | ✔️ |
@@ -30,7 +32,8 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
 5. Choose one of:
     * ==:material-binoculars: Stereoscopic== — exactly 2 cameras and a calibration `.npz` file.
     * ==:material-camera-burst: MultiCam== — 2 or 3 cameras; no calibration file required.
-6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos) and must have the same number of frames (or matching video duration).
+    * ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets at once from a folder of **collect** subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
+6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos). By default, every camera must have the same number of frames (or matching video duration). For **image-sequence** imports with capture timestamps in filenames, enable **Infer frame index from filename** to allow unequal per-camera counts — see [Infer frame index from filename](#infer-frame-index-from-filename).
 7. Optionally attach a per-camera annotation file during import.
 8. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
 9. When upload finishes, DIVE opens the new multicam dataset in the annotator.
@@ -47,6 +50,7 @@ For general web upload concepts (permissions, transcoding, zip import), see [Upl
 
 * ==:material-binoculars: Stereo== — choose 2 videos or 2 image sequences and a calibration file.
 * ==:material-camera-burst: Multi-Cam== — name each camera and pick its source media.
+* ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets from a folder of collect subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
 
 Desktop additionally supports ==:material-view-list-outline: Image List== and glob-based folder filtering for single-camera imports, and glob/keyword layout options for multicam import.
 
@@ -55,6 +59,112 @@ You can also open stereo and multicam datasets from the command line with repeat
 !!! info
 
     Stereoscopic data **requires** a calibration file. Generic multicamera data does **not**.
+
+### Batch multicam import
+
+Use **MultiCam Batch** when you have many synchronized multicam **collects** on disk that share the same camera layout — for example repeated survey passes where each pass is one collect folder with the same camera subfolders (`EO/`, `IR/`, `UV/`, and so on).
+
+**Folder layout:**
+
+```
+survey/                 ← choose this root folder
+  collect_001/          ← one multicam dataset
+    EO/
+      frame001.jpg
+      frame002.jpg
+    IR/
+      frame001.jpg
+      frame002.jpg
+  collect_002/
+    EO/
+    IR/
+```
+
+Each immediate child of the root is a **collect** folder. Inside every collect, the same **2 or 3 camera subfolders** must appear, each holding that camera's image frames for that collect.
+
+**Requirements:**
+
+* **Image sequences only** — not video or stereo.
+* **2 or 3 cameras** shared across all collects (same subfolder names in every collect).
+* **Camera folder names** must use letters, numbers, and underscores only (no spaces).
+* **Frame counts** should match across cameras within a collect; mismatches are flagged as warnings in the review table.
+* Supported image formats match standard DIVE image-sequence import (PNG, JPEG, TIFF, and others).
+
+**Workflow (Web and Desktop):**
+
+1. Open ==Add Image Sequence== and choose ==MultiCam Batch== from the ==:material-chevron-down:== dropdown.
+2. Select the **root folder** whose subfolders are collects.
+3. Review the scan summary: detected cameras, per-collect frame counts, and any blocking issues.
+4. Edit the **dataset name** for each collect you plan to import (defaults to the collect folder name).
+5. Select which valid collects to import, then start the batch. DIVE creates **one multicam parent dataset per collect**.
+6. If one collect fails, the batch **continues** with the remaining selected collects.
+
+On **Web**, the folder picker uploads all files under the chosen root; scanning uses browser paths to group images by collect and camera. On **Desktop**, scanning reads the folder tree locally before import begins.
+
+For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
+
+### Flat multi-modality view folders
+
+Both multicam import modes automatically recognize **flat view folders**: a single folder holding the images for up to three modalities side by side, distinguished by a filename suffix (`_rgb`, `_ir`, `_uv`), plus optional sidecar metadata files. Aerial survey systems commonly write each view (swathe) this way, using folder names like `left_view/`, `center_view/`, `right_view/` or `PORT/`, `CENT/`, `STBD/`:
+
+```
+fl09/                    ← choose this root folder for MultiCam Batch
+  center_view/           ← or choose one view folder for parent-folder import
+    fl09_..._20240612_204107.625730_rgb.jpg
+    fl09_..._20240612_204107.625730_ir.tif
+    fl09_..._20240612_204107.625730_uv.jpg
+    metadata.json
+  left_view/
+  right_view/
+```
+
+A folder is treated as a flat view folder when it has no camera subfolders and every image carries a modality suffix (`_rgb`, `_ir`, `_uv`) plus a filename timestamp. DIVE then creates **one dataset per view folder** with **one camera per modality present** (`rgb`, `ir`, `uv`), selecting each camera's images by suffix. Sidecar files such as `metadata.json` are ignored.
+
+* In **MultiCam Batch**, select the folder containing the view folders (e.g. `fl09/`); each view folder becomes a collect. Dataset names default to `<parent>_<view>` (e.g. `fl09_center_view`). A view folder with only one modality imports as a single-camera dataset with a warning.
+* In the single **MultiCam** parent-folder mode, select one view folder directly. When the folder has a recognized view name (`center_view`, `CENT`, `PORT`, …), the dataset name is prefixed with the parent folder. **Infer frame index from filename** is enabled automatically, since modalities may legitimately drop frames independently and are aligned by capture timestamp.
+
+### Infer frame index from filename
+
+At the bottom of the multicam import dialog (image sequences only), **Infer frame index from filename** relaxes the equal-frame-count requirement when filenames encode capture time. Enable it for datasets where cameras may have different numbers of frames — for example when one camera dropped occasional shots but each surviving frame still carries a parseable timestamp.
+
+When enabled, DIVE skips the import-time check that every camera has the same image count. During playback, frames are aligned by those filename timestamps rather than by positional index (see [Aligned playback and timestamps](#aligned-playback-and-timestamps)).
+
+Example filename (datestamp convention):
+
+```
+test_seattle_2020_fl09_C_20200830_020814.141365_rgb.jpg
+```
+
+This option is available on both Web and Desktop for ==MultiCam== imports. It does not apply to video or stereo imports.
+
+### Aligned playback and timestamps
+
+On multicam **image-sequence** datasets, DIVE can synchronize playback across cameras using capture timestamps parsed from each frame's filename. When alignment is active, scrubbing and playback use a single **global timeline** whose slots group frames that share the same capture instant across cameras.
+
+**When alignment activates:**
+
+* The dataset has **two or three** cameras.
+* **Every** frame on **every** camera has a parseable timestamp in its filename.
+
+If any frame on any camera lacks a timestamp, DIVE falls back to **positional alignment** — each camera advances by its own local frame index, as in earlier DIVE versions.
+
+**Supported filename conventions** (first match wins):
+
+| Pattern | Example |
+|---------|---------|
+| Datestamp `YYYYMMDD[_-]HHMMSS` with optional fractional seconds | `fl02_C_20240407_130757.206341_ir.tif` |
+| Epoch milliseconds (13 digits) | `img_1719843225123.tif` |
+| Epoch seconds (10 digits) | `img_1719843225.tif` |
+
+Timestamps are parsed automatically when media loads; no import setting is required beyond having recognizable filenames (and, if counts differ, enabling **Infer frame index from filename** at import time).
+
+**What you see in the viewer:**
+
+* The timeline **frame counter** reflects the global aligned slot index, not an individual camera's local index.
+* When the current slot has no frame for a camera, that camera's pane **blanks** and its annotation overlay clears until you scrub to a slot where that camera has data.
+* Red bands on the [timeline scrubber](UI-Timeline.md#multicam-gap-indicators) mark slots where at least one camera is missing a frame.
+
+Identical capture timestamps on every camera (common in synchronized rigs) are grouped into the same slot. If one camera has extra frames at the same timestamp, the surplus frames spill into later slots rather than overwriting the first match.
 
 ## Data/Track Organization
 

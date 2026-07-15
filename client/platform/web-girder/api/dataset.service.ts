@@ -1,9 +1,14 @@
 import type { GirderModel } from '@girder/components/src';
 
+import CameraRegistrationStore from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import {
+  registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
+import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
 import { GirderMetadataStatic } from 'platform/web-girder/constants';
@@ -21,6 +26,12 @@ async function getDataset(datasetId: string) {
   if (compositeId) {
     response.data.id = compositeId;
   }
+  // Parse per-frame capture timestamps client-side (single shared implementation
+  // with desktop; see dive-common/frameTimestamp.ts). The girder server no longer
+  // does this, so multicam per-camera frames arrive without timestamps.
+  Object.values(response.data.multiCamMedia?.cameras ?? {}).forEach(
+    (camera) => attachFrameTimestamps(camera.imageData),
+  );
   return response;
 }
 
@@ -61,7 +72,10 @@ export interface DatasetSourceMedia {
 
 async function getDatasetMedia(datasetId: string) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
-  return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+  const response = await girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+  // Parse per-frame capture timestamps client-side (see getDataset above).
+  attachFrameTimestamps(response.data.imageData ?? []);
+  return response;
 }
 
 function clone({
@@ -173,9 +187,65 @@ async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
   return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
 }
 
+/**
+ * Merge a DIVE registration .json into an existing multicam dataset's saved
+ * camera registration. Parsing, validation, and
+ * merging all happen client-side; the result persists through the standard
+ * dataset meta PATCH (the calibration fields are allowlisted server-side).
+ * options.camera keeps only the file's pairs naming that camera; each
+ * imported pair replaces that pair wholly and other pairs are kept.
+ */
+async function importCameraRegistration(
+  datasetId: string,
+  path: string,
+  file?: File,
+  options: { camera?: string } = {},
+) {
+  if (!file) {
+    throw new Error('No registration file provided');
+  }
+  // A throwaway store instance provides the shared parser/validator.
+  const store = new CameraRegistrationStore();
+  store.loadRegistrationText(await file.text());
+  let incoming = {
+    homographies: store.homographies.value,
+    correspondences: store.correspondences.value,
+    transformTypes: store.transformTypes.value,
+    source: store.source.value,
+  };
+  if (options.camera !== undefined) {
+    incoming = filterRegistrationValues(incoming, options.camera);
+  }
+  const summary = registrationValuesSummary(incoming);
+  if (!summary.pairCount) {
+    throw new Error(options.camera !== undefined
+      ? `File has no pairs for camera "${options.camera}"`
+      : 'File has no pairs');
+  }
+  const parentId = parentDatasetId(datasetId);
+  const { data: current } = await getDataset(parentId);
+  const merged = mergeRegistrationValues(
+    {
+      homographies: current.cameraHomographies ?? {},
+      correspondences: current.cameraCorrespondences ?? {},
+      transformTypes: current.cameraTransformTypes ?? {},
+      source: current.cameraRegistrationSource ?? null,
+    },
+    incoming,
+    file.name,
+  );
+  await saveMetadata(parentId, {
+    cameraHomographies: merged.homographies,
+    cameraCorrespondences: merged.correspondences,
+    cameraTransformTypes: merged.transformTypes,
+    cameraRegistrationSource: merged.source,
+  });
+  return summary;
+}
+
 interface ValidationResponse {
   ok: boolean;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   media: string[];
   annotations: string[];
   message: string;
@@ -189,10 +259,10 @@ export interface CreateMulticamDatasetArgs {
   parentFolderId: string;
   name: string;
   fps: number;
-  type: 'video' | 'image-sequence';
+  type: 'video' | 'image-sequence' | 'large-image';
   subType: 'stereo' | 'multicam';
   defaultDisplay: string;
-  cameras: Record<string, { folderId: string }>;
+  cameras: Record<string, { folderId: string; type?: 'video' | 'image-sequence' | 'large-image' }>;
   cameraOrder?: string[];
   calibrationFileId?: string;
 }
@@ -318,6 +388,7 @@ export {
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,
+  importCameraRegistration,
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,

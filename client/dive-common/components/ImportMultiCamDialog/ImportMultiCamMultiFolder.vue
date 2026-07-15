@@ -8,6 +8,7 @@ import { DatasetType } from 'dive-common/apispec';
 import ImportMultiCamCameraGroup from './ImportMultiCamCameraGroup.vue';
 import ImportMultiCamChooseSource from './ImportMultiCamChooseSource.vue';
 import ImportMultiCamChooseAnnotation from './ImportMultiCamChooseAnnotation.vue';
+import ImportMultiCamChooseTransform from './ImportMultiCamChooseTransform.vue';
 import ImportMultiCamAddType from './ImportMultiCamAddType.vue';
 import ImportMultiCamCameraOrderControls from './ImportMultiCamCameraOrderControls.vue';
 import { importMultiCamContextProp } from './importMultiCamContext';
@@ -18,6 +19,7 @@ export default defineComponent({
     ImportMultiCamCameraGroup,
     ImportMultiCamChooseSource,
     ImportMultiCamChooseAnnotation,
+    ImportMultiCamChooseTransform,
     ImportMultiCamAddType,
     ImportMultiCamCameraOrderControls,
   },
@@ -43,6 +45,9 @@ export default defineComponent({
       addNewSet: props.ctx.addNewSet,
       open: props.ctx.open,
       openAnnotationFile: props.ctx.openAnnotationFile,
+      showTransformFileField: props.ctx.showTransformFileField,
+      openTransformFile: props.ctx.openTransformFile,
+      clearTransformFile: props.ctx.clearTransformFile,
     };
   },
 });
@@ -80,6 +85,14 @@ export default defineComponent({
         class="my-3"
         @clear="folderList[key].trackFile = ''"
         @open="openAnnotationFile(key)"
+      />
+      <ImportMultiCamChooseTransform
+        v-if="folderList[key].sourcePath && showTransformFileField(key)"
+        :camera-name="key"
+        :transform-file="folderList[key].transformFile"
+        class="my-3"
+        @clear="clearTransformFile(key)"
+        @open="openTransformFile(key)"
       />
     </ImportMultiCamCameraGroup>
     <ImportMultiCamAddType

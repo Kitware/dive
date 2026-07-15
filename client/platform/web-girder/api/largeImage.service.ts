@@ -28,9 +28,30 @@ async function getTileFrames(itemId: string, options: any) {
   return data;
 }
 
+interface TileHistogramOptions {
+  bins?: number;
+  frame?: number;
+  width?: number;
+  height?: number;
+}
+
+async function getTileHistogram(itemId: string, options: TileHistogramOptions = {}) {
+  const { data } = await girderRest.get(`item/${itemId}/tiles/histogram`, {
+    params: {
+      bins: options.bins ?? 256,
+      ...(options.frame != null ? { frame: options.frame } : {}),
+      ...(options.width != null ? { width: options.width } : {}),
+      ...(options.height != null ? { height: options.height } : {}),
+    },
+  });
+  return data;
+}
+
 export {
   getTilesMetadata,
   getTiles,
   getTileURL,
   getTileFrames,
+  getTileHistogram,
 };
+export type { TileHistogramOptions };

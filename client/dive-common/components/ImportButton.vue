@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { DatasetType } from 'dive-common/apispec';
-import { defineComponent, PropType } from 'vue';
+import { computed, defineComponent, PropType } from 'vue';
 
 export const DefaultButtonAttrs = {
   block: true,
@@ -27,6 +27,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    batchMultiCamImport: { // Batch import of collect folders (collect/camera/images)
+      type: Boolean,
+      default: false,
+    },
     buttonAttrs: {
       type: Object,
       default: () => DefaultButtonAttrs,
@@ -40,8 +44,11 @@ export default defineComponent({
       default: '',
     },
   },
-  setup() {
+  setup(props) {
+    const menuWidth = computed(() => (props.batchMultiCamImport ? 240 : 180));
+
     return {
+      menuWidth,
     };
   },
 });
@@ -52,8 +59,8 @@ export default defineComponent({
     <v-menu
       offset-y
       offset-x
-      nudge-left="180"
-      max-width="180"
+      :nudge-left="menuWidth"
+      :max-width="menuWidth"
     >
       <template #activator="{ on }">
         <v-tooltip
@@ -169,6 +176,18 @@ export default defineComponent({
             </v-list-item-icon>
             <v-list-item-content>
               <v-list-item-title>MultiCam</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            v-if="batchMultiCamImport"
+            style="align-items':'center"
+            @click="$emit('multi-cam-batch')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-multiple-image</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>MultiCam Batch</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>

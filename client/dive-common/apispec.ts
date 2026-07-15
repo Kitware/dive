@@ -8,6 +8,10 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import {
+  CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
+} from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -123,6 +127,8 @@ interface FrameImage {
   filename: string;
   /** Required for large-image (tiled) datasets; used as itemId for getTiles/getTileURL */
   id?: string;
+  /** Best-effort capture timestamp (epoch seconds) parsed from the filename, when available */
+  timestamp?: number;
 }
 
 export interface MultiCamImportFolderArgs {
@@ -133,9 +139,22 @@ export interface MultiCamImportFolderArgs {
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
+    /**
+     * Optional alignment transform file for cameras after the first (desktop
+     * only): a DIVE registration .json, parsed at import time to seed the
+     * dataset's saved camera registration.
+     */
+    transformFile?: string;
+    /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
+    type?: 'image-sequence' | 'video' | 'large-image';
+    /**
+     * Filename glob selecting this camera's images when cameras share one
+     * folder (e.g. flat view folders split by *_rgb.* / *_ir.* / *_uv.*).
+     */
+    glob?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
+  type: 'image-sequence' | 'video' | 'large-image';
 }
 
 export interface MultiCamImportKeywordArgs {
@@ -181,9 +200,14 @@ interface DatasetMetaMutable {
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
   datasetInfo?: Record<string, unknown>;
+  cameraHomographies?: CameraHomographies;
+  cameraCorrespondences?: CameraCorrespondences;
+  cameraTransformTypes?: CameraTransformTypes;
+  /** Producer provenance of the camera registration (see RegistrationSource). */
+  cameraRegistrationSource?: RegistrationSource | null;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -273,7 +297,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
@@ -289,14 +313,28 @@ interface Api {
   ): Promise<string>;
   /** Desktop: stereoscopic calibration file in a parent folder root. */
   findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
+  /**
+   * Desktop: every DIVE camera-calibration .json (alignment transforms) in a
+   * parent folder root: per-camera *_registration.json files first, then
+   * other self-identified candidates.
+   */
+  findParentFolderTransformFiles?(parentPath: string): Promise<string[]>;
   /** True when the dataset folder has an attached stereoscopic calibration file. */
   hasCalibrationFile?(datasetId: string): Promise<boolean>;
   /** Web: stash a calibration File for multicam upload lookup. */
   stashCalibrationFile?(key: string, file: File): void;
+  /** Web: stash a per-camera registration transform File for multicam upload lookup. */
+  stashTransformFile?(key: string, file: File): void;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
+  getTileHistogram?(itemId: string, options?: {
+    bins?: number;
+    frame?: number;
+    width?: number;
+    height?: number;
+  }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
   // Desktop-only calibration persistence functions
@@ -304,6 +342,16 @@ interface Api {
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
   /** Desktop: set the stereo camera/calibration file for a single dataset. */
   importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
+  /**
+   * Merge a DIVE registration .json into an existing multicam dataset's
+   * saved camera registration. Web reads the provided File; desktop reads
+   * the path. options.camera keeps only the file's pairs naming that
+   * camera, replacing that camera's current pairs while other cameras'
+   * pairs are kept.
+   */
+  importCameraRegistration?(datasetId: string, path: string, file?: File,
+    options?: { camera?: string }):
+    Promise<{ cameras: string[]; pairCount: number }>;
   /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
   exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
   /** Download/export the dataset's current calibration file (platform-specific). */
@@ -527,3 +575,5 @@ export {
   MultiCamMedia,
   MediaImportResponse,
 };
+
+export type { PercentileStretch };

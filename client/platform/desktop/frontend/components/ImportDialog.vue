@@ -134,6 +134,20 @@ export default defineComponent({
         to ignore the warning and create a new dataset.
       </v-alert>
       <v-alert
+        v-if="importData.importWarnings && importData.importWarnings.length"
+        type="warning"
+        outlined
+        dense
+      >
+        <p
+          v-for="(warning, i) in importData.importWarnings"
+          :key="i"
+          class="my-0"
+        >
+          {{ warning }}
+        </p>
+      </v-alert>
+      <v-alert
         v-if="importData.mediaConvertList.length"
         type="info"
         outlined

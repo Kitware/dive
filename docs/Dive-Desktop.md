@@ -57,6 +57,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
 * ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file.
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
+* ==:material-folder-multiple-image: MultiCam Batch== will prompt you to choose a root folder of **collect** subfolders and import one multicam image-sequence dataset per collect. See [Batch multicam import](Multicamera-data.md#batch-multicam-import) for the expected folder layout.
 
 The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a configuration file.  Neither is required.
 

@@ -37,6 +37,19 @@
   .geojs-map.annotation-input {
     cursor: inherit;
   }
+  .no-frame-overlay {
+    z-index: 20;
+    margin: 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border-radius: 4px;
+    pointer-events: none;
+  }
 }
 
 .selected-camera{

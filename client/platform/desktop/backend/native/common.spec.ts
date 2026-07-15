@@ -174,6 +174,31 @@ beforeEach(() => {
     },
     '/home/user/testPairs': { ...fileSystemData },
     '/home/user/output': {},
+    '/home/user/transformDiscovery': {
+      exactName: {
+        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'calibration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+      },
+      otherName: {
+        'a-rig-calibration.json': JSON.stringify({ calibrations: {} }),
+        'broken.json': '{not json',
+        'z-transforms.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+      },
+      perCamera: {
+        'uv_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'stray.json': JSON.stringify({ some: 'thing' }),
+      },
+      untypedPerCamera: {
+        'uv_to_eo_registration.json': JSON.stringify({ version: 1, pairs: [] }),
+        'no_pairs_registration.json': JSON.stringify({ version: 1 }),
+        'untyped-other-name.json': JSON.stringify({ version: 1, pairs: [] }),
+      },
+      none: {
+        'rig.json': JSON.stringify({ some: 'thing' }),
+        'notes.txt': 'not json',
+      },
+    },
     '/home/user/data': {
       annotationImport: {
         'viame.csv': emptyCsvString,
@@ -294,7 +319,7 @@ beforeEach(() => {
             fps: 5,
             originalBasePath: '/home/user/media/projectid1data',
             originalImageFiles: [
-              'foo.png',
+              'foo_20230615_143022.png',
               'bar.png',
             ],
           } as JsonMeta),
@@ -342,14 +367,17 @@ beforeEach(() => {
           'meta.json': JSON.stringify({
             type: 'multi',
             multiCam: {
+              defaultDisplay: 'left',
               cameras: {
                 left: {
                   type: 'image-sequence',
                   originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/left',
+                  originalImageFiles: ['left_20230615_143022.png', 'left_00002.png'],
                 },
                 right: {
                   type: 'image-sequence',
                   originalBasePath: '/home/user/viamedata/DIVE_Projects/stereoDataset/right',
+                  originalImageFiles: ['right_00001.png', 'right_00002.png'],
                 },
               },
             },
@@ -453,7 +481,21 @@ describe('native.common', () => {
     const data = await common.loadMetadata(settings, 'projectid1', urlMapper);
     expect(data.id).toBe('projectid1');
     expect(data.imageData.map(({ filename }) => filename)).toEqual([
-      'foo.png', 'bar.png',
+      'foo_20230615_143022.png', 'bar.png',
+    ]);
+    expect(data.imageData[0].timestamp).toBe(1686839422);
+    expect(data.imageData[1].timestamp).toBeUndefined();
+  });
+
+  it('loadJsonMetadata parses per-camera frame timestamps for multicam datasets', async () => {
+    const data = await common.loadMetadata(settings, 'stereoDataset', urlMapper);
+    expect(data.multiCamMedia).not.toBeNull();
+    const { cameras } = data.multiCamMedia!;
+    expect(cameras.left.imageData.map(({ timestamp }) => timestamp)).toEqual([
+      1686839422, undefined,
+    ]);
+    expect(cameras.right.imageData.map(({ timestamp }) => timestamp)).toEqual([
+      undefined, undefined,
     ]);
   });
 
@@ -622,6 +664,402 @@ describe('native.common', () => {
       ...existingDatasetInfo,
       ...importedDatasetInfo,
     });
+  });
+
+  it('saveMetadata writes per-camera registration files (pairs + points) and reloads them', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    // Directional key: rgb is left, ir is right.
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraCorrespondences = {
+      'rgb::ir': [
+        { id: 1, a: [10, 20], b: [12, 22] },
+        { id: 2, a: [30, 40], b: [33, 44] },
+      ],
+    };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraCorrespondences });
+
+    // Persisted as a standalone per-camera file, named for the mapping it
+    // carries (ir warps onto rgb): pairs labeled left/right, with points
+    // laid out as leftX leftY rightX rightY. Never a single all-pairs file.
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const registrationPath = npath.join(projectDir, 'ir_to_rgb_registration.json');
+    expect(await fs.pathExists(registrationPath)).toBe(true);
+    const registration = await fs.readJSON(registrationPath);
+    // Self-identifies so parent-folder discovery recognizes it.
+    expect(registration.type).toBe('dive-camera-registration');
+    expect(registration.pairs).toStrictEqual([
+      {
+        left: 'rgb',
+        right: 'ir',
+        points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        // No explicit choice was saved, so persistence fills the default model.
+        transformType: 'similarity',
+      },
+    ]);
+
+    // Not embedded in meta.json.
+    const meta = await fs.readJSON(npath.join(projectDir, 'meta.json'));
+    expect(meta.cameraHomographies).toBeUndefined();
+    expect(meta.cameraCorrespondences).toBeUndefined();
+    expect(meta.cameraTransformTypes).toBeUndefined();
+
+    // Rehydrated on load back into the in-app shapes.
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
+    expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
+    expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'similarity' });
+  });
+
+  it('saveMetadata persists a non-default transformType per pair and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const cameraTransformTypes = { 'rgb::ir': 'rigid' as const };
+
+    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraTransformTypes });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const registration = await fs.readJSON(npath.join(projectDir, 'ir_to_rgb_registration.json'));
+    expect(registration.pairs[0].transformType).toBe('rigid');
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
+  });
+
+  describe('findParentFolderTransformFiles', () => {
+    it('gives a file named calibration.json no special priority (self-identified only)', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/exactName');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/exactName', 'aaa-stamped.json'),
+        npath.join('/home/user/transformDiscovery/exactName', 'calibration.json'),
+      ]);
+    });
+
+    it('finds marked files under any name, skipping unmarked and broken JSON', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/otherName');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/otherName', 'z-transforms.json'),
+      ]);
+    });
+
+    it('finds per-camera *_registration.json files, alphabetically', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/perCamera');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/perCamera', 'ir_to_eo_registration.json'),
+        npath.join('/home/user/transformDiscovery/perCamera', 'uv_to_eo_registration.json'),
+      ]);
+    });
+
+    it('accepts a *_registration.json with pairs but no type; other names still need the type', async () => {
+      const found = await common.findParentFolderTransformFiles('/home/user/transformDiscovery/untypedPerCamera');
+      expect(found).toStrictEqual([
+        npath.join('/home/user/transformDiscovery/untypedPerCamera', 'uv_to_eo_registration.json'),
+      ]);
+    });
+
+    it('returns empty when no self-identified registration json exists', async () => {
+      expect(await common.findParentFolderTransformFiles('/home/user/transformDiscovery/none')).toStrictEqual([]);
+    });
+
+    it('returns empty for a missing directory', async () => {
+      expect(await common.findParentFolderTransformFiles('/home/user/doesNotExist')).toStrictEqual([]);
+    });
+  });
+
+  it('fromRegistrationPairs derives a missing matrix direction by inversion', () => {
+    const { homographies } = common.fromRegistrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [],
+      leftToRight: null,
+      rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+    }]);
+    expect(homographies['eo::ir'].BtoA).toEqual([[1, 0, -5], [0, 1, 3], [0, 0, 1]]);
+    expect(homographies['eo::ir'].AtoB[0][2]).toBeCloseTo(5);
+    expect(homographies['eo::ir'].AtoB[1][2]).toBeCloseTo(-3);
+  });
+
+  it('fromRegistrationPairs keeps points but skips the matrix for singular input', () => {
+    const { homographies, correspondences } = common.fromRegistrationPairs([{
+      left: 'eo',
+      right: 'ir',
+      points: [[1, 2, 3, 4]],
+      leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+      rightToLeft: null,
+    }]);
+    expect(homographies['eo::ir']).toBeUndefined();
+    expect(correspondences['eo::ir']).toHaveLength(1);
+  });
+
+  it('saveMetadata persists the registration source stamp and reloads it', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+    };
+    const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
+
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraRegistrationSource: source,
+    });
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    const registrationPath = npath.join(projectDir, 'ir_to_rgb_registration.json');
+    expect((await fs.readJSON(registrationPath)).source).toStrictEqual(source);
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(reloaded.cameraRegistrationSource).toStrictEqual(source);
+
+    // A save that doesn't mention the stamp leaves it alone.
+    await common.saveMetadata(settings, final.id, {
+      cameraTransformTypes: { 'rgb::ir': 'rigid' },
+    });
+    expect((await fs.readJSON(registrationPath)).source).toStrictEqual(source);
+
+    // An explicit null clears it.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraRegistrationSource: null,
+    });
+    expect('source' in (await fs.readJSON(registrationPath))).toBe(false);
+  });
+
+  it('merges per-camera registration files and flags disagreeing source stamps', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+
+    const irPair = {
+      left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+    };
+    const uvPair = {
+      left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+    };
+    await fs.writeJSON(npath.join(projectDir, 'ir_registration.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
+    });
+    await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+    });
+
+    // Both pairs merge; the disagreeing stamps become a mixed composite so
+    // the client can warn about a rig assembled from different generations.
+    const mixed = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(mixed.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    expect(mixed.cameraRegistrationSource).toStrictEqual({
+      mixed: true,
+      files: {
+        'ir_registration.json': { producer: 'kamera', run: 'fl07' },
+        'uv_registration.json': { producer: 'kamera', run: 'fl09' },
+      },
+    });
+
+    // Agreeing stamps stay a single plain stamp.
+    await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
+    });
+    const agreeing = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(agreeing.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
+
+    // A save of the mixed set never stamps the per-camera files with the
+    // composite (that would read as a unanimous rig on the next load).
+    await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
+      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+    });
+    const beforeSave = await common.loadMetadata(settings, final.id, urlMapper);
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: beforeSave.cameraHomographies,
+      cameraRegistrationSource: beforeSave.cameraRegistrationSource,
+    });
+    expect('source' in (await fs.readJSON(npath.join(projectDir, 'ir_to_rgb_registration.json')))).toBe(false);
+  });
+
+  it('exportCameraRegistration writes a single per-camera file from the saved calibration', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    const cameraHomographies = {
+      'rgb::ir': {
+        AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+        BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      },
+      'rgb::uv': {
+        AtoB: [[1, 0, 8], [0, 1, 2], [0, 0, 1]],
+        BtoA: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      },
+    };
+    const source = { producer: 'kamera', run: 'fl07' };
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies,
+      cameraRegistrationSource: source,
+    });
+
+    const destPath = '/home/user/output/ir_to_rgb_registration.json';
+    await common.exportCameraRegistration(settings, final.id, destPath, 'ir');
+    const exported = await fs.readJSON(destPath);
+    // Self-identifies so parent-folder discovery recognizes it on re-import,
+    // and carries only its own camera's pair plus the producer stamp.
+    expect(exported.type).toBe('dive-camera-registration');
+    expect(exported.source).toStrictEqual(source);
+    expect(exported.pairs).toHaveLength(1);
+    expect(exported.pairs[0].left).toBe('rgb');
+    expect(exported.pairs[0].right).toBe('ir');
+    expect(exported.pairs[0].leftToRight).toStrictEqual([[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+
+    // A camera with no registration refuses.
+    await expect(common.exportCameraRegistration(settings, final.id, '/home/user/output/nope.json', 'zz')).rejects.toThrow('no registration for camera');
+  });
+
+  it('importCameraRegistration merges an imported file over the saved calibration', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+      },
+      cameraRegistrationSource: { producer: 'kamera', run: 'fl07' },
+    });
+
+    // A per-camera file for a second camera merges in alongside the first.
+    await fs.writeJSON('/home/user/output/uv_to_rgb_registration.json', {
+      type: 'dive-camera-registration',
+      version: 1,
+      source: { producer: 'kamera', run: 'fl07' },
+      pairs: [{
+        left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      }],
+    });
+    const result = await common.importCameraRegistration(settings, final.id, '/home/user/output/uv_to_rgb_registration.json');
+    expect(result).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
+
+    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(reloaded.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    // Agreeing stamps stay a single plain stamp, persisted into the files.
+    expect(reloaded.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
+    expect(await fs.pathExists(npath.join(projectDir, 'uv_to_rgb_registration.json'))).toBe(true);
+
+    // A malformed file refuses without touching the dataset.
+    await fs.writeFile('/home/user/output/broken.json', '{not json');
+    await expect(common.importCameraRegistration(settings, final.id, '/home/user/output/broken.json')).rejects.toThrow('not valid JSON');
+    await fs.writeJSON('/home/user/output/nopairs.json', { calibrations: {} });
+    await expect(common.importCameraRegistration(settings, final.id, '/home/user/output/nopairs.json')).rejects.toThrow('expected a "pairs" list');
+  });
+
+  it('importCameraRegistration scoped to a camera takes only that camera\'s pairs', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+      },
+    });
+
+    // A file holding two pairs, imported scoped to uv: only the uv pair lands.
+    await fs.writeJSON('/home/user/output/allpairs.json', {
+      type: 'dive-camera-registration',
+      version: 1,
+      pairs: [
+        {
+          left: 'rgb', right: 'ir', points: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
+        },
+        {
+          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        },
+      ],
+    });
+    const scoped = await common.importCameraRegistration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'uv' });
+    expect(scoped).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
+    const merged = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(merged.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    // The scoped import left the existing ir pair untouched.
+    expect(merged.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
+
+    // Re-importing scoped to ir replaces that pair while keeping uv.
+    await common.importCameraRegistration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'ir' });
+    const replaced = await common.loadMetadata(settings, final.id, urlMapper);
+    expect(Object.keys(replaced.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
+    expect(replaced.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[2, 0, 0], [0, 2, 0], [0, 0, 1]]);
+
+    // Scoping to a camera the file doesn't name refuses.
+    await expect(common.importCameraRegistration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'zz' })).rejects.toThrow('no pairs for camera "zz"');
+  });
+
+  it('exportCameraRegistration never stamps exported files with a mixed composite', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    const final = res.meta;
+    // A mixed composite stamp describes the assembled set, not any single
+    // file; stamping an exported file with it would present a unanimous rig.
+    await common.saveMetadata(settings, final.id, {
+      cameraHomographies: {
+        'rgb::ir': {
+          AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+          BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+        },
+      },
+      cameraRegistrationSource: {
+        mixed: true,
+        files: { 'ir_registration.json': { producer: 'kamera', run: 'fl07' } },
+      },
+    });
+
+    const destPath = '/home/user/output/ir_to_rgb_registration.json';
+    await common.exportCameraRegistration(settings, final.id, destPath, 'ir');
+    expect('source' in (await fs.readJSON(destPath))).toBe(false);
+  });
+
+  it('exportCameraRegistration refuses when the dataset has no calibration', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const res = await common.finalizeMediaImport(settings, payload);
+    await expect(common.exportCameraRegistration(settings, res.meta.id, '/home/user/output/none.json', 'ir')).rejects.toThrow('no camera registration to export');
   });
 
   it('import with CSV annotations without specifying track file', async () => {

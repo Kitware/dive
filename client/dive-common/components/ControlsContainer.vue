@@ -19,6 +19,7 @@ import {
   useAttributesFilters,
   useCameraStore,
   useSelectedCamera,
+  useTime,
 } from '../../src/provides';
 
 export default defineComponent({
@@ -126,16 +127,39 @@ export default defineComponent({
       handler.trackSelect(trackId, false, modifiers);
     }
 
+    const aggregateController = injectAggregateController();
     const {
-      maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = injectAggregateController().value;
+      volume, setVolume, setSpeed, speed,
+    } = aggregateController.value;
+    // The timeline charts (line/event charts) are built from trackStores in
+    // the selected camera's own local frame space. Under an aligned timeline
+    // (SEAL feature 5) the aggregate controller's frame/maxFrame/seek operate
+    // in global slot space, which diverges from local frames -- so the
+    // playhead, axis extent, and chart click-seeks all stay in local space:
+    // time.frame + the selected camera's maxFrame, with seeks translated
+    // through seekCameraFrame. All three are passthroughs when alignment
+    // isn't active. (Controls.vue's main scrubber correctly stays in global
+    // space; mixing that maxFrame here with a local playhead caused drift.)
+    const { frame: localFrame } = useTime();
+    const timelineMaxFrame = computed(() => {
+      try {
+        return aggregateController.value.getController(selectedCamera.value).maxFrame.value;
+      } catch {
+        // Selected camera's annotator hasn't mounted yet (e.g. mid load);
+        // fall back to the aggregate max rather than throwing.
+        return aggregateController.value.maxFrame.value;
+      }
+    });
+    function seekToFrame(frame: number) {
+      aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
+    }
     return {
       currentView,
       toggleView,
-      maxFrame,
+      maxFrame: timelineMaxFrame,
       multiCam,
-      frame,
-      seek,
+      frame: localFrame,
+      seek: seekToFrame,
       volume,
       setVolume,
       speed,
@@ -322,7 +346,7 @@ export default defineComponent({
       <template #middle>
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
-            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
+            v-if="datasetType === 'image-sequence' || datasetType === 'large-image' || datasetType === 'multi'"
             :class="bottomLayout ? 'filename-toolbar' : 'text-middle px-3'"
             display-type="filename"
             :truncate-filename="bottomLayout"

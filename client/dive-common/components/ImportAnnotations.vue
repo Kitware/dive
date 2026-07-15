@@ -6,11 +6,14 @@ import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
+import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
 import {
   useAnnotationSets, useAnnotationSet, useHandler, useCameraStore, useSelectedCamera,
+  useAlignedView, useCameraRegistration,
 } from 'vue-media-annotator/provides';
 import { getResponseError } from 'vue-media-annotator/utils';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 
 export default defineComponent({
   name: 'ImportAnnotations',
@@ -52,7 +55,20 @@ export default defineComponent({
     const { reloadAnnotations, save } = useHandler();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const alignedView = useAlignedView();
     const isMulticamDataset = computed(() => cameraStore.camMap.value.size > 1);
+    // Warping detections onto other cameras requires the whole rig to be
+    // registered (a native->reference transform for every camera).
+    const canWarpToAllCameras = computed(
+      () => isMulticamDataset.value && alignedView.available.value,
+    );
+    const warpToAllCameras = ref(false);
+    const warpToAllCamerasHint = computed(() => {
+      const progress = alignedView.registrationProgress.value;
+      return progress
+        ? `${progress.registered}/${progress.total} cameras registered`
+        : '';
+    });
     const activeCameraName = computed(() => {
       if (!isMulticamDataset.value) {
         return null;
@@ -68,6 +84,35 @@ export default defineComponent({
     const cameraFileSupported = computed(
       () => !!api.importCalibrationFile && props.subType === 'stereo',
     );
+    // Camera registration import (per-camera transform files) is meaningful
+    // for any multicam dataset.
+    const cameraRegistration = useCameraRegistration();
+    const registrationSupported = computed(
+      () => !!api.importCameraRegistration && isMulticamDataset.value,
+    );
+    // One import button per non-reference camera pair, labeled in the
+    // direction of the mapping -- "Import ir → eo" registers ir onto the
+    // reference camera (the import dialog's Reference Camera choice,
+    // published by the viewer), matching the
+    // <camera>_to_<reference>_registration.json file names -- and colored by
+    // whether that camera already has a registration (importing onto an
+    // existing one replaces it, after confirmation).
+    const registrationImportTargets = computed(() => {
+      if (!registrationSupported.value) {
+        return [];
+      }
+      const pairKeys = [
+        ...Object.keys(cameraRegistration.homographies.value),
+        ...Object.keys(cameraRegistration.correspondences.value),
+      ];
+      const cams = [...cameraStore.camMap.value.keys()];
+      const reference = alignedView.reference.value ?? cams[0];
+      return cams.filter((camera) => camera !== reference).map((camera) => ({
+        camera,
+        label: `Import ${camera} → ${reference}`,
+        registered: pairKeys.some((key) => key.split('::').includes(camera)),
+      }));
+    });
     const currentCalibrationName = computed(() => {
       if (!props.calibrationFile) return '';
       return props.calibrationFile.replace(/^.*[\\/]/, '');
@@ -141,9 +186,24 @@ export default defineComponent({
           }
 
           if (importFile) {
-            processing.value = false;
             await reloadAnnotations();
+            if (
+              warpToAllCameras.value
+              && canWarpToAllCameras.value
+              && activeCameraName.value
+              && alignedView.toReference.value
+            ) {
+              const warped = warpAnnotationsAcrossCameras(
+                cameraStore,
+                alignedView.toReference.value,
+                activeCameraName.value,
+              );
+              if (warped.tracks > 0) {
+                await save();
+              }
+            }
           }
+          processing.value = false;
         }
       } catch (error) {
         const text = [getResponseError(error)];
@@ -182,6 +242,89 @@ export default defineComponent({
         });
       }
     };
+    const openRegistrationUpload = async (camera: string) => {
+      if (!api.importCameraRegistration) return;
+      const target = registrationImportTargets.value.find((entry) => entry.camera === camera);
+      if (target?.registered) {
+        const confirmed = await prompt({
+          title: 'Replace Registration?',
+          text: `Camera "${camera}" already has a registration. Importing will replace it.`,
+          positiveButton: 'Replace',
+          negativeButton: 'Cancel',
+          confirm: true,
+        });
+        if (!confirmed) return;
+      }
+      try {
+        const ret = await openFromDisk('transform');
+        if (ret.canceled || !ret.filePaths.length) return;
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importCameraRegistration(
+          props.datasetId,
+          ret.filePaths[0],
+          ret.fileList?.[0],
+          { camera },
+        );
+        // Rehydrate the store from the freshly persisted meta so the Align
+        // View and mirroring pick up the new transforms immediately.
+        // Remember whether the Camera Registration panel had a pair active:
+        // hydrate() clears it, and the camera list doesn't change on import,
+        // so nothing else would re-establish the panel's state.
+        const priorPair = cameraRegistration.activePair.value;
+        const meta = await api.loadMetadata(parentDatasetId(props.datasetId));
+        cameraRegistration.hydrate(
+          meta.cameraHomographies,
+          meta.cameraCorrespondences,
+          meta.cameraTransformTypes,
+          meta.cameraRegistrationSource,
+        );
+        if (priorPair) {
+          // The panel is open: re-select the imported pair (falling back to
+          // the prior one) so the loaded state is immediately visible, in
+          // review posture -- picking stays off for a file-loaded transform.
+          const pairKeys = [
+            ...Object.keys(cameraRegistration.homographies.value),
+            ...Object.keys(cameraRegistration.correspondences.value),
+          ];
+          // Pair bodies name their own cameras, so a pair can reference one
+          // missing from this dataset; only select a pair the panel can show.
+          const importedKey = pairKeys.find((key) => key.split('::').includes(camera)
+            && key.split('::').every((name) => cameraStore.camMap.value.has(name)));
+          const [left, right] = importedKey
+            ? importedKey.split('::')
+            : [priorPair.camA, priorPair.camB];
+          cameraRegistration.setActivePair(left, right);
+          cameraRegistration.pickingEnabled.value = cameraRegistration.pickingDefaultFor(
+            cameraRegistration.activePairKey(),
+          );
+        }
+        processing.value = false;
+        const unknown = result.cameras.filter((name) => !cameraStore.camMap.value.has(name));
+        const text = [
+          `Imported registration for camera "${camera}".`,
+          'Registration can be validated in the Camera Registration menu.',
+        ];
+        if (unknown.length) {
+          text.push(
+            `Warning: the file also names camera(s) not in this dataset: ${unknown.join(', ')}.`,
+            'Pair bodies name their own cameras, so those pairs will not resolve until matching cameras exist.',
+          );
+        }
+        await prompt({
+          title: 'Registration Imported',
+          text,
+          positiveButton: 'OK',
+        });
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Registration Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     const applyLastCalibration = async () => {
       if (!api.importCalibrationFile || !lastCalibrationPath.value) return;
       try {
@@ -211,10 +354,13 @@ export default defineComponent({
     return {
       openUpload,
       openCalibrationUpload,
+      openRegistrationUpload,
       applyLastCalibration,
       showLastCalibrationSuggestion,
       lastCalibrationFileName,
       cameraFileSupported,
+      registrationSupported,
+      registrationImportTargets,
       currentCalibrationName,
       processing,
       menuOpen,
@@ -225,6 +371,9 @@ export default defineComponent({
       currentSet,
       isMulticamDataset,
       activeCameraName,
+      canWarpToAllCameras,
+      warpToAllCameras,
+      warpToAllCamerasHint,
     };
   },
 });
@@ -260,7 +409,7 @@ export default defineComponent({
             </div>
           </v-btn>
         </template>
-        <span> Import Annotation Data </span>
+        <span> Import Supplementary Data </span>
       </v-tooltip>
     </template>
     <template>
@@ -353,6 +502,15 @@ export default defineComponent({
                 label="Overwrite"
                 @change="additive = !$event"
               />
+              <v-checkbox
+                v-if="isMulticamDataset"
+                v-model="warpToAllCameras"
+                :disabled="!canWarpToAllCameras"
+                label="Warp to All"
+                :hint="warpToAllCamerasHint"
+                persistent-hint
+                class="ml-4"
+              />
             </v-row>
             <div v-if="additive">
               <div
@@ -372,6 +530,34 @@ export default defineComponent({
             </div>
           </v-col>
         </v-container>
+        <template v-if="registrationSupported">
+          <v-divider />
+          <v-card-title class="pt-3">
+            Import Registration
+          </v-card-title>
+          <v-card-text class="pb-0">
+            Merge a per-camera registration .json into this dataset.
+          </v-card-text>
+          <v-container>
+            <v-col>
+              <v-row
+                v-for="target in registrationImportTargets"
+                :key="target.camera"
+              >
+                <v-btn
+                  depressed
+                  block
+                  class="mb-2"
+                  :color="target.registered ? 'success' : 'warning'"
+                  :disabled="!datasetId || processing"
+                  @click="openRegistrationUpload(target.camera)"
+                >
+                  {{ target.label }}
+                </v-btn>
+              </v-row>
+            </v-col>
+          </v-container>
+        </template>
         <template v-if="cameraFileSupported">
           <v-divider />
           <v-card-title class="pt-3">
