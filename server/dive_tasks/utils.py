@@ -16,7 +16,7 @@ from girder_client import GirderClient
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
-from dive_utils import constants, models
+from dive_utils import constants, models, multicam_camera_order
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
@@ -408,11 +408,8 @@ def is_path_under_multicam_export(path: str, multicam_export_roots: set) -> bool
 
 
 def _multicam_camera_order(multi_cam: dict) -> List[str]:
-    cameras = multi_cam.get('cameras') or {}
-    stored_order = multi_cam.get('cameraOrder') or []
-    if stored_order:
-        return [name for name in stored_order if name in cameras]
-    return list(cameras.keys())
+    """Return camera names in display order (shared helper, matches the client)."""
+    return multicam_camera_order(multi_cam)
 
 
 def _upload_stereo_calibration_files(
