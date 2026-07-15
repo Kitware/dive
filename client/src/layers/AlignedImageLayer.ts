@@ -93,6 +93,13 @@ export default class AlignedImageLayer {
    * Image/Video annotators, or OSM tile layers for LargeImageAnnotator. Both
    * are created before LayerManager layers. Returns an empty list when none
    * are found.
+   *
+   * Large-image OSM/tile layers inherit geojs featureLayer, so they expose
+   * both url() and features() and their canvas tiles carry quad.image once
+   * loaded. Prefer url() identity and return every such layer (current + next
+   * + optional geospatial background) — matching only the first quad-media
+   * layer would leave a sibling tile pyramid visible as a small upper-left
+   * native remnant under Align View.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private findNativeMediaLayers(): any[] {
@@ -100,17 +107,16 @@ export default class AlignedImageLayer {
     if (!viewer || typeof viewer.layers !== 'function') {
       return [];
     }
-    const nativeQuad = findQuadMediaLayer(viewer, this.quadLayer);
-    if (nativeQuad) {
-      return [nativeQuad];
-    }
-    // Tiled large-image: hide every OSM layer that isn't ours.
-    return viewer.layers().filter(
+    const osmLayers = viewer.layers().filter(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (layer: any) => layer !== this.quadLayer
-        && typeof layer?.url === 'function'
-        && typeof layer?.features !== 'function',
+        && typeof layer?.url === 'function',
     );
+    if (osmLayers.length) {
+      return osmLayers;
+    }
+    const nativeQuad = findQuadMediaLayer(viewer, this.quadLayer);
+    return nativeQuad ? [nativeQuad] : [];
   }
 
   private setNativeVisible(visible: boolean) {
@@ -165,10 +171,19 @@ export default class AlignedImageLayer {
     // crop rectangles into the (possibly downsampled) texture's pixels.
     const quads = geojsWarpQuadsForImage(transform, src, 2);
     // Mirror the native layer's CSS filter (image enhancements) so toggling
-    // the warp doesn't change brightness/contrast rendering.
-    const [nativeLayer] = this.findNativeMediaLayers();
-    if (nativeLayer && typeof nativeLayer.node === 'function') {
-      this.quadLayer.node().css('filter', nativeLayer.node().css('filter'));
+    // the warp doesn't change brightness/contrast rendering. Prefer a layer
+    // that already has a filter set (LargeImage currentLayer); the first OSM
+    // entry may be an unfiltered geospatial background.
+    const nativeLayers = this.findNativeMediaLayers();
+    const filterSource = nativeLayers.find((layer) => {
+      if (typeof layer.node !== 'function') {
+        return false;
+      }
+      const filter = layer.node().css('filter');
+      return typeof filter === 'string' && filter !== '' && filter !== 'none';
+    }) ?? nativeLayers[0];
+    if (filterSource && typeof filterSource.node === 'function') {
+      this.quadLayer.node().css('filter', filterSource.node().css('filter'));
     }
     this.quadFeature
       .data(quads)

@@ -140,3 +140,88 @@ describe('useLayerManagerAlignedView warp refresh', () => {
     expect(lastWarpSource(warpFeature)).toBe(loaded);
   });
 });
+
+/**
+ * LargeImageAnnotator keeps current + next OSM tile layers. Canvas OSM tiles
+ * expose quad.image (so findQuadMediaLayer would match the first only) and
+ * inherit features() — Align View must still hide every OSM layer.
+ */
+function makeLargeImageHarness() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 32;
+  const texture: { source: HTMLCanvasElement; kind: 'image'; width: number; height: number } = {
+    source: canvas,
+    kind: 'image',
+    width: 4096,
+    height: 2048,
+  };
+
+  const tileFeature = makeQuadFeature([{ image: canvas }]);
+  const currentOsm = {
+    ...makeLayer(tileFeature),
+    url: vi.fn(),
+  };
+  const nextOsm = {
+    ...makeLayer(makeQuadFeature([{ image: canvas }])),
+    url: vi.fn(),
+  };
+
+  const warpFeature = makeQuadFeature();
+  const warpLayer = makeLayer(warpFeature);
+
+  const viewer = {
+    createLayer: vi.fn(() => warpLayer),
+    geoOn: vi.fn(),
+    layers: () => [currentOsm, nextOsm, warpLayer],
+  };
+
+  const annotator = {
+    cameraName: ref('ir'),
+    geoViewerRef: ref(viewer),
+    frame: ref(0),
+    imageRevision: ref(0),
+    frameTexture: ref(texture),
+  } as unknown as MediaController;
+  const aggregateController = ref({
+    getController: () => annotator,
+  } as unknown as AggregateMediaController);
+
+  const alignedView = new AlignedViewStore();
+  alignedView.setTransforms('rgb', {
+    rgb: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    ir: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
+  });
+  alignedView.setEnabled(true);
+
+  let composable!: ReturnType<typeof useLayerManagerAlignedView>;
+  const frameNumberRef = ref(0);
+  const Host = defineComponent({
+    setup() {
+      composable = useLayerManagerAlignedView({
+        camera: 'ir',
+        annotator,
+        aggregateController,
+        alignedView,
+        editingModeRef: ref(false as const),
+      });
+      composable.setupDisplayTransformWatches([], () => undefined, frameNumberRef);
+      return {};
+    },
+    template: '<div />',
+  });
+  const wrapper = mount(Host);
+  return {
+    wrapper, currentOsm, nextOsm, warpFeature,
+  };
+}
+
+describe('useLayerManagerAlignedView large-image native hide', () => {
+  it('hides every OSM tile layer while Align View warps the frameTexture', async () => {
+    const { currentOsm, nextOsm, warpFeature } = makeLargeImageHarness();
+    await nextTick();
+    expect(lastWarpSource(warpFeature)).toBeTruthy();
+    expect(currentOsm.visible).toHaveBeenCalledWith(false);
+    expect(nextOsm.visible).toHaveBeenCalledWith(false);
+  });
+});
