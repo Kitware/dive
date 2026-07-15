@@ -7,6 +7,7 @@ import {
   subdivideWarpQuads,
   warpGridSize,
   geojsWarpQuads,
+  geojsWarpQuadsForImage,
   localLinkedScale,
   Point,
   Matrix3,
@@ -283,5 +284,48 @@ describe('geojsWarpQuads', () => {
       expect(q.crop.x).toBe(640);
       expect(q.crop.y).toBe(480);
     });
+  });
+});
+
+describe('geojsWarpQuadsForImage', () => {
+  it('leaves crops unchanged when the texture matches native dimensions', () => {
+    const translate: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const img = {
+      naturalWidth: 640,
+      naturalHeight: 480,
+      width: 640,
+      height: 480,
+    } as HTMLImageElement;
+    const [quad] = geojsWarpQuadsForImage(translate, {
+      source: img,
+      kind: 'image',
+      width: 640,
+      height: 480,
+    });
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 640, bottom: 480, x: 640, y: 480,
+    });
+    expect(quad.image).toBe(img);
+  });
+
+  it('remaps crops into overview texture pixels for downsampled large-image canvases', () => {
+    const translate: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const canvas = {
+      width: 2048,
+      height: 1024,
+    } as HTMLCanvasElement;
+    // Native IR frame is 4x the overview texture on each axis.
+    const [quad] = geojsWarpQuadsForImage(translate, {
+      source: canvas,
+      kind: 'image',
+      width: 8192,
+      height: 4096,
+    });
+    expect(quad.ul).toEqual({ x: 0, y: 0 });
+    expect(quad.lr).toEqual({ x: 8192, y: 4096 });
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 2048, bottom: 1024, x: 2048, y: 1024,
+    });
+    expect(quad.image).toBe(canvas);
   });
 });

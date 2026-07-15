@@ -1,16 +1,10 @@
 import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
-import { Matrix3, geojsWarpQuads } from '../alignedView/homography';
+import { Matrix3, geojsWarpQuadsForImage } from '../alignedView/homography';
 import { findQuadMediaLayer } from '../components/layerManager/quadMediaSource';
+import type { CameraImage } from './cameraImage';
 
-export interface CameraImage {
-  /** The texture source for the geojs quad feature: an `<img>` for image sequences, a `<video>` for video datasets. */
-  source: HTMLImageElement | HTMLVideoElement;
-  /** Which quad-feature data key `source` must be assigned to (geojs' canvas renderer branches on this). */
-  kind: 'image' | 'video';
-  width: number;
-  height: number;
-}
+export type { CameraImage };
 
 interface AlignedImageLayerParams {
   annotator: MediaController;
@@ -144,11 +138,11 @@ export default class AlignedImageLayer {
       this.clear();
       return;
     }
-    const { width: w, height: h } = src;
     // 2px cell overlap hides the canvas antialiasing seams between abutting
     // sub-quads (dark grid lines); safe here because quads draw opaque.
-    const quads = geojsWarpQuads(transform, w, h, 2)
-      .map((q) => ({ ...q, [src.kind]: src.source }));
+    // geojsWarpQuadsForImage keeps corner math in native space while remapping
+    // crop rectangles into the (possibly downsampled) texture's pixels.
+    const quads = geojsWarpQuadsForImage(transform, src, 2);
     // Mirror the native layer's CSS filter (image enhancements) so toggling
     // the warp doesn't change brightness/contrast rendering.
     const nativeLayer = this.findNativeQuadLayer();

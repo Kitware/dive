@@ -2,8 +2,8 @@ import geo, { GeoEvent } from 'geojs';
 import BaseLayer, { BaseLayerParams, LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import CameraRegistrationStore from '../../alignedView/CameraRegistrationStore';
-import { geojsWarpQuads } from '../../alignedView/homography';
-import type { CameraImage } from '../AlignedImageLayer';
+import { geojsWarpQuadsForImage } from '../../alignedView/homography';
+import type { CameraImage } from '../cameraImage';
 
 export interface RegistrationPointData {
   x: number;
@@ -377,13 +377,13 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
       return;
     }
     const h = homog[mode];
-    const { width: w, height: hgt } = src;
     // 2px cell overlap hides the canvas antialiasing seams between abutting
     // sub-quads (dark grid lines). Overlapped quads must draw opaque -- the
     // ghost's transparency is applied once at the layer level below, so the
-    // overlap doesn't double-blend into brighter seams.
-    const quads = geojsWarpQuads(h, w, hgt, 2)
-      .map((q) => ({ ...q, [src.kind]: src.source }));
+    // overlap doesn't double-blend into brighter seams. Crop coords are
+    // remapped into the texture pixel space for downsampled large-image
+    // overviews (see geojsWarpQuadsForImage).
+    const quads = geojsWarpQuadsForImage(h, src, 2);
     this.quadLayer.opacity(alignment.opacity);
     this.quadFeature
       .data(quads)

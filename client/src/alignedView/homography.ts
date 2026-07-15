@@ -225,6 +225,68 @@ export function geojsWarpQuads(
 }
 
 /**
+ * Pixel size of a geoJS quad texture element. Canvas overviews (large-image
+ * frame textures) are often smaller than the logical native width/height used
+ * for warp math -- crop rectangles must be scaled to this size or Align View /
+ * ghosts sample the wrong texel range and look massively scaled.
+ */
+export function texturePixelSize(
+  source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+): { width: number; height: number } {
+  // Duck-type so this works in node unit tests without a DOM (and across
+  // cross-realm element instances where instanceof can fail).
+  if ('videoWidth' in source && typeof (source as HTMLVideoElement).videoWidth === 'number') {
+    const video = source as HTMLVideoElement;
+    return { width: video.videoWidth, height: video.videoHeight };
+  }
+  if ('getContext' in source && typeof (source as HTMLCanvasElement).getContext === 'function') {
+    const canvas = source as HTMLCanvasElement;
+    return { width: canvas.width, height: canvas.height };
+  }
+  const image = source as HTMLImageElement;
+  return {
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+  };
+}
+
+/**
+ * Build geojs warp quads for a {@link CameraImage}, remapping `crop` into the
+ * texture's actual pixel space when the texture is a downsampled overview of
+ * the native frame (large-image). Corner positions stay in native/map space
+ * so the fitted homography still lands correctly.
+ */
+export function geojsWarpQuadsForImage(
+  h: Matrix3,
+  image: {
+    source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
+    kind: 'image' | 'video';
+    width: number;
+    height: number;
+  },
+  overlap = 0,
+): Array<GeojsWarpQuad & { image?: typeof image.source; video?: typeof image.source }> {
+  const quads = geojsWarpQuads(h, image.width, image.height, overlap);
+  const tex = texturePixelSize(image.source);
+  const scaleX = image.width > 0 ? tex.width / image.width : 1;
+  const scaleY = image.height > 0 ? tex.height / image.height : 1;
+  const rescale = Math.abs(scaleX - 1) > 1e-9 || Math.abs(scaleY - 1) > 1e-9;
+  return quads.map((q) => {
+    const crop = rescale
+      ? {
+        left: q.crop.left * scaleX,
+        top: q.crop.top * scaleY,
+        right: q.crop.right * scaleX,
+        bottom: q.crop.bottom * scaleY,
+        x: tex.width,
+        y: tex.height,
+      }
+      : q.crop;
+    return { ...q, crop, [image.kind]: image.source };
+  });
+}
+
+/**
  * Hartley normalization: translate points to the centroid and scale so the
  * mean distance from the origin is sqrt(2). Returns the normalized points and
  * the 3x3 transform T such that normalized = T * original.
