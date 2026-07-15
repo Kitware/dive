@@ -454,54 +454,11 @@ export default defineComponent({
       }
       return cams.includes(defaultCamera.value) ? defaultCamera.value : cams[0];
     });
-    let multicamAlignmentInitialized = false;
-
     function resetMulticamAlignment() {
       alignedView.setEnabled(false);
       alignedView.setTransforms(null, null);
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
-    }
-
-    function initMulticamAlignment() {
-      if (multicamAlignmentInitialized) {
-        return;
-      }
-      multicamAlignmentInitialized = true;
-      // The selected camera drives the aligned-aware "reset pan and zoom":
-      // centering fits ITS content in reference space and mirrors that view
-      // to every pane through the link.
-      useAlignedNavigation(aggregateController, alignedView, multiCamList, {
-        selectedCamera,
-        setResetZoomOverride,
-      });
-      // The Camera Registration pair link maps through the homography for
-      // UNWARPED panes, so it needs the aligned view state to stand down
-      // while displays are warped into reference space.
-      useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
-      // Registration point picking records raw native-space clicks and
-      // renders its own aligned preview; suspend the general warp while it
-      // is active so picks are never taken against a warped display.
-      watch(cameraRegistration.pickingEnabled, (picking) => {
-        alignedView.setSuspended(picking);
-      }, { immediate: true });
-      // Publish the reference even while unresolved so UI outside the viewer
-      // core (e.g. the import menu's per-pair buttons) can name it.
-      watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
-        if (!isMultiCameraDataset.value) {
-          return;
-        }
-        alignedView.setTransforms(
-          reference,
-          resolution?.toReference ?? null,
-        );
-      }, { immediate: true });
-      watch(registrationProgress, (progressVal) => {
-        if (!isMultiCameraDataset.value) {
-          return;
-        }
-        alignedView.setRegistrationProgress(progressVal);
-      }, { immediate: true });
     }
 
     const alignedResolution = computed(() => {
@@ -534,6 +491,21 @@ export default defineComponent({
       const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
     });
+    watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
+      if (!isMultiCameraDataset.value) {
+        return;
+      }
+      alignedView.setTransforms(
+        reference,
+        resolution?.toReference ?? null,
+      );
+    }, { immediate: true });
+    watch(registrationProgress, (progressVal) => {
+      if (!isMultiCameraDataset.value) {
+        return;
+      }
+      alignedView.setRegistrationProgress(progressVal);
+    }, { immediate: true });
     /**
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
@@ -638,6 +610,19 @@ export default defineComponent({
         emit('stereo-segmentation-finalize', params);
       },
     });
+
+    // Register linked-viewer composables during setup (after selectedCamera exists)
+    // so their onBeforeUnmount hooks attach to Viewer. Calling them from async
+    // loadData() left pan/zoom listeners without teardown and triggered Vue's
+    // "no active component instance" warning.
+    useAlignedNavigation(aggregateController, alignedView, multiCamList, {
+      selectedCamera,
+      setResetZoomOverride,
+    });
+    useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
+    watch(cameraRegistration.pickingEnabled, (picking) => {
+      alignedView.setSuspended(picking);
+    }, { immediate: true });
 
     /**
      * Every camera pane calls updateTime() from its own seek/play/pause, but
@@ -1414,7 +1399,6 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          initMulticamAlignment();
         } else {
           multiCamList.value = ['singleCam'];
           resetMulticamAlignment();
