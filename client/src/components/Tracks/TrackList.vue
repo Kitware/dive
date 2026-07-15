@@ -19,6 +19,7 @@ import {
   useMultiSelectList,
   useCameraStore,
   useSelectedCamera,
+  usePendingSaveCount,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
 import { getSuppressedTrackIds } from '../../use/suppression';
@@ -84,6 +85,7 @@ export default defineComponent({
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const pendingSaveCount = usePendingSaveCount();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef, isPlaying } = useTime();
@@ -112,9 +114,12 @@ export default defineComponent({
     const finalFilteredTracks = computed(() => {
       let tracks = filteredTracksRef.value;
       if (filterDetectionsByFrame.value && !isPlaying.value) {
+        // Depend on the edit counter so moving a suppression region re-runs the
+        // filter (geometry mutations are not reactive track-set changes).
+        const editRevision = pendingSaveCount.value;
         const suppressCamStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
         const suppType = clientSettings.typeSettings.suppressionType;
-        const suppressedIds = suppressCamStore
+        const suppressedIds = (suppressCamStore && editRevision >= 0)
           ? getSuppressedTrackIds(suppressCamStore, frameRef.value, suppType)
           : new Set<number>();
         tracks = tracks.filter((track) => {
