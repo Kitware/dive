@@ -9,6 +9,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import {
   useCameraStore, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
+  usePendingSaveCount,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
@@ -69,6 +70,10 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
     const { frame } = useTime();
+    // Bumped on every annotation edit (add/move/delete); read in the frame
+    // counts so they re-evaluate suppression when a region is moved, since a
+    // track's geometry is not itself a reactive dependency.
+    const pendingSaveCount = usePendingSaveCount();
     const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     // Ordering of these lists should match
     const sortingMethods: ('a-z' | 'count' | 'frame count')[] = ['a-z', 'count', 'frame count'];
@@ -138,22 +143,70 @@ export default defineComponent({
       }
     }
 
-    const typeCounts = computed(() => filteredTracksRef.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.annotation
-        .getType(filteredTrack.context.confidencePairIndex);
-      const trackType = confidencePair;
-      acc.set(trackType, (acc.get(trackType) || 0) + 1);
+    /**
+     * Ids of tracks whose every keyframe detection is suppressed (a region
+     * covers it on each frame it appears), across all cameras - these are
+     * excluded from the dataset-wide type totals. Reactive to region edits via
+     * the save counter, since track geometry is not itself a reactive value.
+     */
+    const fullySuppressedIds = computed(() => {
+      const editRevision = pendingSaveCount.value;
+      const suppType = clientSettings.typeSettings.suppressionType;
+      const excluded = new Set<number>();
+      if (!suppType || editRevision < 0) {
+        return excluded;
+      }
+      cameraStore.camMap.value.forEach(({ trackStore: store }) => {
+        const perFrame = new Map<number, Set<number>>();
+        const suppressedAt = (f: number) => {
+          let s = perFrame.get(f);
+          if (s === undefined) {
+            s = getSuppressedTrackIds(store, f, suppType);
+            perFrame.set(f, s);
+          }
+          return s;
+        };
+        store.annotationMap.forEach((annotation) => {
+          const track = annotation as Track;
+          if (typeof track.getFeature !== 'function') {
+            return;
+          }
+          const keyframes = track.features.filter((f) => f && f.keyframe);
+          if (keyframes.length > 0
+            && keyframes.every((f) => suppressedAt(f.frame).has(track.id))) {
+            excluded.add(track.id);
+          }
+        });
+      });
+      return excluded;
+    });
 
-      return acc;
-    }, new Map<string, number>()));
+    const typeCounts = computed(() => {
+      const excluded = fullySuppressedIds.value;
+      return filteredTracksRef.value.reduce((acc, filteredTrack) => {
+        if (excluded.has(filteredTrack.annotation.id)) {
+          return acc;
+        }
+        const confidencePair = filteredTrack.annotation
+          .getType(filteredTrack.context.confidencePairIndex);
+        const trackType = confidencePair;
+        acc.set(trackType, (acc.get(trackType) || 0) + 1);
+
+        return acc;
+      }, new Map<string, number>());
+    });
 
     const filteredTracksForFrame = computed(() => {
+      // Depend on the edit counter so moving/resizing a suppression region
+      // (which mutates geometry, not the reactive track set) re-runs the count.
+      // It is always >= 0, so this reads the dependency without changing logic.
+      const editRevision = pendingSaveCount.value;
       const trackIdsForFrame = trackStore?.intervalTree
         .search([frame.value, frame.value])
         .map((str) => parseInt(str, 10));
       // Detections suppressed by a region on this frame are dropped so the
       // per-frame type counts read off the interface exclude them.
-      const suppressedIds = trackStore
+      const suppressedIds = (trackStore && editRevision >= 0)
         ? getSuppressedTrackIds(trackStore, frame.value, clientSettings.typeSettings.suppressionType)
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
