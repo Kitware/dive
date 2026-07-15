@@ -32,6 +32,7 @@ import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
+import { buildRegistrationPipelineArgs } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -366,7 +367,8 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
+    const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, isMultiCamPipeline);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -392,6 +394,14 @@ async function runPipeline(
         : DEFAULT_CALIBRATION_KEYS;
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
+      });
+    }
+    if (isMultiCamPipeline) {
+      // Hand the camera registration (Aligned View homographies) to the
+      // pipeline's per-camera warp processes.
+      const registrationArgs = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+      Object.entries(registrationArgs).forEach(([arg, value]) => {
+        command.push(`-s ${arg}="${value}"`);
       });
     }
   } else if (pipeline.type === stereoPipelineMarker) {
