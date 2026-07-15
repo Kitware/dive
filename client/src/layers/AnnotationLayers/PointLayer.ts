@@ -54,6 +54,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   createStyle(): LayerStyle<PointGeoJSData> {
     return {
       ...super.createStyle(),
+      position: (data: PointGeoJSData) => this.transformXY(data),
       fill: (data: PointGeoJSData) => data.feature === 'head',
       fillColor: (data: PointGeoJSData) => {
         if (data.styleType) {

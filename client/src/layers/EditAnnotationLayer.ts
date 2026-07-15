@@ -690,22 +690,41 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
     if (this.skipNextExternalUpdate === false) {
-      //TODO: Find a better way to track mouse up after placing a point or completing geometry
-      //For line drawings and the actions of any recipes we want
-      if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
-        // Defer the whole reset while the left button is held: this layer may
-        // be mid-drag (e.g. an edit handle grabbed on a camera the mousedown
-        // just selected) and disable() would kill the in-progress action.
-        this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
-      } else {
-        // disable resets things before we load a new/different shape or mode
-        this.disable();
+      // disable() resets this layer before loading a new shape/mode, but a
+      // cross-camera handoff triggers changeData during the very mousedown that
+      // started an action on the newly selected camera, and resetting mid-action
+      // forces the user to click a second time. Guard both cases:
+      //  - Mid-creation stroke (polygon/line first vertex): skip the reset
+      //    entirely, otherwise disable() clears shapeInProgress before the
+      //    in-progress geometry is committed.
+      //  - Left button still held (e.g. an edit handle just grabbed on the
+      //    camera the mousedown selected): defer the reset until release, and
+      //    crucially do NOT disable() first — that would cancel the drag.
+      const midCreationStroke = this.shapeInProgress !== null
+        && ['LineString', 'Polygon'].includes(this.type);
+      if (!midCreationStroke) {
+        // Always cancel a pending deferred reset before (re)deciding what to do.
+        // Otherwise rapid changeData calls during a cross-camera edit stack up
+        // multiple timeouts, and an earlier one — holding stale pre-edit
+        // frameData in its closure — fires after mouse-up and snaps the
+        // annotation back to its original geometry.
         clearTimeout(this.leftButtonCheckTimeout);
-        this.formattedData = this.formatData(frameData);
+        //TODO: Find a better way to track mouse up after placing a point or completing geometry
+        //For line drawings and the actions of any recipes we want
+        if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
+          this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
+        } else {
+          // disable resets things before we load a new/different shape or mode
+          this.disable();
+          this.formattedData = this.formatData(frameData);
+        }
       }
     } else {
-      // prevent was called and it has prevented this update.
-      // disable the skip for next time.
+      // A self-made change (e.g. a just-committed rectangle/geometry edit)
+      // triggered this update. Skip it, and cancel any deferred reset still
+      // pending from the drag so it can't overwrite the commit and revert the
+      // annotation to its pre-edit geometry.
+      clearTimeout(this.leftButtonCheckTimeout);
       this.skipNextExternalUpdate = false;
     }
     this.calculateCursorImage();
@@ -781,6 +800,29 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * True when a finalized annotation has enough vertices to be a real shape.
+   * Guards against degenerate geometry emitted by a programmatic mode change.
+   */
+  // eslint-disable-next-line class-methods-use-this
+  isValidCompletedGeometry(feature: GeoJSON.Feature): boolean {
+    const { geometry } = feature;
+    if (!geometry) return false;
+    if (geometry.type === 'Polygon') {
+      const ring = geometry.coordinates?.[0] as GeoJSON.Position[] | undefined;
+      return !!ring && ring.length >= 3;
+    }
+    if (geometry.type === 'LineString') {
+      const coords = geometry.coordinates as GeoJSON.Position[] | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    if (geometry.type === 'Point') {
+      const coords = geometry.coordinates as GeoJSON.Position | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    return true;
+  }
+
+  /**
    *
    * @param e geo.event emitting by handlers
    */
@@ -789,6 +831,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
+        // Ignore degenerate geometry. A programmatic setMode (e.g. changeData([])
+        // keeping the creation cursor live on a non-drawing camera) can finalize
+        // an empty stale annotation as 'done'; committing it would add a bogus
+        // shape. Real user completions always have enough vertices.
+        if (!geoJSONData[0] || !this.isValidCompletedGeometry(geoJSONData[0])) {
+          return;
+        }
         if (this.type === 'rectangle') {
           geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
             geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],

@@ -81,7 +81,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.arrowFeatureLayer = layer.createFeature('line');
     super.initialize();
     this.arrowFeatureLayer.style({
-      position: (p: [number, number]) => ({ x: p[0], y: p[1] }),
+      position: (p: [number, number]) => this.transformPoint(p),
       stroke: true,
       fill: false,
       strokeColor: (_p: [number, number], _i: number, data: RectGeoJSData) => {
@@ -195,19 +195,29 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
   }
 
   disable() {
-    this.featureLayer
-      .data([])
-      .draw();
-    this.arrowFeatureLayer
-      .data([])
-      .draw();
+    if (!this.featureLayer) {
+      return;
+    }
+    try {
+      this.featureLayer
+        .data([])
+        .draw();
+      if (this.arrowFeatureLayer) {
+        this.arrowFeatureLayer
+          .data([])
+          .draw();
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Annotation layer disable skipped after map/renderer teardown', err);
+    }
   }
 
   createStyle(): LayerStyle<RectGeoJSData> {
     return {
       ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
-      position: (point) => ({ x: point[0], y: point[1] }),
+      position: (point) => this.transformPoint(point),
       strokeColor: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.color;

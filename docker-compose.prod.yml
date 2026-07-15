@@ -84,3 +84,5 @@ services:
       - /var/lib/docker/volumes:/source_volumes:ro # backup source
       - /var/local/backups:/destination_backups:rw # backup dest
       - /var/local/backups/duplicati/config:/config:rw
+  redis:
+    restart: always

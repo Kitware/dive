@@ -15,6 +15,34 @@ Used by:
 - `client/platform/desktop/frontend/components/Recent.vue`
 - `client/platform/web-girder/views/Upload.vue`
 
+## Batch multicam import (`ImportMultiCamBatchDialog`)
+
+Separate from the single-dataset dialog above. Entry point:
+
+```ts
+import ImportMultiCamBatchDialog from 'dive-common/components/ImportMultiCamBatchDialog.vue';
+```
+
+Used by the same platform pages (`Recent.vue`, `Upload.vue`), opened from the ==MultiCam Batch== item on `ImportButton` (`batchMultiCamImport` prop).
+
+| Piece | Role |
+|-------|------|
+| `ImportMultiCamBatchDialog.vue` | Scan review UI, editable dataset names, per-collect selection, sequential import |
+| `multiCamBatchScan.ts` | Shared scan/validation (`scanMultiCamBatchFromCollects`, `MultiCamBatchCollect`) |
+| `multicamSubfolderLayout.ts` | Camera naming rules and preferred order (shared with subfolder import) |
+| `dive-common/viewFolderFormat.ts` | Flat view-folder detection: folders holding per-modality images (`*_rgb` / `*_ir` / `*_uv`) split into cameras via filename globs |
+| `platform/desktop/backend/native/multiCollectImport.ts` | Desktop filesystem scan (`scan-multicam-batch` IPC) |
+| `platform/web-girder/scanMultiCamBatch.ts` | Web scan from `File[]` + `webkitRelativePath` |
+
+Platform wiring:
+
+- **Desktop** — `chooseAndScan` calls `api.scanMultiCamBatch(path)`; `importCollect` runs the existing multicam import path per collect.
+- **Web** — `chooseAndScan` picks a folder via `openFromDisk`, then `scanMultiCamBatchFromFiles`; `importCollect` uploads each camera's files and finalizes the multicam parent dataset.
+
+Tests: `multiCamBatchScan.spec.ts`, `multiCollectImport.spec.ts`, `scanMultiCamBatch.spec.ts`.
+
+User-facing docs: [Multicamera and Stereo Data](../../../../docs/Multicamera-data.md#batch-multicam-import).
+
 ## Import modes
 
 | Mode (`importType`) | UI component | Description |

@@ -23,6 +23,7 @@ import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
+import scanMultiCamBatch from './native/multiCollectImport';
 import settings from './state/settings';
 import { listen } from './server';
 import {
@@ -202,6 +203,11 @@ export default function register() {
     { path }: { path: string },
   ) => common.findParentFolderCalibrationFile(path));
 
+  ipcMain.handle('find-parent-folder-transform-files', async (
+    event,
+    { path }: { path: string },
+  ) => common.findParentFolderTransformFiles(path));
+
   ipcMain.handle('dataset-has-calibration-file', async (
     event,
     { datasetId }: { datasetId: string },
@@ -225,6 +231,11 @@ export default function register() {
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(args);
+    return ret;
+  });
+
+  ipcMain.handle('scan-multicam-batch', async (event, { path: rootPath }: { path: string }) => {
+    const ret = await scanMultiCamBatch(rootPath);
     return ret;
   });
 
@@ -257,6 +268,17 @@ export default function register() {
     const exportedPath = await common.exportDatasetCalibration(settings.get(), id, destPath);
     return { exportedPath };
   });
+
+  ipcMain.handle('export-camera-registration', async (_, { id, destPath, camera }: { id: string; destPath: string; camera: string }) => {
+    const exportedPath = await common.exportCameraRegistration(settings.get(), id, destPath, camera);
+    return { exportedPath };
+  });
+
+  ipcMain.handle('import-camera-registration', async (_, { id, path: filePath, options }: {
+    id: string;
+    path: string;
+    options?: { camera?: string };
+  }) => common.importCameraRegistration(settings.get(), id, filePath, options));
 
   ipcMain.handle('get-dataset-calibration', async (_, { datasetId }: { datasetId: string }) => common.getDatasetCalibration(settings.get(), datasetId));
 

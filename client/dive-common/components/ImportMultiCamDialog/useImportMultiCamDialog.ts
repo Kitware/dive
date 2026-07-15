@@ -18,13 +18,25 @@ import {
   applyParentPathToAssignments,
   commonPathPrefix,
   groupParentFolderByCamera,
+  inferSubfolderImportType,
   isValidCameraName,
   organizeSubfolderCameras,
   parentFolderLabelFromAbsolutePaths,
   pickDefaultMulticamCamera,
+  rootLevelImageFiles,
   subfolderVideoDisplayLabel,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import {
+  detectFolderModalities,
+  groupByModality,
+  modalityGlob,
+  viewFolderDatasetName,
+} from 'dive-common/viewFolderFormat';
 import { findStereoCalibrationInFileList } from 'dive-common/stereoParentFolder';
+import {
+  assignRegistrationFilesToCameras,
+  findRegistrationFilesInFileList,
+} from 'dive-common/registrationParentFolder';
 import { ImageSequenceType, VideoType } from 'dive-common/constants';
 import { useRequest } from 'dive-common/use';
 import {
@@ -36,6 +48,12 @@ export interface UseImportMultiCamDialogProps {
   stereo?: boolean;
   dataType: typeof VideoType | typeof ImageSequenceType;
   importMedia: (path: string) => Promise<MediaImportResponse>;
+  /**
+   * Offer a per-camera registration .json transform file picker for cameras
+   * after the first (parsed by the desktop backend or the web upload flow at
+   * import time). Ignored for stereo imports, which use calibration files.
+   */
+  enableTransformImport?: boolean;
   enableSubfolderImport?: boolean;
   registerSubfolderCameras?: (assignments: {
     cameraName: string;
@@ -55,12 +73,21 @@ export function useImportMultiCamDialog(
     getLastCalibration,
     saveCalibration,
     stashCalibrationFile,
+    stashTransformFile,
     listParentFolderCameras,
     resolveMulticamCameraSourcePath,
     findParentFolderCalibrationFile,
+    findParentFolderTransformFiles,
   } = useApi();
   const importType: Ref<MulticamImportType> = ref('');
-  const folderList: Ref<Record<string, { sourcePath: string; trackFile: string }>> = ref({});
+  const folderList: Ref<Record<string, {
+    sourcePath: string;
+    trackFile: string;
+    transformFile: string;
+    type?: DatasetType;
+    /** Filename glob when cameras share one folder (per-modality suffixes). */
+    glob?: string;
+  }>> = ref({});
   const parentFolderName = ref('');
   const subfolderLayoutLabel = ref('');
   const keywordFolder = ref('');
@@ -74,6 +101,10 @@ export function useImportMultiCamDialog(
   const cameraOrder: Ref<string[]> = ref([]);
   const defaultDisplay = ref('left');
   const importAnnotationFilesCheck = ref(false);
+  // When set, cameras may have differing frame counts; frames are aligned downstream
+  // by their filename-encoded timestamps instead of by exact positional index. Enables
+  // importing datasets with dropped frames. See validateMulticamImageSets.
+  const inferFrameIndexFromFilename = ref(false);
   const { error: importError, request: importRequest } = useRequest();
 
   onMounted(async () => {
@@ -96,6 +127,12 @@ export function useImportMultiCamDialog(
     () => props.stereo
       && !calibrationFile.value
       && !!lastCalibrationPath.value,
+  );
+
+  // Per-camera transform pickers: multicam only (stereo uses calibration),
+  // folder-based modes only, and never for the first (reference) camera.
+  const transformImportEnabled = computed(
+    () => !!props.enableTransformImport && !props.stereo,
   );
 
   const orderedCameraKeys = computed(() => {
@@ -129,8 +166,8 @@ export function useImportMultiCamDialog(
     defaultDisplay.value = props.stereo ? 'left' : 'center';
     if (props.stereo && importType.value === 'multi') {
       folderList.value = {
-        left: { sourcePath: '', trackFile: '' },
-        right: { sourcePath: '', trackFile: '' },
+        left: { sourcePath: '', trackFile: '', transformFile: '' },
+        right: { sourcePath: '', trackFile: '', transformFile: '' },
       };
     } else {
       folderList.value = {};
@@ -228,9 +265,10 @@ export function useImportMultiCamDialog(
 
   const folderImages = computed(() => {
     const filtered: Record<string, string[]> = {};
-    Object.entries(folderList.value).forEach(([cameraName]) => {
+    Object.entries(folderList.value).forEach(([cameraName, entry]) => {
       const payload = pendingImportPayloads.value[cameraName];
-      filtered[cameraName] = payload?.jsonMeta.originalImageFiles || [];
+      const images = payload?.jsonMeta.originalImageFiles || [];
+      filtered[cameraName] = entry.glob ? filterByGlob(entry.glob, images) : images;
     });
     return filtered;
   });
@@ -256,6 +294,7 @@ export function useImportMultiCamDialog(
       filteredImages.value,
       Object.keys(globList.value).length,
       props.dataType,
+      inferFrameIndexFromFilename.value,
     );
   });
 
@@ -271,6 +310,103 @@ export function useImportMultiCamDialog(
     }
     return false;
   });
+
+  const showFinalizeStep = computed(() => {
+    if (importType.value === 'subfolders') {
+      return false;
+    }
+    if (importType.value === 'multi') {
+      return camerasReady.value;
+    }
+    if (importType.value === 'keyword') {
+      return nextSteps.value;
+    }
+    return false;
+  });
+
+  /**
+   * Flat view-folder fallback for parent-folder import: the chosen folder has
+   * no camera subfolders but holds *_rgb / *_ir / *_uv images directly (e.g.
+   * a center_view/ or CENT/ swathe folder). Splits it into one camera per
+   * modality sharing the folder via per-camera filename globs. Returns false
+   * when the folder does not follow the modality-suffix convention.
+   */
+  async function openFlatViewFolder(
+    parentPath: string,
+    fileList?: File[],
+    root?: string,
+  ): Promise<boolean> {
+    let rootImages: File[] = [];
+    let sharedPayload: MediaImportResponse | null = null;
+    let imageNames: string[] = [];
+    if (fileList?.length) {
+      rootImages = rootLevelImageFiles(fileList, root || parentPath);
+      imageNames = rootImages.map((file) => file.name);
+    } else {
+      try {
+        sharedPayload = await props.importMedia(parentPath);
+      } catch {
+        // Not importable as a flat image folder; fall back to subfolder handling
+        return false;
+      }
+      imageNames = sharedPayload.jsonMeta.originalImageFiles || [];
+    }
+    const modalities = detectFolderModalities(imageNames);
+    if (!modalities.length) {
+      return false;
+    }
+
+    const parentLabel = parentPath.split(/[/\\]/).pop() || parentPath || 'parent folder';
+    parentFolderName.value = parentLabel;
+    subfolderLayoutLabel.value = `${modalities.join(', ')} (flat view folder)`;
+    if (!datasetName.value.trim()) {
+      datasetName.value = viewFolderDatasetName(parentPath);
+    }
+
+    // Cameras share the folder, so stash the full selection once; globs filter later
+    if (props.registerSubfolderCameras && rootImages.length) {
+      props.registerSubfolderCameras([{
+        cameraName: modalities[0],
+        sourcePath: parentPath,
+        files: rootImages,
+      }]);
+    }
+
+    folderList.value = {};
+    pendingImportPayloads.value = {};
+    subfolderOriginalNames.value = {};
+    cameraOrder.value = [...modalities];
+    const grouped = groupByModality(imageNames);
+
+    for (let i = 0; i < modalities.length; i += 1) {
+      const modality = modalities[i];
+      const glob = modalityGlob(modality);
+      const modalityNames = grouped.get(modality) ?? [];
+      Vue.set(subfolderOriginalNames.value, modality, `${parentLabel} (${glob})`);
+      Vue.set(folderList.value, modality, {
+        sourcePath: parentPath,
+        trackFile: '',
+        transformFile: '',
+        glob,
+        type: props.registerSubfolderCameras
+          ? inferSubfolderImportType(
+            modalityNames.map((name) => ({ name })),
+            { largeImageForTiff: true },
+          )
+          : props.dataType,
+      });
+      // eslint-disable-next-line no-await-in-loop -- shared payload reused after first load
+      const mediaPayload = sharedPayload ?? await props.importMedia(parentPath);
+      sharedPayload = mediaPayload;
+      Vue.set(pendingImportPayloads.value, modality, mediaPayload);
+    }
+    [defaultDisplay.value] = modalities;
+    // Modalities may drop frames independently; align by filename timestamps downstream
+    inferFrameIndexFromFilename.value = true;
+    // Registration .json files in the view folder attach to modality cameras
+    await discoverParentFolderTransform(parentPath, fileList, root || parentPath);
+    return true;
+  }
 
   async function openParentFolder() {
     const ret = await openFromDisk(props.dataType, true);
@@ -295,6 +431,7 @@ export function useImportMultiCamDialog(
         parentPath = ret.root || commonPathPrefix(paths);
         grouped = groupParentFolderByCamera(ret.fileList, {
           allowRootLevelVideos: props.dataType === VideoType,
+          mediaType,
         }, parentPath);
         folderNames = [...grouped.keys()];
       } else {
@@ -302,6 +439,13 @@ export function useImportMultiCamDialog(
         parentPath = firstPath;
         desktopCameras = await listParentFolderCameras!(parentPath, mediaType);
         folderNames = desktopCameras.map((camera) => camera.name);
+      }
+
+      if (!folderNames.length && !props.stereo && props.dataType === ImageSequenceType) {
+        const flatViewHandled = await openFlatViewFolder(parentPath, ret.fileList, ret.root);
+        if (flatViewHandled) {
+          return;
+        }
       }
 
       const organized = organizeSubfolderCameras(folderNames, {
@@ -374,7 +518,14 @@ export function useImportMultiCamDialog(
             files,
           ),
         );
-        Vue.set(folderList.value, cameraName, { sourcePath, trackFile: '' });
+        Vue.set(folderList.value, cameraName, {
+          sourcePath,
+          trackFile: '',
+          transformFile: '',
+          type: props.registerSubfolderCameras && props.dataType !== VideoType
+            ? inferSubfolderImportType(files, { largeImageForTiff: true })
+            : props.dataType,
+        });
         // eslint-disable-next-line no-await-in-loop -- import each camera media sequentially
         const mediaPayload = await props.importMedia(sourcePath);
         Vue.set(pendingImportPayloads.value, cameraName, mediaPayload);
@@ -384,6 +535,7 @@ export function useImportMultiCamDialog(
         { preferLeftForStereo: props.stereo },
       );
       syncDefaultDisplay();
+      await discoverParentFolderTransform(parentPath, ret.fileList, ret.root || parentPath);
     });
   }
 
@@ -393,7 +545,7 @@ export function useImportMultiCamDialog(
       return;
     }
     if (!isValidCameraName(newKey)) {
-      throw new Error('Camera name must be letters and numbers only');
+      throw new Error('Camera name must be letters, numbers, and underscores only');
     }
     if (folderList.value[newKey]) {
       throw new Error(`Camera name "${newKey}" already exists`);
@@ -403,13 +555,18 @@ export function useImportMultiCamDialog(
     const original = subfolderOriginalNames.value[oldKey];
     const { sourcePath } = entry;
 
-    if (importType.value === 'subfolders' && props.renameSubfolderCamera) {
+    // Glob cameras share their folder (and registry key) with sibling cameras
+    if (importType.value === 'subfolders' && props.renameSubfolderCamera && !entry.glob) {
       props.renameSubfolderCamera(sourcePath, newKey);
     }
 
     Vue.set(folderList.value, newKey, {
-      sourcePath: (importType.value === 'subfolders' && !listParentFolderCameras) ? newKey : sourcePath,
+      sourcePath: (importType.value === 'subfolders' && !listParentFolderCameras && !entry.glob)
+        ? newKey : sourcePath,
       trackFile: entry.trackFile,
+      transformFile: entry.transformFile,
+      ...(entry.type ? { type: entry.type } : {}),
+      ...(entry.glob ? { glob: entry.glob } : {}),
     });
     Vue.delete(folderList.value, oldKey);
 
@@ -439,16 +596,24 @@ export function useImportMultiCamDialog(
     if (resolveMulticamCameraSourcePath) {
       resolvedPath = await resolveMulticamCameraSourcePath(sourcePath, mediaType);
     }
-    const oldSourcePath = folderList.value[cameraKey]?.sourcePath;
-    if (oldSourcePath && props.unregisterSubfolderCamera) {
+    const oldEntry = folderList.value[cameraKey];
+    const oldSourcePath = oldEntry?.sourcePath;
+    const oldSourceShared = Object.entries(folderList.value)
+      .some(([otherKey, entry]) => otherKey !== cameraKey && entry.sourcePath === oldSourcePath);
+    if (oldSourcePath && props.unregisterSubfolderCamera && !oldSourceShared) {
       props.unregisterSubfolderCamera(oldSourcePath);
     }
     const displayName = props.dataType === VideoType
       ? subfolderSourceDisplayLabel(resolvedPath, cameraKey, files)
       : ((displayRoot || sourcePath).split(/[/\\]/).pop() || cameraKey);
     Vue.set(subfolderOriginalNames.value, cameraKey, displayName);
-    folderList.value[cameraKey].sourcePath = resolvedPath;
-    folderList.value[cameraKey].trackFile = '';
+    // Rebuild the entry: choosing a real folder drops any modality glob
+    Vue.set(folderList.value, cameraKey, {
+      sourcePath: resolvedPath,
+      trackFile: '',
+      transformFile: '',
+      ...(oldEntry?.type ? { type: oldEntry.type } : {}),
+    });
     if (props.registerSubfolderCameras && files.length) {
       props.registerSubfolderCameras([{
         cameraName: cameraKey,
@@ -473,6 +638,23 @@ export function useImportMultiCamDialog(
     }
   }
 
+  function showTransformFileField(folder: string) {
+    return transformImportEnabled.value
+      && (importType.value === 'multi' || importType.value === 'subfolders')
+      && orderedCameraKeys.value.indexOf(folder) > 0;
+  }
+
+  async function openTransformFile(folder: string) {
+    const ret = await openFromDisk('transform');
+    if (!ret.canceled && ret.filePaths?.length) {
+      [folderList.value[folder].transformFile] = ret.filePaths;
+    }
+  }
+
+  function clearTransformFile(folder: string) {
+    folderList.value[folder].transformFile = '';
+  }
+
   async function open(
     dstype: DatasetType | 'calibration' | 'text',
     folder: string | 'calibration',
@@ -495,7 +677,15 @@ export function useImportMultiCamDialog(
           folderList.value[folder].sourcePath = path;
         }
         folderList.value[folder].trackFile = '';
+        folderList.value[folder].transformFile = '';
         const { sourcePath } = folderList.value[folder];
+        if (props.registerSubfolderCameras && ret.fileList?.length) {
+          props.registerSubfolderCameras([{
+            cameraName: folder,
+            sourcePath,
+            files: ret.fileList,
+          }]);
+        }
         Vue.set(
           pendingImportPayloads.value,
           folder,
@@ -523,7 +713,9 @@ export function useImportMultiCamDialog(
   const deleteSet = (key: string) => {
     if (importType.value === 'multi' || importType.value === 'subfolders') {
       const { sourcePath } = folderList.value[key];
-      if (importType.value === 'subfolders' && props.unregisterSubfolderCamera) {
+      const sharedByAnother = Object.entries(folderList.value)
+        .some(([otherKey, entry]) => otherKey !== key && entry.sourcePath === sourcePath);
+      if (importType.value === 'subfolders' && props.unregisterSubfolderCamera && !sharedByAnother) {
         props.unregisterSubfolderCamera(sourcePath);
       }
       Vue.delete(folderList.value, key);
@@ -546,7 +738,7 @@ export function useImportMultiCamDialog(
 
   const addNewSet = (name: string) => {
     if (importType.value === 'multi') {
-      Vue.set(folderList.value, name, { sourcePath: '', trackFile: '' });
+      Vue.set(folderList.value, name, { sourcePath: '', trackFile: '', transformFile: '' });
       Vue.set(pendingImportPayloads.value, name, null);
       cameraOrder.value = [...cameraOrder.value, name];
     } else if (importType.value === 'keyword') {
@@ -564,7 +756,23 @@ export function useImportMultiCamDialog(
       const sourceList: MultiCamImportFolderArgs['sourceList'] = {};
       orderedCameraKeys.value.forEach((key) => {
         if (folderList.value[key]) {
-          sourceList[key] = folderList.value[key];
+          const {
+            sourcePath, trackFile, transformFile, type, glob,
+          } = folderList.value[key];
+          if (type === 'multi') {
+            // Sub Cameras shouldn't be multi types
+            return;
+          }
+          sourceList[key] = {
+            sourcePath,
+            trackFile,
+            ...(type ? { type } : {}),
+            ...(glob ? { glob } : {}),
+          };
+          // Transforms only apply to cameras after the first (reference) one.
+          if (transformFile && showTransformFileField(key)) {
+            sourceList[key].transformFile = transformFile;
+          }
         }
       });
       const args: MultiCamImportFolderArgs = {
@@ -593,7 +801,7 @@ export function useImportMultiCamDialog(
   ];
 
   function syncSuggestedDatasetNameFromCameraPaths() {
-    if (!listParentFolderCameras || importType.value !== 'multi') {
+    if (importType.value !== 'multi') {
       return;
     }
     const paths = Object.values(folderList.value)
@@ -626,6 +834,49 @@ export function useImportMultiCamDialog(
       return subfolderVideoDisplayLabel(sourcePath, folderName, files);
     }
     return folderName;
+  }
+
+  /**
+   * Auto-attach the DIVE camera-registration .json files found in the parent
+   * folder root as the import's transform files (desktop multicam subfolder
+   * imports only). A per-camera <camera>_to_<reference>_registration.json
+   * (or <camera>_registration.json) is attached to its matching camera slot;
+   * any other self-identified registration file goes to the first free
+   * camera after the reference -- the file's pairs name their own cameras,
+   * so which slot carries it doesn't matter. Each shows in that camera's
+   * (clearable) transform field.
+   */
+  async function discoverParentFolderTransform(
+    parentPath: string,
+    fileList?: File[],
+    root?: string,
+  ) {
+    if (!transformImportEnabled.value) {
+      return;
+    }
+    let discovered: string[] = [];
+    if (fileList?.length) {
+      // Web: scan the selected folder's root-level files; keep each File for
+      // upload time (paths are not filesystem paths in the browser).
+      const found = await findRegistrationFilesInFileList(
+        fileList,
+        root || parentPath,
+        commonPathPrefix,
+      );
+      found.forEach((match) => stashTransformFile?.(match.path, match.file));
+      discovered = found.map((match) => match.path);
+    } else if (findParentFolderTransformFiles) {
+      discovered = await findParentFolderTransformFiles(parentPath);
+    } else {
+      return;
+    }
+    const { assignments } = assignRegistrationFilesToCameras(
+      discovered,
+      orderedCameraKeys.value.filter((key) => folderList.value[key]),
+    );
+    assignments.forEach(({ camera, filePath }) => {
+      folderList.value[camera].transformFile = filePath;
+    });
   }
 
   async function discoverParentFolderCalibration(
@@ -678,6 +929,7 @@ export function useImportMultiCamDialog(
     canMoveCamera,
     moveCamera,
     importAnnotationFilesCheck,
+    inferFrameIndexFromFilename,
     parentFolderName,
     subfolderLayoutLabel,
     subfolderOriginalNames,
@@ -685,6 +937,7 @@ export function useImportMultiCamDialog(
     datasetNameRules,
     errorMessage,
     nextSteps,
+    showFinalizeStep,
     open,
     openParentFolder,
     prepForImport,
@@ -693,6 +946,10 @@ export function useImportMultiCamDialog(
     deleteSet,
     onRenameCamera,
     openAnnotationFile,
+    transformImportEnabled,
+    showTransformFileField,
+    openTransformFile,
+    clearTransformFile,
     clearCalibration,
   };
 }

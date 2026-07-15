@@ -23,6 +23,7 @@ import type { AnnotationId } from '../BaseAnnotation';
 import {
   geojsonToBound, isRotationValue, ROTATION_ATTRIBUTE_NAME, featureHasSegmentationPolygon,
 } from '../utils';
+import { getSuppressedTrackIds } from '../use/suppression';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -275,12 +276,20 @@ export default defineComponent({
       if (currentFrameIds === undefined) {
         return;
       }
+      // Detections lying >=50% under a suppression region on this frame are
+      // hidden from every layer at once (and excluded from counts elsewhere).
+      const suppressedIds = trackStore
+        ? getSuppressedTrackIds(trackStore, frame, clientSettings.typeSettings.suppressionType)
+        : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
           const track = trackStore?.getPossible(trackId);
           if (track === undefined) {
             // Track may be located in another Camera
             // TODO: Find a better way to represent tracks outside of cameras
+            return;
+          }
+          if (suppressedIds.has(trackId)) {
             return;
           }
 
@@ -484,6 +493,8 @@ export default defineComponent({
         toRef(props, 'colorBy'),
         selectedCamera,
         selectedKeyRef,
+        // re-render when the suppression-region type is changed
+        () => clientSettings.typeSettings.suppressionType,
       ],
       () => {
         updateLayers(

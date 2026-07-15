@@ -16,7 +16,15 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, asbool, calibration_format, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    calibration_format,
+    constants,
+    fromMeta,
+    models,
+    types,
+)
 from dive_utils.serializers import kwcoco
 
 
@@ -394,9 +402,13 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     )
     for name, value in validated.dict(exclude_none=True).items():
         dsFolder['meta'][name] = value
-    # exclude_none drops explicit null; client sends timeFilters: null to disable.
-    if 'timeFilters' in data and data['timeFilters'] is None:
-        dsFolder['meta'].pop('timeFilters', None)
+    # exclude_none drops explicit null, so a field the client nulls to clear it
+    # must be popped by hand. timeFilters: null disables the filter;
+    # cameraRegistrationSource: null drops a stale producer-provenance stamp when
+    # the calibration is cleared or hand-refined.
+    for nullable in ('timeFilters', 'cameraRegistrationSource'):
+        if nullable in data and data[nullable] is None:
+            dsFolder['meta'].pop(nullable, None)
     Folder().save(dsFolder)
     return dsFolder['meta']
 
@@ -897,6 +909,8 @@ def _child_media_frame_count(
 ) -> int:
     if media_type == constants.ImageSequenceType:
         return len(crud.valid_images(child, user))
+    if media_type == constants.LargeImageType:
+        return len(crud.valid_large_images(child, user))
     if media_type == constants.VideoType:
         video_item = Item().findOne(
             {
@@ -1206,9 +1220,13 @@ def create_multicam(
             code=400,
         )
 
-    if validated.type not in (constants.ImageSequenceType, constants.VideoType):
+    if validated.type not in (
+        constants.ImageSequenceType,
+        constants.VideoType,
+        constants.LargeImageType,
+    ):
         raise RestException(
-            f'Multicam type must be image-sequence or video, not {validated.type}',
+            f'Multicam type must be image-sequence, large-image, or video, not {validated.type}',
             code=400,
         )
 
@@ -1223,13 +1241,23 @@ def create_multicam(
         camera_order = list(cameras.keys())
 
     loaded_children: Dict[str, types.GirderModel] = {}
-    frame_counts: List[int] = []
+    camera_types_by_name: Dict[str, str] = {}
     child_fps_by_name: Dict[str, float] = {}
     for name in camera_order:
         cam = cameras[name]
         folder_id = cam.get('folderId')
         if not folder_id:
             raise RestException(f'Camera "{name}" missing folderId', code=400)
+        cam_type = cam.get('type') or validated.type
+        if cam_type not in (
+            constants.ImageSequenceType,
+            constants.VideoType,
+            constants.LargeImageType,
+        ):
+            raise RestException(
+                f'Camera "{name}" has unsupported type {cam_type}',
+                code=400,
+            )
         child = Folder().load(folder_id, level=AccessType.WRITE, user=user)
         if child is None:
             raise RestException(f'Camera folder {folder_id} was not found', code=404)
@@ -1240,15 +1268,18 @@ def create_multicam(
             )
         crud.verify_dataset(child)
         child_type = fromMeta(child, constants.TypeMarker)
-        if child_type != validated.type:
+        if child_type != cam_type:
             raise RestException(
-                f'Camera "{name}" has type {child_type}, expected {validated.type}',
+                f'Camera "{name}" has type {child_type}, expected {cam_type}',
                 code=400,
             )
         child_fps = fromMeta(child, constants.FPSMarker)
         child_fps_by_name[name] = child_fps
-        frame_counts.append(_child_media_frame_count(child, user, validated.type))
+        # Called for its validation side effect (e.g. a video camera missing its
+        # processed video raises here); differing counts across cameras are allowed.
+        _child_media_frame_count(child, user, validated.type)
         loaded_children[name] = child
+        camera_types_by_name[name] = cam_type
 
     use_video_fps = validated.type == constants.VideoType and validated.fps == -1
     if use_video_fps:
@@ -1266,12 +1297,9 @@ def create_multicam(
                     code=400,
                 )
 
-    if len(set(frame_counts)) > 1:
-        expected = frame_counts[0]
-        raise RestException(
-            f'All cameras must have the same number of frames (expected {expected})',
-            code=400,
-        )
+    # NOTE: cameras are intentionally allowed to have differing frame counts.
+    # Frame alignment pairs frames across cameras downstream, so a per-camera
+    # frame-count equality check would reject the primary use case for this feature.
 
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
@@ -1283,7 +1311,7 @@ def create_multicam(
             Folder().save(child)
         multi_cam_cameras[name] = {
             'folderId': str(child['_id']),
-            'type': validated.type,
+            'type': camera_types_by_name[name],
         }
 
     calibration_source_item_id = None

@@ -16,10 +16,16 @@ import type {
   TimelineAttribute,
 } from './use/AttributeTypes';
 import type { Time } from './use/useTimeObserver';
-import type { ImageEnhancements } from './use/useImageEnhancements';
+import type {
+  ImageEnhancements,
+  PercentileHistogram,
+  PercentileStretch,
+} from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
+import CameraRegistrationStore from './alignedView/CameraRegistrationStore';
+import AlignedViewStore from './alignedView/AlignedViewStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -111,8 +117,17 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
+const PercentileStretchSupportedSymbol = Symbol('percentileStretchSupported');
+type PercentileStretchSupportedType = Readonly<Ref<boolean>>;
+const PercentileHistogramSymbol = Symbol('percentileHistogram');
+type PercentileHistogramType = Readonly<Ref<PercentileHistogram | null>>;
+const PercentileHistogramLoadingSymbol = Symbol('percentileHistogramLoading');
+type PercentileHistogramLoadingType = Readonly<Ref<boolean>>;
+
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
+const CameraRegistrationSymbol = Symbol('cameraRegistration');
+const AlignedViewSymbol = Symbol('alignedView');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -180,7 +195,7 @@ export interface Handler {
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* selectCamera */
-  selectCamera(camera: string, editMode: boolean): void;
+  selectCamera(camera: string, editMode: boolean, preserveSelection?: boolean): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
   /* set an Attribute in the metaData */
@@ -203,8 +218,14 @@ export interface Handler {
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({
-    brightness, contrast, saturation, sharpen,
-  }: {brightness?: number; contrast?: number; saturation?: number; sharpen?: number}): void;
+    brightness, contrast, saturation, sharpen, percentileStretch,
+  }: {
+    brightness?: number;
+    contrast?: number;
+    saturation?: number;
+    sharpen?: number;
+    percentileStretch?: PercentileStretch | null;
+  }): void;
   /* unlink Camera Track */
   unlinkCameraTrack(trackId: AnnotationId, camera: string): void;
   /* link Camera Track */
@@ -284,6 +305,8 @@ export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   cameraStore: CameraStore;
+  cameraRegistration: CameraRegistrationStore;
+  alignedView: AlignedViewStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -308,6 +331,9 @@ export interface State {
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
   imageEnhancements: ImageEnhancementsType;
+  percentileStretchSupported: Readonly<Ref<boolean>>;
+  percentileHistogram: PercentileHistogramType;
+  percentileHistogramLoading: PercentileHistogramLoadingType;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -352,6 +378,8 @@ function dummyState(): State {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
+    cameraRegistration: new CameraRegistrationStore(),
+    alignedView: new AlignedViewStore(),
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -387,6 +415,9 @@ function dummyState(): State {
       saturation: 1,
       sharpen: 0,
     }),
+    percentileStretchSupported: ref(false),
+    percentileHistogram: ref(null),
+    percentileHistogramLoading: ref(false),
   };
 }
 
@@ -403,6 +434,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
+  provide(CameraRegistrationSymbol, state.cameraRegistration);
+  provide(AlignedViewSymbol, state.alignedView);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -427,6 +460,9 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
+  provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
+  provide(PercentileHistogramSymbol, state.percentileHistogram);
+  provide(PercentileHistogramLoadingSymbol, state.percentileHistogramLoading);
   provide(HandlerSymbol, handler);
   provide(AttributesFilterSymbol, attributesFilters);
 }
@@ -457,6 +493,12 @@ function useAttributesFilters() {
 
 function useCameraStore() {
   return use<CameraStore>(CameraStoreSymbol);
+}
+function useCameraRegistration() {
+  return use<CameraRegistrationStore>(CameraRegistrationSymbol);
+}
+function useAlignedView() {
+  return use<AlignedViewStore>(AlignedViewSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -552,6 +594,18 @@ function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
+function usePercentileStretchSupported() {
+  return use<PercentileStretchSupportedType>(PercentileStretchSupportedSymbol);
+}
+
+function usePercentileHistogram() {
+  return use<PercentileHistogramType>(PercentileHistogramSymbol);
+}
+
+function usePercentileHistogramLoading() {
+  return use<PercentileHistogramLoadingType>(PercentileHistogramLoadingSymbol);
+}
+
 function useSegmentationPoints() {
   return use<SegmentationPointsType>(SegmentationPointsSymbol);
 }
@@ -569,6 +623,8 @@ export {
   useAnnotatorPreferences,
   useAttributes,
   useCameraStore,
+  useCameraRegistration,
+  useAlignedView,
   useDatasetId,
   useEditingMode,
   useHandler,
@@ -593,6 +649,9 @@ export {
   useVisibleModes,
   useReadOnlyMode,
   useImageEnhancements,
+  usePercentileStretchSupported,
+  usePercentileHistogram,
+  usePercentileHistogramLoading,
   useAttributesFilters,
   useSegmentationPoints,
   useSegmentationCursorLoading,

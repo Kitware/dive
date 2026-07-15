@@ -7,9 +7,12 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
 import { DatasetType, useApi } from 'dive-common/apispec';
+import { computeGapGradient } from 'dive-common/alignedTimeline';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
-import { useTime, useTrackFilters, useDatasetId } from '../../provides';
+import {
+  useTime, useTrackFilters, useDatasetId, useAlignedView,
+} from '../../provides';
 
 export default defineComponent({
   name: 'Controls',
@@ -37,6 +40,35 @@ export default defineComponent({
       dragging: false,
     });
     const mediaController = injectAggregateController().value;
+    let alignedView: ReturnType<typeof useAlignedView> | undefined;
+    try {
+      alignedView = useAlignedView();
+    } catch {
+      // aligned view store may not be provided in tests or minimal embeds.
+    }
+    /**
+     * The raw screen-delta camera sync is only offered while the transform
+     * -aware aligned view (the Align button) is unavailable: once every
+     * camera has a calibration transform, Align is the single place to link
+     * pan/zoom, and this cruder link (which assumes identical pixel scale
+     * between panes) would just be a second, worse toggle for the same thing.
+     */
+    const rawSyncAvailable = computed(() => mediaController.cameras.value.length > 1
+      && !alignedView?.available.value);
+    const toggleRawSync = () => {
+      if (rawSyncAvailable.value) {
+        mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value);
+      }
+    };
+    // If transforms become available while the raw sync is on, switch it off:
+    // its toggle is hidden from that point, and the aligned-view link stands
+    // down while raw sync is enabled, so a stuck-on raw sync would silently
+    // block the Align button's linking with no visible control to clear it.
+    watch(rawSyncAvailable, (available) => {
+      if (!available && mediaController.cameraSync.value) {
+        mediaController.toggleSynchronizeCameras(false);
+      }
+    }, { immediate: true });
     const isVideo = computed(() => props.datasetType === 'video');
     const { frameRate } = useTime();
     const { visible } = usePrompt();
@@ -60,6 +92,21 @@ export default defineComponent({
       }
       data.frame = value;
     }
+
+    /**
+     * A CSS gradient overlay marking timeline slots where at least one camera
+     * has no frame (SEAL feature 5's aligned timeline, see alignedTimeline.ts).
+     * Uses a gradient rather than one element per gap so this stays cheap
+     * regardless of how many gaps there are. Each band is centered on the
+     * v-slider thumb position for its slot (see computeGapGradient); this is
+     * a lightweight visual approximation drawn under the v-slider, not
+     * pixel-exact with its clickable thumb track.
+     */
+    const alignedGapGradient = computed(() => computeGapGradient(
+      mediaController.alignedGapSlots.value,
+      mediaController.maxFrame.value,
+    ));
+    const alignedGapCount = computed(() => mediaController.alignedGapSlots.value.length);
     function togglePlay(_: HTMLElement, keyEvent: KeyboardEvent) {
       // Prevent scroll from spacebar and other default effects.
       keyEvent.preventDefault();
@@ -213,8 +260,12 @@ export default defineComponent({
       activeTimeFilter,
       data,
       mediaController,
+      rawSyncAvailable,
+      toggleRawSync,
       dragHandler,
       input,
+      alignedGapGradient,
+      alignedGapCount,
       togglePlay,
       toggleEnhancements,
       visible,
@@ -256,7 +307,7 @@ export default defineComponent({
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
       {
         bind: 'l',
-        handler: () => mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value),
+        handler: toggleRawSync,
         disabled: visible(),
       },
     ]"
@@ -275,6 +326,12 @@ export default defineComponent({
         @start="dragHandler.start"
         @end="dragHandler.end"
         @input="input"
+      />
+      <div
+        v-if="alignedGapCount > 0"
+        class="aligned-gap-indicator"
+        :style="{ background: alignedGapGradient }"
+        :title="`${alignedGapCount} timeline slot(s) with a missing camera frame`"
       />
       <v-row
         no-gutters
@@ -602,12 +659,12 @@ export default defineComponent({
             </v-btn>
           </v-badge>
           <v-btn
-            v-if="mediaController.cameras.value.length > 1"
+            v-if="rawSyncAvailable"
             icon
             small
             :color="mediaController.cameraSync.value ? 'primary' : 'default'"
             title="Synchronize camera controls"
-            @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+            @click="toggleRawSync"
           >
             <v-icon>
               {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
@@ -922,12 +979,12 @@ export default defineComponent({
                 </v-btn>
               </v-badge>
               <v-btn
-                v-if="mediaController.cameras.value.length > 1"
+                v-if="rawSyncAvailable"
                 icon
                 small
                 :color="mediaController.cameraSync.value ? 'primary' : 'default'"
                 title="Synchronize camera controls"
-                @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+                @click="toggleRawSync"
               >
                 <v-icon>
                   {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
@@ -1212,13 +1269,13 @@ export default defineComponent({
             </v-badge>
 
             <v-btn
-              v-if="mediaController.cameras.value.length > 1"
+              v-if="rawSyncAvailable"
               icon
               small
               :color="mediaController.cameraSync.value ? 'primary' : 'default'"
               title="Synchronize camera controls"
 
-              @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+              @click="toggleRawSync"
             >
               <v-icon>
                 {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
@@ -1238,6 +1295,12 @@ export default defineComponent({
 </template>
 
 <style scoped>
+.aligned-gap-indicator {
+  height: 4px;
+  margin: -8px 0 4px;
+  border-radius: 2px;
+}
+
 .bottom-controls-row {
   flex-wrap: nowrap;
 }

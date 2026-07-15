@@ -105,7 +105,11 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
 
     folder_cls.return_value.load.side_effect = load_folder
 
-    left_image = MediaResource(id='img-left', url='/api/v1/.../left.png', filename='left.png')
+    left_image = MediaResource(
+        id='img-left',
+        url='/api/v1/.../left.png',
+        filename='left_20230615_143022.png',
+    )
     right_image = MediaResource(id='img-right', url='/api/v1/.../right.png', filename='right.png')
 
     def media_for_child(child_folder, child_user):
@@ -124,7 +128,7 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
     assert result.multiCamMedia.defaultDisplay == 'left'
     assert result.multiCamMedia.cameraOrder == ['left', 'right']
     assert set(result.multiCamMedia.cameras.keys()) == {'left', 'right'}
-    assert result.multiCamMedia.cameras['left'].imageData[0].filename == 'left.png'
+    assert result.multiCamMedia.cameras['left'].imageData[0].filename == 'left_20230615_143022.png'
     assert 'multiCam' not in result.dict()
 
 

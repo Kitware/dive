@@ -32,6 +32,7 @@ import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 import BulkImportDialog from './BulkImportDialog.vue';
+import ImportMultiCamBatchDialog from './ImportMultiCamBatchDialog.vue';
 
 export default defineComponent({
   components: {
@@ -42,12 +43,14 @@ export default defineComponent({
     BulkImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
+    ImportMultiCamBatchDialog,
     TooltipBtn,
   },
 
   setup() {
     const router = useRouter();
     const importMultiCamDialog = ref(false);
+    const importMultiCamBatchDialog = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
     const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
@@ -285,6 +288,7 @@ export default defineComponent({
       error,
       importing,
       importMultiCamDialog,
+      importMultiCamBatchDialog,
       headers,
       upgradedVersion,
       downgradedVersion,
@@ -321,9 +325,22 @@ export default defineComponent({
         :stereo="stereo"
         :data-type="multiCamOpenType"
         :enable-subfolder-import="true"
+        :enable-transform-import="true"
         :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="importMultiCamBatchDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+      width="1000"
+    >
+      <ImportMultiCamBatchDialog
+        v-if="importMultiCamBatchDialog"
+        @abort="importMultiCamBatchDialog = false"
       />
     </v-dialog>
     <v-dialog
@@ -432,8 +449,10 @@ export default defineComponent({
               open-type="image-sequence"
               class="my-3"
               :multi-cam-import="true"
+              :batch-multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
+              @multi-cam-batch="importMultiCamBatchDialog = true"
             />
             <ImportButton
               name="Open Video"

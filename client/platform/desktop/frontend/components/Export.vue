@@ -8,8 +8,11 @@ import {
 } from 'vue-media-annotator/provides';
 import AutosavePrompt from 'dive-common/components/AutosavePrompt.vue';
 import { MultiType } from 'dive-common/constants';
+import { referenceCameraName } from 'dive-common/multicamDisplay';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile, exportMulticamEverything,
+  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
+  exportCameraRegistration, exportMulticamEverything,
 } from 'platform/desktop/frontend/api';
 import type { JsonMeta } from 'platform/desktop/constants';
 
@@ -90,6 +93,45 @@ export default defineComponent({
       () => data.meta?.subType === 'stereo' && !!calibrationExportName.value,
     );
 
+    // Cameras with an exportable registration: each pair files under its
+    // non-reference camera (reference = first camera in display order),
+    // matching how the backend groups pairs into
+    // <camera>_to_<reference>_registration.json.
+    const registrationFiles = computed(() => {
+      const { meta } = data;
+      if (!meta || meta.type !== MultiType || !meta.multiCam) {
+        return [];
+      }
+      return buildPerCameraRegistrationFiles({
+        homographies: meta.cameraHomographies ?? {},
+        correspondences: meta.cameraCorrespondences ?? {},
+        transformTypes: meta.cameraTransformTypes ?? {},
+        source: meta.cameraRegistrationSource ?? null,
+      }, referenceCameraName(meta.multiCam));
+    });
+
+    async function exportRegistration(camera: string) {
+      const entry = registrationFiles.value.find((file) => file.camera === camera);
+      if (!entry) return;
+      const location = await window.diveDesktop.showSaveDialog({
+        title: 'Export Camera Registration',
+        defaultPath: entry.name,
+      });
+      if (location.canceled || !location.filePath) return;
+      try {
+        data.err = null;
+        const { exportedPath } = await exportCameraRegistration(
+          parentId.value,
+          location.filePath,
+          camera,
+        );
+        data.outPath = exportedPath;
+      } catch (err) {
+        data.err = err;
+        throw err;
+      }
+    }
+
     async function exportCameraFile() {
       if (!calibrationExportName.value) return;
       const location = await window.diveDesktop.showSaveDialog({
@@ -147,6 +189,8 @@ export default defineComponent({
       data,
       doExport,
       exportCameraFile,
+      exportRegistration,
+      registrationFiles,
       cameraFileSupported,
       calibrationExportName,
       savePrompt,
@@ -189,7 +233,7 @@ export default defineComponent({
             </div>
           </v-btn>
         </template>
-        <span> Export Annotation Data </span>
+        <span> Export Supplementary Data </span>
       </v-tooltip>
     </template>
     <template>
@@ -350,6 +394,27 @@ export default defineComponent({
             >
               Camera File
             </v-btn>
+          </v-card-actions>
+        </template>
+        <template v-if="registrationFiles.length">
+          <v-card-text class="pb-0">
+            Export the camera registration: one registration file per camera.
+          </v-card-text>
+          <v-card-actions>
+            <v-row>
+              <v-col>
+                <v-btn
+                  v-for="file in registrationFiles"
+                  :key="file.camera"
+                  depressed
+                  block
+                  class="my-1"
+                  @click="exportRegistration(file.camera)"
+                >
+                  Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
+                </v-btn>
+              </v-col>
+            </v-row>
           </v-card-actions>
         </template>
         <template v-if="isMulticamDataset">

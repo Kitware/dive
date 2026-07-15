@@ -46,15 +46,19 @@ def _persist_async_job_metadata(
     Save DIVE-specific fields on a Celery job without clobbering worker status.
 
     GirderAsyncResult.job caches the document from first access (typically INACTIVE).
-    Job().save() on that stale dict can race with the worker task_prerun RUNNING update
-    and leave the job stuck INACTIVE, which breaks later PUSHING_OUTPUT transitions.
+    Job().save() on that dict can race with the worker task_prerun RUNNING update:
+    load(INACTIVE) -> worker sets RUNNING -> save(INACTIVE) leaves the job stuck
+    INACTIVE, which breaks FETCHING_INPUT / PUSHING_OUTPUT transitions.
     """
     job = Job().load(async_result.job['_id'], force=True)
-    for key, value in metadata.items():
-        job[key] = value
+    other_fields = dict(metadata)
     if access_source is not None:
         Job().copyAccessPolicies(access_source, job)
-    job = Job().save(job)
+        other_fields['public'] = job.get('public', False)
+        if 'access' in job:
+            other_fields['access'] = job['access']
+    job = Job().updateJob(job, otherFields=other_fields, notify=False)
+    job = Job().load(job['_id'], force=True)
     async_result._job = job
     return job
 

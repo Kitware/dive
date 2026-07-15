@@ -23,11 +23,13 @@ import {
   saveAttributes,
   saveAttributeTrackFilters,
   importAnnotationFile,
+  importCameraRegistration,
   loadDetections,
   saveDetections,
   unwrap,
   getTiles,
   getTileURL,
+  getTileHistogram,
   hasCalibrationFile,
   downloadCalibration,
   deleteCalibration,
@@ -37,6 +39,7 @@ import {
   openFromDiskWithRegistry,
   saveCalibration,
   stashCalibrationFile,
+  stashTransformFile,
   importCalibrationFile,
 } from './multicamFileRegistry';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
@@ -77,10 +80,13 @@ export default defineComponent({
       getLastCalibration,
       saveCalibration,
       stashCalibrationFile,
+      stashTransformFile,
       importCalibrationFile,
       importAnnotationFile,
+      importCameraRegistration,
       getTiles,
       getTileURL,
+      getTileHistogram,
     });
   },
 });

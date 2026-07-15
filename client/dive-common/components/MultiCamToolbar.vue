@@ -306,6 +306,7 @@ export default defineComponent({
     v-if="selectedTrackId !== null && cameras.length > 1"
     v-mousetrap="mousetrap"
     class="toolbar-group-host"
+    :class="{ 'toolbar-group-host--expanded': isExpanded }"
   >
     <!-- Dropdown mode when collapsed -->
     <v-menu

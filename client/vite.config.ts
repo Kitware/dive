@@ -102,6 +102,7 @@ export default defineConfig(({ mode }) => {
     base: '/',
     test: {
       globals: true,
+      exclude: ['**/node_modules/**', '**/bin/**'],
     },
   };
 

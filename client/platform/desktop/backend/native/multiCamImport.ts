@@ -16,7 +16,19 @@ import {
   Camera,
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
+import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
+import {
+  mergeRegistrationSources, unknownCameraWarning,
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { findImagesInFolder } from './common';
+import {
+  CameraCorrespondences,
+  CameraHomographies,
+  CameraTransformTypes,
+  fromRegistrationPairs,
+  RegistrationPair,
+  RegistrationSource,
+} from './cameraRegistration';
 
 function isFolderArgs(s: MultiCamImportArgs): s is MultiCamImportFolderArgs {
   if ('sourceList' in s && 'defaultDisplay' in s) {
@@ -89,6 +101,64 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     });
   }
 
+  // Per-camera transform/registration files seed the dataset's saved camera
+  // registration -- the same single registration the in-app panel edits and
+  // the aligned view consumes (loadMetadata falls back to these meta fields
+  // until a save writes the standalone per-camera files).
+  const seedHomographies: CameraHomographies = {};
+  const seedCorrespondences: CameraCorrespondences = {};
+  const seedTransformTypes: CameraTransformTypes = {};
+  const seedSourceStamps: { file: string; source: RegistrationSource | null }[] = [];
+  const importWarnings: string[] = [];
+  if (isFolderArgs(args)) {
+    // Parse the files up front so a bad file fails the import with a clear
+    // message instead of storing partial state.
+    await asyncForEach(Object.entries(args.sourceList), async ([cameraName, item]) => {
+      if (!item.transformFile) {
+        return;
+      }
+      try {
+        // A DIVE registration .json (the panel's save format / the on-disk
+        // per-camera file shape): pairs name their own cameras, so merge
+        // them all in.
+        const data = await fs.readJson(item.transformFile);
+        if (!data || !Array.isArray(data.pairs)) {
+          throw new Error('not a DIVE registration file (expected a "pairs" list)');
+        }
+        const parsed = fromRegistrationPairs(data.pairs);
+        Object.entries(parsed.homographies).forEach(([key, homography]) => {
+          if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
+            throw new Error(`pair "${key.split('::').join(' / ')}" has an invalid 3x3 transform matrix`);
+          }
+          seedHomographies[key] = homography;
+        });
+        Object.assign(seedCorrespondences, parsed.correspondences);
+        Object.assign(seedTransformTypes, parsed.transformTypes);
+        const fileName = item.transformFile.replace(/^.*[\\/]/, '');
+        const warning = unknownCameraWarning(
+          fileName,
+          (data.pairs as RegistrationPair[]).flatMap((pair) => [pair.left, pair.right]),
+          Object.keys(cameras),
+        );
+        if (warning) {
+          importWarnings.push(warning);
+        }
+        // Producer provenance travels with the seed; per-file stamps are
+        // merged below (agreement keeps the stamp, disagreement is recorded
+        // as a mixed composite so the client can warn).
+        seedSourceStamps.push({
+          file: fileName,
+          source: (data.source && typeof data.source === 'object' && !Array.isArray(data.source))
+            ? data.source as RegistrationSource
+            : null,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Camera "${cameraName}": invalid transform file: ${message}`);
+      }
+    });
+  }
+
   const jsonMeta: JsonMeta = {
     version: JsonMetaCurrentVersion,
     type: datasetType,
@@ -111,6 +181,15 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     },
     subType: null,
   };
+  if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {
+    jsonMeta.cameraHomographies = seedHomographies;
+    jsonMeta.cameraCorrespondences = seedCorrespondences;
+    jsonMeta.cameraTransformTypes = seedTransformTypes;
+    const seedRegistrationSource = mergeRegistrationSources(seedSourceStamps);
+    if (seedRegistrationSource) {
+      jsonMeta.cameraRegistrationSource = seedRegistrationSource;
+    }
+  }
 
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
@@ -168,9 +247,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             multiCamTrackFiles[cameraName] = item.trackFile;
             trackFileCount += 1;
           }
-          const found = await findImagesInFolder(item.sourcePath);
+          const found = await findImagesInFolder(item.sourcePath, item.glob);
           if (found.imagePaths.length === 0) {
-            throw new Error(`no images found in ${item.sourcePath}`);
+            throw new Error(`no images found in ${item.sourcePath}${item.glob ? ` matching ${item.glob}` : ''}`);
           }
           mediaConvertList = mediaConvertList.concat(found.mediaConvertList);
           if (found.source === 'directory') {
@@ -222,6 +301,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     forceMediaTranscode: false,
     useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
+    ...(importWarnings.length ? { importWarnings } : {}),
   };
 }
 

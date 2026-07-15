@@ -159,7 +159,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <span class="toolbar-group-host">
+  <span
+    class="toolbar-group-host"
+    :class="{ 'toolbar-group-host--expanded': isExpanded }"
+  >
     <!-- Dropdown mode when collapsed -->
     <v-menu
       v-if="!isExpanded"

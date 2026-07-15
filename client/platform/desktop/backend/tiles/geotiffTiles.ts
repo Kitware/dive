@@ -12,9 +12,9 @@
 
 import fs from 'fs-extra';
 import { fromArrayBuffer, fromFile } from 'geotiff';
-import PNG from 'pngjs';
 import type { Settings } from 'platform/desktop/constants';
 import { getLargeImagePath } from '../native/common';
+import { normalizeToU8, encodePngRgba } from '../media/displayProcessing';
 
 const TILE_SIZE = 256;
 
@@ -673,21 +673,6 @@ export async function getTilePng(
   }
 }
 
-/** Map raster samples to display bytes by clamping to [0, 255] (no dynamic range stretch). */
-function normalizeToU8(
-  raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
-  out: Uint8Array,
-  offset = 0,
-  stride = 1,
-): void {
-  const n = Math.min(raw.length, Math.floor((out.length - offset) / stride));
-  if (n === 0) return;
-  const outView = out;
-  for (let i = 0; i < n; i += 1) {
-    outView[offset + i * stride] = clampToByte(Number(raw[i]));
-  }
-}
-
 function normalizeInterleavedRgbToRgba(
   raw: Uint8Array | Uint16Array | Float32Array | Float64Array,
   outRgba: Uint8Array,
@@ -780,17 +765,4 @@ function blitRgba(
     const rowLength = copyWidth * 4;
     targetRgba.set(sourceRgba.subarray(srcOffset, srcOffset + rowLength), dstOffset);
   }
-}
-
-function encodePngRgba(width: number, height: number, rgba: Uint8Array): Buffer {
-  type PngInstance = { data: Uint8Array };
-  type PngConstructor = {
-    new(options: { width: number; height: number }): PngInstance;
-    sync: { write(png: PngInstance): Buffer };
-  };
-  const pngModule = PNG as unknown as { PNG?: PngConstructor };
-  const PngCtor = (pngModule.PNG ?? (PNG as unknown as PngConstructor));
-  const png = new PngCtor({ width, height });
-  png.data.set(rgba);
-  return PngCtor.sync.write(png);
 }

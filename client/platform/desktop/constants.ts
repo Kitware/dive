@@ -229,6 +229,13 @@ export interface ConversionArgs extends JobArgs {
   mediaList: [string, string][];
 }
 
+/** IPC payload when a CLI open must wait on media conversion. */
+export interface CliTranscodingNotice {
+  datasetId: string;
+  name: string;
+  mediaCount: number;
+}
+
 export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
 
 export interface DesktopJob {
@@ -267,7 +274,16 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   // This saves disk space and allows faster initial access
   useNativePlayback: boolean;
   metaFileAbsPath?: string;
+  // Non-fatal problems found while preparing the import (e.g. a registration
+  // file naming cameras this dataset doesn't have), shown in the import dialog.
+  importWarnings?: string[];
 }
+
+export type {
+  MultiCamBatchCamera,
+  MultiCamBatchCollect,
+  MultiCamBatchScanResult,
+} from 'dive-common/multiCamBatchScan';
 
 export interface DesktopJobUpdate extends DesktopJob {
   // body contents of update payload

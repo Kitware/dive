@@ -22,6 +22,9 @@ interface AnnotationSettings {
     preventCascadeTypes?: boolean;
     filterTypesByFrame?: boolean;
     maxCountButton?: boolean;
+    // Detections whose geometry lies >=50% under a region of this type are
+    // hidden and excluded from counts. Empty string disables the feature.
+    suppressionType?: string;
   };
   trackSettings: {
     newTrackSettings: {
@@ -127,6 +130,7 @@ const defaultSettings: AnnotationSettings = {
     lockTypes: false,
     preventCascadeTypes: false,
     maxCountButton: false,
+    suppressionType: 'Suppressed',
   },
   rowsPerPage: 20,
   annotationFPS: 10,
