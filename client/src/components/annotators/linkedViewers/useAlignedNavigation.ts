@@ -1,4 +1,6 @@
-import { getCurrentInstance, nextTick, onBeforeUnmount, Ref, watch } from 'vue';
+import {
+  getCurrentInstance, nextTick, onBeforeUnmount, Ref, watch,
+} from 'vue';
 import type { AggregateMediaController } from '../mediaControllerType';
 import type AlignedViewStore from '../../../alignedView/AlignedViewStore';
 import { applyHomography, Point } from '../../../alignedView/homography';
@@ -256,7 +258,7 @@ export default function useAlignedNavigation(
   watch(alignedView.active, (active, wasActive) => {
     if (active && !wasActive) {
       snapFromReference();
-      void nextTick(() => {
+      nextTick(() => {
         if (!alignedView.active.value) {
           return;
         }

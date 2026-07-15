@@ -427,6 +427,7 @@ export function useMediaController() {
       geoViewerRef.value.center(zoomAndCenter.center);
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained for MediaController API compatibility
     function resetMapDimensions(width: number, height: number, _isMap = false, margin = 0.3) {
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];

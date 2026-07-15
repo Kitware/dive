@@ -46,7 +46,9 @@ export function pickOverviewLevel(
   maxEdge = MAX_FRAME_TEXTURE_EDGE,
 ): OverviewLevel {
   const maxLevel = Math.max(0, meta.levels - 1);
-  const { sizeX, sizeY, tileWidth, tileHeight } = meta;
+  const {
+    sizeX, sizeY, tileWidth, tileHeight,
+  } = meta;
   const makeLevel = (level: number): OverviewLevel => {
     const scale = 2 ** (maxLevel - level);
     return {
