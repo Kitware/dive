@@ -11,6 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
+import { isStereoscopicDatasetMeta } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -638,9 +639,12 @@ export default defineComponent({
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadMetadata(props.id);
-        // Single-camera datasets have no stereo pair: report no stereo so the
-        // caller does not load the stereo service.
-        if (!meta.multiCamMedia) return false;
+        // Plain multicam and single-camera datasets have no stereo pair: report
+        // no stereo so the caller does not load the interactive stereo service.
+        // Only datasets typed as stereoscopic (a calibrated left/right pair) get
+        // the stereo service; larger rigs like the three-camera sea-lion
+        // STAR/CENTER/PORT setup are plain multicam and must not initialize it.
+        if (!meta.multiCamMedia || !isStereoscopicDatasetMeta(meta)) return false;
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
