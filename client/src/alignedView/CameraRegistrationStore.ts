@@ -2,10 +2,10 @@ import {
   ref, computed, Ref, ComputedRef,
 } from 'vue';
 import {
-  invert3, Matrix3, Point,
+  invert3, applyHomography, Matrix3, Point,
 } from './homography';
 import {
-  TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
+  TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform, estimateTransform,
 } from './transform';
 
 /**
@@ -85,20 +85,80 @@ export type CameraCorrespondences = Record<string, Correspondence[]>;
 /** Chosen fit model per pair, keyed by {@link CameraRegistrationStore.pairKey}. Missing entries default to 'similarity'. */
 export type CameraTransformTypes = Record<string, TransformType>;
 
+/** Which image is warped onto which for the in-app aligned-picking preview. */
+export type AlignmentMode = 'original' | 'AtoB' | 'BtoA';
+
+export interface AlignmentState {
+  mode: AlignmentMode;
+  opacity: number;
+}
+
+/** Active pair. `camA` is the left camera, `camB` the right (user-chosen order). */
+export interface ActivePair {
+  camA: string;
+  camB: string;
+}
+
 /**
- * Shared, reactive store for camera-calibration data (correspondences,
+ * Shared, reactive store for camera-registration data (correspondences,
  * fitted/loaded homographies, transform-type choices, and producer
  * provenance). Lives in vue-media-annotator so both the annotation layers
  * (client/src/alignedView) and the dive-common side can consume it via the
  * provide/inject system. Handles persistence: hydrating saved state and
- * loading/saving the portable calibration JSON format.
+ * loading/saving the portable registration JSON format.
+ *
+ * Also holds the interactive creation state, implementing the keypointgui
+ * blue->red pairing flow: the first click in one camera sets a pending
+ * point; the next click in the *other* camera completes a pair.
  */
 export default class CameraRegistrationStore {
+  activePair: Ref<ActivePair | null>;
+
+  pickingEnabled: Ref<boolean>;
+
+  pendingPoint: Ref<{ camera: string; coord: Point } | null>;
+
   correspondences: Ref<CameraCorrespondences>;
 
   homographies: Ref<CameraHomographies>;
 
   transformTypes: Ref<CameraTransformTypes>;
+
+  alignment: Ref<AlignmentState>;
+
+  /**
+   * Whether pan/zoom is linked between the active pair's two cameras through
+   * the pair's transform (see {@link useRegistrationNavigation}). Only has an
+   * effect once a transform exists (fitted or file-loaded); toggled from the
+   * panel's "Link pan/zoom".
+   */
+  linkedNav: Ref<boolean>;
+
+  /**
+   * Correspondence currently selected in the picking UI (grabbed marker /
+   * clicked table row), highlighted in BOTH cameras' panes and deletable via
+   * the panel or the Delete key. Authoring state only -- never persisted.
+   */
+  selectedCorrespondenceId: Ref<number | null>;
+
+  /** Native-pixel coordinate under the cursor, for the registration panel's live readout. */
+  cursorCoord: Ref<{ camera: string; coord: Point } | null>;
+
+  /**
+   * A one-shot "recenter here" request (e.g. from a right-click), keyed by an
+   * incrementing id so repeated requests at the same coordinate still trigger
+   * watchers. See {@link requestRecenter}.
+   */
+  recenterRequest: Ref<{ camera: string; coord: Point; id: number } | null>;
+
+  /**
+   * Message from the most recent failed fit attempt (e.g. collinear/degenerate
+   * points that satisfy the minimum count but can't be solved), or null if the
+   * active pair's last fit attempt (if any) succeeded. Surfaced by the
+   * registration panel instead of letting the estimator's exception escape a
+   * geojs click handler.
+   */
+  fitError: Ref<string | null>;
 
   /**
    * Provenance of the loaded calibration (see {@link RegistrationSource}).
@@ -114,6 +174,8 @@ export default class CameraRegistrationStore {
 
   private nextId: number;
 
+  private nextRecenterId: number;
+
   /** Provenance per homography key; missing entries behave like 'fit'. */
   private homographySources: Record<string, HomographySource>;
 
@@ -121,11 +183,21 @@ export default class CameraRegistrationStore {
   private savedSnapshot: Ref<string>;
 
   constructor() {
+    this.activePair = ref(null);
+    this.pickingEnabled = ref(false);
+    this.pendingPoint = ref(null);
     this.correspondences = ref({});
     this.homographies = ref({});
     this.transformTypes = ref({});
+    this.alignment = ref({ mode: 'original', opacity: 0.5 });
+    this.linkedNav = ref(true);
+    this.selectedCorrespondenceId = ref(null);
+    this.cursorCoord = ref(null);
+    this.recenterRequest = ref(null);
+    this.fitError = ref(null);
     this.source = ref(null);
     this.nextId = 1;
+    this.nextRecenterId = 1;
     this.homographySources = {};
     this.savedSnapshot = ref(this.registrationSnapshot());
     this.dirty = computed(() => this.registrationSnapshot() !== this.savedSnapshot.value);
@@ -144,6 +216,34 @@ export default class CameraRegistrationStore {
   /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
   markSaved() {
     this.savedSnapshot.value = this.registrationSnapshot();
+  }
+
+  /**
+   * The saved-baseline calibration (what the persisted registration -- the
+   * per-camera registration files on desktop, the dataset meta on web --
+   * currently holds). Parsed fresh from the snapshot on each call. Matches
+   * cameraRegistrationFiles.ts's CameraRegistrationValues shape (the type
+   * lives there and importing it here would be circular).
+   */
+  savedRegistrationValues(): {
+    homographies: CameraHomographies;
+    correspondences: CameraCorrespondences;
+    transformTypes: CameraTransformTypes;
+    source: RegistrationSource | null;
+    } {
+    return JSON.parse(this.savedSnapshot.value);
+  }
+
+  /**
+   * True when the saved baseline (last hydrate/save/load) already holds
+   * registration data -- i.e. saving now would overwrite a persisted
+   * registration rather than create a fresh one. Empty correspondence lists
+   * don't count: clearing a pair leaves `[]` behind.
+   */
+  hasSavedRegistration(): boolean {
+    const saved = this.savedRegistrationValues();
+    return Object.keys(saved.homographies).length > 0
+      || Object.values(saved.correspondences).some((list) => list.length > 0);
   }
 
   /**
@@ -167,6 +267,188 @@ export default class CameraRegistrationStore {
     return `${camA}::${camB}`;
   }
 
+  /** Key of the currently active pair, or null if none selected. */
+  activePairKey(): string | null {
+    const pair = this.activePair.value;
+    return pair ? this.pairKey(pair.camA, pair.camB) : null;
+  }
+
+  /** Select a camera pair. `left` becomes camA, `right` becomes camB. */
+  setActivePair(left: string | null, right: string | null) {
+    if (!left || !right || left === right) {
+      this.activePair.value = null;
+    } else {
+      this.activePair.value = { camA: left, camB: right };
+    }
+    this.pendingPoint.value = null;
+    // Switching pairs invalidates any active overlay warp: drop back to the
+    // unwarped Picking mode so the new pair starts from its own native views.
+    this.alignment.value = { mode: 'original', opacity: this.alignment.value.opacity };
+    this.selectedCorrespondenceId.value = null;
+    this.cursorCoord.value = null;
+    this.recenterRequest.value = null;
+    this.fitError.value = null;
+  }
+
+  /**
+   * Add a clicked image point for `camera`. The first click sets a pending point;
+   * a subsequent click in the *other* camera of the active pair completes a pair.
+   * Clicking the same camera again replaces the pending point.
+   */
+  addPoint(camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return;
+    }
+    const pending = this.pendingPoint.value;
+    if (!pending || pending.camera === camera) {
+      this.pendingPoint.value = { camera, coord };
+      return;
+    }
+    const key = this.pairKey(pair.camA, pair.camB);
+    const a = pending.camera === pair.camA ? pending.coord : coord;
+    const b = pending.camera === pair.camB ? pending.coord : coord;
+    const list = this.correspondences.value[key]
+      ? [...this.correspondences.value[key]]
+      : [];
+    // eslint-disable-next-line no-plusplus
+    list.push({ id: this.nextId++, a, b });
+    this.correspondences.value = { ...this.correspondences.value, [key]: list };
+    this.pendingPoint.value = null;
+    this.syncAlignmentHomography();
+  }
+
+  /**
+   * Record a click at `coord` (native pixel coords of `camera`'s own pane).
+   * New points are only picked in the unwarped 'original' (Picking) mode: while
+   * an overlay warp is active the panes show a warped preview rather than native
+   * coordinates, so clicks there are ignored.
+   */
+  pickPoint(camera: string, coord: Point) {
+    if (this.alignment.value.mode !== 'original') {
+      return;
+    }
+    this.addPoint(camera, coord);
+  }
+
+  /**
+   * Move one side of an existing correspondence (drag-to-refine). `camera`
+   * selects which side (a for camA, b for camB); the pair is refit live so
+   * the alignment ghost and linked navigation track the drag.
+   */
+  updateCorrespondencePoint(id: number, camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return;
+    }
+    const key = this.pairKey(pair.camA, pair.camB);
+    const list = this.correspondences.value[key];
+    if (!list || !list.some((c) => c.id === id)) {
+      return;
+    }
+    const side = camera === pair.camA ? 'a' : 'b';
+    this.correspondences.value = {
+      ...this.correspondences.value,
+      [key]: list.map((c) => (c.id === id ? { ...c, [side]: coord } : c)),
+    };
+    this.syncAlignmentHomography();
+  }
+
+  /** Move the pending (blue) point while it is being drag-refined. */
+  movePendingPoint(camera: string, coord: Point) {
+    const pending = this.pendingPoint.value;
+    if (!pending || pending.camera !== camera) {
+      return;
+    }
+    this.pendingPoint.value = { camera, coord };
+  }
+
+  /** Remove a correspondence (by id) from the active pair -- both cameras' points at once. */
+  removeCorrespondence(id: number) {
+    const key = this.activePairKey();
+    if (!key) {
+      return;
+    }
+    const list = this.correspondences.value[key];
+    if (!list) {
+      return;
+    }
+    this.correspondences.value = {
+      ...this.correspondences.value,
+      [key]: list.filter((c) => c.id !== id),
+    };
+    if (this.selectedCorrespondenceId.value === id) {
+      this.selectedCorrespondenceId.value = null;
+    }
+    this.syncAlignmentHomography();
+  }
+
+  /**
+   * Select a correspondence marker for inspection/deletion (null clears).
+   * Only ids belonging to the active pair are selectable; anything else
+   * clears the selection.
+   */
+  selectCorrespondence(id: number | null) {
+    if (id === null) {
+      this.selectedCorrespondenceId.value = null;
+      return;
+    }
+    const key = this.activePairKey();
+    const list = key ? this.correspondences.value[key] : undefined;
+    this.selectedCorrespondenceId.value = (list && list.some((c) => c.id === id)) ? id : null;
+  }
+
+  /** Remove the selected correspondence (both cameras' points). No-op without a selection. */
+  removeSelectedCorrespondence() {
+    const id = this.selectedCorrespondenceId.value;
+    if (id !== null) {
+      this.removeCorrespondence(id);
+    }
+  }
+
+  /**
+   * Drop all correspondences, the pending point, and any homography
+   * (fitted or file-loaded) for the active pair.
+   */
+  clearPair() {
+    const key = this.activePairKey();
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    if (!key) {
+      return;
+    }
+    this.correspondences.value = { ...this.correspondences.value, [key]: [] };
+    // Clearing is explicit: a file-loaded homography goes too. Dropping the
+    // 'loaded' mark lets maybeFitPair remove it through the normal path.
+    delete this.homographySources[key];
+    this.maybeFitPair(key);
+  }
+
+  /**
+   * Undo one step, mirroring keypointgui's Clear Last button: if there's a
+   * pending (blue) point, drop it; otherwise remove the most recently
+   * completed correspondence for the active pair.
+   */
+  clearLast() {
+    if (this.pendingPoint.value) {
+      this.pendingPoint.value = null;
+      return;
+    }
+    const key = this.activePairKey();
+    if (!key) {
+      return;
+    }
+    const list = this.correspondences.value[key];
+    if (!list || list.length === 0) {
+      return;
+    }
+    if (this.selectedCorrespondenceId.value === list[list.length - 1].id) {
+      this.selectedCorrespondenceId.value = null;
+    }
+    this.correspondences.value = { ...this.correspondences.value, [key]: list.slice(0, -1) };
+    this.syncAlignmentHomography();
+  }
+
   /**
    * True when `key`'s homography came from a calibration file rather than an
    * in-app fit. Not independently reactive -- always read alongside
@@ -174,6 +456,17 @@ export default class CameraRegistrationStore {
    */
   isLoadedHomography(key: string): boolean {
     return this.homographySources[key] === 'loaded';
+  }
+
+  /**
+   * Default picking posture when a pair becomes active: authoring (true)
+   * unless the pair already has a file-loaded transform, in which case it
+   * opens in a review posture (false) so stray clicks don't start placing
+   * points on top of a registration that needs no points. The user can still
+   * opt back in via the panel's "Pick points" toggle to refine.
+   */
+  pickingDefaultFor(key: string | null): boolean {
+    return !(key && this.homographies.value[key] && this.isLoadedHomography(key));
   }
 
   /**
@@ -196,43 +489,162 @@ export default class CameraRegistrationStore {
     return this.transformTypes.value[key] || DEFAULT_TRANSFORM_TYPE;
   }
 
-  /**
-   * Serialize every pair with content (points and/or a homography) as the
-   * portable calibration JSON file (see {@link RegistrationFile}). Pairs whose
-   * only state is a transform-type choice are omitted.
-   */
-  toRegistrationJson(): string {
-    const keys = new Set([
-      ...Object.keys(this.correspondences.value).filter(
-        (key) => this.correspondences.value[key].length > 0,
-      ),
-      ...Object.keys(this.homographies.value),
-    ]);
-    const pairs: RegistrationFilePair[] = [...keys].sort().map((key) => {
-      const [left, right] = key.split('::');
-      const homography = this.homographies.value[key] || null;
-      return {
-        left,
-        right,
-        points: (this.correspondences.value[key] || []).map((c) => [c.a[0], c.a[1], c.b[0], c.b[1]]),
-        leftToRight: homography ? homography.AtoB : null,
-        rightToLeft: homography ? homography.BtoA : null,
-        transformType: this.transformTypeForPair(key),
-      };
-    });
-    const file: RegistrationFile = {
-      type: REGISTRATION_FILE_TYPE,
-      version: 1,
-      ...(this.source.value ? { source: this.source.value } : {}),
-      pairs,
-    };
-    return JSON.stringify(file, null, 2);
+  /** Choose the fit model for `key` and immediately (re)fit or clear as needed. */
+  setTransformType(key: string, type: TransformType) {
+    this.transformTypes.value = { ...this.transformTypes.value, [key]: type };
+    this.maybeFitPair(key);
   }
 
   /**
-   * Parse and load a calibration JSON file (the format written by
-   * {@link toRegistrationJson}), REPLACING all pairs' correspondences,
-   * homographies, and transform types. Throws a descriptive Error on
+   * Fit `key` when it has enough points for its chosen transform type; otherwise
+   * clear its homography and, if it's the active (aligned) pair, revert
+   * alignment to 'original'. A fit can still fail past the minimum-count check
+   * (e.g. collinear/near-duplicate points make the system unsolvable); that's
+   * caught here and surfaced via {@link fitError} instead of throwing out of a
+   * geojs click handler, keeping any previously fitted homography in place.
+   */
+  maybeFitPair(key: string) {
+    const list = this.correspondences.value[key];
+    const required = minPointsForTransform(this.transformTypeForPair(key));
+    if (!list || list.length < required) {
+      // A file-loaded homography has no backing points; it stays in place
+      // until enough points are picked to fit a replacement (or the pair is
+      // explicitly cleared, which drops its 'loaded' mark first).
+      if (this.homographySources[key] !== 'loaded') {
+        const rest = { ...this.homographies.value };
+        delete rest[key];
+        this.homographies.value = rest;
+        delete this.homographySources[key];
+        if (this.activePairKey() === key && this.alignment.value.mode !== 'original') {
+          this.alignment.value = { ...this.alignment.value, mode: 'original' };
+        }
+      }
+      if (this.activePairKey() === key) {
+        this.fitError.value = null;
+      }
+      return;
+    }
+    try {
+      this.fitTransform(key);
+      if (this.activePairKey() === key) {
+        this.fitError.value = null;
+      }
+    } catch (err) {
+      if (this.activePairKey() === key) {
+        this.fitError.value = err instanceof Error ? err.message : String(err);
+      }
+    }
+  }
+
+  /** Fit the active pair when it has enough points; otherwise clear/revert as in {@link maybeFitPair}. */
+  maybeFitActivePair() {
+    const key = this.activePairKey();
+    if (!key) {
+      return;
+    }
+    this.maybeFitPair(key);
+  }
+
+  /** Enable or change the alignment (ghost overlay) mode, fitting the pair first if needed. */
+  setAlignmentMode(mode: AlignmentMode) {
+    if (mode !== 'original') {
+      this.maybeFitActivePair();
+      const key = this.activePairKey();
+      if (!key || !this.homographies.value[key]) {
+        // Not enough points for the active pair's transform type; stay original.
+        return;
+      }
+    }
+    this.alignment.value = { ...this.alignment.value, mode };
+  }
+
+  /** Ghost overlay opacity, independent of alignment mode. */
+  setAlignmentOpacity(opacity: number) {
+    this.alignment.value = { ...this.alignment.value, opacity };
+  }
+
+  /**
+   * Map `coord` (native pixel space of `camera`) to the corresponding point in
+   * the *other* camera of the active pair, via the fitted homography. Returns
+   * `null` when `camera` isn't part of the active pair or the pair has no
+   * fitted homography yet (not enough correspondences) -- callers should treat
+   * that as "nothing to link to" rather than an error.
+   */
+  linkedPoint(camera: string, coord: Point): { camera: string; coord: Point } | null {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return null;
+    }
+    const homog = this.homographies.value[this.pairKey(pair.camA, pair.camB)];
+    if (!homog) {
+      return null;
+    }
+    const other = camera === pair.camA ? pair.camB : pair.camA;
+    const matrix = camera === pair.camA ? homog.AtoB : homog.BtoA;
+    return { camera: other, coord: applyHomography(matrix, coord) };
+  }
+
+  /** Record the native-pixel coordinate under the cursor for `camera` (registration panel readout). */
+  setCursorCoord(camera: string, coord: Point) {
+    this.cursorCoord.value = { camera, coord };
+  }
+
+  /** Clear the cursor coordinate readout (e.g. on mouse leave). */
+  clearCursorCoord() {
+    this.cursorCoord.value = null;
+  }
+
+  /**
+   * Request that `camera` (native pixel coords `coord`) and, when the pair has
+   * a fitted homography, the other camera of the active pair (via
+   * {@link linkedPoint}) recenter their views on this location. Consumed by
+   * {@link useRegistrationNavigation}; a no-op if `camera` isn't part of the
+   * active pair. A one-shot "snap to this feature" action, distinct from the
+   * continuous pan/zoom link that is active while picking.
+   */
+  requestRecenter(camera: string, coord: Point) {
+    const pair = this.activePair.value;
+    if (!pair || (camera !== pair.camA && camera !== pair.camB)) {
+      return;
+    }
+    // eslint-disable-next-line no-plusplus
+    this.recenterRequest.value = { camera, coord, id: this.nextRecenterId++ };
+  }
+
+  /** Re-fit the active pair while alignment is active (mode != 'original'). */
+  private syncAlignmentHomography() {
+    if (this.alignment.value.mode !== 'original') {
+      this.maybeFitActivePair();
+    }
+  }
+
+  /**
+   * Fit `key`'s chosen transform type from its correspondences (see
+   * {@link minPointsForTransform} for the required count). Computes both
+   * directions and stores them. Returns the fitted pair.
+   */
+  fitTransform(key: string): PairHomography {
+    const list = this.correspondences.value[key];
+    const type = this.transformTypeForPair(key);
+    const required = minPointsForTransform(type);
+    if (!list || list.length < required) {
+      throw new Error(`At least ${required} point pair(s) are required to fit a ${type} transform`);
+    }
+    const AtoB = estimateTransform(type, list.map((c) => c.a), list.map((c) => c.b));
+    const BtoA = invert3(AtoB);
+    this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
+    this.homographySources[key] = 'fit';
+    return { AtoB, BtoA };
+  }
+
+  /**
+   * Parse and load a registration JSON file (the per-camera
+   * <camera>_to_<reference>_registration.json format written by
+   * cameraRegistrationFiles.ts's buildPerCameraRegistrationFiles --
+   * the only registration file format), REPLACING all pairs' correspondences,
+   * homographies, and transform types. The active pair selection and picking
+   * toggle are left alone; the alignment ghost reverts to 'original' since
+   * the transform under it changed wholesale. Throws a descriptive Error on
    * malformed input without touching current state. Returns the camera names
    * referenced by the file so callers can warn about ones missing from the
    * loaded dataset.
@@ -295,6 +707,10 @@ export default class CameraRegistrationStore {
     this.transformTypes.value = transformTypes;
     this.source.value = source;
     this.markHomographySources();
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.fitError.value = null;
+    this.alignment.value = { ...this.alignment.value, mode: 'original' };
     return { cameras: [...cameras], pairCount: file.pairs.length };
   }
 
@@ -366,6 +782,14 @@ export default class CameraRegistrationStore {
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
     this.source.value = source ?? null;
     this.markHomographySources();
+    this.activePair.value = null;
+    this.pendingPoint.value = null;
+    this.pickingEnabled.value = false;
+    this.alignment.value = { mode: 'original', opacity: 0.5 };
+    this.selectedCorrespondenceId.value = null;
+    this.cursorCoord.value = null;
+    this.recenterRequest.value = null;
+    this.fitError.value = null;
     // Resume id allocation past any restored correspondences.
     let maxId = 0;
     Object.values(this.correspondences.value).forEach((list) => {

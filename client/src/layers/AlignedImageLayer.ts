@@ -1,16 +1,10 @@
 import geo from 'geojs';
 import type { MediaController } from '../components/annotators/mediaControllerType';
-import { Matrix3, subdivideWarpQuads, warpGridSize } from '../alignedView/homography';
+import { Matrix3, geojsWarpQuadsForImage } from '../alignedView/homography';
 import { findQuadMediaLayer } from '../components/layerManager/quadMediaSource';
+import type { CameraImage } from './cameraImage';
 
-export interface CameraImage {
-  /** The texture source for the geojs quad feature: an `<img>` for image sequences, a `<video>` for video datasets. */
-  source: HTMLImageElement | HTMLVideoElement;
-  /** Which quad-feature data key `source` must be assigned to (geojs' canvas renderer branches on this). */
-  kind: 'image' | 'video';
-  width: number;
-  height: number;
-}
+export type { CameraImage };
 
 interface AlignedImageLayerParams {
   annotator: MediaController;
@@ -32,7 +26,7 @@ interface AlignedImageLayerParams {
  * while the multicam aligned view is on (SEAL-TK feature 2, decision D1: the
  * proven quad-corner warp). The warp is drawn as an n x n grid of geojs
  * canvas quads whose corners are mapped through the exact projective
- * transform ({@link subdivideWarpQuads}), and the annotator's own native
+ * transform ({@link geojsWarpQuads}), and the annotator's own native
  * image quad layer is hidden while the warp is shown -- so annotation layers
  * (whose vertices are mapped through the same matrix at draw time) land
  * exactly on the warped imagery. When no transform applies, everything is
@@ -73,7 +67,7 @@ export default class AlignedImageLayer {
     // Right-click recenter: center this pane on the clicked location, in any
     // view mode. While the aligned view is active, the aligned pan/zoom link
     // then recenters every other pane on the same reference-space point;
-    // during calibration picking, CalibrationKeypointLayer additionally maps
+    // during registration picking, RegistrationKeypointLayer additionally maps
     // the recenter across the active pair.
     this.annotator.geoViewerRef.value.geoOn(
       geo.event.mouseclick,
@@ -95,27 +89,48 @@ export default class AlignedImageLayer {
   }
 
   /**
-   * Find the annotator's own image/video quad layer (the one Image/Video
-   * Annotator draws each frame into). It is created before any LayerManager
-   * layer, so it is the first layer -- other than ours -- containing a quad
-   * datum with an `image`/`video` texture source. Returns null for
-   * annotators without one (e.g. tiled large-image datasets).
+   * Find the annotator's own media layer(s): the image/video quad layer for
+   * Image/Video annotators, or OSM tile layers for LargeImageAnnotator. Both
+   * are created before LayerManager layers. Returns an empty list when none
+   * are found.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private findNativeQuadLayer(): any | null {
-    return findQuadMediaLayer(this.annotator.geoViewerRef.value, this.quadLayer);
+  private findNativeMediaLayers(): any[] {
+    const viewer = this.annotator.geoViewerRef.value;
+    if (!viewer || typeof viewer.layers !== 'function') {
+      return [];
+    }
+    const nativeQuad = findQuadMediaLayer(viewer, this.quadLayer);
+    if (nativeQuad) {
+      return [nativeQuad];
+    }
+    // Tiled large-image: hide every OSM layer that isn't ours.
+    return viewer.layers().filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (layer: any) => layer !== this.quadLayer
+        && typeof layer?.url === 'function'
+        && typeof layer?.features !== 'function',
+    );
   }
 
   private setNativeVisible(visible: boolean) {
     if (visible === !this.nativeHidden) {
       return;
     }
-    const nativeLayer = this.findNativeQuadLayer();
-    if (nativeLayer) {
-      nativeLayer.visible(visible);
-      if (visible) {
-        nativeLayer.draw();
-      }
+    const nativeLayers = this.findNativeMediaLayers();
+    if (nativeLayers.length) {
+      nativeLayers.forEach((nativeLayer) => {
+        if (typeof nativeLayer.visible === 'function') {
+          nativeLayer.visible(visible);
+        } else if (typeof nativeLayer.opacity === 'function') {
+          nativeLayer.opacity(visible ? 1 : 0);
+        } else if (typeof nativeLayer.node === 'function') {
+          nativeLayer.node().css('visibility', visible ? '' : 'hidden');
+        }
+        if (visible && typeof nativeLayer.draw === 'function') {
+          nativeLayer.draw();
+        }
+      });
       this.nativeHidden = !visible;
     } else if (visible) {
       this.nativeHidden = false;
@@ -138,33 +153,21 @@ export default class AlignedImageLayer {
     const src = this.getImage();
     if (!src || !src.width || !src.height) {
       // The frame may simply not have finished loading yet (the annotator
-      // bumps imageRevision when it lands, which re-runs update()), or this
-      // annotator type exposes no image element (e.g. large-image tiles), in
-      // which case the native display simply stays.
+      // bumps imageRevision when it lands, which re-runs update()). Large-image
+      // panes expose a composited frameTexture once ready; until then the
+      // native tile display stays.
       this.clear();
       return;
     }
-    const { width: w, height: h } = src;
-    const grid = warpGridSize(transform, w, h);
     // 2px cell overlap hides the canvas antialiasing seams between abutting
     // sub-quads (dark grid lines); safe here because quads draw opaque.
-    const quads = subdivideWarpQuads(transform, w, h, grid, 2).map((q) => ({
-      ul: { x: q.ul[0], y: q.ul[1] },
-      ur: { x: q.ur[0], y: q.ur[1] },
-      lr: { x: q.lr[0], y: q.lr[1] },
-      ll: { x: q.ll[0], y: q.ll[1] },
-      // geojs crop: left/top/right/bottom select the source-pixel region;
-      // x/y (the "size after crop") are set to the full source size so that
-      // region stretches across the whole sub-quad.
-      crop: {
-        ...q.crop, x: w, y: h,
-      },
-      [src.kind]: src.source,
-    }));
+    // geojsWarpQuadsForImage keeps corner math in native space while remapping
+    // crop rectangles into the (possibly downsampled) texture's pixels.
+    const quads = geojsWarpQuadsForImage(transform, src, 2);
     // Mirror the native layer's CSS filter (image enhancements) so toggling
     // the warp doesn't change brightness/contrast rendering.
-    const nativeLayer = this.findNativeQuadLayer();
-    if (nativeLayer) {
+    const [nativeLayer] = this.findNativeMediaLayers();
+    if (nativeLayer && typeof nativeLayer.node === 'function') {
       this.quadLayer.node().css('filter', nativeLayer.node().css('filter'));
     }
     this.quadFeature

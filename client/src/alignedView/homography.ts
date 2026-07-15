@@ -182,6 +182,111 @@ export function subdivideWarpQuads(
 }
 
 /**
+ * A subdivided warp cell as geojs quad-feature data: destination corners as
+ * {x, y} points plus a `crop` whose left/top/right/bottom select the cell's
+ * source-pixel region and whose x/y (the "size after crop") are the full
+ * source size, so that region stretches across the whole sub-quad. Callers
+ * attach the texture source under geojs' `image`/`video` datum key.
+ */
+export interface GeojsWarpQuad {
+  ul: { x: number; y: number };
+  ur: { x: number; y: number };
+  lr: { x: number; y: number };
+  ll: { x: number; y: number };
+  crop: {
+    left: number; top: number; right: number; bottom: number; x: number; y: number;
+  };
+}
+
+/**
+ * Build geojs quad-feature data for warping a `width` x `height` image
+ * through `h`: pick the subdivision grid ({@link warpGridSize}), subdivide
+ * ({@link subdivideWarpQuads}), and map each cell into geojs' quad shape.
+ * `overlap` (source pixels) hides the canvas antialiasing seams between
+ * abutting cells; overlapped quads must draw opaque (see
+ * {@link subdivideWarpQuads}).
+ */
+export function geojsWarpQuads(
+  h: Matrix3,
+  width: number,
+  height: number,
+  overlap = 0,
+): GeojsWarpQuad[] {
+  const grid = warpGridSize(h, width, height);
+  return subdivideWarpQuads(h, width, height, grid, overlap).map((q) => ({
+    ul: { x: q.ul[0], y: q.ul[1] },
+    ur: { x: q.ur[0], y: q.ur[1] },
+    lr: { x: q.lr[0], y: q.lr[1] },
+    ll: { x: q.ll[0], y: q.ll[1] },
+    crop: {
+      ...q.crop, x: width, y: height,
+    },
+  }));
+}
+
+/**
+ * Pixel size of a geoJS quad texture element. Canvas overviews (large-image
+ * frame textures) are often smaller than the logical native width/height used
+ * for warp math -- crop rectangles must be scaled to this size or Align View /
+ * ghosts sample the wrong texel range and look massively scaled.
+ */
+export function texturePixelSize(
+  source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement,
+): { width: number; height: number } {
+  // Duck-type so this works in node unit tests without a DOM (and across
+  // cross-realm element instances where instanceof can fail).
+  if ('videoWidth' in source && typeof (source as HTMLVideoElement).videoWidth === 'number') {
+    const video = source as HTMLVideoElement;
+    return { width: video.videoWidth, height: video.videoHeight };
+  }
+  if ('getContext' in source && typeof (source as HTMLCanvasElement).getContext === 'function') {
+    const canvas = source as HTMLCanvasElement;
+    return { width: canvas.width, height: canvas.height };
+  }
+  const image = source as HTMLImageElement;
+  return {
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+  };
+}
+
+/**
+ * Build geojs warp quads for a {@link CameraImage}, remapping `crop` into the
+ * texture's actual pixel space when the texture is a downsampled overview of
+ * the native frame (large-image). Corner positions stay in native/map space
+ * so the fitted homography still lands correctly.
+ */
+export function geojsWarpQuadsForImage(
+  h: Matrix3,
+  image: {
+    source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
+    kind: 'image' | 'video';
+    width: number;
+    height: number;
+  },
+  overlap = 0,
+): Array<GeojsWarpQuad & { image?: typeof image.source; video?: typeof image.source }> {
+  const quads = geojsWarpQuads(h, image.width, image.height, overlap);
+  const tex = texturePixelSize(image.source);
+  const scaleX = image.width > 0 ? tex.width / image.width : 1;
+  const scaleY = image.height > 0 ? tex.height / image.height : 1;
+  const rescale = Math.abs(scaleX - 1) > 1e-9 || Math.abs(scaleY - 1) > 1e-9;
+  return quads.map((q) => {
+    const crop = rescale
+      ? {
+        left: q.crop.left * scaleX,
+        top: q.crop.top * scaleY,
+        right: q.crop.right * scaleX,
+        bottom: q.crop.bottom * scaleY,
+        x: tex.width,
+        y: tex.height,
+      }
+      : q.crop;
+    return { ...q, crop, [image.kind]: image.source };
+  });
+}
+
+/**
  * Hartley normalization: translate points to the centroid and scale so the
  * mean distance from the origin is sqrt(2). Returns the normalized points and
  * the 3x3 transform T such that normalized = T * original.

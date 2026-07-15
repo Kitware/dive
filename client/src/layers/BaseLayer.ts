@@ -144,7 +144,14 @@ export default abstract class BaseLayer<D> {
       if (!this.annotator.geoViewerRef?.value || !this.featureLayer) {
         return;
       }
-      this.redraw();
+      // After WebGL context loss (browser "Too many active WebGL contexts"),
+      // geoJS renderers keep a null gl handle and .draw() throws on `.api`.
+      try {
+        this.redraw();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Annotation layer redraw skipped after map/renderer teardown', err);
+      }
     }
 
     abstract formatData(frameData: FrameDataTrack[], comparisons: string[]): D[];

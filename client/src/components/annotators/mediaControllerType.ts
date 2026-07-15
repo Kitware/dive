@@ -1,4 +1,5 @@
 import type { Ref } from 'vue';
+import type { CameraImage } from '../../layers/cameraImage';
 
 /**
  * Supplied by Viewer.vue when every camera in a multicam dataset has a
@@ -48,7 +49,7 @@ export interface AggregateMediaController {
   /**
    * True only while onResize is applying its programmatic size()/resetZoom()
    * to the panes. resetZoom emits GeoJS pan/zoom events synchronously; the
-   * linked-viewer navigation (useAlignedNavigation / useCalibrationNavigation)
+   * linked-viewer navigation (useAlignedNavigation / useRegistrationNavigation)
    * must ignore those so one pane's native-space reset isn't broadcast to the
    * others as if it were a shared-space move (which parks warped panes on an
    * empty corner). The resizeTrigger bump that follows re-snaps every pane from
@@ -107,10 +108,16 @@ export interface MediaController extends AggregateMediaController {
    * swap after a seek finishes loading, an image-enhancement change (the
    * percentile-stretch URL remap or the CSS filter toggle), or the initial
    * video quad. Watchers that render a snapshot of the displayed element
-   * (e.g. the aligned-view warp) rely on this as their
+   * (the aligned-view warp, the registration ghost) rely on this as their
    * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: Readonly<Ref<number>>;
+  /**
+   * Composited overview texture for tiled large-image panes (used by Align
+   * View / registration ghosts when there is no media quad). Null for
+   * image-sequence and video annotators.
+   */
+  frameTexture: Readonly<Ref<CameraImage | null>>;
   /**
    * This pane's native content bounds ({left: 0, top: 0, right: width,
    * bottom: height}, as last applied by resetMapDimensions) -- the rectangle

@@ -6,6 +6,8 @@ import {
   matMul3,
   subdivideWarpQuads,
   warpGridSize,
+  geojsWarpQuads,
+  geojsWarpQuadsForImage,
   localLinkedScale,
   Point,
   Matrix3,
@@ -254,5 +256,76 @@ describe('localLinkedScale', () => {
 
   it('returns null for a degenerate (collapsing) mapping', () => {
     expect(localLinkedScale(() => [3, 3], [10, 10])).toBeNull();
+  });
+});
+
+describe('geojsWarpQuads', () => {
+  it('maps an affine warp to a single geojs quad with a full-size crop stretch', () => {
+    const translate: Matrix3 = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
+    const [quad, ...rest] = geojsWarpQuads(translate, 640, 480);
+    expect(rest).toHaveLength(0);
+    expect(quad.ul).toEqual({ x: 5, y: -3 });
+    expect(quad.lr).toEqual({ x: 645, y: 477 });
+    // left/top/right/bottom select the cell's source region; x/y are the full
+    // source size so that region stretches across the whole sub-quad.
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 640, bottom: 480, x: 640, y: 480,
+    });
+  });
+
+  it('subdivides a projective warp and maps each corner through the homography', () => {
+    const projective: Matrix3 = [[1.2, 0.1, 5], [0.05, 0.9, -4], [0.0008, -0.0005, 1]];
+    const grid = warpGridSize(projective, 640, 480);
+    const quads = geojsWarpQuads(projective, 640, 480);
+    expect(quads).toHaveLength(grid * grid);
+    quads.forEach((q) => {
+      const [x, y] = applyHomography(projective, [q.crop.left, q.crop.top]);
+      expect(q.ul).toEqual({ x, y });
+      expect(q.crop.x).toBe(640);
+      expect(q.crop.y).toBe(480);
+    });
+  });
+});
+
+describe('geojsWarpQuadsForImage', () => {
+  it('leaves crops unchanged when the texture matches native dimensions', () => {
+    const translate: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const img = {
+      naturalWidth: 640,
+      naturalHeight: 480,
+      width: 640,
+      height: 480,
+    } as HTMLImageElement;
+    const [quad] = geojsWarpQuadsForImage(translate, {
+      source: img,
+      kind: 'image',
+      width: 640,
+      height: 480,
+    });
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 640, bottom: 480, x: 640, y: 480,
+    });
+    expect(quad.image).toBe(img);
+  });
+
+  it('remaps crops into overview texture pixels for downsampled large-image canvases', () => {
+    const translate: Matrix3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const canvas = {
+      width: 2048,
+      height: 1024,
+    } as HTMLCanvasElement;
+    // Native IR frame is 4x the overview texture on each axis.
+    const [quad] = geojsWarpQuadsForImage(translate, {
+      source: canvas,
+      kind: 'image',
+      width: 8192,
+      height: 4096,
+    });
+    expect(quad.ul).toEqual({ x: 0, y: 0 });
+    expect(quad.lr).toEqual({ x: 8192, y: 4096 });
+    expect(quad.crop).toEqual({
+      left: 0, top: 0, right: 2048, bottom: 1024, x: 2048, y: 1024,
+    });
+    expect(quad.image).toBe(canvas);
   });
 });

@@ -31,6 +31,7 @@ import {
   LargeImageAnnotator,
   LayerManager,
   useMediaController,
+  useRegistrationNavigation,
   useAlignedNavigation,
   TrackList,
   FilterList,
@@ -87,6 +88,7 @@ import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
+import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
 import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
@@ -323,6 +325,29 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
+    // When the Camera Registration panel opens, minimize the workspace chrome to
+    // give the picking view more room: collapse the left type-filter sidebar and
+    // the bottom detections graph. This is a soft default -- the normal sidebar
+    // and timeline toggles still work while registering, so the user can bring
+    // either back -- and whatever layout they had before is restored on close.
+    const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
+    let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
+    let preRegistrationControlsCollapsed = false;
+    watch(registrationActive, (active) => {
+      if (active) {
+        preRegistrationSidebarMode = sidebarMode.value;
+        preRegistrationControlsCollapsed = controlsCollapsed.value;
+        if (sidebarMode.value === 'left') {
+          sidebarMode.value = 'collapsed';
+        }
+        controlsCollapsed.value = true;
+      } else if (preRegistrationSidebarMode !== null) {
+        sidebarMode.value = preRegistrationSidebarMode;
+        controlsCollapsed.value = preRegistrationControlsCollapsed;
+        preRegistrationSidebarMode = null;
+      }
+    });
+
     watch(sidebarMode, (mode) => {
       if (mode === 'left' || mode === 'bottom') {
         clientSettings.layoutSettings.sidebarPosition = mode;
@@ -411,8 +436,10 @@ export default defineComponent({
      * review. Reference camera = the Reference Camera chosen at import
      * (stored as defaultDisplay), falling back to the first camera in
      * display order. Transforms come from the registration store's pair
-     * homographies (loaded from a registration file or the dataset's saved
-     * meta), composed through the pair graph.
+     * homographies (picked in-app via the Camera Registration panel, or loaded
+     * from a registration file or the dataset's saved meta), composed
+     * through the pair graph -- the single registration the panel edits and
+     * saves is exactly what the Align button applies.
      *
      * Store instances are always created (provideAnnotator runs before
      * loadData resolves), but watches, aligned navigation, and metadata
@@ -427,44 +454,11 @@ export default defineComponent({
       }
       return cams.includes(defaultCamera.value) ? defaultCamera.value : cams[0];
     });
-    let multicamAlignmentInitialized = false;
-
     function resetMulticamAlignment() {
       alignedView.setEnabled(false);
       alignedView.setTransforms(null, null);
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
-    }
-
-    function initMulticamAlignment() {
-      if (multicamAlignmentInitialized) {
-        return;
-      }
-      multicamAlignmentInitialized = true;
-      // The selected camera drives the aligned-aware "reset pan and zoom":
-      // centering fits ITS content in reference space and mirrors that view
-      // to every pane through the link.
-      useAlignedNavigation(aggregateController, alignedView, multiCamList, {
-        selectedCamera,
-        setResetZoomOverride,
-      });
-      // Publish the reference even while unresolved so UI outside the viewer
-      // core (e.g. the import menu's per-pair buttons) can name it.
-      watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
-        if (!isMultiCameraDataset.value) {
-          return;
-        }
-        alignedView.setTransforms(
-          reference,
-          resolution?.toReference ?? null,
-        );
-      }, { immediate: true });
-      watch(registrationProgress, (progressVal) => {
-        if (!isMultiCameraDataset.value) {
-          return;
-        }
-        alignedView.setRegistrationProgress(progressVal);
-      }, { immediate: true });
     }
 
     const alignedResolution = computed(() => {
@@ -496,6 +490,46 @@ export default defineComponent({
       }
       const unresolved = unresolvedCameras(cams, reference, cameraRegistration.homographies.value);
       return { registered: cams.length - unresolved.length, total: cams.length };
+    });
+    watch([alignedResolution, referenceCamera], ([resolution, reference]) => {
+      if (!isMultiCameraDataset.value) {
+        return;
+      }
+      alignedView.setTransforms(
+        reference,
+        resolution?.toReference ?? null,
+      );
+    }, { immediate: true });
+    watch(registrationProgress, (progressVal) => {
+      if (!isMultiCameraDataset.value) {
+        return;
+      }
+      alignedView.setRegistrationProgress(progressVal);
+    }, { immediate: true });
+    /**
+     * Camera panes currently displayed. While the Camera Registration panel is
+     * open with an active pair on a 3+ camera dataset, only the pair's two
+     * panes show, so the left/right alignment flow reads without unrelated
+     * panes in between (regardless of whether Pick points is toggled on).
+     * Panes are hidden (v-show), not unmounted, so their viewers keep state.
+     */
+    const displayedCameras = computed(() => {
+      const pair = cameraRegistration.activePair.value;
+      if (registrationActive.value && pair) {
+        const pairCameras = multiCamList.value.filter(
+          (camera) => camera === pair.camA || camera === pair.camB,
+        );
+        if (pairCameras.length === 2) {
+          return pairCameras;
+        }
+      }
+      return multiCamList.value;
+    });
+    watch(displayedCameras, async () => {
+      // Hidden/shown siblings change the remaining panes' sizes; resize the
+      // geojs maps once the DOM has settled.
+      await nextTick();
+      handleResize();
     });
     // This context for removal
     const removeGroups = (id: AnnotationId) => {
@@ -576,6 +610,19 @@ export default defineComponent({
         emit('stereo-segmentation-finalize', params);
       },
     });
+
+    // Register linked-viewer composables during setup (after selectedCamera exists)
+    // so their onBeforeUnmount hooks attach to Viewer. Calling them from async
+    // loadData() left pan/zoom listeners without teardown and triggered Vue's
+    // "no active component instance" warning.
+    useAlignedNavigation(aggregateController, alignedView, multiCamList, {
+      selectedCamera,
+      setResetZoomOverride,
+    });
+    useRegistrationNavigation(aggregateController, cameraRegistration, alignedView);
+    watch(cameraRegistration.pickingEnabled, (picking) => {
+      alignedView.setSuspended(picking);
+    }, { immediate: true });
 
     /**
      * Every camera pane calls updateTime() from its own seek/play/pause, but
@@ -1096,15 +1143,42 @@ export default defineComponent({
     });
 
     // Navigation Guards used by parent component
+    /**
+     * Unsaved work the exit/navigation guards protect: pending annotation
+     * saves, plus Camera Registration panel edits, which track their own
+     * dirty state (they persist through dataset meta, outside the
+     * annotation save path that pendingSaveCount counts).
+     */
+    const hasUnsavedChanges = computed(
+      () => pendingSaveCount.value > 0 || cameraRegistration.dirty.value,
+    );
+    /**
+     * Persist unsaved Camera Registration panel edits -- the same write as
+     * the panel's own Save button -- so the desktop close guard's "Save"
+     * choice covers them too. No-op while the registration is clean.
+     */
+    async function saveRegistration() {
+      if (!cameraRegistration.dirty.value) {
+        return;
+      }
+      cameraRegistration.maybeFitActivePair();
+      await saveMetadata(datasetId.value, {
+        cameraHomographies: cameraRegistration.homographies.value,
+        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraTransformTypes: cameraRegistration.transformTypes.value,
+        cameraRegistrationSource: cameraRegistration.source.value,
+      });
+      cameraRegistration.markSaved();
+    }
     async function warnBrowserExit(event: BeforeUnloadEvent) {
-      if (pendingSaveCount.value === 0) return;
+      if (!hasUnsavedChanges.value) return;
       event.preventDefault();
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
     async function navigateAwayGuard(): Promise<boolean> {
       let result = true;
-      if (pendingSaveCount.value > 0) {
+      if (hasUnsavedChanges.value) {
         result = await prompt({
           title: 'Save Items',
           text: 'There is unsaved data, would you like to continue or cancel and save?',
@@ -1325,7 +1399,6 @@ export default defineComponent({
           if (!selectedCamera.value) {
             throw new Error('Multicamera dataset without default camera specified.');
           }
-          initMulticamAlignment();
         } else {
           multiCamList.value = ['singleCam'];
           resetMulticamAlignment();
@@ -1523,10 +1596,18 @@ export default defineComponent({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
           });
+          context.register({
+            component: RegistrationToolsVue,
+            description: 'Camera Registration',
+          });
         } else {
           context.unregister({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
+          });
+          context.unregister({
+            component: RegistrationToolsVue,
+            description: 'Camera Registration',
           });
           context.register({
             description: 'Group Manager',
@@ -1938,6 +2019,7 @@ export default defineComponent({
       deleteAttributeHandler,
       saveTooltipText,
       showMultiCamToolbar,
+      displayedCameras,
       seekToFrame,
       resetAggregateZoom,
       /* large image methods */
@@ -1957,6 +2039,8 @@ export default defineComponent({
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
+      hasUnsavedChanges,
+      saveRegistration,
       reloadAnnotations,
       // Annotation Sets,
       sets,
@@ -2251,10 +2335,16 @@ export default defineComponent({
           class="d-flex flex-column grow"
         >
           <div class="d-flex grow">
+            <!--
+              Hidden panes swap to Vuetify's d-none instead of using v-show:
+              d-flex is `display: flex !important`, which defeats v-show's
+              inline `display: none`. Panes stay mounted either way, so their
+              viewers keep state.
+            -->
             <div
               v-for="camera in multiCamList"
               :key="camera"
-              class="d-flex flex-column grow"
+              :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
               @mouseup.right="changeCamera(camera, $event)"

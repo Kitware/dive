@@ -63,6 +63,7 @@ function makeHarness() {
     geoViewerRef: ref(viewer),
     frame: ref(0),
     imageRevision: ref(0),
+    frameTexture: ref(null),
   } as unknown as MediaController;
   const aggregateController = ref({
     getController: () => annotator,

@@ -1,4 +1,6 @@
-import { onBeforeUnmount, Ref, watch } from 'vue';
+import {
+  getCurrentInstance, nextTick, onBeforeUnmount, Ref, watch,
+} from 'vue';
 import type { AggregateMediaController } from '../mediaControllerType';
 import type AlignedViewStore from '../../../alignedView/AlignedViewStore';
 import { applyHomography, Point } from '../../../alignedView/homography';
@@ -14,8 +16,8 @@ import useLinkedViewers from './useLinkedViewers';
  * camera-to-camera transforms here would re-apply a transform the rendering has
  * already applied.) Distinct from the raw "sync cameras" toggle (Controls.vue),
  * which forwards raw screen deltas for UNWARPED panes and is hidden whenever the
- * aligned view is available, and from the calibration pair link
- * ({@link useCalibrationNavigation}), which maps through the homography and
+ * aligned view is available, and from the registration pair link
+ * ({@link useRegistrationNavigation}), which maps through the homography and
  * stands down while the aligned view is active.
  */
 export default function useAlignedNavigation(
@@ -54,17 +56,42 @@ export default function useAlignedNavigation(
       if (!source) {
         return;
       }
-      // Shared reference space: copy the center verbatim and match the extent.
+      // Shared reference space: copy the visible world rectangle, not zoom-0
+      // unitsPerPixel. Large-image (tile pyramid) and image-sequence maps
+      // define that baseline differently; zoomAndCenterFromBounds works for
+      // both and keeps Align View linked without changing how large-image
+      // fits when Align is off.
       const center = source.center();
-      const view = {
-        center: { x: center.x, y: center.y },
-        unitsPerPixel: source.unitsPerPixel(source.zoom()),
-      };
+      const size = typeof source.size === 'function' ? source.size() : null;
+      const upp = source.unitsPerPixel(source.zoom());
+      let bounds: {
+        left: number; right: number; top: number; bottom: number;
+      } | null = null;
+      if (size && size.width > 0 && size.height > 0 && upp > 0) {
+        const halfW = (size.width * upp) / 2;
+        const halfH = (size.height * upp) / 2;
+        bounds = {
+          left: center.x - halfW,
+          right: center.x + halfW,
+          top: center.y - halfH,
+          bottom: center.y + halfH,
+        };
+      }
       cameras.value.forEach((other) => {
         if (other !== camera) {
           const target = viewer(other);
-          if (target) {
-            applyView(target, view);
+          if (!target) {
+            return;
+          }
+          if (bounds && typeof target.zoomAndCenterFromBounds === 'function') {
+            const zc = target.zoomAndCenterFromBounds(bounds, 0);
+            target.zoom(zc.zoom);
+            target.center(zc.center);
+          } else {
+            applyView(target, {
+              center: { x: center.x, y: center.y },
+              unitsPerPixel: upp,
+            });
           }
         }
       });
@@ -135,7 +162,65 @@ export default function useAlignedNavigation(
 
   if (options?.setResetZoomOverride) {
     options.setResetZoomOverride(alignedResetZoom);
-    onBeforeUnmount(() => options.setResetZoomOverride?.(null));
+    if (getCurrentInstance()) {
+      onBeforeUnmount(() => options.setResetZoomOverride?.(null));
+    }
+  }
+
+  /**
+   * Fit the reference pane to its native frame, then copy that reference-space
+   * viewport onto every other camera. Large-image panes sit on a native fit
+   * while Align is off; without this snap they keep that FOV after the warp
+   * switches into reference coordinates and look stranded (upper-left /
+   * wrong scale).
+   */
+  /**
+   * Large-image (tiled) maps keep GeoJS clampZoom/clampBounds on by default.
+   * Align View places warps in reference space and snaps every pane to the
+   * reference FOV, which often exceeds a non-reference pane's native
+   * maxBounds -- with clamp on, zoom/center snaps are silently rejected and
+   * IR looks stranded at its native tile fit. Unlock before every snap.
+   */
+  function unlockPanZoomClamp() {
+    cameras.value.forEach((camera) => {
+      const map = viewer(camera);
+      if (map && typeof map.clampZoom === 'function') {
+        map.clampBoundsX(false);
+        map.clampBoundsY(false);
+        map.clampZoom(false);
+      }
+    });
+  }
+
+  function snapFromReference() {
+    if (!alignedView.active.value) {
+      return;
+    }
+    const reference = alignedView.reference.value;
+    if (!reference || !cameras.value.includes(reference)) {
+      return;
+    }
+    const source = viewer(reference);
+    if (!source) {
+      return;
+    }
+    unlockPanZoomClamp();
+    guarded(() => {
+      try {
+        const bounds = aggregateController.value.getController(reference).originalBounds.value;
+        if (typeof source.zoomAndCenterFromBounds === 'function') {
+          const zc = source.zoomAndCenterFromBounds(bounds, 0);
+          source.zoom(zc.zoom);
+          source.center(zc.center);
+        } else {
+          aggregateController.value.getController(reference).resetZoom();
+        }
+      } catch {
+        // Controllers may be mid-reload; link() below still copies whatever
+        // view the reference currently has.
+      }
+    });
+    link(reference)();
   }
 
   function setup() {
@@ -144,8 +229,9 @@ export default function useAlignedNavigation(
       return;
     }
     cameras.value.forEach((camera) => attach(camera, link(camera)));
-    // Snap immediately from the reference pane so hitting Align lines every pane
-    // up right away instead of waiting for the first pan/zoom event.
+    // Propagate the reference pane's current view. Full fit-to-reference
+    // (snapFromReference) is only for Align-on below so resizes don't yank
+    // the user back to a native fit.
     const reference = alignedView.reference.value;
     if (reference && cameras.value.includes(reference)) {
       link(reference)();
@@ -162,11 +248,50 @@ export default function useAlignedNavigation(
     setup,
   );
 
-  // Leaving the aligned view strands every pane at reference-space centers/zooms
-  // while content reverts to native coordinates -- reset each to its full native
-  // view so the imagery is back on-screen.
+  // Align View toggled on: fit the reference frame and push that viewport onto
+  // every other pane (large-image leaves Align-off on a native tile fit that
+  // is wrong once warps live in reference coords). Re-snap after a tick so
+  // AlignedImageLayer / frameTexture have settled, and once more when any
+  // camera's imageRevision bumps (overview texture usually lands async).
+  // Toggled off: restore each pane's native full-frame fit.
+  const alignOnRevisionStops: (() => void)[] = [];
   watch(alignedView.active, (active, wasActive) => {
+    if (active && !wasActive) {
+      snapFromReference();
+      nextTick(() => {
+        if (!alignedView.active.value) {
+          return;
+        }
+        snapFromReference();
+        if (typeof window !== 'undefined'
+          && typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => {
+            if (alignedView.active.value) {
+              snapFromReference();
+            }
+          });
+        }
+      });
+      cameras.value.forEach((camera) => {
+        try {
+          const { imageRevision } = aggregateController.value.getController(camera);
+          const stop = watch(imageRevision, () => {
+            stop();
+            if (alignedView.active.value) {
+              snapFromReference();
+            }
+          });
+          alignOnRevisionStops.push(stop);
+        } catch {
+          // Camera controller may be mid-teardown.
+        }
+      });
+      return;
+    }
     if (!active && wasActive) {
+      while (alignOnRevisionStops.length) {
+        alignOnRevisionStops.pop()?.();
+      }
       cameras.value.forEach((camera) => {
         try {
           aggregateController.value.getController(camera).resetZoom();

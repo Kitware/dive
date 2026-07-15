@@ -268,6 +268,10 @@ export default defineComponent({
         );
         // Rehydrate the store from the freshly persisted meta so the Align
         // View and mirroring pick up the new transforms immediately.
+        // Remember whether the Camera Registration panel had a pair active:
+        // hydrate() clears it, and the camera list doesn't change on import,
+        // so nothing else would re-establish the panel's state.
+        const priorPair = cameraRegistration.activePair.value;
         const meta = await api.loadMetadata(parentDatasetId(props.datasetId));
         cameraRegistration.hydrate(
           meta.cameraHomographies,
@@ -275,19 +279,43 @@ export default defineComponent({
           meta.cameraTransformTypes,
           meta.cameraRegistrationSource,
         );
+        if (priorPair) {
+          // The panel is open: re-select the imported pair (falling back to
+          // the prior one) so the loaded state is immediately visible, in
+          // review posture -- picking stays off for a file-loaded transform.
+          const pairKeys = [
+            ...Object.keys(cameraRegistration.homographies.value),
+            ...Object.keys(cameraRegistration.correspondences.value),
+          ];
+          // Pair bodies name their own cameras, so a pair can reference one
+          // missing from this dataset; only select a pair the panel can show.
+          const importedKey = pairKeys.find((key) => key.split('::').includes(camera)
+            && key.split('::').every((name) => cameraStore.camMap.value.has(name)));
+          const [left, right] = importedKey
+            ? importedKey.split('::')
+            : [priorPair.camA, priorPair.camB];
+          cameraRegistration.setActivePair(left, right);
+          cameraRegistration.pickingEnabled.value = cameraRegistration.pickingDefaultFor(
+            cameraRegistration.activePairKey(),
+          );
+        }
         processing.value = false;
         const unknown = result.cameras.filter((name) => !cameraStore.camMap.value.has(name));
+        const text = [
+          `Imported registration for camera "${camera}".`,
+          'Registration can be validated in the Camera Registration menu.',
+        ];
         if (unknown.length) {
-          await prompt({
-            title: 'Registration Imported',
-            text: [
-              `Imported ${result.pairCount} pair(s), but the file names camera(s) not in this dataset:`,
-              unknown.join(', '),
-              'Pair bodies name their own cameras, so these pairs will not resolve until matching cameras exist.',
-            ],
-            positiveButton: 'OK',
-          });
+          text.push(
+            `Warning: the file also names camera(s) not in this dataset: ${unknown.join(', ')}.`,
+            'Pair bodies name their own cameras, so those pairs will not resolve until matching cameras exist.',
+          );
         }
+        await prompt({
+          title: 'Registration Imported',
+          text,
+          positiveButton: 'OK',
+        });
       } catch (error) {
         processing.value = false;
         prompt({

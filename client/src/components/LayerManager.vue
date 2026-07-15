@@ -12,6 +12,7 @@ import PointLayer from '../layers/AnnotationLayers/PointLayer';
 import LineLayer from '../layers/AnnotationLayers/LineLayer';
 import TailLayer from '../layers/AnnotationLayers/TailLayer';
 import OverlapLayer from '../layers/AnnotationLayers/OverlapLayer';
+import RegistrationKeypointLayer from '../layers/AnnotationLayers/RegistrationKeypointLayer';
 
 import EditAnnotationLayer, { EditAnnotationTypes } from '../layers/EditAnnotationLayer';
 import LassoSelectionLayer from '../layers/LassoSelectionLayer';
@@ -36,6 +37,7 @@ import {
   useAnnotatorPreferences,
   useGroupStyleManager,
   useCameraStore,
+  useCameraRegistration,
   useAlignedView,
   useSelectedCamera,
   useAttributes,
@@ -45,6 +47,7 @@ import {
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 import useLayerManagerAlignedView from './layerManager/useLayerManagerAlignedView';
+import { getCameraQuadMedia } from './layerManager/quadMediaSource';
 import useLayerRefresh from './layerManager/useLayerRefresh';
 import useSegmentationPointsLayer from './layerManager/useSegmentationPointsLayer';
 import useAnnotationClickHandling from './layerManager/useAnnotationClickHandling';
@@ -80,6 +83,12 @@ export default defineComponent({
       // Viewer may not provide lasso context in tests or minimal embeds.
     }
     const cameraStore = useCameraStore();
+    let cameraRegistration: ReturnType<typeof useCameraRegistration> | undefined;
+    try {
+      cameraRegistration = useCameraRegistration();
+    } catch {
+      // registration store may not be provided in tests or minimal embeds.
+    }
     let alignedView: ReturnType<typeof useAlignedView> | undefined;
     try {
       alignedView = useAlignedView();
@@ -201,6 +210,79 @@ export default defineComponent({
     // Segmentation points layer for displaying prompt points during point-click segmentation
     const segmentationPointsRef = useSegmentationPoints();
     const segmentationPointsLayer = new SegmentationPointsLayer(annotator);
+
+    const registrationLayer = cameraRegistration
+      ? new RegistrationKeypointLayer({
+        annotator,
+        stateStyling: trackStyleManager.stateStyles,
+        typeStyling: typeStylingRef,
+        registration: cameraRegistration,
+        getCameraImage: (cam: string) => getCameraQuadMedia(
+          (c) => aggregateController.value.getController(c),
+          cam,
+        ),
+      })
+      : undefined;
+
+    if (cameraRegistration && registrationLayer) {
+      const registration = cameraRegistration;
+      /**
+       * The camera whose image is being ghosted into another pane, or null
+       * when no ghost is active.
+       */
+      const ghostSourceCamera = computed(() => {
+        const { mode } = registration.alignment.value;
+        const pair = registration.activePair.value;
+        if (mode === 'original' || !pair) {
+          return null;
+        }
+        return mode === 'BtoA' ? pair.camB : pair.camA;
+      });
+      const ghostSourceController = (camera: string | null) => {
+        if (camera === null) {
+          return null;
+        }
+        try {
+          return aggregateController.value.getController(camera);
+        } catch {
+          return null;
+        }
+      };
+      /**
+       * Frame number of the ghost source camera. Watched so the ghost
+       * re-renders when the *source* pane scrubs, not just this pane -- this
+       * pane's own frameNumberRef can update before (or without) the
+       * source's.
+       */
+      const ghostSourceFrame = computed(
+        () => ghostSourceController(ghostSourceCamera.value)?.frame.value ?? null,
+      );
+      /**
+       * imageRevision of the ghost source camera: its annotator swaps the
+       * displayed <img> asynchronously after the frame finishes loading and
+       * bumps this when it does, so the ghost re-renders from the element
+       * actually on screen.
+       */
+      const ghostSourceRevision = computed(
+        () => ghostSourceController(ghostSourceCamera.value)?.imageRevision.value ?? null,
+      );
+      watch(
+        [
+          cameraRegistration.activePair,
+          cameraRegistration.pickingEnabled,
+          cameraRegistration.correspondences,
+          cameraRegistration.pendingPoint,
+          cameraRegistration.selectedCorrespondenceId,
+          cameraRegistration.homographies,
+          cameraRegistration.alignment,
+          frameNumberRef,
+          ghostSourceFrame,
+          ghostSourceRevision,
+        ],
+        () => registrationLayer.update(),
+        { deep: true },
+      );
+    }
 
     const updateAttributes = () => {
       const newList = attributes.value.filter((item) => item.render).sort((a, b) => {

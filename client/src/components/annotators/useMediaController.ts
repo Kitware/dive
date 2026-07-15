@@ -10,6 +10,7 @@ import { map, over } from 'lodash';
 
 import { use } from '../../provides';
 import type { AggregateMediaController, AlignedFrameResolver, MediaController } from './mediaControllerType';
+import type { CameraImage } from '../../layers/cameraImage';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
@@ -36,10 +37,15 @@ interface MediaControllerReactiveData {
    * swap after a seek finishes loading, an image-enhancement change (the
    * percentile-stretch URL remap or the CSS filter toggle), or the initial
    * video quad. Watchers that render a snapshot of the displayed element
-   * (e.g. the aligned-view warp) rely on this as their
+   * (the aligned-view warp, the registration ghost) rely on this as their
    * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: number;
+  /**
+   * Composited overview texture for tiled large-image panes. Null for
+   * image-sequence / video. Assigned with markRaw (DOM canvas/image).
+   */
+  frameTexture: CameraImage | null;
   cursor: string;
   imageCursor: string;
   imageCursorEditing: boolean;
@@ -187,6 +193,16 @@ export function useMediaController() {
   }, { flush: 'post' });
 
   function clear() {
+    Object.values(geoViewers).forEach((viewerRef) => {
+      const map = viewerRef?.value;
+      if (map && typeof map.exit === 'function') {
+        try {
+          map.exit();
+        } catch {
+          // Map may already be torn down with its DOM node.
+        }
+      }
+    });
     geoViewers = {};
     containers = {};
     imageCursors = {};
@@ -365,6 +381,7 @@ export function useMediaController() {
       syncedFrame: 0,
       hasFrame: true,
       imageRevision: 0,
+      frameTexture: null as CameraImage | null,
       cursor: 'default',
       imageCursor: '',
       imageCursorEditing: false,
@@ -410,7 +427,8 @@ export function useMediaController() {
       geoViewerRef.value.center(zoomAndCenter.center);
     }
 
-    function resetMapDimensions(width: number, height: number, isMap = false, margin = 0.3) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained for MediaController API compatibility
+    function resetMapDimensions(width: number, height: number, _isMap = false, margin = 0.3) {
       const geoViewerRef = geoViewers[camera];
       const containerRef = containers[camera];
       const data = state[camera];
@@ -435,16 +453,27 @@ export function useMediaController() {
         // 32x zoom max
         max: 32,
       });
-      if (!isMap) {
-        if (Object.keys(geoViewers).length === 1) {
-          geoViewerRef.value.clampBoundsX(true);
-          geoViewerRef.value.clampBoundsY(true);
-          geoViewerRef.value.clampZoom(true);
-        } else {
-          geoViewerRef.value.clampBoundsX(false);
-          geoViewerRef.value.clampBoundsY(false);
-          geoViewerRef.value.clampZoom(false);
-        }
+      // Multicam (including LargeImageAnnotator, which passes isMap=true) must
+      // turn clamp off so Align View can show a shared reference FOV that may
+      // exceed any one camera's native maxBounds. pixelCoordinateParams leaves
+      // clampZoom/clampBounds on by default; the old `if (!isMap)` guard skipped
+      // this for tiled panes and Align snaps were silently rejected.
+      // When a second camera registers, also unlock siblings that may still
+      // hold single-pane clamp from their earlier init.
+      // `_isMap` retained for MediaController API compatibility.
+      if (Object.keys(geoViewers).length === 1) {
+        geoViewerRef.value.clampBoundsX(true);
+        geoViewerRef.value.clampBoundsY(true);
+        geoViewerRef.value.clampZoom(true);
+      } else {
+        Object.values(geoViewers).forEach((viewerRef) => {
+          const map = viewerRef.value;
+          if (map && typeof map.clampZoom === 'function') {
+            map.clampBoundsX(false);
+            map.clampBoundsY(false);
+            map.clampZoom(false);
+          }
+        });
       }
       resetZoom();
     }
@@ -464,6 +493,18 @@ export function useMediaController() {
       if (tileWidth === undefined) {
         // eslint-disable-next-line no-param-reassign
         tileWidth = width;
+      }
+      // Tear down any previous map for this camera before allocating a new
+      // one. LargeImageAnnotator (and imageData watches) can re-init; without
+      // this, orphaned geoJS maps accumulate WebGL contexts until the browser
+      // starts dropping the oldest ones and annotation redraws blow up.
+      const previous = geoViewers[camera].value;
+      if (previous && typeof previous.exit === 'function') {
+        try {
+          previous.exit();
+        } catch {
+          // Map may already be partially torn down during a dataset reload.
+        }
       }
       let params = geo.util.pixelCoordinateParams(containers[camera].value, width, height, tileWidth, tileHeight);
       if (isMap && geoSpatial) {
@@ -584,6 +625,7 @@ export function useMediaController() {
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
       imageRevision: toRef(state[camera], 'imageRevision'),
+      frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),
       prevFrame,
       nextFrame,

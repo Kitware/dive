@@ -17,17 +17,18 @@ async function countLargeImageItems(folderId: string): Promise<number> {
   let offset = 0;
   const limit = 100;
   let count = 0;
+  let hasMore = true;
   /* eslint-disable no-await-in-loop -- paginate folder items until all are checked */
-  while (true) {
+  while (hasMore) {
     const { data: items } = await getItemsInFolder(folderId, limit, offset);
     if (!items.length) {
       break;
     }
     count += items.filter((item) => LARGE_IMAGE_ITEM_PATTERN.test(item.name)).length;
-    if (items.length < limit) {
-      break;
+    hasMore = items.length >= limit;
+    if (hasMore) {
+      offset += items.length;
     }
-    offset += items.length;
   }
   return count;
 }
@@ -36,17 +37,18 @@ async function countViewableImages(folderId: string): Promise<number> {
   let offset = 0;
   const limit = 100;
   let count = 0;
+  let hasMore = true;
   /* eslint-disable no-await-in-loop -- paginate folder items until all are checked */
-  while (true) {
+  while (hasMore) {
     const { data: items } = await getItemsInFolder(folderId, limit, offset);
     if (!items.length) {
       break;
     }
     count += items.filter((item) => VIEWABLE_IMAGE_PATTERN.test(item.name)).length;
-    if (items.length < limit) {
-      break;
+    hasMore = items.length >= limit;
+    if (hasMore) {
+      offset += items.length;
     }
-    offset += items.length;
   }
   return count;
 }
