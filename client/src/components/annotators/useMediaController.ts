@@ -10,6 +10,7 @@ import { map, over } from 'lodash';
 
 import { use } from '../../provides';
 import type { AggregateMediaController, AlignedFrameResolver, MediaController } from './mediaControllerType';
+import type { CameraImage } from '../../layers/cameraImage';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
@@ -40,6 +41,11 @@ interface MediaControllerReactiveData {
    * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: number;
+  /**
+   * Composited overview texture for tiled large-image panes. Null for
+   * image-sequence / video. Assigned with markRaw (DOM canvas/image).
+   */
+  frameTexture: CameraImage | null;
   cursor: string;
   imageCursor: string;
   imageCursorEditing: boolean;
@@ -365,6 +371,7 @@ export function useMediaController() {
       syncedFrame: 0,
       hasFrame: true,
       imageRevision: 0,
+      frameTexture: null as CameraImage | null,
       cursor: 'default',
       imageCursor: '',
       imageCursorEditing: false,
@@ -584,6 +591,7 @@ export function useMediaController() {
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
       imageRevision: toRef(state[camera], 'imageRevision'),
+      frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),
       prevFrame,
       nextFrame,

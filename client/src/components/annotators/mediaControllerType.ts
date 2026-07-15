@@ -1,4 +1,5 @@
 import type { Ref } from 'vue';
+import type { CameraImage } from '../../layers/cameraImage';
 
 /**
  * Supplied by Viewer.vue when every camera in a multicam dataset has a
@@ -111,6 +112,12 @@ export interface MediaController extends AggregateMediaController {
    * only signal that the element changed -- every draw path must bump it.
    */
   imageRevision: Readonly<Ref<number>>;
+  /**
+   * Composited overview texture for tiled large-image panes (used by Align
+   * View / registration ghosts when there is no media quad). Null for
+   * image-sequence and video annotators.
+   */
+  frameTexture: Readonly<Ref<CameraImage | null>>;
   /**
    * This pane's native content bounds ({left: 0, top: 0, right: width,
    * bottom: height}, as last applied by resetMapDimensions) -- the rectangle

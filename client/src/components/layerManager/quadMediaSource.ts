@@ -1,4 +1,4 @@
-import type { CameraImage } from '../../layers/AlignedImageLayer';
+import type { CameraImage } from '../../layers/cameraImage';
 
 /** GeoJS viewer with a layers() accessor. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,12 +44,18 @@ export function findQuadMediaSource(
       const datum = quadDatumFromLayer(layer);
       if (datum) {
         if (datum.image) {
-          const image = datum.image as HTMLImageElement;
+          const image = datum.image as HTMLImageElement | HTMLCanvasElement;
+          const width = 'naturalWidth' in image && image.naturalWidth
+            ? image.naturalWidth
+            : (image as HTMLCanvasElement).width;
+          const height = 'naturalHeight' in image && image.naturalHeight
+            ? image.naturalHeight
+            : (image as HTMLCanvasElement).height;
           return {
             source: image,
             kind: 'image' as const,
-            width: image.naturalWidth,
-            height: image.naturalHeight,
+            width,
+            height,
           };
         }
         const video = datum.video as HTMLVideoElement;
@@ -85,16 +91,37 @@ export function findQuadMediaLayer(
   return null;
 }
 
+type CameraController = {
+  geoViewerRef?: { value?: GeoViewer };
+  /** Composited frame texture for tiled large-image annotators. */
+  frameTexture?: { value?: CameraImage | null };
+} | undefined;
+
 /**
- * Resolve a camera's currently displayed frame image/video via its GeoJS viewer.
+ * Resolve a camera's currently displayed frame image/video.
+ *
+ * Prefer an explicit {@link MediaController.frameTexture} (tiled large-image
+ * overview) when present: Align View / registration ghosts draw that same
+ * canvas into warp quads on the map, and scanning feature layers afterward
+ * would re-read those warp quads with the overview's pixel size as if it
+ * were the native frame size -- warping then offsets against annotations
+ * that still use native coordinates and the fitted homography.
+ *
+ * Image / video annotators leave frameTexture null and resolve from their
+ * media quad as before.
  * Swallows getController errors (e.g. after a dataset reload clears controllers).
  */
 export function getCameraQuadMedia(
-  getController: (camera: string) => { geoViewerRef?: { value?: GeoViewer } } | undefined,
+  getController: (camera: string) => CameraController,
   camera: string,
 ): CameraImage | null {
   try {
-    return findQuadMediaSource(getController(camera)?.geoViewerRef?.value);
+    const controller = getController(camera);
+    const fromTexture = controller?.frameTexture?.value ?? null;
+    if (fromTexture) {
+      return fromTexture;
+    }
+    return findQuadMediaSource(controller?.geoViewerRef?.value);
   } catch {
     return null;
   }

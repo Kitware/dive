@@ -89,27 +89,48 @@ export default class AlignedImageLayer {
   }
 
   /**
-   * Find the annotator's own image/video quad layer (the one Image/Video
-   * Annotator draws each frame into). It is created before any LayerManager
-   * layer, so it is the first layer -- other than ours -- containing a quad
-   * datum with an `image`/`video` texture source. Returns null for
-   * annotators without one (e.g. tiled large-image datasets).
+   * Find the annotator's own media layer(s): the image/video quad layer for
+   * Image/Video annotators, or OSM tile layers for LargeImageAnnotator. Both
+   * are created before LayerManager layers. Returns an empty list when none
+   * are found.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private findNativeQuadLayer(): any | null {
-    return findQuadMediaLayer(this.annotator.geoViewerRef.value, this.quadLayer);
+  private findNativeMediaLayers(): any[] {
+    const viewer = this.annotator.geoViewerRef.value;
+    if (!viewer || typeof viewer.layers !== 'function') {
+      return [];
+    }
+    const nativeQuad = findQuadMediaLayer(viewer, this.quadLayer);
+    if (nativeQuad) {
+      return [nativeQuad];
+    }
+    // Tiled large-image: hide every OSM layer that isn't ours.
+    return viewer.layers().filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (layer: any) => layer !== this.quadLayer
+        && typeof layer?.url === 'function'
+        && typeof layer?.features !== 'function',
+    );
   }
 
   private setNativeVisible(visible: boolean) {
     if (visible === !this.nativeHidden) {
       return;
     }
-    const nativeLayer = this.findNativeQuadLayer();
-    if (nativeLayer) {
-      nativeLayer.visible(visible);
-      if (visible) {
-        nativeLayer.draw();
-      }
+    const nativeLayers = this.findNativeMediaLayers();
+    if (nativeLayers.length) {
+      nativeLayers.forEach((nativeLayer) => {
+        if (typeof nativeLayer.visible === 'function') {
+          nativeLayer.visible(visible);
+        } else if (typeof nativeLayer.opacity === 'function') {
+          nativeLayer.opacity(visible ? 1 : 0);
+        } else if (typeof nativeLayer.node === 'function') {
+          nativeLayer.node().css('visibility', visible ? '' : 'hidden');
+        }
+        if (visible && typeof nativeLayer.draw === 'function') {
+          nativeLayer.draw();
+        }
+      });
       this.nativeHidden = !visible;
     } else if (visible) {
       this.nativeHidden = false;
@@ -132,9 +153,9 @@ export default class AlignedImageLayer {
     const src = this.getImage();
     if (!src || !src.width || !src.height) {
       // The frame may simply not have finished loading yet (the annotator
-      // bumps imageRevision when it lands, which re-runs update()), or this
-      // annotator type exposes no image element (e.g. large-image tiles), in
-      // which case the native display simply stays.
+      // bumps imageRevision when it lands, which re-runs update()). Large-image
+      // panes expose a composited frameTexture once ready; until then the
+      // native tile display stays.
       this.clear();
       return;
     }
@@ -145,8 +166,8 @@ export default class AlignedImageLayer {
     const quads = geojsWarpQuadsForImage(transform, src, 2);
     // Mirror the native layer's CSS filter (image enhancements) so toggling
     // the warp doesn't change brightness/contrast rendering.
-    const nativeLayer = this.findNativeQuadLayer();
-    if (nativeLayer) {
+    const [nativeLayer] = this.findNativeMediaLayers();
+    if (nativeLayer && typeof nativeLayer.node === 'function') {
       this.quadLayer.node().css('filter', nativeLayer.node().css('filter'));
     }
     this.quadFeature
