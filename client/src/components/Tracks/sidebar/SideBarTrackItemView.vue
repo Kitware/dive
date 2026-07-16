@@ -179,7 +179,8 @@ export default defineComponent({
       <v-tooltip
         open-delay="200"
         bottom
-        max-width="320"
+        max-width="360"
+        content-class="sidebar-notes-tooltip"
       >
         <template #activator="{ on, attrs }">
           <v-btn
@@ -187,7 +188,7 @@ export default defineComponent({
             small
             icon
             class="ma-0"
-            :color="hasNotes ? 'warning' : 'grey darken-1'"
+            :color="hasNotes ? 'white' : 'grey darken-1'"
             v-on="on"
             @click="openNotesDialog"
           >
@@ -196,7 +197,7 @@ export default defineComponent({
             </v-icon>
           </v-btn>
         </template>
-        <span style="white-space: pre-wrap; word-break: break-word;">{{ notesTooltip }}</span>
+        <span>{{ notesTooltip }}</span>
       </v-tooltip>
       <TypePicker
         :value="trackType"
@@ -367,5 +368,24 @@ export default defineComponent({
     min-height: 15px;
     max-height: 15px;
   }
+}
+</style>
+
+<!-- Unscoped: tooltip content is teleported outside this component -->
+<style lang="scss">
+.v-tooltip__content.sidebar-notes-tooltip {
+  opacity: 1 !important;
+  background-color: #1e1e1e !important;
+  color: #f5f5f5 !important;
+  font-size: 14px !important;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  padding: 10px 14px !important;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
