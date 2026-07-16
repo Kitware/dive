@@ -40,6 +40,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isSuppressionType: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     /* Horizontal padding is the width of checkbox, scrollbar, and edit button */
@@ -110,6 +114,28 @@ export default defineComponent({
                 </span>
               </template>
               <span>Type has threshold set individually</span>
+            </v-tooltip>
+            <v-tooltip
+              v-if="isSuppressionType"
+              open-delay="200"
+              bottom
+              max-width="280"
+            >
+              <template #activator="{ on, attrs }">
+                <v-icon
+                  small
+                  class="ml-1 suppression-icon"
+                  color="orange darken-2"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  mdi-eye-off
+                </v-icon>
+              </template>
+              <span>
+                This type is used for suppression.
+                Detections lying 50% or more under its regions are hidden and excluded from counts.
+              </span>
             </v-tooltip>
           </div>
         </template>
@@ -189,5 +215,10 @@ export default defineComponent({
   border-radius: 6px;
   padding: 0 5px;
   font-size: 12px;
+}
+
+.suppression-icon {
+  flex-shrink: 0;
+  align-self: center;
 }
 </style>
