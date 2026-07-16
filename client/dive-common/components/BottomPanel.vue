@@ -154,6 +154,7 @@ export default defineComponent({
             :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
             :height="130"
             :width="300"
+            :header-height="50"
             :style-manager="trackStyleManager"
             :filter-controls="trackFilters"
             :disabled="disableAnnotationFilters"

@@ -26,10 +26,8 @@ interface VirtualTypeItem {
   displayText: string;
   color: string;
   checked: boolean;
+  isSuppressionType: boolean;
 }
-
-/* Magic numbers involved in height calculation */
-const TypeListHeaderHeight = 80;
 
 export default defineComponent({
   name: 'FilterList',
@@ -48,6 +46,11 @@ export default defineComponent({
     width: {
       type: Number,
       default: 300,
+    },
+    /* Sidebar (~80) vs bottom bar (~50) header chrome */
+    headerHeight: {
+      type: Number,
+      default: 80,
     },
     filterControls: {
       type: Object as PropType<BaseFilterControls<Track | Group>>,
@@ -268,12 +271,14 @@ export default defineComponent({
       if (filterTypesByFrame.value) {
         filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
       }
+      const suppressionType = clientSettings.typeSettings.suppressionType;
       return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
         displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
+        isSuppressionType: !!suppressionType && item === suppressionType,
       }));
     });
     const headCheckState = computed(() => {
@@ -311,7 +316,7 @@ export default defineComponent({
       }
     }
 
-    const virtualHeight = computed(() => props.height - TypeListHeaderHeight);
+    const virtualHeight = computed(() => props.height - props.headerHeight);
 
     const goToPeakTrackFrame = (trackType: string) => {
       const frameCounts = new Map<number, number>();
@@ -487,6 +492,7 @@ export default defineComponent({
             :width="width"
             :display-max-button="showMaxFrameButton"
             :disabled="disableAnnotationFilters"
+            :is-suppression-type="item.isSuppressionType"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"
