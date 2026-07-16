@@ -6,7 +6,9 @@ import {
 } from 'vitest';
 
 import type { FrameMetadataSourcesResponse } from '../apispec';
-import { __resetFrameMetadataSessionCache, useFrameMetadata } from './useFrameMetadata';
+import {
+  __resetFrameMetadataSessionCache, invalidateFrameMetadata, useFrameMetadata,
+} from './useFrameMetadata';
 
 // Drain Vue's watcher scheduler and the promise/microtask + macrotask queues so a dataset switch,
 // an async source load/resolve, and any lazy per-camera pass all settle before we assert.
@@ -74,6 +76,43 @@ describe('useFrameMetadata', () => {
     expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['label', 'second']]);
     expect(metadata.currentSources.value).toEqual(['frame_metadata.csv']);
     expect(metadata.error.value).toBeNull();
+  });
+
+  it('refetches the current dataset when invalidateFrameMetadata fires (explicit import)', async () => {
+    const before: FrameMetadataSourcesResponse = { cameras: {} };
+    const after: FrameMetadataSourcesResponse = {
+      cameras: {
+        singleCam: [{
+          name: 'nav_2024.csv',
+          text: 'filename,depth\nimg001.png,42\n',
+        }],
+      },
+    };
+    const loadFrameMetadata = vi.fn()
+      .mockResolvedValueOnce(before)
+      .mockResolvedValueOnce(after);
+    const getCameraMediaNames = vi.fn((camera: string) => (
+      camera === 'singleCam' ? ['img001.png'] : undefined
+    ));
+
+    const datasetId = ref('dataset-a');
+    const frame = ref(0);
+    const selectedCamera = ref('singleCam');
+    const metadata = useFrameMetadata({
+      datasetId, frame, selectedCamera, loadFrameMetadata, getCameraMediaNames,
+    });
+
+    await settle();
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
+    expect(metadata.hasMetadataSource.value).toBe(false);
+
+    // An explicit sidecar import bumps the invalidation signal: the same dataset refetches
+    // (negative cache dropped) and the new source resolves without a dataset switch.
+    invalidateFrameMetadata();
+    await settle();
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(2);
+    expect(metadata.hasMetadataSource.value).toBe(true);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '42']]);
   });
 
   it('negative-caches an empty source listing and never refetches until a dataset switch', async () => {

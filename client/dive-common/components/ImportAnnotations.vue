@@ -5,6 +5,7 @@ import {
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
+import { invalidateFrameMetadata } from 'dive-common/use/useFrameMetadata';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
@@ -219,6 +220,42 @@ export default defineComponent({
         processing.value = false;
       }
     };
+    // Frame metadata import works with any filename: the user's pick declares the file's
+    // role, so no reserved basename is needed on this path.
+    const frameMetadataSupported = computed(() => !!api.importFrameMetadataFile);
+    const openFrameMetadataUpload = async () => {
+      if (!api.importFrameMetadataFile) return;
+      try {
+        const ret = await openFromDisk('frameMetadata');
+        if (ret.canceled || !ret.filePaths.length) return;
+        menuOpen.value = false;
+        processing.value = true;
+        const result = await api.importFrameMetadataFile(
+          props.datasetId,
+          ret.filePaths[0],
+          ret.fileList?.[0],
+        );
+        processing.value = false;
+        if (result === false) {
+          await prompt({
+            title: 'Frame Metadata Import Failed',
+            text: ['Could not import the frame metadata file.'],
+            positiveButton: 'OK',
+          });
+          return;
+        }
+        // The Frame Info panel reads through a session cache; drop it so the new
+        // sidecar shows up without reloading the viewer.
+        invalidateFrameMetadata();
+      } catch (error) {
+        processing.value = false;
+        prompt({
+          title: 'Frame Metadata Import Failed',
+          text: [getResponseError(error)],
+          positiveButton: 'OK',
+        });
+      }
+    };
     const openCalibrationUpload = async () => {
       if (!api.importCalibrationFile) return;
       try {
@@ -357,6 +394,8 @@ export default defineComponent({
     };
     return {
       openUpload,
+      frameMetadataSupported,
+      openFrameMetadataUpload,
       openCalibrationUpload,
       openRegistrationUpload,
       applyLastCalibration,
@@ -533,6 +572,37 @@ export default defineComponent({
             </div>
           </v-col>
         </v-container>
+        <template v-if="frameMetadataSupported">
+          <v-divider />
+          <v-card-title class="pt-3">
+            Import Frame Metadata
+          </v-card-title>
+          <v-card-text class="pb-0">
+            Attach a per-frame metadata file (CSV or delimited text) to this dataset.
+            The file can have any name; rows are matched to frames by image filename.
+            <span v-if="isMulticamDataset">
+              Frame metadata is stored with the dataset and shared across cameras.
+            </span>
+            <a
+              href="https://kitware.github.io/dive/Frame-Metadata/"
+              target="_blank"
+            >Frame Metadata Documentation</a>
+          </v-card-text>
+          <v-container>
+            <v-col>
+              <v-row>
+                <v-btn
+                  depressed
+                  block
+                  :disabled="!datasetId || processing"
+                  @click="openFrameMetadataUpload"
+                >
+                  Import
+                </v-btn>
+              </v-row>
+            </v-col>
+          </v-container>
+        </template>
         <template v-if="registrationSupported">
           <v-divider />
           <v-card-title class="pt-3">

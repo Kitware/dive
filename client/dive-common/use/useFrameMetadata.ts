@@ -40,6 +40,15 @@ export function __resetFrameMetadataSessionCache() {
   sessionCache = null;
 }
 
+// Bumped when a sidecar is added or removed (e.g. explicit frame metadata import) so live
+// composable instances drop their state and refetch instead of serving stale sources.
+const invalidationCounter = ref(0);
+
+export function invalidateFrameMetadata() {
+  sessionCache = null;
+  invalidationCounter.value += 1;
+}
+
 export function useFrameMetadata({
   datasetId,
   frame,
@@ -231,6 +240,17 @@ export function useFrameMetadata({
     () => { ensure(); },
     { immediate: true },
   );
+
+  watch(invalidationCounter, async () => {
+    const id = datasetId.value;
+    if (!id) {
+      return;
+    }
+    token += 1;
+    loadedDatasetId = id;
+    reset();
+    await runLoad(id, token);
+  });
 
   // The viewer can expose an empty media list before filenames finish loading.
   const activeCameraMediaCount = computed(() => (

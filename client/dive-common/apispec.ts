@@ -323,7 +323,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'frameMetadata' | 'text' | 'zip' | 'transform', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
@@ -363,6 +363,11 @@ interface Api {
   }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
+  /**
+   * Store an arbitrary-named frame metadata sidecar with the dataset (declared by user
+   * intent rather than the reserved basename). Resolves with any import warnings.
+   */
+  importFrameMetadataFile?(id: string, path: string, file?: File): Promise<boolean | string[]>;
   // Desktop-only calibration persistence functions
   getLastCalibration?(): Promise<string | null>;
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;

@@ -171,6 +171,12 @@ const inputAnnotationFileTypes = [
   'csv',
 ];
 
+// Accepted extensions for explicit frame metadata import (any basename).
+const frameMetadataFileTypes = [
+  'csv',
+  'txt',
+];
+
 const listFileTypes = [
   'txt',
 ];
@@ -230,6 +236,7 @@ export {
   getLargeImageFileAccept,
   getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
+  frameMetadataFileTypes,
   listFileTypes,
   transformFileTypes,
   zipFileTypes,
