@@ -31,10 +31,22 @@ interface DesktopJobHistory {
 }
 
 const truncateOutputAtLines = 500;
-const cancelledJobExitCode = 143; // SIGTERM
+const cancelledJobExitCode = 143; // SIGTERM (128 + 15)
+// A finished process that still reports a null exit code was killed by a signal
+// (e.g. SIGSEGV from a native crash, or SIGKILL from the OOM killer) rather than
+// exiting normally. Node surfaces that as a null code, and every job-status
+// check in the desktop UI treats exitCode === null as "still running" (the
+// indeterminate spinner / progress bar). So a crashed job must never be left
+// with a null code -- we normalize it to this conventional "killed by signal"
+// value. The renderer is not given the signal name, so one generic code is used.
+const abnormalTerminationExitCode = 139; // 128 + SIGSEGV (11)
 const jobHistory: Ref<Record<string, DesktopJobHistory>> = ref({});
 const recentHistory = computed(() => Object.values(jobHistory.value));
-const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.exitCode === null));
+// A job is still running until it reports an endTime. Do NOT key this off
+// exitCode === null: a process killed by a signal (e.g. a segfault or OOM kill)
+// also reports a null exit code, which would otherwise pin the job as "running"
+// forever even though it has already exited.
+const runningJobs = computed(() => recentHistory.value.filter((v) => v.job.endTime === undefined));
 
 export function updateHistory(args: DesktopJobUpdate) {
   let existing = jobHistory.value[args.key];
@@ -69,15 +81,32 @@ export function updateHistory(args: DesktopJobUpdate) {
     existing.job.endTime = args.endTime;
   }
 
+  // A job that has finished (endTime set) but still carries a null exitCode was
+  // killed by a signal, not exited normally. Normalize it to a non-null failure
+  // code here, at the single update funnel, so that every downstream check that
+  // reads "exitCode === null" as "still running" -- the job-row spinner and
+  // progress bar in JobsHistory, the running badge, the in-progress cancel
+  // action -- correctly renders it as a failed job instead of one that spins
+  // forever.
+  if (existing.job.endTime !== undefined
+      && existing.job.exitCode === null
+      && !existing.job.cancelledJob) {
+    existing.job.exitCode = abnormalTerminationExitCode;
+  }
+
   // Surface a failed job to the user with a single dialog once it exits with a
   // non-zero, non-cancellation code. The process reports a cause on lines
   // beginning with "ERROR:" (DIVE convention); when present we show those,
   // otherwise we fall back to a generic message so failures are never silent.
   const finished = existing.job.endTime !== undefined;
-  const failed = existing.job.exitCode !== null
+  // A finished job that did not exit cleanly (0) and was not cancelled has
+  // failed. This deliberately includes exitCode === null, which is how a
+  // process killed by a signal (e.g. a segfault) reports -- such crashes must
+  // not be silent.
+  const failed = finished
+    && !existing.job.cancelledJob
     && existing.job.exitCode !== 0
-    && existing.job.exitCode !== cancelledJobExitCode
-    && !existing.job.cancelledJob;
+    && existing.job.exitCode !== cancelledJobExitCode;
   if (finished && failed && !existing.errorNotified) {
     existing.errorNotified = true;
     const errorLines = existing.truncatedLogs
@@ -87,7 +116,9 @@ export function updateHistory(args: DesktopJobUpdate) {
     const text = errorLines.length > 0
       ? errorLines
       : [
-        `The job exited unexpectedly (exit code ${existing.job.exitCode}).`,
+        existing.job.exitCode === abnormalTerminationExitCode
+          ? 'The job terminated unexpectedly -- it was killed by a signal, usually a native crash (segfault) or an out-of-memory kill.'
+          : `The job exited unexpectedly (exit code ${existing.job.exitCode}).`,
         'Open it from the Jobs page to view the full log.',
       ];
     try {
