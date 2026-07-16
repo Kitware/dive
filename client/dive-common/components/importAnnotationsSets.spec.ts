@@ -19,9 +19,10 @@ vi.mock('dive-common/vue-utilities/prompt-service', () => ({
  * Symbol(annotationSets)" for every such caller. Mounting with the menu closed
  * reproduces that; touching `sets` here must not throw.
  */
-function mountImportAnnotations(annotationSets: string[]) {
+function mountImportAnnotations(annotationSets: string[], annotationSet = '') {
   const state = dummyState();
   state.annotationSets = ref(annotationSets);
+  state.annotationSet = ref(annotationSet);
 
   const Parent = defineComponent({
     setup() {
@@ -50,26 +51,37 @@ function mountImportAnnotations(annotationSets: string[]) {
     },
     mocks: { $vuetify: { breakpoint: { mdAndDown: false } } },
   });
-  return wrapper.findComponent(ImportAnnotations);
+  return { vm: wrapper.findComponent(ImportAnnotations), state };
 }
 
 describe('ImportAnnotations annotation sets', () => {
   it('exposes sets without requiring a render pass', () => {
-    const vm = mountImportAnnotations(['setA', 'setB']);
+    const { vm } = mountImportAnnotations(['setA', 'setB']);
     // Reading from outside render is what regressed: it must not throw.
     expect(() => vm.vm.sets).not.toThrow();
     expect(vm.vm.sets).toEqual(['setA', 'setB', 'default']);
   });
 
   it('always offers the default set when none are defined', () => {
-    const vm = mountImportAnnotations([]);
+    const { vm } = mountImportAnnotations([]);
     expect(vm.vm.sets).toEqual(['default']);
   });
 
   it('does not mutate the provided annotation sets', () => {
     const provided = ['only'];
-    const vm = mountImportAnnotations(provided);
+    const { vm } = mountImportAnnotations(provided);
     expect(vm.vm.sets).toEqual(['only', 'default']);
     expect(provided).toEqual(['only']);
+  });
+
+  it('seeds currentSet from the provided annotation set, falling back to default', () => {
+    expect(mountImportAnnotations([], '').vm.vm.currentSet).toBe('default');
+    expect(mountImportAnnotations(['a'], 'a').vm.vm.currentSet).toBe('a');
+  });
+
+  it('does not alias the injected annotationSet ref', () => {
+    const { vm, state } = mountImportAnnotations(['a'], 'a');
+    vm.vm.currentSet = 'other';
+    expect(state.annotationSet.value).toBe('a');
   });
 });
