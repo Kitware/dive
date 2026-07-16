@@ -652,16 +652,59 @@ def resolve_imported_dataset_info(existing: types.DatasetInfo, meta: dict, addit
     return {**meta, 'datasetInfo': resolved}
 
 
+def _declare_frame_metadata_items(
+    folder: types.GirderModel,
+    frameMetadataNames: List[str],
+) -> List[str]:
+    """Mark the named dataset-folder items as declared frame-metadata sidecars.
+
+    This is the arbitrary-name counterpart of the reserved-basename convention: the client
+    states the user's intent by name, and each matching item is marked with the frame
+    metadata marker and left in place, processed, so the annotation sweep never parses it.
+    Names are looked up directly rather than through the sweep regexes because a declared
+    ``.txt`` sidecar is never swept. Failures are loud: a declaration that cannot be
+    honored must not fall through to annotation classification.
+    """
+    dataset_type = fromMeta(folder, constants.TypeMarker)
+    if dataset_type not in (constants.ImageSequenceType, constants.MultiType):
+        raise RestException('Frame metadata is only supported for image-sequence datasets')
+    warnings: List[str] = []
+    for name in dict.fromkeys(frameMetadataNames):
+        if not name.lower().endswith(('.csv', '.txt')):
+            raise RestException(
+                f'{name} is not a supported frame metadata file type (.csv or .txt)'
+            )
+        items = list(Folder().childItems(folder, filters={'name': name}))
+        if not items:
+            raise RestException(f'{name} was not found in the dataset folder')
+        for item in items:
+            Item().setMetadata(
+                item,
+                {constants.FrameMetadataMarker: True, constants.ProcessedMarker: True},
+            )
+        warnings.append(
+            f'{name} was stored as frame metadata, not annotations; '
+            'it stays in the dataset folder.'
+        )
+    return warnings
+
+
 def process_items(
     folder: types.GirderModel,
     user: types.GirderUserModel,
     additive=False,
     additivePrepend='',
     set='',
+    frameMetadataNames: Optional[List[str]] = None,
 ):
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
     """
+    # Declared-by-name sidecars are marked before the sweep so they drop out of
+    # unprocessed_items via the ProcessedMarker filter below.
+    aggregate_warnings = (
+        _declare_frame_metadata_items(folder, frameMetadataNames) if frameMetadataNames else []
+    )
     unprocessed_items = list(
         Folder().childItems(
             folder,
@@ -693,6 +736,7 @@ def process_items(
         for item in unprocessed_items
         if constants.csvRegex.search(item['name'])
         and not frame_metadata.is_frame_metadata_source_name(item['name'])
+        and not asbool(fromMeta(item, constants.FrameMetadataMarker))
     )
     if len(annotation_csv_names) >= 2:
         raise RestException(
@@ -705,32 +749,47 @@ def process_items(
     # a declared sidecar is classified by name and never joined here.
     image_map = None
     if fromMeta(folder, constants.TypeMarker) == constants.ImageSequenceType and any(
-        not frame_metadata.is_frame_metadata_source_name(item['name']) for item in unprocessed_items
+        not frame_metadata.is_frame_metadata_source_name(item['name'])
+        and not asbool(fromMeta(item, constants.FrameMetadataMarker))
+        for item in unprocessed_items
     ):
         image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
 
     auxiliary = None
-    aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
             raise RestException('Item had no associated files')
 
-        try:
-            results, warnings = _get_data_by_type(file, image_map=image_map)
-            if warnings:
-                aggregate_warnings += warnings
-        except Exception as e:
-            Item().remove(item)
-            if isinstance(e, ValueError):
-                hint = (
-                    ' If this file is frame metadata rather than annotations, rename it to '
-                    'frame-metadata.csv and re-upload.'
-                    if constants.csvRegex.search(file['name'])
-                    else ''
-                )
-                raise RestException(f'Failed to import {file["name"]}: {e}{hint}') from e
-            raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
+        # A marker-declared sidecar must never reach the annotation classifier, even if a
+        # prior marking pass was interrupted before ProcessedMarker was saved.
+        results: Optional[GetDataReturnType]
+        warnings: Optional[List[str]]
+        if asbool(fromMeta(item, constants.FrameMetadataMarker)):
+            results = {
+                'annotations': None,
+                'meta': None,
+                'attributes': None,
+                'type': crud.FileType.FRAME_METADATA,
+            }
+            warnings = None
+        else:
+            try:
+                results, warnings = _get_data_by_type(file, image_map=image_map)
+                if warnings:
+                    aggregate_warnings += warnings
+            except Exception as e:
+                Item().remove(item)
+                if isinstance(e, ValueError):
+                    hint = (
+                        ' If this file is frame metadata rather than annotations, import it '
+                        "with the Import button's Frame Metadata option, or rename it to "
+                        'frame-metadata.csv and re-upload.'
+                        if constants.csvRegex.search(file['name'])
+                        else ''
+                    )
+                    raise RestException(f'Failed to import {file["name"]}: {e}{hint}') from e
+                raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
         if results is None:
             Item().remove(item)
@@ -786,6 +845,7 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
+    frameMetadataNames: Optional[List[str]] = None,
 ) -> dict:
     """
     Post-processing to be run after media/annotation import
@@ -921,7 +981,9 @@ def postprocess(
 
         Folder().save(dsFolder)
 
-    aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    aggregate_warnings = process_items(
+        dsFolder, user, additive, additivePrepend, set, frameMetadataNames
+    )
     return {'folder': dsFolder, 'warnings': aggregate_warnings, 'job_ids': created_job_ids}
 
 

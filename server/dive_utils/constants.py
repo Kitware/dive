@@ -117,6 +117,10 @@ CalibrationItemIdMarker = "calibrationItemId"
 JsonCalibrationItemIdMarker = "jsonCalibrationItemId"
 CalibrationOriginalNameMarker = "calibrationOriginalName"
 CalibrationConversionErrorMarker = "calibrationConversionError"
+# Girder item meta: declared frame-metadata sidecar. Set by the explicit import
+# affordances so arbitrary-named sidecars are equivalent to the reserved
+# frame-metadata.csv naming convention for discovery and import classification.
+FrameMetadataMarker = "frameMetadata"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
 # Girder item meta: JSON camera-rig used for calibration display

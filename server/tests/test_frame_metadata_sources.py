@@ -164,6 +164,40 @@ def test_sources_single_camera_no_sidecars_returns_empty(get_clone_root, folder_
     assert result == {'cameras': {}}
 
 
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+def test_sources_include_marker_declared_items(get_clone_root, folder_cls):
+    dataset = _dataset_folder()
+    user = {'_id': 'user-id'}
+    get_clone_root.return_value = dataset
+    # An arbitrary-named sidecar declared by explicit import carries the item marker; an
+    # undeclared arbitrary-named CSV is still invisible to discovery.
+    marked = {
+        '_id': 'nav_2024.csv-id',
+        'name': 'nav_2024.csv',
+        'meta': {constants.FrameMetadataMarker: True, constants.ProcessedMarker: True},
+    }
+    unmarked = {'_id': 'notes.csv-id', 'name': 'notes.csv', 'meta': {}}
+    folder_cls.return_value.childItems.return_value = [
+        _source_item('image_0001.jpg'),
+        unmarked,
+        marked,
+        _source_item('frame-metadata.csv'),
+    ]
+
+    result = crud_dataset.load_frame_metadata_sources(dataset, user)
+
+    # Marker- and name-declared sidecars list together, name-sorted.
+    assert result == {
+        'cameras': {
+            'singleCam': [
+                _descriptor('frame-metadata.csv'),
+                _descriptor('nav_2024.csv'),
+            ],
+        },
+    }
+
+
 @pytest.mark.parametrize('dataset_type', [constants.VideoType, constants.LargeImageType])
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')

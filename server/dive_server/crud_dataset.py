@@ -420,13 +420,16 @@ def _frame_metadata_source_items(
 ) -> List[Dict[str, str]]:
     """List a folder's declared sidecar items as {itemId, name}, name-sorted (no download).
 
-    Only identity is resolved here: the server classifies sidecars by name and never reads,
-    parses, or joins them. The client downloads and parses the bytes at read time.
+    A sidecar is declared either by the reserved basename or by the explicit-import item
+    marker. Only identity is resolved here: the server classifies sidecars by declaration
+    and never reads, parses, or joins them. The client downloads and parses the bytes at
+    read time.
     """
     items = [
         item
         for item in Folder().childItems(folder)
         if frame_metadata.is_frame_metadata_source_name(item['name'])
+        or asbool(fromMeta(item, constants.FrameMetadataMarker))
     ]
     return [
         {'itemId': str(item['_id']), 'name': item['name']}

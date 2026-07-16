@@ -207,10 +207,27 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .jsonParam(
+            "frameMetadataNames",
+            "JSON list of uploaded filenames to store as declared frame metadata sidecars",
+            paramType="formData",
+            requireArray=True,
+            default=None,
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
+    def postprocess(
+        self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set, frameMetadataNames
+    ):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
+            self.getCurrentUser(),
+            folder,
+            skipJobs,
+            skipTranscoding,
+            additive,
+            additivePrepend,
+            set,
+            frameMetadataNames,
         )
 
     @access.user

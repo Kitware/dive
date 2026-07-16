@@ -167,6 +167,185 @@ def test_two_plain_csvs_in_folder_side_door_guard(
     get_auxiliary_folder.assert_not_called()
 
 
+def _wire_declared_lookup(folder_cls, item_cls, all_items):
+    """Emulate the two childItems query shapes plus a mutating setMetadata.
+
+    The declaration pass looks items up by exact name; the sweep uses the $and regex/marker
+    filter, emulated here as "unswept csv/json/yml items not yet marked processed".
+    """
+
+    def child_items(_folder, filters=None, sort=None):
+        if filters and 'name' in filters:
+            return [item for item in all_items if item['name'] == filters['name']]
+        return [
+            item
+            for item in all_items
+            if item['name'].lower().rsplit('.', 1)[-1] in ('csv', 'json', 'yml', 'yaml')
+            and item['meta'].get(constants.ProcessedMarker) is not True
+        ]
+
+    def set_metadata(item, metadata):
+        item['meta'].update(metadata)
+        return item
+
+    folder_cls.return_value.childItems.side_effect = child_items
+    item_cls.return_value.setMetadata.side_effect = set_metadata
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_frame_metadata_names_are_marked_and_kept(
+    folder_cls, item_cls, file_cls, get_auxiliary_folder, save_annotations
+):
+    # Arbitrary-named sidecars declared through frameMetadataNames are marked and left in
+    # place — including .txt, which the sweep regexes never even list.
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item_csv = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
+    item_txt = {'_id': 'b', 'name': 'nav_2024.txt', 'meta': {}}
+    _wire_declared_lookup(folder_cls, item_cls, [item_csv, item_txt])
+
+    warnings = process_items(
+        folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv', 'nav_2024.txt']
+    )
+
+    assert len(warnings) == 2
+    assert all('stays in the dataset folder' in warning for warning in warnings)
+    for item in (item_csv, item_txt):
+        assert item['meta'][constants.FrameMetadataMarker] is True
+        assert item['meta'][constants.ProcessedMarker] is True
+    item_cls.return_value.move.assert_not_called()
+    item_cls.return_value.remove.assert_not_called()
+    save_annotations.assert_not_called()
+    file_cls.return_value.download.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_name_missing_from_folder_raises(folder_cls, item_cls):
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    _wire_declared_lookup(folder_cls, item_cls, [])
+
+    with pytest.raises(RestException, match='was not found in the dataset folder'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+    item_cls.return_value.setMetadata.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_name_unsupported_extension_raises(folder_cls, item_cls):
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item = {'_id': 'a', 'name': 'nav.json', 'meta': {}}
+    _wire_declared_lookup(folder_cls, item_cls, [item])
+
+    with pytest.raises(RestException, match='not a supported frame metadata file type'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav.json'])
+    item_cls.return_value.setMetadata.assert_not_called()
+
+
+@pytest.mark.parametrize('dataset_type', [constants.VideoType, constants.LargeImageType])
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_names_rejected_for_unsupported_media_type(folder_cls, item_cls, dataset_type):
+    folder = {'_id': 'ds', 'meta': {'type': dataset_type, 'fps': 5}}
+    item = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
+    _wire_declared_lookup(folder_cls, item_cls, [item])
+
+    with pytest.raises(RestException, match='only supported for image-sequence'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+    item_cls.return_value.setMetadata.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_names_allowed_for_multicam_parent(folder_cls, item_cls):
+    # A declaration on the multicam parent folder is the shared-sidecar path.
+    folder = {'_id': 'parent', 'meta': {'type': constants.MultiType, 'fps': 5}}
+    item = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
+    _wire_declared_lookup(folder_cls, item_cls, [item])
+
+    warnings = process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+
+    assert len(warnings) == 1
+    assert item['meta'][constants.FrameMetadataMarker] is True
+    assert item['meta'][constants.ProcessedMarker] is True
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_marker_declared_item_short_circuits_sweep(
+    folder_cls, item_cls, file_cls, get_auxiliary_folder, save_annotations
+):
+    # A marked-but-unprocessed item (e.g. a marking pass interrupted before ProcessedMarker
+    # saved) must take the keep-in-place branch, never the annotation classifier.
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item = {
+        '_id': 'item-id',
+        'name': 'nav_2024.csv',
+        'meta': {constants.FrameMetadataMarker: True},
+    }
+    file = {'_id': 'file-id', 'name': 'nav_2024.csv', 'exts': ['csv']}
+
+    folder_cls.return_value.childItems.return_value = [item]
+    item_cls.return_value.childFiles.side_effect = _childfiles_side_effect({'item-id': file})
+
+    warnings = process_items(folder, {'_id': 'user-id'})
+
+    assert len(warnings) == 1
+    assert 'stays in the dataset folder' in warnings[0]
+    assert item['meta'][constants.ProcessedMarker] is True
+    item_cls.return_value.save.assert_called_once_with(item)
+    item_cls.return_value.move.assert_not_called()
+    item_cls.return_value.remove.assert_not_called()
+    file_cls.return_value.download.assert_not_called()
+    save_annotations.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.crud_annotation.save_annotations')
+@patch('dive_server.crud_rpc.crud.valid_images')
+@patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_marked_csv_does_not_trip_two_csv_guard(
+    folder_cls, item_cls, file_cls, get_auxiliary_folder, valid_images, save_annotations
+):
+    # A marker-declared sidecar CSV alongside one plain annotation CSV is not "two
+    # annotation CSVs": the annotation imports and the sidecar stays put.
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    marked = {
+        '_id': 'nav',
+        'name': 'nav_2024.csv',
+        'meta': {constants.FrameMetadataMarker: True},
+    }
+    plain = {'_id': 'ann', 'name': 'annotations.csv', 'meta': {}}
+    file_marked = {'_id': 'f-nav', 'name': 'nav_2024.csv', 'exts': ['csv']}
+    file_plain = {'_id': 'f-ann', 'name': 'annotations.csv', 'exts': ['csv']}
+
+    folder_cls.return_value.childItems.return_value = [marked, plain]
+    item_cls.return_value.childFiles.side_effect = _childfiles_side_effect(
+        {'nav': file_marked, 'ann': file_plain}
+    )
+    file_cls.return_value.download.side_effect = _download_side_effect(
+        {'f-ann': _viame_csv().encode()}
+    )
+    get_auxiliary_folder.return_value = {'_id': 'aux-id'}
+    valid_images.return_value = [{'name': 'image_0001.jpg'}]
+
+    warnings = process_items(folder, {'_id': 'user-id'})
+
+    assert len(warnings) == 1
+    assert 'nav_2024.csv' in warnings[0]
+    item_cls.return_value.move.assert_called_once_with(plain, {'_id': 'aux-id'})
+    save_annotations.assert_called_once()
+    assert marked['meta'][constants.ProcessedMarker] is True
+
+
 @patch('dive_server.crud_rpc.crud_annotation.save_annotations')
 @patch('dive_server.crud_rpc.crud.valid_images')
 @patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
