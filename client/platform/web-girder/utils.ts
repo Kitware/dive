@@ -39,13 +39,13 @@ function getRouteFromLocation(location: LocationType): string {
 }
 
 async function openFromDisk(
-  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform',
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'frameMetadata' | 'text' | 'zip' | 'transform',
   directory = false,
 ): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calibration', 'annotation', 'zip'].includes(datasetType)) {
+  if (!['calibration', 'annotation', 'frameMetadata', 'zip'].includes(datasetType)) {
     input.multiple = true;
   }
   if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
@@ -65,6 +65,8 @@ async function openFromDisk(
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'frameMetadata') {
+    input.accept = '.csv,.txt';
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'transform') {
@@ -84,6 +86,12 @@ async function openFromDisk(
           if (datasetType === 'annotation') {
             if (!fileList.every((item) => inputAnnotationTypes.includes(item.type))) {
               reject(new Error('File Types did not match JSON or CSV'));
+            }
+          } else if (datasetType === 'frameMetadata') {
+            // Extension check, not MIME: Windows browsers report CSV as
+            // application/vnd.ms-excel and delimited text as text/plain.
+            if (!fileList.every((item) => /\.(csv|txt)$/i.test(item.name))) {
+              reject(new Error('File types did not match CSV or TXT'));
             }
           } else if (datasetType === 'large-image') {
             const allowed = new Set(getLargeImageAllowedExtensions().map((ext) => ext.toLowerCase()));

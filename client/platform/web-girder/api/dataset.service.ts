@@ -170,6 +170,44 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
   return false;
 }
 
+async function importFrameMetadataFile(
+  datasetId: string,
+  path: string,
+  file?: HTMLFile,
+): Promise<boolean | string[]> {
+  if (file === undefined) {
+    return false;
+  }
+  // Frame metadata always lands on the parent dataset folder: for multicam that is the
+  // shared-sidecar location every camera's discovery already scans.
+  const folderId = parentDatasetId(datasetId);
+  const resp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'folder',
+      parentId: folderId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type,
+    },
+  });
+  if (resp.status === 200) {
+    const uploadResponse = await girderRest.post('file/chunk', file, {
+      params: {
+        uploadId: resp.data._id,
+        offset: 0,
+      },
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
+    if (uploadResponse.status === 200) {
+      // The declaration rides on postprocess: the server marks the named item as frame
+      // metadata before its annotation sweep, so the file is never parsed or moved.
+      const final = await postProcess(folderId, true, false, false, '', undefined, [file.name]);
+      return final.status === 200;
+    }
+  }
+  return false;
+}
+
 async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attributes`, args);
@@ -404,6 +442,7 @@ export {
   getDatasetCalibration,
   importAnnotationFile,
   importCameraRegistration,
+  importFrameMetadataFile,
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,
