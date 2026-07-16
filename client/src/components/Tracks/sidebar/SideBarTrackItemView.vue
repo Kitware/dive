@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import context from 'dive-common/store/context';
 import TooltipBtn from '../../TooltipButton.vue';
 import TypePicker from '../../TypePicker.vue';
@@ -45,6 +45,27 @@ export default defineComponent({
     const { typeStyling } = useTrackStyleManager();
     const multiCam = computed(() => cameraStore.camMap.value.size > 1);
 
+    const notesDialog = ref(false);
+    const editNotesValue = ref('');
+
+    const currentNotes = computed(() => {
+      // Depend on revision so UI updates when notes change
+      if (props.track.revision.value === undefined) {
+        return '';
+      }
+      const feature = props.track.features[props.track.begin];
+      if (feature && feature.notes && feature.notes.length > 0) {
+        return feature.notes.join(', ');
+      }
+      return '';
+    });
+
+    const hasNotes = computed(() => currentNotes.value.length > 0);
+
+    const notesTooltip = computed(() => (
+      hasNotes.value ? currentNotes.value : 'Add note'
+    ));
+
     function setTrackType(type: string) {
       cameraStore.setTrackType(props.track.id, type);
     }
@@ -60,6 +81,26 @@ export default defineComponent({
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
+    function openNotesDialog(event: MouseEvent) {
+      event.stopPropagation();
+      editNotesValue.value = currentNotes.value;
+      notesDialog.value = true;
+    }
+
+    function saveNotes() {
+      if (readOnlyMode.value) return;
+      props.track.setFeatureNotes(props.track.begin, editNotesValue.value.trim());
+      notesDialog.value = false;
+    }
+
+    function cancelNotes() {
+      notesDialog.value = false;
+    }
+
+    function clearNotes() {
+      editNotesValue.value = '';
+    }
+
     return {
       allTypes: trackFilters.allTypes,
       handler,
@@ -70,6 +111,15 @@ export default defineComponent({
       setTrackType,
       trackFilters,
       typeStyling,
+      currentNotes,
+      hasNotes,
+      notesTooltip,
+      notesDialog,
+      editNotesValue,
+      openNotesDialog,
+      saveNotes,
+      cancelNotes,
+      clearNotes,
     };
   },
 });
@@ -126,6 +176,28 @@ export default defineComponent({
         {{ track.set }}
       </v-chip>
       <v-spacer />
+      <v-tooltip
+        open-delay="200"
+        bottom
+        max-width="320"
+      >
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            small
+            icon
+            class="ma-0"
+            :color="hasNotes ? 'warning' : 'grey darken-1'"
+            v-on="on"
+            @click="openNotesDialog"
+          >
+            <v-icon>
+              {{ hasNotes ? 'mdi-note-text' : 'mdi-note-text-outline' }}
+            </v-icon>
+          </v-btn>
+        </template>
+        <span style="white-space: pre-wrap; word-break: break-word;">{{ notesTooltip }}</span>
+      </v-tooltip>
       <TypePicker
         :value="trackType"
         v-bind="{
@@ -224,6 +296,56 @@ export default defineComponent({
         @click="handler.trackEdit(track.trackId)"
       />
     </v-row>
+
+    <v-dialog
+      v-model="notesDialog"
+      width="480"
+      @click:outside="cancelNotes"
+    >
+      <v-card>
+        <v-card-title>
+          {{ readOnlyMode ? 'View note' : 'Edit note' }} — track {{ track.trackId }}
+        </v-card-title>
+        <v-card-text>
+          <v-textarea
+            v-model="editNotesValue"
+            autofocus
+            auto-grow
+            rows="3"
+            outlined
+            dense
+            hide-details
+            :readonly="readOnlyMode"
+            :placeholder="readOnlyMode ? 'No note' : 'Add a note...'"
+            @keydown.ctrl.enter="saveNotes"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            v-if="!readOnlyMode"
+            text
+            :disabled="!editNotesValue"
+            @click="clearNotes"
+          >
+            Clear
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            text
+            @click="cancelNotes"
+          >
+            {{ readOnlyMode ? 'Close' : 'Cancel' }}
+          </v-btn>
+          <v-btn
+            v-if="!readOnlyMode"
+            color="primary"
+            @click="saveNotes"
+          >
+            Save
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
