@@ -724,6 +724,11 @@ def export_tracks_as_csv(
                                     f"{round(coordinates[0])} {round(coordinates[1])}"
                                 )
 
+                    # Emitted last, matching the desktop TypeScript serializer's
+                    # column order so both exporters produce identical rows.
+                    for note in feature.notes or []:
+                        columns.append(f"(note) {note}")
+
                     writer.writerow(columns)
                     yield csvFile.getvalue()
                     csvFile.seek(0)
