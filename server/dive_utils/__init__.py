@@ -13,10 +13,33 @@ TRUTHY_META_VALUES = ['yes', '1', 1, 'true', 't', 'True', True]
 NUMBERS_REGEX = re.compile(r'(\d+)')
 NOT_NUMBERS_REGEX = re.compile(r'[^\d]+')
 
+# Mirror the client's isEoSubfolderName / isIrSubfolderName
+# (dive-common multicamSubfolderLayout)
+_EO_CAMERA_NAME = re.compile(r'(^|_)EO(_|$)', re.IGNORECASE)
+_IR_CAMERA_NAME = re.compile(r'(^|_)IR(_|$)', re.IGNORECASE)
+
 
 def asbool(value: Union[str, None, bool]) -> bool:
     """Convert freeform mongo metadata value into a boolean"""
     return str(value).lower() in TRUTHY_META_VALUES
+
+
+def multicam_camera_order(multi_cam: dict) -> List[str]:
+    """
+    Camera names in display order: the order stored at import, else the
+    EO-first/IR-last name heuristic matching the client's
+    orderedMultiCamCameraNames, so every reader (web client, girder, worker)
+    agrees for datasets imported before the order was persisted.
+    """
+    cameras = multi_cam.get('cameras') or {}
+    stored_order = multi_cam.get('cameraOrder') or []
+    if stored_order:
+        return [name for name in stored_order if name in cameras]
+    names = list(cameras.keys())
+    eo = [name for name in names if _EO_CAMERA_NAME.search(name)]
+    ir = [name for name in names if _IR_CAMERA_NAME.search(name) and name not in eo]
+    middle = [name for name in names if name not in eo and name not in ir]
+    return eo + middle + ir
 
 
 def fromMeta(

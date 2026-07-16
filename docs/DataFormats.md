@@ -81,6 +81,12 @@ interface Feature {
   attributes?: Record<string, unknown>;
   head?: [number, number];
   tail?: [number, number];
+  /**
+   * Free-form note text for this detection (frame). Stored as a string
+   * array for format compatibility; DIVE typically uses a single entry.
+   * Omitted when the detection has no note.
+   */
+  notes?: string[];
 }
 ```
 
@@ -258,6 +264,21 @@ Multiple holes are supported with additional `(hole)` columns.
 
 **Length measurements** — the standard VIAME length column (8th numeric field) stores stereo fish-length values. DIVE also reads and writes a `length` entry in detection attributes; on export, the resolved value is written to both the column and attributes when present. Interactive stereo in [DIVE Desktop](Interactive-Annotation.md) populates these values during annotation.
 
+### VIAME CSV notes
+
+DIVE stores a free-form note on each detection (`Feature.notes`). In VIAME CSV
+it is written as a `(note)` column on the detection row:
+
+```
+0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(note) primary observation
+```
+
+* The `(note)` column is followed by the note text (whitespace after `(note)` is trimmed on import).
+* Notes are per-detection (CSV row), not track-level. There is no track-scoped note token.
+* On import, `(note)` text is stored in `Feature.notes` (typically a single-element `string[]`).
+* On export, the note is emitted last among the token columns so DIVE Desktop and Web produce identical row order.
+* If a row contains more than one `(note)` column, all values are imported into `Feature.notes` and preserved on re-export, but the DIVE UI edits a single combined note string.
+
 ## KWIVER Packet Format (KPF)
 
 DIVE supports [MEVA KPF](https://mevadata.org/)
@@ -290,16 +311,17 @@ are also accepted on import.
 
 ### DIVE COCO Attribute Extensions
 
-COCO does not define standard fields for arbitrary track or detection attributes.
-To preserve DIVE attributes during COCO export/import, DIVE uses extension fields
-on each COCO `annotation` object:
+COCO does not define standard fields for arbitrary track or detection attributes
+or free-form notes. To preserve DIVE attributes and notes during COCO
+export/import, DIVE uses extension fields on each COCO `annotation` object:
 
 * `dive_detection_attributes`: Detection/frame-level attributes (maps to `Feature.attributes`)
 * `dive_track_attributes`: Track-level attributes (maps to `Track.attributes`)
+* `dive_notes`: Per-detection note (maps to `Feature.notes`)
 
 These extension keys are declared in the COCO `info` object as:
 
-* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes"]`
+* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes", "dive_notes"]`
 
 ### Dataset-level metadata (`datasetInfo`)
 
@@ -320,11 +342,17 @@ Values are typically strings, numbers, or booleans.
 * `annotation.dive_track_attributes`
   * Scope: logical track identity across frames (`track_id`)
   * DIVE mapping: `Track.attributes`
+* `annotation.dive_notes`
+  * Scope: one COCO annotation (one frame-level detection)
+  * Type: `string[]` (typically one entry; a single non-empty string is also accepted on import)
+  * DIVE mapping: `Track.features[i].notes`
+  * Legacy alias: on import, if `dive_notes` is absent, DIVE also reads `notes`
 
-When importing, DIVE merges any keys in these objects into the target
+When importing, DIVE merges any keys in the attribute objects into the target
 detection/track attribute dictionaries. If the same key appears in multiple
 annotations belonging to the same track, later imported entries may overwrite
-earlier values for that track-level key.
+earlier values for that track-level key. The note is attached to the feature for
+that annotation only.
 
 ### Round-Trip Behavior
 
@@ -333,7 +361,8 @@ For COCO files produced by DIVE:
 * DIVE writes `info.dive_extensions` to advertise the extension keys used.
 * DIVE writes `dive_detection_attributes` and `dive_track_attributes` on each
   annotation when attributes are present.
-* Re-importing that file into DIVE preserves those attributes.
+* DIVE writes `dive_notes` on each annotation when that feature has a note.
+* Re-importing that file into DIVE preserves those attributes and notes.
 
 For COCO files not produced by DIVE:
 
@@ -359,7 +388,7 @@ For COCO files not produced by DIVE:
 {
   "info": {
     "description": "DIVE export for my-dataset",
-    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes"]
+    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes", "dive_notes"]
   },
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
@@ -383,7 +412,8 @@ For COCO files not produced by DIVE:
       "dive_track_attributes": {
         "reviewed": true,
         "source": "analyst"
-      }
+      },
+      "dive_notes": ["primary observation"]
     },
     {
       "id": 2,

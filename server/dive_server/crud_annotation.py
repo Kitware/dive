@@ -140,12 +140,18 @@ def rollback(dsFolder: types.GirderModel, revision: int):
     # And erase deletions for anything deleted after revision
     dsId = dsFolder['_id']
     RevisionLogItem().removeWithQuery({DATASET: dsId, REVISION: {'$gt': revision}})
-    listQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    removeQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    # Deletion is lazy, so restoring a record means clearing its rev_deleted
+    # tombstone.  Those records must be selected by REVISION_DELETED: keying this
+    # off REVISION_CREATED only ever matches records removeWithQuery just dropped,
+    # leaving live records tombstoned with a revision number that save_annotations
+    # will re-issue, silently deleting them again on the next save.
+    restoreQuery = {DATASET: dsId, REVISION_DELETED: {'$gt': revision}}
     updateQuery = {'$unset': {REVISION_DELETED: ""}}
-    TrackItem().removeWithQuery(listQuery)
-    TrackItem().update(listQuery, updateQuery)
-    GroupItem().removeWithQuery(listQuery)
-    GroupItem().update(listQuery, updateQuery)
+    TrackItem().removeWithQuery(removeQuery)
+    TrackItem().update(restoreQuery, updateQuery)
+    GroupItem().removeWithQuery(removeQuery)
+    GroupItem().update(restoreQuery, updateQuery)
 
 
 def get_annotation_csv_generator(

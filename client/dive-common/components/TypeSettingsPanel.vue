@@ -280,7 +280,7 @@ export default defineComponent({
               </v-tooltip>
             </v-col>
           </v-row>
-          <v-row>
+          <v-row class="mt-5">
             <v-col class="py-1">
               <v-select
                 v-model="clientSettings.typeSettings.suppressionType"

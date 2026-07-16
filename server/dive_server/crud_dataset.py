@@ -23,6 +23,7 @@ from dive_utils import (
     constants,
     fromMeta,
     models,
+    multicam_camera_order,
     types,
 )
 from dive_utils.serializers import kwcoco
@@ -244,12 +245,8 @@ def list_datasets(
 
 
 def _multicam_camera_order(multi_cam: dict) -> List[str]:
-    """Return camera names in display order (stored order, else dict insertion order)."""
-    cameras_meta = multi_cam.get('cameras') or {}
-    stored_order = multi_cam.get('cameraOrder') or []
-    if stored_order:
-        return [name for name in stored_order if name in cameras_meta]
-    return list(cameras_meta.keys())
+    """Return camera names in display order (shared helper, matches the client)."""
+    return multicam_camera_order(multi_cam)
 
 
 def get_multi_cam_media(

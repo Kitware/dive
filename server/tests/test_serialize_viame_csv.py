@@ -564,3 +564,41 @@ def test_fps_parsed_case_insensitively_from_metadata():
         rows
     )
     assert float(fps) == 23.976
+
+
+def test_notes_round_trip_through_csv_export():
+    """Detection notes survive an export -> import cycle.
+
+    Regression for an exporter that parsed ``(note)`` columns on import but never
+    wrote them on export, so notes were silently dropped by every server-side CSV
+    round trip while the desktop TypeScript serializer preserved them.
+    """
+    tracks = {
+        "0": {
+            "id": 0,
+            "attributes": {},
+            "confidencePairs": [["fish", 0.9]],
+            "features": [
+                {
+                    "frame": 0,
+                    "bounds": [884, 510, 1219, 737],
+                    "notes": ["needs review", "occluded by kelp"],
+                }
+            ],
+            "begin": 0,
+            "end": 0,
+        }
+    }
+
+    csv_text = ''.join(viame.export_tracks_as_csv(tracks.values(), filenames=filenames))
+    assert '(note) needs review' in csv_text
+    assert '(note) occluded by kelp' in csv_text
+
+    rows = csv_text.splitlines()
+    annotations, _attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(
+        rows
+    )
+    assert annotations['tracks']['0']['features'][0]['notes'] == [
+        "needs review",
+        "occluded by kelp",
+    ]
