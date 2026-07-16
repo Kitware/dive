@@ -50,6 +50,10 @@ export interface Camera {
 
 export interface MultiCamDesktop {
   cameras: Record<string, Camera>;
+  // Camera names in display order, chosen at import. Display and pipeline
+  // camera ordering both read this; the EO-first/IR-last name heuristic is
+  // only a fallback for datasets imported before the order was persisted.
+  cameraOrder?: string[];
   //Calibration file in .npz format used for stereo or other cameras
   calibration?: string;
   // Name of the user's original calibration file (preserved for display, since

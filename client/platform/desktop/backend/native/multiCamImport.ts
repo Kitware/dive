@@ -10,6 +10,7 @@ import {
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
 } from 'dive-common/constants';
+import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import {
   JsonMeta, JsonMetaCurrentVersion,
   DesktopMediaImportResponse,
@@ -42,6 +43,24 @@ function isKeywordArgs(s: MultiCamImportArgs): s is MultiCamImportKeywordArgs {
     return true;
   }
   return false;
+}
+
+/**
+ * The display order persisted with the dataset: the import dialog's order
+ * when given (matching what the web import stores), seeded from the
+ * EO-first/IR-last name heuristic otherwise, with any unmentioned cameras
+ * appended so the stored list always covers every camera.
+ */
+function buildCameraOrder(
+  args: MultiCamImportArgs,
+  cameras: Record<string, Camera>,
+): string[] {
+  const requested = (isFolderArgs(args) && args.cameraOrder) || [];
+  const ordered = requested.filter((name) => name in cameras);
+  const remaining = preferEoIrSubfolderOrder(
+    Object.keys(cameras).filter((name) => !ordered.includes(name)),
+  );
+  return [...ordered, ...remaining];
 }
 
 async function asyncForEach<T>(array: T[], callback: (item: T, index: number, arr: T[]) => void) {
@@ -176,6 +195,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
       : 'Multi-camera data',
     multiCam: {
       cameras,
+      cameraOrder: buildCameraOrder(args, cameras),
       calibration: args.calibrationFile,
       defaultDisplay: args.defaultDisplay,
     },
