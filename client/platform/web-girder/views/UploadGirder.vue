@@ -68,9 +68,15 @@ export default Vue.extend({
           break;
         }
       }
-      if (!error) {
-        this.$emit('update:uploading', false);
+      if (error) {
+        // Reset failed/interrupted rows so the dialog recovers: the progress
+        // spinner stops and each row's controls (remove, FPS) re-enable.
+        pendingUplodsCopy.forEach((pendingUpload) => {
+          // eslint-disable-next-line no-param-reassign
+          pendingUpload.uploading = false;
+        });
       }
+      this.$emit('update:uploading', false);
     },
     convertFileToInternal(file) {
       if (file === null) {
