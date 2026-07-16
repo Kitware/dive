@@ -548,6 +548,29 @@ async function gatherFrameMetadataCandidates(
   return ([] as FrameMetadataCandidate[]).concat(...perDirectory);
 }
 
+// Explicitly imported sidecars recorded in meta.json (any basename), resolved against the
+// project directory. A missing or unreadable entry is skipped like any other candidate.
+async function declaredFrameMetadataCandidates(
+  projectBasePath: string,
+  projectMetaData: JsonMeta,
+): Promise<FrameMetadataCandidate[]> {
+  const declared = projectMetaData.frameMetadataFiles ?? [];
+  const candidates = await Promise.all(declared
+    .map(async (relativePath): Promise<FrameMetadataCandidate | null> => {
+      try {
+        const absolutePath = npath.resolve(projectBasePath, relativePath);
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile()) {
+          return null;
+        }
+        return { name: npath.basename(relativePath), absolutePath };
+      } catch {
+        return null;
+      }
+    }));
+  return candidates.filter((candidate): candidate is FrameMetadataCandidate => candidate !== null);
+}
+
 // Read each candidate's text (memoized by path so a sidecar shared across cameras is read once),
 // returning [sourceName, text] pairs in candidate (precedence) order. An unreadable candidate is
 // skipped rather than sinking the others.
@@ -598,6 +621,7 @@ function commonParentDirectory(paths: string[]): string | null {
 
 async function loadMulticamFrameMetadata(
   projectMetaData: JsonMeta,
+  declaredCandidates: FrameMetadataCandidate[],
 ): Promise<FrameMetadataSourcesResponse> {
   const { multiCam } = projectMetaData;
   if (!multiCam) {
@@ -631,9 +655,12 @@ async function loadMulticamFrameMetadata(
     const cameraCandidates = await gatherFrameMetadataCandidates(cameraDirectories);
     // Root dedup (mirror of the server's folder-id dedup): a camera whose own media dir is the
     // root already gathered the root's sidecars, so do not concatenate them a second time.
-    const candidates = resolvedRoot !== null && !cameraDirectories.includes(resolvedRoot)
-      ? cameraCandidates.concat(rootCandidates)
-      : cameraCandidates;
+    // Explicitly imported sidecars are shared across cameras like the parent/root folder,
+    // but outrank convention-discovered shared files; camera-local files still win overall.
+    const sharedCandidates = declaredCandidates.concat(
+      resolvedRoot !== null && !cameraDirectories.includes(resolvedRoot) ? rootCandidates : [],
+    );
+    const candidates = cameraCandidates.concat(sharedCandidates);
     const texts = await readCandidateTexts(candidates, textMemo);
     if (texts.length) {
       cameras[cameraName] = texts.map(([name, text]) => ({ name, text }));
@@ -650,17 +677,22 @@ async function loadFrameMetadata(
   const parentId = parentDatasetId(datasetId);
   const projectDirData = await getValidatedProjectDir(settings, parentId);
   const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const declaredCandidates = await declaredFrameMetadataCandidates(
+    projectDirData.basePath,
+    projectMetaData,
+  );
 
   if (projectMetaData.type === MultiType) {
-    return loadMulticamFrameMetadata(projectMetaData);
+    return loadMulticamFrameMetadata(projectMetaData, declaredCandidates);
   }
   if (projectMetaData.type !== 'image-sequence') {
     return { cameras: {} };
   }
 
-  const candidates = await gatherFrameMetadataCandidates(
+  // Explicitly imported sidecars outrank convention-discovered ones.
+  const candidates = declaredCandidates.concat(await gatherFrameMetadataCandidates(
     frameMetadataSourceDirectories(projectMetaData),
-  );
+  ));
   const textMemo = new Map<string, string>();
   const texts = await readCandidateTexts(candidates, textMemo);
   if (!texts.length) {
@@ -671,6 +703,50 @@ async function loadFrameMetadata(
       singleCam: texts.map(([name, text]) => ({ name, text })),
     },
   };
+}
+
+/**
+ * importFrameMetadataFile stores an arbitrary-named frame metadata sidecar with the
+ * dataset: the file is copied into the project auxiliary directory (original basename
+ * kept — it is user-facing as the source name) and recorded in meta.json, where
+ * read-time discovery picks it up ahead of convention-named files beside the media.
+ */
+async function importFrameMetadataFile(
+  settings: Settings,
+  datasetId: string,
+  path: string,
+): Promise<boolean> {
+  if (!fs.existsSync(path) || !fs.statSync(path).isFile()) {
+    throw new Error(`file ${path} does not exist`);
+  }
+  if (!/\.(csv|txt)$/i.test(path)) {
+    throw new Error(
+      `${npath.basename(path)} is not a supported frame metadata file type (.csv or .txt)`,
+    );
+  }
+  if (fs.statSync(path).size === 0) {
+    throw new Error(`${npath.basename(path)} is empty`);
+  }
+  const parentId = parentDatasetId(datasetId);
+  const projectDirData = await getValidatedProjectDir(settings, parentId);
+  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  if (projectMetaData.type !== 'image-sequence' && projectMetaData.type !== MultiType) {
+    throw new Error('Frame metadata is only supported for image-sequence datasets');
+  }
+  const destName = npath.basename(path);
+  const destAbsPath = npath.join(projectDirData.auxDirAbsPath, destName);
+  await fs.copy(path, destAbsPath, { overwrite: true });
+  const relativePath = npath.join(AuxFolderName, destName);
+  const release = await _acquireLock(projectDirData.basePath, projectDirData.metaFileAbsPath, 'meta');
+  const existing = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const declared = existing.frameMetadataFiles ?? [];
+  if (!declared.includes(relativePath)) {
+    declared.push(relativePath);
+  }
+  existing.frameMetadataFiles = declared;
+  await _saveAsJson(projectDirData.metaFileAbsPath, existing);
+  await release();
+  return true;
 }
 
 /**
@@ -1027,7 +1103,7 @@ async function _ingestFilePath(
   // Frame-metadata sidecars are read from the media folder, so importing one as annotations would
   // copy it into the wrong storage path.
   if (isFrameMetadataSourceName(path)) {
-    throw new Error(`${npath.basename(path)} is a frame metadata file. Place it in the dataset's media folder; it is read automatically and cannot be imported as annotations.`);
+    throw new Error(`${npath.basename(path)} is a frame metadata file. Use the Import button's Frame Metadata option, or place it in the dataset's media folder; it cannot be imported as annotations.`);
   }
   let warnings: string[] = [];
   // Make a copy of the file in aux
@@ -1065,8 +1141,9 @@ async function _ingestFilePath(
     try {
       data = await viameSerializers.parseFile(path, imageMap);
     } catch (e) {
-      // A plain CSV that fails to parse as annotations is often frame metadata: hint at the rename.
-      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, rename it to frame-metadata.csv.`);
+      // A plain CSV that fails to parse as annotations is often frame metadata: hint at the
+      // explicit import path.
+      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, use the Import button's Frame Metadata option.`);
     }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
@@ -1972,6 +2049,7 @@ export {
   loadFrameMetadata,
   frameMetadataSourceDirectories,
   frameMetadataCandidateDescriptors,
+  importFrameMetadataFile,
   openLink,
   openPathInFileManager,
   ingestDataFiles,

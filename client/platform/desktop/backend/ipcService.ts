@@ -252,6 +252,10 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('import-frame-metadata', async (event, {
+    id, path,
+  }: { id: string; path: string }) => common.importFrameMetadataFile(settings.get(), id, path));
+
   ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
 
   ipcMain.handle('save-calibration', async (_, { path: sourcePath }: { path: string }) => {

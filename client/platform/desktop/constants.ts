@@ -139,6 +139,10 @@ export interface JsonMeta extends DatasetMetaMutable {
   // image enhancement settings
   imageEnhancement?: ImageEnhancements;
 
+  // Explicitly imported frame-metadata sidecar files, relative to the project directory.
+  // Read-time discovery reads these in addition to reserved-name files beside the media.
+  frameMetadataFiles?: string[];
+
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   multiCam: MultiCamDesktop | null;
 

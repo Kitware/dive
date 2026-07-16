@@ -12,7 +12,7 @@ import type {
 
 import {
   fileVideoTypes, calibrationFileTypes,
-  inputAnnotationFileTypes, listFileTypes,
+  frameMetadataFileTypes, inputAnnotationFileTypes, listFileTypes,
   largeImageDesktopTypes, transformFileTypes,
 } from 'dive-common/constants';
 import {
@@ -47,7 +47,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'frameMetadata' | 'text' | 'transform', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -70,6 +70,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'frameMetadata') {
+    filters = [
+      { name: 'frame metadata', extensions: frameMetadataFileTypes },
       allFiles,
     ];
   }
@@ -96,6 +102,14 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'frameMetadata') {
+    const allowed = new Set(frameMetadataFileTypes.map((ext) => ext.toLowerCase()));
+    if (!results.filePaths.every(
+      (item) => allowed.has(getExtension(item)),
+    )) {
+      throw Error('File Types did not match CSV or TXT');
     }
   }
   if (datasetType === 'large-image') {
@@ -240,6 +254,11 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
   return window.diveDesktop.invoke('import-annotation', {
     id, path, additive, additivePrepend,
   });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function importFrameMetadataFile(id: string, path: string, _htmlFile = undefined): Promise<boolean | string[]> {
+  return window.diveDesktop.invoke('import-frame-metadata', { id, path });
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
@@ -738,6 +757,7 @@ export {
   deleteDataset,
   checkDataset,
   importAnnotationFile,
+  importFrameMetadataFile,
   importMultiCam,
   scanMultiCamBatch,
   openLink,

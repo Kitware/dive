@@ -327,6 +327,16 @@ beforeEach(() => {
         'image_0001.jpg': '',
         'notes.txt': 'note,value\nhello,world\n',
       },
+      // Source files for explicit (arbitrary-name) frame metadata import.
+      frameMetadataImportSource: {
+        'nav_2024.csv': [
+          'filename,depth',
+          'image_0001.jpg,42',
+          '',
+        ].join('\n'),
+        'nav_2024.json': '{}',
+        'empty.csv': '',
+      },
       // Duplicate image basename across subfolders: the read path keys last-wins instead of
       // throwing like the import-path validator.
       frameMetadataDupSource: {
@@ -521,6 +531,30 @@ beforeEach(() => {
           }),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
+        },
+        projectidFrameMetadataDeclared: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataDeclared',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataSource',
+            originalImageFiles: [
+              'image_0001.jpg',
+              'image_0002.jpg',
+              'image_0003.jpg',
+            ],
+            // One live declared sidecar and one stale entry whose file is gone.
+            frameMetadataFiles: ['auxiliary/nav_2024.csv', 'auxiliary/gone.csv'],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {
+            'nav_2024.csv': [
+              'filename,depth',
+              'image_0001.jpg,42',
+              '',
+            ].join('\n'),
+          },
         },
         projectidMulticamRootDedup: {
           'meta.json': JSON.stringify({
@@ -1581,6 +1615,49 @@ describe('frame metadata read path (source text loading)', () => {
     await expect(common.loadFrameMetadata(settings, 'projectid1VideoGood'))
       .resolves.toEqual({ cameras: {} });
   });
+
+  it('lists declared sidecars before convention-named ones and skips stale entries', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDeclared');
+    // 'auxiliary/gone.csv' has no file behind it and must not sink the scan.
+    expect(data.cameras.singleCam.map((source) => source.name))
+      .toEqual(['nav_2024.csv', 'frame-metadata.txt']);
+    expect(data.cameras.singleCam[0].text).toContain('depth');
+  });
+});
+
+describe('explicit frame metadata import', () => {
+  it('copies the file into auxiliary, records it in meta.json, and discovery lists it first', async () => {
+    const source = '/home/user/data/frameMetadataImportSource/nav_2024.csv';
+    await expect(common.importFrameMetadataFile(settings, 'projectidFrameMetadata', source))
+      .resolves.toBe(true);
+
+    const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', 'projectidFrameMetadata');
+    expect(fs.existsSync(npath.join(projectDir, 'auxiliary', 'nav_2024.csv'))).toBe(true);
+    const meta = JSON.parse(await fs.readFile(npath.join(projectDir, 'meta.json'), 'utf-8'));
+    expect(meta.frameMetadataFiles).toEqual([npath.join('auxiliary', 'nav_2024.csv')]);
+
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadata');
+    expect(data.cameras.singleCam.map((source_) => source_.name))
+      .toEqual(['nav_2024.csv', 'frame-metadata.txt']);
+
+    // Re-importing the same file overwrites the copy without duplicating the declaration.
+    await expect(common.importFrameMetadataFile(settings, 'projectidFrameMetadata', source))
+      .resolves.toBe(true);
+    const meta2 = JSON.parse(await fs.readFile(npath.join(projectDir, 'meta.json'), 'utf-8'));
+    expect(meta2.frameMetadataFiles).toEqual([npath.join('auxiliary', 'nav_2024.csv')]);
+  });
+
+  it('rejects unsupported extensions', async () => {
+    await expect(common.importFrameMetadataFile(settings, 'projectidFrameMetadata', '/home/user/data/frameMetadataImportSource/nav_2024.json')).rejects.toThrow('not a supported frame metadata file type');
+  });
+
+  it('rejects an empty file', async () => {
+    await expect(common.importFrameMetadataFile(settings, 'projectidFrameMetadata', '/home/user/data/frameMetadataImportSource/empty.csv')).rejects.toThrow('is empty');
+  });
+
+  it('rejects non-image-sequence datasets', async () => {
+    await expect(common.importFrameMetadataFile(settings, 'projectid1VideoGood', '/home/user/data/frameMetadataImportSource/nav_2024.csv')).rejects.toThrow('only supported for image-sequence');
+  });
 });
 
 describe('frame metadata discovery', () => {
@@ -1661,12 +1738,12 @@ describe('frame metadata import gates', () => {
     )).rejects.toThrow(/frame metadata file/);
   });
 
-  it('adds a rename hint when a plain frame-metadata-shaped CSV fails VIAME import', async () => {
+  it('hints at the explicit import path when a plain frame-metadata-shaped CSV fails VIAME import', async () => {
     await expect(common.ingestDataFiles(
       settings,
       'projectid1',
       ['/home/user/data/fmGateViameFail/nav.csv'],
-    )).rejects.toThrow(/rename it to frame-metadata\.csv/);
+    )).rejects.toThrow(/Import button's Frame Metadata option/);
   });
 });
 
