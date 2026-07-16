@@ -133,14 +133,18 @@ export default defineComponent({
         }
       }
     });
+    // inject() only resolves while a component instance is current, which
+    // outside setup() holds solely during render. Resolve the annotation sets
+    // here so the computed below can be evaluated from anywhere.
+    const annotationSets = useAnnotationSets();
     const sets = computed(() => {
-      const data = useAnnotationSets();
-      const temp = cloneDeep(data.value);
+      const temp = cloneDeep(annotationSets.value);
       temp.push('default');
       return temp;
     });
     const defaultSet = useAnnotationSet();
-    const currentSet = ref(defaultSet || 'default');
+    // Local copy (not an alias of the injected ref); '' means default.
+    const currentSet = ref(defaultSet.value || 'default');
     const { prompt } = usePrompt();
     const processing = ref(false);
     const menuOpen = ref(false);
@@ -472,7 +476,6 @@ export default defineComponent({
               </v-btn>
             </v-row>
             <v-row
-              v-if="currentSet !== ''"
               class="mt-3"
               dense
             >
