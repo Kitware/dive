@@ -271,7 +271,7 @@ export default defineComponent({
       if (filterTypesByFrame.value) {
         filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
       }
-      const suppressionType = clientSettings.typeSettings.suppressionType;
+      const { suppressionType } = clientSettings.typeSettings;
       return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
