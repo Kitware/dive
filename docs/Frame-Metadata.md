@@ -54,8 +54,10 @@ A shared multicamera file can contain one filename column per camera, such as
 `port_image` and `starboard_image`. Each active camera displays the rows that
 match that camera's images.
 
-When both shared and camera-specific sidecars are present, the camera-specific
-sidecar is used first.
+When both shared and camera-specific sidecars are present, their columns are
+combined. For a column both files define, the camera-specific value is used
+where available; columns only the shared file defines are filled from the
+shared file.
 
 ## Limits
 

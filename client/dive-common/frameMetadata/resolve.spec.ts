@@ -35,14 +35,15 @@ describe('resolveCameras', () => {
     expect(resolved.sources.singleCam).toEqual(['frame_metadata.csv']);
   });
 
-  it('first-wins merges frames across sources in precedence order', () => {
+  it('first-wins merges frames across sources in precedence order, per column', () => {
     const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
     const resolved = resolveCameras(
       {
         singleCam: [
-          // The earlier (higher-precedence) source claims frame 0.
+          // The earlier (higher-precedence) source claims frame 0's columns.
           ['frame-metadata.txt', 'filename,depth\nimg001.png,10\n'],
-          // The later source re-lists frame 0 (ignored) and adds frame 1.
+          // The later source re-lists frame 0 (ignored for columns already claimed) and adds
+          // frame 1.
           ['frame_metadata.csv', 'filename,depth\nimg001.png,99\nimg002.png,20\n'],
         ],
       },
@@ -52,6 +53,73 @@ describe('resolveCameras', () => {
     expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '10']);
     expect(resolved.cameras.singleCam[1]).toEqual(['img002.png', '20']);
     expect(resolved.sources.singleCam).toEqual(['frame-metadata.txt', 'frame_metadata.csv']);
+  });
+
+  it('fills disjoint columns from lower-precedence sources on frames a higher source claims', () => {
+    // Mirrors the multicam repro: a camera-local sidecar covers every frame, and a shared
+    // parent-level sidecar contributes columns the local sidecar does not define. Record-level
+    // first-wins would blank the shared columns on every frame; column-level first-wins fills
+    // them in.
+    const alignmentIndex = buildFrameAlignmentIndex(['port001.tif', 'port002.tif']);
+    const local = [
+      'filename,local_depth_m,local_note',
+      'port001.tif,10,a',
+      'port002.tif,12,b',
+      '',
+    ].join('\n');
+    const shared = [
+      'port_image,starboard_image,vehicle_altitude_m,shared_note',
+      'port001.tif,star001.tif,4.2,x',
+      'port002.tif,star002.tif,4.4,y',
+      '',
+    ].join('\n');
+    const resolved = resolveCameras(
+      { left: [['left/frame_metadata.csv', local], ['frame_metadata.csv', shared]] },
+      { left: alignmentIndex },
+    );
+
+    expect(resolved.columns.left).toEqual([
+      'filename', 'local_depth_m', 'local_note',
+      'port_image', 'starboard_image', 'vehicle_altitude_m', 'shared_note',
+    ]);
+    expect(resolved.cameras.left[0])
+      .toEqual(['port001.tif', '10', 'a', 'port001.tif', 'star001.tif', '4.2', 'x']);
+    expect(resolved.cameras.left[1])
+      .toEqual(['port002.tif', '12', 'b', 'port002.tif', 'star002.tif', '4.4', 'y']);
+  });
+
+  it('keeps higher-precedence values for conflicting columns while lower sources fill the rest', () => {
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
+    const resolved = resolveCameras(
+      {
+        singleCam: [
+          // Both sources define depth; the higher-precedence value wins on frames it covers.
+          ['frame-metadata.txt', 'filename,depth\nimg001.png,10\n'],
+          ['frame_metadata.csv', 'filename,depth,heading\nimg001.png,99,180\nimg002.png,20,181\n'],
+        ],
+      },
+      { singleCam: alignmentIndex },
+    );
+
+    expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '10', '180']);
+    expect(resolved.cameras.singleCam[1]).toEqual(['img002.png', '20', '181']);
+  });
+
+  it('treats an empty-string cell in a claiming source as claimed, not overridable', () => {
+    const alignmentIndex = buildFrameAlignmentIndex(['img001.png', 'img002.png']);
+    const resolved = resolveCameras(
+      {
+        singleCam: [
+          // The higher source defines depth but leaves the cell blank on frame 0.
+          ['frame-metadata.txt', 'filename,depth,note\nimg001.png,,keep\n'],
+          ['frame_metadata.csv', 'filename,depth\nimg001.png,99\nimg002.png,7\n'],
+        ],
+      },
+      { singleCam: alignmentIndex },
+    );
+
+    expect(resolved.cameras.singleCam[0]).toEqual(['img001.png', '', 'keep']);
+    expect(resolved.cameras.singleCam[1]).toEqual(['img002.png', '7', '']);
   });
 
   it('unions columns across sources in precedence and file order', () => {

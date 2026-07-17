@@ -48,16 +48,28 @@ function resolveCameras(
 
     const cameraColumns = unionColumns(parsed);
 
-    // Higher-precedence sidecars should not be overwritten by fallback locations.
+    // Column-level first-wins: for each frame and column, the value comes from the first source
+    // (in precedence order) that defines the column in its header and has a row for that frame.
+    // A defined column claims its cell even when the value is empty, so a higher-precedence blank
+    // is not overwritten, while columns a source never defines stay open for fallback locations.
     const records: Record<number, string[]> = {};
-    parsed.forEach((source) => {
-      Object.entries(source.records).forEach(([alignmentKey, values]) => {
-        const frame = index.frameByAlignmentKey.get(alignmentKey);
-        if (frame === undefined || records[frame] !== undefined) {
-          return;
-        }
-        records[frame] = cameraColumns.map((column) => values[column] ?? '');
-      });
+    cameraColumns.forEach((column, position) => {
+      const claimedFrames = new Set<number>();
+      parsed
+        .filter((source) => source.columns.includes(column))
+        .forEach((source) => {
+          Object.entries(source.records).forEach(([alignmentKey, values]) => {
+            const frame = index.frameByAlignmentKey.get(alignmentKey);
+            if (frame === undefined || claimedFrames.has(frame)) {
+              return;
+            }
+            claimedFrames.add(frame);
+            if (records[frame] === undefined) {
+              records[frame] = cameraColumns.map(() => '');
+            }
+            records[frame][position] = values[column] ?? '';
+          });
+        });
     });
 
     cameras[camera] = records;
