@@ -8,7 +8,7 @@ import {
   DatasetMetaMutable, DatasetType, FrameImage,
   SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
-import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
+import { calibrationFileMarker, frameMetadataItemMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
@@ -136,10 +136,12 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
-  if (file === undefined) {
-    return false;
-  }
+/**
+ * Girder's two-request upload to a folder: initialize the file, then push its single chunk.
+ * Resolves with the completed file document (which carries `itemId`, the id of the item
+ * Girder created for it) or null if either request did not succeed.
+ */
+async function uploadFileToFolder(parentId: string, file: File): Promise<{ itemId: string } | null> {
   const resp = await girderRest.post('/file', null, {
     params: {
       parentType: 'folder',
@@ -149,63 +151,73 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       mimeType: file.type,
     },
   });
-  if (resp.status === 200) {
-    const uploadResponse = await girderRest.post('file/chunk', file, {
-      params: {
-        uploadId: resp.data._id,
-        offset: 0,
-      },
-      headers: { 'Content-Type': 'application/octet-stream' },
-    });
-    if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
-      if (final.data.warnings !== undefined) {
-        const { warnings } = final.data;
-        return warnings;
-      }
-
-      return final.status === 200;
-    }
+  if (resp.status !== 200) {
+    return null;
   }
-  return false;
+  const uploadResponse = await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: resp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  return uploadResponse.status === 200 ? uploadResponse.data : null;
+}
+
+async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
+  if (file === undefined) {
+    return false;
+  }
+  const uploaded = await uploadFileToFolder(parentId, file);
+  if (uploaded === null) {
+    return false;
+  }
+  const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
+  if (final.data.warnings !== undefined) {
+    const { warnings } = final.data;
+    return warnings;
+  }
+  return final.status === 200;
 }
 
 async function importFrameMetadataFile(
   datasetId: string,
   path: string,
   file?: HTMLFile,
-): Promise<boolean | string[]> {
-  if (file === undefined) {
+): Promise<boolean> {
+  if (file === undefined || file.size === 0) {
     return false;
   }
   // Frame metadata always lands on the parent dataset folder: for multicam that is the
   // shared-sidecar location every camera's discovery already scans.
   const folderId = parentDatasetId(datasetId);
-  const resp = await girderRest.post('/file', null, {
-    params: {
-      parentType: 'folder',
-      parentId: folderId,
-      name: file.name,
-      size: file.size,
-      mimeType: file.type,
-    },
+  // Re-import replaces in place (matching desktop, which overwrites the sidecar): delete any
+  // prior declared sidecar of the same name first so the new upload keeps its name instead
+  // of colliding into "name (1)". Only declared sidecars are removed; a same-named pending
+  // annotation CSV carries no marker and is left untouched.
+  const { data: siblings } = await girderRest.get<{ _id: string; name: string; meta?: Record<string, unknown> }[]>('item', {
+    params: { folderId, name: file.name },
   });
-  if (resp.status === 200) {
-    const uploadResponse = await girderRest.post('file/chunk', file, {
-      params: {
-        uploadId: resp.data._id,
-        offset: 0,
-      },
-      headers: { 'Content-Type': 'application/octet-stream' },
-    });
-    if (uploadResponse.status === 200) {
-      // The declaration rides on postprocess: the server marks the named item as frame
-      // metadata before its annotation sweep, so the file is never parsed or moved.
-      const final = await postProcess(folderId, true, false, false, '', undefined, [file.name]);
-      return final.status === 200;
-    }
+  await Promise.all(
+    siblings
+      .filter((item) => item.name === file.name && item.meta?.[frameMetadataItemMarker])
+      .map((item) => girderRest.delete(`item/${item._id}`)),
+  );
+  const uploaded = await uploadFileToFolder(folderId, file);
+  if (uploaded === null) {
+    return false;
   }
-  return false;
+  try {
+    // The declaration rides on postprocess: the server marks the uploaded item as frame
+    // metadata by id before its annotation sweep, so the file is never parsed or moved.
+    const final = await postProcess(folderId, true, false, false, '', undefined, [uploaded.itemId]);
+    return final.status === 200;
+  } catch (error) {
+    // A rejected declaration (e.g. wrong media type) would otherwise strand the upload for
+    // the next annotation sweep to misclassify and delete; remove it so the folder stays clean.
+    await girderRest.delete(`item/${uploaded.itemId}`).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {

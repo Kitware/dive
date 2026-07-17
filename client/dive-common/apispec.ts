@@ -363,11 +363,8 @@ interface Api {
   }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
-  /**
-   * Store an arbitrary-named frame metadata sidecar with the dataset (declared by user
-   * intent rather than the reserved basename). Resolves with any import warnings.
-   */
-  importFrameMetadataFile?(id: string, path: string, file?: File): Promise<boolean | string[]>;
+  /** Store an arbitrary-named frame metadata sidecar with the dataset; resolves true on success. */
+  importFrameMetadataFile?(id: string, path: string, file?: File): Promise<boolean>;
   // Desktop-only calibration persistence functions
   getLastCalibration?(): Promise<string | null>;
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;

@@ -115,6 +115,45 @@ describe('useFrameMetadata', () => {
     expect(metadata.currentEntries.value).toEqual([['filename', 'img001.png'], ['depth', '42']]);
   });
 
+  it('recovers after a failed load instead of stranding the panel on error (FIX 4)', async () => {
+    const good: FrameMetadataSourcesResponse = {
+      cameras: {
+        port: [{ name: 'nav.csv', text: 'filename,depth\nport001.png,10\n' }],
+        starboard: [{ name: 'nav.csv', text: 'filename,depth\nstar001.png,20\n' }],
+      },
+    };
+    // The first load rejects (transient network blip); the next succeeds.
+    const loadFrameMetadata = vi.fn()
+      .mockRejectedValueOnce(new Error('network blip'))
+      .mockResolvedValueOnce(good);
+    const getCameraMediaNames = vi.fn((camera: string) => ({
+      port: ['port001.png'],
+      starboard: ['star001.png'],
+    }[camera]));
+
+    const datasetId = ref('dataset-a');
+    const frame = ref(0);
+    const selectedCamera = ref('port');
+    const metadata = useFrameMetadata({
+      datasetId, frame, selectedCamera, loadFrameMetadata, getCameraMediaNames,
+    });
+
+    await settle();
+    // The initial load rejected: the panel is in an error state, not silently "loaded".
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(1);
+    expect(metadata.error.value).not.toBeNull();
+    expect(metadata.hasMetadataSource.value).toBe(false);
+
+    // A camera change re-runs ensure(). A failed load must not have committed the dataset as
+    // loaded, or this would short-circuit and leave the panel stuck forever; instead it retries.
+    selectedCamera.value = 'starboard';
+    await settle();
+    expect(loadFrameMetadata).toHaveBeenCalledTimes(2);
+    expect(metadata.error.value).toBeNull();
+    expect(metadata.hasMetadataSource.value).toBe(true);
+    expect(metadata.currentEntries.value).toEqual([['filename', 'star001.png'], ['depth', '20']]);
+  });
+
   it('negative-caches an empty source listing and never refetches until a dataset switch', async () => {
     const loadFrameMetadata = vi.fn(async () => ({ cameras: {} }));
     const getCameraMediaNames = vi.fn(() => [] as string[]);

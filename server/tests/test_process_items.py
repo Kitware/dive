@@ -168,15 +168,18 @@ def test_two_plain_csvs_in_folder_side_door_guard(
 
 
 def _wire_declared_lookup(folder_cls, item_cls, all_items):
-    """Emulate the two childItems query shapes plus a mutating setMetadata.
+    """Emulate declare-by-id (Item().load) plus a mutating setMetadata and the sweep query.
 
-    The declaration pass looks items up by exact name; the sweep uses the $and regex/marker
-    filter, emulated here as "unswept csv/json/yml items not yet marked processed".
+    Declaration now loads each item by id; the sweep uses the $and regex/marker filter,
+    emulated here as "unswept csv/json/yml items not yet marked processed" — a just-marked
+    sidecar drops out of it via its ProcessedMarker.
     """
+    items_by_id = {item['_id']: item for item in all_items}
+
+    def load_item(item_id, level=None, user=None):
+        return items_by_id.get(item_id)
 
     def child_items(_folder, filters=None, sort=None):
-        if filters and 'name' in filters:
-            return [item for item in all_items if item['name'] == filters['name']]
         return [
             item
             for item in all_items
@@ -189,6 +192,7 @@ def _wire_declared_lookup(folder_cls, item_cls, all_items):
         return item
 
     folder_cls.return_value.childItems.side_effect = child_items
+    item_cls.return_value.load.side_effect = load_item
     item_cls.return_value.setMetadata.side_effect = set_metadata
 
 
@@ -197,19 +201,17 @@ def _wire_declared_lookup(folder_cls, item_cls, all_items):
 @patch('dive_server.crud_rpc.File')
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_declared_frame_metadata_names_are_marked_and_kept(
+def test_declared_frame_metadata_items_are_marked_and_kept(
     folder_cls, item_cls, file_cls, get_auxiliary_folder, save_annotations
 ):
-    # Arbitrary-named sidecars declared through frameMetadataNames are marked and left in
+    # Arbitrary-named sidecars declared through frameMetadataItemIds are marked and left in
     # place — including .txt, which the sweep regexes never even list.
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
-    item_csv = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
-    item_txt = {'_id': 'b', 'name': 'nav_2024.txt', 'meta': {}}
+    item_csv = {'_id': 'a', 'folderId': 'ds', 'name': 'nav_2024.csv', 'meta': {}}
+    item_txt = {'_id': 'b', 'folderId': 'ds', 'name': 'nav_2024.txt', 'meta': {}}
     _wire_declared_lookup(folder_cls, item_cls, [item_csv, item_txt])
 
-    warnings = process_items(
-        folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv', 'nav_2024.txt']
-    )
+    warnings = process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['a', 'b'])
 
     assert len(warnings) == 2
     assert all('stays in the dataset folder' in warning for warning in warnings)
@@ -224,49 +226,74 @@ def test_declared_frame_metadata_names_are_marked_and_kept(
 
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_declared_name_missing_from_folder_raises(folder_cls, item_cls):
+def test_declared_item_missing_from_folder_raises(folder_cls, item_cls):
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    # An id that loads nothing (or an item in another folder) is not in this dataset folder.
     _wire_declared_lookup(folder_cls, item_cls, [])
 
-    with pytest.raises(RestException, match='was not found in the dataset folder'):
-        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+    with pytest.raises(RestException, match='is not an item in the dataset folder'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['missing-id'])
     item_cls.return_value.setMetadata.assert_not_called()
 
 
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_declared_name_unsupported_extension_raises(folder_cls, item_cls):
+def test_declared_item_in_other_folder_raises(folder_cls, item_cls):
     folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
-    item = {'_id': 'a', 'name': 'nav.json', 'meta': {}}
+    stray = {'_id': 'a', 'folderId': 'other', 'name': 'nav_2024.csv', 'meta': {}}
+    _wire_declared_lookup(folder_cls, item_cls, [stray])
+
+    with pytest.raises(RestException, match='is not an item in the dataset folder'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['a'])
+    item_cls.return_value.setMetadata.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_item_unsupported_extension_raises(folder_cls, item_cls):
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    item = {'_id': 'a', 'folderId': 'ds', 'name': 'nav.json', 'meta': {}}
     _wire_declared_lookup(folder_cls, item_cls, [item])
 
     with pytest.raises(RestException, match='not a supported frame metadata file type'):
-        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav.json'])
+        process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['a'])
     item_cls.return_value.setMetadata.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
+def test_declared_item_non_string_id_raises(folder_cls, item_cls):
+    folder = {'_id': 'ds', 'meta': {'type': constants.ImageSequenceType, 'fps': 5}}
+    _wire_declared_lookup(folder_cls, item_cls, [])
+
+    # A scripted client could send a non-string element; reject it as a 400, not a 500.
+    with pytest.raises(RestException, match='list of item id strings'):
+        process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=[{'not': 'a string'}])
+    item_cls.return_value.load.assert_not_called()
 
 
 @pytest.mark.parametrize('dataset_type', [constants.VideoType, constants.LargeImageType])
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_declared_names_rejected_for_unsupported_media_type(folder_cls, item_cls, dataset_type):
+def test_declared_items_rejected_for_unsupported_media_type(folder_cls, item_cls, dataset_type):
     folder = {'_id': 'ds', 'meta': {'type': dataset_type, 'fps': 5}}
-    item = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
+    item = {'_id': 'a', 'folderId': 'ds', 'name': 'nav_2024.csv', 'meta': {}}
     _wire_declared_lookup(folder_cls, item_cls, [item])
 
     with pytest.raises(RestException, match='only supported for image-sequence'):
-        process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+        process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['a'])
     item_cls.return_value.setMetadata.assert_not_called()
 
 
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
-def test_declared_names_allowed_for_multicam_parent(folder_cls, item_cls):
+def test_declared_items_allowed_for_multicam_parent(folder_cls, item_cls):
     # A declaration on the multicam parent folder is the shared-sidecar path.
     folder = {'_id': 'parent', 'meta': {'type': constants.MultiType, 'fps': 5}}
-    item = {'_id': 'a', 'name': 'nav_2024.csv', 'meta': {}}
+    item = {'_id': 'a', 'folderId': 'parent', 'name': 'nav_2024.csv', 'meta': {}}
     _wire_declared_lookup(folder_cls, item_cls, [item])
 
-    warnings = process_items(folder, {'_id': 'user-id'}, frameMetadataNames=['nav_2024.csv'])
+    warnings = process_items(folder, {'_id': 'user-id'}, frameMetadataItemIds=['a'])
 
     assert len(warnings) == 1
     assert item['meta'][constants.FrameMetadataMarker] is True

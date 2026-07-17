@@ -350,6 +350,7 @@ export default defineComponent({
         :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
         :dataset-id="id"
         :sub-type="subTypeList[0]"
+        :media-type="typeList[0]"
         :calibration-file="calibrationFile"
         block-on-unsaved
         @calibration-imported="onCalibrationImported"

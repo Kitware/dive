@@ -41,7 +41,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
-  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
+  MultiType, JsonMetaRegEx, largeImageDesktopTypes, frameMetadataFileTypes,
 } from 'dive-common/constants';
 import {
   JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
@@ -719,7 +719,8 @@ async function importFrameMetadataFile(
   if (!fs.existsSync(path) || !fs.statSync(path).isFile()) {
     throw new Error(`file ${path} does not exist`);
   }
-  if (!/\.(csv|txt)$/i.test(path)) {
+  const ext = npath.extname(path).replace('.', '').toLowerCase();
+  if (!frameMetadataFileTypes.includes(ext)) {
     throw new Error(
       `${npath.basename(path)} is not a supported frame metadata file type (.csv or .txt)`,
     );
@@ -1141,9 +1142,11 @@ async function _ingestFilePath(
     try {
       data = await viameSerializers.parseFile(path, imageMap);
     } catch (e) {
-      // A plain CSV that fails to parse as annotations is often frame metadata: hint at the
-      // explicit import path.
-      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, use the Import button's Frame Metadata option.`);
+      // A plain CSV that fails to parse as annotations is often frame metadata. This parse
+      // runs during initial dataset import (before a viewer exists) as well as in-viewer, so
+      // offer both remedies: the rename convention is actionable pre-import, the Import button
+      // once the dataset is open.
+      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, import it with the Import button's Frame Metadata option, or rename it to frame-metadata.csv and re-upload.`);
     }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;

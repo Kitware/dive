@@ -257,7 +257,7 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function importFrameMetadataFile(id: string, path: string, _htmlFile = undefined): Promise<boolean | string[]> {
+function importFrameMetadataFile(id: string, path: string, _htmlFile = undefined): Promise<boolean> {
   return window.diveDesktop.invoke('import-frame-metadata', { id, path });
 }
 

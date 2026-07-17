@@ -1893,6 +1893,7 @@ export default defineComponent({
         <ImportAnnotations
           :dataset-id="modifiedId"
           :sub-type="subTypeList[0]"
+          :media-type="datasets[id] && datasets[id].type"
           :calibration-file="datasets[id] && datasets[id].calibration"
           v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
           block-on-unsaved

@@ -418,22 +418,30 @@ SINGLE_CAMERA_FRAME_METADATA_KEY = 'singleCam'
 def _frame_metadata_source_items(
     folder: types.GirderModel,
 ) -> List[Dict[str, str]]:
-    """List a folder's declared sidecar items as {itemId, name}, name-sorted (no download).
+    """List a folder's declared sidecar items as {itemId, name}, marker items first (no download).
 
     A sidecar is declared either by the reserved basename or by the explicit-import item
-    marker. Only identity is resolved here: the server classifies sidecars by declaration
-    and never reads, parses, or joins them. The client downloads and parses the bytes at
-    read time.
+    marker. Explicitly imported (marker-declared) sidecars are listed ahead of reserved-name
+    ones so the client's column-level first-wins resolver honors an imported file over the
+    convention-named sidecars it shares a folder with -- matching desktop's declared-first
+    order and the Frame-Metadata docs. Ties within a tier are name-sorted. Only identity is
+    resolved here: the server classifies sidecars by declaration and never reads, parses, or
+    joins them. The client downloads and parses the bytes at read time.
     """
     items = [
         item
         for item in Folder().childItems(folder)
-        if frame_metadata.is_frame_metadata_source_name(item['name'])
-        or asbool(fromMeta(item, constants.FrameMetadataMarker))
+        if frame_metadata.is_declared_frame_metadata(item)
     ]
     return [
         {'itemId': str(item['_id']), 'name': item['name']}
-        for item in sorted(items, key=lambda entry: str(entry['name']).lower())
+        for item in sorted(
+            items,
+            key=lambda entry: (
+                not asbool(fromMeta(entry, constants.FrameMetadataMarker)),
+                str(entry['name']).lower(),
+            ),
+        )
     ]
 
 

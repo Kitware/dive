@@ -2,7 +2,7 @@ import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
 import type { Pipe, PipelineParams } from 'dive-common/apispec';
 
-function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined, frameMetadataNames: string[] | undefined = undefined) {
+function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined, frameMetadataItemIds: string[] | undefined = undefined) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
     params: {
       skipJobs,
@@ -11,7 +11,7 @@ function postProcess(folderId: string, skipJobs = false, skipTranscoding = false
       additivePrepend,
       set,
       // A json-typed girder param must arrive as one JSON string, not repeated keys.
-      frameMetadataNames: frameMetadataNames ? JSON.stringify(frameMetadataNames) : undefined,
+      frameMetadataItemIds: frameMetadataItemIds ? JSON.stringify(frameMetadataItemIds) : undefined,
     },
   });
 }

@@ -177,6 +177,10 @@ const frameMetadataFileTypes = [
   'txt',
 ];
 
+// Girder item meta key marking a declared frame-metadata sidecar. Keep in sync with the
+// server constant FrameMetadataMarker (dive_utils/constants.py).
+const frameMetadataItemMarker = 'frameMetadata';
+
 const listFileTypes = [
   'txt',
 ];
@@ -237,6 +241,7 @@ export {
   getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   frameMetadataFileTypes,
+  frameMetadataItemMarker,
   listFileTypes,
   transformFileTypes,
   zipFileTypes,

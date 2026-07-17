@@ -187,12 +187,13 @@ def test_sources_include_marker_declared_items(get_clone_root, folder_cls):
 
     result = crud_dataset.load_frame_metadata_sources(dataset, user)
 
-    # Marker- and name-declared sidecars list together, name-sorted.
+    # The explicitly imported (marker-declared) sidecar precedes reserved-name ones so it
+    # wins column conflicts in the client's first-wins resolver, matching desktop and docs.
     assert result == {
         'cameras': {
             'singleCam': [
-                _descriptor('frame-metadata.csv'),
                 _descriptor('nav_2024.csv'),
+                _descriptor('frame-metadata.csv'),
             ],
         },
     }

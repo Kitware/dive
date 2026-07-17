@@ -1,6 +1,6 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
+  calibrationFileTypes, frameMetadataFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   getLargeImageAllowedExtensions, getLargeImageFileAccept,
   otherImageTypes, otherVideoTypes, transformFileTypes,
   websafeImageTypes, websafeVideoTypes, zipFileTypes,
@@ -66,7 +66,7 @@ async function openFromDisk(
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
   } else if (datasetType === 'frameMetadata') {
-    input.accept = '.csv,.txt';
+    input.accept = frameMetadataFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'transform') {
@@ -90,7 +90,11 @@ async function openFromDisk(
           } else if (datasetType === 'frameMetadata') {
             // Extension check, not MIME: Windows browsers report CSV as
             // application/vnd.ms-excel and delimited text as text/plain.
-            if (!fileList.every((item) => /\.(csv|txt)$/i.test(item.name))) {
+            const allowed = new Set(frameMetadataFileTypes.map((ext) => ext.toLowerCase()));
+            if (!fileList.every((item) => {
+              const ext = item.name.split('.').pop()?.toLowerCase();
+              return ext !== undefined && allowed.has(ext);
+            })) {
               reject(new Error('File types did not match CSV or TXT'));
             }
           } else if (datasetType === 'large-image') {

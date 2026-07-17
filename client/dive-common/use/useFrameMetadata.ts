@@ -192,6 +192,11 @@ export function useFrameMetadata({
     } catch (err) {
       if (requestToken === token) {
         error.value = getResponseError(err);
+        // A failed load must not leave loadedDatasetId committed: ensure()'s same-dataset
+        // short-circuit would then treat the panel as loaded and never retry, stranding it
+        // on the error. Clearing it lets the next ensure() (camera/frame change, remount, or
+        // invalidation) re-attempt the fetch.
+        loadedDatasetId = null;
       }
     } finally {
       endWork(requestToken);
@@ -241,15 +246,12 @@ export function useFrameMetadata({
     { immediate: true },
   );
 
-  watch(invalidationCounter, async () => {
-    const id = datasetId.value;
-    if (!id) {
-      return;
-    }
-    token += 1;
-    loadedDatasetId = id;
-    reset();
-    await runLoad(id, token);
+  watch(invalidationCounter, () => {
+    // A sidecar was added or removed. Forget the loaded dataset so ensure() re-runs its
+    // dataset-switch branch (bump token, reset, refetch) rather than duplicating it here;
+    // invalidateFrameMetadata() already cleared the session cache, so ensure() refetches.
+    loadedDatasetId = null;
+    ensure();
   });
 
   // The viewer can expose an empty media list before filenames finish loading.

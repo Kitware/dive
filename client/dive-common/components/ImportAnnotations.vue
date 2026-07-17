@@ -6,6 +6,7 @@ import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { invalidateFrameMetadata } from 'dive-common/use/useFrameMetadata';
+import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
@@ -24,6 +25,10 @@ export default defineComponent({
       default: null,
     },
     subType: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
+    mediaType: {
       type: String as PropType<string | null>,
       default: null,
     },
@@ -192,6 +197,12 @@ export default defineComponent({
 
           if (importFile) {
             await reloadAnnotations();
+            // Importing a reserved-name frame-metadata.csv/.txt through this path creates an
+            // in-viewer sidecar; drop the session cache so the Frame Metadata panel shows it
+            // without a viewer reload, matching the explicit Import Frame Metadata button.
+            if (isFrameMetadataSourceName(ret.fileList?.[0]?.name ?? path)) {
+              invalidateFrameMetadata();
+            }
             if (
               warpToAllCameras.value
               && canWarpToAllCameras.value
@@ -220,9 +231,13 @@ export default defineComponent({
         processing.value = false;
       }
     };
-    // Frame metadata import works with any filename: the user's pick declares the file's
-    // role, so no reserved basename is needed on this path.
-    const frameMetadataSupported = computed(() => !!api.importFrameMetadataFile);
+    // Frame metadata is only meaningful for image-sequence datasets (single-camera or a
+    // multicam rig of image sequences); mirror the sibling sections and gate on media type
+    // so it never renders on video/large-image datasets, where an import can only fail.
+    const frameMetadataSupported = computed(
+      () => !!api.importFrameMetadataFile
+        && (props.mediaType === 'image-sequence' || isMulticamDataset.value),
+    );
     const openFrameMetadataUpload = async () => {
       if (!api.importFrameMetadataFile) return;
       try {
@@ -244,7 +259,7 @@ export default defineComponent({
           });
           return;
         }
-        // The Frame Info panel reads through a session cache; drop it so the new
+        // The Frame Metadata panel reads through a session cache; drop it so the new
         // sidecar shows up without reloading the viewer.
         invalidateFrameMetadata();
       } catch (error) {
