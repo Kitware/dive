@@ -62,11 +62,10 @@ interface PipeMetadata {
    */
   metadataFileKey?: string;
   /**
-   * KWIVER config keys (e.g. "stabilizer:image_list", "stabilizer:frame_list")
-   * that should each receive the run's input image list(s) — one image list per
-   * camera (single-camera: the one manifest; multicam: the per-camera manifests
-   * comma-joined). Parsed from a `# Image List Keys:` header; every listed key
-   * gets the same value.
+   * KWIVER config key templates (e.g. "stabilizer:image_list{cam}") bound to the
+   * run's per-camera input image lists — one single-file, line-separated list per
+   * camera. A `{cam}` placeholder is expanded per camera (1-based); a key without
+   * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
    */
   imageListKeys?: string[];
 }
