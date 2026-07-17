@@ -62,17 +62,13 @@ interface PipeMetadata {
    */
   metadataFileKey?: string;
   /**
-   * KWIVER config keys (e.g. "stabilizer:image_list") that should receive the
-   * primary (first-camera / single) input image-list manifest path, parsed from
-   * a `# Image List Keys:` header.
+   * KWIVER config keys (e.g. "stabilizer:image_list", "stabilizer:frame_list")
+   * that should each receive the run's input image list(s) — one image list per
+   * camera (single-camera: the one manifest; multicam: the per-camera manifests
+   * comma-joined). Parsed from a `# Image List Keys:` header; every listed key
+   * gets the same value.
    */
   imageListKeys?: string[];
-  /**
-   * KWIVER config keys (e.g. "stabilizer:frame_list") that should receive the
-   * comma-joined per-camera input manifest paths, parsed from a
-   * `# Frame List Keys:` header.
-   */
-  frameListKeys?: string[];
 }
 
 interface PipelineRuntimeParams {

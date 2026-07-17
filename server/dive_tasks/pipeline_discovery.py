@@ -131,7 +131,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
                             r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
-                            r'|Image\s+List\s+Keys?|Frame\s+List\s+Keys?):',
+                            r'|Image\s+List\s+Keys?):',
                             line_raw,
                             re.IGNORECASE,
                         )
@@ -174,10 +174,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     if value:
                         metadata["metadataFileKey"] = value
 
-                # `# Image List Keys: <k> [k...]` binds the primary (first-camera /
-                # single) input image-list manifest to each listed KWIVER key.
-                # `# Frame List Keys: <k> [k...]` binds the comma-joined per-camera
-                # manifests. Lets pipes (e.g. the sea-lion registration stabilizer)
+                # `# Image List Keys: <k> [k...]` binds the run's input image
+                # list(s) (one per camera; multicam comma-joined) to each listed
+                # KWIVER key, so pipes (e.g. the sea-lion registration stabilizer)
                 # read the same image list DIVE feeds the input reader.
                 image_list_match = re.match(
                     r'^#\s*Image\s+List\s+Keys?:\s*(.+)', line_raw, re.IGNORECASE
@@ -186,14 +185,6 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     keys = [k for k in re.split(r'[\s,]+', image_list_match.group(1).strip()) if k]
                     if keys:
                         metadata["imageListKeys"] = keys
-
-                frame_list_match = re.match(
-                    r'^#\s*Frame\s+List\s+Keys?:\s*(.+)', line_raw, re.IGNORECASE
-                )
-                if frame_list_match:
-                    keys = [k for k in re.split(r'[\s,]+', frame_list_match.group(1).strip()) if k]
-                    if keys:
-                        metadata["frameListKeys"] = keys
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)
