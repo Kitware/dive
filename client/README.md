@@ -8,7 +8,7 @@ This directory contains the code for:
 
 ## Development
 
-Requires Node 18+.
+Requires Node 20+.
 
 ``` bash
 # install dependencies

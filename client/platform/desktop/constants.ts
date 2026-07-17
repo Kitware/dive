@@ -154,6 +154,13 @@ export interface JsonMeta extends DatasetMetaMutable {
   // Stereo or multi-camera datasets with uniform type (all images, all video)
   subType: SubType;
 
+  // Optional per-dataset metadata file (e.g. sea-lion flight log), copied into
+  // the project directory at import. Absolute path to the stored copy; handed to
+  // opt-in pipelines at run time (see the pipe `# Metadata File:` header).
+  metadataFile?: string;
+  // The user's original metadata file name, preserved for display.
+  metadataOriginalName?: string;
+
   // execTime is athe execution time for desktop runs
   execTime?: number
 }
@@ -278,6 +285,8 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   // This saves disk space and allows faster initial access
   useNativePlayback: boolean;
   metaFileAbsPath?: string;
+  // Absolute path of an optional metadata file chosen in the import dialog.
+  metadataFileAbsPath?: string;
   // Non-fatal problems found while preparing the import (e.g. a registration
   // file naming cameras this dataset doesn't have), shown in the import dialog.
   importWarnings?: string[];

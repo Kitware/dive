@@ -96,6 +96,9 @@ export function useImportMultiCamDialog(
   const calibrationFile = ref('');
   const lastCalibrationPath = ref('');
   const calibrationAutoDiscoveryFailed = ref(false);
+  // Optional per-dataset metadata file (e.g. sea-lion flight log). Not gated to
+  // stereo; applies to any multicam import.
+  const metadataFile = ref('');
   const datasetName = ref('');
   const subfolderOriginalNames: Ref<Record<string, string>> = ref({});
   const cameraOrder: Ref<string[]> = ref([]);
@@ -656,8 +659,8 @@ export function useImportMultiCamDialog(
   }
 
   async function open(
-    dstype: DatasetType | 'calibration' | 'text',
-    folder: string | 'calibration',
+    dstype: DatasetType | 'calibration' | 'text' | 'metadata',
+    folder: string | 'calibration' | 'metadata',
     directory = false,
   ) {
     const ret = await openFromDisk(dstype, directory || dstype === 'image-sequence');
@@ -670,6 +673,8 @@ export function useImportMultiCamDialog(
         if (saveCalibration) {
           saveCalibration(path);
         }
+      } else if (folder === 'metadata') {
+        metadataFile.value = path;
       } else if (importType.value === 'multi') {
         if (ret.root) {
           folderList.value[folder].sourcePath = ret.root;
@@ -781,6 +786,7 @@ export function useImportMultiCamDialog(
         cameraOrder: orderedCameraKeys.value,
         sourceList,
         calibrationFile: calibrationFile.value,
+        metadataFile: metadataFile.value || undefined,
         type: props.dataType,
       };
       emit('begin-multicam-import', args);
@@ -790,6 +796,7 @@ export function useImportMultiCamDialog(
         sourcePath: keywordFolder.value,
         globList: globList.value,
         calibrationFile: calibrationFile.value,
+        metadataFile: metadataFile.value || undefined,
         type: 'image-sequence',
       };
       emit('begin-multicam-import', args);
@@ -815,6 +822,10 @@ export function useImportMultiCamDialog(
 
   function clearCalibration() {
     calibrationFile.value = '';
+  }
+
+  function clearMetadataFile() {
+    metadataFile.value = '';
   }
 
   function applyLastCalibration() {
@@ -951,5 +962,7 @@ export function useImportMultiCamDialog(
     openTransformFile,
     clearTransformFile,
     clearCalibration,
+    metadataFile,
+    clearMetadataFile,
   };
 }

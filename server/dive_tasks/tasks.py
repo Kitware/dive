@@ -21,6 +21,7 @@ from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
+    append_metadata_file_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
@@ -299,6 +300,29 @@ def _append_frame_range_video_settings(
     command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
 
 
+def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manager) -> None:
+    """
+    Download the dataset's optional metadata file (if the pipeline opted in) and
+    append its `-s <key>=<path>` override. Shared by the single and multicam
+    command-building branches.
+    """
+    metadata_file_item_id = params.get('metadata_file_item_id')
+    metadata_file_key = params.get('metadata_file_key')
+    if not (metadata_file_item_id and metadata_file_key):
+        return
+    md_item = gc.getItem(metadata_file_item_id)
+    md_dir = utils.make_directory(working_dir / 'metadata_file')
+    gc.downloadItem(metadata_file_item_id, str(md_dir), name=md_item.get('name'))
+    md_path = md_dir / md_item.get('name')
+    if md_path.exists():
+        append_metadata_file_kwiver_settings(command, md_path, metadata_file_key)
+    else:
+        manager.write(
+            f'Warning: metadata item {metadata_file_item_id} '
+            f'has no downloadable file under {md_dir}\n'
+        )
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -407,6 +431,10 @@ def run_pipeline(self: Task, params: PipelineJob):
                         f'has no recognized calibration file under {cal_dir}\n'
                     )
 
+            _inject_dataset_metadata_file(
+                command, gc, _working_directory_path, params, manager
+            )
+
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
                 for key, value in kwiver_params.items():
@@ -497,6 +525,8 @@ def run_pipeline(self: Task, params: PipelineJob):
             quoted_input_file = shlex.quote(str(pipeline_input_file))
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
+
+        _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
         # Apply user-provided KWIVER parameter overrides.
         kwiver_params = params.get('kwiver_params')

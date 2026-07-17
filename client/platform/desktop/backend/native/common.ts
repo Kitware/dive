@@ -141,7 +141,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -161,6 +161,16 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       if (calibrationMatch) {
         const value = calibrationMatch[1].trim().toLowerCase();
         metadata.requiresCalibration = ['true', 'yes', '1'].includes(value);
+      }
+
+      // `# Metadata File: <block>:<key>` opts a pipe in to receiving the
+      // dataset's optional metadata file as a `-s <block>:<key>=<path>` override.
+      const metadataFileMatch = line.match(/^#\s*Metadata\s+File:\s*(.+)/i);
+      if (metadataFileMatch) {
+        const value = metadataFileMatch[1].trim();
+        if (value) {
+          metadata.metadataFileKey = value;
+        }
       }
     });
     metadata.description = fullDescription.trim() || undefined;
@@ -1511,6 +1521,25 @@ async function finalizeMediaImport(
       calibrationSourcePath,
     );
     jsonMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
+  }
+
+  // Store any optional metadata file alongside the media (keeping the original
+  // name). Single imports pass it on the response; multicam imports stash the
+  // source path on jsonMeta.metadataFile during beginMultiCamImport.
+  const metadataSourcePath = args.metadataFileAbsPath || jsonMeta.metadataFile;
+  if (metadataSourcePath) {
+    const resolvedMetadataSource = npath.resolve(metadataSourcePath);
+    const metadataDest = npath.join(
+      projectDirAbsPath,
+      npath.basename(resolvedMetadataSource),
+    );
+    await fs.copy(resolvedMetadataSource, metadataDest);
+    jsonMeta.metadataOriginalName = npath.basename(resolvedMetadataSource);
+    jsonMeta.metadataFile = metadataDest;
+  } else {
+    // Ensure a stale source path never survives when no file was chosen.
+    jsonMeta.metadataFile = undefined;
+    jsonMeta.metadataOriginalName = undefined;
   }
 
   // Filter all parts of the input based on glob pattern

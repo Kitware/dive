@@ -7,7 +7,7 @@ import {
 import {
   DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
-import { calibrationFileMarker, jsonCalibrationFileMarker } from 'dive-common/constants';
+import { calibrationFileMarker, jsonCalibrationFileMarker, metadataFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
@@ -265,11 +265,13 @@ export interface CreateMulticamDatasetArgs {
   cameras: Record<string, { folderId: string; type?: 'video' | 'image-sequence' | 'large-image' }>;
   cameraOrder?: string[];
   calibrationFileId?: string;
+  metadataFileId?: string;
 }
 
 function createMulticamDataset(args: CreateMulticamDatasetArgs) {
   const {
     parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
+    metadataFileId,
   } = args;
   return girderRest.post<GirderModel>(
     'dive_dataset/multicam',
@@ -282,6 +284,7 @@ function createMulticamDataset(args: CreateMulticamDatasetArgs) {
       cameras,
       cameraOrder,
       calibrationFileId,
+      metadataFileId,
     },
     {
       params: { parentFolderId },
@@ -321,6 +324,48 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
   // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
   await girderRest.put(`item/${itemId}/metadata`, calibrationMeta);
   return itemId;
+}
+
+/**
+ * Upload an optional per-dataset metadata file as a marked Girder item in the
+ * dataset (parent) folder and return its item id.
+ */
+async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
+  const metadataMeta = { [metadataFileMarker]: 'true' };
+  const itemResp = await girderRest.post<GirderModel>('/item', null, {
+    params: {
+      folderId: parentFolderId,
+      name: file.name,
+      metadata: JSON.stringify(metadataMeta),
+    },
+  });
+  const itemId = itemResp.data._id;
+  const fileResp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'item',
+      parentId: itemId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+    },
+  });
+  await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: fileResp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, metadataMeta);
+  return itemId;
+}
+
+/** Mark an already-uploaded metadata item as the dataset's metadata file. */
+function setDatasetMetadataFile(folderId: string, itemId: string) {
+  return girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
+    params: { itemId },
+  });
 }
 
 function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined, key: string): boolean {
@@ -394,5 +439,7 @@ export {
   saveAttributeTrackFilters,
   saveMetadata,
   uploadCalibrationItem,
+  uploadMetadataFileItem,
+  setDatasetMetadataFile,
   validateUploadGroup,
 };

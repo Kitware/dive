@@ -54,6 +54,13 @@ interface PipeMetadata {
   outputType?: string;
   diveParams?: DiveParam[];
   requiresCalibration?: boolean;
+  /**
+   * KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+   * metadata file should be bound to at run time. Parsed from a pipe header
+   * `# Metadata File: <block>:<key>`. When unset, the pipe does not consume a
+   * metadata file and none is injected.
+   */
+  metadataFileKey?: string;
 }
 
 interface PipelineRuntimeParams {
@@ -154,6 +161,7 @@ export interface MultiCamImportFolderArgs {
     glob?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence' | 'video' | 'large-image';
 }
 
@@ -165,6 +173,7 @@ export interface MultiCamImportKeywordArgs {
     trackFile: string;
   }>; // glob pattern for base folder
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -224,6 +233,8 @@ interface DatasetMeta extends DatasetMetaMutable {
   multiCamMedia: Readonly<MultiCamMedia | null>;
   /** Stereo calibration / camera file currently associated with the dataset (desktop). */
   calibration?: Readonly<string | null>;
+  /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
+  metadataFile?: Readonly<string | null>;
 }
 
 interface CameraCalibration {
@@ -299,7 +310,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
