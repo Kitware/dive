@@ -323,17 +323,24 @@ def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manage
         )
 
 
-def _append_input_list_kwiver_settings(command, pipeline, image_list) -> None:
+def _append_input_list_kwiver_settings(command, pipeline, image_lists) -> None:
     """
-    Bind the run's input image list(s) to every KWIVER key a pipe declares via
-    `# Image List Keys:` (one list per camera; multicam lists comma-joined). Every
-    listed key gets the same value. Sea-lion registration needs the list here in
-    addition to the input reader's video_filename.
+    Bind the run's per-camera input image lists to the KWIVER keys a pipe declares
+    via `# Image List Keys:`. image_lists is one single-file, line-separated list
+    per camera. A key template containing `{cam}` is expanded per camera (1-based)
+    — e.g. `stabilizer:image_list{cam}` -> image_list1, image_list2, ...; a key
+    without `{cam}` gets the first camera's list. Sea-lion registration needs the
+    list here in addition to the input reader's video_filename.
     """
-    if not image_list:
+    if not image_lists:
         return
     for key in (pipeline.get('metadata') or {}).get('imageListKeys') or []:
-        command.append(f'-s {shlex.quote(key)}={shlex.quote(image_list)}')
+        if '{cam}' in key:
+            for idx, image_list in enumerate(image_lists, start=1):
+                expanded = key.replace('{cam}', str(idx))
+                command.append(f'-s {shlex.quote(expanded)}={shlex.quote(image_list)}')
+        else:
+            command.append(f'-s {shlex.quote(key)}={shlex.quote(image_lists[0])}')
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
@@ -444,14 +451,13 @@ def run_pipeline(self: Task, params: PipelineJob):
                         f'has no recognized calibration file under {cal_dir}\n'
                     )
 
-            # One image list per camera, comma-joined (matches the pipe default
-            # frame_list of input_list_1..n.txt).
+            # One image list per camera (each a single line-separated file).
             input_manifests = [
                 arg_file_pair[f'input{i + 1}:video_filename']
                 for i in range(len(multicam_cameras))
                 if f'input{i + 1}:video_filename' in arg_file_pair
             ]
-            _append_input_list_kwiver_settings(command, pipeline, ','.join(input_manifests))
+            _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
             _inject_dataset_metadata_file(
                 command, gc, _working_directory_path, params, manager
@@ -553,7 +559,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             if input_type == constants.ImageSequenceType
             else input_media_list[0]
         )
-        _append_input_list_kwiver_settings(command, pipeline, single_input_manifest)
+        _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
 
         _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
