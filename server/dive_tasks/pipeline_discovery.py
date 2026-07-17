@@ -130,7 +130,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration):', line_raw, re.IGNORECASE
+                            r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File):',
+                            line_raw,
+                            re.IGNORECASE,
                         )
                         or not line_raw.startswith('#')
                     )
@@ -160,6 +162,16 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         'yes',
                         '1',
                     )
+
+                # `# Metadata File: <block>:<key>` opts a pipe in to receiving the
+                # dataset's optional metadata file as a `-s <block>:<key>=<path>` override.
+                metadata_file_match = re.match(
+                    r'^#\s*Metadata\s+File:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if metadata_file_match:
+                    value = metadata_file_match.group(1).strip()
+                    if value:
+                        metadata["metadataFileKey"] = value
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)

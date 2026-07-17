@@ -10,6 +10,7 @@ const filesByKey = new Map<string, File[]>();
 const annotationFilesByKey = new Map<string, File>();
 const calibrationFilesByKey = new Map<string, File>();
 const transformFilesByKey = new Map<string, File>();
+const metadataFilesByKey = new Map<string, File>();
 
 function commonDirectoryRoot(paths: string[]): string {
   if (!paths.length) {
@@ -149,11 +150,33 @@ export function getCalibrationFile(key: string): File | undefined {
   return [...calibrationFilesByKey.values()].find((file) => file.name === key);
 }
 
+/** Stash the chosen per-dataset metadata File for later upload lookup by path or name. */
+export function stashMetadataFile(key: string, file: File): void {
+  calibrationLookupKeys(key).forEach((lookupKey) => {
+    metadataFilesByKey.set(lookupKey, file);
+  });
+  metadataFilesByKey.set(file.name, file);
+}
+
+export function getMetadataFile(key: string): File | undefined {
+  if (!key) {
+    return undefined;
+  }
+  const lookupMatch = calibrationLookupKeys(key)
+    .map((lookupKey) => metadataFilesByKey.get(lookupKey))
+    .find((file) => file !== undefined);
+  if (lookupMatch) {
+    return lookupMatch;
+  }
+  return [...metadataFilesByKey.values()].find((file) => file.name === key);
+}
+
 export function clearMulticamFileRegistry(): void {
   filesByKey.clear();
   annotationFilesByKey.clear();
   calibrationFilesByKey.clear();
   transformFilesByKey.clear();
+  metadataFilesByKey.clear();
 }
 
 export async function openFromDiskWithRegistry(
@@ -168,6 +191,8 @@ export async function openFromDiskWithRegistry(
       stashCalibrationFile(ret.filePaths[0], ret.fileList[0]);
     } else if (datasetType === 'transform') {
       stashTransformFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'metadata') {
+      stashMetadataFile(ret.filePaths[0], ret.fileList[0]);
     } else {
       stashFileSelection(ret);
     }

@@ -14,6 +14,7 @@ import {
   fileVideoTypes, calibrationFileTypes,
   inputAnnotationFileTypes, listFileTypes,
   largeImageDesktopTypes, transformFileTypes,
+  metadataFileTypes,
 } from 'dive-common/constants';
 import {
   DesktopMetadata, NvidiaSmiReply,
@@ -47,7 +48,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform' | 'metadata', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -82,6 +83,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'text') {
     filters = [
       { name: 'text', extensions: listFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'metadata') {
+    filters = [
+      { name: 'metadata', extensions: metadataFileTypes },
       allFiles,
     ];
   }

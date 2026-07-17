@@ -896,6 +896,7 @@ class CreateMulticamArgs(BaseModel):
     cameras: Dict[str, Dict[str, str]]
     cameraOrder: Optional[List[str]] = None
     calibrationFileId: Optional[str] = None
+    metadataFileId: Optional[str] = None
 
     class Config:
         extra = 'forbid'
@@ -1074,6 +1075,27 @@ def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
             constants.JsonCalibrationFileMarker: 'true',
         },
     )
+
+
+def _mark_metadata_file_item(md_item: dict) -> None:
+    Item().setMetadata(md_item, {constants.MetadataFileMarker: 'true'})
+
+
+def _validate_metadata_file_item(
+    user: types.GirderUserModel,
+    folder: types.GirderModel,
+    item_id: str,
+) -> types.GirderModel:
+    """Validate and mark a Girder item as the dataset's optional metadata file."""
+    md_item = Item().load(item_id, level=AccessType.WRITE, user=user)
+    if md_item is None:
+        raise RestException('Metadata file was not found', code=404)
+    if str(md_item.get('folderId')) != str(folder['_id']):
+        raise RestException('Metadata file must be stored in the dataset folder', code=400)
+    if not constants.metadataFileRegex.search(md_item['name']):
+        raise RestException('Metadata file must be .json, .txt, or .csv', code=400)
+    _mark_metadata_file_item(md_item)
+    return md_item
 
 
 def _optional_calibration_number(data: dict, key: str) -> float | None:
@@ -1339,11 +1361,28 @@ def create_multicam(
             _mark_calibration_source_item(cal_item)
             enqueue_calibration_conversion(user, calibration_source_item_id, cal_item['name'])
 
+    metadata_file_item_id = None
+    metadata_file_name = None
+    if validated.metadataFileId:
+        md_item = _validate_metadata_file_item(user, parent_folder_doc, validated.metadataFileId)
+        metadata_file_item_id = str(md_item['_id'])
+        metadata_file_name = md_item['name']
+
     parent_folder_doc['meta'] = {
         constants.DatasetMarker: True,
         constants.TypeMarker: constants.MultiType,
         constants.SubTypeMarker: validated.subType,
         constants.FPSMarker: fromMeta(default_child, constants.FPSMarker),
+        **(
+            {constants.MetadataFileItemIdMarker: metadata_file_item_id}
+            if metadata_file_item_id
+            else {}
+        ),
+        **(
+            {constants.MetadataFileOriginalNameMarker: metadata_file_name}
+            if metadata_file_item_id
+            else {}
+        ),
         constants.MultiCamMarker: {
             'defaultDisplay': validated.defaultDisplay,
             'cameraOrder': camera_order,
@@ -1559,3 +1598,31 @@ def set_calibration(
         'calibrationItemId': str(cal_item['_id']),
         'jsonCalibrationItemId': multi_cam.get(constants.JsonCalibrationItemIdMarker),
     }
+
+
+def set_metadata_file(
+    user: types.GirderUserModel,
+    folder: types.GirderModel,
+    item_id: str,
+) -> dict:
+    """
+    Mark an already-uploaded Girder item as the dataset's optional metadata file.
+
+    Applies to single and multicam datasets. The item must live in the dataset
+    folder root. Handed to opt-in pipelines at run time (see the pipe
+    `# Metadata File:` header).
+    """
+    md_item = _validate_metadata_file_item(user, folder, item_id)
+    folder['meta'][constants.MetadataFileItemIdMarker] = str(md_item['_id'])
+    folder['meta'][constants.MetadataFileOriginalNameMarker] = md_item['name']
+    Folder().save(folder)
+    return {
+        'metadataFileItemId': str(md_item['_id']),
+        'metadataFileOriginalName': md_item['name'],
+    }
+
+
+def resolve_metadata_file_item_id(folder: types.GirderModel) -> Optional[str]:
+    """Return the dataset's metadata file item id, if one is attached."""
+    item_id = folder.get('meta', {}).get(constants.MetadataFileItemIdMarker)
+    return str(item_id) if item_id else None
