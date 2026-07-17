@@ -81,11 +81,10 @@ class PipeMetadata(TypedDict):
     # KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
     # metadata file is bound to at run time, parsed from `# Metadata File: <key>`.
     metadataFileKey: NotRequired[Optional[str]]
-    # KWIVER config keys bound to the input image-list manifest(s) at run time.
-    # imageListKeys get the primary (first-camera / single) manifest path;
-    # frameListKeys get the comma-joined per-camera manifest paths.
+    # KWIVER config keys each bound to the run's input image list(s) at run time
+    # (one list per camera; multicam lists are comma-joined). All keys get the
+    # same value.
     imageListKeys: NotRequired[Optional[list[str]]]
-    frameListKeys: NotRequired[Optional[list[str]]]
 
 
 class PipelineDescription(TypedDict):

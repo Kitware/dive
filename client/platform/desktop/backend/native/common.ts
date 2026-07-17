@@ -141,7 +141,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Frame\s+List\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -173,22 +173,15 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         }
       }
 
-      // `# Image List Keys: <k> [k...]` binds the primary (first-camera / single)
-      // input image-list manifest to each key; `# Frame List Keys: <k> [k...]`
-      // binds the comma-joined per-camera manifests. Lets pipes (e.g. the sea-lion
-      // registration stabilizer) read the same image list DIVE feeds the reader.
+      // `# Image List Keys: <k> [k...]` binds the run's input image list(s) (one
+      // per camera; multicam comma-joined) to each key, so pipes (e.g. the
+      // sea-lion registration stabilizer) read the same image list DIVE feeds the
+      // input reader.
       const imageListMatch = line.match(/^#\s*Image\s+List\s+Keys?:\s*(.+)/i);
       if (imageListMatch) {
         const keys = imageListMatch[1].trim().split(/[\s,]+/).filter((k) => k);
         if (keys.length) {
           metadata.imageListKeys = keys;
-        }
-      }
-      const frameListMatch = line.match(/^#\s*Frame\s+List\s+Keys?:\s*(.+)/i);
-      if (frameListMatch) {
-        const keys = frameListMatch[1].trim().split(/[\s,]+/).filter((k) => k);
-        if (keys.length) {
-          metadata.frameListKeys = keys;
         }
       }
     });
