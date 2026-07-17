@@ -32,6 +32,29 @@ class CanceledError(RuntimeError):
     pass
 
 
+def choose_annotation_fps(
+    requested_fps,
+    *,
+    native_fps: Optional[float] = None,
+    default_fps: float = 1.0,
+) -> float:
+    """Resolve annotation FPS from folder meta vs media native rate.
+
+    ``requested_fps == -1`` means auto: use ``native_fps`` for video, else
+    ``default_fps`` (image sequences). When a concrete folder fps is set (e.g.
+    CSV import), keep it, capped by ``native_fps`` when provided.
+    """
+    if requested_fps == -1:
+        annotation_fps = native_fps if native_fps is not None else default_fps
+    elif native_fps is not None:
+        annotation_fps = min(requested_fps, native_fps)
+    else:
+        annotation_fps = requested_fps
+    if annotation_fps < 1:
+        raise Exception('FPS lower than 1 is not supported')
+    return annotation_fps
+
+
 def fps_from_ffprobe_stream(video_stream: dict) -> Tuple[str, float]:
     """
     Return (fps_string, fps_float) from an ffprobe video stream dict.
