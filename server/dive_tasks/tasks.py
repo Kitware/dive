@@ -323,6 +323,22 @@ def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manage
         )
 
 
+def _append_input_list_kwiver_settings(command, pipeline, primary_manifest, all_manifests) -> None:
+    """
+    Bind the input image-list manifest(s) to the KWIVER keys a pipe declares via
+    `# Image List Keys:` (primary / first-camera manifest) and `# Frame List Keys:`
+    (comma-joined per-camera manifests). Sea-lion registration needs the list here
+    in addition to the input reader's video_filename.
+    """
+    meta = pipeline.get('metadata') or {}
+    if primary_manifest:
+        for key in meta.get('imageListKeys') or []:
+            command.append(f'-s {shlex.quote(key)}={shlex.quote(primary_manifest)}')
+    if all_manifests:
+        for key in meta.get('frameListKeys') or []:
+            command.append(f'-s {shlex.quote(key)}={shlex.quote(all_manifests)}')
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -431,6 +447,18 @@ def run_pipeline(self: Task, params: PipelineJob):
                         f'has no recognized calibration file under {cal_dir}\n'
                     )
 
+            input_manifests = [
+                arg_file_pair[f'input{i + 1}:video_filename']
+                for i in range(len(multicam_cameras))
+                if f'input{i + 1}:video_filename' in arg_file_pair
+            ]
+            _append_input_list_kwiver_settings(
+                command,
+                pipeline,
+                input_manifests[0] if input_manifests else '',
+                ','.join(input_manifests),
+            )
+
             _inject_dataset_metadata_file(
                 command, gc, _working_directory_path, params, manager
             )
@@ -525,6 +553,15 @@ def run_pipeline(self: Task, params: PipelineJob):
             quoted_input_file = shlex.quote(str(pipeline_input_file))
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
+
+        single_input_manifest = (
+            str(img_list_path)
+            if input_type == constants.ImageSequenceType
+            else input_media_list[0]
+        )
+        _append_input_list_kwiver_settings(
+            command, pipeline, single_input_manifest, single_input_manifest
+        )
 
         _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
