@@ -24,6 +24,16 @@ VIDEO_FPS = 30
 ANNOTATION_FORMATS = ("dive-json", "viame-csv", "coco-json")
 
 
+def _annotation_fps_choices(video_fps: int = VIDEO_FPS) -> list:
+    """FPS values that evenly subsample from ``video_fps`` (including native)."""
+    return [n for n in range(1, video_fps + 1) if video_fps % n == 0]
+
+
+def _random_annotation_fps(video_fps: int = VIDEO_FPS) -> int:
+    """Pick a random annotation FPS that evenly divides the video FPS."""
+    return random.choice(_annotation_fps_choices(video_fps))
+
+
 def generate_random_dataset_info() -> dict:
     """Random per-dataset metadata for CSV/COCO import testing."""
     return {
@@ -417,6 +427,7 @@ def write_annotations(
     annotation_format: str,
     frame_filenames: list = None,
     dataset_name: str = "sample-dataset",
+    fps: int = VIDEO_FPS,
 ):
     """Write annotations as DIVE JSON, VIAME CSV, or COCO JSON."""
     tracks = build_tracks(num_frames)
@@ -425,6 +436,7 @@ def write_annotations(
         generate_annotation_viame_csv(
             tracks,
             output_file,
+            fps=fps,
             frame_filenames=frame_filenames,
             dataset_info=dataset_info,
         )
@@ -450,7 +462,13 @@ def create_video_content(
     total: int,
     annotation_formats: tuple,
 ):
-    """Create videos and associated annotation files."""
+    """Create videos and associated annotation files.
+
+    For VIAME CSV, annotation FPS is a random even subsample of ``VIDEO_FPS``
+    (e.g. 30 → 1, 2, 3, 5, 6, 10, 15, or 30). Frame count and CSV ``fps``
+    metadata match that rate so assetStoreImport can be tested against it.
+    Filenames include ``_annfps{N}`` when CSV is used so expected FPS is obvious.
+    """
     if counter['count'] >= total:
         return
     num_videos = random.randint(1, max_videos)
@@ -458,18 +476,25 @@ def create_video_content(
         if counter['count'] >= total:
             break
         duration = random.randint(5, 30)
-        name = fake.word() + ".mp4"
-        video_path = base_dir / name
+        annotation_format = random.choice(annotation_formats)
+        stem = fake.word()
+        if annotation_format == "viame-csv":
+            annotation_fps = _random_annotation_fps(VIDEO_FPS)
+            stem = f"{stem}_annfps{annotation_fps}"
+        else:
+            annotation_fps = VIDEO_FPS
+
+        video_path = base_dir / f"{stem}.mp4"
         create_random_video(video_path, duration)
         counter['count'] += 1
 
-        annotation_format = random.choice(annotation_formats)
         ext = _annotation_extension(annotation_format)
         write_annotations(
-            duration * VIDEO_FPS,
+            duration * annotation_fps,
             video_path.with_suffix(ext),
             annotation_format=annotation_format,
             dataset_name=video_path.stem,
+            fps=annotation_fps,
         )
 
 def create_image_sequence_content(

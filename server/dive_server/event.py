@@ -145,9 +145,7 @@ def process_assetstore_import(event, meta: dict):
             folder["meta"].update(
                 {
                     TypeMarker: dataset_type,  # Sets to video
-                    FPSMarker: (
-                        -1 if dataset_type == VideoType else 1
-                    ),  # -1 for video and 1 for image sequence
+                    FPSMarker: -1,  # auto: video uses media FPS; image sequence defaults to 1
                     AssetstoreSourcePathMarker: root,
                     MarkForPostProcess: True,  # skip transcode or transcode if required
                     **meta,

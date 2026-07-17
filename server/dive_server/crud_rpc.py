@@ -18,6 +18,7 @@ import pymongo
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
+from dive_tasks.utils import choose_annotation_fps
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
@@ -853,6 +854,17 @@ def postprocess(
         Folder().save(dsFolder)
 
     aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    # Image sequences start at fps=-1 (auto). CSV import may have set a value;
+    # otherwise default to 1. convert_images also resolves, but safe-image folders
+    # skip that job and need this finalize step.
+    dsFolder = Folder().load(dsFolder['_id'], force=True)
+    media_type = fromMeta(dsFolder, constants.TypeMarker)
+    if media_type in (constants.ImageSequenceType, constants.LargeImageType):
+        requested_fps = fromMeta(dsFolder, constants.FPSMarker)
+        new_fps = choose_annotation_fps(requested_fps)
+        if requested_fps != new_fps:
+            dsFolder['meta'][constants.FPSMarker] = new_fps
+            Folder().save(dsFolder)
     return {'folder': dsFolder, 'warnings': aggregate_warnings, 'job_ids': created_job_ids}
 
 
