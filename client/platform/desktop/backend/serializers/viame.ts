@@ -11,7 +11,9 @@ import moment from 'moment';
 import { cloneDeep, flattenDeep, isEmpty } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
-import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
+import {
+  AnnotationSchema, DatasetInfoFields, MultiGroupRecord, MultiTrackRecord,
+} from 'dive-common/apispec';
 import { JsonMeta } from 'platform/desktop/constants';
 import { splitExt } from 'platform/desktop/backend/native/utils';
 // Imports that involve actual code require relative imports because ts-node barely works
@@ -44,7 +46,7 @@ export interface AnnotationFileData {
   groups: MultiGroupRecord;
   fps?: number;
   execTime?: number;
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
@@ -126,11 +128,11 @@ function syncDetectionLengthFields(feature: Feature): Feature {
 }
 
 /**
- * Read dataset metadata from a `dataset_info: <json>` comment field. Returns the parsed
+ * Read dataset info from a `dataset_info: <json>` comment field. Returns the parsed
  * object, or a `warning` if the field is present but unusable so the import can continue.
  */
 function parseDatasetInfo(row: string[]): {
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
   warning?: string;
 } {
   const field = row.find((f) => f.trim().startsWith('dataset_info:'));
@@ -141,7 +143,7 @@ function parseDatasetInfo(row: string[]): {
   try {
     const parsed = JSON.parse(json);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return { datasetInfo: parsed as Record<string, unknown> };
+      return { datasetInfo: parsed as DatasetInfoFields };
     }
     // eslint-disable-next-line no-nested-ternary
     const kind = parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed;
@@ -410,7 +412,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   });
   let fps: number | undefined;
   let execTime: number | undefined;
-  let datasetInfo: Record<string, unknown> | undefined;
+  let datasetInfo: DatasetInfoFields | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];

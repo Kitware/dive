@@ -837,7 +837,9 @@ def convert_calibration(self: Task, itemId: str):
         folder = gc.getFolder(folder_id)
         multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
         if str(multi_cam.get(constants.CalibrationItemIdMarker)) != str(itemId):
-            manager.write('Calibration source was replaced before linking JSON; discarding output.\n')
+            manager.write(
+                'Calibration source was replaced before linking JSON; discarding output.\n'
+            )
             gc.delete(f'item/{json_item_id}')
             return
 

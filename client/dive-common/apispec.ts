@@ -131,6 +131,27 @@ interface FrameImage {
   timestamp?: number;
 }
 
+/** Compact resolved frame-metadata payload. Rows are aligned to `columns[camera]`. */
+interface ResolvedFrameMetadata {
+  /** camera key -> frame number -> cell values aligned to `columns[camera]`. */
+  cameras: Record<string, Record<number, string[]>>;
+  /** camera key -> matched sidecar filenames in precedence order. */
+  sources: Record<string, string[]>;
+  /** camera key -> payload column names in source/merge order. */
+  columns: Record<string, string[]>;
+}
+
+/** One declared frame-metadata sidecar source loaded by a platform implementation. */
+interface FrameMetadataSourceText {
+  name: string;
+  text: string;
+}
+
+/** Declared frame-metadata sidecar text per camera, in precedence order. */
+interface FrameMetadataSourcesResponse {
+  cameras: Record<string, FrameMetadataSourceText[]>;
+}
+
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
@@ -188,6 +209,10 @@ interface MediaImportResponse {
   globPattern: string;
   mediaConvertList: string[];
 }
+
+/** User-editable datasetInfo stored on the dataset's backing metadata object. */
+type DatasetInfoFields = Record<string, unknown>;
+
 /**
  * The parts of metadata a user should be able to modify.
  */
@@ -199,7 +224,7 @@ interface DatasetMetaMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
@@ -290,6 +315,7 @@ interface Api {
 
   loadMetadata(datasetId: string): Promise<DatasetMeta>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  loadFrameMetadata?(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
@@ -550,6 +576,7 @@ export {
   AnnotationSchema,
   Api,
   DatasetMeta,
+  DatasetInfoFields,
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
   DatasetType,
@@ -560,6 +587,9 @@ export {
   SubType,
   PipelineParamType,
   FrameImage,
+  ResolvedFrameMetadata,
+  FrameMetadataSourceText,
+  FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,

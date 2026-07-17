@@ -284,6 +284,113 @@ beforeEach(() => {
         'file1.csv': '',
         'file2.csv': '',
       },
+      frameMetadataSource: {
+        'image_0001.jpg': '',
+        'image_0002.jpg': '',
+        'image_0003.jpg': '',
+        'frame-metadata.txt': [
+          'filename,depth,temperature',
+          'image_0001.jpg,192.80,4.0',
+          'image_0002.jpg,193.10,4.1',
+          'image_0003.jpg,193.40,4.2',
+          '',
+        ].join('\n'),
+      },
+      // Two sidecars in one folder: name-sorted TXT wins per-frame over CSV; CSV
+      // introduces a new column ('temperature') and a new frame (image_0003).
+      frameMetadataPrecedence: {
+        'image_0001.jpg': '',
+        'image_0002.jpg': '',
+        'image_0003.jpg': '',
+        'frame-metadata.txt': [
+          'filename,depth',
+          'image_0001.jpg,10',
+          'image_0002.jpg,20',
+          '',
+        ].join('\n'),
+        'frame_metadata.csv': [
+          'filename,depth,temperature',
+          'image_0001.jpg,99,5.0',
+          'image_0003.jpg,40,7.0',
+          '',
+        ].join('\n'),
+      },
+      frameMetadataDoubleExt: {
+        'photo.jpg.png': '',
+        'frame_metadata.csv': [
+          'filename,depth',
+          'photo.jpg.png,10',
+          '',
+        ].join('\n'),
+      },
+      frameMetadataNoSource: {
+        'image_0001.jpg': '',
+        'notes.txt': 'note,value\nhello,world\n',
+      },
+      // Duplicate image basename across subfolders: the read path keys last-wins instead of
+      // throwing like the import-path validator.
+      frameMetadataDupSource: {
+        'frame_metadata.csv': [
+          'filename,depth',
+          'image_0001.jpg,10',
+          'image_0002.jpg,20',
+          '',
+        ].join('\n'),
+      },
+      // Multicam whose root (originalBasePath) is also the 'left' camera's media dir; the shared
+      // sidecar must be listed once for 'left' and 'right' names other images so it joins nothing.
+      multicamRootDedup: {
+        'frame_metadata.csv': [
+          'filename,depth',
+          'img_l1.jpg,100',
+          'img_l2.jpg,200',
+          '',
+        ].join('\n'),
+        right: {
+          'img_r1.jpg': '',
+        },
+      },
+      // Multicam whose parent root holds one wide sidecar naming both cameras' images; each
+      // camera's media lives in its own subfolder, so the shared root file binds both cameras.
+      multicamSharedRoot: {
+        'frame_metadata.csv': [
+          'filename,depth',
+          'img_l1.jpg,100',
+          'img_l2.jpg,110',
+          'img_r1.jpg,300',
+          'img_r2.jpg,310',
+          '',
+        ].join('\n'),
+        left: {
+          'img_l1.jpg': '',
+          'img_l2.jpg': '',
+        },
+        right: {
+          'img_r1.jpg': '',
+          'img_r2.jpg': '',
+        },
+      },
+      // Import-gate fixtures.
+      fmGateMixed: {
+        // Sorts first but is declared frame metadata: skipped as a track-file candidate, left on disk.
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
+        'zzz_annotations.csv': '# comment line\n# metadata,fps: 32,"whatever"\n#comment line',
+      },
+      fmGateFrameMetadataOnly: {
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
+      },
+      fmGateExplicit: {
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
+      },
+      // A plain CSV (not declared) whose contents fail to parse as VIAME annotations: the error
+      // gains the rename hint. The unterminated quote makes csv-parse reject.
+      fmGateViameFail: {
+        'nav.csv': 'filename,depth\n"unterminated,10\n',
+      },
+      // No size gate: a declared sidecar over the old 10 MB bound is discovered without being read.
+      frameMetadataSized: {
+        'frame_metadata.csv': 'filename,depth\nimage_0001.jpg,10\n',
+      },
     },
     '/home/user/viamedata': {
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -335,6 +442,135 @@ beforeEach(() => {
             originalVideoFile: 'whatever.mp4',
             transcodedVideoFile: 'whatever-transcoded.mp4',
           } as JsonMeta),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadata: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadata',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataSource',
+            originalImageFiles: [
+              'image_0001.jpg',
+              'image_0002.jpg',
+              'image_0003.jpg',
+            ],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadataPrecedence: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataPrecedence',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataPrecedence',
+            originalImageFiles: [
+              'image_0001.jpg',
+              'image_0002.jpg',
+              'image_0003.jpg',
+            ],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadataNoSource: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataNoSource',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataNoSource',
+            originalImageFiles: [
+              'image_0001.jpg',
+            ],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadataDoubleExt: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataDoubleExt',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataDoubleExt',
+            originalImageFiles: [
+              'photo.jpg.png',
+            ],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidFrameMetadataDup: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidFrameMetadataDup',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/data/frameMetadataDupSource',
+            // Two files share the basename image_0001.jpg (different subfolders).
+            originalImageFiles: [
+              'a/image_0001.jpg',
+              'b/image_0001.jpg',
+              'a/image_0002.jpg',
+            ],
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidMulticamRootDedup: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMulticamRootDedup',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '/home/user/data/multicamRootDedup',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/multicamRootDedup',
+                  originalImageFiles: ['img_l1.jpg', 'img_l2.jpg'],
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/multicamRootDedup/right',
+                  originalImageFiles: ['img_r1.jpg'],
+                },
+              },
+            },
+          }),
+          'result_whatever.json': JSON.stringify({}),
+          auxiliary: {},
+        },
+        projectidMulticamSharedRoot: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMulticamSharedRoot',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '/home/user/data/multicamSharedRoot',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/multicamSharedRoot/left',
+                  originalImageFiles: ['img_l1.jpg', 'img_l2.jpg'],
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/multicamSharedRoot/right',
+                  originalImageFiles: ['img_r1.jpg', 'img_r2.jpg'],
+                },
+              },
+            },
+          }),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
@@ -1290,6 +1526,147 @@ describe('native.common', () => {
       };
       expect(tracks).toEqual(modifiedSource);
     }
+  });
+});
+
+describe('frame metadata read path (source text loading)', () => {
+  it('loads a single-camera sidecar as source text', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadata');
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame-metadata.txt']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
+    expect(data.cameras.singleCam[0].text).toContain('depth');
+  });
+
+  it('loads two sidecars in precedence order', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataPrecedence');
+    expect(data.cameras.singleCam.map((source) => source.name))
+      .toEqual(['frame-metadata.txt', 'frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
+    expect(data.cameras.singleCam[1].text).toContain('temperature');
+  });
+
+  it('omits a camera whose only text file is not a declared sidecar', async () => {
+    await expect(common.loadFrameMetadata(settings, 'projectidFrameMetadataNoSource'))
+      .resolves.toEqual({ cameras: {} });
+  });
+
+  it('loads a sidecar that names double-extension media by full name', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDoubleExt');
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('photo.jpg.png');
+  });
+
+  it('loads a sidecar for duplicate image basenames without validating media keys', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidFrameMetadataDup');
+    expect(data.cameras.singleCam.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.singleCam[0].text).toContain('image_0001.jpg');
+  });
+
+  it('loads a shared multicam root sidecar once per camera candidate list', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidMulticamRootDedup');
+    expect(data.cameras.left.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.right.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.left[0].text).toContain('img_l1.jpg');
+  });
+
+  it('loads both cameras from one shared parent-root sidecar', async () => {
+    const data = await common.loadFrameMetadata(settings, 'projectidMulticamSharedRoot');
+    expect(data.cameras.left.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.right.map((source) => source.name)).toEqual(['frame_metadata.csv']);
+    expect(data.cameras.left[0].text).toContain('img_l1.jpg');
+    expect(data.cameras.right[0].text).toContain('img_r1.jpg');
+  });
+
+  it('returns empty maps for a non-image-sequence (video) dataset', async () => {
+    await expect(common.loadFrameMetadata(settings, 'projectid1VideoGood'))
+      .resolves.toEqual({ cameras: {} });
+  });
+});
+
+describe('frame metadata discovery', () => {
+  it('lists a declared sidecar larger than the old 10 MB bound without reading it', async () => {
+    // 10 MB + 1 byte: over the old (deleted) size cap. A declared sidecar is never size-gated and
+    // is only stat'd during discovery, not read.
+    const dir = '/home/user/data/frameMetadataSized';
+    await fs.writeFile(npath.join(dir, 'frame_metadata.csv'), Buffer.alloc(10 * 1024 * 1024 + 1, 0x61));
+
+    const candidates = await common.frameMetadataCandidateDescriptors(dir);
+    const names = candidates.map((candidate) => candidate.name);
+    expect(names).toContain('frame_metadata.csv');
+    const huge = candidates.find((candidate) => candidate.name === 'frame_metadata.csv');
+    expect(huge?.absolutePath).toBe(npath.join(dir, 'frame_metadata.csv'));
+  });
+
+  it('frameMetadataSourceDirectories returns the base path for a directory import', () => {
+    expect(common.frameMetadataSourceDirectories({
+      originalBasePath: '/data/set',
+      originalImageFiles: ['img001.png'],
+    })).toEqual([npath.resolve('/data/set')]);
+  });
+
+  it('frameMetadataSourceDirectories lists the image-list directory then the absolute image directory', () => {
+    expect(common.frameMetadataSourceDirectories({
+      originalBasePath: '',
+      originalImageFiles: ['/imgs/a.png'],
+      imageListPath: '/lists/list.txt',
+    })).toEqual([npath.resolve('/lists'), npath.resolve('/imgs')]);
+  });
+
+  it('frameMetadataSourceDirectories lists every absolute image directory from image-list entries', () => {
+    expect(common.frameMetadataSourceDirectories({
+      originalBasePath: '',
+      originalImageFiles: ['/imgs/a.png', '/extra/b.png', '/imgs/c.png'],
+      imageListPath: '/lists/list.txt',
+    })).toEqual([npath.resolve('/lists'), npath.resolve('/imgs'), npath.resolve('/extra')]);
+  });
+
+  it('frameMetadataSourceDirectories dedupes directories that resolve to the same path', () => {
+    expect(common.frameMetadataSourceDirectories({
+      originalBasePath: '/data',
+      originalImageFiles: ['/data/a.png'],
+      imageListPath: '/data/list.txt',
+    })).toEqual([npath.resolve('/data')]);
+  });
+
+  it('frameMetadataSourceDirectories ignores a relative first image (covered by the base path)', () => {
+    expect(common.frameMetadataSourceDirectories({
+      originalBasePath: '/base',
+      originalImageFiles: ['sub/a.png'],
+    })).toEqual([npath.resolve('/base')]);
+  });
+});
+
+describe('frame metadata import gates', () => {
+  it('picks the annotation CSV and leaves a declared frame metadata sidecar in place', async () => {
+    // 'frame_metadata.csv' sorts first but is declared frame metadata: it must be skipped as a
+    // track-file candidate and stay on disk for read-time discovery.
+    const dir = '/home/user/data/fmGateMixed';
+    const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(dir);
+    expect(trackFileAbsPath).toBe(npath.join(dir, 'zzz_annotations.csv'));
+    expect(fs.existsSync(npath.join(dir, 'frame_metadata.csv'))).toBe(true);
+  });
+
+  it('leaves no track file when only a declared frame metadata sidecar is present', async () => {
+    const { trackFileAbsPath } = await common.findTrackandMetaFileinFolder(
+      '/home/user/data/fmGateFrameMetadataOnly',
+    );
+    expect(trackFileAbsPath).toBeFalsy();
+  });
+
+  it('rejects an explicit import of a frame metadata file', async () => {
+    await expect(common.ingestDataFiles(
+      settings,
+      'projectid1',
+      ['/home/user/data/fmGateExplicit/frame_metadata.csv'],
+    )).rejects.toThrow(/frame metadata file/);
+  });
+
+  it('adds a rename hint when a plain frame-metadata-shaped CSV fails VIAME import', async () => {
+    await expect(common.ingestDataFiles(
+      settings,
+      'projectid1',
+      ['/home/user/data/fmGateViameFail/nav.csv'],
+    )).rejects.toThrow(/rename it to frame-metadata\.csv/);
   });
 });
 

@@ -19,6 +19,9 @@ theme:
 
 extra_css: [extra.css]
 
+not_in_nav: |
+  Frame-Metadata.md
+
 markdown_extensions:
   - admonition
   - attr_list

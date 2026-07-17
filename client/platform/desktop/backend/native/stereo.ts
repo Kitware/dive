@@ -2,8 +2,8 @@
  * Interactive Stereo types.
  *
  * The runtime service manager was merged into the unified InteractiveServiceManager
- * (see ./interactive). This module now only holds the stereo request/response
- * contracts shared between that manager and the IPC layer.
+ * (see ./interactive). This module now only holds the stereo types shared
+ * between that manager and the IPC layer.
  */
 
 /** Error message shown to users when stereo service fails to load */

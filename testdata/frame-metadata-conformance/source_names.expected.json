@@ -1,0 +1,19 @@
+{
+  "frame-metadata.txt": true,
+  "frame-metadata.csv": true,
+  "FRAME-METADATA.TXT": true,
+  "frame_metadata.csv": true,
+  "frame_metadata.txt": true,
+  "FRAME_METADATA.CSV": true,
+  "left/frame-metadata.txt": true,
+  "left/frame-metadata.csv": true,
+  "right\\frame_metadata.csv": true,
+  "right\\frame_metadata.txt": true,
+  "nav.meta.csv": false,
+  "a.b.meta.txt": false,
+  "nav.csv": false,
+  "nav.txt": false,
+  "prefix-frame-metadata.txt": false,
+  "frame_metadata.csv.bak": false,
+  ".meta.csv": false
+}

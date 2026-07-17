@@ -29,6 +29,7 @@ interface MediaControllerReactiveData {
   volume: number;
   speed: number;
   maxFrame: number;
+  filenames: string[];
   syncedFrame: number;
   /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
   hasFrame: boolean;
@@ -378,6 +379,7 @@ export function useMediaController() {
       volume: 0,
       speed: 1.0,
       maxFrame: 0,
+      filenames: [],
       syncedFrame: 0,
       hasFrame: true,
       imageRevision: 0,
@@ -618,6 +620,7 @@ export function useMediaController() {
       frame: toRef(state[camera], 'frame'),
       flick: toRef(state[camera], 'flick'),
       filename: toRef(state[camera], 'filename'),
+      filenames: toRef(state[camera], 'filenames'),
       duration: toRef(state[camera], 'duration'),
       volume: toRef(state[camera], 'volume'),
       maxFrame: toRef(state[camera], 'maxFrame'),

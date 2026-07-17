@@ -92,6 +92,7 @@ export interface MediaController extends AggregateMediaController {
   cameraName: Readonly<Ref<string>>;
   duration: Readonly<Ref<number>>;
   filename: Readonly<Ref<string>>;
+  filenames: Readonly<Ref<string[]>>;
   flick: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;

@@ -1,7 +1,7 @@
 # Dataset Info
 
-The **Dataset Info** panel shows properties of the whole dataset and lets you attach
-custom metadata to it. It is one pane of the
+The **Dataset Info** panel shows read-only frame metadata, properties of the
+whole dataset, and custom metadata attached to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
 Metadata you add travels with the dataset: it is shown while annotating and written into
@@ -13,6 +13,10 @@ re-link annotations to their source records.
 
 ![Dataset Info panel](images/General/DatasetInfo.png){ width=220px align=right }
 
+**Frame Metadata** (read-only): per-frame metadata for the active image, such
+as timestamp, latitude, longitude, depth, or altitude. The panel shows only the
+source fields for the active frame, in the order they appear in the source file.
+
 **Standard information** (read-only): Name, Type, FPS, Original FPS and Subtype (when
 set), Created date, and ID (the Girder folder id).
 
@@ -20,6 +24,27 @@ set), Created date, and ID (the Girder folder id).
 example a station id, cruise number, or dive number.
 
 <div style="clear: both;"/>
+
+## Frame Metadata
+
+The Frame Metadata section shows values for the active image in an
+image-sequence dataset. The values update as the playhead moves.
+
+The panel shows the source fields in file order and includes a **`Source:`** line
+naming the sidecar file that supplied them. For multicamera datasets, the panel
+follows the active camera.
+
+The section may show an empty state when:
+
+* the dataset type does not support frame metadata,
+* no frame metadata sidecar is present,
+* the current frame has no matching row.
+
+Frame metadata is read-only. There is no edit, save, import, or export flow for
+these values.
+
+See [Frame Metadata Sidecars](Frame-Metadata.md) for supported filenames, file
+format, and placement.
 
 ## Where the data is stored
 

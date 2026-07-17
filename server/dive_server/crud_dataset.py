@@ -7,9 +7,9 @@ from bson.objectid import InvalidId, ObjectId
 import cherrypy
 from girder.constants import AccessType
 from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.file import File
 from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel
@@ -21,6 +21,7 @@ from dive_utils import (
     asbool,
     calibration_format,
     constants,
+    frame_metadata,
     fromMeta,
     models,
     multicam_camera_order,
@@ -124,6 +125,8 @@ def _create_multicam_soft_clone(
         creator=owner,
     )
     cloned_folder['meta'] = copy.deepcopy(source_folder['meta'])
+    media_source_folder = crud.getCloneRoot(owner, source_folder)
+    cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
         cloned_folder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
@@ -247,6 +250,30 @@ def list_datasets(
 def _multicam_camera_order(multi_cam: dict) -> List[str]:
     """Return camera names in display order (shared helper, matches the client)."""
     return multicam_camera_order(multi_cam)
+
+
+def _iter_multicam_camera_folders(
+    multi_cam: dict,
+    user: types.GirderUserModel,
+) -> Iterable[Tuple[str, types.GirderModel]]:
+    """Yield (camera_name, camera_folder) in display order, loading each child folder.
+
+    Raises a 400 when a camera entry is missing its folderId, and a 404 when a camera's
+    folder cannot be loaded, matching the media and frame-metadata read paths.
+    """
+    cameras_meta = multi_cam.get('cameras') or {}
+    for camera_name in _multicam_camera_order(multi_cam):
+        cam_info = cameras_meta[camera_name]
+        folder_id = cam_info.get('folderId')
+        if not folder_id:
+            raise RestException(f'Camera "{camera_name}" missing folderId', code=400)
+        child = Folder().load(folder_id, level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{camera_name}" was not found',
+                code=404,
+            )
+        yield camera_name, child
 
 
 def get_multi_cam_media(
@@ -381,6 +408,95 @@ def get_media(
     return models.DatasetSourceMedia(
         imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
+
+
+# Keep this in sync with the client's SingleCameraFrameMetadataKey so single-camera metadata uses
+# the same key on both sides.
+SINGLE_CAMERA_FRAME_METADATA_KEY = 'singleCam'
+
+
+def _frame_metadata_source_items(
+    folder: types.GirderModel,
+) -> List[Dict[str, str]]:
+    """List a folder's declared sidecar items as {itemId, name}, name-sorted (no download).
+
+    Only identity is resolved here: the server classifies sidecars by name and never reads,
+    parses, or joins them. The client downloads and parses the bytes at read time.
+    """
+    items = [
+        item
+        for item in Folder().childItems(folder)
+        if frame_metadata.is_frame_metadata_source_name(item['name'])
+    ]
+    return [
+        {'itemId': str(item['_id']), 'name': item['name']}
+        for item in sorted(items, key=lambda entry: str(entry['name']).lower())
+    ]
+
+
+def _collect_frame_metadata_sources(
+    folders: Iterable[Optional[types.GirderModel]],
+) -> List[Dict[str, str]]:
+    """Assemble ordered {itemId, name} sidecar descriptors across folders in precedence order.
+
+    Folders are deduped by id so a folder shared across cameras (the dataset folder, the
+    parent clone root) contributes its sidecars once, and a co-located dataset (whose clone
+    root is the folder itself) is listed at most once.
+    """
+    seen_folder_ids: set[str] = set()
+    sources: List[Dict[str, str]] = []
+    for folder in folders:
+        if folder is None:
+            continue
+        folder_id = str(folder['_id'])
+        if folder_id in seen_folder_ids:
+            continue
+        seen_folder_ids.add(folder_id)
+        sources.extend(_frame_metadata_source_items(folder))
+    return sources
+
+
+def load_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    """List declared frame-metadata sidecar items per camera, in precedence order (no parsing).
+
+    Returns ``{'cameras': {<camera>: [{'itemId', 'name'}]}}``. Cameras are keyed by the
+    single-camera key or the multicam camera names; items precede in precedence order
+    (camera folder -> its clone root -> dataset folder -> parent root), deduped by folder id.
+    Non-image-sequence media types return no cameras.
+    """
+    crud.verify_dataset(dsFolder)
+    source_type = fromMeta(dsFolder, constants.TypeMarker)
+    if source_type == constants.MultiType:
+        return _load_multicam_frame_metadata_sources(dsFolder, user)
+    if source_type != constants.ImageSequenceType:
+        return {'cameras': {}}
+    # Prefer sidecars stored directly on the dataset before falling back to the clone media root.
+    sources = _collect_frame_metadata_sources([dsFolder, crud.getCloneRoot(user, dsFolder)])
+    if not sources:
+        return {'cameras': {}}
+    return {'cameras': {SINGLE_CAMERA_FRAME_METADATA_KEY: sources}}
+
+
+def _load_multicam_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    parent_root = crud.getCloneRoot(user, dsFolder)
+    cameras: Dict[str, List[Dict[str, str]]] = {}
+    for camera_name, child in _iter_multicam_camera_folders(multi_cam, user):
+        if fromMeta(child, constants.TypeMarker) != constants.ImageSequenceType:
+            continue
+        # Prefer camera-local sidecars before falling back to shared multicam parent folders.
+        sources = _collect_frame_metadata_sources(
+            [child, crud.getCloneRoot(user, child), dsFolder, parent_root]
+        )
+        if sources:
+            cameras[camera_name] = sources
+    return {'cameras': cameras}
 
 
 class MetadataMutableUpdateArgs(models.MetadataMutable):
@@ -974,9 +1090,9 @@ def _source_calibration_items_in_folder_root(folder_id: str):
     Camera media lives in child folders; only direct items on folder_id are considered.
     """
     for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
-        if _item_has_source_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
-            cal_item['name']
-        ):
+        if _item_has_source_calibration_marker(
+            cal_item
+        ) and constants.stereoCalibrationRegex.search(cal_item['name']):
             yield cal_item
 
 
@@ -1373,55 +1489,113 @@ def create_multicam(
 
 def validate_files(files: List[str]):
     """
-    Given a collection of filenames, guess based on regular expressions
-    if the collection represents a valid dataset, and if so, which files
-    represent which type of data
+    Given a collection of filenames, classify each into a semantic upload role.
+
+    The response is authoritative for what the client uploads: accepted files are
+    listed under ``roles`` and concatenated into ``upload`` in a stable order, while
+    any file that is not needed is returned in ``ignored`` with a visible reason. No
+    selected file is silently discarded.
     """
+    # Partition frame-metadata sidecars first so they never trip the
+    # generic csv/txt classification below.
+    frame_meta = [f for f in files if frame_metadata.is_frame_metadata_source_name(f)]
+    frame_meta_set = set(frame_meta)
+
+    videos = [f for f in files if constants.videoRegex.search(f) and f not in frame_meta_set]
+    images = [f for f in files if constants.imageRegex.search(f) and f not in frame_meta_set]
+    large_images = [
+        f for f in files if constants.largeImageRegEx.search(f) and f not in frame_meta_set
+    ]
+    media = images + videos + large_images
+
+    # Keep dataset config filename detection aligned with the client's JsonMetaRegEx.
+    dataset_config = [
+        f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
+    ]
+    dataset_config_set = set(dataset_config)
+
+    annotation_csvs = [f for f in files if constants.csvRegex.search(f) and f not in frame_meta_set]
+    annotation_ymls = [f for f in files if constants.ymlRegex.search(f)]
+    annotation_jsons = [
+        f for f in files if constants.jsonRegex.search(f) and f not in dataset_config_set
+    ]
+    annotations = annotation_csvs + annotation_ymls + annotation_jsons
+
+    if len(videos):
+        mediatype = constants.VideoType
+    elif len(images):
+        mediatype = constants.ImageSequenceType
+    elif len(large_images):
+        mediatype = constants.LargeImageType
+    else:
+        mediatype = ""
+
     ok = True
     message = ""
-    mediatype = ""
-    videos = [f for f in files if constants.videoRegex.search(f)]
-    csvs = [f for f in files if constants.csvRegex.search(f)]
-    images = [f for f in files if constants.imageRegex.search(f)]
-    large_images = [f for f in files if constants.largeImageRegEx.search(f)]
-    ymls = [f for f in files if constants.ymlRegex.search(f)]
-    jsons = [f for f in files if constants.jsonRegex.search(f)]
     if len(videos) and (len(images) or len(large_images)):
         ok = False
         message = "Do not upload images and videos in the same batch."
     elif len(large_images) and len(images):
         ok = False
         message = "Do not upload images and tile images in the same batch."
-    elif len(csvs) > 1:
+    elif len(annotation_csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
-    elif len(jsons) > 2:
+    elif len(dataset_config) > 1:
         ok = False
-        message = (
-            "Can only upload a single JSON Annotation and single configuration JSON per import"
-        )
-    elif len(csvs) == 1 and len(ymls):
+        message = "Can only upload a single configuration JSON per import"
+    elif len(annotation_jsons) > 1:
+        ok = False
+        message = "Can only upload a single annotation JSON per import"
+    elif len(annotation_csvs) and len(annotation_ymls):
         ok = False
         message = "Cannot mix annotation import types"
-    elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
+    elif len(annotation_ymls) > 1:
+        ok = False
+        message = "Can only upload a single YAML Annotation per import"
+    elif len(annotation_csvs) + len(annotation_ymls) + len(annotation_jsons) > 1:
+        # Multiple annotation sources across formats (e.g. CSV + JSON) would silently
+        # overwrite each other at import, so only one annotation source is allowed.
+        ok = False
+        message = "Cannot mix annotation import types"
+    elif len(videos) > 1 and (len(annotations) or len(dataset_config)):
         ok = False
         message = "Annotation upload is not supported when multiple videos are uploaded"
-    elif (not len(videos)) and (not len(images)) and (not len(large_images)):
+    elif not (len(videos) or len(images) or len(large_images)):
         ok = False
         message = "No supported media-type files found"
-    elif len(videos):
-        mediatype = constants.VideoType
-    elif len(images):
-        mediatype = constants.ImageSequenceType
-    elif len(large_images):
-        mediatype = constants.LargeImageType
+
+    # Frame metadata is only read for image sequences (Decision D4). On any other media
+    # type the sidecar is preserved as ignored-with-reason rather than uploaded.
+    frame_metadata_role = frame_meta if mediatype == constants.ImageSequenceType else []
+
+    roles = {
+        "media": media,
+        "annotations": annotations,
+        "datasetConfig": dataset_config,
+        "frameMetadata": frame_metadata_role,
+    }
+    upload = media + annotations + dataset_config + frame_metadata_role
+
+    accepted = set(upload)
+    ignored = []
+    for f in files:
+        if f in accepted:
+            continue
+        if f in frame_meta_set:
+            ignored.append(
+                {"name": f, "reason": "Frame metadata is not supported for this media type"}
+            )
+        else:
+            ignored.append({"name": f, "reason": "Unsupported side file"})
 
     return {
         "ok": ok,
         "message": message,
-        "type": mediatype,
-        "media": images + videos + large_images,
-        "annotations": csvs + ymls + jsons,
+        "type": mediatype if ok else "",
+        "roles": roles,
+        "upload": upload,
+        "ignored": ignored,
     }
 
 

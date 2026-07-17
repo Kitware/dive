@@ -40,6 +40,7 @@ class DatasetResource(Resource):
         self.route("GET", ("calibration",), self.get_dataset_calibration)
         self.route("POST", (":id", "calibration"), self.set_dataset_calibration)
         self.route("GET", (":id", "media"), self.get_media)
+        self.route("GET", (":id", "frame_metadata_sources"), self.get_frame_metadata_sources)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
@@ -202,11 +203,10 @@ class DatasetResource(Resource):
     )
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
-    
+
     @access.user
     @autoDescribeRoute(
-        Description("Get calibration information of dataset")
-        .modelParam(
+        Description("Get calibration information of dataset").modelParam(
             "folderId",
             description="Folder id of a video clip",
             model=Folder,
@@ -219,9 +219,7 @@ class DatasetResource(Resource):
         self,
         folder,
     ):
-        return crud_dataset.get_calibration(
-            self.getCurrentUser(), folder
-        )
+        return crud_dataset.get_calibration(self.getCurrentUser(), folder)
 
     @access.user
     @autoDescribeRoute(
@@ -261,6 +259,17 @@ class DatasetResource(Resource):
     )
     def get_media(self, folder):
         return crud_dataset.get_media(folder, self.getCurrentUser()).dict(exclude_none=True)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "List declared frame-metadata sidecar items per camera, in precedence order. "
+            "The server classifies sidecars by name only and never parses them; the client "
+            "downloads and parses the bytes."
+        ).modelParam("id", level=AccessType.READ, **DatasetModelParam)
+    )
+    def get_frame_metadata_sources(self, folder):
+        return crud_dataset.load_frame_metadata_sources(folder, self.getCurrentUser())
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(

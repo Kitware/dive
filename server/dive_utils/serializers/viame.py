@@ -108,13 +108,14 @@ def get_next_polygon_key(features: Dict[str, Any]) -> str:
         return ''
     # Count existing polygons to determine the next key
     polygon_count = sum(
-        1 for f in features["geometry"]["features"]
-        if f["geometry"]["type"] == "Polygon"
+        1 for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"
     )
     return str(polygon_count) if polygon_count > 0 else ''
 
 
-def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False):
+def create_geoJSONFeature(
+    features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False
+):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
@@ -153,10 +154,7 @@ def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
     if "geometry" not in features or not features["geometry"]["features"]:
         return
     for subfeature in features["geometry"]["features"]:
-        if (
-            subfeature["geometry"]["type"] == 'Polygon'
-            and subfeature["properties"]["key"] == key
-        ):
+        if subfeature["geometry"]["type"] == 'Polygon' and subfeature["properties"]["key"] == key:
             # Add hole as additional ring to the polygon coordinates
             subfeature["geometry"]["coordinates"].append(coords)
             break
@@ -206,10 +204,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
 
         # (poly) x1 y1 x2 y2 ... - polygon (multiple allowed, auto-keyed internally)
         # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
-        poly_regex = re.match(
-            r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
-            row[j]
-        )
+        poly_regex = re.match(r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if poly_regex:
             temp = [float(x) for x in poly_regex.group(1).split()]
             coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
@@ -217,16 +212,17 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
             create_geoJSONFeature(features, 'Polygon', coords, auto_key=True)
 
         # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
-        hole_regex = re.match(
-            r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
-            row[j]
-        )
+        hole_regex = re.match(r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if hole_regex:
             temp = [float(x) for x in hole_regex.group(1).split()]
             coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
             # Add hole to the most recent polygon (last one added)
             if "geometry" in features and features["geometry"]["features"]:
-                polygons = [f for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"]
+                polygons = [
+                    f
+                    for f in features["geometry"]["features"]
+                    if f["geometry"]["type"] == "Polygon"
+                ]
                 if polygons:
                     last_poly_key = polygons[-1]["properties"]["key"]
                     add_hole_to_polygon(features, coords, last_poly_key)
@@ -385,7 +381,9 @@ def parse_metadata_row(row: List[str]) -> Dict[str, Any]:
 def load_csv_as_tracks_and_attributes(
     rows: List[str],
     imageMap: Optional[Dict[str, int]] = None,
-) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo]:
+) -> Tuple[
+    types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo
+]:
     """
     Convert VIAME CSV to json tracks
 
@@ -650,11 +648,7 @@ def export_tracks_as_csv(
                                 attr_length = candidate
                         except (TypeError, ValueError):
                             attr_length = None
-                    resolved_length = (
-                        attr_length
-                        if attr_length is not None
-                        else feature.fishLength
-                    )
+                    resolved_length = attr_length if attr_length is not None else feature.fishLength
                     export_length = (
                         resolved_length
                         if resolved_length is not None and resolved_length == resolved_length

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Optional, Tuple, TypedDict
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, TypedDict
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -20,7 +20,15 @@ from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_tasks.utils import choose_annotation_fps
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    constants,
+    frame_metadata,
+    fromMeta,
+    models,
+    types,
+)
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 
@@ -531,8 +539,20 @@ def _get_data_by_type(
     """
     if file is None:
         return None, None
+    # Frame metadata sidecars are declared by basename: classify without
+    # reading, parsing, or joining. Their content is read only at read time, by the
+    # client's shared TypeScript parser, never here.
+    if frame_metadata.is_frame_metadata_source_name(file['name']):
+        return {
+            'annotations': None,
+            'meta': None,
+            'attributes': None,
+            'type': crud.FileType.FRAME_METADATA,
+        }, None
     file_generator = File().download(file, headers=False)()
-    file_string = b"".join(list(file_generator)).decode()
+    # Annotation content is decoded strictly (utf-8-sig tolerates a BOM but not other
+    # non-UTF-8 bytes): a decode failure surfaces as the loud "Failed to import" path.
+    file_string = b"".join(list(file_generator)).decode('utf-8-sig')
     data_dict = None
     warnings = None
 
@@ -643,22 +663,54 @@ def process_items(
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
     """
-    unprocessed_items = Folder().childItems(
-        folder,
-        filters={
-            "$or": [
-                {"lowerName": {"$regex": constants.csvRegex}},
-                {"lowerName": {"$regex": constants.jsonRegex}},
-                {"lowerName": {"$regex": constants.ymlRegex}},
-            ]
-        },
-        # Processing order: oldest to newest
-        sort=[("created", pymongo.ASCENDING)],
+    unprocessed_items = list(
+        Folder().childItems(
+            folder,
+            filters={
+                "$and": [
+                    {
+                        "$or": [
+                            {"lowerName": {"$regex": constants.csvRegex}},
+                            {"lowerName": {"$regex": constants.jsonRegex}},
+                            {"lowerName": {"$regex": constants.ymlRegex}},
+                        ]
+                    },
+                    # Frame-metadata sidecars are marked processed but stay in the dataset
+                    # folder; excluding them here keeps a left-in-place sidecar from being
+                    # re-swept on a later postprocess.
+                    {f'meta.{constants.ProcessedMarker}': {'$ne': True}},
+                ]
+            },
+            # Processing order: oldest to newest
+            sort=[("created", pymongo.ASCENDING)],
+        )
     )
-    auxiliary = crud.get_or_create_auxiliary_folder(
-        folder,
-        user,
+
+    # Side door: two plain annotation CSVs reaching the folder together can
+    # only happen outside the pre-upload validation path (validate_files blocks it). Reject
+    # before touching any item so both survive for the user to retry.
+    annotation_csv_names = sorted(
+        item['name']
+        for item in unprocessed_items
+        if constants.csvRegex.search(item['name'])
+        and not frame_metadata.is_frame_metadata_source_name(item['name'])
     )
+    if len(annotation_csv_names) >= 2:
+        raise RestException(
+            'Multiple annotation CSVs present; delete all but one of: '
+            f'{", ".join(annotation_csv_names)}'
+        )
+
+    # image_map (extension-stripped media stems) feeds the VIAME parser and only exists for
+    # image-sequence folders. Skip the media walk entirely when only sidecars are present:
+    # a declared sidecar is classified by name and never joined here.
+    image_map = None
+    if fromMeta(folder, constants.TypeMarker) == constants.ImageSequenceType and any(
+        not frame_metadata.is_frame_metadata_source_name(item['name']) for item in unprocessed_items
+    ):
+        image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
+
+    auxiliary = None
     aggregate_warnings = []
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
@@ -666,22 +718,39 @@ def process_items(
             raise RestException('Item had no associated files')
 
         try:
-            image_map = None
-            if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
-                image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
             results, warnings = _get_data_by_type(file, image_map=image_map)
             if warnings:
                 aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
             if isinstance(e, ValueError):
-                raise RestException(f'Failed to import {file["name"]}: {e}') from e
+                hint = (
+                    ' If this file is frame metadata rather than annotations, rename it to '
+                    'frame-metadata.csv and re-upload.'
+                    if constants.csvRegex.search(file['name'])
+                    else ''
+                )
+                raise RestException(f'Failed to import {file["name"]}: {e}{hint}') from e
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
         if results is None:
             Item().remove(item)
             raise RestException(f'Unknown file type for {file["name"]}')
 
+        if results['type'] == crud.FileType.FRAME_METADATA:
+            # Declared frame metadata sidecar: keep it in the dataset folder for read-time
+            # discovery. Mark it processed so it is not re-swept, but never import it as
+            # annotations, move it, or remove it.
+            item['meta'][constants.ProcessedMarker] = True
+            Item().save(item)
+            aggregate_warnings.append(
+                f'{file["name"]} was stored as frame metadata, not annotations; '
+                'it stays in the dataset folder.'
+            )
+            continue
+
+        if auxiliary is None:
+            auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
         if results['annotations']:

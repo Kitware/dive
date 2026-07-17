@@ -68,9 +68,15 @@ export default Vue.extend({
           break;
         }
       }
-      if (!error) {
-        this.$emit('update:uploading', false);
+      if (error) {
+        // Reset failed/interrupted rows so the dialog recovers: the progress
+        // spinner stops and each row's controls (remove, FPS) re-enable.
+        pendingUplodsCopy.forEach((pendingUpload) => {
+          // eslint-disable-next-line no-param-reassign
+          pendingUpload.uploading = false;
+        });
       }
+      this.$emit('update:uploading', false);
     },
     convertFileToInternal(file) {
       if (file === null) {
@@ -89,14 +95,11 @@ export default Vue.extend({
       };
     },
     async uploadPending(pendingUpload, uploaded) {
-      const {
-        name, createSubFolders, meta, annotationFile, mediaList,
-      } = pendingUpload;
-      //Combine the files for uploading
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      const { name, createSubFolders, uploadFiles } = pendingUpload;
+      // The validated package is the only source of files to upload.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
       const fps = parseInt(pendingUpload.fps, 10);
@@ -145,7 +148,6 @@ export default Vue.extend({
     },
     async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
       let jobIds = [];
-      // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
           folder,
@@ -159,9 +161,7 @@ export default Vue.extend({
           throw err;
         }
       };
-      // Sets the files used by the fileUploader mixin
       this.setFiles(files);
-      // Upload Mixin function to start uploading
       await this.start({
         dest: folder,
         postUpload,
@@ -173,13 +173,12 @@ export default Vue.extend({
      * Upload a single camera dataset folder (used by multicam import).
      */
     async uploadCameraDataset({
-      name, fps, type, mediaList, meta = null, annotationFile = null, skipTranscoding = true,
-      parentFolderId = null,
+      name, fps, type, uploadFiles, skipTranscoding = true, parentFolderId = null,
     }) {
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      // The validated package is the only source of files to upload for the camera.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
       const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);

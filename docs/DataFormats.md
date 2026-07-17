@@ -5,13 +5,19 @@ hide:
 
 # Data Formats
 
-DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.
+DIVE Desktop and Web support a number of annotation, configuration, and
+media-side metadata formats. The annotation and configuration formats below can
+be uploaded or imported alongside your media and will be automatically parsed.
 
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
 * VIAME CSV
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
+
+Frame metadata sidecars are media files rather than annotation imports. See
+[Frame Metadata Sidecars](Frame-Metadata.md) for their naming, placement, and
+text-file format.
 
 ## DIVE Annotation JSON
 

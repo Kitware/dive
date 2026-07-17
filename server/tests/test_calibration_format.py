@@ -18,15 +18,17 @@ def test_is_valid_json_bytes():
 
 
 def test_parse_stereo_calibration_json_int_casts_grid_and_image_sizes():
-    parsed = calibration_format.parse_stereo_calibration_json({
-        'R': [1, 0, 0, 0, 1, 0, 0, 0, 1],
-        'T': [0.1, 0.2, 0.3],
-        'grid_height': 8.0,
-        'grid_width': 11.0,
-        'image_height': 1080.9,
-        'image_width': 1920.1,
-        'cx_left': 1.5,
-    })
+    parsed = calibration_format.parse_stereo_calibration_json(
+        {
+            'R': [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            'T': [0.1, 0.2, 0.3],
+            'grid_height': 8.0,
+            'grid_width': 11.0,
+            'image_height': 1080.9,
+            'image_width': 1920.1,
+            'cx_left': 1.5,
+        }
+    )
     assert parsed['gridHeight'] == 8
     assert parsed['gridWidth'] == 11
     assert parsed['imageHeight'] == 1080
