@@ -745,7 +745,10 @@ describe('CameraRegistrationStore', () => {
       const store = new CameraRegistrationStore();
       store.setActivePair('rgb', 'ir');
       const key = store.pairKey('rgb', 'ir');
+      expect(store.pickingEnabled.value).toBe(false);
       store.applyAutoRegistration('rgb', 'ir', inliers, { autoRegisterModel: 'minima_loftr' });
+      // Picking turns on so the injected points are visible for review.
+      expect(store.pickingEnabled.value).toBe(true);
       expect(store.correspondences.value[key]).toHaveLength(5);
       expect(store.transformTypes.value[key]).toBe('homography');
       const { AtoB } = store.homographies.value[key];
