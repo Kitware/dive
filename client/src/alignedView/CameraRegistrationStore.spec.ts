@@ -746,7 +746,7 @@ describe('CameraRegistrationStore', () => {
       store.setActivePair('rgb', 'ir');
       const key = store.pairKey('rgb', 'ir');
       expect(store.pickingEnabled.value).toBe(false);
-      store.applyAutoRegistration('rgb', 'ir', inliers, { autoRegisterModel: 'minima_loftr' });
+      store.applyAutoRegistration('rgb', 'ir', inliers);
       // Picking turns on so the injected points are visible for review.
       expect(store.pickingEnabled.value).toBe(true);
       expect(store.correspondences.value[key]).toHaveLength(5);
@@ -754,9 +754,25 @@ describe('CameraRegistrationStore', () => {
       const { AtoB } = store.homographies.value[key];
       expect(AtoB[0][2]).toBeCloseTo(5, 5);
       expect(AtoB[1][2]).toBeCloseTo(-3, 5);
-      expect(store.source.value).toMatchObject({ autoRegisterModel: 'minima_loftr' });
       expect(store.fitError.value).toBeNull();
       expect(store.dirty.value).toBe(true);
+    });
+
+    it('leaves the rig-global source stamp untouched', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('rgb', 'ir');
+      // A producer stamp from a loaded registration: rig-global, so a
+      // single pair's auto-register must not restamp it (that would rewrite
+      // every camera's file on the next save, not just this pair's).
+      const producer = { model: 'N56RF', flight: 'dataset_1' };
+      store.source.value = { ...producer };
+      store.applyAutoRegistration('rgb', 'ir', inliers);
+      expect(store.source.value).toEqual(producer);
+      // And with no loaded registration, none appears.
+      const fresh = new CameraRegistrationStore();
+      fresh.setActivePair('rgb', 'ir');
+      fresh.applyAutoRegistration('rgb', 'ir', inliers);
+      expect(fresh.source.value).toBeNull();
     });
 
     it('replaces existing points and clears authoring state', () => {

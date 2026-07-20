@@ -643,16 +643,22 @@ export default class CameraRegistrationStore {
    * rows in native pixels), switch the pair to a homography fit, and fit from
    * those points. The points land in the normal correspondence table so the
    * user can inspect, delete, or drag-refine them exactly like hand-picked
-   * ones. Provenance (`meta`, e.g. { autoRegister: { model, inlierRatio } }) is
-   * merged into {@link source} so it travels with saves/exports. Picking is
-   * switched on so the injected points are immediately visible for that
-   * review -- the keypoint layer draws nothing while picking is off.
+   * ones. Picking is switched on so the injected points are immediately
+   * visible for that review -- the keypoint layer draws nothing while picking
+   * is off.
+   *
+   * Deliberately does NOT touch {@link source}: that stamp is rig-global
+   * (written into EVERY per-camera registration file), so recording this one
+   * pair's matcher provenance there would falsely restamp -- and therefore
+   * rewrite -- the other cameras' files on the next save. The pair's
+   * divergence from a loaded producer registration still surfaces through
+   * {@link isRefinedFromSource}, like any in-app refit. Persisted per-pair
+   * matcher provenance needs a pair-level source in the file format first.
    */
   applyAutoRegistration(
     camA: string,
     camB: string,
     inliers: [number, number, number, number][],
-    meta?: Record<string, unknown>,
   ) {
     const key = this.pairKey(camA, camB);
     const list: Correspondence[] = inliers.map(([ax, ay, bx, by]) => ({
@@ -665,9 +671,6 @@ export default class CameraRegistrationStore {
     this.pendingPoint.value = null;
     this.selectedCorrespondenceId.value = null;
     this.transformTypes.value = { ...this.transformTypes.value, [key]: 'homography' };
-    if (meta) {
-      this.source.value = { ...(this.source.value || {}), ...meta };
-    }
     this.pickingEnabled.value = true;
     this.maybeFitPair(key);
   }
