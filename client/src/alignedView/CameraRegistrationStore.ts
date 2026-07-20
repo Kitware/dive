@@ -644,7 +644,9 @@ export default class CameraRegistrationStore {
    * those points. The points land in the normal correspondence table so the
    * user can inspect, delete, or drag-refine them exactly like hand-picked
    * ones. Provenance (`meta`, e.g. { autoRegister: { model, inlierRatio } }) is
-   * merged into {@link source} so it travels with saves/exports.
+   * merged into {@link source} so it travels with saves/exports. Picking is
+   * switched on so the injected points are immediately visible for that
+   * review -- the keypoint layer draws nothing while picking is off.
    */
   applyAutoRegistration(
     camA: string,
@@ -666,6 +668,7 @@ export default class CameraRegistrationStore {
     if (meta) {
       this.source.value = { ...(this.source.value || {}), ...meta };
     }
+    this.pickingEnabled.value = true;
     this.maybeFitPair(key);
   }
 
