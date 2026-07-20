@@ -1,0 +1,75 @@
+# Test build of kitware/viame-web with Girder from girder-worker-api-override.
+# Based on docker/girder.Dockerfile; installs Girder packages from the test branch.
+
+# ========================
+# == CLIENT BUILD STAGE ==
+# ========================
+FROM node:24.15.0 AS client-builder
+WORKDIR /app
+
+COPY client/package.json client/package-lock.json /app/
+RUN npm install
+COPY .git/ /app/.git/
+COPY client/ /app/
+RUN npm run build:web
+
+FROM node:24.15.0 AS girder-client-builder
+WORKDIR /app
+RUN apt-get update && apt-get install -y git
+ARG GIRDER_GIT_REPO=https://github.com/girder/girder.git
+ARG GIRDER_GIT_REF=girder-worker-api-override
+ARG CACHEBUST=1
+RUN git clone --depth 1 --branch "${GIRDER_GIT_REF}" "${GIRDER_GIT_REPO}" girder-src \
+  && mv girder-src girder
+RUN cd girder/girder/web && npm install --include=optional && npx vite build --base=/girder/
+
+# ========================
+# == SERVER BUILD STAGE ==
+# ========================
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS server-builder
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt/dive/src
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl git build-essential libssl-dev libffi-dev python3-libtiff \
+      libgdal-dev python3-dev cargo nodejs npm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
+ENV PATH="/opt/dive/local/venv/bin:$PATH"
+RUN uv venv /opt/dive/local/venv
+
+COPY server/pyproject.toml server/uv.lock /opt/dive/src/
+RUN uv sync --frozen --no-install-project --no-dev --extra large-image
+COPY server/ /opt/dive/src/
+RUN uv sync --frozen --no-dev --extra large-image
+
+# Override locked girder-worker with the test branch (adds GIRDER_WORKER_API_URL).
+ARG GIRDER_GIT_REPO=https://github.com/girder/girder.git
+ARG GIRDER_GIT_REF=girder-worker-api-override
+COPY test-girder-worker-api-url/install_girder_branch.sh /tmp/install_girder_branch.sh
+RUN chmod +x /tmp/install_girder_branch.sh \
+  && GIRDER_GIT_REPO="${GIRDER_GIT_REPO}" GIRDER_GIT_REF="${GIRDER_GIT_REF}" \
+     /tmp/install_girder_branch.sh
+
+# =================
+# == DIST SERVER ==
+# =================
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS server
+
+ENV GIT_PYTHON_REFRESH="quiet"
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
+ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
+
+COPY --from=server-builder /opt/dive/local/venv /opt/dive/local/venv
+COPY --from=server-builder /opt/dive/src /opt/dive/src
+COPY --from=client-builder /app/dist/ /opt/dive/clients/dive
+COPY --from=girder-client-builder /app/girder/girder/web/dist/ /opt/dive/clients/girder
+COPY docker/entrypoint_server.sh docker/server_setup.py /
+RUN export GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder
+ENTRYPOINT [ "/entrypoint_server.sh" ]

@@ -1,0 +1,124 @@
+## Main stack for testing GIRDER_WORKER_API_URL
+##
+## Girder stamps jobs with http://girder:8080/api/v1 (internal Docker DNS).
+## localworker overrides callbacks with the same internal URL via GIRDER_WORKER_API_URL.
+##
+## Run from repo root:
+##   docker compose -f test-girder-worker-api-url/docker-compose.yml up -d --build
+##
+## Then start the separate CPU worker:
+##   docker compose -f test-girder-worker-api-url/docker-compose.cpu-worker.yml up -d --build
+
+name: dive-gw-api-test
+
+services:
+  traefik:
+    image: traefik:v3.7.4
+    container_name: dive-gw-api-traefik
+    command: >
+      --providers.docker=true
+      --providers.docker.exposedByDefault=false
+      --entrypoints.web.address=:80
+    volumes:
+      - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
+    ports:
+      - "8010:80"
+
+  rabbit:
+    image: rabbitmq:4.2-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
+      - "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit consumer_timeout 432000000"
+
+  mongo:
+    image: mongo:5.0
+    volumes:
+      - mongo_db:/data/db
+
+  redis:
+    image: redis:latest
+    command: ["redis-server", "--maxmemory", "8192MB", "--maxmemory-policy", "volatile-lru"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  memcached:
+    image: memcached
+    command: -m 1024 --max-item-size 8M
+    restart: unless-stopped
+
+  girder:
+    build:
+      context: ..
+      dockerfile: test-girder-worker-api-url/Dockerfile.girder
+      args:
+        GIRDER_GIT_REPO: ${GIRDER_GIT_REPO:-https://github.com/girder/girder.git}
+        GIRDER_GIT_REF: ${GIRDER_GIT_REF:-girder-worker-api-override}
+    image: kitware/viame-web:gw-api-test
+    init: true
+    command: ["--mode", "production"]
+    depends_on:
+      - mongo
+      - traefik
+      - memcached
+      - rabbit
+      - redis
+    volumes:
+      - girder_assetstore:/home/assetstore
+      - type: bind
+        source: ${PUBLIC_DATA_PATH:-../docker/girder_data}
+        target: /data/public
+        read_only: true
+    environment:
+      - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
+      - "GIRDER_ADMIN_USER=${GIRDER_ADMIN_USER:-admin}"
+      - "GIRDER_ADMIN_PASS=${GIRDER_ADMIN_PASS:-letmein}"
+      - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
+      - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
+      # Stamp jobs with the internal URL so remote workers must use GIRDER_WORKER_API_URL.
+      - "GIRDER_SETTING_WORKER_API_URL=http://girder:8080/api/v1"
+      - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+      - "LARGE_IMAGE_CACHE_BACKEND=memcached"
+      - "LARGE_IMAGE_CACHE_MEMCACHED_URL=memcached"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.girder-svc.loadbalancer.server.port=8080"
+      - "traefik.http.routers.girder-rtr.entrypoints=web"
+      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`.+`)"
+
+  # Same Docker network as Girder — uses internal API URL override.
+  localworker:
+    build:
+      context: ..
+      dockerfile: test-girder-worker-api-url/Dockerfile.girder
+      args:
+        GIRDER_GIT_REPO: ${GIRDER_GIT_REPO:-https://github.com/girder/girder.git}
+        GIRDER_GIT_REF: ${GIRDER_GIT_REF:-girder-worker-api-override}
+    image: kitware/viame-web:gw-api-test
+    depends_on:
+      - girder
+      - rabbit
+      - redis
+      - mongo
+    entrypoint: celery -A girder_worker.app worker -Q local
+    environment:
+      - "WORKER_WATCHING_QUEUES=local"
+      - "GIRDER_WORKER_BROKER=amqp://guest:guest@rabbit/default"
+      - "GIRDER_WORKER_BACKEND=rpc://guest:guest@localhost/"
+      - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+      - "C_FORCE_ROOT=1"
+      # Per-worker override reachable on the Compose network.
+      - "GIRDER_WORKER_API_URL=http://girder:8080/api/v1"
+
+volumes:
+  mongo_db:
+  girder_assetstore:
+  redis_data:

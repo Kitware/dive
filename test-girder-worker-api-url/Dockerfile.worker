@@ -1,0 +1,50 @@
+# Test build of kitware/viame-worker:cpu with Girder from girder-worker-api-override.
+# Based on docker/girder_worker.Dockerfile; installs Girder packages from the test branch.
+
+FROM python:3.11-bookworm AS worker
+
+RUN apt-get update && \
+  apt-get install -qy tini ffmpeg git && \
+  apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/tini /tini
+RUN ln -fs /usr/bin/python3.11 /usr/bin/python
+WORKDIR /opt/dive/src
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV VIRTUAL_ENV="/opt/dive/local/venv"
+ENV UV_PROJECT_ENVIRONMENT=/opt/dive/local/venv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+RUN uv venv /opt/dive/local/venv
+ENV PATH="/opt/dive/local/venv/bin:/usr/local/bin:$PATH"
+
+COPY server/pyproject.toml server/uv.lock /opt/dive/src/
+RUN uv sync --frozen --no-install-project --no-dev
+
+COPY server/ /opt/dive/src/
+
+RUN useradd --create-home --uid 1099 --shell=/bin/bash dive
+RUN install -g dive -o dive -d /tmp/addons
+RUN chown -R dive /opt/dive/local/
+
+USER dive
+RUN uv sync --frozen --no-dev
+
+# Override locked girder-worker with the test branch (adds GIRDER_WORKER_API_URL).
+ARG GIRDER_GIT_REPO=https://github.com/girder/girder.git
+ARG GIRDER_GIT_REF=girder-worker-api-override
+USER root
+COPY test-girder-worker-api-url/install_girder_branch.sh /tmp/install_girder_branch.sh
+RUN chmod +x /tmp/install_girder_branch.sh \
+  && chown dive:dive /tmp/install_girder_branch.sh
+USER dive
+RUN GIRDER_GIT_REPO="${GIRDER_GIT_REPO}" GIRDER_GIT_REF="${GIRDER_GIT_REF}" \
+    /tmp/install_girder_branch.sh
+
+RUN install -d /opt/dive/local/ffmpeg && \
+  ln -sf /usr/bin/ffmpeg /opt/dive/local/ffmpeg/ffmpeg && \
+  ln -sf /usr/bin/ffprobe /opt/dive/local/ffmpeg/ffprobe
+COPY --chown=dive:dive docker/entrypoint_worker.sh /
+
+ENTRYPOINT ["/tini", "--"]
+CMD ["/entrypoint_worker.sh"]

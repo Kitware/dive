@@ -1,0 +1,35 @@
+## Standalone CPU worker for testing GIRDER_WORKER_API_URL
+##
+## Runs outside the main Compose network. Jobs are stamped with
+## http://girder:8080/api/v1 (unreachable here), so this worker overrides
+## callbacks via host.docker.internal (host-published Traefik port 8010).
+##
+## Prerequisites: main stack already running
+##   docker compose -f test-girder-worker-api-url/docker-compose.yml up -d --build
+##
+## Start this worker:
+##   docker compose -f test-girder-worker-api-url/docker-compose.cpu-worker.yml up -d --build
+
+name: dive-gw-api-cpu-worker
+
+services:
+  girder_worker_default:
+    build:
+      context: ..
+      dockerfile: test-girder-worker-api-url/Dockerfile.worker
+      args:
+        GIRDER_GIT_REPO: ${GIRDER_GIT_REPO:-https://github.com/girder/girder.git}
+        GIRDER_GIT_REF: ${GIRDER_GIT_REF:-girder-worker-api-override}
+    image: kitware/viame-worker:gw-api-test-cpu
+    ipc: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - "WORKER_WATCHING_QUEUES=celery"
+      - "WORKER_CONCURRENCY=${DEFAULT_WORKER_CONCURRENCY:-2}"
+      - "GIRDER_WORKER_BROKER=amqp://guest:guest@host.docker.internal:5672/default"
+      - "GIRDER_WORKER_BACKEND=rpc://guest:guest@localhost/"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://host.docker.internal:6379"
+      # Override stamped girder:8080 URL with a host-reachable API.
+      - "GIRDER_WORKER_API_URL=http://host.docker.internal:8010/api/v1"
+      - "C_FORCE_ROOT=1"
