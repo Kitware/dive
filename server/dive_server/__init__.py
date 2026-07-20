@@ -2,6 +2,8 @@ import logging
 import os
 from pathlib import Path
 
+import cherrypy
+from cherrypy.process.plugins import Monitor
 from girder import events, plugin
 from girder.constants import AccessType
 from girder.models.user import User
@@ -14,6 +16,7 @@ from dive_utils import constants
 
 from .crud_annotation import GroupItem, RevisionLogItem, TrackItem
 from .event import send_new_user_email
+from .stale_cancellation import SWEEP_INTERVAL_SECONDS, reap_stale_canceling_jobs
 from .views_annotation import AnnotationResource
 from .views_configuration import ConfigurationResource
 from .views_dataset import DatasetResource
@@ -73,3 +76,12 @@ class GirderPlugin(plugin.GirderPlugin):
             'send_new_user_email',
             send_new_user_email,
         )
+
+        # Jobs canceled while no worker is listening otherwise stay in
+        # "Cancelling" forever; see stale_cancellation.py.
+        Monitor(
+            cherrypy.engine,
+            reap_stale_canceling_jobs,
+            frequency=SWEEP_INTERVAL_SECONDS,
+            name='DIVE stale cancellation sweep',
+        ).subscribe()
