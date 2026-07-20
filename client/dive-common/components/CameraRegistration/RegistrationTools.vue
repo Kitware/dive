@@ -486,14 +486,23 @@ export default defineComponent({
     >
       Source: {{ sourceReadout }}
     </span>
+    <!-- Persistent divergence status (survives save by design); only the
+         action hint tracks the save state so it never asks for a save
+         that's already done. -->
     <span
       v-if="refinedFromSource"
       class="text-caption warning--text d-block"
     >
       This pair has been refined in-app since the source registration was
-      produced. Save, then download the camera's registration from the
-      Export menu to hand the refinement (and its points) back to the
-      producer.
+      produced.
+      <template v-if="dirty">
+        Save, then download the camera's registration from the Export menu
+        to hand the refinement (and its points) back to the producer.
+      </template>
+      <template v-else>
+        Download the camera's registration from the Export menu to hand the
+        refinement (and its points) back to the producer.
+      </template>
     </span>
 
     <div
