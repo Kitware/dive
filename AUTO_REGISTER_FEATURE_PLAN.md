@@ -88,8 +88,12 @@ means the result:
   `cameraCorrespondences`, `cameraTransformTypes` metadata) with zero persistence work;
 - flips `dirty` so the Save button lights up as usual.
 
-Stamp `cameraCalibrationSource` with `{ method: 'auto', model, inlierRatio }` for
-provenance.
+No provenance stamp: `cameraRegistrationSource` is rig-global (written into every
+per-camera registration file), so stamping one pair's matcher provenance there would
+falsely restamp — and rewrite on save — the other cameras' files. Divergence from a
+loaded producer registration surfaces through the existing refined-from-source
+warning instead. Persisted per-pair matcher provenance (`{ method: 'auto', model,
+inlierRatio }`) is deferred until the file format grows a pair-level source field.
 
 ---
 
