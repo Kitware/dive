@@ -27,12 +27,13 @@ from girder_worker.app import app
 logger = logging.getLogger(__name__)
 
 # A live worker acknowledges a cancel within about a minute (the subprocess
-# monitor polls every 30 seconds), but a cancel that lands during a long
-# non-polling phase (media download/upload) is only noticed when that phase
-# ends. The timeout must outlast those phases; a job idle in CANCELING longer
-# than this has no worker acting on it.
-STALE_CANCELING_TIMEOUT = timedelta(minutes=30)
-SWEEP_INTERVAL_SECONDS = 300
+# monitor polls every 30 seconds), and any job update (including log writes)
+# refreshes `updated`, keeping actively-handled jobs out of the sweep. A job
+# idle in CANCELING past this timeout has no worker acting on it. Finalizing
+# early is safe even if a worker is in a long non-polling phase (media
+# download/upload): its own later CANCELED acknowledgment becomes a no-op.
+STALE_CANCELING_TIMEOUT = timedelta(seconds=60)
+SWEEP_INTERVAL_SECONDS = 30
 
 
 def stale_canceling_query(now: datetime) -> dict:
