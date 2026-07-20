@@ -463,7 +463,7 @@ export default class CameraRegistrationStore {
    * unless the pair already has a file-loaded transform, in which case it
    * opens in a review posture (false) so stray clicks don't start placing
    * points on top of a registration that needs no points. The user can still
-   * opt back in via the panel's "Pick points" toggle to refine.
+   * opt back in via the panel's "Edit points" toggle to refine.
    */
   pickingDefaultFor(key: string | null): boolean {
     return !(key && this.homographies.value[key] && this.isLoadedHomography(key));

@@ -524,7 +524,7 @@ export default defineComponent({
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
-     * panes in between (regardless of whether Pick points is toggled on).
+     * panes in between (regardless of whether Edit points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {

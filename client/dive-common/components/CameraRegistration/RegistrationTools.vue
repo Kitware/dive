@@ -80,7 +80,7 @@ export default defineComponent({
     /**
      * Author-vs-review posture: picking defaults on for a pair that still
      * needs points, and off for one whose transform came from a registration
-     * file (review it; the "Pick points" toggle opts back in to refine).
+     * file (review it; the "Edit points" toggle opts back in to refine).
      * Re-applied whenever the active pair changes identity, so it overrides a
      * manual toggle on pair switch -- each pair opens in its own posture.
      */
@@ -634,7 +634,7 @@ export default defineComponent({
 
     <v-switch
       v-model="pickingEnabled"
-      label="Pick points"
+      label="Edit points"
       dense
       hide-details
       class="mt-0"
