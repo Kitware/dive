@@ -18,7 +18,7 @@ import BaseFilterControls from '../BaseFilterControls';
 import Track from '../track';
 import Group from '../Group';
 import StyleManager from '../StyleManager';
-import { getSuppressedTrackIds } from '../use/suppression';
+import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
 
 interface VirtualTypeItem {
   type: string;
@@ -147,10 +147,11 @@ export default defineComponent({
     }
 
     /**
-     * Ids of tracks whose every keyframe detection is suppressed (a region
-     * covers it on each frame it appears), across all cameras - these are
-     * excluded from the dataset-wide type totals. Reactive to region edits via
-     * the save counter, since track geometry is not itself a reactive value.
+     * Ids of tracks whose every keyframe detection is suppressed - covered by
+     * a region on each frame it appears, or flagged with the suppression
+     * attribute - across all cameras. These are excluded from the
+     * dataset-wide type totals. Reactive to region/attribute edits via the
+     * save counter, since track geometry is not itself a reactive value.
      */
     const fullySuppressedIds = computed(() => {
       const editRevision = pendingSaveCount.value;
@@ -176,7 +177,8 @@ export default defineComponent({
           }
           const keyframes = track.features.filter((f) => f && f.keyframe);
           if (keyframes.length > 0
-            && keyframes.every((f) => suppressedAt(f.frame).has(track.id))) {
+            && keyframes.every((f) => suppressedAt(f.frame).has(track.id)
+              || hasSuppressionAttribute(track, f.frame, suppType))) {
             excluded.add(track.id);
           }
         });
@@ -208,15 +210,22 @@ export default defineComponent({
         .search([frame.value, frame.value])
         .map((str) => parseInt(str, 10));
       // Detections suppressed by a region on this frame are dropped so the
-      // per-frame type counts read off the interface exclude them.
+      // per-frame type counts read off the interface exclude them, and
+      // attribute-suppressed detections (visible but displayed as the
+      // suppression type) don't count toward their own type either.
+      const suppType = clientSettings.typeSettings.suppressionType;
       const suppressedIds = (trackStore && editRevision >= 0)
-        ? getSuppressedTrackIds(trackStore, frame.value, clientSettings.typeSettings.suppressionType)
+        ? getSuppressedTrackIds(trackStore, frame.value, suppType)
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
         if (suppressedIds.has(track.annotation.id)) {
           return false;
         }
-        const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
+        const realTrack = trackStore?.getPossible(track.annotation.id);
+        if (realTrack && hasSuppressionAttribute(realTrack, frame.value, suppType)) {
+          return false;
+        }
+        const keyframe = realTrack?.getFeature(frame.value)[0];
         return !!keyframe?.keyframe;
       });
       return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));

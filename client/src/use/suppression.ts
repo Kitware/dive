@@ -96,6 +96,39 @@ function overlapFraction(det: Shape, regions: Shape[]): number {
 }
 
 /**
+ * Loose truthiness for a suppression attribute value set by a user or
+ * pipeline: true, a nonzero number, or 'true'/'yes'/'on'/'1' (any case).
+ */
+export function isSuppressedAttributeValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    return ['true', 'yes', 'on', '1'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+/**
+ * True when the detection carries the suppression attribute: an attribute
+ * named after the suppression type, set on the track or on its detection at
+ * `frame` (falling back to the previous keyframe when the frame is
+ * interpolated). Unlike region suppression this is display-only: the
+ * detection stays visible but is styled, labeled, and counted as the
+ * suppression type instead of its own.
+ */
+export function hasSuppressionAttribute(
+  track: Track,
+  frame: number,
+  suppressionType: string | undefined,
+): boolean {
+  if (!suppressionType) return false;
+  if (isSuppressedAttributeValue(track.attributes?.[suppressionType])) return true;
+  const [real, lower] = track.getFeature(frame);
+  const feature = real?.attributes ? real : lower;
+  return isSuppressedAttributeValue(feature?.attributes?.[suppressionType]);
+}
+
+/**
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
  */
