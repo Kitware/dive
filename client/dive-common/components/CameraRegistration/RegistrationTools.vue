@@ -588,25 +588,34 @@ export default defineComponent({
       points is optional: fitting {{ minPoints }} or more pairs replaces it.
     </span>
 
-    <v-btn
+    <v-tooltip
       v-if="autoRegisterAvailable"
-      block
-      outlined
-      small
-      color="primary"
-      :disabled="!camLeft || !camRight || camLeft === camRight || autoRegistering"
-      :loading="autoRegistering"
-      class="mt-2"
-      @click="runAutoRegister"
+      bottom
+      open-delay="200"
     >
-      <v-icon
-        small
-        left
-      >
-        mdi-auto-fix
-      </v-icon>
-      Auto Register (current frame)
-    </v-btn>
+      <template #activator="{ on }">
+        <v-btn
+          block
+          outlined
+          small
+          color="primary"
+          :disabled="!camLeft || !camRight || camLeft === camRight || autoRegistering"
+          :loading="autoRegistering"
+          class="mt-2"
+          v-on="on"
+          @click="runAutoRegister"
+        >
+          <v-icon
+            small
+            left
+          >
+            mdi-auto-fix
+          </v-icon>
+          Auto Register
+        </v-btn>
+      </template>
+      <span>Automatically match points between the two cameras on the current frame</span>
+    </v-tooltip>
     <span
       v-if="autoRegisterError"
       class="text-caption error--text d-block mt-1"
