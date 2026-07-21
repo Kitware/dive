@@ -19,6 +19,7 @@ import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
 import readline from 'readline';
 import { EventEmitter } from 'events';
+import type { AutoRegisterRequest, AutoRegisterResponse } from 'dive-common/apispec';
 import { Settings } from 'platform/desktop/constants';
 import { observeChild } from './processManager';
 import linux from './linux';
@@ -112,6 +113,25 @@ interface PendingRequest {
   resolve: (response: ServiceResponse) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+}
+
+/**
+ * Snake_case payload of the service's register_images response; mapped to the
+ * camelCase AutoRegisterResponse before it leaves this module.
+ */
+interface RegisterImagesWireResponse {
+  success: boolean;
+  code?: string;
+  error?: string;
+  homography?: number[][];
+  inliers?: [number, number, number, number][];
+  num_matches?: number;
+  num_inliers?: number;
+  inlier_ratio?: number;
+  image_size_a?: [number, number];
+  image_size_b?: [number, number];
+  model?: string;
+  elapsed_ms?: number;
 }
 
 export class InteractiveServiceManager extends EventEmitter {
@@ -483,20 +503,8 @@ export class InteractiveServiceManager extends EventEmitter {
    * matcher hosted by the alignment backend. The matcher model loads lazily
    * on the first call and stays resident in the service process.
    */
-  async autoRegister(request: {
-    imagePathA: string;
-    imagePathB: string;
-    options?: {
-      ransacThreshold?: number;
-      minMatches?: number;
-      minInliers?: number;
-      minInlierRatio?: number;
-      topK?: number;
-      matchThreshold?: number;
-    };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }): Promise<any> {
-    const response = await this.sendRequest({
+  async autoRegister(request: AutoRegisterRequest): Promise<AutoRegisterResponse> {
+    const raw = await this.sendRequest({
       // Wire name is verb-object style, unlike the autoRegister() method
       // above, which matches the UI naming.
       command: 'register_images',
@@ -510,10 +518,8 @@ export class InteractiveServiceManager extends EventEmitter {
         top_k: request.options.topK,
         match_threshold: request.options.matchThreshold,
       },
-    }, 'Auto register');
+    }, 'Auto register') as RegisterImagesWireResponse;
     // Map the service's snake_case payload to the AutoRegisterResponse shape.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = response as any;
     return {
       success: raw.success,
       code: raw.code,
