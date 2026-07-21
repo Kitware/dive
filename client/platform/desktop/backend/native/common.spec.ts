@@ -5,7 +5,7 @@ import { Console } from 'console';
 
 import {
   AnnotationsCurrentVersion, DesktopJob,
-  DesktopJobUpdate, JobType, JsonMeta, RunTraining, Settings,
+  DesktopJobUpdate, JobType, JsonMeta, ProjectsFolderName, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -664,6 +664,33 @@ describe('native.common', () => {
       ...existingDatasetInfo,
       ...importedDatasetInfo,
     });
+  });
+
+  it('dataFileImport config targeted at a multicam camera updates the base metadata', async () => {
+    const basePayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const baseRes = await common.finalizeMediaImport(settings, basePayload);
+    const baseId = baseRes.meta.id;
+    const cameraPayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const cameraRes = await common.finalizeMediaImport(settings, cameraPayload);
+    // Relocate the second project to be a camera subfolder of the first,
+    // forming the `<base>/<camera>` composite layout of a multicam dataset.
+    const projects = npath.join(settings.dataPath, ProjectsFolderName);
+    await fs.move(
+      npath.join(projects, cameraRes.meta.id),
+      npath.join(projects, baseId, 'left'),
+    );
+
+    await common.dataFileImport(settings, `${baseId}/left`, '/home/user/data/annotationImport/foreign.meta.json');
+    // The camera's own metadata receives the config,
+    const cameraMeta = await common.loadMetadata(settings, `${baseId}/left`, urlMapper);
+    expect(cameraMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
+    // and so does the base metadata, which is what the viewer reads.
+    const baseMeta = await common.loadMetadata(settings, baseId, urlMapper);
+    expect(baseMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
   });
 
   it('saveMetadata writes per-camera registration files (pairs + points) and reloads them', async () => {
