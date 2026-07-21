@@ -113,6 +113,18 @@ export function updateHistory(args: DesktopJobUpdate) {
       .map((line) => line.trim())
       .filter((line) => line.startsWith('ERROR:'))
       .map((line) => line.replace(/^ERROR:\s*/, ''));
+    if (errorLines.length === 0) {
+      // No DIVE-convention "ERROR:" lines. Fall back to the last Python /
+      // native exception line (e.g. "RuntimeError: ...") so the dialog shows
+      // the actual cause instead of only the exit code. A traceback echoes the
+      // same exception line more than once; keep only the final occurrence.
+      const exceptionLines = existing.truncatedLogs
+        .map((line) => line.trim())
+        .filter((line) => /^[A-Za-z_][\w.]*(?:Error|Exception)\s*:\s+\S/.test(line));
+      if (exceptionLines.length > 0) {
+        errorLines.push(exceptionLines[exceptionLines.length - 1]);
+      }
+    }
     const text = errorLines.length > 0
       ? errorLines
       : [
