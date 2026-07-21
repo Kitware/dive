@@ -87,6 +87,16 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         context_stack.pop()
                     continue
 
+                # `config <key>` opens a config block; its entries are keyed
+                # under the block name (e.g. `config global` + `:scale` ->
+                # `global:scale`).
+                config_block_match = re.match(
+                    r'^config\s+([\w:.-]+)\s*(?:#.*)?$', trimmed, re.IGNORECASE
+                )
+                if config_block_match:
+                    context_stack = config_block_match.group(1).split(':')
+                    continue
+
                 dive_match = re.search(
                     r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
                 )
