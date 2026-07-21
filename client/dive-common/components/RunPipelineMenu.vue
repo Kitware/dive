@@ -29,6 +29,7 @@ import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
 import {
   pipelineDisabledForMissingCalibration,
 } from 'dive-common/pipelineCalibration';
+import { pipelineHasParams, pipelineRequiresParams } from 'dive-common/pipelineParams';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -244,7 +245,9 @@ export default defineComponent({
       if (isPipelineDisabledForCalibration(pipeline)) {
         return;
       }
-      if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
+      // Only required params block the run; optional ones already hold the
+      // .pipe file's own values, and stay reachable from the gear.
+      if (pipelineRequiresParams(pipeline)) {
         openDiveParamsDialog(pipeline);
         return;
       }
@@ -302,6 +305,8 @@ export default defineComponent({
       confirmPipelineExecution,
       isPipelineDisabledForCalibration,
       pipelineTooltipDisabled,
+      openDiveParamsDialog,
+      pipelineHasParams,
     };
   },
 });
@@ -463,11 +468,19 @@ export default defineComponent({
                               <PipelineCalibrationWarningIcon
                                 v-if="isPipelineDisabledForCalibration(pipeline)"
                               />
-                              <v-icon style="font-size: 1.5em;">
-                                <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
-                                  mdi-cog-outline
-                                </template>
-                              </v-icon>
+                              <!-- The gear is its own hit target: clicking it
+                                configures, clicking anywhere else on the entry
+                                runs with the pipeline's own defaults. -->
+                              <v-btn
+                                v-if="pipelineHasParams(pipeline)"
+                                icon
+                                small
+                                class="pipeline-params-button"
+                                :aria-label="`Configure ${pipeline.name}`"
+                                @click.stop="openDiveParamsDialog(pipeline)"
+                              >
+                                <v-icon>mdi-cog-outline</v-icon>
+                              </v-btn>
                             </span>
                           </v-list-item-title>
                         </v-list-item>
@@ -517,6 +530,12 @@ export default defineComponent({
 .pipeline-submenu-list {
   max-height: 60vh;
   overflow-y: auto;
+}
+
+/* Keep the gear's hit area comfortably clear of the pipeline name, so a click
+   meant for the name does not land on the button. */
+.pipeline-params-button {
+  margin-left: 20px;
 }
 
 .pipeline-category-col--last {
