@@ -70,13 +70,14 @@ Pass the flags to the DIVE Desktop executable (for example `DIVE-Desktop.exe` on
 #### Single-camera datasets
 
 ``` bash
-DIVE-Desktop --import <media> [--annotations <file>] [--name <name>]
+DIVE-Desktop --import <media> [--annotations <file>] [--metadata <file>] [--name <name>]
 ```
 
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
 | `--import` | `-i` | Media to open: an image-sequence directory, an image-list `.txt` file (one image path per line), or a video. Same inputs as the import wizard. |
 | `--annotations` | `-a` | Optional annotation file to load (VIAME CSV or DIVE JSON). |
+| `--metadata` | | Optional pipeline metadata sidecar (`.json`, `.txt`, or `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker; only used by pipelines that declare `# Metadata File:`. |
 | `--name` | `-n` | Optional display name; defaults to the media basename. |
 
 Example — review a detector CSV over an image list:
@@ -92,7 +93,8 @@ Name each camera with a repeated `--camera` instead of `--import`:
 ``` bash
 DIVE-Desktop --camera left=/data/left --camera right=/data/right \
              --annotations left=/data/left.csv --annotations right=/data/right.csv \
-             --calibration /data/calibration_matrices.npz
+             --calibration /data/calibration_matrices.npz \
+             --metadata /data/flight_log.csv
 ```
 
 | Flag | Short | Description |
@@ -100,6 +102,7 @@ DIVE-Desktop --camera left=/data/left --camera right=/data/right \
 | `--camera` | `-c` | `<name>=<media>`, repeated once per camera (at least two). Media paths accept the same kinds as `--import`. Only the first `=` separates name from path, so Windows paths like `left=C:\data\left` work. Flag order is the display order. |
 | `--annotations` | `-a` | In multi-camera mode, `<camera>=<file>`. Give once per camera that has annotations; cameras without annotations may be omitted. |
 | `--calibration` | | Optional stereo calibration (`.npz` or `.json`). Multi-camera only. |
+| `--metadata` | | Optional pipeline metadata sidecar (`.json`, `.txt`, or `.csv`). Available for single-camera and multi-camera imports alike. |
 | `--default-display` | | Camera shown on open. Defaults to `left` when that camera exists, otherwise the first `--camera`. |
 | `--name` | `-n` | Optional display name. |
 

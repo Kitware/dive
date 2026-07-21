@@ -54,7 +54,7 @@ For general web upload concepts (permissions, transcoding, zip import), see [Upl
 
 Desktop additionally supports ==:material-view-list-outline: Image List== and glob-based folder filtering for single-camera imports, and glob/keyword layout options for multicam import.
 
-You can also open stereo and multicam datasets from the command line with repeated `--camera` flags (and optional per-camera `--annotations` and `--calibration`). See [Launching from the command line](Dive-Desktop.md#launching-from-the-command-line).
+You can also open stereo and multicam datasets from the command line with repeated `--camera` flags (and optional per-camera `--annotations`, `--calibration`, and `--metadata`). See [Launching from the command line](Dive-Desktop.md#launching-from-the-command-line).
 
 !!! info
 
