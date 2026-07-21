@@ -21,7 +21,7 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import { getSuppressedTrackIds } from '../use/suppression';
+import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -347,8 +347,9 @@ export default defineComponent({
       }
       // Detections lying >=50% under a suppression region on this frame are
       // hidden from every layer at once (and excluded from counts elsewhere).
+      const { suppressionType } = clientSettings.typeSettings;
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, clientSettings.typeSettings.suppressionType)
+        ? getSuppressedTrackIds(trackStore, frame, suppressionType)
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
@@ -372,6 +373,14 @@ export default defineComponent({
               enabledTracks[enabledIndex].context.confidencePairIndex,
             );
             const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
+            // A detection flagged with the suppression attribute (outside any
+            // region) keeps its real type but displays as the suppression
+            // type: styleType feeds the color/opacity/fill styling, the text
+            // label, and the hover tooltip of every layer.
+            let styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
+            if (suppressionType && hasSuppressionAttribute(track, frame, suppressionType)) {
+              styleType = [suppressionType, 1];
+            }
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (multiSelectList.includes(track.trackId))),
@@ -379,7 +388,7 @@ export default defineComponent({
               track,
               groups,
               features,
-              styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
+              styleType,
               set: track.set,
             };
             frameData.push(trackFrame);
