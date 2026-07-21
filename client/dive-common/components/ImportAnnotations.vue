@@ -476,7 +476,7 @@ export default defineComponent({
               </v-btn>
             </v-row>
             <v-row
-              class="mt-6"
+              class="mt-8"
               dense
             >
               <v-combobox
@@ -486,6 +486,7 @@ export default defineComponent({
                 label="Annotation Set Name"
                 outlined
                 small
+                hide-details
               >
                 <template #selection="{ attrs, item, selected }">
                   <v-chip
@@ -503,6 +504,7 @@ export default defineComponent({
               <v-checkbox
                 :input-value="!additive"
                 label="Overwrite"
+                class="mt-2"
                 @change="additive = !$event"
               />
               <v-checkbox
