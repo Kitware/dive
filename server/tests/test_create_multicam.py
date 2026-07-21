@@ -146,6 +146,49 @@ def test_create_multicam_accepts_video_fps_sentinel(_verify, folder_cls, _aux, i
     assert saved_meta[constants.FPSMarker] == 10.0
 
 
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.valid_images')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_accepts_image_sequence_fps_sentinel(
+    _verify, valid_images_mock, folder_cls, _aux
+):
+    """Image-sequence children resolve fps -1 → 1 in post-process; create_multicam
+    must accept request fps=-1 (auto) and take the children's rate."""
+    user = {'login': 'tester'}
+    dataset_parent = _dataset_parent()
+    left = _child_folder('left-id', 'left', fps=1.0, media_type='image-sequence')
+    right = _child_folder('right-id', 'right', fps=1.0, media_type='image-sequence')
+    star = _child_folder('star-id', 'STAR', fps=1.0, media_type='image-sequence')
+
+    folder_cls.return_value.load.side_effect = lambda fid, **kwargs: {
+        'left-id': left,
+        'right-id': right,
+        'star-id': star,
+    }[fid]
+    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+
+    data = {
+        'name': 'caton-set',
+        'fps': -1,
+        'type': 'image-sequence',
+        'subType': 'multicam',
+        'defaultDisplay': 'STAR',
+        'cameraOrder': ['left', 'right', 'STAR'],
+        'cameras': {
+            'left': {'folderId': 'left-id'},
+            'right': {'folderId': 'right-id'},
+            'STAR': {'folderId': 'star-id'},
+        },
+    }
+
+    result = crud_dataset.create_multicam(user, dataset_parent, data)
+
+    assert result == dataset_parent
+    saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
+    assert saved_meta[constants.FPSMarker] == 1.0
+
+
 @patch('dive_server.crud_dataset.crud.valid_images')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
