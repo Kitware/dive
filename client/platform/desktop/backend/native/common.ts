@@ -50,6 +50,7 @@ import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
@@ -1543,6 +1544,24 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
       : result.meta.datasetInfo;
   }
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
+  // Mutable config (custom styling, confidence thresholds, attributes, ...) is
+  // loaded by the viewer from the base dataset's metadata, so an import
+  // targeted at one camera of a multicam dataset must update the base too.
+  const { parentId, cameraName } = parseCompositeDatasetId(id);
+  if (cameraName && DatasetMetaMutableKeys.some((key) => key in result.meta)) {
+    const baseProjectDir = getProjectDir(settings, parentId);
+    if (await fs.pathExists(baseProjectDir.metaFileAbsPath)) {
+      const baseMeta = await loadJsonMetadata(baseProjectDir.metaFileAbsPath);
+      const existingBaseDatasetInfo = baseMeta.datasetInfo;
+      merge(baseMeta, pick(result.meta, DatasetMetaMutableKeys));
+      if (result.meta.datasetInfo) {
+        baseMeta.datasetInfo = additive
+          ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
+          : result.meta.datasetInfo;
+      }
+      await _saveAsJson(baseProjectDir.metaFileAbsPath, baseMeta);
+    }
+  }
   return result;
 }
 
