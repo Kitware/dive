@@ -228,6 +228,11 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.typeStyling.value.color('');
       },
       fill: (data) => {
+        // When the detection has a polygon the fill belongs to the polygon,
+        // never the surrounding rectangle
+        if (data.hasPoly) {
+          return false;
+        }
         if (data.set) {
           return this.typeStyling.value.fill(data.set, true);
         }
