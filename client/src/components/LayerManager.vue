@@ -335,7 +335,9 @@ export default defineComponent({
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
-      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      // Hidden boxes (kept only as invisible click targets) should not
+      // produce hover tooltips
+      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip && visibleModes.includes('rectangle'));
       polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
       if (!inlcudesTooltip) {
         hoverOvered.value = [];
@@ -449,6 +451,7 @@ export default defineComponent({
       );
 
       if (visibleModes.includes('rectangle')) {
+        rectAnnotationLayer.setClickTargetsOnly(false);
         //We modify rects opacity/thickness if polygons are visible or not
         rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData, comparison.value);
@@ -456,7 +459,11 @@ export default defineComponent({
           overlapLayer.changeData(frameData);
         }
       } else {
-        rectAnnotationLayer.disable();
+        // Keep the hidden boxes around as invisible right-click targets so a
+        // detection can still be right-clicked into edit mode no matter which
+        // of its displays are turned on
+        rectAnnotationLayer.setClickTargetsOnly(true);
+        rectAnnotationLayer.changeData(frameData, comparison.value);
       }
       if (visibleModes.includes('Polygon')) {
         polyAnnotationLayer.setDrawingOther(visibleModes.includes('rectangle'));
