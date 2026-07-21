@@ -214,6 +214,87 @@ function withinBounds(coord: [number, number], bounds: RectBounds) {
   return (x > bounds[0] && x < bounds[2] && y > bounds[1] && y < bounds[3]);
 }
 
+/**
+ * Inclusive test that every vertex of a polygon lies within the given
+ * axis-aligned bounds [x1, y1, x2, y2].
+ */
+function polygonWithinBounds(polygon: GeoJSON.Polygon, bounds: RectBounds): boolean {
+  return polygon.coordinates.every((ring) => ring.every((pos) => (
+    pos[0] >= bounds[0] && pos[0] <= bounds[2] && pos[1] >= bounds[1] && pos[1] <= bounds[3]
+  )));
+}
+
+/* Clip one open linear ring against a single half-plane (Sutherland–Hodgman step) */
+function clipRingAgainstEdge(
+  points: GeoJSON.Position[],
+  inside: (pos: GeoJSON.Position) => boolean,
+  intersect: (a: GeoJSON.Position, b: GeoJSON.Position) => GeoJSON.Position,
+): GeoJSON.Position[] {
+  const output: GeoJSON.Position[] = [];
+  for (let i = 0; i < points.length; i += 1) {
+    const current = points[i];
+    const previous = points[(i + points.length - 1) % points.length];
+    if (inside(current)) {
+      if (!inside(previous)) {
+        output.push(intersect(previous, current));
+      }
+      output.push(current);
+    } else if (inside(previous)) {
+      output.push(intersect(previous, current));
+    }
+  }
+  return output;
+}
+
+/**
+ * Clip a polygon to axis-aligned bounds [x1, y1, x2, y2] using the
+ * Sutherland–Hodgman algorithm. Holes are clipped as well; a hole left
+ * with fewer than 3 points is dropped. Returns null when the exterior
+ * ring falls entirely outside the bounds.
+ */
+function clipPolygonToBounds(
+  polygon: GeoJSON.Polygon,
+  bounds: RectBounds,
+): GeoJSON.Polygon | null {
+  const [x1, y1, x2, y2] = bounds;
+  const edges: [
+    (pos: GeoJSON.Position) => boolean,
+    (a: GeoJSON.Position, b: GeoJSON.Position) => GeoJSON.Position,
+  ][] = [
+    [
+      (pos) => pos[0] >= x1,
+      (a, b) => [x1, a[1] + (((x1 - a[0]) / (b[0] - a[0])) * (b[1] - a[1]))],
+    ],
+    [
+      (pos) => pos[0] <= x2,
+      (a, b) => [x2, a[1] + (((x2 - a[0]) / (b[0] - a[0])) * (b[1] - a[1]))],
+    ],
+    [
+      (pos) => pos[1] >= y1,
+      (a, b) => [a[0] + (((y1 - a[1]) / (b[1] - a[1])) * (b[0] - a[0])), y1],
+    ],
+    [
+      (pos) => pos[1] <= y2,
+      (a, b) => [a[0] + (((y2 - a[1]) / (b[1] - a[1])) * (b[0] - a[0])), y2],
+    ],
+  ];
+  const rings: GeoJSON.Position[][] = [];
+  for (let i = 0; i < polygon.coordinates.length; i += 1) {
+    // Work on the open ring; GeoJSON rings repeat the first point at the end
+    let clipped = polygon.coordinates[i].slice(0, -1);
+    edges.forEach(([inside, intersect]) => {
+      clipped = clipRingAgainstEdge(clipped, inside, intersect);
+    });
+    if (clipped.length >= 3) {
+      rings.push([...clipped, clipped[0]]);
+    } else if (i === 0) {
+      // Exterior ring is entirely outside: the polygon is gone
+      return null;
+    }
+  }
+  return { type: 'Polygon', coordinates: rings };
+}
+
 function frameToTimestamp(frame: number, frameRate: number): string | null {
   const ms = (frame / frameRate) * 1000;
   const date = new Date(ms);
@@ -499,6 +580,8 @@ export {
   reOrderBounds,
   reOrdergeoJSON,
   withinBounds,
+  polygonWithinBounds,
+  clipPolygonToBounds,
   frameToTimestamp,
   isAxisAligned,
 };
