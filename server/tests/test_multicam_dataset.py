@@ -133,6 +133,32 @@ def test_get_dataset_includes_multicam_media(_verify, folder_cls, get_media_mock
 
 
 @patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_get_dataset_includes_metadata_file_markers(_verify):
+    """Folder meta metadataFileItemId / OriginalName must survive get_dataset."""
+    folder = {
+        '_id': 'ds-id',
+        'name': 'survey',
+        'created': '2020-01-01T00:00:00',
+        'meta': {
+            'annotate': True,
+            'type': constants.ImageSequenceType,
+            'fps': 5,
+            constants.MetadataFileItemIdMarker: 'md-item-id',
+            constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
+        },
+    }
+
+    result = crud_dataset.get_dataset(folder, {'login': 'tester'})
+
+    assert isinstance(result, GirderMetadataStatic)
+    assert result.metadataFileItemId == 'md-item-id'
+    assert result.metadataFileOriginalName == 'flight_log.csv'
+    as_dict = result.dict(exclude_none=True)
+    assert as_dict['metadataFileItemId'] == 'md-item-id'
+    assert as_dict['metadataFileOriginalName'] == 'flight_log.csv'
+
+
+@patch('dive_server.crud_dataset.crud.verify_dataset')
 def test_get_media_multi_parent_returns_empty(_verify):
     parent = _multi_parent_folder()
     user = {'login': 'tester'}

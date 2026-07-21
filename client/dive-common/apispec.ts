@@ -240,6 +240,10 @@ interface DatasetMeta extends DatasetMetaMutable {
   calibration?: Readonly<string | null>;
   /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
   metadataFile?: Readonly<string | null>;
+  /** Girder item id of the optional per-dataset metadata file (web). */
+  metadataFileItemId?: Readonly<string | null>;
+  /** Original filename of the optional per-dataset metadata file (web). */
+  metadataFileOriginalName?: Readonly<string | null>;
 }
 
 interface CameraCalibration {
