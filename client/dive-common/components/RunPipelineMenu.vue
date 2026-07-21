@@ -479,11 +479,8 @@ export default defineComponent({
                                 :aria-label="`Configure ${pipeline.name}`"
                                 @click.stop="openDiveParamsDialog(pipeline)"
                               >
-                                <v-icon>mdi-application-cog-outline</v-icon>
+                                <v-icon>mdi-cog-outline</v-icon>
                               </v-btn>
-                              <v-icon v-else>
-                                mdi-play-outline
-                              </v-icon>
                             </span>
                           </v-list-item-title>
                         </v-list-item>

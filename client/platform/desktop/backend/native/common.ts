@@ -111,6 +111,14 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         return;
       }
 
+      // `config <key>` opens a config block; its entries are keyed under the
+      // block name (e.g. `config global` + `:scale` -> `global:scale`).
+      const configBlockMatch = trimmed.match(/^config\s+([\w:.-]+)\s*(?:#.*)?$/i);
+      if (configBlockMatch) {
+        contextStack = configBlockMatch[1].split(':');
+        return;
+      }
+
       const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
       if (diveMatch) {
         const [, label, rawArgs] = diveMatch;
