@@ -15,9 +15,10 @@ The script generateSampleData.py creates a folder structure containing:
 
 - Videos: MP4 format, H.264 codec, random duration (5–30 seconds), 1280x720 resolution.
 - Image Sequences: Extracted frames from temporary videos, stored as sequential JPGs.
-- Annotations: Each video or image sequence is accompanied by either a DIVE track JSON (`.json`) or VIAME CSV (`.csv`) file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
+- Annotations: Each video or image sequence is accompanied by a DIVE track JSON (`.json`), VIAME CSV (`.csv`), or COCO JSON file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
     - Videos: the annotation file has the same basename as the video, with extension `.json` or `.csv`
     - Image Sequences: any `.json` or `.csv` file in the same folder as the frames is imported as annotations
+    - **VIAME CSV videos**: annotation FPS is a random even subsample of the video FPS (30 → e.g. 1, 5, 10, 15, 30). The CSV `# metadata` `fps` field and frame count match that rate. Filenames include `_annfps{N}` (e.g. `reef_annfps10.mp4` / `reef_annfps10.csv`) so you can verify import respects CSV FPS.
 
 Usage
 ```bash
@@ -29,7 +30,14 @@ uv run --script generateSampleData.py
 - --folders (-f): Number of top-level folders (default: 3)  
 - --max-depth (-d): Maximum subfolder depth (default: 2)  
 - --videos (-v): Maximum videos per folder (default: 2)  
-- --total (-t): Total number of datasets (videos or image sequences) to create (default: 10)  
+- --total (-t): Total number of datasets (videos or image sequences) to create (default: 10)
+- --annotation-formats: Comma-separated formats (`dive-json`, `viame-csv`, `coco-json`). Default mixes `coco-json,viame-csv`. Use `viame-csv` alone to focus on CSV FPS import testing.
+
+Example focused on CSV FPS testing:
+```bash
+uv run --script generateSampleData.py --annotation-formats viame-csv --total 8
+uv run --script minIOConfig.py
+```
 
 The script will randomly generate videos or image sequences with annotations inside the output directory.  The output directory defaults to ./sample
 
@@ -90,7 +98,7 @@ Example Output
     - Check the http://localhost:8010/girder#jobs page to see that importing jobs have completed
 10.  Finally you can go to the regular DIVE interface (http://localhost:8010) click on the globe in the breadcrumb bar at the top of your user directory and navigate to your collection
     - You should be able to open DIVE Datasets and they should have random annotations in them.
-    - Video Datasets should have an annotation speed relative to the video and image-sequences should default to 1FPS
+    - Video datasets with VIAME CSV should keep the annotation FPS from the CSV `# metadata` line (see `_annfps{N}` in the filename). Other videos use video FPS. Image sequences should default to 1FPS.
 
 
 Notes

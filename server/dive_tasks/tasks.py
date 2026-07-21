@@ -6,7 +6,7 @@ from pathlib import Path
 import shlex
 import shutil
 import tempfile
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlparse
 import zipfile
@@ -928,6 +928,27 @@ def convert_calibration(self: Task, itemId: str):
                 gc.delete(f"item/{existing_id}")
 
 
+def resolve_annotation_fps(
+    gc: GirderClient,
+    folder_id: str,
+    *,
+    native_fps: Optional[float] = None,
+    default_fps: float = 1.0,
+) -> float:
+    """Pick annotation FPS from current folder meta vs media FPS.
+
+    Re-reads folder ``fps`` so a concurrent CSV import (assetstore postprocess)
+    is not overwritten by a stale ``-1`` snapshot from job start.
+
+    For video, pass ``native_fps`` from ffprobe. For image sequences, omit it so
+    ``-1`` falls back to ``default_fps`` (1) and any CSV-set value is kept.
+    """
+    requested_fps = fromMeta(gc.getFolder(folder_id), constants.FPSMarker)
+    return utils.choose_annotation_fps(
+        requested_fps, native_fps=native_fps, default_fps=default_fps
+    )
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_video(
     self: Task, folderId: str, itemId: str, user_id: str, user_login: str, skip_transcoding=False
@@ -938,9 +959,6 @@ def convert_video(
     if utils.check_canceled(self, context):
         manager.updateStatus(JobStatus.CANCELED)
         return
-
-    folderData = gc.getFolder(folderId)
-    requestedFps = fromMeta(folderData, constants.FPSMarker)
 
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
@@ -977,13 +995,6 @@ def convert_video(
         # Extract framerate (avg_frame_rate, else r_frame_rate for e.g. MPEG-TS)
         originalFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
 
-        if requestedFps == -1:
-            newAnnotationFps = originalFps
-        else:
-            newAnnotationFps = min(requestedFps, originalFps)
-        if newAnnotationFps < 1:
-            raise Exception('FPS lower than 1 is not supported')
-
         source_misaligned = False
         if skip_transcoding:
             source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
@@ -1001,6 +1012,7 @@ def convert_video(
         if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            newAnnotationFps = resolve_annotation_fps(gc, folderId, native_fps=originalFps)
             gc.addMetadataToItem(
                 itemId,
                 {
@@ -1065,6 +1077,7 @@ def convert_video(
             misaligned_flag = True
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+        newAnnotationFps = resolve_annotation_fps(gc, folderId, native_fps=originalFps)
         new_file = gc.uploadFileToFolder(folderId, aligned_file)
         gc.addMetadataToItem(
             new_file['itemId'],
@@ -1143,7 +1156,10 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
 
         gc.addMetadataToFolder(
             str(folderId),
-            {"annotate": True},  # mark the parent folder as able to annotate.
+            {
+                "annotate": True,  # mark the parent folder as able to annotate.
+                constants.FPSMarker: resolve_annotation_fps(gc, folderId),
+            },
         )
 
 
