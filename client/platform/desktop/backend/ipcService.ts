@@ -6,7 +6,7 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { Pipe } from 'dive-common/apispec';
+import type { AutoRegisterRequest, Pipe } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -439,18 +439,7 @@ export default function register() {
     return { installed: isAutoRegisterInstalled(currentSettings.viamePath) };
   });
 
-  ipcMain.handle('register-images', async (_, args: {
-    imagePathA: string;
-    imagePathB: string;
-    options?: {
-      ransacThreshold?: number;
-      minMatches?: number;
-      minInliers?: number;
-      minInlierRatio?: number;
-      topK?: number;
-      matchThreshold?: number;
-    };
-  }) => {
+  ipcMain.handle('register-images', async (_, args: AutoRegisterRequest) => {
     const segService = getInteractiveServiceManager();
 
     // Auto-register only needs the service process running -- its matcher model
