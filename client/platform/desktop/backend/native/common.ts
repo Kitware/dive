@@ -78,6 +78,129 @@ async function readLines(filePath: string): Promise<string[]> {
   return rawBuffer.toString().replace(/\r\n/g, '\n').split('\n');
 }
 
+type DiveParam = NonNullable<PipeMetadata['diveParams']>[number];
+
+/**
+ * Parse DIVE_PARAM declarations and include directives from pipe lines.
+ */
+function parseDiveParamLines(lines: string[]) {
+  const params: DiveParam[] = [];
+  const includes: string[] = [];
+  let contextStack: string[] = [];
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const includeMatch = trimmed.match(/^include\s+(\S+)/i);
+    if (includeMatch) {
+      includes.push(includeMatch[1]);
+      return;
+    }
+
+    const processMatch = trimmed.match(/^process\s+([\w-]+)/i);
+    if (processMatch) {
+      contextStack = [processMatch[1]];
+      return;
+    }
+
+    const blockMatch = trimmed.match(/^block\s+([\w:-]+)/i);
+    if (blockMatch) {
+      contextStack.push(blockMatch[1]);
+      return;
+    }
+
+    if (trimmed.toLowerCase() === 'endblock') {
+      contextStack.pop();
+      return;
+    }
+
+    // `config <key>` opens a config block; its entries are keyed under the
+    // block name (e.g. `config global` + `:scale` -> `global:scale`).
+    const configBlockMatch = trimmed.match(/^config\s+([\w:.-]+)\s*(?:#.*)?$/i);
+    if (configBlockMatch) {
+      contextStack = configBlockMatch[1].split(':');
+      return;
+    }
+
+    const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+    if (diveMatch) {
+      const [, label, rawArgs] = diveMatch;
+      const args = rawArgs.split(',').map((arg) => arg.trim());
+      const type: PipelineParamType = args[0] as PipelineParamType;
+      const restArgs = args.slice(1);
+      // `required` is a flag keyword — strip it from type_props,
+      // everything else stays positional for the type.
+      const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
+      const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+
+      // `config <key> = <value>` — absolute kwiver key, no process/block prefix
+      // applied. Used for global / cross-referenced settings.
+      const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
+      // Otherwise a regular per-process/block parameter assignment.
+      const paramLineMatch = !configMatch
+        ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
+        : null;
+
+      let fullKey: string | null = null;
+      let defaultValue: string | null = null;
+      if (configMatch) {
+        const [, key, value] = configMatch;
+        fullKey = key;
+        defaultValue = value.trim();
+      } else if (paramLineMatch) {
+        fullKey = [...contextStack, paramLineMatch[1]].join(':');
+        defaultValue = paramLineMatch[2].trim();
+      }
+
+      if (fullKey !== null && defaultValue !== null) {
+        params.push({
+          label,
+          type,
+          type_props: pipelineTypeArgs,
+          key: fullKey,
+          default: defaultValue,
+          ...(isRequired ? { required: true } : {}),
+        });
+      }
+    }
+  });
+  return { params, includes };
+}
+
+/**
+ * Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
+ *
+ * Wrapper pipes inherit the params of the pipes they include; a file's own
+ * declarations override inherited ones for the same key, matching kwiver's
+ * config override order. Includes that cannot be read next to the including
+ * file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
+ * contribute no params.
+ */
+async function collectDiveParams(
+  filePath: string,
+  collected: Map<string, DiveParam>,
+  visited: Set<string>,
+): Promise<void> {
+  const resolved = npath.resolve(filePath);
+  if (visited.has(resolved)) {
+    return;
+  }
+  visited.add(resolved);
+  let lines: string[];
+  try {
+    lines = await readLines(resolved);
+  } catch {
+    return;
+  }
+  const { params, includes } = parseDiveParamLines(lines);
+  // eslint-disable-next-line no-restricted-syntax
+  for (const include of includes.filter((f) => !f.includes('$'))) {
+    // eslint-disable-next-line no-await-in-loop
+    await collectDiveParams(npath.join(npath.dirname(resolved), include), collected, visited);
+  }
+  params.forEach((p) => collected.set(p.key, p));
+}
+
 /**
  * Extract metadata from a .pipe file header.
  */
@@ -85,81 +208,17 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
   const metadata: PipeMetadata = {};
   metadata.diveParams = [];
   try {
+    const collected = new Map<string, DiveParam>();
+    await collectDiveParams(filePath, collected, new Set());
+    metadata.diveParams = Array.from(collected.values());
+
     const lines = await readLines(filePath);
     let inDescription = false;
-    let contextStack: string[] = [];
     let fullDescription = '';
 
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-
-      const processMatch = trimmed.match(/^process\s+([\w-]+)/i);
-      if (processMatch) {
-        contextStack = [processMatch[1]];
-        return;
-      }
-
-      const blockMatch = trimmed.match(/^block\s+([\w:-]+)/i);
-      if (blockMatch) {
-        contextStack.push(blockMatch[1]);
-        return;
-      }
-
-      if (trimmed.toLowerCase() === 'endblock') {
-        contextStack.pop();
-        return;
-      }
-
-      // `config <key>` opens a config block; its entries are keyed under the
-      // block name (e.g. `config global` + `:scale` -> `global:scale`).
-      const configBlockMatch = trimmed.match(/^config\s+([\w:.-]+)\s*(?:#.*)?$/i);
-      if (configBlockMatch) {
-        contextStack = configBlockMatch[1].split(':');
-        return;
-      }
-
-      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
-      if (diveMatch) {
-        const [, label, rawArgs] = diveMatch;
-        const args = rawArgs.split(',').map((arg) => arg.trim());
-        const type: PipelineParamType = args[0] as PipelineParamType;
-        const restArgs = args.slice(1);
-        // `required` is a flag keyword — strip it from type_props,
-        // everything else stays positional for the type.
-        const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
-        const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
-
-        // `config <key> = <value>` — absolute kwiver key, no process/block prefix
-        // applied. Used for global / cross-referenced settings.
-        const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
-        // Otherwise a regular per-process/block parameter assignment.
-        const paramLineMatch = !configMatch
-          ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
-          : null;
-
-        let fullKey: string | null = null;
-        let defaultValue: string | null = null;
-        if (configMatch) {
-          const [, key, value] = configMatch;
-          fullKey = key;
-          defaultValue = value.trim();
-        } else if (paramLineMatch) {
-          fullKey = [...contextStack, paramLineMatch[1]].join(':');
-          defaultValue = paramLineMatch[2].trim();
-        }
-
-        if (fullKey !== null && defaultValue !== null) {
-          metadata.diveParams!.push({
-            label,
-            type,
-            type_props: pipelineTypeArgs,
-            key: fullKey,
-            default: defaultValue,
-            ...(isRequired ? { required: true } : {}),
-          });
-        }
-      }
 
       // --- Description extraction (Multiline) ---
       if (/^#\s*Description:\s*/i.test(line)) {
