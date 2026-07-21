@@ -635,6 +635,32 @@ def _yield_calibration_files(
             break
 
 
+def _yield_metadata_file(
+    z: ziputil.ZipGenerator,
+    zip_path: str,
+    folder: types.GirderModel,
+) -> Generator[bytes, None, None]:
+    """Add the optional per-dataset metadata file when one is attached.
+
+    Mirrors calibration inclusion in full exports so pipeline sidecars
+    (e.g. flight logs) survive dataset zip round-trips.
+    """
+    item_id = resolve_metadata_file_item_id(folder)
+    if not item_id:
+        return
+    md_item = Item().findOne({'_id': _mongo_id(item_id)})
+    if md_item is None:
+        return
+    # Prefer the preserved original filename when present so re-import can
+    # match the name users attached at import time.
+    original_name = folder.get('meta', {}).get(constants.MetadataFileOriginalNameMarker)
+    for path, file in Item().fileList(md_item):
+        out_name = original_name or path
+        for data in z.addFile(file, Path(f'{zip_path}{out_name}')):
+            yield data
+        break
+
+
 def _yield_single_dataset_export(
     z: ziputil.ZipGenerator,
     zip_path: str,
@@ -720,6 +746,10 @@ def _yield_single_dataset_export(
         for data in z.addFile(gen, Path(f'{zip_path}annotations.viame.csv')):
             yield data
 
+    if includeMedia:
+        for data in _yield_metadata_file(z, zip_path, dsFolder):
+            yield data
+
 
 def _yield_multicam_dataset_export(
     z: ziputil.ZipGenerator,
@@ -754,6 +784,11 @@ def _yield_multicam_dataset_export(
 
     if includeMedia:
         for data in _yield_calibration_files(z, zip_path, str(dsFolder['_id'])):
+            yield data
+        # Parent folder holds the optional metadata sidecar (not camera children).
+        # Parent _yield_single_dataset_export runs with includeMedia=False, so
+        # yield it here alongside calibration.
+        for data in _yield_metadata_file(z, zip_path, dsFolder):
             yield data
 
     for cam_name in _multicam_camera_order(multi_cam):
@@ -1300,12 +1335,14 @@ def create_multicam(
         loaded_children[name] = child
         camera_types_by_name[name] = cam_type
 
-    use_video_fps = validated.type == constants.VideoType and validated.fps == -1
-    if use_video_fps:
+    # fps == -1 means auto: take the children's resolved rates (video native
+    # fps, or image-sequence/large-image default of 1 after post-process).
+    use_auto_fps = validated.fps == -1
+    if use_auto_fps:
         unique_fps = set(child_fps_by_name.values())
         if len(unique_fps) > 1:
             raise RestException(
-                'All cameras must have the same fps when using video-derived frame rate',
+                'All cameras must have the same fps when using auto frame rate',
                 code=400,
             )
     else:

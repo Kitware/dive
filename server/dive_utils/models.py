@@ -340,6 +340,11 @@ class GirderMetadataStatic(MetadataMutable):
     foreign_media_id: Optional[str]
     subType: Optional[Literal['stereo', 'multicam']] = None
     multiCamMedia: Optional[MultiCamMedia] = None
+    # Optional per-dataset metadata file (folder meta; mirrors calibrationItemId
+    # / calibrationOriginalName on multiCam). Must be declared so get_dataset
+    # does not drop them when constructing from folder meta.
+    metadataFileItemId: Optional[str] = None
+    metadataFileOriginalName: Optional[str] = None
 
 
 class DatasetSourceMedia(BaseModel):

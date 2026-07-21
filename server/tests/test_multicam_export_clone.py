@@ -133,12 +133,18 @@ def test_create_multicam_soft_clone_copies_calibration(
 
 
 @patch('dive_server.crud_dataset._yield_single_dataset_export')
+@patch('dive_server.crud_dataset._yield_metadata_file')
 @patch('dive_server.crud_dataset._yield_calibration_files')
 @patch('dive_server.crud_dataset.get_multi_cam_media')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.ziputil.ZipGenerator')
 def test_export_multicam_zip_includes_multicam_json_and_cameras(
-    zip_gen_cls, folder_cls, get_multi_cam_media_mock, yield_cal_mock, yield_single_mock
+    zip_gen_cls,
+    folder_cls,
+    get_multi_cam_media_mock,
+    yield_cal_mock,
+    yield_metadata_mock,
+    yield_single_mock,
 ):
     parent = _multi_parent_folder()
     left = _child_folder('left-id', 'left')
@@ -157,6 +163,7 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     zip_gen_cls.return_value = z
     yield_single_mock.return_value = iter([b'camera-chunk'])
     yield_cal_mock.return_value = iter([b'cal-chunk'])
+    yield_metadata_mock.return_value = iter([b'metadata-chunk'])
     get_multi_cam_media_mock.return_value = MagicMock()
 
     stream = crud_dataset.export_datasets_zipstream(
@@ -176,6 +183,42 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     assert './stereo-dataset/left/' in camera_paths
     assert './stereo-dataset/right/' in camera_paths
     yield_cal_mock.assert_called_once()
+    yield_metadata_mock.assert_called_once_with(z, './stereo-dataset/', parent)
+    assert b'metadata-chunk' in chunks
+
+
+@patch('dive_server.crud_dataset.Item')
+def test_yield_metadata_file_uses_original_name(item_cls):
+    z = MagicMock()
+
+    def add_file_side_effect(_maker, path):
+        yield str(path).encode('utf-8')
+
+    z.addFile.side_effect = add_file_side_effect
+    folder = {
+        '_id': 'parent-id',
+        'meta': {
+            constants.MetadataFileItemIdMarker: 'md-item-id',
+            constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
+        },
+    }
+    item_cls.return_value.findOne.return_value = {'_id': 'md-item-id', 'name': 'renamed.csv'}
+    item_cls.return_value.fileList.return_value = [('renamed.csv', MagicMock())]
+
+    chunks = list(crud_dataset._yield_metadata_file(z, './stereo-dataset/', folder))
+
+    z.addFile.assert_called_once()
+    assert str(z.addFile.call_args.args[1]) == 'stereo-dataset/flight_log.csv'
+    assert any(b'flight_log.csv' in chunk for chunk in chunks)
+
+
+@patch('dive_server.crud_dataset.Item')
+def test_yield_metadata_file_skips_when_unset(item_cls):
+    z = MagicMock()
+    chunks = list(crud_dataset._yield_metadata_file(z, './ds/', {'_id': 'id', 'meta': {}}))
+    assert chunks == []
+    item_cls.return_value.findOne.assert_not_called()
+    z.addFile.assert_not_called()
 
 
 @patch('dive_server.crud_dataset.crud_annotation.get_annotations')
