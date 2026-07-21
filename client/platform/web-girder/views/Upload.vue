@@ -444,9 +444,10 @@ export default defineComponent({
         // large-image multicam resolve it to 1 so create_multicam matches
         // child folders after post-process (which also maps -1 → 1).
         const annotationFps = clientSettings.annotationFPS;
-        const fps = args.type === VideoType
-          ? DefaultVideoFPS
-          : (annotationFps > 0 ? annotationFps : 1);
+        let fps = DefaultVideoFPS;
+        if (args.type !== VideoType) {
+          fps = annotationFps > 0 ? annotationFps : 1;
+        }
         setMulticamImportProgress(MULTICAM_PROGRESS_START, `${labelPrefix}Creating dataset folder…`);
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,

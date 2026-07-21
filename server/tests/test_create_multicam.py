@@ -169,7 +169,7 @@ def test_create_multicam_accepts_image_sequence_fps_sentinel(
     valid_images_mock.return_value = [MagicMock(), MagicMock()]
 
     data = {
-        'name': 'caton-set',
+        'name': 'stereo-set',
         'fps': -1,
         'type': 'image-sequence',
         'subType': 'multicam',
