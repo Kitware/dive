@@ -492,7 +492,7 @@ export default defineComponent({
     });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras registered" status as the Align View toggle.
+    // same "N/M cameras ready" status as the Align View toggle.
     const registrationProgress = computed(() => {
       if (!isMultiCameraDataset.value) {
         return null;

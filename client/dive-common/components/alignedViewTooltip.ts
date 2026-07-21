@@ -26,7 +26,7 @@ export default function alignedViewTooltipText(options: {
     return `Align View on (draw/edit on any camera)${mixedNote}`;
   }
   if (progress && progress.registered < progress.total) {
-    return `Align View — ${progress.registered}/${progress.total} cameras registered${mixedNote}`;
+    return `Align View — ${progress.registered}/${progress.total} cameras ready${mixedNote}`;
   }
   return `Align View${mixedNote}`;
 }

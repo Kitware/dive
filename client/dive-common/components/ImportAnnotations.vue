@@ -66,7 +66,7 @@ export default defineComponent({
     const warpToAllCamerasHint = computed(() => {
       const progress = alignedView.registrationProgress.value;
       return progress
-        ? `${progress.registered}/${progress.total} cameras registered`
+        ? `${progress.registered}/${progress.total} cameras ready`
         : '';
     });
     const activeCameraName = computed(() => {

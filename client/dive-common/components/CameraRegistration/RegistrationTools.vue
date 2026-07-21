@@ -65,7 +65,7 @@ export default defineComponent({
       return {
         icon: complete ? 'mdi-check-circle' : 'mdi-alert',
         color: complete ? 'success' : 'warning',
-        text: `${total - unresolvedCount}/${total} cameras registered`,
+        text: `${total - unresolvedCount}/${total} cameras ready`,
       };
     });
     const camLeft = ref<string | null>(null);
