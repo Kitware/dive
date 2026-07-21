@@ -476,14 +476,14 @@ export default defineComponent({
               </v-btn>
             </v-row>
             <v-row
-              class="mt-3"
+              class="mt-6"
               dense
             >
               <v-combobox
                 v-model="currentSet"
                 :items="sets"
                 chips
-                label="Annotation Set"
+                label="Annotation Set Name"
                 outlined
                 small
               >
