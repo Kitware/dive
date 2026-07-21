@@ -70,15 +70,19 @@ export function updateHistory(args: DesktopJobUpdate) {
   }
   // Only update exitCode if explicitly set
   if (args.exitCode !== undefined) {
-    existing.job.exitCode = args.exitCode;
+    set(existing.job, 'exitCode', args.exitCode);
   }
   // Only update cancelledJob if explicitly set to true (preserve true once set)
   if (args.cancelledJob === true) {
-    existing.job.cancelledJob = true;
-    existing.job.exitCode = cancelledJobExitCode; // SIGTERM
+    set(existing.job, 'cancelledJob', true);
+    set(existing.job, 'exitCode', cancelledJobExitCode); // SIGTERM
   }
+  // `endTime` (like `cancelledJob`) does not exist on the job object until a
+  // job finishes. Vue 2 cannot observe properties added by plain assignment,
+  // so these must go through set() or the `runningJobs` computed (and with it
+  // the job spinner and the dataset read-only lock) never re-evaluates.
   if (args.endTime !== undefined) {
-    existing.job.endTime = args.endTime;
+    set(existing.job, 'endTime', args.endTime);
   }
 
   // A job that has finished (endTime set) but still carries a null exitCode was
@@ -91,7 +95,7 @@ export function updateHistory(args: DesktopJobUpdate) {
   if (existing.job.endTime !== undefined
       && existing.job.exitCode === null
       && !existing.job.cancelledJob) {
-    existing.job.exitCode = abnormalTerminationExitCode;
+    set(existing.job, 'exitCode', abnormalTerminationExitCode);
   }
 
   // Surface a failed job to the user with a single dialog once it exits with a
