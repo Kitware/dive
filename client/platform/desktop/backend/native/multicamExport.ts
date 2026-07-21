@@ -136,6 +136,13 @@ export async function exportMulticamEverything(
       await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
     }
 
+    // Optional pipeline metadata sidecar (e.g. flight log), same as web full export.
+    if (parentMeta.metadataFile && await fs.pathExists(parentMeta.metadataFile)) {
+      const metadataName = parentMeta.metadataOriginalName
+        ?? npath.basename(parentMeta.metadataFile);
+      await fs.copy(parentMeta.metadataFile, npath.join(datasetDir, metadataName));
+    }
+
     // Regenerate the camera registration as its per-camera files so the
     // zip carries it even when only the import-time seed exists.
     const rigRegistration = await loadEffectiveRegistration(parentDirInfo.basePath, parentMeta);
