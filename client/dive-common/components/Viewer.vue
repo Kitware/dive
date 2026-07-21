@@ -1596,10 +1596,19 @@ export default defineComponent({
             component: MultiCamToolsVue,
             description: 'Multi Camera Tools',
           });
-          context.register({
-            component: RegistrationToolsVue,
-            description: 'Camera Registration',
-          });
+          // Camera registration applies to true multi-camera datasets only;
+          // stereo pairs are aligned by their calibration file instead.
+          if (subType.value !== 'stereo') {
+            context.register({
+              component: RegistrationToolsVue,
+              description: 'Camera Registration',
+            });
+          } else {
+            context.unregister({
+              component: RegistrationToolsVue,
+              description: 'Camera Registration',
+            });
+          }
         } else {
           context.unregister({
             component: MultiCamToolsVue,
@@ -2205,7 +2214,7 @@ export default defineComponent({
             {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
           </template>
         </v-select>
-        <aligned-view-toggle v-if="multiCamList.length > 1" />
+        <aligned-view-toggle v-if="multiCamList.length > 1 && subType !== 'stereo'" />
 
         <slot name="extension-right" />
 
