@@ -119,31 +119,62 @@ It's possible to split your web server and task runner between multiple nodes.  
 * Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
 * Clone the dive repository on both VMs. The `.env` files are **not** identical — the web VM keeps the internal Compose service names, while the worker VM points at the web VM's IP or hostname (referred to below as `WEB_HOST`).
 
+### Worker API URL settings
+
+Two related variables control how workers call back to Girder. They apply at different layers:
+
+| Variable | Where to set it | Role |
+|----------|-----------------|------|
+| `GIRDER_SETTING_WORKER_API_URL` | **Girder web server** process | Sets the Girder system setting `worker.api_url`. That value is **stamped into every job** when it is scheduled (Celery headers / `jobInfoSpec`). |
+| `GIRDER_WORKER_API_URL` | **Worker** process only | Optional **per-worker override**. When set, the worker uses this URL for API callbacks instead of the URL stamped at schedule time (including job status/log updates). |
+
+!!! tip "When to set `GIRDER_WORKER_API_URL`"
+
+    Use it when a worker cannot reach the API URL stamped by the server — typically remote or external workers that cannot resolve Docker-internal names like `girder:8080`.
+
+    Typical mixed setup:
+
+    * Web VM + `localworker` on the Compose network keep the default stamped URL `http://girder:8080/api/v1`.
+    * Remote worker VMs set `GIRDER_WORKER_API_URL=http://WEB_HOST:8010/api/v1` so they reach Girder through the host-published Traefik port.
+
+    Leave `GIRDER_WORKER_API_URL` **unset** on single-node stacks and on any worker that can already reach the stamped URL.
+
 !!! warning
 
-    `GIRDER_SETTING_WORKER_API_URL` is applied by the **web server** as the `worker.api_url` Girder system setting and is then stamped into every job that is dispatched to workers. It must be set on the **web VM**. Setting it only on the worker VM has no effect on the callback URL that workers actually use.
+    `GIRDER_SETTING_WORKER_API_URL` only affects the **web server** process that schedules jobs. Setting it on a worker container does **not** change the callback URL that worker uses at runtime — use `GIRDER_WORKER_API_URL` for that.
+
+    Port `8080` is Girder's in-container port and is **not** published on the host. Traefik publishes the API on host port `8010` (base `docker-compose.yml`) or on `80`/`443` when you also use `docker-compose.prod.yml`. Remote workers should use the published port — never `8080` unless you publish it yourself.
 
 ### Web VM `.env`
 
-The web VM runs RabbitMQ, Redis, and Mongo as Compose services, so it keeps the internal service names — with one exception: `GIRDER_SETTING_WORKER_API_URL` must be an address the **remote worker** can reach, not the internal `girder:8080`.
+The web VM runs RabbitMQ, Redis, and Mongo as Compose services and should keep internal service names. For a mixed local + remote worker deployment, leave the server stamping the internal URL (the Compose default):
 
 ```
-GIRDER_SETTING_WORKER_API_URL=http://WEB_HOST:8010/api/v1
+# Optional — this is already the Compose default for a single-node / mixed stack
+#GIRDER_SETTING_WORKER_API_URL=http://girder:8080/api/v1
 ```
+
+`localworker` on the same Compose network can reach `girder:8080` and does not need `GIRDER_WORKER_API_URL`.
 
 !!! note
 
-    Port `8080` is Girder's in-container port and is **not** published on the host. Traefik publishes the API on host port `8010` (base `docker-compose.yml`) or on `80`/`443` when you also use `docker-compose.prod.yml`. Use the published port here — never `8080`.
-
-    This only applies when workers run on a **separate** host. For a single-node (all-in-one) stack, leave `GIRDER_SETTING_WORKER_API_URL` unset — the default `http://girder:8080/api/v1` is correct because the worker resolves `girder` and reaches port `8080` over the internal Compose network.
+    If **every** worker (including `localworker`) can reach a single public API URL — for example via host hairpin to `WEB_HOST:8010` — you may instead set `GIRDER_SETTING_WORKER_API_URL=http://WEB_HOST:8010/api/v1` on the web VM and omit `GIRDER_WORKER_API_URL`. Prefer `GIRDER_WORKER_API_URL` on remote workers when local and remote workers need different reachable URLs.
 
 ### Worker VM `.env`
 
 On the worker VM, uncomment and set these to point at `WEB_HOST`:
 
 * `GIRDER_WORKER_BROKER` — RabbitMQ URL on the web VM (e.g. `amqp://guest:guest@WEB_HOST/default`)
-* `GIRDER_SETTING_WORKER_API_URL` — Girder API URL on the web VM (e.g. `http://WEB_HOST:8010/api/v1`; match the web VM's value)
+* `GIRDER_WORKER_API_URL` — Girder API URL reachable from this worker (e.g. `http://WEB_HOST:8010/api/v1`)
 * `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web VM (e.g. `redis://WEB_HOST:6379`); required so workers can publish job/UI status notifications
+
+Example:
+
+```
+GIRDER_WORKER_BROKER=amqp://guest:guest@WEB_HOST/default
+GIRDER_WORKER_API_URL=http://WEB_HOST:8010/api/v1
+GIRDER_NOTIFICATION_REDIS_URL=redis://WEB_HOST:6379
+```
 
 ### Required connectivity
 
@@ -169,13 +200,24 @@ In this split setup, `localworker` on the web server handles the `local` queue, 
 
 ### Verify the configuration
 
-After the stack is up, confirm the web server is handing out the correct callback URL (not the internal `girder:8080` default). From the web VM's Swagger page or via curl:
+After the stack is up:
+
+1. Confirm what the web server stamps into jobs (Swagger or curl on the web VM):
 
 ```
 GET /api/v1/system/setting?key=worker.api_url
 ```
 
-This must return your `http://WEB_HOST:8010/api/v1` value. If it still shows `http://girder:8080/api/v1`, the web VM's `GIRDER_SETTING_WORKER_API_URL` was not applied — jobs will appear to dispatch (and `GET /worker/status` will look healthy, since that only reflects broker connectivity) but will stall because remote workers cannot reach `girder:8080`.
+For the recommended mixed setup this is `http://girder:8080/api/v1`. That value is correct for `localworker`; remote workers rely on `GIRDER_WORKER_API_URL` instead.
+
+2. On each remote worker container, confirm the override is present:
+
+```bash
+docker compose exec girder_worker_default printenv GIRDER_WORKER_API_URL
+# -> http://WEB_HOST:8010/api/v1
+```
+
+If remote workers stall while `GET /worker/status` looks healthy (broker only), they usually cannot reach the stamped URL and `GIRDER_WORKER_API_URL` is missing or wrong.
 
 ## Addon management
 
@@ -233,7 +275,7 @@ This image contains both the backend and client.
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
 | GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string (Celery broker) |
 | GIRDER_WORKER_BACKEND | `rpc://guest:guest@localhost/` | Celery result backend (RPC) |
-| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder REST API URL used by workers. Default is correct for a single-node stack; override with the web host's published URL (e.g. `http://WEB_HOST:8010/api/v1`) only for [split deployments](#splitting-services). |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder system setting `worker.api_url` stamped into jobs at schedule time. Default is correct for single-node and for `localworker` on the Compose network. See [Worker API URL settings](#worker-api-url-settings). |
 | GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis URL for notification fan-out |
 | GIRDER_STATIC_ROOT_DIR | `/opt/dive/clients/girder` | Built web client static files (set in image/Compose) |
 
@@ -260,7 +302,8 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Lower this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
 | GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string. Ignored in standalone mode. |
-| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder API URL (split/multi-node deployments). Ignored in standalone mode when using `DIVE_API_URL`. |
+| GIRDER_WORKER_API_URL | unset | Optional per-worker override of the Girder API base URL used for callbacks. Set on remote/external workers that cannot reach the URL stamped by the server (e.g. `http://WEB_HOST:8010/api/v1`). See [Worker API URL settings](#worker-api-url-settings). Ignored in standalone mode when using `DIVE_API_URL`. |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Only meaningful on the **web server** (stamped at schedule time). Setting it on a worker process does not override callback URLs at runtime — use `GIRDER_WORKER_API_URL` instead. |
 | GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis for notifications when running workers in Compose |
 | KWIVER_DEFAULT_LOG_LEVEL | `warn` | Log level for VIAME pipeline jobs (env name unchanged; used by the Kwiver logging stack) |
 | DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |

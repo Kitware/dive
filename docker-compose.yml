@@ -77,6 +77,7 @@ services:
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
       - "C_FORCE_ROOT=1"
+      - "GIRDER_WORKER_API_URL=${GIRDER_WORKER_API_URL:-}"
 
 # Memcache is used for caching girder-large-images, should auto configure with it being present
   memcached:
@@ -144,6 +145,7 @@ services:
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_WORKER_API_URL=${GIRDER_WORKER_API_URL:-}"
 
   girder_worker_pipelines:
     # Merge base-worker object with this config
@@ -173,6 +175,7 @@ services:
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_WORKER_API_URL=${GIRDER_WORKER_API_URL:-}"
       - "GIRDER_MONGO_URI=mongodb://mongo:27017/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
     healthcheck:
@@ -209,6 +212,7 @@ services:
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
+      - "GIRDER_WORKER_API_URL=${GIRDER_WORKER_API_URL:-}"
     healthcheck:
       test: ["CMD", "nvidia-smi"]
       interval: 15m
