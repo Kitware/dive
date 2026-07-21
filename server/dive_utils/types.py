@@ -78,6 +78,13 @@ class PipeMetadata(TypedDict):
     outputType: Optional[str]
     diveParams: Optional[list[DiveParam]]
     requiresCalibration: Optional[bool]
+    # KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+    # metadata file is bound to at run time, parsed from `# Metadata File: <key>`.
+    metadataFileKey: NotRequired[Optional[str]]
+    # KWIVER config key templates bound to the run's per-camera input image lists
+    # (one single-file list per camera). A `{cam}` placeholder is expanded per
+    # camera (1-based); a key without it gets the first camera's list.
+    imageListKeys: NotRequired[Optional[list[str]]]
 
 
 class PipelineDescription(TypedDict):
@@ -124,6 +131,11 @@ class PipelineJob(TypedDict):
     force_transcoded: Optional[bool]
     runtime_params: Optional[PipelineRuntimeParams]
     kwiver_params: Optional[Dict[str, str]]
+    # Optional per-dataset metadata file handed to opt-in pipelines. The item id
+    # points at a Girder item in the dataset folder; the key is the KWIVER config
+    # target declared by the pipe's `# Metadata File:` header.
+    metadata_file_item_id: NotRequired[Optional[str]]
+    metadata_file_key: NotRequired[Optional[str]]
 
 
 class MulticamPipelineJob(PipelineJob, total=False):

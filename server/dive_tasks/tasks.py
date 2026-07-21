@@ -21,6 +21,7 @@ from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
+    append_metadata_file_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
@@ -299,6 +300,49 @@ def _append_frame_range_video_settings(
     command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
 
 
+def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manager) -> None:
+    """
+    Download the dataset's optional metadata file (if the pipeline opted in) and
+    append its `-s <key>=<path>` override. Shared by the single and multicam
+    command-building branches.
+    """
+    metadata_file_item_id = params.get('metadata_file_item_id')
+    metadata_file_key = params.get('metadata_file_key')
+    if not (metadata_file_item_id and metadata_file_key):
+        return
+    md_item = gc.getItem(metadata_file_item_id)
+    md_dir = utils.make_directory(working_dir / 'metadata_file')
+    gc.downloadItem(metadata_file_item_id, str(md_dir), name=md_item.get('name'))
+    md_path = md_dir / md_item.get('name')
+    if md_path.exists():
+        append_metadata_file_kwiver_settings(command, md_path, metadata_file_key)
+    else:
+        manager.write(
+            f'Warning: metadata item {metadata_file_item_id} '
+            f'has no downloadable file under {md_dir}\n'
+        )
+
+
+def _append_input_list_kwiver_settings(command, pipeline, image_lists) -> None:
+    """
+    Bind the run's per-camera input image lists to the KWIVER keys a pipe declares
+    via `# Image List Keys:`. image_lists is one single-file, line-separated list
+    per camera. A key template containing `{cam}` is expanded per camera (1-based)
+    — e.g. `stabilizer:image_list{cam}` -> image_list1, image_list2, ...; a key
+    without `{cam}` gets the first camera's list. Sea-lion registration needs the
+    list here in addition to the input reader's video_filename.
+    """
+    if not image_lists:
+        return
+    for key in (pipeline.get('metadata') or {}).get('imageListKeys') or []:
+        if '{cam}' in key:
+            for idx, image_list in enumerate(image_lists, start=1):
+                expanded = key.replace('{cam}', str(idx))
+                command.append(f'-s {shlex.quote(expanded)}={shlex.quote(image_list)}')
+        else:
+            command.append(f'-s {shlex.quote(key)}={shlex.quote(image_lists[0])}')
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -407,6 +451,18 @@ def run_pipeline(self: Task, params: PipelineJob):
                         f'has no recognized calibration file under {cal_dir}\n'
                     )
 
+            # One image list per camera (each a single line-separated file).
+            input_manifests = [
+                arg_file_pair[f'input{i + 1}:video_filename']
+                for i in range(len(multicam_cameras))
+                if f'input{i + 1}:video_filename' in arg_file_pair
+            ]
+            _append_input_list_kwiver_settings(command, pipeline, input_manifests)
+
+            _inject_dataset_metadata_file(
+                command, gc, _working_directory_path, params, manager
+            )
+
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
                 for key, value in kwiver_params.items():
@@ -497,6 +553,15 @@ def run_pipeline(self: Task, params: PipelineJob):
             quoted_input_file = shlex.quote(str(pipeline_input_file))
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
+
+        single_input_manifest = (
+            str(img_list_path)
+            if input_type == constants.ImageSequenceType
+            else input_media_list[0]
+        )
+        _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
+
+        _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
         # Apply user-provided KWIVER parameter overrides.
         kwiver_params = params.get('kwiver_params')

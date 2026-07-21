@@ -58,11 +58,12 @@ After `electron-vite build`, **`electron-builder --config electron-builder.json`
 DIVE Desktop can be started directly on a dataset, skipping the import wizard:
 
 ```bash
-dive-desktop --import <media> [--annotations <file>] [--name <name>]
+dive-desktop --import <media> [--annotations <file>] [--metadata <file>] [--name <name>]
 ```
 
 * **`--import`, `-i`** — the media to open. Anything the import wizard accepts: an image-sequence directory, an image-list text file (one image path per line), or a video.
 * **`--annotations`, `-a`** — optional VIAME CSV or DIVE JSON to load onto the dataset.
+* **`--metadata`** — optional pipeline metadata sidecar (`.json` / `.txt` / `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker.
 * **`--name`, `-n`** — optional display name; defaults to the media basename.
 
 Relative paths are resolved against the working directory. For example, to review a detector's output over an image list:
@@ -78,12 +79,14 @@ Name each camera with a repeated `--camera` instead of using `--import`:
 ```bash
 dive-desktop --camera left=/data/left --camera right=/data/right \
              --annotations left=/data/left.csv --annotations right=/data/right.csv \
-             --calibration /data/calibration_matrices.npz
+             --calibration /data/calibration_matrices.npz \
+             --metadata /data/flight_log.csv
 ```
 
 * **`--camera`, `-c`** — `<name>=<media>`, repeated once per camera (two or more). Each media path is the same set of things `--import` accepts. Only the first `=` separates, so Windows paths survive. Flag order is the display order.
 * **`--annotations`, `-a`** — becomes `<camera>=<file>` in multi-camera mode. Give it once per camera that has annotations; cameras may be omitted.
 * **`--calibration`** — stereo calibration file (`.npz` or `.json`). Multi-camera only.
+* **`--metadata`** — optional pipeline metadata sidecar; available for single-camera and multi-camera imports alike.
 * **`--default-display`** — camera shown on open. Defaults to `left` when present, else the first camera.
 
 **Stereo is not a separate flag.** As elsewhere in DIVE, a dataset whose cameras are named exactly `left` and `right` is typed `stereo`; any other set of names is `multicam`. So the example above produces a stereo dataset, and adding a `--calibration` is what makes stereo measurement work.

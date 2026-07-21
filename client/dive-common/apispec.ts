@@ -54,6 +54,20 @@ interface PipeMetadata {
   outputType?: string;
   diveParams?: DiveParam[];
   requiresCalibration?: boolean;
+  /**
+   * KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+   * metadata file should be bound to at run time. Parsed from a pipe header
+   * `# Metadata File: <block>:<key>`. When unset, the pipe does not consume a
+   * metadata file and none is injected.
+   */
+  metadataFileKey?: string;
+  /**
+   * KWIVER config key templates (e.g. "stabilizer:image_list{cam}") bound to the
+   * run's per-camera input image lists — one single-file, line-separated list per
+   * camera. A `{cam}` placeholder is expanded per camera (1-based); a key without
+   * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
+   */
+  imageListKeys?: string[];
 }
 
 interface PipelineRuntimeParams {
@@ -154,6 +168,7 @@ export interface MultiCamImportFolderArgs {
     glob?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence' | 'video' | 'large-image';
 }
 
@@ -165,6 +180,7 @@ export interface MultiCamImportKeywordArgs {
     trackFile: string;
   }>; // glob pattern for base folder
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -222,6 +238,12 @@ interface DatasetMeta extends DatasetMetaMutable {
   multiCamMedia: Readonly<MultiCamMedia | null>;
   /** Stereo calibration / camera file currently associated with the dataset (desktop). */
   calibration?: Readonly<string | null>;
+  /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
+  metadataFile?: Readonly<string | null>;
+  /** Girder item id of the optional per-dataset metadata file (web). */
+  metadataFileItemId?: Readonly<string | null>;
+  /** Original filename of the optional per-dataset metadata file (web). */
+  metadataFileOriginalName?: Readonly<string | null>;
 }
 
 interface CameraCalibration {
@@ -297,7 +319,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;

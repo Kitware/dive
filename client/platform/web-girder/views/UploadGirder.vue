@@ -7,7 +7,9 @@ import {
   fileSuffixRegex,
 } from 'platform/web-girder/constants';
 
-import { makeViameFolder, postProcess } from 'platform/web-girder/api';
+import {
+  makeViameFolder, postProcess, uploadMetadataFileItem, setDatasetMetadataFile,
+} from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
 
 export default Vue.extend({
@@ -90,9 +92,10 @@ export default Vue.extend({
     },
     async uploadPending(pendingUpload, uploaded) {
       const {
-        name, createSubFolders, meta, annotationFile, mediaList,
+        name, createSubFolders, meta, annotationFile, mediaList, metadataFile,
       } = pendingUpload;
-      //Combine the files for uploading
+      //Combine the files for uploading. The optional metadata file is uploaded
+      //separately (as a marked item) so postprocess does not classify it.
       let files = mediaList.map((item) => this.convertFileToInternal(item));
       files.push(this.convertFileToInternal(meta));
       files.push(this.convertFileToInternal(annotationFile));
@@ -110,6 +113,10 @@ export default Vue.extend({
         folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
           await this.uploadFiles(pendingUpload.name, folder, files, uploaded, skipTranscoding);
+          if (metadataFile) {
+            const itemId = await uploadMetadataFileItem(folder._id, metadataFile);
+            await setDatasetMetadataFile(folder._id, itemId);
+          }
           this.remove(pendingUpload);
         }
       } else {

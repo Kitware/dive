@@ -220,6 +220,10 @@ async function runPipeline(
   let command: string[] = [];
   const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
     || multiCamPipelineMarkers.includes(pipeline.type));
+  // Input image list(s) so opt-in pipes (sea-lion registration) can read the same
+  // lists DIVE feeds the input reader — one single-file, line-separated list per
+  // camera (single-cam: one entry).
+  let inputImageLists: string[] = [];
 
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
@@ -250,6 +254,7 @@ async function runPipeline(
       command.push(`-s input:video_filename="${videoAbsPath}"`);
       command.push(`-s detector_writer:file_name="${detectorOutput}"`);
       command.push(`-s track_writer:file_name="${trackOutput}"`);
+      inputImageLists = [videoAbsPath];
     }
   } else if (metaType === 'image-sequence') {
     // Create frame image manifest
@@ -276,6 +281,7 @@ async function runPipeline(
       command.push(`-s input:video_filename="${manifestFile}"`);
       command.push(`-s detector_writer:file_name="${detectorOutput}"`);
       command.push(`-s track_writer:file_name="${trackOutput}"`);
+      inputImageLists = [manifestFile];
     }
   }
 
@@ -303,6 +309,14 @@ async function runPipeline(
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
+    // One image list per camera (each a single line-separated file).
+    const orderedInputManifests = Object.keys(argFilePair)
+      .filter((arg) => /^input\d+:video_filename$/.test(arg))
+      .sort((a, b) => parseInt(a.match(/\d+/)![0], 10) - parseInt(b.match(/\d+/)![0], 10))
+      .map((arg) => argFilePair[arg]);
+    if (orderedInputManifests.length) {
+      inputImageLists = orderedInputManifests;
+    }
     multiOutFiles = {};
     Object.entries(outFiles).forEach(([cameraName, fileName]) => {
       multiOutFiles[cameraName] = npath.join(jobWorkDir, fileName);
@@ -315,6 +329,30 @@ async function runPipeline(
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
+  }
+
+  // Hand the dataset's optional metadata file to pipelines that opt in via a
+  // `# Metadata File: <block>:<key>` header (e.g. sea-lion stabilizer:flight_log).
+  const metadataFileKey = runPipelineArgs.pipeline.metadata?.metadataFileKey;
+  if (metadataFileKey && meta.metadataFile) {
+    command.push(`-s ${metadataFileKey}="${meta.metadataFile}"`);
+  }
+
+  // Bind the per-camera input image lists to the keys a pipe declares via
+  // `# Image List Keys:`, so the sea-lion registration stabilizer reads the same
+  // frames DIVE runs on. A `{cam}` placeholder is expanded per camera (1-based);
+  // a key without it gets the first camera's list.
+  const { imageListKeys } = runPipelineArgs.pipeline.metadata ?? {};
+  if (inputImageLists.length) {
+    (imageListKeys ?? []).forEach((key) => {
+      if (key.includes('{cam}')) {
+        inputImageLists.forEach((imageList, idx) => {
+          command.push(`-s ${key.replace('{cam}', String(idx + 1))}="${imageList}"`);
+        });
+      } else {
+        command.push(`-s ${key}="${inputImageLists[0]}"`);
+      }
+    });
   }
 
   // Add any custom pipeline parameters

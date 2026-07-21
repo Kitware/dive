@@ -6,18 +6,21 @@
  *
  * Single camera:
  *
- *   dive-desktop --import <media> [--annotations <file>] [--name <name>]
+ *   dive-desktop --import <media> [--annotations <file>] [--metadata <file>] \
+ *                [--name <name>]
  *
  * Multi-camera and stereo, by naming each camera:
  *
  *   dive-desktop --camera left=<media> --camera right=<media> \
  *                --annotations left=<file> --annotations right=<file> \
- *                --calibration <file>
+ *                --calibration <file> [--metadata <file>]
  *
  * <media> is anything the import wizard accepts: an image-sequence directory,
  * an image-list text file, or a video. Annotation files are VIAME CSV or DIVE
- * JSON. A dataset whose cameras are named exactly `left` and `right` is typed
- * as stereo by the importer; any other set of names is multicam.
+ * JSON. Metadata is an optional pipeline sidecar (`.json` / `.txt` / `.csv`),
+ * the same file the import wizard's Metadata File picker accepts. A dataset
+ * whose cameras are named exactly `left` and `right` is typed as stereo by
+ * the importer; any other set of names is multicam.
  *
  * This drives the same backend calls as the import wizard, so a CLI-launched
  * dataset is indistinguishable from a hand-imported one.
@@ -58,6 +61,11 @@ export interface CliOpenArgs {
   defaultDisplay?: string;
   /** Stereo calibration file (.npz or .json). */
   calibrationPath?: string;
+  /**
+   * Optional per-dataset metadata file (e.g. flight log). Same role as the
+   * import dialog's Metadata File picker; copied into the project on finalize.
+   */
+  metadataPath?: string;
   /** Optional dataset display name; defaults to the media basename. */
   name?: string;
 }
@@ -124,7 +132,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
 
   const annotationArgs = readFlagAll('--annotations', '--annotation', '-a');
   const calibration = readFlag('--calibration');
+  const metadata = readFlag('--metadata');
   const name = readFlag('--name', '-n');
+  const metadataPath = metadata ? npath.resolve(metadata) : undefined;
 
   if (!cameraArgs.length) {
     // Single camera. A camera-keyed annotation here is a mistake worth naming,
@@ -140,6 +150,7 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     return {
       importPath: npath.resolve(importPath as string),
       annotationPath: annotationArgs[0] ? npath.resolve(annotationArgs[0]) : undefined,
+      ...(metadataPath ? { metadataPath } : {}),
       name,
     };
   }
@@ -183,6 +194,7 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     cameraAnnotations,
     defaultDisplay,
     calibrationPath: calibration ? npath.resolve(calibration) : undefined,
+    ...(metadataPath ? { metadataPath } : {}),
     name,
   };
 }
@@ -214,6 +226,7 @@ function buildMultiCamArgs(args: CliOpenArgs): MultiCamImportFolderArgs {
     cameraOrder,
     sourceList,
     calibrationFile: args.calibrationPath,
+    metadataFile: args.metadataPath,
     type: [...types][0],
   };
 }
@@ -242,6 +255,11 @@ export async function runCliImport(
     : await common.beginMediaImport(args.importPath as string);
   if (args.name) {
     importPayload.jsonMeta.name = args.name;
+  }
+  // Single-camera metadata rides on the finalize payload; multicam stashes the
+  // source path on jsonMeta during beginMultiCamImport (same as the wizard).
+  if (args.metadataPath && !args.cameras) {
+    importPayload.metadataFileAbsPath = args.metadataPath;
   }
 
   const conversionArgs: ConversionArgs = await common.finalizeMediaImport(currentSettings, importPayload);

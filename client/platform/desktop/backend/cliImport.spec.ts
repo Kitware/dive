@@ -23,6 +23,31 @@ describe('parseCliArgs', () => {
     });
   });
 
+  it('parses an optional metadata file', () => {
+    const args = parseCliArgs([
+      'app',
+      '--import', '/data/imgs',
+      '--metadata', '/data/flight_log.csv',
+    ]);
+    expect(args).toEqual({
+      importPath: '/data/imgs',
+      annotationPath: undefined,
+      metadataPath: '/data/flight_log.csv',
+      name: undefined,
+    });
+  });
+
+  it('supports = syntax for --metadata', () => {
+    expect(parseCliArgs([
+      'app', '--import=/data/imgs', '--metadata=/data/log.json',
+    ])?.metadataPath).toEqual('/data/log.json');
+  });
+
+  it('resolves a relative metadata path against the working directory', () => {
+    const args = parseCliArgs(['app', '--import', 'list.txt', '--metadata', 'log.csv']);
+    expect(args?.metadataPath).toEqual(npath.resolve('log.csv'));
+  });
+
   it('supports = syntax and short flags', () => {
     expect(parseCliArgs(['app', '--import=/data/imgs', '-a', '/data/x.csv'])).toEqual({
       importPath: '/data/imgs',
@@ -74,6 +99,16 @@ describe('parseCliArgs multi-camera', () => {
       calibrationPath: '/data/cal.npz',
       name: 'Stereo Run',
     });
+  });
+
+  it('parses an optional metadata file for multi-camera', () => {
+    const args = parseCliArgs([
+      'app',
+      '--camera', 'left=/data/left',
+      '--camera', 'right=/data/right',
+      '--metadata', '/data/flight_log.csv',
+    ]);
+    expect(args?.metadataPath).toEqual('/data/flight_log.csv');
   });
 
   it('defaults defaultDisplay to left, else the first camera', () => {
