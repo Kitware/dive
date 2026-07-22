@@ -529,22 +529,38 @@ export default defineComponent({
                 </template>
               </v-combobox>
             </v-row>
-            <v-row align="start">
+            <v-row
+              class="flex-nowrap"
+              align="center"
+            >
               <v-checkbox
                 :input-value="!additive"
                 label="Overwrite"
                 class="mt-2"
+                dense
+                hide-details
                 @change="additive = !$event"
               />
-              <v-checkbox
+              <v-tooltip
                 v-if="isMulticamDataset"
-                v-model="warpToAllCameras"
-                :disabled="!canWarpToAllCameras"
-                label="Warp to All"
-                :hint="warpToAllCamerasHint"
-                persistent-hint
-                class="mt-2 ml-4"
-              />
+                bottom
+                :disabled="!warpToAllCamerasHint"
+                open-delay="200"
+              >
+                <template #activator="{ on }">
+                  <div v-on="on">
+                    <v-checkbox
+                      v-model="warpToAllCameras"
+                      :disabled="!canWarpToAllCameras"
+                      label="Warp to All"
+                      class="mt-2 ml-2"
+                      dense
+                      hide-details
+                    />
+                  </div>
+                </template>
+                <span>{{ warpToAllCamerasHint }}</span>
+              </v-tooltip>
             </v-row>
             <div v-if="additive">
               <div
