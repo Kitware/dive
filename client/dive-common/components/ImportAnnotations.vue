@@ -85,10 +85,12 @@ export default defineComponent({
       () => !!api.importCalibrationFile && props.subType === 'stereo',
     );
     // Camera registration import (per-camera transform files) is meaningful
-    // for any multicam dataset.
+    // for multicam datasets; stereo rigs use the calibration (camera file)
+    // import instead, so the registration section is hidden there.
     const cameraRegistration = useCameraRegistration();
     const registrationSupported = computed(
-      () => !!api.importCameraRegistration && isMulticamDataset.value,
+      () => !!api.importCameraRegistration && isMulticamDataset.value
+        && props.subType !== 'stereo',
     );
     // One import button per non-reference camera pair, labeled in the
     // direction of the mapping -- "Import ir → eo" registers ir onto the
