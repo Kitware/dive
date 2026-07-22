@@ -18,6 +18,7 @@ import {
   ROTATION_ATTRIBUTE_NAME,
   featureHasSegmentationPolygon,
   polygonWithinBounds,
+  polygonEqualsBounds,
   clipPolygonToBounds,
 } from './utils';
 import type { RectBounds } from './utils';
@@ -454,5 +455,57 @@ describe('polygonWithinBounds / clipPolygonToBounds', () => {
       [[0, 20], [0, 0], [20, 0], [20, 20], [0, 20]],
       [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
     ]));
+  });
+});
+
+describe('polygonEqualsBounds', () => {
+  const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
+    type: 'Polygon',
+    coordinates: rings,
+  });
+  const bounds: RectBounds = [10, 20, 50, 60];
+
+  it('matches the exact box rectangle', () => {
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [50, 60], [10, 60], [10, 20],
+    ]]), bounds)).toBe(true);
+    // Any starting vertex / winding
+    expect(polygonEqualsBounds(poly([[
+      [10, 60], [50, 60], [50, 20], [10, 20], [10, 60],
+    ]]), bounds)).toBe(true);
+  });
+
+  it('matches a box rectangle with extra collinear points (clip artifacts)', () => {
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [30, 20], [50, 20], [50, 40], [50, 60], [10, 60], [10, 20],
+    ]]), bounds)).toBe(true);
+  });
+
+  it('rejects polygons that do not fill the box', () => {
+    // Triangle whose vertices sit on the box perimeter
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [10, 60], [10, 20],
+    ]]), bounds)).toBe(false);
+    // Smaller rectangle
+    expect(polygonEqualsBounds(poly([[
+      [15, 25], [45, 25], [45, 55], [15, 55], [15, 25],
+    ]]), bounds)).toBe(false);
+    // Same extent, notched corner
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [50, 60], [30, 60], [30, 40], [10, 40], [10, 20],
+    ]]), bounds)).toBe(false);
+  });
+
+  it('rejects polygons with holes', () => {
+    expect(polygonEqualsBounds(poly([
+      [[10, 20], [50, 20], [50, 60], [10, 60], [10, 20]],
+      [[20, 30], [30, 30], [30, 40], [20, 40], [20, 30]],
+    ]), bounds)).toBe(false);
+  });
+
+  it('rejects a box rectangle with a different extent', () => {
+    expect(polygonEqualsBounds(poly([[
+      [0, 0], [40, 0], [40, 40], [0, 40], [0, 0],
+    ]]), bounds)).toBe(false);
   });
 });
