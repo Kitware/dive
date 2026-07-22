@@ -20,11 +20,26 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  /** Outer rings of the detection's own polygons (native coords), when hasPoly */
+  polyRings: GeoJSON.Position[][];
   set?: string;
   dashed?: boolean;
   rotation?: number;
   /** Small arrow on the right-edge midpoint when rotation is significant */
   rotationArrow?: GeoJSON.LineString | null;
+}
+
+function pointInRing(point: { x: number; y: number }, ring: { x: number; y: number }[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const { x: xi, y: yi } = ring[i];
+    const { x: xj, y: yj } = ring[j];
+    if (((yi > point.y) !== (yj > point.y))
+      && (point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
@@ -54,6 +69,12 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
          * Handle clicking on individual annotations, if DrawingOther is true we use the
          * Rectangle type if only the polygon is visible we use the polygon bounds
          * */
+        if (!this.clickLandsOnDetection(e)) {
+          // The click is inside this detection's box but outside its drawn
+          // polygon: let whatever is actually under the cursor take it
+          // (e.g. a smaller annotation nested inside this one's box).
+          return;
+        }
         if (e.mouse.buttonsDown.left) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (e.mouse.modifiers.ctrl) {
@@ -135,15 +156,33 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.drawingOther = val;
   }
 
+  /**
+   * Whether a click on this rectangle feature really lands on its detection.
+   * While polygons are drawn, a detection that has one owns only its polygon
+   * shape - its rectangle is just the envelope - so clicks inside the box
+   * but outside every polygon do not count as hitting the detection.
+   */
+  clickLandsOnDetection(e: GeoEvent): boolean {
+    if (!this.drawingOther || !e.data.hasPoly || !e.data.polyRings.length) {
+      return true;
+    }
+    const point = { x: e.mouse.geo.x, y: e.mouse.geo.y };
+    return e.data.polyRings.some((ring: GeoJSON.Position[]) => pointInRing(point, ring.map((p) => this.transformPoint([p[0], p[1]]))));
+  }
+
   formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
     const arr: RectGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         let polygon = boundToGeojson(track.features.bounds);
         let hasPoly = false;
+        let polyRings: GeoJSON.Position[][] = [];
         if (track.features.geometry?.features) {
           const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
           hasPoly = filtered.length > 0;
+          polyRings = filtered.map(
+            (feature) => (feature.geometry as GeoJSON.Polygon).coordinates[0],
+          );
         }
 
         // Get rotation from attributes if it exists
@@ -171,6 +210,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           styleType: track.styleType,
           polygon,
           hasPoly,
+          polyRings,
           set: track.set,
           dashed,
           rotation,
