@@ -280,9 +280,9 @@ export default defineComponent({
       }
       // Detections lying >=50% under a suppression region on this frame are
       // hidden from every layer at once (and excluded from counts elsewhere).
-      const { suppressionType } = clientSettings.typeSettings;
+      const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, suppressionType)
+        ? getSuppressedTrackIds(trackStore, frame, suppressionType, suppressionThreshold)
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
@@ -509,8 +509,9 @@ export default defineComponent({
         toRef(props, 'colorBy'),
         selectedCamera,
         selectedKeyRef,
-        // re-render when the suppression-region type is changed
+        // re-render when the suppression-region type or threshold is changed
         () => clientSettings.typeSettings.suppressionType,
+        () => clientSettings.typeSettings.suppressionThreshold,
       ],
       () => {
         updateLayers(

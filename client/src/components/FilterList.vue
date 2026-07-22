@@ -156,6 +156,7 @@ export default defineComponent({
     const fullySuppressedIds = computed(() => {
       const editRevision = pendingSaveCount.value;
       const suppType = clientSettings.typeSettings.suppressionType;
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
       const excluded = new Set<number>();
       if (!suppType || editRevision < 0) {
         return excluded;
@@ -165,7 +166,7 @@ export default defineComponent({
         const suppressedAt = (f: number) => {
           let s = perFrame.get(f);
           if (s === undefined) {
-            s = getSuppressedTrackIds(store, f, suppType);
+            s = getSuppressedTrackIds(store, f, suppType, suppThreshold);
             perFrame.set(f, s);
           }
           return s;
@@ -215,7 +216,12 @@ export default defineComponent({
       // suppression type) don't count toward their own type either.
       const suppType = clientSettings.typeSettings.suppressionType;
       const suppressedIds = (trackStore && editRevision >= 0)
-        ? getSuppressedTrackIds(trackStore, frame.value, suppType)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame.value,
+          suppType,
+          clientSettings.typeSettings.suppressionThreshold,
+        )
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
         if (suppressedIds.has(track.annotation.id)) {
