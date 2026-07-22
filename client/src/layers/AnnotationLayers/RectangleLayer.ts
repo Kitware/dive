@@ -156,18 +156,35 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.drawingOther = val;
   }
 
+  /** Whether the point sits inside the detection's own polygon(s), if any */
+  private pointInsideDetectionShape(data: RectGeoJSData, point: { x: number; y: number }): boolean {
+    if (!data.hasPoly || !data.polyRings.length) {
+      // No polygon: the box is the detection's shape
+      return true;
+    }
+    return data.polyRings.some((ring) => pointInRing(point, ring.map((p) => this.transformPoint([p[0], p[1]]))));
+  }
+
   /**
    * Whether a click on this rectangle feature really lands on its detection.
    * While polygons are drawn, a detection that has one owns only its polygon
-   * shape - its rectangle is just the envelope - so clicks inside the box
-   * but outside every polygon do not count as hitting the detection.
+   * shape - its rectangle is just the envelope - so a click inside the box
+   * but outside every polygon yields to another detection under the cursor.
+   * With no better candidate under the cursor the box click still counts,
+   * so a lone detection remains clickable anywhere within its box.
    */
   clickLandsOnDetection(e: GeoEvent): boolean {
-    if (!this.drawingOther || !e.data.hasPoly || !e.data.polyRings.length) {
+    if (!this.drawingOther) {
       return true;
     }
     const point = { x: e.mouse.geo.x, y: e.mouse.geo.y };
-    return e.data.polyRings.some((ring: GeoJSON.Position[]) => pointInRing(point, ring.map((p) => this.transformPoint([p[0], p[1]]))));
+    if (this.pointInsideDetectionShape(e.data, point)) {
+      return true;
+    }
+    const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+    return !found.some((other: RectGeoJSData) => other
+      && other.trackId !== e.data.trackId
+      && this.pointInsideDetectionShape(other, point));
   }
 
   formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
