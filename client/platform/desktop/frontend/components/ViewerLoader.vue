@@ -1324,7 +1324,10 @@ export default defineComponent({
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
      */
-    async function handleStereoAnnotationComplete(params: StereoAnnotationCompleteParams) {
+    async function handleStereoAnnotationComplete(
+      params: StereoAnnotationCompleteParams,
+      forceAutoCompute = false,
+    ) {
       // This handler only fires on human edits — the stereo warp writes
       // geometry directly, bypassing the annotation-complete event — so the
       // camera the user just drew/edited is now human-authored. Mark it
@@ -1365,7 +1368,10 @@ export default defineComponent({
       //  - autoCompute: warp the annotation to the other camera when it has no
       //    detection for it yet (or its line is still machine-generated).
       const updateLengths = clientSettings.stereoSettings.updateLengthsOnModify;
-      const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+      // forceAutoCompute bypasses the auto-compute preference for explicit
+      // requests (the Import menu's "Warp to All").
+      const autoCompute = forceAutoCompute
+        || clientSettings.stereoSettings.autoComputeOtherCamera;
 
       if (params.type === 'line') {
         const otherIsHuman = otherHasFeature
@@ -1657,6 +1663,79 @@ export default defineComponent({
     }
 
     /**
+     * Import menu "Warp to All" on a stereo dataset: warp every detection
+     * loaded on the source camera to the other camera through the
+     * interactive stereo service. Reuses the per-annotation transfer
+     * (service-ready wait, frame preparation) with the auto-compute
+     * preference bypassed — the user asked for the warp explicitly. Frames
+     * the other camera already has are left untouched. Head/tail lines
+     * transfer as lines (which also computes the stereo measurement),
+     * polygons as polygons, and plain boxes as boxes.
+     */
+    async function handleStereoWarpImported(sourceCamera: string) {
+      const viewer = viewerRef.value;
+      if (!viewer) return;
+      const { cameraStore, multiCamList } = viewer;
+      if (multiCamList.length < 2) return;
+      const otherCamera = multiCamList.find((c: string) => c !== sourceCamera);
+      const store = cameraStore.camMap.value.get(sourceCamera)?.trackStore;
+      if (!store || !otherCamera) return;
+      const jobs: StereoAnnotationCompleteParams[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      store.annotationMap.forEach((track: any) => {
+        if (typeof track.getFeature !== 'function') return;
+        (track.featureIndex || []).forEach((frameNum: number) => {
+          const [feature] = track.getFeature(frameNum);
+          if (!feature || !feature.keyframe || !feature.bounds) return;
+          // Only fill in missing counterparts; never touch geometry the
+          // other camera already has for this frame.
+          const otherTrack = cameraStore.getPossibleTrack(track.id, otherCamera);
+          const [otherFeature] = otherTrack ? otherTrack.getFeature(frameNum) : [null];
+          if (otherFeature) return;
+          const geoFeatures = feature.geometry?.features || [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
+            && g.geometry.coordinates?.length === 2);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
+          const base = { camera: sourceCamera, trackId: track.id, frameNum };
+          if (line) {
+            jobs.push({
+              ...base,
+              type: 'line',
+              line: line.geometry.coordinates as [[number, number], [number, number]],
+              key: line.properties?.key ?? '',
+            });
+          } else if (poly) {
+            jobs.push({
+              ...base,
+              type: 'polygon',
+              polygon: poly.geometry.coordinates[0] as [number, number][],
+              key: poly.properties?.key ?? '',
+            });
+          } else {
+            jobs.push({
+              ...base,
+              type: 'box',
+              bounds: feature.bounds as [number, number, number, number],
+            });
+          }
+        });
+      });
+      for (let i = 0; i < jobs.length; i += 1) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await handleStereoAnnotationComplete(jobs[i], true);
+        } catch (err) {
+          console.warn('[Stereo] Import warp failed:', err);
+        }
+      }
+      if (jobs.length) {
+        await viewer.save();
+      }
+    }
+
+    /**
      * Undo stereo side effects from interactive segmentation on reset.
      * Restores the other camera and clears saved undo state for the frame.
      */
@@ -1793,6 +1872,7 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      handleStereoWarpImported,
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
@@ -1861,6 +1941,7 @@ export default defineComponent({
           v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
           block-on-unsaved
           @calibration-imported="onCalibrationImported"
+          @stereo-warp-imported="handleStereoWarpImported"
         />
         <Export
           v-if="datasets[id]"
